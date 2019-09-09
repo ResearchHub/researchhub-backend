@@ -6,6 +6,11 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
+django = "*"
+postgres = "*"
+djangorestframework = "*"
+django-allauth = "*"
+django-rest-auth = "*"
 
 [requires]
 python_version = "3.7"
