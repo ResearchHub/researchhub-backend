@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
 import os
-from config import keys
+from config import db, keys
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -74,11 +74,21 @@ WSGI_APPLICATION = 'researchhub.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 
+DB_NAME = os.environ.get('DB_NAME', db.NAME)
+DB_HOST = os.environ.get('DB_HOST', db.HOST)
+DB_PORT = os.environ.get('DB_PORT', db.PORT)
+DB_USER = os.environ.get('DB_USER', db.USER)
+DB_PASS = os.environ.get('DB_PASS', db.PASS)
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    }
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': DB_NAME,
+        'HOST': DB_HOST,
+        'PORT': DB_PORT,
+        'USER': DB_USER,
+        'PASSWORD': DB_PASS,
+    },
 }
 
 
