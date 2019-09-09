@@ -100,6 +100,8 @@ WSGI_APPLICATION = 'researchhub.wsgi.application'
 
 # Authentication
 
+AUTH_USER_MODEL = 'user.User'
+
 AUTHENTICATION_BACKENDS = (
     # Needed to login by username in Django admin, regardless of `allauth`
     'django.contrib.auth.backends.ModelBackend',
