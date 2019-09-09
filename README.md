@@ -2,6 +2,8 @@
 
 ## Setup
 
+### GENERAL
+
 Create a keys file in config
 
 `$ touch src/config/keys.py`
@@ -9,4 +11,22 @@ Create a keys file in config
 Add the secret key
 
 `SECRET_KEY='secretkey'`
+
+### DATABASE
+
+Create a db file in config
+
+`$ touch src/config/db.py`
+
+Add the following
+
+```python
+
+NAME = 'researchhub'
+HOST = 'localhost'
+PORT = 5432
+USER = ''
+PASS = ''
+
+```
 
