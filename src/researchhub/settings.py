@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'rest_auth.registration',
 
     # Apps
+    'oauth',
     'user',
 ]
 
