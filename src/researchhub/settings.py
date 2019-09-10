@@ -115,6 +115,8 @@ AUTHENTICATION_BACKENDS = (
     'allauth.account.auth_backends.AuthenticationBackend',
 )
 
+OAUTH_METHOD = 'token'
+
 # Django AllAuth setup
 # https://django-allauth.readthedocs.io/en/latest/configuration.html
 
