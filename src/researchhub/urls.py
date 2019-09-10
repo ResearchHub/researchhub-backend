@@ -30,9 +30,10 @@ router.register(r'user', user.views.UserViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    url(r'^auth/token/', authtoken_views.obtain_auth_token),
-    url(r'^auth/login/', oauth.views.login, name='account_login'),
-    url(r'^auth/', include(oauth.urls.with_default)),
     url(r'^api/', include(router.urls)),
-    path('', index, name='index')
+    url(r'^auth/google/login/callback/', oauth.views.google_callback, name='google_callback'),
+    url(r'^auth/google/login/', oauth.views.google_login, name='google_login'),
+    url(r'^auth/login/', oauth.views.token_login),
+    url(r'^auth/', include(oauth.urls.default_urls)),
+    path('', index, name='index'),
 ]
