@@ -17,6 +17,7 @@ from django.conf.urls import url, include
 from django.contrib import admin
 from django.urls import path
 from rest_framework import routers
+from rest_framework.authtoken import views as authtoken_views
 
 from .views import index
 import user.views
@@ -27,8 +28,9 @@ router.register(r'user', user.views.UserViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    url(r'^api/auth/register/', include('rest_auth.registration.urls')),
-    url(r'^api/auth/', include('rest_auth.urls')),
+    url(r'^accounts/', include('allauth.urls')),
+    # url(r'^api/auth/token/', authtoken_views.obtain_auth_token),
+    # url(r'^api/auth/', include('rest_auth.urls')),
     url(r'^api/', include(router.urls)),
     path('', index, name='index')
 ]
