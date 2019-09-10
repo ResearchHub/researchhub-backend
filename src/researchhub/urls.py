@@ -20,6 +20,8 @@ from rest_framework import routers
 from rest_framework.authtoken import views as authtoken_views
 
 from .views import index
+import oauth.urls
+import oauth.views
 import user.views
 
 router = routers.DefaultRouter()
@@ -28,9 +30,9 @@ router.register(r'user', user.views.UserViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    url(r'^accounts/', include('allauth.urls')),
-    # url(r'^api/auth/token/', authtoken_views.obtain_auth_token),
-    # url(r'^api/auth/', include('rest_auth.urls')),
+    url(r'^auth/token/', authtoken_views.obtain_auth_token),
+    url(r'^auth/login/', oauth.views.login, name='account_login'),
+    url(r'^auth/', include(oauth.urls.with_default)),
     url(r'^api/', include(router.urls)),
     path('', index, name='index')
 ]
