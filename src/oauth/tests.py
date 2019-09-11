@@ -4,6 +4,10 @@ from user.models import User
 
 
 class OAuthTests(TestCase):
+    """
+    Status code reference:
+        https://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml
+    """
     invalid_email = 'testuser@gmail'
     invalid_password = 'pass'
     valid_email = 'testuser@gmail.com'
@@ -12,21 +16,27 @@ class OAuthTests(TestCase):
     def setUp(self):
         self.client = Client()
 
-    def test_signup(self):
-        raise NotImplementedError
+    def test_valid_signup(self):
+        response = self.valid_signup()
+        self.assertContainsToken(response, 201)
 
-    def test_login(self):
-        response = self.login(self.valid_email, self.valid_password)
-        self.assertEqual(response.status_code, 200)
-        self.assertContainsToken(response)
+    def test_valid_login(self):
+        response = self.valid_login()
+        self.assertContainsToken(response, 200)
 
     def test_social_login(self):
         raise NotImplementedError
 
-    def assertContainsToken(self, response):
-        self.assertContains(response, 'key')
+    def assertContainsToken(self, response, status_code):
+        self.assertContains(response, 'key', status_code=status_code)
         token = response.json()['key']
         self.assertTrue(len(token) > 0)
+
+    def valid_signup(self):
+        return self.signup(self.valid_email, self.valid_password)
+
+    def valid_login(self):
+        return self.login(self.valid_email, self.valid_password)
 
     def signup(self, username, password):
         url = '/auth/signup/'
