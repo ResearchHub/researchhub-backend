@@ -2,6 +2,8 @@ from django.conf import settings
 from django.http import HttpResponseRedirect, JsonResponse
 from allauth.socialaccount.helpers import *
 from allauth.socialaccount.helpers import _login_social_account
+from rest_framework.authtoken.models import Token
+
 
 oauth_method = settings.OAUTH_METHOD
 
@@ -32,7 +34,7 @@ def complete_social_login(request, sociallogin):
 
 def _social_login_redirect(request, sociallogin):
     next_url = sociallogin.get_redirect_url(request) or '/'
-    return _send_response(HttpResponseRedirect(next_url))
+    return _send_response(request, HttpResponseRedirect(next_url))
 
 def _add_social_account(request, sociallogin):
     if request.user.is_anonymous:
@@ -77,7 +79,7 @@ def _add_social_account(request, sociallogin):
             'action': action
         }
     )
-    return _send_response(HttpResponseRedirect(next_url))
+    return _send_response(request, HttpResponseRedirect(next_url))
 
 def _complete_social_login(request, sociallogin):
     if request.user.is_authenticated:
@@ -93,22 +95,23 @@ def _complete_social_login(request, sociallogin):
         # New social user
         ret = _process_signup(request, sociallogin)
 
-    return _send_response(ret)
+    return _send_response(request, ret)
 
 '''
 Custom helper methods not copied from allauth
 '''
 
-def _send_response(default):
+def _send_response(original_request, default_response):
     if oauth_method == OAuthMethods.TOKEN:
-        return _respond_with_token()
+        return _respond_with_token(original_request.user)
     else:
-        return default
+        return default_response
 
-def _respond_with_token():
-    token = _create_token()
+def _respond_with_token(user):
+    token = create_user_token(user)
     response = JsonResponse({'token': token})
     return response
 
-def _create_token():
-    return 'token'
+def create_user_token(user):
+    token = Token.objects.create(user=user)
+    return token.key
