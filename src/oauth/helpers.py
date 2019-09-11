@@ -108,10 +108,14 @@ def _send_response(original_request, default_response):
         return default_response
 
 def _respond_with_token(user):
-    token = create_user_token(user)
-    response = JsonResponse({'token': token})
+    token = get_or_create_user_token(user)
+    response = JsonResponse({ 'key': token })
     return response
 
-def create_user_token(user):
-    token = Token.objects.create(user=user)
+def get_or_create_user_token(user):
+    try:
+        token = Token.objects.get(user_id=user.id)
+    except Exception as e:
+        print(e)
+        token = Token.objects.create(user=user)
     return token.key
