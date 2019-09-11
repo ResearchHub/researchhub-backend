@@ -23,7 +23,7 @@ urlpatterns = [
     url(r'^api/', include(router.urls)),
     url(r'^auth/google/login/callback/', oauth.views.google_callback, name='google_callback'),
     url(r'^auth/google/login/', oauth.views.google_login, name='google_login'),
-    url(r'^auth/login/', oauth.views.token_login),
+    url(r'^auth/signup/', include(oauth.urls.registration_urls)),
     url(r'^auth/', include(oauth.urls.default_urls)),
     path('', index, name='index'),
 ]
