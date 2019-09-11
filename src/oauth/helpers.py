@@ -6,7 +6,7 @@ from allauth.socialaccount.helpers import _login_social_account
 oauth_method = settings.OAUTH_METHOD
 
 class OAuthMethods:
-    TOKEN: 'token'
+    TOKEN = 'token'
 
 '''
 Copied from allauth/socialaccount/helpers.py
