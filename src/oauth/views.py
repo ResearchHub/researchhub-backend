@@ -5,15 +5,9 @@ from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Error
 from allauth.socialaccount.providers.oauth2.views import OAuth2CallbackView, OAuth2LoginView
 from allauth.utils import get_request_param
-from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.permissions import AllowAny
 
 from .helpers import complete_social_login
-
-
-class TokenLogin(ObtainAuthToken):
-    throttle_classes = ()
-    permission_classes = (AllowAny,)
 
 
 class CallbackView(OAuth2CallbackView):
@@ -62,6 +56,5 @@ class CallbackView(OAuth2CallbackView):
                 exception=e)
 
 
-token_login = TokenLogin.as_view()
 google_login = OAuth2LoginView.adapter_view(GoogleOAuth2Adapter)
 google_callback = CallbackView.adapter_view(GoogleOAuth2Adapter)
