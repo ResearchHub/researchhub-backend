@@ -1,8 +1,6 @@
 import json
 from django.test import TestCase, Client
 from user.models import User
-from rest_framework import status
-from rest_framework.test import APIClient, APITestCase
 
 
 class OAuthTests(TestCase):
@@ -25,7 +23,7 @@ class OAuthTests(TestCase):
     def test_social_login(self):
         raise NotImplementedError
 
-   def assertContainsToken(self, response):
+    def assertContainsToken(self, response):
         self.assertContains(response, 'key')
         token = response.json()['key']
         self.assertTrue(len(token) > 0)
