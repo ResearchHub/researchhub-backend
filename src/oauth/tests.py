@@ -26,6 +26,7 @@ class OAuthTests(TestCase):
 
     def test_social_login(self):
         # TODO: Implement this
+        pass
 
     def assertContainsToken(self, response, status_code):
         self.assertContains(response, 'key', status_code=status_code)
