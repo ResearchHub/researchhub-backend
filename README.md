@@ -12,6 +12,14 @@ Add the secret key
 
 `SECRET_KEY='secretkey'`
 
+Set executable permissions on scripts
+
+`$ chmod -R u+x scripts/`
+
+Install git hooks
+
+`$ ./scripts/install-hooks`
+
 ### DATABASE
 
 Create a db file in config
