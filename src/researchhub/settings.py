@@ -117,6 +117,10 @@ AUTHENTICATION_BACKENDS = (
 
 OAUTH_METHOD = 'token'
 
+REST_AUTH_REGISTER_SERIALIZERS = {
+    'REGISTER_SERIALIZER': 'user.serializers.RegisterSerializer',
+}
+
 # Django AllAuth setup
 # https://django-allauth.readthedocs.io/en/latest/configuration.html
 
