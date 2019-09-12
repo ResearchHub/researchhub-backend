@@ -1,6 +1,9 @@
 # Config
 config/
 
+# Django
+**/__pycache__/
+
 # IDE
 .vscode/
 
