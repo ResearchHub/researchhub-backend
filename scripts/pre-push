@@ -2,7 +2,7 @@
 
 echo "Running pre-push hook\n"
 
-./run-tests
+./scripts/run-tests
 
 if [ $? -ne 0 ]; then
   exit 1

@@ -7,11 +7,11 @@ end_msg="\nFinished running tests. Found no failures."
 
 run_tests() {
   command="python manage.py test"
-  cd ../src && pipenv run $command
+  cd src && pipenv run $command
 }
 
 tests_fail() {
-  cd ../scripts && grep -Fq "FAILED" output.txt
+  grep -Fq "FAILED" output.txt
 }
 
 clean_up() {
@@ -22,7 +22,7 @@ main() {
   echo $start_msg
 
   run_tests &> output.txt
-  cat ../scripts/output.txt
+  cd .. && cat output.txt
 
   if tests_fail; then
     clean_up
