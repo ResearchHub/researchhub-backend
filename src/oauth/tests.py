@@ -24,6 +24,24 @@ class OAuthTests(TestCase):
         response = self.valid_signup()
         self.assertContainsToken(response, 201)
 
+    def test_signup_with_duplicate_email(self):
+        response1 = self.valid_signup()
+        response2 = self.valid_signup()
+        response_text = 'A user is already registered with this e-mail'
+        self.assertContains(response2, response_text, status_code=400)
+
+    def test_signup_with_duplicate_username_and_different_email(self):
+        username = 'test_username'
+        response1 = self.valid_signup(username)
+        response2 = self.signup(username, 'different@gmail.com', self.valid_password)
+        response_text = 'A user with that username already exists'
+        self.assertContains(response2, response_text, status_code=400)
+
+    def test_signup_with_duplicate_blank_username_and_different_email(self):
+        response1 = self.valid_signup()
+        response2 = self.signup(None, 'different@gmail.com', self.valid_password)
+        self.assertContainsToken(response2, 201)
+
     def test_valid_login(self):
         response = self.valid_login()
         self.assertContainsToken(response, 200)
