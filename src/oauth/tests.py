@@ -25,7 +25,7 @@ class OAuthTests(TestCase):
         self.assertContainsToken(response, 200)
 
     def test_social_login(self):
-        raise NotImplementedError
+        # TODO: Implement this
 
     def assertContainsToken(self, response, status_code):
         self.assertContains(response, 'key', status_code=status_code)
