@@ -16,7 +16,11 @@ class OAuthTests(TestCase):
     def setUp(self):
         self.client = Client()
 
-    def test_valid_signup(self):
+    def test_signup_with_username(self):
+        response = self.valid_signup('test_username')
+        self.assertContainsToken(response, 201)
+
+    def test_signup_without_username(self):
         response = self.valid_signup()
         self.assertContainsToken(response, 201)
 
@@ -33,21 +37,23 @@ class OAuthTests(TestCase):
         token = response.json()['key']
         self.assertTrue(len(token) > 0)
 
-    def valid_signup(self):
-        return self.signup(self.valid_email, self.valid_password)
+    def valid_signup(self, username=None):
+        return self.signup(username, self.valid_email, self.valid_password)
 
     def valid_login(self):
         return self.login(self.valid_email, self.valid_password)
 
-    def signup(self, username, password):
+    def signup(self, username, email, password):
         url = '/auth/signup/'
-        body = { "username": username, "email": username, "password1": password, "password2": password}
+        body = { "username": username, "email": email, "password1": password, "password2": password}
+        if not username:
+            del body['username']
         return self.post_response(url, body)
 
-    def login(self, username, password):
-        self.signup(username, password)
+    def login(self, email, password):
+        self.signup(email, email, password)
         url = '/auth/login/'
-        body = { "email": username, "password": password }
+        body = { "email": email, "password": password }
         return self.post_response(url, body)
 
     def post_response(self, path, data):
