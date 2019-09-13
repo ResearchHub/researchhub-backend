@@ -57,8 +57,12 @@ INSTALLED_APPS = [
     'rest_auth',
     'rest_auth.registration',
 
-    # Apps
+    'django_comments',
+
+    # Custom apps
+    'discussion',
     'oauth',
+    'paper',
     'user',
 ]
 
@@ -174,6 +178,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+
+# Discussion app
+COMMENTS_APP = 'discussion'
 
 # Internationalization
 # https://docs.djangoproject.com/en/2.2/topics/i18n/
