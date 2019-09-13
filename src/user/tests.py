@@ -4,39 +4,101 @@ from django.test import TestCase, Client
 from django.contrib.auth import authenticate, login
 from django.http import HttpRequest
 
-from .models import User
+from .models import User, Author, University
 
+class BaseTests(TestCase):
+    first_name = 'Regulus'
+    last_name = 'Black'
+    author_first_name = 'R. A.'
+    author_last_name = 'Black'
 
-class UserTests(TestCase):
     invalid_email = 'testuser@gmail'
     invalid_password = 'pass'
     valid_email = 'testuser@gmail.com'
     valid_password = 'ReHub940'
 
-    def test_string_representation(self):
-        user = self.create_user()
-        self.assertEquals(str(user), self.valid_email)
+    university_name = 'Hogwarts'
+    university_country = 'England'
+    university_state = 'London'
 
     def create_user(
         self,
         email=valid_email,
-        password=valid_password,
-    ):
+        password=valid_password):
         return User.objects.create(
             email=email,
-            password=password,
+            password=password
+        )
+
+    def create_author(
+        self,
+        user,
+        university,
+        first_name=author_first_name,
+        last_name=author_last_name):
+        return Author.objects.create(
+            user=user,
+            first_name=first_name,
+            last_name=last_name,
+            university=university
+        )
+
+    def create_author_without_user(
+        self,
+        university,
+        first_name=author_first_name,
+        last_name=author_last_name):
+        return Author.objects.create(
+            first_name=first_name,
+            last_name=last_name,
+            university=university
+        )
+
+    def create_author_without_university(
+        self,
+        user,
+        first_name=author_first_name,
+        last_name=author_last_name):
+        return Author.objects.create(
+            user=user,
+            first_name=first_name,
+            last_name=last_name
+        )
+
+    def create_author_without_user_or_university(
+        self,
+        first_name=author_first_name,
+        last_name=author_last_name):
+        return Author.objects.create(
+            first_name=first_name,
+            last_name=last_name
+        )
+
+    def create_university(
+        self,
+        name=university_name,
+        country=university_country,
+        state=university_state
+    ):
+        return University.objects.create(
+            name=name,
+            country=country,
+            state=state
         )
 
 
-class AuthTests(TestCase):
+class UserTests(BaseTests):
+
+    def test_string_representation(self):
+        user = self.create_user()
+        self.assertEqual(str(user), self.valid_email)
+
+
+class AuthenticationTests(BaseTests):
     """
     Status code reference:
         https://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml
     """
-    invalid_email = 'testuser@gmail'
-    invalid_password = 'pass'
-    valid_email = 'testuser@gmail.com'
-    valid_password = 'ReHub940'
 
     def setUp(self):
         self.client = Client()
@@ -97,3 +159,37 @@ class AuthTests(TestCase):
 
     def post_response(self, path, data):
         return self.client.post(path, data=json.dumps(data), content_type='application/json')
+
+
+class AuthorTests(BaseTests):
+
+    def test_string_representation(self):
+        university = self.create_university()
+        user = self.create_user()
+        author = self.create_author(user, university)
+        text = f'{self.author_first_name}_{self.author_last_name}_{self.university_name}'
+        self.assertEqual(str(author), text)
+
+    def test_string_representation_without_user_or_university(self):
+        author = self.create_author_without_user_or_university()
+        text = f'{self.author_first_name}_{self.author_last_name}_'
+        self.assertEqual(str(author), text)
+
+    def test_string_representation_without_university(self):
+        user = self.create_user()
+        author = self.create_author_without_university(user)
+        text = f'{self.author_first_name}_{self.author_last_name}_'
+        self.assertEqual(str(author), text)
+
+    def test_string_representation_without_user(self):
+        university = self.create_university()
+        author = self.create_author_without_user(university)
+        text = f'{self.author_first_name}_{self.author_last_name}_{self.university_name}'
+        self.assertEqual(str(author), text)
+
+class UniversityTests(BaseTests):
+
+    def test_string_representation(self):
+        university = self.create_university()
+        text = 'Hogwarts'
+        self.assertEqual(str(university), text)
