@@ -11,7 +11,7 @@ run_tests() {
 }
 
 tests_fail() {
-  grep -Fq "FAILED" output.txt
+  grep -Fq -e "FAILED" -e "error" output.txt
 }
 
 clean_up() {
