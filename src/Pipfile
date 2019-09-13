@@ -11,6 +11,7 @@ postgres = "*"
 djangorestframework = "*"
 django-allauth = "*"
 django-rest-auth = "*"
+django-contrib-comments = "*"
 
 [requires]
 python_version = "3.7"
