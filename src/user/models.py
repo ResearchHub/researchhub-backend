@@ -19,7 +19,7 @@ class University(models.Model):
     city = models.CharField(max_length=255)
 
     def __str__(self):
-        return self.name
+        return f'{self.name}_{self.city}'
 
 
 class Author(models.Model):
@@ -42,5 +42,9 @@ class Author(models.Model):
     def __str__(self):
         university = self.university
         if university is None:
-            university = ''
-        return f'{self.first_name}_{self.last_name}_{university}'
+            university_name = ''
+            university_city = ''
+        else:
+            university_name = university.name
+            university_city = university.city
+        return f'{self.first_name}_{self.last_name}_{university_name}_{university_city}'

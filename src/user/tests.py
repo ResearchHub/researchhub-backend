@@ -88,7 +88,7 @@ class BaseTests(TestCase):
             city=city
         )
 
-     def create_university_without_state(
+    def create_university_without_state(
         self,
         name=university_name,
         country=university_country,
@@ -180,24 +180,24 @@ class AuthorTests(BaseTests):
         university = self.create_university()
         user = self.create_user()
         author = self.create_author(user, university)
-        text = f'{self.author_first_name}_{self.author_last_name}_{self.university_name}'
+        text = 'R. A._Black_Hogwarts_London'
         self.assertEqual(str(author), text)
 
     def test_string_representation_without_user_or_university(self):
         author = self.create_author_without_user_or_university()
-        text = f'{self.author_first_name}_{self.author_last_name}_'
+        text = 'R. A._Black__'
         self.assertEqual(str(author), text)
 
     def test_string_representation_without_university(self):
         user = self.create_user()
         author = self.create_author_without_university(user)
-        text = f'{self.author_first_name}_{self.author_last_name}_'
+        text = 'R. A._Black__'
         self.assertEqual(str(author), text)
 
     def test_string_representation_without_user(self):
         university = self.create_university()
         author = self.create_author_without_user(university)
-        text = f'{self.author_first_name}_{self.author_last_name}_{self.university_name}'
+        text = 'R. A._Black_Hogwarts_London'
         self.assertEqual(str(author), text)
 
 class UniversityTests(BaseTests):
