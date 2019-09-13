@@ -20,6 +20,7 @@ class BaseTests(TestCase):
     university_name = 'Hogwarts'
     university_country = 'England'
     university_state = 'London'
+    university_city = 'London'
 
     def create_user(
         self,
@@ -78,12 +79,24 @@ class BaseTests(TestCase):
         self,
         name=university_name,
         country=university_country,
-        state=university_state
-    ):
+        state=university_state,
+        city=university_city):
         return University.objects.create(
             name=name,
             country=country,
-            state=state
+            state=state,
+            city=city
+        )
+
+     def create_university_without_state(
+        self,
+        name=university_name,
+        country=university_country,
+        city=university_city):
+        return University.objects.create(
+            name=name,
+            country=country,
+            city=city
         )
 
 
@@ -190,6 +203,20 @@ class AuthorTests(BaseTests):
 class UniversityTests(BaseTests):
 
     def test_string_representation(self):
-        university = self.create_university()
-        text = 'Hogwarts'
+        name = 'Cornell University'
+        country = 'USA'
+        state = 'NY'
+        city = 'Ithaca'
+        university = self.create_university(
+            name=name,
+            country=country,
+            state=state,
+            city=city
+        )
+        text = f'{name}_{city}'
+        self.assertEqual(str(university), text)
+
+    def test_string_representation_without_state(self):
+        university = self.create_university_without_state()
+        text = 'Hogwarts_London'
         self.assertEqual(str(university), text)

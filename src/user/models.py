@@ -15,7 +15,8 @@ class User(AbstractUser):
 class University(models.Model):
     name = models.CharField(max_length=255)
     country = models.CharField(max_length=255)
-    state = models.CharField(max_length=255)
+    state = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=255)
 
     def __str__(self):
         return self.name
