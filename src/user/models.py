@@ -11,6 +11,17 @@ class User(AbstractUser):
     def __str__(self):
         return self.email
 
+    def save(self, *args, **kwargs):
+        # A unique constraint is enforced on the username on the database level.
+        # This line is used to ensure usernames are not empty without requiring
+        # the client to enter a value in this field. It also forces emails to
+        # be unique.
+        #
+        # If we want to allow client specified usernames, simply delete this
+        # method.
+        self.username = self.email
+        super().save(*args, **kwargs)
+
 
 class University(models.Model):
     name = models.CharField(max_length=255)
