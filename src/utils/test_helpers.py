@@ -18,6 +18,8 @@ class TestHelper:
 
     def create_user(
         self,
+        first_name=first_name,
+        last_name=last_name,
         email=valid_email,
         password=valid_password):
         return User.objects.create(
