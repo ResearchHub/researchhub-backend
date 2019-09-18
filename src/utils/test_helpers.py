@@ -91,8 +91,21 @@ class TestHelper:
         )
 
 
-class IntegrationTestHelper:
+class IntegrationTestHelper(TestData):
     client = Client()
+
+    def create_authenticated_client(self, auth_token):
+        return Client(HTTP_AUTHORIZATION=f'Token {auth_token}')
+
+    def default_signup(self):
+        url = '/auth/signup/'
+        body = {
+            "username": self.valid_email,
+            "email": self.valid_email,
+            "password1": self.valid_password,
+            "password2": self.valid_password
+        }
+        return self.post_response(url, body)
 
     def post_response(self, path, data, client=client):
         return client.post(
@@ -100,3 +113,8 @@ class IntegrationTestHelper:
             data=json.dumps(data),
             content_type='application/json'
         )
+
+    def bytes_to_json(self, data_bytes):
+        data_string = data_bytes.decode('utf-8')
+        json_dict = json.loads(data_string)
+        return json_dict
