@@ -1,5 +1,6 @@
 from user.models import Author, University, User
 
+
 class TestHelper:
     first_name = 'Regulus'
     last_name = 'Black'
@@ -21,7 +22,8 @@ class TestHelper:
         first_name=first_name,
         last_name=last_name,
         email=valid_email,
-        password=valid_password):
+        password=valid_password
+    ):
         return User.objects.create(
             email=email,
             password=password
@@ -32,7 +34,8 @@ class TestHelper:
         user,
         university,
         first_name=author_first_name,
-        last_name=author_last_name):
+        last_name=author_last_name
+    ):
         return Author.objects.create(
             user=user,
             first_name=first_name,
@@ -44,7 +47,8 @@ class TestHelper:
         self,
         university,
         first_name=author_first_name,
-        last_name=author_last_name):
+        last_name=author_last_name
+    ):
         return Author.objects.create(
             first_name=first_name,
             last_name=last_name,
@@ -56,11 +60,11 @@ class TestHelper:
         name=university_name,
         country=university_country,
         state=university_state,
-        city=university_city):
+        city=university_city
+    ):
         return University.objects.create(
             name=name,
             country=country,
             state=state,
             city=city
         )
-
