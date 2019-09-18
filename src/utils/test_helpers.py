@@ -2,6 +2,7 @@ import json
 
 from django.test import Client
 
+from paper.models import Paper
 from user.models import Author, University, User
 
 
@@ -20,6 +21,11 @@ class TestHelper:
     university_country = 'England'
     university_state = 'London'
     university_city = 'London'
+
+    paper_title = ('Messrs Moony, Wormtail, Padfoot, and Prongs Purveyors of'
+                   ' Aids to Magical Mischief-Makers are proud to present THE'
+                   ' MARAUDER\'S MAP'
+                   )
 
     def create_user(
         self,
@@ -71,6 +77,11 @@ class TestHelper:
             country=country,
             state=state,
             city=city
+        )
+
+    def create_paper_without_authors(self, title=paper_title):
+        return Paper.objects.create(
+            title=title
         )
 
 
