@@ -1,10 +1,9 @@
 import json
 
 from django.test import TestCase, Client
-from django.contrib.auth import authenticate, login
-from django.http import HttpRequest
 
 from .models import User, Author, University
+
 
 class BaseTests(TestCase):
     first_name = 'Regulus'
@@ -25,7 +24,8 @@ class BaseTests(TestCase):
     def create_user(
         self,
         email=valid_email,
-        password=valid_password):
+        password=valid_password
+    ):
         return User.objects.create(
             email=email,
             password=password
@@ -36,7 +36,8 @@ class BaseTests(TestCase):
         user,
         university,
         first_name=author_first_name,
-        last_name=author_last_name):
+        last_name=author_last_name
+    ):
         return Author.objects.create(
             user=user,
             first_name=first_name,
@@ -48,7 +49,8 @@ class BaseTests(TestCase):
         self,
         university,
         first_name=author_first_name,
-        last_name=author_last_name):
+        last_name=author_last_name
+    ):
         return Author.objects.create(
             first_name=first_name,
             last_name=last_name,
@@ -59,7 +61,8 @@ class BaseTests(TestCase):
         self,
         user,
         first_name=author_first_name,
-        last_name=author_last_name):
+        last_name=author_last_name
+    ):
         return Author.objects.create(
             user=user,
             first_name=first_name,
@@ -69,7 +72,8 @@ class BaseTests(TestCase):
     def create_author_without_user_or_university(
         self,
         first_name=author_first_name,
-        last_name=author_last_name):
+        last_name=author_last_name
+    ):
         return Author.objects.create(
             first_name=first_name,
             last_name=last_name
@@ -80,7 +84,8 @@ class BaseTests(TestCase):
         name=university_name,
         country=university_country,
         state=university_state,
-        city=university_city):
+        city=university_city
+    ):
         return University.objects.create(
             name=name,
             country=country,
@@ -92,7 +97,8 @@ class BaseTests(TestCase):
         self,
         name=university_name,
         country=university_country,
-        city=university_city):
+        city=university_city
+    ):
         return University.objects.create(
             name=name,
             country=country,
@@ -138,20 +144,28 @@ class AuthenticationTests(BaseTests):
         self.assertContainsToken(response, 201)
 
     def test_signup_with_duplicate_email(self):
-        response1 = self.valid_signup()
+        self.valid_signup()
         response2 = self.valid_signup()
         response_text = 'A user is already registered with this e-mail'
         self.assertContains(response2, response_text, status_code=400)
 
     def test_signup_with_duplicate_username_and_different_email(self):
         username = 'test_username'
-        response1 = self.valid_signup(username)
-        response2 = self.signup(username, 'different@gmail.com', self.valid_password)
+        self.valid_signup(username)
+        response2 = self.signup(
+            username,
+            'different@gmail.com',
+            self.valid_password
+        )
         self.assertContainsToken(response2, 201)
 
     def test_signup_with_duplicate_blank_username_and_different_email(self):
-        response1 = self.valid_signup()
-        response2 = self.signup(None, 'different@gmail.com', self.valid_password)
+        self.valid_signup()
+        response2 = self.signup(
+            None,
+            'different@gmail.com',
+            self.valid_password
+        )
         self.assertContainsToken(response2, 201)
 
     def test_valid_login(self):
@@ -171,7 +185,12 @@ class AuthenticationTests(BaseTests):
 
     def signup(self, username, email, password):
         url = '/auth/signup/'
-        body = { "username": username, "email": email, "password1": password, "password2": password}
+        body = {
+            "username": username,
+            "email": email,
+            "password1": password,
+            "password2": password
+        }
         if not username:
             del body['username']
         return self.post_response(url, body)
@@ -179,11 +198,15 @@ class AuthenticationTests(BaseTests):
     def login(self, email, password):
         self.signup(email, email, password)
         url = '/auth/login/'
-        body = { "email": email, "password": password }
+        body = {"email": email, "password": password}
         return self.post_response(url, body)
 
     def post_response(self, path, data):
-        return self.client.post(path, data=json.dumps(data), content_type='application/json')
+        return self.client.post(
+            path,
+            data=json.dumps(data),
+            content_type='application/json'
+        )
 
 
 class AuthorTests(BaseTests):
