@@ -6,7 +6,7 @@ from paper.models import Paper
 from user.models import Author, University, User
 
 
-class TestHelper:
+class TestData:
     first_name = 'Regulus'
     last_name = 'Black'
     author_first_name = 'R. A.'
@@ -27,14 +27,20 @@ class TestHelper:
                    ' MARAUDER\'S MAP'
                    )
 
+
+class TestHelper:
+    test_data = TestData()
+
     def create_user(
         self,
-        first_name=first_name,
-        last_name=last_name,
-        email=valid_email,
-        password=valid_password
+        first_name=test_data.first_name,
+        last_name=test_data.last_name,
+        email=test_data.valid_email,
+        password=test_data.valid_password
     ):
         return User.objects.create(
+            first_name=first_name,
+            last_name=last_name,
             email=email,
             password=password
         )
@@ -43,8 +49,8 @@ class TestHelper:
         self,
         user,
         university,
-        first_name=author_first_name,
-        last_name=author_last_name
+        first_name=test_data.author_first_name,
+        last_name=test_data.author_last_name
     ):
         return Author.objects.create(
             user=user,
@@ -56,8 +62,8 @@ class TestHelper:
     def create_author_without_user(
         self,
         university,
-        first_name=author_first_name,
-        last_name=author_last_name
+        first_name=test_data.author_first_name,
+        last_name=test_data.author_last_name
     ):
         return Author.objects.create(
             first_name=first_name,
@@ -67,10 +73,10 @@ class TestHelper:
 
     def create_university(
         self,
-        name=university_name,
-        country=university_country,
-        state=university_state,
-        city=university_city
+        name=test_data.university_name,
+        country=test_data.university_country,
+        state=test_data.university_state,
+        city=test_data.university_city
     ):
         return University.objects.create(
             name=name,
@@ -79,7 +85,7 @@ class TestHelper:
             city=city
         )
 
-    def create_paper_without_authors(self, title=paper_title):
+    def create_paper_without_authors(self, title=test_data.paper_title):
         return Paper.objects.create(
             title=title
         )
