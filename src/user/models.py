@@ -58,5 +58,5 @@ class Author(models.Model):
         else:
             university_name = university.name
             university_city = university.city
-        return f'{self.first_name}_{self.last_name}_{university_name}_ \
-            {university_city}'
+        return (f'{self.first_name}_{self.last_name}_{university_name}_'
+                f'{university_city}')
