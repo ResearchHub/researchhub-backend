@@ -9,3 +9,7 @@ class Paper(models.Model):
         related_name='authored_papers',
         blank=True
     )
+
+    def __str__(self):
+        authors = list(self.authors.all())
+        return '%s: %s' % (self.title, authors)
