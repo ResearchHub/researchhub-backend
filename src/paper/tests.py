@@ -1,3 +1,11 @@
 from django.test import TestCase
 
-# Create your tests here.
+from utils.test_helpers import TestHelper
+
+
+class PaperTests(TestCase, TestHelper):
+
+    def test_string_representation(self):
+        paper = self.create_paper_without_authors()
+        text = '%s: []' % self.paper_title
+        self.assertEqual(str(paper), text)
