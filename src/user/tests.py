@@ -106,6 +106,19 @@ class UserTests(BaseTests):
         user = self.create_user()
         self.assertEqual(str(user), self.valid_email)
 
+    def test_username_is_set_to_email(self):
+        user = self.create_user()
+        self.assertEqual(user.username, self.valid_email)
+
+    def test_username_is_set_to_email_when_username_is_specified(self):
+        username = 'test_username'
+        user = User.objects.create(
+            username=username,
+            email=self.valid_email,
+            password=self.valid_password
+        )
+        self.assertEqual(user.username, self.valid_email)
+
 
 class AuthenticationTests(BaseTests):
     """
