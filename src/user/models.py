@@ -12,10 +12,10 @@ class User(AbstractUser):
         return self.email
 
     def save(self, *args, **kwargs):
-        # A unique constraint is enforced on the username on the database level.
-        # This line is used to ensure usernames are not empty without requiring
-        # the client to enter a value in this field. It also forces emails to
-        # be unique.
+        # A unique constraint is enforced on the username on the database
+        # level. This line is used to ensure usernames are not empty without
+        # requiring the client to enter a value in this field. It also forces
+        # emails to be unique.
         #
         # If we want to allow client specified usernames, simply delete this
         # method.
@@ -58,4 +58,5 @@ class Author(models.Model):
         else:
             university_name = university.name
             university_city = university.city
-        return f'{self.first_name}_{self.last_name}_{university_name}_{university_city}'
+        return f'{self.first_name}_{self.last_name}_{university_name}_ \
+            {university_city}'
