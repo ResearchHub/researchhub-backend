@@ -1,3 +1,7 @@
+import json
+
+from django.test import Client
+
 from user.models import Author, University, User
 
 
@@ -67,4 +71,15 @@ class TestHelper:
             country=country,
             state=state,
             city=city
+        )
+
+
+class IntegrationTestHelper:
+    client = Client()
+
+    def post_response(self, path, data, client=client):
+        return client.post(
+            path,
+            data=json.dumps(data),
+            content_type='application/json'
         )
