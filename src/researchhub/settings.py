@@ -57,8 +57,6 @@ INSTALLED_APPS = [
     'rest_auth',
     'rest_auth.registration',
 
-    'django_comments',
-
     # Custom apps
     'discussion',
     'oauth',
