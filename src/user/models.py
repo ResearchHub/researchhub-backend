@@ -36,7 +36,7 @@ class University(models.Model):
 class UserProfile(models.Model):
     user = models.OneToOneField(
         User,
-        related_name='author_profile',
+        related_name='userprofile',
         on_delete=models.SET_NULL,
         null=True,
         blank=True
