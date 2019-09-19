@@ -35,4 +35,4 @@ class ThreadTests(BaseTestCase):
 
     def test_string_representation(self):
         thread = self.create_default_thread_comment()
-        self.assertEqual(str(thread), 'testuser@gmail.com: This is a thread comment....')
+        self.assertEqual(str(thread), 'Regulus Black: This is a thread comment....')
