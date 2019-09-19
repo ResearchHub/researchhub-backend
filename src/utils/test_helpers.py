@@ -107,6 +107,25 @@ class IntegrationTestHelper(TestData):
         }
         return self.post_response(url, body)
 
+    def get_response(
+        self,
+        path,
+        query_data=None,
+        follow_redirects=True,
+        client=client
+    ):
+        """
+        Returns the response of a `GET` request made by `client`.
+
+        query_data {'param1': ['value1', 'value2'], 'param2': ['value3']}
+        """
+        return client.get(
+            path,
+            data=query_data,
+            follow=follow_redirects,
+            content_type='application/json'
+        )
+
     def post_response(self, path, data, client=client):
         return client.post(
             path,
