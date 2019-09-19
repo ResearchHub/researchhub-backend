@@ -38,3 +38,4 @@ PASS = ''
 
 ```
 
+Create a local postgres db called `researchhub`
