@@ -33,17 +33,16 @@ class University(models.Model):
         return f'{self.name}_{self.city}'
 
 
-class UserProfile(models.Model):
+class Author(models.Model):
     user = models.OneToOneField(
         User,
-        related_name='userprofile',
+        related_name='author_profile',
         on_delete=models.SET_NULL,
         null=True,
         blank=True
     )
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
-    email = models.CharField(max_length=60)
     university = models.ForeignKey(
         University,
         on_delete=models.SET_NULL,
