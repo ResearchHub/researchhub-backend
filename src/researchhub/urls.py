@@ -5,7 +5,6 @@ The `urlpatterns` list routes URLs to views. For more information please see:
 """
 from django.contrib import admin
 from django.urls import include, path, re_path
-import django_comments.urls
 from rest_framework import routers
 
 from .views import index
@@ -22,10 +21,6 @@ router.register(r'paper', paper.views.PaperViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path(
-        'api/paper/<int:pk>/discussion/',
-        include('django_comments.urls')
-    ),
     re_path(r'^api/', include(router.urls)),
     re_path(
         r'^auth/google/login/callback/',
