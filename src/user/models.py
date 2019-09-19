@@ -33,7 +33,7 @@ class University(models.Model):
         return f'{self.name}_{self.city}'
 
 
-class Author(models.Model):
+class UserProfile(models.Model):
     user = models.OneToOneField(
         User,
         related_name='author_profile',
@@ -43,6 +43,7 @@ class Author(models.Model):
     )
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
+    email = models.CharField(max_length=60)
     university = models.ForeignKey(
         University,
         on_delete=models.SET_NULL,
