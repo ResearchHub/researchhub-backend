@@ -97,7 +97,7 @@ class IntegrationTestHelper(TestData):
     def get_default_authenticated_client(self):
         response = self.default_signup()
         response_content = self.bytes_to_json(response.content)
-        token = response_content.get('token')
+        token = response_content.get('key')
         client = self.create_authenticated_client(token)
         return client
 
