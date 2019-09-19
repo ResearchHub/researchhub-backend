@@ -94,6 +94,13 @@ class TestHelper:
 class IntegrationTestHelper(TestData):
     client = Client()
 
+    def get_default_authenticated_client(self):
+        response = self.default_signup()
+        response_content = self.bytes_to_json(response.content)
+        token = response_content.get('token')
+        client = self.create_authenticated_client(token)
+        return client
+
     def create_authenticated_client(self, auth_token):
         return Client(HTTP_AUTHORIZATION=f'Token {auth_token}')
 
