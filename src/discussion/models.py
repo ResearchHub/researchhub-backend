@@ -1,3 +1,5 @@
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from paper.models import Paper
@@ -63,9 +65,11 @@ class Comment(BaseComment):
 
 
 class Reply(BaseComment):
-    parent = models.ForeignKey(
-        Comment,
+    content_type = models.ForeignKey(
+        ContentType,
         on_delete=models.SET_NULL,
         blank=True,
         null=True
     )
+    object_id = models.PositiveIntegerField()
+    parent = GenericForeignKey('content_type', 'object_id')
