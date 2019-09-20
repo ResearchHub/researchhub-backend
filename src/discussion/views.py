@@ -17,12 +17,12 @@ class DiscussionViewSet(viewsets.ModelViewSet):
         return threads
 
     def get_paper_id_from_path(self):
-        SECOND = 1
+        PAPER = 2
         paper_id = None
         path_parts = self.request.path.split('/')
-        if path_parts[SECOND] == 'paper':
+        if path_parts[PAPER] == 'paper':
             try:
-                paper_id = int(path_parts[SECOND + 1])
+                paper_id = int(path_parts[PAPER + 1])
             except ValueError:
                 print('Failed to get paper id')
         return paper_id
