@@ -33,6 +33,7 @@ class PaperIntegrationTests(TestCase, IntegrationTestHelper):
     def build_default_paper_form(self):
         title = self.paper_title
         form = {
-            'title': title
+            'title': title,
+            'paper_publish_date': self.paper_publish_date
         }
         return form
