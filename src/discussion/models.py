@@ -49,6 +49,9 @@ class Thread(BaseComment):
     )
     title = models.CharField(max_length=255)
 
+    def __str__(self):
+        return '%s: %s' % (self.created_by, self.title)
+
 
 class Comment(BaseComment):
     parent = models.ForeignKey(
