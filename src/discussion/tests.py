@@ -1,41 +1,41 @@
 from django.test import TestCase
 from django.contrib.sites.models import Site
-from django_comments.models import Comment
 
 from .models import Thread
-from utils.test_helpers import TestHelper
+from utils.test_helpers import IntegrationTestHelper, TestHelper
+
 
 class BaseTestCase(TestCase, TestHelper):
     site = Site.objects.get_current()
 
-    thread_title = 'Thread Comment Title'
-    thread_body = 'This is a thread comment.'
+    thread_title = 'Thread Title'
+    thread_text = 'This is a thread.'
 
-    def create_default_thread_comment(self):
+    def create_default_thread(self):
+        paper = self.create_paper_without_authors()
         user = self.create_user()
         title = self.thread_title
-        comment_text = self.thread_body
-        thread = self.create_thread_comment(user, title, comment_text)
+        text = self.thread_text
+        thread = self.create_thread(paper, user, title, text)
         return thread
 
-    def create_thread_comment(self, user, title, comment_text):
-        thread = Thread.objects.create(title=title)
-        thread_comment = Comment.objects.create(
-            content_object=thread,
-            site=self.site,
-            user=user,
-            comment=comment_text
+    def create_thread(self, paper, user, title, text):
+        thread = Thread.objects.create(
+            paper=paper,
+            created_by=user,
+            title=title,
+            text=text
         )
-        return thread_comment
+        return thread
 
 
 class ThreadTests(BaseTestCase):
 
     def test_string_representation(self):
-        thread = self.create_default_thread_comment()
+        thread = self.create_default_thread()
         self.assertEqual(
             str(thread),
-            'Regulus Black: This is a thread comment....'
+            'testuser@gmail.com: Thread Title'
         )
 
 
