@@ -84,18 +84,28 @@ class ReplyTests(BaseTestCase):
         )
         self.assertEqual(reply2.parent, reply)
 
-# class ThreadIntegrationTests(BaseTestCase, IntegrationTestHelper):
 
-#     def test_create_thread(self):
-#         paper = self.create_paper_without_authors()
-#         response = self.add_thread_to(paper.id)
-#         self.assertEqual(response.status_code, 200)
+class ThreadIntegrationTests(BaseTestCase, IntegrationTestHelper):
+    base_url = '/api/paper/'
 
-#     def add_thread_to(self, paper_id):
-#         url = f'/api/paper/{paper_id}/discussion/'
-#         body = {
-#             "title": "hello",
-#         }
-#         client = self.get_default_authenticated_client()
-#         response = self.post_response(url, body, client=client)
-#         return response
+    def test_create_thread(self):
+        paper = self.create_paper_without_authors()
+        response = self.submit_thread_form(paper.id)
+        text = self.thread_title
+        self.assertContains(response, text, status_code=201)
+
+    def submit_thread_form(self, paper_id):
+        client = self.get_default_authenticated_client()
+        url = self.base_url + f'{paper_id}/discussion/'
+        form_data = self.build_default_thread_form()
+        response = client.post(url, form_data)
+        return response
+
+    def build_default_thread_form(self):
+        title = self.thread_title
+        text = self.thread_text
+        form = {
+            'title': title,
+            'text': text
+        }
+        return form
