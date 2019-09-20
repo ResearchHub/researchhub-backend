@@ -6,5 +6,5 @@ from .models import Paper
 class PaperSerializer(rest_framework_serializers.HyperlinkedModelSerializer):
 
     class Meta:
-        fields = ['title', 'authors']
+        fields = ['title', 'authors', 'paper_publish_date']
         model = Paper
