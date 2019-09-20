@@ -26,6 +26,7 @@ class TestData:
                    ' Aids to Magical Mischief-Makers are proud to present THE'
                    ' MARAUDER\'S MAP'
                    )
+    paper_publish_date = '1990-10-01'
 
 
 class TestHelper:
@@ -96,9 +97,13 @@ class TestHelper:
             city=city
         )
 
-    def create_paper_without_authors(self, title=test_data.paper_title):
+    def create_paper_without_authors(
+        self,
+        title=test_data.paper_title
+    ):
         return Paper.objects.create(
-            title=title
+            title=title,
+            paper_publish_date=self.test_data.paper_publish_date
         )
 
 
