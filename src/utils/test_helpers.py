@@ -45,6 +45,17 @@ class TestHelper:
             password=password
         )
 
+    def create_random_default_user(self, unique_value):
+        first_name = self.test_data.first_name + str(unique_value)
+        last_name = self.test_data.last_name + str(unique_value)
+        email = str(unique_value) + self.test_data.valid_email
+        user = self.create_user(
+            first_name=first_name,
+            last_name=last_name,
+            email=email
+        )
+        return user
+
     def create_author(
         self,
         user,
