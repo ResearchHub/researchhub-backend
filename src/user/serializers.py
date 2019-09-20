@@ -20,7 +20,9 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
     def validate_username(self, username):
         if username:
-            username = rest_auth_serializers.get_adapter().clean_username(username)
+            username = rest_auth_serializers.get_adapter().clean_username(
+                username
+            )
         return username
 
     def save(self, request):
