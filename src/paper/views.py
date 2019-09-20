@@ -11,4 +11,3 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     # Optional attributes
     permission_classes = [IsAuthenticatedOrReadOnly]
-

@@ -34,7 +34,7 @@ class BaseComment(models.Model):
         blank=True,
         null=True
     )
-    text = models.TextField()  # TODO: Add character limit
+    text = models.TextField()
 
     class Meta:
         abstract = True

@@ -8,6 +8,7 @@ from django.urls import include, path, re_path
 from rest_framework import routers
 
 from .views import index
+import discussion.views
 import paper.views
 import oauth.urls
 import oauth.views
@@ -16,8 +17,17 @@ import user.views
 
 router = routers.DefaultRouter()
 
+router.register(
+    r'paper/([0-9]+)/discussion',
+    discussion.views.DiscussionViewSet,
+    basename='discussion_threads'
+)
+router.register(
+    r'paper',
+    paper.views.PaperViewSet,
+    basename='paper'
+)
 router.register(r'user', user.views.UserViewSet)
-router.register(r'paper', paper.views.PaperViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
