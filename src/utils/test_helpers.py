@@ -144,11 +144,19 @@ class IntegrationTestHelper(TestData):
             content_type='application/json'
         )
 
-    def post_response(self, path, data, client=client):
+    def post_response(
+        self,
+        path,
+        data,
+        client=client,
+        content_type='application/json',
+        follow_redirects=True
+    ):
         return client.post(
             path,
             data=json.dumps(data),
-            content_type='application/json'
+            follow=follow_redirects,
+            content_type=content_type
         )
 
     def bytes_to_json(self, data_bytes):
