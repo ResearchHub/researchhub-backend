@@ -59,6 +59,7 @@ INSTALLED_APPS = [
 
     # Custom apps
     'discussion',
+    'hub',
     'oauth',
     'paper',
     'user',
