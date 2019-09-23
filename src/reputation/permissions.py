@@ -13,6 +13,9 @@ class RuleBasedPermission(BasePermission):
     def is_read_only_request(self, request):
         return request.method in SAFE_METHODS
 
+    def satisfies_rule(self, request):
+        raise NotImplementedError
+
 
 class CreateDiscussionThread(RuleBasedPermission):
     message = 'Not enough reputation to create thread.'
