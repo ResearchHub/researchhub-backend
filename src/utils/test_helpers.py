@@ -179,7 +179,6 @@ class IntegrationTestHelper(TestData):
     def get_authenticated_post_response(
         self,
         user,
-        view,
         url,
         data,
         content_type

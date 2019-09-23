@@ -86,6 +86,7 @@ class ReplyTests(BaseTestCase):
 
 
 class BaseIntegrationTestCase(BaseTestCase, IntegrationTestHelper):
+    base_url = '/api/paper/'
 
     def post_default_thread(self):
         paper = self.create_paper_without_authors()
@@ -97,6 +98,18 @@ class BaseIntegrationTestCase(BaseTestCase, IntegrationTestHelper):
         url = self.base_url + f'{paper_id}/discussion/'
         form_data = self.build_default_thread_form(paper_id)
         response = client.post(url, form_data)
+        return response
+
+    def get_thread_submission_response(self, paper_id):
+        user = self.create_random_authenticated_user('unique_value')
+        url = self.base_url + f'{paper_id}/discussion/'
+        form_data = self.build_default_thread_form(paper_id)
+        response = self.get_authenticated_post_response(
+            user,
+            url,
+            form_data,
+            content_type='multipart/form-data'
+        )
         return response
 
     def build_default_thread_form(self, paper_id):
@@ -111,12 +124,11 @@ class BaseIntegrationTestCase(BaseTestCase, IntegrationTestHelper):
 
 
 class DiscussionIntegrationTests(BaseIntegrationTestCase):
-    base_url = '/api/paper/'
 
     def test_discussion_view_shows_threads(self):
         thread_data = self.post_default_thread()
         url = self.build_discussion_url(thread_data)
-        response = self.get_response(url)
+        response = self.get_get_response(url)
         text = self.parse_thread_title(thread_data)
         self.assertContains(response, text, status_code=200)
 
@@ -135,10 +147,16 @@ class DiscussionIntegrationTests(BaseIntegrationTestCase):
 
 
 class ThreadIntegrationTests(BaseIntegrationTestCase):
-    base_url = '/api/paper/'
 
     def test_create_thread(self):
         paper = self.create_paper_without_authors()
         response = self.submit_thread_form(paper.id)
         text = self.thread_title
+        self.assertContains(response, text, status_code=201)
+
+    def test_thread_is_created_by_current_user(self):
+        paper = self.create_paper_without_authors()
+        response = self.get_thread_submission_response(paper.id)
+        user = self.get_user_from_response(response)
+        text = user.id
         self.assertContains(response, text, status_code=201)
