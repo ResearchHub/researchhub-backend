@@ -3,13 +3,14 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 
 from .models import Thread
 from .serializers import ThreadSerializer
+from reputation.permissions import CreateDiscussionThread
 
 
 class DiscussionViewSet(viewsets.ModelViewSet):
     serializer_class = ThreadSerializer
 
     # Optional attributes
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly & CreateDiscussionThread]
 
     def get_queryset(self):
         paper_id = self.get_paper_id_from_path()
