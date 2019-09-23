@@ -174,6 +174,25 @@ class IntegrationTestHelper(TestData):
             content_type=content_type
         )
 
+    def get_authenticated_get_response(
+        self,
+        user,
+        url,
+        content_type
+    ):
+        csrf = False
+
+        if content_type == 'application/json':
+            content_format = 'json'
+        elif content_type == 'multipart/form-data':
+            content_format = 'multipart'
+            csrf = True
+
+        client = APIClient(enforce_csrf_checks=csrf)
+        client.force_authenticate(user=user, token=user.auth_token)
+        response = client.get(url, format=content_format)
+        return response
+
     def get_authenticated_post_response(
         self,
         user,
