@@ -24,11 +24,13 @@ class BaseTests(TestCase):
     def create_user(
         self,
         email=valid_email,
-        password=valid_password
+        password=valid_password,
+        reputation=0
     ):
         return User.objects.create(
             email=email,
-            password=password
+            password=password,
+            reputation=reputation
         )
 
     def create_author(
@@ -234,6 +236,7 @@ class AuthorTests(BaseTests):
         author = self.create_author_without_user(university)
         text = 'R. A._Black_Hogwarts_London'
         self.assertEqual(str(author), text)
+
 
 class UniversityTests(BaseTests):
 
