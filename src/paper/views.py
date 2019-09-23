@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 
 from .models import Paper
 from .serializers import PaperSerializer
+from reputation.permissions import CreatePaper
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -10,4 +11,4 @@ class PaperViewSet(viewsets.ModelViewSet):
     serializer_class = PaperSerializer
 
     # Optional attributes
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly & CreatePaper]
