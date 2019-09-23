@@ -1,6 +1,11 @@
 import json
 
 from django.test import Client
+from rest_framework.authtoken.models import Token
+from rest_framework.test import (
+    APIClient,
+    force_authenticate,
+)
 
 from paper.models import Paper
 from user.models import Author, University, User
@@ -45,6 +50,11 @@ class TestHelper:
             email=email,
             password=password
         )
+
+    def create_random_authenticated_user(self, unique_value):
+        user = self.create_random_default_user(unique_value)
+        Token.objects.create(user=user)
+        return user
 
     def create_random_default_user(self, unique_value):
         first_name = self.test_data.first_name + str(unique_value)
@@ -111,16 +121,13 @@ class IntegrationTestHelper(TestData):
     client = Client()
 
     def get_default_authenticated_client(self):
-        response = self.default_signup()
+        response = self.signup_default_user()
         response_content = self.bytes_to_json(response.content)
         token = response_content.get('key')
-        client = self.create_authenticated_client(token)
+        client = self._create_authenticated_client(token)
         return client
 
-    def create_authenticated_client(self, auth_token):
-        return Client(HTTP_AUTHORIZATION=f'Token {auth_token}')
-
-    def default_signup(self):
+    def signup_default_user(self):
         url = '/auth/signup/'
         body = {
             "username": self.valid_email,
@@ -128,9 +135,14 @@ class IntegrationTestHelper(TestData):
             "password1": self.valid_password,
             "password2": self.valid_password
         }
-        return self.post_response(url, body)
+        return self.get_post_response(url, body)
 
-    def get_response(
+    def bytes_to_json(self, data_bytes):
+        data_string = data_bytes.decode('utf-8')
+        json_dict = json.loads(data_string)
+        return json_dict
+
+    def get_get_response(
         self,
         path,
         query_data=None,
@@ -149,7 +161,7 @@ class IntegrationTestHelper(TestData):
             content_type='application/json'
         )
 
-    def post_response(
+    def get_post_response(
         self,
         path,
         data,
@@ -164,7 +176,30 @@ class IntegrationTestHelper(TestData):
             content_type=content_type
         )
 
-    def bytes_to_json(self, data_bytes):
-        data_string = data_bytes.decode('utf-8')
-        json_dict = json.loads(data_string)
-        return json_dict
+    def get_authenticated_post_response(
+        self,
+        user,
+        view,
+        url,
+        data,
+        content_type
+    ):
+        csrf = False
+
+        if content_type == 'application/json':
+            content_format = 'json'
+            data = json.dumps(data)
+        elif content_type == 'multipart/form-data':
+            content_format = 'multipart'
+            csrf = True
+
+        client = APIClient(enforce_csrf_checks=csrf)
+        client.force_authenticate(user=user, token=user.auth_token)
+        response = client.post(url, data, format=content_format)
+        return response
+
+    def get_user_from_response(self, response):
+        return response.wsgi_request.user
+
+    def _create_authenticated_client(self, auth_token):
+        return Client(HTTP_AUTHORIZATION=f'Token {auth_token}')
