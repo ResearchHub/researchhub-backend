@@ -1,13 +1,17 @@
-import rest_framework.serializers as rest_framework_serializers
+import rest_framework.serializers as serializers
 
 from .models import Thread
 
 
-class ThreadSerializer(rest_framework_serializers.ModelSerializer):
+class ThreadSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(
+        read_only=True,
+        default=serializers.CurrentUserDefault()
+    )
 
-    # TODO: Ensure user gets added to the thread when the form is submitted
     class Meta:
         fields = [
+            'user',
             'title',
             'text',
             'paper',
