@@ -11,17 +11,7 @@ class PaperTests(TestCase, TestHelper):
         self.assertEqual(str(paper), text)
 
 
-class PaperIntegrationTests(TestCase, IntegrationTestHelper):
-    base_url = '/api/paper/'
-
-    def test_get_base_route(self):
-        response = self.get_get_response(self.base_url)
-        self.assertEqual(response.status_code, 200)
-
-    def test_upload_paper(self):
-        response = self.submit_paper_form()
-        text = self.paper_title
-        self.assertContains(response, text, status_code=201)
+class BaseIntegrationMixin:
 
     def submit_paper_form(self):
         client = self.get_default_authenticated_client()
@@ -37,3 +27,20 @@ class PaperIntegrationTests(TestCase, IntegrationTestHelper):
             'paper_publish_date': self.paper_publish_date
         }
         return form
+
+
+class PaperIntegrationTests(
+    BaseIntegrationMixin,
+    TestCase,
+    IntegrationTestHelper
+):
+    base_url = '/api/paper/'
+
+    def test_get_base_route(self):
+        response = self.get_get_response(self.base_url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_upload_paper(self):
+        response = self.submit_paper_form()
+        text = self.paper_title
+        self.assertContains(response, text, status_code=201)
