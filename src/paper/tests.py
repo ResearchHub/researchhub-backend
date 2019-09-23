@@ -15,7 +15,7 @@ class PaperIntegrationTests(TestCase, IntegrationTestHelper):
     base_url = '/api/paper/'
 
     def test_get_base_route(self):
-        response = self.get_response(self.base_url)
+        response = self.get_get_response(self.base_url)
         self.assertEqual(response.status_code, 200)
 
     def test_upload_paper(self):
