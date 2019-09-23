@@ -122,16 +122,6 @@ class BaseIntegrationTestCase(BaseTestCase, IntegrationTestHelper):
         }
         return form
 
-
-class DiscussionIntegrationTests(BaseIntegrationTestCase):
-
-    def test_discussion_view_shows_threads(self):
-        thread_data = self.post_default_thread()
-        url = self.build_discussion_url(thread_data)
-        response = self.get_get_response(url)
-        text = self.parse_thread_title(thread_data)
-        self.assertContains(response, text, status_code=200)
-
     def parse_thread_title(self, thread_data):
         RESPONSE = 0
         thread = thread_data[RESPONSE]
@@ -144,6 +134,16 @@ class DiscussionIntegrationTests(BaseIntegrationTestCase):
         paper_id = thread_data[PAPER_ID]
         url = self.base_url + f'{paper_id}/discussion/'
         return url
+
+
+class DiscussionIntegrationTests(BaseIntegrationTestCase):
+
+    def test_discussion_view_shows_threads(self):
+        thread_data = self.post_default_thread()
+        url = self.build_discussion_url(thread_data)
+        response = self.get_get_response(url)
+        text = self.parse_thread_title(thread_data)
+        self.assertContains(response, text, status_code=200)
 
 
 class ThreadIntegrationTests(BaseIntegrationTestCase):
