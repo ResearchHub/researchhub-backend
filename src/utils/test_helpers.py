@@ -2,10 +2,8 @@ import json
 
 from django.test import Client
 from rest_framework.authtoken.models import Token
-from rest_framework.test import (
-    APIClient,
-    force_authenticate,
-)
+from rest_framework.test import APIClient
+
 
 from paper.models import Paper
 from user.models import Author, University, User
