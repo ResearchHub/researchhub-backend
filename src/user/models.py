@@ -7,6 +7,7 @@ class User(AbstractUser):
     User objects have the following fields by default:
         https://docs.djangoproject.com/en/2.2/ref/contrib/auth/#django.contrib.auth.models.User
     """
+    reputation = models.IntegerField(default=0)
 
     def __str__(self):
         return self.email
