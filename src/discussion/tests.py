@@ -1,3 +1,5 @@
+import random
+
 from django.test import TestCase
 from django.contrib.sites.models import Site
 
@@ -138,6 +140,10 @@ class BaseIntegrationTestCase(BaseTestCase, IntegrationTestHelper):
 
 class DiscussionIntegrationTests(BaseIntegrationTestCase):
 
+    def setUp(self):
+        SEED = 'discussion'
+        self.random_generator = random.Random(SEED)
+
     def test_discussion_view_shows_threads(self):
         thread = self.create_default_thread()
         paper_id = thread.paper.id
@@ -146,25 +152,35 @@ class DiscussionIntegrationTests(BaseIntegrationTestCase):
         text = thread.title
         self.assertContains(response, text, status_code=200)
 
-# REFACTOR:
-# It is not clear whether we should test views that have permissions
-# in the app where the view is defined or strictly in the reputation
-# app where the permissions are defined.
-#
-# Permissions break these tests below and are currently correctly
-# tested in the reputation app.
+    def test_create_thread(self):
+        user = self.create_user_with_reputation(1)
+        response = self.get_thread_submission_response(user)
+        text = self.thread_title
+        self.assertContains(response, text, status_code=201)
 
-# class ThreadIntegrationTests(BaseIntegrationTestCase):
+    def test_thread_is_created_by_current_user(self):
+        user = self.create_user_with_reputation(1)
+        response = self.get_thread_submission_response(user)
+        response_user = self.get_user_from_response(response)
+        text = response_user.id
+        self.assertContains(response, text, status_code=201)
 
-#     def test_create_thread(self):
-#         paper = self.create_paper_without_authors()
-#         response = self.submit_thread_form(paper.id)
-#         text = self.thread_title
-#         self.assertContains(response, text, status_code=201)
+    def create_user_with_reputation(self, reputation):
+        unique_value = self.random_generator.random()
+        user = self.create_random_authenticated_user(unique_value)
+        user.reputation = reputation
+        user.save()
+        return user
 
-#     def test_thread_is_created_by_current_user(self):
-#         paper = self.create_paper_without_authors()
-#         response = self.get_thread_submission_response(paper.id)
-#         user = self.get_user_from_response(response)
-#         text = user.id
-#         self.assertContains(response, text, status_code=201)
+    def get_thread_submission_response(self, user):
+        paper = self.create_paper_without_authors()
+        paper_id = paper.id
+        url = self.base_url + f'{paper_id}/discussion/'
+        form_data = self.build_default_thread_form(paper_id)
+        response = self.get_authenticated_post_response(
+            user,
+            url,
+            form_data,
+            content_type='multipart/form-data'
+        )
+        return response
