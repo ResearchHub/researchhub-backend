@@ -2,7 +2,7 @@
 # Run Django tests
 
 start_msg="Running linter:"
-end_msg="\nFinished running linter."
+end_msg="\nFinished running linter. Clean up any errors before pushing."
 
 run() {
   command="flake8"
