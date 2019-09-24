@@ -1,3 +1,9 @@
-from django.shortcuts import render
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
 
-# Create your views here.
+from .models import Summary
+from .serializers import SummarySerializer
+
+class SummaryViewSet(viewsets.ModelViewSet):
+    queryset = Summary.objects.all()
+    serializer_class = SummarySerializer

@@ -42,6 +42,9 @@ INSTALLED_APPS = [
     'django.contrib.sites',
     'django.contrib.staticfiles',
 
+    # CORS
+    'corsheaders',
+
     # Postgres
     'django.contrib.postgres',
 
@@ -63,11 +66,13 @@ INSTALLED_APPS = [
     'oauth',
     'paper',
     'user',
+    'summary',
 ]
 
 SITE_ID = 1
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -200,3 +205,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/2.2/howto/static-files/
 
 STATIC_URL = '/static/'
+
+CORS_ORIGIN_WHITELIST = [
+    "http://localhost:3000",
+]
