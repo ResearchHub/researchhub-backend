@@ -73,3 +73,21 @@ class Reply(BaseComment):
     )
     object_id = models.PositiveIntegerField()
     parent = GenericForeignKey('content_type', 'object_id')
+
+
+class Vote(models.Model):
+    UPVOTE = 1
+    DOWNVOTE = 2
+    VOTE_TYPE_CHOICES = [
+        (UPVOTE, 'Upvote'),
+        (DOWNVOTE, 'Downvote'),
+    ]
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE
+    )
+    object_id = models.PositiveIntegerField()
+    item = GenericForeignKey('content_type', 'object_id')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_date = models.DateTimeField(auto_now_add=True)
+    vote_type = models.IntegerField(choices=VOTE_TYPE_CHOICES)
