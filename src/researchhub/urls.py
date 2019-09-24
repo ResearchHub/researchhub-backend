@@ -13,6 +13,7 @@ import paper.views
 import oauth.urls
 import oauth.views
 import user.views
+import summary.views
 
 
 router = routers.DefaultRouter()
@@ -27,6 +28,13 @@ router.register(
     paper.views.PaperViewSet,
     basename='paper'
 )
+
+router.register(
+    r'summary',
+    summary.views.SummaryViewSet,
+    basename='summary'
+)
+
 router.register(r'user', user.views.UserViewSet)
 
 urlpatterns = [
