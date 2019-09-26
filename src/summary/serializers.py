@@ -1,9 +1,14 @@
-import rest_framework.serializers as rest_framework_serializers
+import rest_framework.serializers as serializers
 
 from .models import Summary
+from user.models import User
 
-
-class SummarySerializer(rest_framework_serializers.ModelSerializer):
+class SummarySerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        read_only=False,
+        default=serializers.CurrentUserDefault()
+    )
 
     class Meta:
         fields = '__all__'
