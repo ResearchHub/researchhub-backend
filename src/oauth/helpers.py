@@ -1,18 +1,31 @@
 from django.conf import settings
 from django.http import HttpResponseRedirect, JsonResponse
-from allauth.socialaccount.helpers import *
-from allauth.socialaccount.helpers import _login_social_account
+from allauth.socialaccount.helpers import (
+    get_adapter,
+    get_account_adapter,
+    signals,
+    SocialLogin,
+    AuthProcess,
+    reverse,
+    messages,
+    ImmediateHttpResponse,
+    _process_signup,
+    _login_social_account
+)
 from rest_framework.authtoken.models import Token
 
 
 oauth_method = settings.OAUTH_METHOD
 
+
 class OAuthMethods:
     TOKEN = 'token'
+
 
 '''
 Copied from allauth/socialaccount/helpers.py
 '''
+
 
 def complete_social_login(request, sociallogin):
     assert not sociallogin.is_existing
@@ -32,9 +45,11 @@ def complete_social_login(request, sociallogin):
     except ImmediateHttpResponse as e:
         return e.response
 
+
 def _social_login_redirect(request, sociallogin):
     next_url = sociallogin.get_redirect_url(request) or '/'
     return _send_response(request, HttpResponseRedirect(next_url))
+
 
 def _add_social_account(request, sociallogin):
     if request.user.is_anonymous:
@@ -81,6 +96,7 @@ def _add_social_account(request, sociallogin):
     )
     return _send_response(request, HttpResponseRedirect(next_url))
 
+
 def _complete_social_login(request, sociallogin):
     if request.user.is_authenticated:
         get_account_adapter(request).logout(request)
@@ -97,9 +113,11 @@ def _complete_social_login(request, sociallogin):
 
     return _send_response(request, ret)
 
+
 '''
 Custom helper methods not copied from allauth
 '''
+
 
 def _send_response(original_request, default_response):
     if oauth_method == OAuthMethods.TOKEN:
@@ -107,10 +125,12 @@ def _send_response(original_request, default_response):
     else:
         return default_response
 
+
 def _respond_with_token(user):
     token = get_or_create_user_token(user)
-    response = JsonResponse({ 'key': token })
+    response = JsonResponse({'key': token})
     return response
+
 
 def get_or_create_user_token(user):
     try:
