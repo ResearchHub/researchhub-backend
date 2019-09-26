@@ -1,11 +1,17 @@
 from django.db import models
 
 from hub.models import Hub
-from user.models import Author
+from user.models import Author, User
 
 
 class Paper(models.Model):
     title = models.CharField(max_length=255)
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True
+    )
     uploaded_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     paper_publish_date = models.DateField()
