@@ -3,9 +3,14 @@ from allauth.socialaccount.models import SocialLogin
 from allauth.socialaccount.providers.base import ProviderException
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Error
-from allauth.socialaccount.providers.oauth2.views import OAuth2CallbackView, OAuth2LoginView
+from allauth.socialaccount.providers.oauth2.views import (
+    AuthError,
+    OAuth2CallbackView,
+    OAuth2LoginView,
+    PermissionDenied,
+    RequestException
+)
 from allauth.utils import get_request_param
-from rest_framework.permissions import AllowAny
 
 from .helpers import complete_social_login
 
