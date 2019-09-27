@@ -1,7 +1,7 @@
 import rest_framework.serializers as rest_framework_serializers
 import rest_auth.registration.serializers as rest_auth_serializers
 
-from .models import User
+from .models import User, Author
 
 
 class UserSerializer(rest_framework_serializers.HyperlinkedModelSerializer):
@@ -27,3 +27,8 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
     def save(self, request):
         return super().save(request)
+
+class AuthorSerializer(rest_framework_serializers.ModelSerializer):
+    class Meta:
+        model = Author
+        fields = '__all__'
