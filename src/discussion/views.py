@@ -1,8 +1,8 @@
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 
-from .models import Thread
-from .serializers import ThreadSerializer
+from .models import Comment, Thread
+from .serializers import CommentSerializer, ThreadSerializer
 from reputation.permissions import CreateDiscussionThread
 
 
@@ -27,3 +27,11 @@ class DiscussionViewSet(viewsets.ModelViewSet):
             except ValueError:
                 print('Failed to get paper id')
         return paper_id
+
+
+class CommentViewSet(viewsets.ModelViewSet):
+    serializer_class = CommentSerializer
+
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+#    def comment(self, request, pk=None):
