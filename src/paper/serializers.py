@@ -14,18 +14,7 @@ class PaperSerializer(serializers.ModelSerializer):
     summary = serializers.SerializerMethodField()
     authors = serializers.SerializerMethodField()
     class Meta:
-        fields = [
-            'title',
-            'uploaded_by',
-            'authors',
-            'paper_publish_date',
-            'doi',
-            'hubs',
-            'url',
-            'uploaded_date',
-            'updated_date',
-            'summary',
-        ]
+        fields = "__all__"
         model = Paper
 
     def get_summary(self, obj):
