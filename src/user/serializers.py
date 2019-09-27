@@ -28,6 +28,7 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
     def save(self, request):
         return super().save(request)
 
+
 class AuthorSerializer(rest_framework_serializers.ModelSerializer):
     class Meta:
         model = Author
