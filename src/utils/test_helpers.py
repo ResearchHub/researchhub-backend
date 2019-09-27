@@ -193,29 +193,30 @@ class IntegrationTestHelper(TestData):
         response = client.get(url, format=content_format)
         return response
 
-    def get_authenticated_post_response(
-        self,
-        user,
-        url,
-        data,
-        content_type
-    ):
-        csrf = False
-
-        if content_type == 'application/json':
-            content_format = 'json'
-            data = json.dumps(data)
-        elif content_type == 'multipart/form-data':
-            content_format = 'multipart'
-            csrf = True
-
-        client = APIClient(enforce_csrf_checks=csrf)
-        client.force_authenticate(user=user, token=user.auth_token)
-        response = client.post(url, data, format=content_format)
-        return response
-
-    def get_user_from_response(self, response):
-        return response.wsgi_request.user
-
     def _create_authenticated_client(self, auth_token):
         return Client(HTTP_AUTHORIZATION=f'Token {auth_token}')
+
+
+def get_authenticated_post_response(
+    user,
+    url,
+    data,
+    content_type
+):
+    csrf = False
+
+    if content_type == 'application/json':
+        content_format = 'json'
+        data = json.dumps(data)
+    elif content_type == 'multipart/form-data':
+        content_format = 'multipart'
+        csrf = True
+
+    client = APIClient(enforce_csrf_checks=csrf)
+    client.force_authenticate(user=user, token=user.auth_token)
+    response = client.post(url, data, format=content_format)
+    return response
+
+
+def get_user_from_response(response):
+    return response.wsgi_request.user
