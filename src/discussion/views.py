@@ -6,7 +6,7 @@ from .serializers import CommentSerializer, ThreadSerializer
 from reputation.permissions import CreateDiscussionThread
 
 
-class DiscussionViewSet(viewsets.ModelViewSet):
+class ThreadViewSet(viewsets.ModelViewSet):
     serializer_class = ThreadSerializer
 
     # Optional attributes

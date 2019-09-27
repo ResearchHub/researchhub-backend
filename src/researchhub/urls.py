@@ -25,7 +25,7 @@ router.register(
 )
 router.register(
     r'paper/([0-9]+)/discussion',
-    discussion.views.DiscussionViewSet,
+    discussion.views.ThreadViewSet,
     basename='discussion_threads'
 )
 router.register(
