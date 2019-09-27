@@ -1,10 +1,12 @@
-import random
-
 from django.test import TestCase
 from django.contrib.sites.models import Site
 
-from .models import Thread, Comment, Reply
-from utils.test_helpers import IntegrationTestHelper, TestHelper
+from discussion.models import Thread, Comment, Reply
+from utils.test_helpers import (
+    get_authenticated_post_response,
+    IntegrationTestHelper,
+    TestHelper
+)
 
 
 class BaseTestCase(TestCase, TestHelper):
@@ -106,7 +108,7 @@ class BaseIntegrationTestCase(BaseTestCase, IntegrationTestHelper):
         user = self.create_random_authenticated_user('unique_value')
         url = self.base_url + f'{paper_id}/discussion/'
         form_data = self.build_default_thread_form(paper_id)
-        response = self.get_authenticated_post_response(
+        response = get_authenticated_post_response(
             user,
             url,
             form_data,
@@ -124,6 +126,14 @@ class BaseIntegrationTestCase(BaseTestCase, IntegrationTestHelper):
         }
         return form
 
+    def build_default_comment_form(self, thread_id):
+        text = self.comment_text
+        form = {
+            'parent': thread_id,
+            'text': text,
+        }
+        return form
+
     def parse_thread_title(self, thread_data):
         RESPONSE = 0
         thread = thread_data[RESPONSE]
@@ -136,51 +146,3 @@ class BaseIntegrationTestCase(BaseTestCase, IntegrationTestHelper):
         paper_id = thread_data[PAPER_ID]
         url = self.base_url + f'{paper_id}/discussion/'
         return url
-
-
-class DiscussionIntegrationTests(BaseIntegrationTestCase):
-
-    def setUp(self):
-        SEED = 'discussion'
-        self.random_generator = random.Random(SEED)
-
-    def test_discussion_view_shows_threads(self):
-        thread = self.create_default_thread()
-        paper_id = thread.paper.id
-        url = self.base_url + f'{paper_id}/discussion/'
-        response = self.get_get_response(url)
-        text = thread.title
-        self.assertContains(response, text, status_code=200)
-
-    def test_create_thread(self):
-        user = self.create_user_with_reputation(1)
-        response = self.get_thread_submission_response(user)
-        text = self.thread_title
-        self.assertContains(response, text, status_code=201)
-
-    def test_thread_is_created_by_current_user(self):
-        user = self.create_user_with_reputation(1)
-        response = self.get_thread_submission_response(user)
-        response_user = self.get_user_from_response(response)
-        text = response_user.id
-        self.assertContains(response, text, status_code=201)
-
-    def create_user_with_reputation(self, reputation):
-        unique_value = self.random_generator.random()
-        user = self.create_random_authenticated_user(unique_value)
-        user.reputation = reputation
-        user.save()
-        return user
-
-    def get_thread_submission_response(self, user):
-        paper = self.create_paper_without_authors()
-        paper_id = paper.id
-        url = self.base_url + f'{paper_id}/discussion/'
-        form_data = self.build_default_thread_form(paper_id)
-        response = self.get_authenticated_post_response(
-            user,
-            url,
-            form_data,
-            content_type='multipart/form-data'
-        )
-        return response
