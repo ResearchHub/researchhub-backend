@@ -19,7 +19,7 @@ import summary.views
 router = routers.DefaultRouter()
 
 router.register(
-    r'paper/([0-9]+)/discussion/([0-9]+)',
+    r'paper/([0-9]+)/discussion/([0-9]+)/comment',
     discussion.views.CommentViewSet,
     basename='discussion_thread_comments'
 )
