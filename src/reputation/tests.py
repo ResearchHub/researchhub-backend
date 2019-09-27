@@ -1,11 +1,18 @@
 import random
 from django.test import TestCase
 
-from discussion.tests import (
+from discussion.tests.tests import (
     BaseIntegrationTestCase as DiscussionIntegrationTestCase
 )
 from paper.tests import BaseIntegrationMixin as PaperIntegrationMixin
-from utils.test_helpers import IntegrationTestHelper, TestHelper
+from utils.test_helpers import (
+    get_authenticated_post_response,
+    IntegrationTestHelper,
+    TestHelper
+)
+
+# REFACTOR: These probably should just be tested in the applications pertaining
+# to them to avoid code duplication and inheritance issues.
 
 
 class BaseIntegrationMixin(
@@ -71,7 +78,7 @@ class DiscussionThreadPermissionsIntegrationTests(
         paper_id = paper.id
         url = self.base_url + f'{paper_id}/discussion/'
         form_data = self.build_default_thread_form(paper_id)
-        response = self.get_authenticated_post_response(
+        response = get_authenticated_post_response(
             user,
             url,
             form_data,
@@ -107,7 +114,7 @@ class PaperPermissionsIntegrationTests(
     def get_paper_submission_response(self, user):
         url = self.base_url
         form_data = self.build_default_paper_form()
-        response = self.get_authenticated_post_response(
+        response = get_authenticated_post_response(
             user,
             url,
             form_data,
