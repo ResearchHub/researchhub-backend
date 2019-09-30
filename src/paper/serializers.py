@@ -29,12 +29,16 @@ class PaperSerializer(serializers.ModelSerializer):
         return authors
 
     def get_discussion(self, obj):
+        count = 0
+        threads = []
+
         threads_queryset = obj.threads.all().order_by('-created_date')
         if threads_queryset:
             AMOUNT = 10
             count = len(threads_queryset)
             threads_queryset = threads_queryset[:AMOUNT]
             threads = ThreadSerializer(threads_queryset, many=True).data
+
         return {'count': count, 'threads': threads}
 
     def get_summary(self, obj):
