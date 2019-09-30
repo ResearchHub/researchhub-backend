@@ -4,7 +4,8 @@ import rest_auth.registration.serializers as rest_auth_serializers
 from .models import User, Author
 
 
-class UserSerializer(rest_framework_serializers.HyperlinkedModelSerializer):
+class UserSerializer(rest_framework_serializers.ModelSerializer):
+
     class Meta:
         model = User
         fields = ['url', 'username', 'email', 'is_staff']
