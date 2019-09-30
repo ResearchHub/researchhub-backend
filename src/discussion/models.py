@@ -46,6 +46,7 @@ class Thread(BaseComment):
     paper = models.ForeignKey(
         Paper,
         on_delete=models.SET_NULL,
+        related_name='threads',
         blank=True,
         null=True
     )
