@@ -15,6 +15,7 @@ class ThreadSerializer(serializers.ModelSerializer):
 
     class Meta:
         fields = [
+            'id',
             'title',
             'text',
             'paper',
