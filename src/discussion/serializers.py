@@ -2,13 +2,13 @@ import rest_framework.serializers as serializers
 
 from .models import Comment, Thread
 from user.models import User
+from user.serializers import UserSerializer
 
 
 # TODO: Add isOwner permission and make is_public editable
 
 class ThreadSerializer(serializers.ModelSerializer):
-    created_by = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(),
+    created_by = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
