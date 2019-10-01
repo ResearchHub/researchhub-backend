@@ -12,6 +12,7 @@ class ThreadSerializer(serializers.ModelSerializer):
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
+    comment_count = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -22,13 +23,18 @@ class ThreadSerializer(serializers.ModelSerializer):
             'created_by',
             'created_date',
             'is_public',
-            'is_removed'
+            'is_removed',
+            'comment_count'
         ]
         read_only_fields = [
             'is_public',
             'is_removed'
         ]
         model = Thread
+
+    def get_comment_count(self, obj):
+        count = len(obj.comments.all())
+        return count
 
 
 class CommentSerializer(serializers.ModelSerializer):

@@ -60,6 +60,7 @@ class Comment(BaseComment):
     parent = models.ForeignKey(
         Thread,
         on_delete=models.SET_NULL,
+        related_name='comments',
         blank=True,
         null=True
     )
