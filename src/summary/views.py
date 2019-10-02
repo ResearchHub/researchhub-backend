@@ -23,7 +23,8 @@ class SummaryViewSet(viewsets.ModelViewSet):
 
         new_summary = Summary.objects.create(
             summary=summary,
-            user=request.user,
+            proposed_by=request.user,
+            paper_id=paper_id,
         )
 
         new_summary.previous = previous_summary
