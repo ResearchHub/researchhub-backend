@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.fields import JSONField
 from django.db import models
 
 from paper.models import Paper
@@ -36,7 +37,7 @@ class BaseComment(models.Model):
         blank=True,
         null=True
     )
-    text = models.TextField()
+    text = JSONField(blank=True, null=True)
 
     class Meta:
         abstract = True
