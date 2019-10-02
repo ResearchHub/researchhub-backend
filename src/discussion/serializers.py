@@ -1,7 +1,6 @@
 import rest_framework.serializers as serializers
 
 from .models import Comment, Thread
-from user.models import User
 from user.serializers import UserSerializer
 
 
