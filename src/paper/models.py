@@ -2,7 +2,7 @@ from django.db import models
 
 from hub.models import Hub
 from user.models import Author, User
-
+from summary.models import Summary
 
 class Paper(models.Model):
     title = models.CharField(max_length=255)
@@ -27,6 +27,7 @@ class Paper(models.Model):
         blank=True
     )
     url = models.URLField(default='', blank=True)
+    summary = models.ForeignKey(Summary, blank=True, null=True, related_name='paper', on_delete='CASCADE')
     # TODO: Determine file upload path
     # file = models.FileField(upload_to='uploads/papers/%Y/%m/%d')
 

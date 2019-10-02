@@ -42,8 +42,4 @@ class PaperSerializer(serializers.ModelSerializer):
         return {'count': count, 'threads': threads}
 
     def get_summary(self, obj):
-        summary_queryset = obj.summary.filter(current=True)
-        summary = {}
-        if summary_queryset:
-            summary = SummarySerializer(summary_queryset.first()).data
-        return summary
+        return SummarySerializer(obj.summary).data
