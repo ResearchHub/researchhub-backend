@@ -1,3 +1,5 @@
+import json
+
 from django.test import TestCase
 from django.contrib.sites.models import Site
 
@@ -121,7 +123,7 @@ class BaseIntegrationTestCase(BaseTestCase, IntegrationTestHelper):
         text = self.thread_text
         form = {
             'title': title,
-            'text': text,
+            'text': json.dumps(text),
             'paper': paper_id
         }
         return form
@@ -130,7 +132,7 @@ class BaseIntegrationTestCase(BaseTestCase, IntegrationTestHelper):
         text = self.comment_text
         form = {
             'parent': thread_id,
-            'text': text,
+            'text': json.dumps(text),
         }
         return form
 
