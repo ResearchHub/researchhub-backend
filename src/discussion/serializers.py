@@ -46,9 +46,14 @@ class CommentSerializer(serializers.ModelSerializer):
 
     class Meta:
         fields = [
-            'text',
-            'parent',
+            'id',
             'created_by',
+            'created_date',
+            'updated_date',
+            'is_public',
+            'is_removed',
+            'text',
+            'parent'
         ]
         read_only_fields = [
             'is_public',
