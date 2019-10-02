@@ -38,8 +38,7 @@ class ThreadSerializer(serializers.ModelSerializer):
 
 
 class CommentSerializer(serializers.ModelSerializer):
-    created_by = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(),
+    created_by = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
