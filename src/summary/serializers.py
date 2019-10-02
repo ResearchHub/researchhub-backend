@@ -4,7 +4,7 @@ from .models import Summary
 from user.models import User
 
 class SummarySerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(
+    proposed_by = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         read_only=False,
         default=serializers.CurrentUserDefault()

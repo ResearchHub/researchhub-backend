@@ -32,8 +32,8 @@ class Paper(models.Model):
         Summary,
         blank=True,
         null=True,
-        related_name='paper',
-        on_delete='CASCADE'
+        related_name='papers',
+        on_delete='SET NULL'
     )
     # TODO: Determine file upload path
     # file = models.FileField(upload_to='uploads/papers/%Y/%m/%d')
