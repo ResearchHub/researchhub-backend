@@ -16,6 +16,7 @@ flake8 = "*"
 django-cors-headers = "*"
 boto3 = "*"
 django-storages = "*"
+django-filter = "*"
 
 [requires]
 python_version = "3.7"

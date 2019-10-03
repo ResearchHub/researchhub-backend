@@ -1,8 +1,10 @@
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.filters import SearchFilter, OrderingFilter
+from django_filters.rest_framework import DjangoFilterBackend, FilterSet
 
-from .models import User
-from .serializers import UserSerializer
+from .models import User, Author
+from .serializers import UserSerializer, AuthorSerializer
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -10,3 +12,10 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
 
     permission_classes = [IsAuthenticatedOrReadOnly]
+
+class AuthorViewSet(viewsets.ModelViewSet):
+    queryset = Author.objects.all()
+    serializer_class = AuthorSerializer
+
+    filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
+    search_fields = ('first_name', 'last_name')
