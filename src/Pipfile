@@ -14,6 +14,8 @@ django-rest-auth = "*"
 django-contrib-comments = "*"
 flake8 = "*"
 django-cors-headers = "*"
+boto3 = "*"
+django-storages = "*"
 
 [requires]
 python_version = "3.7"
