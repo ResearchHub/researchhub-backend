@@ -35,8 +35,7 @@ class Paper(models.Model):
         related_name='papers',
         on_delete='SET NULL'
     )
-    # TODO: Determine file upload path
-    # file = models.FileField(upload_to='uploads/papers/%Y/%m/%d')
+    file = models.FileField(upload_to='uploads/papers/%Y/%m/%d')
 
     def __str__(self):
         authors = list(self.authors.all())
