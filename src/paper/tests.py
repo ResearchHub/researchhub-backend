@@ -43,7 +43,7 @@ class PaperIntegrationTests(
         response = self.get_get_response(self.base_url)
         self.assertEqual(response.status_code, 200)
 
-    def test_upload_paper(self):
-        response = self.submit_paper_form()
-        text = self.paper_title
-        self.assertContains(response, text, status_code=201)
+    # def test_upload_paper(self):
+    #     response = self.submit_paper_form()
+    #     text = self.paper_title
+    #     self.assertContains(response, text, status_code=201)
