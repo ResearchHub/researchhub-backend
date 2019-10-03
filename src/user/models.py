@@ -8,6 +8,8 @@ class User(AbstractUser):
         https://docs.djangoproject.com/en/2.2/ref/contrib/auth/#django.contrib.auth.models.User
     """
     reputation = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.email
@@ -23,12 +25,13 @@ class User(AbstractUser):
         self.username = self.email
         super().save(*args, **kwargs)
 
-
 class University(models.Model):
     name = models.CharField(max_length=255)
     country = models.CharField(max_length=255)
     state = models.CharField(max_length=255, blank=True)
     city = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f'{self.name}_{self.city}'
@@ -44,6 +47,8 @@ class Author(models.Model):
     )
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     university = models.ForeignKey(
         University,
         on_delete=models.SET_NULL,
