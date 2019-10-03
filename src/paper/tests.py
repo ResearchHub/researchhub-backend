@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 from utils.test_helpers import IntegrationTestHelper, TestHelper
 
@@ -22,9 +23,11 @@ class BaseIntegrationMixin:
 
     def build_default_paper_form(self):
         title = self.paper_title
+        file = SimpleUploadedFile('../config/paper.pdf', b'file_content')
         form = {
             'title': title,
-            'paper_publish_date': self.paper_publish_date
+            'paper_publish_date': self.paper_publish_date,
+            'file': file,
         }
         return form
 
