@@ -14,7 +14,7 @@ import oauth.urls
 import oauth.views
 import user.views
 import summary.views
-
+import hub.views
 
 router = routers.DefaultRouter()
 
@@ -35,9 +35,21 @@ router.register(
 )
 
 router.register(
+    r'author',
+    user.views.AuthorViewSet,
+    basename='author'
+)
+
+router.register(
     r'summary',
     summary.views.SummaryViewSet,
     basename='summary'
+)
+
+router.register(
+    r'hub',
+    hub.views.HubViewSet,
+    basename='hub'
 )
 
 router.register(r'user', user.views.UserViewSet)
