@@ -18,23 +18,22 @@ class SummaryViewSet(viewsets.ModelViewSet):
         summary = request.data.get('summary')
         paper_id = request.data.get('paper')
         previous_summary_id = request.data.get('previousSummaryId')
-        previous_summary = Summary.objects.get(id=previous_summary_id)
-        previous_summary.save()
 
         new_summary = Summary.objects.create(
             summary=summary,
             proposed_by=request.user,
             paper_id=paper_id,
         )
-
-        new_summary.previous = previous_summary
-        new_summary.save()
+        if previous_summary_id:
+            previous_summary = Summary.objects.get(id=previous_summary_id)
+            previous_summary.save()
+            new_summary.previous = previous_summary
+            new_summary.save()
 
         paper = Paper.objects.get(id=paper_id)
         paper.summary = new_summary
         paper.save()
-
-        return Response(status=200)
+        return Response(SummarySerializer(new_summary).data, status=200)
 
     @action(detail=False, methods=['post'])
     def get_edits(self, request):
