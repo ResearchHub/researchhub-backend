@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-
+from django.dispatch import receiver
 
 class User(AbstractUser):
     """
@@ -8,6 +8,7 @@ class User(AbstractUser):
         https://docs.djangoproject.com/en/2.2/ref/contrib/auth/#django.contrib.auth.models.User
     """
     reputation = models.IntegerField(default=0)
+    profile_image = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -25,6 +26,16 @@ class User(AbstractUser):
         self.username = self.email
         super().save(*args, **kwargs)
 
+@receiver(models.signals.post_save, sender=User)
+def attach_author(sender, instance, created, *args, **kwargs):
+    if created:
+        Author.objects.create(
+            sender=instance,
+            first_name=instance.first_name,
+            last_name=instance.last_name,
+        )
+
+
 class University(models.Model):
     name = models.CharField(max_length=255)
     country = models.CharField(max_length=255)
@@ -35,7 +46,6 @@ class University(models.Model):
 
     def __str__(self):
         return f'{self.name}_{self.city}'
-
 
 class Author(models.Model):
     user = models.OneToOneField(
