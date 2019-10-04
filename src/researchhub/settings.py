@@ -26,6 +26,9 @@ SECRET_KEY = os.environ.get('SECRET_KEY', keys.SECRET_KEY)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+# TODO: setup production
+GOOGLE_REDIRECT_URL = 'http://localhost:8000/auth/google/login/callback/'
+
 ALLOWED_HOSTS = [
     'localhost',
 ]
@@ -80,8 +83,11 @@ INSTALLED_APPS = [
 
 SITE_ID = 1
 
+# GOOGLE_REDIRECT_URL = 'http://localhost:8000/api/v1/auth/google'
+
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'researchhub.middleware.csrf_disable.DisableCSRF',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
