@@ -36,6 +36,7 @@ class Paper(models.Model):
         on_delete='SET NULL'
     )
     file = models.FileField(upload_to='uploads/papers/%Y/%m/%d')
+    tagline = models.CharField(max_length=255, default=None, null=True, blank=True)
 
     def __str__(self):
         authors = list(self.authors.all())
