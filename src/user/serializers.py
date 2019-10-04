@@ -8,7 +8,7 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'first_name', 'last_name', 'is_staff']
+        exclude = ['password']
 
 
 class RegisterSerializer(rest_auth_serializers.RegisterSerializer):

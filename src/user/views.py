@@ -10,12 +10,17 @@ from .serializers import UserSerializer, AuthorSerializer
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-
     permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated:
+            return User.objects.filter(id=user.id)
+        else:
+            return []
 
 class AuthorViewSet(viewsets.ModelViewSet):
     queryset = Author.objects.all()
     serializer_class = AuthorSerializer
-
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('first_name', 'last_name')

@@ -6,6 +6,7 @@ The `urlpatterns` list routes URLs to views. For more information please see:
 from django.contrib import admin
 from django.urls import include, path, re_path
 from rest_framework import routers
+from django.views.decorators.csrf import csrf_exempt
 
 from .views import index
 import discussion.views
@@ -57,14 +58,14 @@ router.register(r'user', user.views.UserViewSet)
 urlpatterns = [
     path('admin/', admin.site.urls),
     re_path(r'^api/', include(router.urls)),
-    re_path(
-        r'^auth/google/login/callback/',
+    path(
+        'auth/google/login/callback/',
         oauth.views.google_callback,
         name='google_callback'
     ),
-    re_path(
-        r'^auth/google/login/',
-        oauth.views.google_login,
+    path(
+        'api/auth/google/login/',
+        oauth.views.GoogleLogin.as_view(),
         name='google_login'
     ),
     re_path(r'^auth/signup/', include(oauth.urls.registration_urls)),
