@@ -46,3 +46,4 @@ class PaperSerializer(serializers.ModelSerializer):
 
     def get_summary(self, obj):
         return SummarySerializer(obj.summary).data
+    

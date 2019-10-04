@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from utils.test_helpers import IntegrationTestHelper, TestHelper
-
+from hub.models import Hub
 
 class PaperTests(TestCase, TestHelper):
 
@@ -24,10 +24,14 @@ class BaseIntegrationMixin:
     def build_default_paper_form(self):
         title = self.paper_title
         file = SimpleUploadedFile('../config/paper.pdf', b'file_content')
+        hub = Hub.objects.create(
+            name='Chemistry'
+        )
         form = {
             'title': title,
             'paper_publish_date': self.paper_publish_date,
             'file': file,
+            'hubs': [hub.id]
         }
         return form
 
