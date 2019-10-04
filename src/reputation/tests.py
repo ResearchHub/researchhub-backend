@@ -99,7 +99,7 @@ class PaperPermissionsIntegrationTests(
         self.base_url = '/api/paper/'
 
     def test_can_post_paper_with_minimum_reputation(self):
-        reputation = 0
+        reputation = 1
         self.assertPostWithReputationResponds(reputation, 201)
 
     def test_can_NOT_post_paper_below_minimum_reputation(self):

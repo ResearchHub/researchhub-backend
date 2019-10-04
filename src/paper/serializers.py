@@ -4,18 +4,20 @@ from .models import Paper
 from discussion.serializers import ThreadSerializer
 from summary.serializers import SummarySerializer
 from user.models import User
+from user.serializers import UserSerializer
 from user.serializers import AuthorSerializer
-
+from hub.serializers import HubSerializer
 
 class PaperSerializer(serializers.ModelSerializer):
     authors = serializers.SerializerMethodField()
     discussion = serializers.SerializerMethodField()
     summary = serializers.SerializerMethodField()
-    uploaded_by = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(),
+    uploaded_by = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
+
+    hubs = serializers.SerializerMethodField()
 
     class Meta:
         fields = '__all__'
@@ -43,3 +45,6 @@ class PaperSerializer(serializers.ModelSerializer):
 
     def get_summary(self, obj):
         return SummarySerializer(obj.summary).data
+    
+    def get_hubs(self, obj):
+        return HubSerializer(obj.hubs, many=True).data
