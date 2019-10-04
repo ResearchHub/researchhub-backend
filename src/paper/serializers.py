@@ -5,7 +5,7 @@ from discussion.serializers import ThreadSerializer
 from summary.serializers import SummarySerializer
 from user.models import User
 from user.serializers import AuthorSerializer
-
+from hub.serializers import HubSerializer
 
 class PaperSerializer(serializers.ModelSerializer):
     authors = serializers.SerializerMethodField()
@@ -15,6 +15,9 @@ class PaperSerializer(serializers.ModelSerializer):
         queryset=User.objects.all(),
         read_only=False,
         default=serializers.CurrentUserDefault()
+    )
+    hubs = HubSerializer(
+        many=True
     )
 
     class Meta:
