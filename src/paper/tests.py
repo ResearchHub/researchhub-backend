@@ -3,6 +3,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 
 from utils.test_helpers import IntegrationTestHelper, TestHelper
 from hub.models import Hub
+from user.models import Author
 
 class PaperTests(TestCase, TestHelper):
 
@@ -27,11 +28,16 @@ class BaseIntegrationMixin:
         hub = Hub.objects.create(
             name='Chemistry'
         )
+        author = Author.objects.create(
+            first_name='Tom',
+            last_name='Riddle',
+        )
         form = {
             'title': title,
             'paper_publish_date': self.paper_publish_date,
             'file': file,
-            'hubs': [hub.id]
+            'hubs': [hub.id],
+            'authors': [author.id]
         }
         return form
 
