@@ -25,12 +25,16 @@ class BaseTests(TestCase):
         self,
         email=valid_email,
         password=valid_password,
-        reputation=0
+        reputation=0,
+        first_name=author_first_name,
+        last_name=author_last_name,
     ):
         return User.objects.create(
             email=email,
             password=password,
-            reputation=reputation
+            reputation=reputation,
+            first_name=first_name,
+            last_name=last_name,
         )
 
     def create_author(
@@ -216,7 +220,8 @@ class AuthorTests(BaseTests):
     def test_string_representation(self):
         university = self.create_university()
         user = self.create_user()
-        author = self.create_author(user, university)
+        author = user.author_profile
+        author.university = university
         text = 'R. A._Black_Hogwarts_London'
         self.assertEqual(str(author), text)
 
@@ -227,7 +232,7 @@ class AuthorTests(BaseTests):
 
     def test_string_representation_without_university(self):
         user = self.create_user()
-        author = self.create_author_without_university(user)
+        author = user.author_profile
         text = 'R. A._Black__'
         self.assertEqual(str(author), text)
 

@@ -30,7 +30,7 @@ class User(AbstractUser):
 def attach_author(sender, instance, created, *args, **kwargs):
     if created:
         Author.objects.create(
-            sender=instance,
+            user=instance,
             first_name=instance.first_name,
             last_name=instance.last_name,
         )
