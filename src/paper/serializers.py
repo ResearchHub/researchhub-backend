@@ -1,15 +1,17 @@
 import rest_framework.serializers as serializers
 
 from .models import Paper
+from user.models import Author
+from hub.models import Hub
 from discussion.serializers import ThreadSerializer
 from summary.serializers import SummarySerializer
-from user.models import User
 from user.serializers import UserSerializer
 from user.serializers import AuthorSerializer
 from hub.serializers import HubSerializer
 
+
 class PaperSerializer(serializers.ModelSerializer):
-    authors = serializers.SerializerMethodField()
+    authors = AuthorSerializer(many=True, read_only=False)
     discussion = serializers.SerializerMethodField()
     summary = serializers.SerializerMethodField()
     uploaded_by = UserSerializer(
@@ -22,6 +24,29 @@ class PaperSerializer(serializers.ModelSerializer):
     class Meta:
         fields = '__all__'
         model = Paper
+
+    def to_internal_value(self, data):
+        valid_authors = []
+        for author in data['authors']:
+            a = Author.objects.get(id=author)
+            valid_authors.append(a)
+        data['authors'] = valid_authors
+
+        valid_hubs = []
+        for hub in data['hubs']:
+            h = Hub.objects.get(id=hub)
+            valid_hubs.append(h)
+        data['hubs'] = valid_hubs
+
+        return data
+
+    def create(self, validated_data):
+        authors = validated_data.pop('authors')
+        hubs = validated_data.pop('hubs')
+        paper = Paper.objects.create(**validated_data)
+        paper.authors.add(*authors)
+        paper.hubs.add(*hubs)
+        return paper
 
     def get_authors(self, obj):
         authors_queryset = obj.authors.all()
@@ -45,6 +70,6 @@ class PaperSerializer(serializers.ModelSerializer):
 
     def get_summary(self, obj):
         return SummarySerializer(obj.summary).data
-    
+
     def get_hubs(self, obj):
         return HubSerializer(obj.hubs, many=True).data
