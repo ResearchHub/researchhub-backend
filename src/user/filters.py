@@ -3,7 +3,7 @@ from .models import *
 from utils.filters import ListExcludeFilter
 
 class AuthorFilter(filters.FilterSet):
-    id__ne = ListExcludeFilter(field_name='status')
+    id__ne = ListExcludeFilter(field_name='id')
 
     class Meta:
         model = Author
