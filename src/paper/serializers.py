@@ -27,15 +27,21 @@ class PaperSerializer(serializers.ModelSerializer):
 
     def to_internal_value(self, data):
         valid_authors = []
-        for author in data['authors']:
-            a = Author.objects.get(id=author)
-            valid_authors.append(a)
+        for author in data.getlist('authors'):
+            try:
+                a = Author.objects.get(id=author)
+                valid_authors.append(a)
+            except Author.DoesNotExist:
+                print(f'Author with id {author} was not found.')
         data['authors'] = valid_authors
 
         valid_hubs = []
-        for hub in data['hubs']:
-            h = Hub.objects.get(id=hub)
-            valid_hubs.append(h)
+        for hub in data.getlist('hubs'):
+            try:
+                h = Hub.objects.get(id=hub)
+                valid_hubs.append(h)
+            except Hub.DoesNotExist:
+                print(f'Hub with id {hub} was not found.')
         data['hubs'] = valid_hubs
 
         return data
