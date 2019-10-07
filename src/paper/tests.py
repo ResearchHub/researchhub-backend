@@ -1,9 +1,10 @@
+import json
+
 from django.test import TestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from utils.test_helpers import IntegrationTestHelper, TestHelper
-from hub.models import Hub
-from user.models import Author
+
 
 class PaperTests(TestCase, TestHelper):
 
@@ -13,38 +14,9 @@ class PaperTests(TestCase, TestHelper):
         self.assertEqual(str(paper), text)
 
 
-class BaseIntegrationMixin:
-
-    def submit_paper_form(self):
-        client = self.get_default_authenticated_client()
-        url = self.base_url
-        form_data = self.build_default_paper_form()
-        response = client.post(url, form_data)
-        return response
-
-    def build_default_paper_form(self):
-        title = self.paper_title
-        file = SimpleUploadedFile('../config/paper.pdf', b'file_content')
-        hub = Hub.objects.create(
-            name='Chemistry'
-        )
-        author = Author.objects.create(
-            first_name='Tom',
-            last_name='Riddle',
-        )
-        form = {
-            'title': title,
-            'paper_publish_date': self.paper_publish_date,
-            'file': file,
-            'hubs': [hub.id],
-            'authors': [author.id]
-        }
-        return form
-
-
 class PaperIntegrationTests(
-    BaseIntegrationMixin,
     TestCase,
+    TestHelper,
     IntegrationTestHelper
 ):
     base_url = '/api/paper/'
@@ -53,7 +25,34 @@ class PaperIntegrationTests(
         response = self.get_get_response(self.base_url)
         self.assertEqual(response.status_code, 200)
 
-    # def test_upload_paper(self):
-    #     response = self.submit_paper_form()
-    #     text = self.paper_title
-    #     self.assertContains(response, text, status_code=201)
+    def test_upload_paper(self):
+        response = self.submit_paper_form()
+        text = 'The Simple Paper'
+        self.assertContains(response, text, status_code=201)
+
+    def submit_paper_form(self):
+        client = self.get_default_authenticated_client()
+        url = self.base_url
+        form_data = self.build_paper_form()
+        response = client.post(url, form_data)
+        return response
+
+    def build_paper_form(self):
+        print('build_paper_form')
+        file = SimpleUploadedFile('../config/paper.pdf', b'file_content')
+        hub = self.create_hub('Film')
+        university = self.create_university(name='Charleston')
+        author = self.create_author_without_user(
+            university,
+            first_name='Donald',
+            last_name='Duck'
+        )
+
+        form = {
+            'title': 'The Simple Paper',
+            'paper_publish_date': self.paper_publish_date,
+            'file': file,
+            'hubs': [hub.id],
+            'authors': [author.id],
+        }
+        return form
