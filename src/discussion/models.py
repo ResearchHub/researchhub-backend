@@ -6,7 +6,9 @@ from django.db import models
 from paper.models import Paper
 from user.models import User
 
-
+HELP_TEXT_WAS_EDITED = (
+    'True if the comment text was edited after first being created.'
+)
 HELP_TEXT_IS_PUBLIC = (
     'Hides the comment from the public.'
 )
@@ -24,6 +26,10 @@ class BaseComment(models.Model):
     )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+    was_edited = models.BooleanField(
+        default=False,
+        help_text=HELP_TEXT_WAS_EDITED
+    )
     is_public = models.BooleanField(
         default=True,
         help_text=HELP_TEXT_IS_PUBLIC
