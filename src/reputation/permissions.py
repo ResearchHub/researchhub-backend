@@ -28,4 +28,4 @@ class CreatePaper(RuleBasedPermission):
     message = 'Not enough reputation to upload paper.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 0
+        return request.user.reputation >= 1
