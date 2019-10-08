@@ -33,6 +33,21 @@ class CommentViewSet(viewsets.ModelViewSet):
         return comments
 
 
+class ReplyViewSet(viewsets.ModelViewSet):
+    serializer_class = ReplySerializer
+
+    permission_classes = [IsAuthenticatedOrReadOnly & CreateDiscussionComment]
+
+    def get_queryset(self):
+        comment_id = get_comment_id_from_path(self.request)
+        comment = Comment.objects.first()
+        replies = Reply.objects.filter(
+            content_type=get_content_type_for_model(comment),
+            object_id=comment_id
+        )
+        return replies
+
+
 def get_paper_id_from_path(request):
     PAPER = 2
     paper_id = None
@@ -55,3 +70,15 @@ def get_thread_id_from_path(request):
         except ValueError:
             print('Failed to get discussion id')
     return thread_id
+
+
+def get_comment_id_from_path(request):
+    COMMENT = 6
+    comment_id = None
+    path_parts = request.path.split('/')
+    if path_parts[COMMENT] == 'comment':
+        try:
+            comment_id = int(path_parts[COMMENT + 1])
+        except ValueError:
+            print('Failed to get comment id')
+    return comment_id
