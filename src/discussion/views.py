@@ -1,9 +1,13 @@
+from django.contrib.admin.options import get_content_type_for_model
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 
-from .models import Comment, Thread
-from .serializers import CommentSerializer, ThreadSerializer
-from reputation.permissions import CreateDiscussionThread
+from .models import Comment, Thread, Reply
+from .serializers import CommentSerializer, ThreadSerializer, ReplySerializer
+from reputation.permissions import (
+    CreateDiscussionComment,
+    CreateDiscussionThread,
+)
 
 
 class ThreadViewSet(viewsets.ModelViewSet):
@@ -21,7 +25,7 @@ class ThreadViewSet(viewsets.ModelViewSet):
 class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
 
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly & CreateDiscussionComment]
 
     def get_queryset(self):
         thread_id = get_thread_id_from_path(self.request)
@@ -49,5 +53,5 @@ def get_thread_id_from_path(request):
         try:
             thread_id = int(path_parts[DISCUSSION + 1])
         except ValueError:
-            print('Failed to get paper id')
+            print('Failed to get discussion id')
     return thread_id
