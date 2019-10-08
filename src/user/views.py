@@ -5,6 +5,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import User, Author
 from .serializers import UserSerializer, AuthorSerializer
+from .filters import *
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -24,4 +25,5 @@ class AuthorViewSet(viewsets.ModelViewSet):
     queryset = Author.objects.all()
     serializer_class = AuthorSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
+    filter_class = AuthorFilter
     search_fields = ('first_name', 'last_name')
