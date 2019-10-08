@@ -84,7 +84,7 @@ class ThreadSerializer(serializers.ModelSerializer):
             'title',
             'text',
             'paper',
-            'comment_count'
+            'comment_count',
             'created_by',
             'created_date',
             'is_public',
