@@ -4,7 +4,7 @@ from django.test import Client
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
-
+from hub.models import Hub
 from paper.models import Paper
 from user.models import Author, University, User
 
@@ -112,6 +112,14 @@ class TestHelper:
         return Paper.objects.create(
             title=title,
             paper_publish_date=self.test_data.paper_publish_date
+        )
+
+    def create_hub(
+        self,
+        name
+    ):
+        return Hub.objects.create(
+            name=name
         )
 
 

@@ -1,10 +1,10 @@
 import random
 from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 from discussion.tests.tests import (
     BaseIntegrationTestCase as DiscussionIntegrationTestCase
 )
-from paper.tests import BaseIntegrationMixin as PaperIntegrationMixin
 from utils.test_helpers import (
     get_authenticated_post_response,
     IntegrationTestHelper,
@@ -89,8 +89,7 @@ class DiscussionThreadPermissionsIntegrationTests(
 
 class PaperPermissionsIntegrationTests(
     TestCase,
-    BaseIntegrationMixin,
-    PaperIntegrationMixin
+    BaseIntegrationMixin
 ):
 
     def setUp(self):
@@ -113,7 +112,7 @@ class PaperPermissionsIntegrationTests(
 
     def get_paper_submission_response(self, user):
         url = self.base_url
-        form_data = self.build_default_paper_form()
+        form_data = self.build_paper_form()
         response = get_authenticated_post_response(
             user,
             url,
@@ -121,3 +120,21 @@ class PaperPermissionsIntegrationTests(
             content_type='multipart/form-data'
         )
         return response
+
+    def build_paper_form(self):
+        file = SimpleUploadedFile('../config/paper.pdf', b'file_content')
+        hub = self.create_hub('Cryptography')
+        university = self.create_university(name='Univeristy of Atlanta')
+        author = self.create_author_without_user(
+            university,
+            first_name='Tom',
+            last_name='Riddle'
+        )
+        form = {
+            'title': 'The Best Paper',
+            'paper_publish_date': self.paper_publish_date,
+            'file': file,
+            'hubs': [hub.id],
+            'authors': [1, author.id]
+        }
+        return form
