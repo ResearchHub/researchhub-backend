@@ -6,7 +6,6 @@ The `urlpatterns` list routes URLs to views. For more information please see:
 from django.contrib import admin
 from django.urls import include, path, re_path
 from rest_framework import routers
-from django.views.decorators.csrf import csrf_exempt
 
 from .views import index
 import discussion.views
