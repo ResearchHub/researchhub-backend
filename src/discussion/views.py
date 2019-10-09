@@ -13,8 +13,10 @@ from .serializers import (
 )
 from reputation.permissions import (
     CreateDiscussionComment,
+    CreateDiscussionReply,
     CreateDiscussionThread,
     UpvoteDiscussionComment,
+    UpvoteDiscussionReply,
     UpvoteDiscussionThread
 )
 
@@ -129,6 +131,43 @@ class ReplyViewSet(viewsets.ModelViewSet):
             object_id=comment_id
         )
         return replies
+
+    @action(
+        detail=True,
+        methods=['post', 'put', 'patch'],
+        permission_classes=[UpvoteDiscussionReply]
+    )
+    def upvote(self, request, pk=None):
+        item = self.get_object()
+        user = request.user
+
+        vote_exists = find_vote(user, item, Vote.UPVOTE)
+
+        if vote_exists:
+            return Response(
+                'This vote already exists',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        response = update_or_create_vote(user, item, Vote.UPVOTE)
+        return response
+
+    @action(
+        detail=True,
+        methods=['post', 'put', 'patch'],
+    )
+    def downvote(self, request, pk=None):
+        item = self.get_object()
+        user = request.user
+
+        vote_exists = find_vote(user, item, Vote.DOWNVOTE)
+
+        if vote_exists:
+            return Response(
+                'This vote already exists',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        response = update_or_create_vote(user, item, Vote.DOWNVOTE)
+        return response
 
 
 def get_paper_id_from_path(request):
