@@ -95,6 +95,10 @@ def retrieve_vote(user, paper):
 
 
 def create_vote(user, paper, vote_type):
-    vote = Vote.objects.create(created_by=user, paper=paper, vote_type=vote_type)
+    vote = Vote.objects.create(
+        created_by=user,
+        paper=paper,
+        vote_type=vote_type
+    )
     vote.save()
     return vote
