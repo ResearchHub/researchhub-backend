@@ -12,6 +12,11 @@ class ReplySerializer(serializers.ModelSerializer):
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
+    parent = serializers.PrimaryKeyRelatedField(
+        queryset=Comment.objects.all(),
+        many=False,
+        read_only=False
+    )
 
     class Meta:
         fields = [
@@ -38,7 +43,7 @@ class CommentSerializer(serializers.ModelSerializer):
         default=serializers.CurrentUserDefault()
     )
     reply_count = serializers.SerializerMethodField()
-    replies = ReplySerializer(many=True, read_only=True)
+    replies = ReplySerializer(read_only=True, many=True)
 
     class Meta:
         fields = [
@@ -62,11 +67,15 @@ class CommentSerializer(serializers.ModelSerializer):
         ]
         model = Comment
 
-    def get_reply_count(self, obj):
+    def get_replies(self, obj):
         replies = Reply.objects.filter(
             content_type=get_content_type_for_model(obj),
             object_id=obj.id
         )
+        return replies
+
+    def get_reply_count(self, obj):
+        replies = self.get_replies(obj)
         count = len(replies)
         return count
 
