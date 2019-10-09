@@ -62,6 +62,8 @@ class CommentSerializer(serializers.ModelSerializer):
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
+    score = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -72,13 +74,32 @@ class CommentSerializer(serializers.ModelSerializer):
             'is_public',
             'is_removed',
             'text',
-            'parent'
+            'parent',
+            'score',
+            'user_vote'
         ]
         read_only_fields = [
             'is_public',
-            'is_removed'
+            'is_removed',
+            'score',
+            'user_vote'
         ]
         model = Comment
+
+    def get_score(self, obj):
+        score = calculate_score(obj)
+        return score
+
+    def get_user_vote(self, obj):
+        vote = None
+        user = get_user_from_request(self.context)
+        if user:
+            try:
+                vote = obj.votes.get(created_by=user)
+                vote = VoteSerializer(vote).data
+            except Vote.DoesNotExist:
+                pass
+        return vote
 
 
 class VoteSerializer(serializers.ModelSerializer):
