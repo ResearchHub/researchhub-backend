@@ -43,3 +43,10 @@ class UpvoteDiscussionThread(RuleBasedPermission):
 
     def satisfies_rule(self, request):
         return request.user.reputation >= 1
+
+
+class UpvotePaper(RuleBasedPermission):
+    message = 'Not enough reputation to upvote paper.'
+
+    def satisfies_rule(self, request):
+        return request.user.reputation >= 1
