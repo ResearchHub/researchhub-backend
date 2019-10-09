@@ -1,6 +1,6 @@
 import rest_framework.serializers as serializers
 
-from .models import Comment, Thread
+from .models import Comment, Thread, Vote
 from user.serializers import UserSerializer
 
 
@@ -58,3 +58,10 @@ class CommentSerializer(serializers.ModelSerializer):
             'is_removed'
         ]
         model = Comment
+
+
+class VoteSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        fiels = '__all__'
+        model = Vote
