@@ -1,6 +1,6 @@
 import rest_framework.serializers as serializers
 
-from .models import Paper
+from .models import Paper, Vote
 from user.models import Author
 from hub.models import Hub
 from discussion.serializers import ThreadSerializer
@@ -79,3 +79,15 @@ class PaperSerializer(serializers.ModelSerializer):
 
     def get_hubs(self, obj):
         return HubSerializer(obj.hubs, many=True).data
+
+
+class VoteSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        fields = [
+            'created_by',
+            'created_date',
+            'vote_type',
+            'paper',
+        ]
+        model = Vote
