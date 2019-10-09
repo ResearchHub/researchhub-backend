@@ -46,3 +46,59 @@ class Paper(models.Model):
     def __str__(self):
         authors = list(self.authors.all())
         return '%s: %s' % (self.title, authors)
+
+
+class Vote(models.Model):
+    UPVOTE = 1
+    DOWNVOTE = 2
+    VOTE_TYPE_CHOICES = [
+        (UPVOTE, 'Upvote'),
+        (DOWNVOTE, 'Downvote'),
+    ]
+    paper = models.ForeignKey(
+        Paper,
+        on_delete=models.CASCADE,
+        related_name='votes',
+        related_query_name='vote'
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='paper_votes',
+        related_query_name='paper_vote'
+    )
+    created_date = models.DateTimeField(auto_now_add=True)
+    vote_type = models.IntegerField(choices=VOTE_TYPE_CHOICES)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['paper', 'created_by'],
+                name='unique_paper_vote'
+            )
+        ]
+
+
+class Flag(models.Model):
+    paper = models.ForeignKey(
+        Paper,
+        on_delete=models.CASCADE,
+        related_name='flags',
+        related_query_name='flag'
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='paper_flags',
+        related_query_name='paper_flag'
+    )
+    created_date = models.DateTimeField(auto_now_add=True)
+    reason = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['paper', 'created_by'],
+                name='unique_paper_flag'
+            )
+        ]
