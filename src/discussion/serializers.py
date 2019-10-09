@@ -61,7 +61,14 @@ class CommentSerializer(serializers.ModelSerializer):
 
 
 class VoteSerializer(serializers.ModelSerializer):
+    item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
 
     class Meta:
-        fiels = '__all__'
+        fields = [
+            'content_type',
+            'created_by',
+            'created_date',
+            'vote_type',
+            'item',
+        ]
         model = Vote
