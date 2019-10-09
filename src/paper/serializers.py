@@ -1,28 +1,36 @@
 import rest_framework.serializers as serializers
 
 from .models import Paper, Vote
-from user.models import Author
 from hub.models import Hub
+from user.models import Author
 from discussion.serializers import ThreadSerializer
 from summary.serializers import SummarySerializer
-from user.serializers import UserSerializer
-from user.serializers import AuthorSerializer
 from hub.serializers import HubSerializer
+from user.serializers import AuthorSerializer, UserSerializer
+from utils.voting import (
+    calculate_score,
+    get_user_from_request
+)
 
 
 class PaperSerializer(serializers.ModelSerializer):
     authors = AuthorSerializer(many=True, read_only=False)
     discussion = serializers.SerializerMethodField()
+    hubs = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
     summary = serializers.SerializerMethodField()
     uploaded_by = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
-
-    hubs = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
 
     class Meta:
         fields = '__all__'
+        read_only_fields = [
+            'score',
+            'user_vote'
+        ]
         model = Paper
 
     def to_internal_value(self, data):
@@ -79,6 +87,21 @@ class PaperSerializer(serializers.ModelSerializer):
 
     def get_hubs(self, obj):
         return HubSerializer(obj.hubs, many=True).data
+
+    def get_score(self, obj):
+        score = calculate_score(obj, Vote.UPVOTE, Vote.DOWNVOTE)
+        return score
+
+    def get_user_vote(self, obj):
+        vote = None
+        user = get_user_from_request(self.context)
+        if user:
+            try:
+                vote = obj.votes.get(created_by=user.id)
+                vote = VoteSerializer(vote).data
+            except Vote.DoesNotExist:
+                pass
+        return vote
 
 
 class VoteSerializer(serializers.ModelSerializer):
