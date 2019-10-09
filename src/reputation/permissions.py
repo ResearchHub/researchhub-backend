@@ -24,6 +24,13 @@ class CreateDiscussionThread(RuleBasedPermission):
         return request.user.reputation >= 1
 
 
+class CreateDiscussionComment(RuleBasedPermission):
+    message = 'Not enough reputation to create comment.'
+
+    def satisfies_rule(self, request):
+        return request.user.reputation >= 1
+
+
 class CreatePaper(RuleBasedPermission):
     message = 'Not enough reputation to upload paper.'
 

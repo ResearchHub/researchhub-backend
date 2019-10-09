@@ -4,12 +4,18 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
-from .models import Comment, Thread, Vote
-from .serializers import CommentSerializer, ThreadSerializer, VoteSerializer
+from .models import Comment, Thread, Reply, Vote
+from .serializers import (
+    CommentSerializer,
+    ThreadSerializer,
+    ReplySerializer,
+    VoteSerializer
+)
 from reputation.permissions import (
+    CreateDiscussionComment,
     CreateDiscussionThread,
     UpvoteDiscussionComment,
-    UpvoteDiscussionThread,
+    UpvoteDiscussionThread
 )
 
 
@@ -65,7 +71,7 @@ class ThreadViewSet(viewsets.ModelViewSet):
 class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
 
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly & CreateDiscussionComment]
 
     def get_queryset(self):
         thread_id = get_thread_id_from_path(self.request)
@@ -110,6 +116,21 @@ class CommentViewSet(viewsets.ModelViewSet):
         return response
 
 
+class ReplyViewSet(viewsets.ModelViewSet):
+    serializer_class = ReplySerializer
+
+    permission_classes = [IsAuthenticatedOrReadOnly & CreateDiscussionComment]
+
+    def get_queryset(self):
+        comment_id = get_comment_id_from_path(self.request)
+        comment = Comment.objects.first()
+        replies = Reply.objects.filter(
+            content_type=get_content_type_for_model(comment),
+            object_id=comment_id
+        )
+        return replies
+
+
 def get_paper_id_from_path(request):
     PAPER = 2
     paper_id = None
@@ -130,8 +151,20 @@ def get_thread_id_from_path(request):
         try:
             thread_id = int(path_parts[DISCUSSION + 1])
         except ValueError:
-            print('Failed to get paper id')
+            print('Failed to get discussion id')
     return thread_id
+
+
+def get_comment_id_from_path(request):
+    COMMENT = 6
+    comment_id = None
+    path_parts = request.path.split('/')
+    if path_parts[COMMENT] == 'comment':
+        try:
+            comment_id = int(path_parts[COMMENT + 1])
+        except ValueError:
+            print('Failed to get comment id')
+    return comment_id
 
 
 def find_vote(user, item, vote_type):

@@ -1,6 +1,6 @@
 from django.contrib.contenttypes.fields import (
     GenericForeignKey,
-    GenericRelation,
+    GenericRelation
 )
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
@@ -105,16 +105,6 @@ class Thread(BaseComment):
         return '%s: %s' % (self.created_by, self.title)
 
 
-class Comment(BaseComment):
-    parent = models.ForeignKey(
-        Thread,
-        on_delete=models.SET_NULL,
-        related_name='comments',
-        blank=True,
-        null=True
-    )
-
-
 class Reply(BaseComment):
     content_type = models.ForeignKey(
         ContentType,
@@ -124,3 +114,14 @@ class Reply(BaseComment):
     )
     object_id = models.PositiveIntegerField()
     parent = GenericForeignKey('content_type', 'object_id')
+
+
+class Comment(BaseComment):
+    parent = models.ForeignKey(
+        Thread,
+        on_delete=models.SET_NULL,
+        related_name='comments',
+        blank=True,
+        null=True
+    )
+    replies = GenericRelation(Reply)
