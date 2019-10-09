@@ -12,6 +12,8 @@ class ThreadSerializer(serializers.ModelSerializer):
         default=serializers.CurrentUserDefault()
     )
     comment_count = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -23,17 +25,36 @@ class ThreadSerializer(serializers.ModelSerializer):
             'created_date',
             'is_public',
             'is_removed',
-            'comment_count'
+            'comment_count',
+            'score',
+            'user_vote'
         ]
         read_only_fields = [
             'is_public',
-            'is_removed'
+            'is_removed',
+            'score',
+            'user_vote'
         ]
         model = Thread
 
     def get_comment_count(self, obj):
         count = len(obj.comments.all())
         return count
+
+    def get_score(self, obj):
+        score = calculate_score(obj)
+        return score
+
+    def get_user_vote(self, obj):
+        vote = None
+        user = get_user_from_request(self.context)
+        if user:
+            try:
+                vote = obj.votes.get(created_by=user)
+                vote = VoteSerializer(vote).data
+            except Vote.DoesNotExist:
+                pass
+        return vote
 
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -72,3 +93,17 @@ class VoteSerializer(serializers.ModelSerializer):
             'item',
         ]
         model = Vote
+
+
+def calculate_score(obj):
+    upvotes = obj.votes.filter(vote_type=Vote.UPVOTE)
+    downvotes = obj.votes.filter(vote_type=Vote.DOWNVOTE)
+    score = len(upvotes) - len(downvotes)
+    return score
+
+
+def get_user_from_request(ctx):
+    request = ctx.get('request')
+    if request and hasattr(request, 'user'):
+        return request.user
+    return None
