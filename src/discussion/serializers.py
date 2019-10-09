@@ -128,7 +128,7 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
             'is_public',
             'is_removed',
             'score',
-            'user_vote'
+            'user_vote',
             'was_edited',
         ]
         read_only_fields = [
