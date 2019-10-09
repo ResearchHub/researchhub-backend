@@ -50,7 +50,7 @@ class ThreadSerializer(serializers.ModelSerializer):
         user = get_user_from_request(self.context)
         if user:
             try:
-                vote = obj.votes.get(created_by=user)
+                vote = obj.votes.get(created_by=user.id)
                 vote = VoteSerializer(vote).data
             except Vote.DoesNotExist:
                 pass
@@ -95,7 +95,7 @@ class CommentSerializer(serializers.ModelSerializer):
         user = get_user_from_request(self.context)
         if user:
             try:
-                vote = obj.votes.get(created_by=user)
+                vote = obj.votes.get(created_by=user.id)
                 vote = VoteSerializer(vote).data
             except Vote.DoesNotExist:
                 pass
