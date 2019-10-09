@@ -35,11 +35,11 @@ class SummaryViewSet(viewsets.ModelViewSet):
         paper.save()
         return Response(SummarySerializer(new_summary).data, status=200)
 
-    @action(detail=False, methods=['post'])
-    def get_edits(self, request):
-        paper_id = request.data.get('paper')
+    @action(detail=False, methods=['get'])
+    def get_edit_history(self, request):
+        paper_id = request.GET['paperId']
 
         summary_queryset = Summary.objects.filter(paper_id=paper_id, approved=True).order_by('-approved_at')
         summary = SummarySerializer(summary_queryset, many=True).data
-
+        
         return Response(summary, status=200)
