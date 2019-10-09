@@ -33,15 +33,15 @@ class ThreadViewSet(viewsets.ModelViewSet):
         item = self.get_object()
         user = request.user
 
-        vote_exists = self._find_vote(user, item, Vote.UPVOTE)
+        vote_exists = find_vote(user, item, Vote.UPVOTE)
 
         if vote_exists:
             return Response(
                 'This vote already exists',
                 status=status.HTTP_400_BAD_REQUEST
             )
-        vote = self._update_or_create_vote(user, item, Vote.UPVOTE)
-        serializer_response = self._get_serialized_vote_response(vote)
+        vote = update_or_create_vote(user, item, Vote.UPVOTE)
+        serializer_response = get_serialized_vote_response(vote)
         return serializer_response
 
     @action(
@@ -52,57 +52,16 @@ class ThreadViewSet(viewsets.ModelViewSet):
         item = self.get_object()
         user = request.user
 
-        vote_exists = self._find_vote(user, item, Vote.DOWNVOTE)
+        vote_exists = find_vote(user, item, Vote.DOWNVOTE)
 
         if vote_exists:
             return Response(
                 'This vote already exists',
                 status=status.HTTP_400_BAD_REQUEST
             )
-        vote = self._update_or_create_vote(user, item, Vote.DOWNVOTE)
-        serializer_response = self._get_serialized_vote_response(vote)
+        vote = update_or_create_vote(user, item, Vote.DOWNVOTE)
+        serializer_response = get_serialized_vote_response(vote)
         return serializer_response
-
-    def _find_vote(self, user, item, vote_type):
-        vote = Vote.objects.filter(
-            object_id=item.id,
-            content_type=get_content_type_for_model(item),
-            created_by=user,
-            vote_type=vote_type
-        )
-        if vote:
-            return True
-        return False
-
-    def _update_or_create_vote(self, user, item, vote_type):
-        vote = self._retrieve_vote(user, item)
-
-        if vote:
-            vote.vote_type = vote_type
-            vote.save()
-        else:
-            vote = self._create_vote(user, item, vote_type)
-
-        return vote
-
-    def _get_serialized_vote_response(self, vote):
-        serializer = VoteSerializer(vote)
-        return Response({'vote': serializer.data}, status=200)
-
-    def _retrieve_vote(self, user, item):
-        try:
-            return Vote.objects.get(
-                object_id=item.id,
-                content_type=get_content_type_for_model(item),
-                created_by=user
-            )
-        except Vote.DoesNotExist:
-            return None
-
-    def _create_vote(self, user, item, vote_type):
-        vote = Vote(created_by=user, item=item, vote_type=vote_type)
-        vote.save()
-        return vote
 
 
 class CommentViewSet(viewsets.ModelViewSet):
@@ -146,3 +105,49 @@ def get_thread_id_from_path(request):
         except ValueError:
             print('Failed to get paper id')
     return thread_id
+
+
+def find_vote(user, item, vote_type):
+    vote = Vote.objects.filter(
+        object_id=item.id,
+        content_type=get_content_type_for_model(item),
+        created_by=user,
+        vote_type=vote_type
+    )
+    if vote:
+        return True
+    return False
+
+
+def update_or_create_vote(user, item, vote_type):
+    vote = retrieve_vote(user, item)
+
+    if vote:
+        vote.vote_type = vote_type
+        vote.save()
+    else:
+        vote = create_vote(user, item, vote_type)
+
+    return vote
+
+
+def get_serialized_vote_response(vote):
+    serializer = VoteSerializer(vote)
+    return Response({'vote': serializer.data}, status=200)
+
+
+def retrieve_vote(user, item):
+    try:
+        return Vote.objects.get(
+            object_id=item.id,
+            content_type=get_content_type_for_model(item),
+            created_by=user
+        )
+    except Vote.DoesNotExist:
+        return None
+
+
+def create_vote(user, item, vote_type):
+    vote = Vote(created_by=user, item=item, vote_type=vote_type)
+    vote.save()
+    return vote
