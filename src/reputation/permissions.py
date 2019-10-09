@@ -29,3 +29,17 @@ class CreatePaper(RuleBasedPermission):
 
     def satisfies_rule(self, request):
         return request.user.reputation >= 1
+
+
+class UpvoteDiscussionComment(RuleBasedPermission):
+    message = 'Not enough reputation to upvote comment.'
+
+    def satisfies_rule(self, request):
+        return request.user.reputation >= 1
+
+
+class UpvoteDiscussionThread(RuleBasedPermission):
+    message = 'Not enough reputation to upvote thread.'
+
+    def satisfies_rule(self, request):
+        return request.user.reputation >= 1
