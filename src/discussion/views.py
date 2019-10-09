@@ -40,9 +40,8 @@ class ThreadViewSet(viewsets.ModelViewSet):
                 'This vote already exists',
                 status=status.HTTP_400_BAD_REQUEST
             )
-        vote = update_or_create_vote(user, item, Vote.UPVOTE)
-        serializer_response = get_serialized_vote_response(vote)
-        return serializer_response
+        response = update_or_create_vote(user, item, Vote.UPVOTE)
+        return response
 
     @action(
         detail=True,
@@ -59,9 +58,8 @@ class ThreadViewSet(viewsets.ModelViewSet):
                 'This vote already exists',
                 status=status.HTTP_400_BAD_REQUEST
             )
-        vote = update_or_create_vote(user, item, Vote.DOWNVOTE)
-        serializer_response = get_serialized_vote_response(vote)
-        return serializer_response
+        response = update_or_create_vote(user, item, Vote.DOWNVOTE)
+        return response
 
 
 class CommentViewSet(viewsets.ModelViewSet):
@@ -80,7 +78,36 @@ class CommentViewSet(viewsets.ModelViewSet):
         permission_classes=[UpvoteDiscussionComment]
     )
     def upvote(self, request, pk=None):
-        pass
+        item = self.get_object()
+        user = request.user
+
+        vote_exists = find_vote(user, item, Vote.UPVOTE)
+
+        if vote_exists:
+            return Response(
+                'This vote already exists',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        response = update_or_create_vote(user, item, Vote.UPVOTE)
+        return response
+
+    @action(
+        detail=True,
+        methods=['post', 'put', 'patch'],
+    )
+    def downvote(self, request, pk=None):
+        item = self.get_object()
+        user = request.user
+
+        vote_exists = find_vote(user, item, Vote.DOWNVOTE)
+
+        if vote_exists:
+            return Response(
+                'This vote already exists',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        response = update_or_create_vote(user, item, Vote.DOWNVOTE)
+        return response
 
 
 def get_paper_id_from_path(request):
@@ -125,15 +152,14 @@ def update_or_create_vote(user, item, vote_type):
     if vote:
         vote.vote_type = vote_type
         vote.save()
-    else:
-        vote = create_vote(user, item, vote_type)
+        return get_vote_response(vote, 200)
+    vote = create_vote(user, item, vote_type)
+    return get_vote_response(vote, 201)
 
-    return vote
 
-
-def get_serialized_vote_response(vote):
+def get_vote_response(vote, status_code):
     serializer = VoteSerializer(vote)
-    return Response({'vote': serializer.data}, status=200)
+    return Response(serializer.data, status=status_code)
 
 
 def retrieve_vote(user, item):
