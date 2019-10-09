@@ -121,7 +121,7 @@ class CommentViewSet(viewsets.ModelViewSet):
 class ReplyViewSet(viewsets.ModelViewSet):
     serializer_class = ReplySerializer
 
-    permission_classes = [IsAuthenticatedOrReadOnly & CreateDiscussionComment]
+    permission_classes = [IsAuthenticatedOrReadOnly & CreateDiscussionReply]
 
     def get_queryset(self):
         comment_id = get_comment_id_from_path(self.request)
