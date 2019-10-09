@@ -34,6 +34,8 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
         many=False,
         read_only=False
     )
+    score = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -46,7 +48,7 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
             'score',
             'text',
             'updated_date',
-            'user_vote'
+            'user_vote',
             'was_edited',
         ]
         read_only_fields = [
