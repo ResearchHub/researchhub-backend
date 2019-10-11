@@ -21,7 +21,45 @@ from reputation.permissions import (
 )
 
 
-class ThreadViewSet(viewsets.ModelViewSet):
+class VoteMixin:
+
+    @action(detail=True, methods=['get'])
+    def user_vote(self, request, pk=None):
+        item = self.get_object()
+        user = request.user
+        vote = retrieve_vote(user, item)
+        return get_vote_response(vote, 200)
+
+    def upvote(self, request, pk=None):
+        item = self.get_object()
+        user = request.user
+
+        vote_exists = find_vote(user, item, Vote.UPVOTE)
+
+        if vote_exists:
+            return Response(
+                'This vote already exists',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        response = update_or_create_vote(user, item, Vote.UPVOTE)
+        return response
+
+    def downvote(self, request, pk=None):
+        item = self.get_object()
+        user = request.user
+
+        vote_exists = find_vote(user, item, Vote.DOWNVOTE)
+
+        if vote_exists:
+            return Response(
+                'This vote already exists',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        response = update_or_create_vote(user, item, Vote.DOWNVOTE)
+        return response
+
+
+class ThreadViewSet(viewsets.ModelViewSet, VoteMixin):
     serializer_class = ThreadSerializer
 
     # Optional attributes
@@ -37,40 +75,18 @@ class ThreadViewSet(viewsets.ModelViewSet):
         methods=['post', 'put', 'patch'],
         permission_classes=[UpvoteDiscussionThread]
     )
-    def upvote(self, request, pk=None):
-        item = self.get_object()
-        user = request.user
-
-        vote_exists = find_vote(user, item, Vote.UPVOTE)
-
-        if vote_exists:
-            return Response(
-                'This vote already exists',
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(user, item, Vote.UPVOTE)
-        return response
+    def upvote(self, *args, **kwargs):
+        return super().upvote(*args, **kwargs)
 
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
     )
-    def downvote(self, request, pk=None):
-        item = self.get_object()
-        user = request.user
-
-        vote_exists = find_vote(user, item, Vote.DOWNVOTE)
-
-        if vote_exists:
-            return Response(
-                'This vote already exists',
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(user, item, Vote.DOWNVOTE)
-        return response
+    def downvote(self, *args, **kwargs):
+        return super().downvote(*args, **kwargs)
 
 
-class CommentViewSet(viewsets.ModelViewSet):
+class CommentViewSet(viewsets.ModelViewSet, VoteMixin):
     serializer_class = CommentSerializer
 
     permission_classes = [IsAuthenticatedOrReadOnly & CreateDiscussionComment]
@@ -85,40 +101,18 @@ class CommentViewSet(viewsets.ModelViewSet):
         methods=['post', 'put', 'patch'],
         permission_classes=[UpvoteDiscussionComment]
     )
-    def upvote(self, request, pk=None):
-        item = self.get_object()
-        user = request.user
-
-        vote_exists = find_vote(user, item, Vote.UPVOTE)
-
-        if vote_exists:
-            return Response(
-                'This vote already exists',
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(user, item, Vote.UPVOTE)
-        return response
+    def upvote(self, *args, **kwargs):
+        return super().upvote(*args, **kwargs)
 
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
     )
-    def downvote(self, request, pk=None):
-        item = self.get_object()
-        user = request.user
-
-        vote_exists = find_vote(user, item, Vote.DOWNVOTE)
-
-        if vote_exists:
-            return Response(
-                'This vote already exists',
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(user, item, Vote.DOWNVOTE)
-        return response
+    def downvote(self, *args, **kwargs):
+        return super().downvote(*args, **kwargs)
 
 
-class ReplyViewSet(viewsets.ModelViewSet):
+class ReplyViewSet(viewsets.ModelViewSet, VoteMixin):
     serializer_class = ReplySerializer
 
     permission_classes = [IsAuthenticatedOrReadOnly & CreateDiscussionReply]
@@ -137,37 +131,15 @@ class ReplyViewSet(viewsets.ModelViewSet):
         methods=['post', 'put', 'patch'],
         permission_classes=[UpvoteDiscussionReply]
     )
-    def upvote(self, request, pk=None):
-        item = self.get_object()
-        user = request.user
-
-        vote_exists = find_vote(user, item, Vote.UPVOTE)
-
-        if vote_exists:
-            return Response(
-                'This vote already exists',
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(user, item, Vote.UPVOTE)
-        return response
+    def upvote(self, *args, **kwargs):
+        return super().upvote(*args, **kwargs)
 
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
     )
-    def downvote(self, request, pk=None):
-        item = self.get_object()
-        user = request.user
-
-        vote_exists = find_vote(user, item, Vote.DOWNVOTE)
-
-        if vote_exists:
-            return Response(
-                'This vote already exists',
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(user, item, Vote.DOWNVOTE)
-        return response
+    def downvote(self, *args, **kwargs):
+        return super().downvote(*args, **kwargs)
 
 
 def get_paper_id_from_path(request):
@@ -239,7 +211,7 @@ def retrieve_vote(user, item):
         return Vote.objects.get(
             object_id=item.id,
             content_type=get_content_type_for_model(item),
-            created_by=user
+            created_by=user.id
         )
     except Vote.DoesNotExist:
         return None
