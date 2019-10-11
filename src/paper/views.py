@@ -95,7 +95,7 @@ def retrieve_vote(user, paper):
     try:
         return Vote.objects.get(
             paper=paper,
-            created_by=user
+            created_by=user.id
         )
     except Vote.DoesNotExist:
         return None
@@ -107,5 +107,4 @@ def create_vote(user, paper, vote_type):
         paper=paper,
         vote_type=vote_type
     )
-    vote.save()
     return vote
