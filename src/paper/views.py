@@ -19,6 +19,13 @@ class PaperViewSet(viewsets.ModelViewSet):
     # Optional attributes
     permission_classes = [IsAuthenticatedOrReadOnly & CreatePaper]
 
+    @action(detail=True, methods=['get'])
+    def user_vote(self, request, pk=None):
+        paper = self.get_object()
+        user = request.user
+        vote = retrieve_vote(user, paper)
+        return get_vote_response(vote, 200)
+
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
