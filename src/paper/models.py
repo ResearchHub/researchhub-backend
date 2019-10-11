@@ -42,6 +42,7 @@ class Paper(models.Model):
         null=True,
         blank=True
     )
+    publication_type = models.CharField(max_length=255, default='', blank=True)
 
     def __str__(self):
         authors = list(self.authors.all())
