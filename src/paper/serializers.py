@@ -7,10 +7,8 @@ from discussion.serializers import ThreadSerializer
 from summary.serializers import SummarySerializer
 from hub.serializers import HubSerializer
 from user.serializers import AuthorSerializer, UserSerializer
-from utils.voting import (
-    calculate_score,
-    get_user_from_request
-)
+from utils.http import get_user_from_request
+from utils.voting import calculate_score
 
 
 class PaperSerializer(serializers.ModelSerializer):
