@@ -57,9 +57,23 @@ class PaperSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
-        paper = Paper.objects.create(**validated_data)
+
+        paper = super(PaperSerializer, self).create(validated_data)
+
         paper.authors.add(*authors)
         paper.hubs.add(*hubs)
+
+        return paper
+
+    def update(self, instance, validated_data):
+        authors = validated_data.pop('authors')
+        hubs = validated_data.pop('hubs')
+
+        paper = super(PaperSerializer, self).update(instance, validated_data)
+
+        instance.authors.add(*authors)
+        instance.hubs.add(*hubs)
+
         return paper
 
     def get_authors(self, obj):

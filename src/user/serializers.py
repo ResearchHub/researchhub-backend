@@ -3,13 +3,16 @@ import rest_auth.registration.serializers as rest_auth_serializers
 
 from .models import User, Author
 
-
+class AuthorSerializer(rest_framework_serializers.ModelSerializer):
+    class Meta:
+        model = Author
+        fields = '__all__'
+        
 class UserSerializer(rest_framework_serializers.ModelSerializer):
-
+    author_profile = AuthorSerializer()
     class Meta:
         model = User
-        exclude = ['password']
-
+        exclude = ['password']       
 
 class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
     username = rest_auth_serializers.serializers.CharField(
@@ -28,9 +31,3 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
     def save(self, request):
         return super().save(request)
-
-
-class AuthorSerializer(rest_framework_serializers.ModelSerializer):
-    class Meta:
-        model = Author
-        fields = '__all__'
