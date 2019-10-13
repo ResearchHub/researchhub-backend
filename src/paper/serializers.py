@@ -84,13 +84,18 @@ class PaperSerializer(serializers.ModelSerializer):
     def get_discussion(self, obj):
         count = 0
         threads = []
+        request = self.context.get('request')
 
         threads_queryset = obj.threads.all().order_by('-created_date')
         if threads_queryset:
             AMOUNT = 10
             count = len(threads_queryset)
             threads_queryset = threads_queryset[:AMOUNT]
-            threads = ThreadSerializer(threads_queryset, many=True).data
+            threads = ThreadSerializer(
+                threads_queryset,
+                many=True,
+                context={'request': request}
+            ).data
 
         return {'count': count, 'threads': threads}
 
