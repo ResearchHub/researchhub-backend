@@ -88,7 +88,7 @@ class PaperSerializer(serializers.ModelSerializer):
 
         threads_queryset = obj.threads.all().order_by('-created_date')
         if threads_queryset:
-            AMOUNT = 10
+            AMOUNT = 20
             count = len(threads_queryset)
             threads_queryset = threads_queryset[:AMOUNT]
             threads = ThreadSerializer(
