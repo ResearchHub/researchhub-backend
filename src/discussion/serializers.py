@@ -103,7 +103,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
         reply_queryset = Reply.objects.filter(
             content_type=get_content_type_for_model(obj),
             object_id=obj.id
-        )[:AMOUNT]
+        ).order_by('-created_date')[:AMOUNT]
 
         replies = ReplySerializer(
             reply_queryset,
