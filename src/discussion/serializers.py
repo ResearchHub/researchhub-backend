@@ -66,7 +66,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
         default=serializers.CurrentUserDefault()
     )
     reply_count = serializers.SerializerMethodField()
-    replies = ReplySerializer(read_only=True, many=True)
+    replies = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
 
@@ -97,10 +97,20 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
         model = Comment
 
     def get_replies(self, obj):
-        replies = Reply.objects.filter(
+        AMOUNT = 20
+        request = self.context.get('request')
+
+        reply_queryset = Reply.objects.filter(
             content_type=get_content_type_for_model(obj),
             object_id=obj.id
-        )
+        )[:AMOUNT]
+
+        replies = ReplySerializer(
+            reply_queryset,
+            many=True,
+            context={'request': request}
+        ).data
+
         return replies
 
     def get_reply_count(self, obj):
