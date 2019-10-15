@@ -93,7 +93,9 @@ class CommentViewSet(viewsets.ModelViewSet, VoteMixin):
 
     def get_queryset(self):
         thread_id = get_thread_id_from_path(self.request)
-        comments = Comment.objects.filter(parent=thread_id)
+        comments = Comment.objects.filter(
+            parent=thread_id
+        ).order_by('-created_date')
         return comments
 
     @action(
@@ -123,7 +125,7 @@ class ReplyViewSet(viewsets.ModelViewSet, VoteMixin):
         replies = Reply.objects.filter(
             content_type=get_content_type_for_model(comment),
             object_id=comment_id
-        )
+        ).order_by('-created_date')
         return replies
 
     @action(
