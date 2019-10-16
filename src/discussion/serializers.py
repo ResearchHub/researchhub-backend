@@ -1,17 +1,132 @@
+from django.contrib.admin.options import get_content_type_for_model
 import rest_framework.serializers as serializers
 
-from .models import Comment, Thread
+from .models import Comment, Thread, Reply, Vote
 from user.serializers import UserSerializer
 
 
 # TODO: Add isOwner permission and make is_public editable
 
-class ThreadSerializer(serializers.ModelSerializer):
+class VoteMixin:
+    def get_score(self, obj):
+        score = calculate_score(obj)
+        return score
+
+    def get_user_vote(self, obj):
+        vote = None
+        user = get_user_from_request(self.context)
+        if user:
+            try:
+                vote = obj.votes.get(created_by=user.id)
+                vote = VoteSerializer(vote).data
+            except Vote.DoesNotExist:
+                pass
+        return vote
+
+
+class ReplySerializer(serializers.ModelSerializer, VoteMixin):
+    created_by = UserSerializer(
+        read_only=False,
+        default=serializers.CurrentUserDefault()
+    )
+    parent = serializers.PrimaryKeyRelatedField(
+        queryset=Comment.objects.all(),
+        many=False,
+        read_only=False
+    )
+    score = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
+
+    class Meta:
+        fields = [
+            'id',
+            'created_by',
+            'created_date',
+            'is_public',
+            'is_removed',
+            'parent',
+            'score',
+            'text',
+            'updated_date',
+            'user_vote',
+            'was_edited',
+        ]
+        read_only_fields = [
+            'is_public',
+            'is_removed',
+            'score',
+            'user_vote'
+        ]
+        model = Reply
+
+
+class CommentSerializer(serializers.ModelSerializer, VoteMixin):
+    created_by = UserSerializer(
+        read_only=False,
+        default=serializers.CurrentUserDefault()
+    )
+    reply_count = serializers.SerializerMethodField()
+    replies = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
+
+    class Meta:
+        fields = [
+            'id',
+            'created_by',
+            'created_date',
+            'is_public',
+            'is_removed',
+            'parent',
+            'reply_count',
+            'replies',
+            'score',
+            'text',
+            'updated_date',
+            'user_vote',
+            'was_edited',
+        ]
+        read_only_fields = [
+            'is_public',
+            'is_removed',
+            'reply_count',
+            'replies',
+            'score',
+            'user_vote'
+        ]
+        model = Comment
+
+    def get_replies(self, obj):
+        AMOUNT = 20
+        request = self.context.get('request')
+
+        reply_queryset = Reply.objects.filter(
+            content_type=get_content_type_for_model(obj),
+            object_id=obj.id
+        ).order_by('-created_date')[:AMOUNT]
+
+        replies = ReplySerializer(
+            reply_queryset,
+            many=True,
+            context={'request': request}
+        ).data
+
+        return replies
+
+    def get_reply_count(self, obj):
+        replies = self.get_replies(obj)
+        count = len(replies)
+        return count
+
+
+class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
     comment_count = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -19,15 +134,20 @@ class ThreadSerializer(serializers.ModelSerializer):
             'title',
             'text',
             'paper',
+            'comment_count',
             'created_by',
             'created_date',
             'is_public',
             'is_removed',
-            'comment_count'
+            'score',
+            'user_vote',
+            'was_edited',
         ]
         read_only_fields = [
             'is_public',
-            'is_removed'
+            'is_removed',
+            'score',
+            'user_vote'
         ]
         model = Thread
 
@@ -36,25 +156,29 @@ class ThreadSerializer(serializers.ModelSerializer):
         return count
 
 
-class CommentSerializer(serializers.ModelSerializer):
-    created_by = UserSerializer(
-        read_only=False,
-        default=serializers.CurrentUserDefault()
-    )
+class VoteSerializer(serializers.ModelSerializer):
+    item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
 
     class Meta:
         fields = [
-            'id',
+            'content_type',
             'created_by',
             'created_date',
-            'updated_date',
-            'is_public',
-            'is_removed',
-            'text',
-            'parent'
+            'vote_type',
+            'item',
         ]
-        read_only_fields = [
-            'is_public',
-            'is_removed'
-        ]
-        model = Comment
+        model = Vote
+
+
+def calculate_score(obj):
+    upvotes = obj.votes.filter(vote_type=Vote.UPVOTE)
+    downvotes = obj.votes.filter(vote_type=Vote.DOWNVOTE)
+    score = len(upvotes) - len(downvotes)
+    return score
+
+
+def get_user_from_request(ctx):
+    request = ctx.get('request')
+    if request and hasattr(request, 'user'):
+        return request.user
+    return None
