@@ -19,6 +19,11 @@ import hub.views
 router = routers.DefaultRouter()
 
 router.register(
+    r'paper/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply',
+    discussion.views.ReplyViewSet,
+    basename='discussion_thread_comment_replies'
+)
+router.register(
     r'paper/([0-9]+)/discussion/([0-9]+)/comment',
     discussion.views.CommentViewSet,
     basename='discussion_thread_comments'

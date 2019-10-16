@@ -17,6 +17,20 @@ class RuleBasedPermission(BasePermission):
         raise NotImplementedError
 
 
+class CreateDiscussionComment(RuleBasedPermission):
+    message = 'Not enough reputation to create comment.'
+
+    def satisfies_rule(self, request):
+        return request.user.reputation >= 1
+
+
+class CreateDiscussionReply(RuleBasedPermission):
+    message = 'Not enough reputation to create reply.'
+
+    def satisfies_rule(self, request):
+        return request.user.reputation >= 1
+
+
 class CreateDiscussionThread(RuleBasedPermission):
     message = 'Not enough reputation to create thread.'
 
@@ -26,6 +40,34 @@ class CreateDiscussionThread(RuleBasedPermission):
 
 class CreatePaper(RuleBasedPermission):
     message = 'Not enough reputation to upload paper.'
+
+    def satisfies_rule(self, request):
+        return request.user.reputation >= 1
+
+
+class UpvoteDiscussionComment(RuleBasedPermission):
+    message = 'Not enough reputation to upvote comment.'
+
+    def satisfies_rule(self, request):
+        return request.user.reputation >= 1
+
+
+class UpvoteDiscussionReply(RuleBasedPermission):
+    message = 'Not enough reputation to upvote reply.'
+
+    def satisfies_rule(self, request):
+        return request.user.reputation >= 1
+
+
+class UpvoteDiscussionThread(RuleBasedPermission):
+    message = 'Not enough reputation to upvote thread.'
+
+    def satisfies_rule(self, request):
+        return request.user.reputation >= 1
+
+
+class UpvotePaper(RuleBasedPermission):
+    message = 'Not enough reputation to upvote paper.'
 
     def satisfies_rule(self, request):
         return request.user.reputation >= 1
