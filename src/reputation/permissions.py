@@ -211,6 +211,7 @@ class AssignModerator(RuleBasedPermission):
         # user is author
         pass
 
+
 class Endorse(RuleBasedPermission):
 
     def satisfies_rule(self, request):
