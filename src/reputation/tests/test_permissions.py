@@ -11,9 +11,6 @@ from utils.test_helpers import (
     TestHelper
 )
 
-# REFACTOR: These probably should just be tested in the applications pertaining
-# to them to avoid code duplication and inheritance issues.
-
 
 class BaseIntegrationMixin(
     TestHelper,
