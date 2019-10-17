@@ -5,4 +5,4 @@ class ReputationConfig(AppConfig):
     name = 'reputation'
 
     def ready(self):
-        import reputation.signals
+        import reputation.signals  # noqa: F401
