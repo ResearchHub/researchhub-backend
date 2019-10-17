@@ -1,3 +1,4 @@
+from django.contrib.postgres.fields import JSONField
 from django.db import models
 
 from user.models import User
@@ -22,7 +23,7 @@ class Distribution(models.Model):
         max_length=255,
         choices=DISTRIBUTION_TYPE_CHOICES
     )
-    proof = models.CharField(max_length=255)
+    proof = JSONField()
 
     def __str__(self):
         return (
