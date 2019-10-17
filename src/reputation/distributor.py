@@ -1,4 +1,5 @@
 from .models import Distribution
+from .serializers import get_model_serializer
 
 
 class Distributor:
@@ -6,15 +7,20 @@ class Distributor:
     Distributes an amount to the request user's reputation and logs this event
     by creating an Distribution record in the database.
     '''
-    def __init__(self, distribution, recipient, db_record):
+    def __init__(self, distribution, recipient, db_record, timestamp):
         self.distribution = distribution
         self.recipient = recipient
-        self.proof = self.generate_proof(db_record)
+        self.proof = self.generate_proof(db_record, timestamp)
 
     @staticmethod
-    def generate_proof(db_record):
-        # TODO
-        return str(db_record)
+    def generate_proof(db_record, timestamp):
+        serializer = get_model_serializer(type(db_record))
+        proof = {
+            'timestamp': timestamp,
+            'table': db_record._meta.db_table,
+            'record': serializer(db_record).data
+        }
+        return proof
 
     def distribute(self):
         self._record_distribution()
