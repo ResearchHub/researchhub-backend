@@ -23,10 +23,12 @@ class Distributor:
         return proof
 
     def distribute(self):
-        self._record_distribution()
-        self._update_reputation()
-
-        print("Distribution complete")
+        try:
+            self._record_distribution()
+            self._update_reputation()
+            print('Distribution complete')
+        except Exception as e:
+            print('Distribution failed', e)
 
     def _record_distribution(self):
         record = Distribution.objects.create(
@@ -36,7 +38,7 @@ class Distributor:
             proof=self.proof
         )
 
-        print("Distribution created:", str(record))
+        print('Distribution created:', str(record))
 
     def _update_reputation(self):
         user = self.recipient
@@ -44,4 +46,4 @@ class Distributor:
         user.reputation = current + self.distribution.amount
         user.save(update_fields=['reputation'])
 
-        print("Reputation updated:", str(user))
+        print('Reputation updated:', str(user))
