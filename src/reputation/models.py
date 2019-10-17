@@ -23,3 +23,10 @@ class Distribution(models.Model):
         choices=DISTRIBUTION_TYPE_CHOICES
     )
     proof = models.CharField(max_length=255)
+
+    def __str__(self):
+        return (
+            f'Distribution: {self.distribution_type},'
+            f' Recipient: {self.recipient},'
+            f' Amount: {self.amount}'
+        )
