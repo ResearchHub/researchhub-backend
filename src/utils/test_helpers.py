@@ -205,6 +205,18 @@ class IntegrationTestHelper(TestData):
         return Client(HTTP_AUTHORIZATION=f'Token {auth_token}')
 
 
+def create_paper(
+    title=TestData.paper_title,
+    paper_publish_date=TestData.paper_publish_date,
+    uploaded_by=None
+):
+    return Paper.objects.create(
+        title=title,
+        paper_publish_date=paper_publish_date,
+        uploaded_by=uploaded_by
+    )
+
+
 def get_authenticated_post_response(
     user,
     url,
