@@ -51,7 +51,7 @@ def is_eligible(user):
 
 def vote_type_updated(update_fields):
     if update_fields is not None:
-        return update_fields['vote_type'] is not None
+        return 'vote_type' in update_fields
     return False
 
 
