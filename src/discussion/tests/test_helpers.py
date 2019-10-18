@@ -70,3 +70,11 @@ def create_thread(paper, user, title, text):
         text=text
     )
     return thread
+
+
+def upvote_comment(created_by, comment):
+    if created_by is None:
+        created_by = create_random_default_user('upvoter')
+    vote = Vote(item=comment, created_by=created_by, vote_type=Vote.UPVOTE)
+    vote.save()
+    return vote
