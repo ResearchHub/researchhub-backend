@@ -18,7 +18,7 @@ class TestData:
     university_city = 'London'
 
 
-def create_random_default_user(self, unique_value):
+def create_random_default_user(unique_value):
     first_name = TestData.first_name + str(unique_value)
     last_name = TestData.last_name + str(unique_value)
     email = str(unique_value) + TestData.valid_email

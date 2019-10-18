@@ -4,6 +4,8 @@ from paper.test_helpers import create_paper
 from user.test_helpers import create_random_default_user
 
 
+# REFACTOR: Replace default methods with kwargs
+
 class TestData:
     thread_title = 'Thread Title'
     thread_text = 'This is a thread.'
@@ -12,7 +14,7 @@ class TestData:
 
 
 def create_default_reply():
-    comment = create_default_comment()
+    comment = create_comment()
     user = create_random_default_user('reply')
     text = TestData.reply_text
     reply = create_reply(comment, user, text)
@@ -25,7 +27,7 @@ def create_reply(
     text=TestData.reply_text
 ):
     if parent is None:
-        parent = create_default_comment()
+        parent = create_comment()
     if user is None:
         user = create_random_default_user('reply')
     reply = Reply.objects.create(
@@ -36,18 +38,14 @@ def create_reply(
     return reply
 
 
-def create_default_comment():
-    thread = create_default_thread()
-    user = create_random_default_user('comment')
-    text = TestData.comment_text
-    comment = create_comment(thread, user, text)
-    return comment
-
-
-def create_comment(thread, user, text):
+def create_comment(thread=None, created_by=None, text=TestData.comment_text):
+    if thread is None:
+        thread = create_default_thread()
+    if created_by is None:
+        created_by = create_random_default_user('comment')
     comment = Comment.objects.create(
         parent=thread,
-        created_by=user,
+        created_by=created_by,
         text=text
     )
     return comment
