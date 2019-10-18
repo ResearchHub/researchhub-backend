@@ -32,6 +32,9 @@ class TestData:
     paper_publish_date = '1990-10-01'
 
 
+# REFACTOR: Instead of having to inherit this class, test cases should import
+# the needed functions from a test_helper module that is defined in each app.
+
 class TestHelper:
     test_data = TestData()
 
@@ -203,18 +206,6 @@ class IntegrationTestHelper(TestData):
 
     def _create_authenticated_client(self, auth_token):
         return Client(HTTP_AUTHORIZATION=f'Token {auth_token}')
-
-
-def create_paper(
-    title=TestData.paper_title,
-    paper_publish_date=TestData.paper_publish_date,
-    uploaded_by=None
-):
-    return Paper.objects.create(
-        title=title,
-        paper_publish_date=paper_publish_date,
-        uploaded_by=uploaded_by
-    )
 
 
 def get_authenticated_post_response(
