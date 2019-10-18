@@ -35,6 +35,7 @@ class Vote(models.Model):
     item = GenericForeignKey('content_type', 'object_id')
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
     vote_type = models.IntegerField(choices=VOTE_TYPE_CHOICES)
 
     class Meta:
