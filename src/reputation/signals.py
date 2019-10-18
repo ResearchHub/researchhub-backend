@@ -4,9 +4,17 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from .distributor import Distributor
-from .distributions import CommentUpvoted, CommentDownvoted, CreatePaper
+from .distributions import (
+    CommentUpvoted,
+    CommentDownvoted,
+    CreatePaper,
+    ReplyUpvoted,
+    ReplyDownvoted,
+    ThreadUpvoted,
+    ThreadDownvoted
+)
 
-from discussion.models import Comment, Vote
+from discussion.models import Comment, Reply, Thread, Vote
 from paper.models import Paper
 
 
@@ -56,9 +64,21 @@ def vote_type_updated(update_fields):
 
 
 def get_vote_item_distribution(instance):
-    if instance.vote_type == Vote.UPVOTE:
-        if type(instance.item) == Comment:
+    vote_type = instance.vote_type
+    item_type = type(instance.item)
+
+    if vote_type == Vote.UPVOTE:
+        if item_type == Comment:
             return CommentUpvoted
-    elif instance.vote_type == Vote.DOWNVOTE:
-        if type(instance.item) == Comment:
+        elif item_type == Reply:
+            return ReplyUpvoted
+        elif item_type == Thread:
+            return ThreadUpvoted
+
+    elif vote_type == Vote.DOWNVOTE:
+        if item_type == Comment:
             return CommentDownvoted
+        elif item_type == Reply:
+            return ReplyDownvoted
+        elif item_type == Thread:
+            return ThreadDownvoted
