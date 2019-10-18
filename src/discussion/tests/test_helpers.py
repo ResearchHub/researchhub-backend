@@ -70,9 +70,31 @@ def create_thread(paper, user, title, text):
     return thread
 
 
-def upvote_comment(created_by, comment):
+def upvote_comment(comment, voter):
+    return create_vote(voter, comment, Vote.UPVOTE)
+
+
+def downvote_comment(comment, voter):
+    return create_vote(voter, comment, Vote.DOWNVOTE)
+
+
+def create_vote(created_by, item, vote_type):
     if created_by is None:
-        created_by = create_random_default_user('upvoter')
-    vote = Vote(item=comment, created_by=created_by, vote_type=Vote.UPVOTE)
+        created_by = create_random_default_user('voter')
+    if item is None:
+        item = create_paper()
+    if vote_type is None:
+        vote_type = Vote.UPVOTE
+    vote = Vote(item=item, created_by=created_by, vote_type=vote_type)
     vote.save()
     return vote
+
+
+def update_to_upvote(vote):
+    vote.vote_type = Vote.UPVOTE
+    vote.save(update_fields=['vote_type'])
+
+
+def update_to_downvote(vote):
+    vote.vote_type = Vote.DOWNVOTE
+    vote.save(update_fields=['vote_type'])
