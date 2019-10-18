@@ -13,26 +13,18 @@ class TestData:
     reply_text = 'This is a reply.'
 
 
-def create_default_reply():
-    comment = create_comment()
-    user = create_random_default_user('reply')
-    text = TestData.reply_text
-    reply = create_reply(comment, user, text)
-    return reply
-
-
 def create_reply(
     parent=None,
-    user=None,
+    created_by=None,
     text=TestData.reply_text
 ):
     if parent is None:
         parent = create_comment()
-    if user is None:
-        user = create_random_default_user('reply')
+    if created_by is None:
+        created_by = create_random_default_user('reply')
     reply = Reply.objects.create(
         parent=parent,
-        created_by=user,
+        created_by=created_by,
         text=text
     )
     return reply
@@ -40,7 +32,7 @@ def create_reply(
 
 def create_comment(thread=None, created_by=None, text=TestData.comment_text):
     if thread is None:
-        thread = create_default_thread()
+        thread = create_thread()
     if created_by is None:
         created_by = create_random_default_user('comment')
     comment = Comment.objects.create(
@@ -51,31 +43,39 @@ def create_comment(thread=None, created_by=None, text=TestData.comment_text):
     return comment
 
 
-def create_default_thread():
-    paper = create_paper()
-    user = create_random_default_user('thread')
-    title = TestData.thread_title
-    text = TestData.thread_text
-    thread = create_thread(paper, user, title, text)
-    return thread
-
-
-def create_thread(paper, user, title, text):
+def create_thread(
+    paper=None,
+    created_by=None,
+    title=TestData.thread_title,
+    text=TestData.thread_text
+):
+    if paper is None:
+        paper = create_paper()
+    if created_by is None:
+        created_by = create_random_default_user('thread')
     thread = Thread.objects.create(
         paper=paper,
-        created_by=user,
+        created_by=created_by,
         title=title,
         text=text
     )
     return thread
 
 
-def upvote_comment(comment, voter):
-    return create_vote(voter, comment, Vote.UPVOTE)
+def upvote_discussion(item, voter):
+    '''
+    creates a new vote with vote_type upvote for the discussion item (one of
+    comment, reply, thread)
+    '''
+    return create_vote(voter, item, Vote.UPVOTE)
 
 
-def downvote_comment(comment, voter):
-    return create_vote(voter, comment, Vote.DOWNVOTE)
+def downvote_discussion(item, voter):
+    '''
+    creates a new vote with vote_type downvote for the discussion item (one of
+    comment, reply, thread)
+    '''
+    return create_vote(voter, item, Vote.DOWNVOTE)
 
 
 def create_vote(created_by, item, vote_type):
