@@ -197,7 +197,7 @@ def update_or_create_vote(user, item, vote_type):
 
     if vote:
         vote.vote_type = vote_type
-        vote.save()
+        vote.save(update_fields=['updated_date', 'vote_type'])
         return get_vote_response(vote, 200)
     vote = create_vote(user, item, vote_type)
     return get_vote_response(vote, 201)
