@@ -1,5 +1,6 @@
-from discussion.models import Comment, Reply, Thread
+from discussion.models import Comment, Reply, Thread, Vote
 
+from paper.test_helpers import create_paper
 from user.test_helpers import create_random_default_user
 
 
@@ -54,7 +55,7 @@ def create_comment(thread, user, text):
 
 def create_default_thread():
     paper = create_paper()
-    user = TestHelper.create_random_default_user('thread')
+    user = create_random_default_user('thread')
     title = TestData.thread_title
     text = TestData.thread_text
     thread = create_thread(paper, user, title, text)
