@@ -1,3 +1,5 @@
+from rest_framework.authtoken.models import Token
+
 from user.models import User
 
 
@@ -16,6 +18,12 @@ class TestData:
     university_country = 'England'
     university_state = 'London'
     university_city = 'London'
+
+
+def create_random_authenticated_user(unique_value):
+    user = create_random_default_user(unique_value)
+    Token.objects.create(user=user)
+    return user
 
 
 def create_random_default_user(unique_value):
