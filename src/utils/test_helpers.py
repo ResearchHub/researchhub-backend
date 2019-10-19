@@ -314,7 +314,10 @@ def test_concurrently(runs, delay=None):
                     time.sleep(delay)
                 t.join()
             if exceptions:
-                raise Exception('test_concurrently intercepted %s exceptions: %s' % (len(exceptions), exceptions))
+                raise Exception(
+                    'test_concurrently intercepted %s exceptions: %s'
+                    % (len(exceptions), exceptions)
+                )
 
         return wrapper
     return test_concurrently_decorator
