@@ -14,7 +14,7 @@ from .distributions import (
     ThreadDownvoted
 )
 
-from discussion.models import Comment, Reply, Thread, Vote
+from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from paper.models import Paper
 
 
@@ -31,7 +31,7 @@ def distribute_for_create_paper(sender, instance, created, **kwargs):
         distributor.distribute()
 
 
-@receiver(post_save, sender=Vote, dispatch_uid='comment_voted')
+@receiver(post_save, sender=DiscussionVote, dispatch_uid='discussion_vote')
 def distribute_for_vote(sender, instance, created, update_fields, **kwargs):
     timestamp = time()
     distributor = None
@@ -40,13 +40,17 @@ def distribute_for_vote(sender, instance, created, update_fields, **kwargs):
     if (created or vote_type_updated(update_fields)) and is_eligible(
         recipient
     ):
-        distribution = get_vote_item_distribution(instance)
-        distributor = Distributor(
-            distribution,
-            recipient,
-            instance,
-            timestamp
-        )
+        try:
+            distribution = get_vote_item_distribution(instance)
+            distributor = Distributor(
+                distribution,
+                recipient,
+                instance,
+                timestamp
+            )
+        except TypeError as e:
+            print(e)
+
     if distributor is not None:
         distributor.distribute()
 
@@ -67,18 +71,24 @@ def get_vote_item_distribution(instance):
     vote_type = instance.vote_type
     item_type = type(instance.item)
 
-    if vote_type == Vote.UPVOTE:
+    error = TypeError(f'Instance of type {item_type} is not supported')
+
+    if vote_type == DiscussionVote.UPVOTE:
         if item_type == Comment:
             return CommentUpvoted
         elif item_type == Reply:
             return ReplyUpvoted
         elif item_type == Thread:
             return ThreadUpvoted
+        else:
+            raise error
 
-    elif vote_type == Vote.DOWNVOTE:
+    elif vote_type == DiscussionVote.DOWNVOTE:
         if item_type == Comment:
             return CommentDownvoted
         elif item_type == Reply:
             return ReplyDownvoted
         elif item_type == Thread:
             return ThreadDownvoted
+        else:
+            raise error
