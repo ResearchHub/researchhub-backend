@@ -2,6 +2,7 @@ import json
 import threading
 import time
 
+from django.db import connection
 from django.test import Client
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
@@ -235,6 +236,13 @@ def get_user_from_response(response):
     return response.wsgi_request.user
 
 
+class DatabaseThread(threading.Thread):
+
+    def run(self):
+        super().run()
+        connection.close()
+
+
 # Copied from
 # https://www.caktusgroup.com/blog/2009/05/26/testing-django-views-for-concurrency-issues/
 def test_concurrently(runs, delay=None):
@@ -255,9 +263,10 @@ def test_concurrently(runs, delay=None):
                 except Exception as e:
                     exceptions.append(e)
                     raise
+
             threads = []
             for i in range(runs):
-                threads.append(threading.Thread(target=call_test_func))
+                threads.append(DatabaseThread(target=call_test_func))
             for t in threads:
                 if delay is not None:
                     time.sleep(delay)
@@ -268,6 +277,6 @@ def test_concurrently(runs, delay=None):
                 t.join()
             if exceptions:
                 raise Exception('test_concurrently intercepted %s exceptions: %s' % (len(exceptions), exceptions))
-            return
+
         return wrapper
     return test_concurrently_decorator
