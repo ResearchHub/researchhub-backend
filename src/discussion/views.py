@@ -15,6 +15,7 @@ from reputation.permissions import (
     CreateDiscussionComment,
     CreateDiscussionReply,
     CreateDiscussionThread,
+    UpdateDiscussionComment,
     UpvoteDiscussionComment,
     UpvoteDiscussionReply,
     UpvoteDiscussionThread
@@ -89,7 +90,11 @@ class ThreadViewSet(viewsets.ModelViewSet, VoteMixin):
 class CommentViewSet(viewsets.ModelViewSet, VoteMixin):
     serializer_class = CommentSerializer
 
-    permission_classes = [IsAuthenticatedOrReadOnly & CreateDiscussionComment]
+    permission_classes = [
+        IsAuthenticatedOrReadOnly
+        & CreateDiscussionComment
+        & UpdateDiscussionComment
+    ]
 
     def get_queryset(self):
         thread_id = get_thread_id_from_path(self.request)

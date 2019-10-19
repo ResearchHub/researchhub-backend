@@ -59,12 +59,28 @@ class CreateSummary(RuleBasedPermission):
         return request.user.reputation >= 5
 
 
-class UpdateDiscussionComment(RuleBasedPermission):
+class AuthorizationBasedPermission(BasePermission):
+    class Meta:
+        abstract = True
+
+    def has_object_permission(self, request, view, obj):
+        return (
+            self.is_read_only_request(request)
+            or self.is_authorized(request, view, obj)
+        )
+
+    def is_read_only_request(self, request):
+        return request.method in SAFE_METHODS
+
+    def is_authorized(self, request, view, obj):
+        raise NotImplementedError
+
+
+class UpdateDiscussionComment(AuthorizationBasedPermission):
     message = 'Action not permitted.'
 
-    def satisfies_rule(self, request):
-        # user must be object creator
-        pass
+    def is_authorized(self, request, view, obj):
+        return obj.created_by == request.user
 
 
 class UpdateDiscussionReply(RuleBasedPermission):
