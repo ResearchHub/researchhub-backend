@@ -1,6 +1,8 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 
+# REFACTOR: Move these to their respective apps
+
 class RuleBasedPermission(BasePermission):
     class Meta:
         abstract = True
@@ -83,20 +85,18 @@ class UpdateDiscussionComment(AuthorizationBasedPermission):
         return obj.created_by == request.user
 
 
-class UpdateDiscussionReply(RuleBasedPermission):
+class UpdateDiscussionReply(AuthorizationBasedPermission):
     message = 'Action not permitted.'
 
-    def satisfies_rule(self, request):
-        # user must be object creator
-        pass
+    def is_authorized(self, request, view, obj):
+        return obj.created_by == request.user
 
 
-class UpdateDiscussionThread(RuleBasedPermission):
+class UpdateDiscussionThread(AuthorizationBasedPermission):
     message = 'Action not permitted.'
 
-    def satisfies_rule(self, request):
-        # user must be object creator
-        pass
+    def is_authorized(self, request, view, obj):
+        return obj.created_by == request.user
 
 
 class UpdatePaper(RuleBasedPermission):

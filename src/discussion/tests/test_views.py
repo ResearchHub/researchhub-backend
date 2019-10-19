@@ -24,6 +24,7 @@ class DiscussionViewsTests(TestCase):
         self.thread = create_thread(paper=self.paper, created_by=self.user)
         self.comment = create_comment(thread=self.thread, created_by=self.user)
         self.reply = create_reply(parent=self.comment, created_by=self.user)
+        self.trouble_maker = create_random_authenticated_user('trouble_maker')
 
     def test_get_thread_id_from_path(self):
         factory = APIRequestFactory()
@@ -45,6 +46,27 @@ class DiscussionViewsTests(TestCase):
         self.assertEqual(thread_id_3, 300)
         self.assertEqual(thread_id_4, 4)
 
+    def test_thread_creator_can_update_thread(self):
+        text = 'update thread with patch'
+        patch_response = self.get_thread_patch_response(self.user, text)
+        self.assertContains(patch_response, text, status_code=200)
+
+        text = 'update thread with put'
+        put_response = self.get_thread_put_response(self.user, text)
+
+        self.assertContains(put_response, text, status_code=200)
+
+    def test_ONLY_thread_creator_can_update_thread(self):
+        text = 'virus'
+        patch_response = self.get_thread_patch_response(
+            self.trouble_maker,
+            text
+        )
+        put_response = self.get_thread_put_response(self.trouble_maker, text)
+
+        self.assertEqual(patch_response.status_code, 403)
+        self.assertEqual(put_response.status_code, 403)
+
     def test_comment_creator_can_update_comment(self):
         text = 'update comment with patch'
         patch_response = self.get_comment_patch_response(self.user, text)
@@ -57,13 +79,61 @@ class DiscussionViewsTests(TestCase):
         self.assertContains(put_response, text, status_code=200)
 
     def test_ONLY_comment_creator_can_update_comment(self):
-        trouble_maker = create_random_authenticated_user('trouble_maker')
         text = 'virus'
-        patch_response = self.get_comment_patch_response(trouble_maker, text)
-        put_response = self.get_comment_put_response(trouble_maker, text)
+        patch_response = self.get_comment_patch_response(
+            self.trouble_maker,
+            text
+        )
+        put_response = self.get_comment_put_response(self.trouble_maker, text)
 
         self.assertEqual(patch_response.status_code, 403)
         self.assertEqual(put_response.status_code, 403)
+
+    def test_reply_creator_can_update_reply(self):
+        text = 'update reply with patch'
+        patch_response = self.get_reply_patch_response(self.user, text)
+
+        self.assertContains(patch_response, text, status_code=200)
+
+        text = 'update reply with put'
+        put_response = self.get_reply_put_response(self.user, text)
+
+        self.assertContains(put_response, text, status_code=200)
+
+    def test_ONLY_reply_creator_can_update_reply(self):
+        text = 'virus'
+        patch_response = self.get_reply_patch_response(
+            self.trouble_maker,
+            text
+        )
+        put_response = self.get_reply_put_response(self.trouble_maker, text)
+
+        self.assertEqual(patch_response.status_code, 403)
+        self.assertEqual(put_response.status_code, 403)
+
+    def get_thread_patch_response(self, user, text):
+        url, data = self.get_request_config('thread', text)
+        response = get_authenticated_patch_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+        return response
+
+    def get_thread_put_response(self, user, text):
+        url = self.build_discussion_url('thread')
+        data = {
+            'title': text,
+            'text': text
+        }
+        response = get_authenticated_put_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+        return response
 
     def get_comment_patch_response(self, user, text):
         url, data = self.get_request_config('comment', text)
@@ -77,6 +147,30 @@ class DiscussionViewsTests(TestCase):
 
     def get_comment_put_response(self, user, text):
         url, data = self.get_request_config('comment', text)
+        response = get_authenticated_put_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+        return response
+
+    def get_reply_patch_response(self, user, text):
+        url, data = self.get_request_config('reply', text)
+        response = get_authenticated_patch_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+        return response
+
+    def get_reply_put_response(self, user, text):
+        url = self.build_discussion_url('reply')
+        data = {
+            'parent': self.comment.id,
+            'text': text
+        }
         response = get_authenticated_put_response(
             user,
             url,
