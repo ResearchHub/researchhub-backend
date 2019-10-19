@@ -4,14 +4,18 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .models import Summary
+from .permissions import CreateSummary
 from .serializers import SummarySerializer
 from paper.models import Paper
+
+# TODO: Add permissions and actions
+
 
 class SummaryViewSet(viewsets.ModelViewSet):
     queryset = Summary.objects.all()
     serializer_class = SummarySerializer
-    
-    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    permission_classes = [IsAuthenticatedOrReadOnly & CreateSummary]
 
     @action(detail=False, methods=['post'])
     def propose_edit(self, request):
@@ -41,5 +45,5 @@ class SummaryViewSet(viewsets.ModelViewSet):
 
         summary_queryset = Summary.objects.filter(paper_id=paper_id, approved=True).order_by('-approved_at')
         summary = SummarySerializer(summary_queryset, many=True).data
-        
+
         return Response(summary, status=200)
