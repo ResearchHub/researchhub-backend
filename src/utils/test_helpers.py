@@ -237,7 +237,7 @@ def get_user_from_response(response):
 
 # Copied from
 # https://www.caktusgroup.com/blog/2009/05/26/testing-django-views-for-concurrency-issues/
-def test_concurrently(runs):
+def test_concurrently(runs, delay=None):
     """
     Add this decorator to small pieces of code that you want to test
     concurrently to make sure they don't raise exceptions when run at the
@@ -259,10 +259,12 @@ def test_concurrently(runs):
             for i in range(runs):
                 threads.append(threading.Thread(target=call_test_func))
             for t in threads:
-                time.sleep(1)
+                if delay is not None:
+                    time.sleep(delay)
                 t.start()
             for t in threads:
-                time.sleep(1)
+                if delay is not None:
+                    time.sleep(delay)
                 t.join()
             if exceptions:
                 raise Exception('test_concurrently intercepted %s exceptions: %s' % (len(exceptions), exceptions))

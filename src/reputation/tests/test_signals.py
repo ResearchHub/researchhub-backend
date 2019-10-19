@@ -140,10 +140,11 @@ class SignalConcurrencyTests(TransactionTestCase):
 
     def test_X_comment_upvotes_increase_reputation_by_X(self):
         runs = 2
+        delay = 1
 
         starting_reputation = self.recipient.reputation
 
-        @test_concurrently(runs)
+        @test_concurrently(runs, delay)
         def run():
             unique_value = self.random_generator.random()
             user = create_random_authenticated_user(unique_value)
