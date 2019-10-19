@@ -1,4 +1,6 @@
-from .models import Paper
+from .models import Paper, Vote
+
+from user.test_helpers import create_random_default_user
 
 
 class TestData:
@@ -19,3 +21,35 @@ def create_paper(
         paper_publish_date=paper_publish_date,
         uploaded_by=uploaded_by
     )
+
+
+def upvote_paper(paper, voter):
+    return create_vote(created_by=voter, paper=paper, vote_type=Vote.UPVOTE)
+
+
+def downvote_paper(paper, voter):
+    return create_vote(created_by=voter, paper=paper, vote_type=Vote.DOWNVOTE)
+
+
+def create_vote(created_by=None, paper=None, vote_type=Vote.UPVOTE):
+    if created_by is None:
+        created_by = create_random_default_user('paper')
+
+    if paper is None:
+        paper = create_paper()
+
+    return Vote.objects.create(
+        created_by=created_by,
+        paper=paper,
+        vote_type=vote_type
+    )
+
+
+def update_to_upvote(vote):
+    vote.vote_type = Vote.UPVOTE
+    vote.save(update_fields=['vote_type'])
+
+
+def update_to_downvote(vote):
+    vote.vote_type = Vote.DOWNVOTE
+    vote.save(update_fields=['vote_type'])
