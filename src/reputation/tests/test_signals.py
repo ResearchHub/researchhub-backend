@@ -1,4 +1,6 @@
-from django.test import TestCase
+import random
+from django.test import TestCase, TransactionTestCase
+from rest_framework.test import APIClient
 
 from discussion.tests.test_helpers import (
     create_comment,
@@ -9,8 +11,14 @@ from discussion.tests.test_helpers import (
     update_to_upvote,
     update_to_downvote
 )
-from paper.test_helpers import create_paper
-from user.test_helpers import create_random_default_user
+from paper.test_helpers import create_paper, upvote_paper
+from user.test_helpers import (
+    create_random_authenticated_user,
+    create_random_default_user
+)
+from utils.test_helpers import (
+    test_concurrently
+)
 
 
 class SignalTests(TestCase):
@@ -88,3 +96,71 @@ class SignalTests(TestCase):
         update_to_upvote(reply_vote)
 
         self.assertEqual(self.recipient.reputation, 9)
+
+
+class SignalConcurrencyTests(TransactionTestCase):
+    base_url = '/api/paper/'
+
+    def setUp(self):
+        SEED = 'discussion'
+        self.random_generator = random.Random(SEED)
+        self.user = create_random_authenticated_user('Tom Marvolo Riddle')
+        self.recipient = create_random_authenticated_user('Harry James Potter')
+        self.paper = create_paper(
+            title='The Half Blood Prince',
+            uploaded_by=self.recipient
+        )
+        self.thread = create_thread(
+            paper=self.paper,
+            created_by=self.recipient
+        )
+        self.comment = create_comment(
+            thread=self.thread,
+            created_by=self.recipient
+        )
+        self.reply = create_reply(
+            parent=self.comment,
+            created_by=self.recipient
+        )
+
+    def test_X_paper_upvotes_do_NOT_increase_reputation(self):
+        runs = 2
+
+        starting_reputation = self.recipient.reputation
+
+        @test_concurrently(runs)
+        def run():
+            self.recipient.refresh_from_db()
+            unique_value = self.random_generator.random()
+            voter = create_random_default_user(unique_value)
+            upvote_paper(self.paper, voter)
+        run()
+
+        self.assertEqual(self.recipient.reputation, starting_reputation)
+
+    def test_X_comment_upvotes_increase_reputation_by_X(self):
+        runs = 2
+
+        starting_reputation = self.recipient.reputation
+
+        @test_concurrently(runs)
+        def run():
+            self.recipient.refresh_from_db()
+            unique_value = self.random_generator.random()
+            user = create_random_authenticated_user(unique_value)
+            self.get_thread_upvote_response(user)
+        run()
+
+        expected = starting_reputation + (runs * 5)
+
+        self.assertEqual(self.recipient.reputation, expected)
+
+    def get_thread_upvote_response(self, user):
+        url = self.base_url + (
+            f'{self.paper.id}/discussion/{self.thread.id}/upvote/'
+        )
+        client = APIClient()
+        client.force_authenticate(user, user.auth_token)
+        data = {}
+        response = client.post(url, data, format='json')
+        return response
