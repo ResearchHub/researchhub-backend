@@ -40,10 +40,11 @@ class Distributor:
 
         print('Distribution created:', str(record))
 
+    # TODO: Queue this so that there is no race condition
     def _update_reputation(self):
         user = self.recipient
         current = user.reputation
         user.reputation = current + self.distribution.amount
         user.save(update_fields=['reputation'])
 
-        print('Reputation updated:', str(user))
+        print(f'Reputation updated for user {user}:', str(user.reputation))
