@@ -2,7 +2,7 @@ import random
 from django.test import TestCase, TransactionTestCase
 from rest_framework.test import APIClient
 
-from discussion.tests.test_helpers import (
+from discussion.tests.helpers import (
     create_comment,
     create_reply,
     create_thread,
@@ -11,8 +11,8 @@ from discussion.tests.test_helpers import (
     update_to_upvote,
     update_to_downvote
 )
-from paper.test_helpers import create_paper, upvote_paper
-from user.test_helpers import (
+from paper.tests.helpers import create_paper, upvote_paper
+from user.tests.helpers import (
     create_random_authenticated_user,
     create_random_default_user
 )

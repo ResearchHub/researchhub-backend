@@ -1,6 +1,6 @@
 import random
 
-from .test_helpers import create_thread
+from .helpers import create_thread
 from .tests import BaseIntegrationTestCase
 from utils.test_helpers import (
     get_authenticated_post_response,
