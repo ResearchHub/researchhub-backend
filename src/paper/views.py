@@ -6,8 +6,10 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
 from .models import Paper, Vote
+from .permissions import CreatePaper, UpdatePaper, UpvotePaper, DownvotePaper
 from .serializers import PaperSerializer, VoteSerializer
-from reputation.permissions import CreatePaper, UpvotePaper
+
+# TODO: Add flagging actions
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -17,7 +19,11 @@ class PaperViewSet(viewsets.ModelViewSet):
     search_fields = ('title', 'doi')
 
     # Optional attributes
-    permission_classes = [IsAuthenticatedOrReadOnly & CreatePaper]
+    permission_classes = [
+        IsAuthenticatedOrReadOnly
+        & CreatePaper
+        & UpdatePaper
+    ]
 
     @action(detail=True, methods=['get'])
     def user_vote(self, request, pk=None):
@@ -48,6 +54,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
+        permission_classes=[DownvotePaper]
     )
     def downvote(self, request, pk=None):
         paper = self.get_object()
