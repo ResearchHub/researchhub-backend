@@ -130,12 +130,12 @@ class SignalConcurrencyTests(TransactionTestCase):
 
         @test_concurrently(runs)
         def run():
-            self.recipient.refresh_from_db()
             unique_value = self.random_generator.random()
             voter = create_random_default_user(unique_value)
             upvote_paper(self.paper, voter)
         run()
 
+        self.recipient.refresh_from_db()
         self.assertEqual(self.recipient.reputation, starting_reputation)
 
     def test_X_comment_upvotes_increase_reputation_by_X(self):
@@ -145,7 +145,6 @@ class SignalConcurrencyTests(TransactionTestCase):
 
         @test_concurrently(runs)
         def run():
-            self.recipient.refresh_from_db()
             unique_value = self.random_generator.random()
             user = create_random_authenticated_user(unique_value)
             self.get_thread_upvote_response(user)
@@ -153,6 +152,7 @@ class SignalConcurrencyTests(TransactionTestCase):
 
         expected = starting_reputation + (runs * 5)
 
+        self.recipient.refresh_from_db()
         self.assertEqual(self.recipient.reputation, expected)
 
     def get_thread_upvote_response(self, user):
