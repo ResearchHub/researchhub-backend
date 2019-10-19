@@ -217,6 +217,45 @@ def get_authenticated_post_response(
     data,
     content_type
 ):
+    client, content_format = _get_authenticated_client_config(
+        user, url, data, content_type
+    )
+    response = client.post(url, data, format=content_format)
+    return response
+
+
+def get_authenticated_patch_response(
+    user,
+    url,
+    data,
+    content_type
+):
+    client, content_format = _get_authenticated_client_config(
+        user, url, data, content_type
+    )
+    response = client.patch(url, data, format=content_format)
+    return response
+
+
+def get_authenticated_put_response(
+    user,
+    url,
+    data,
+    content_type
+):
+    client, content_format = _get_authenticated_client_config(
+        user, url, data, content_type
+    )
+    response = client.put(url, data, format=content_format)
+    return response
+
+
+def _get_authenticated_client_config(
+    user,
+    url,
+    data,
+    content_type
+):
     csrf = False
 
     if content_type == 'application/json':
@@ -228,8 +267,7 @@ def get_authenticated_post_response(
 
     client = APIClient(enforce_csrf_checks=csrf)
     client.force_authenticate(user=user, token=user.auth_token)
-    response = client.post(url, data, format=content_format)
-    return response
+    return client, content_format
 
 
 def get_user_from_response(response):

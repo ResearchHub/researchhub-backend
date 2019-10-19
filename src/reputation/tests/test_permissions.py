@@ -11,6 +11,9 @@ from utils.test_helpers import (
     TestHelper
 )
 
+# REFACTOR: Permissions are set on an app's views so these tests should be
+# moved to the app.
+
 
 class BaseIntegrationMixin(
     TestHelper,
