@@ -1,6 +1,6 @@
-from .models import Paper, Vote
+from paper.models import Paper, Vote
 
-from user.test_helpers import create_random_default_user
+from user.tests.helpers import create_random_default_user
 
 
 class TestData:

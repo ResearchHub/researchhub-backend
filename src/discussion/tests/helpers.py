@@ -1,7 +1,7 @@
 from discussion.models import Comment, Reply, Thread, Vote
 
-from paper.test_helpers import create_paper
-from user.test_helpers import create_random_default_user
+from paper.tests.helpers import create_paper
+from user.tests.helpers import create_random_default_user
 
 
 # REFACTOR: Replace default methods with kwargs

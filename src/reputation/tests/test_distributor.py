@@ -2,7 +2,7 @@ from time import time
 
 from django.test import TestCase
 
-from paper.test_helpers import create_paper
+from paper.tests.helpers import create_paper
 from reputation.distributions import CreatePaper
 from reputation.distributor import Distributor
 from reputation.serializers import get_model_serializer

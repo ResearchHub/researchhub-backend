@@ -1,14 +1,14 @@
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory
 
-from .test_helpers import (
+from .helpers import (
     create_comment,
     create_paper,
     create_reply,
     create_thread
 )
 from discussion.views import get_thread_id_from_path
-from user.test_helpers import create_random_authenticated_user
+from user.tests.helpers import create_random_authenticated_user
 from utils.test_helpers import (
     get_authenticated_patch_response,
     get_authenticated_put_response
