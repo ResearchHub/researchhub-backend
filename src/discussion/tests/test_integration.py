@@ -1,5 +1,6 @@
 import random
 
+from .test_helpers import create_thread
 from .tests import BaseIntegrationTestCase
 from utils.test_helpers import (
     get_authenticated_post_response,
@@ -41,6 +42,13 @@ class DiscussionIntegrationTests(BaseIntegrationTestCase):
         text = response_user.id
         self.assertContains(response, text, status_code=201)
 
+    def test_create_upvote_for_thread(self):
+        thread = create_thread()
+        user = self.create_user_with_reputation(1)
+        response = self.get_upvote_response(user, thread)
+        text = 'vote_type'
+        self.assertContains(response, text, status_code=201)
+
     def create_user_with_reputation(self, reputation):
         unique_value = self.random_generator.random()
         user = self.create_random_authenticated_user(unique_value)
@@ -76,5 +84,20 @@ class DiscussionIntegrationTests(BaseIntegrationTestCase):
             url,
             form_data,
             content_type='multipart/form-data'
+        )
+        return response
+
+    def get_upvote_response(self, user, thread):
+        url = self.base_url + (
+            f'{thread.paper.id}/discussion/{thread.id}/upvote/'
+        )
+
+        data = {}
+
+        response = get_authenticated_post_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
         )
         return response
