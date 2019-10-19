@@ -11,7 +11,7 @@ from .serializers import (
     ReplySerializer,
     VoteSerializer
 )
-from reputation.permissions import (
+from .permissions import (
     CreateDiscussionComment,
     CreateDiscussionReply,
     CreateDiscussionThread,
@@ -20,8 +20,13 @@ from reputation.permissions import (
     UpdateDiscussionThread,
     UpvoteDiscussionComment,
     UpvoteDiscussionReply,
-    UpvoteDiscussionThread
+    UpvoteDiscussionThread,
+    DownvoteDiscussionComment,
+    DownvoteDiscussionReply,
+    DownvoteDiscussionThread
 )
+
+# TODO: Add flag actions
 
 
 class VoteMixin:
@@ -88,6 +93,7 @@ class ThreadViewSet(viewsets.ModelViewSet, VoteMixin):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
+        permission_classes=[DownvoteDiscussionThread]
     )
     def downvote(self, *args, **kwargs):
         return super().downvote(*args, **kwargs)
@@ -120,6 +126,7 @@ class CommentViewSet(viewsets.ModelViewSet, VoteMixin):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
+        permission_classes=[DownvoteDiscussionComment]
     )
     def downvote(self, *args, **kwargs):
         return super().downvote(*args, **kwargs)
@@ -154,6 +161,7 @@ class ReplyViewSet(viewsets.ModelViewSet, VoteMixin):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
+        permission_classes=[DownvoteDiscussionReply]
     )
     def downvote(self, *args, **kwargs):
         return super().downvote(*args, **kwargs)
