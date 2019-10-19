@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 
 from django.test import Client
 from rest_framework.authtoken.models import Token
@@ -231,3 +233,39 @@ def get_authenticated_post_response(
 
 def get_user_from_response(response):
     return response.wsgi_request.user
+
+
+# Copied from
+# https://www.caktusgroup.com/blog/2009/05/26/testing-django-views-for-concurrency-issues/
+def test_concurrently(runs):
+    """
+    Add this decorator to small pieces of code that you want to test
+    concurrently to make sure they don't raise exceptions when run at the
+    same time.  E.g., some Django views that do a SELECT and then a subsequent
+    INSERT might fail when the INSERT assumes that the data has not changed
+    since the SELECT.
+    """
+    def test_concurrently_decorator(test_func):
+        def wrapper(*args, **kwargs):
+            exceptions = []
+
+            def call_test_func():
+                try:
+                    test_func(*args, **kwargs)
+                except Exception as e:
+                    exceptions.append(e)
+                    raise
+            threads = []
+            for i in range(runs):
+                threads.append(threading.Thread(target=call_test_func))
+            for t in threads:
+                time.sleep(1)
+                t.start()
+            for t in threads:
+                time.sleep(1)
+                t.join()
+            if exceptions:
+                raise Exception('test_concurrently intercepted %s exceptions: %s' % (len(exceptions), exceptions))
+            return
+        return wrapper
+    return test_concurrently_decorator
