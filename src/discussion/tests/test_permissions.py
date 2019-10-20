@@ -3,7 +3,6 @@ import random
 from .helpers import (
     build_comment_data,
     build_discussion_default_url,
-    build_discussion_detail_url,
     build_reply_data,
     build_thread_form,
     create_comment,
