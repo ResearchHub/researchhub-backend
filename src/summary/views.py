@@ -52,7 +52,10 @@ class SummaryViewSet(viewsets.ModelViewSet):
     def get_edit_history(self, request):
         paper_id = request.GET['paperId']
 
-        summary_queryset = Summary.objects.filter(paper_id=paper_id, approved=True).order_by('-approved_at')
+        summary_queryset = Summary.objects.filter(
+            paper_id=paper_id,
+            approved=True
+        ).order_by('-approved_at')
         summary = SummarySerializer(summary_queryset, many=True).data
 
         return Response(summary, status=200)
