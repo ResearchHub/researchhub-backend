@@ -2,6 +2,7 @@ import random
 from django.test import TestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
 
+from .helpers import create_paper
 from utils.test_helpers import (
     get_authenticated_post_response,
     IntegrationTestHelper,
@@ -38,6 +39,7 @@ class PaperPermissionsIntegrationTests(
         SEED = 'paper'
         self.random_generator = random.Random(SEED)
         self.base_url = '/api/paper/'
+        self.paper = create_paper()
 
     def test_can_post_paper_with_minimum_reputation(self):
         reputation = 1
@@ -46,6 +48,26 @@ class PaperPermissionsIntegrationTests(
     def test_can_NOT_post_paper_below_minimum_reputation(self):
         reputation = -1
         self.assertPostWithReputationResponds(reputation, 403)
+
+    def test_can_upvote_paper_with_minimum_reputation(self):
+        user = self.create_user_with_reputation(1)
+        response = self.get_upvote_response(user)
+        self.assertEqual(response.status_code, 201)
+
+    def test_can_NOT_upvote_paper_below_minimum_reputation(self):
+        user = self.create_user_with_reputation(0)
+        response = self.get_upvote_response(user)
+        self.assertEqual(response.status_code, 403)
+
+    def test_can_downvote_paper_with_minimum_reputation(self):
+        user = self.create_user_with_reputation(25)
+        response = self.get_downvote_response(user)
+        self.assertEqual(response.status_code, 201)
+
+    def test_can_NOT_downvote_paper_below_minimum_reputation(self):
+        user = self.create_user_with_reputation(24)
+        response = self.get_downvote_response(user)
+        self.assertEqual(response.status_code, 403)
 
     def post_with_reputation(self, reputation):
         user = self.create_user_with_reputation(reputation)
@@ -80,3 +102,25 @@ class PaperPermissionsIntegrationTests(
             'authors': [1, author.id]
         }
         return form
+
+    def get_upvote_response(self, user):
+        url = self.base_url + f'{self.paper.id}/upvote/'
+        data = {}
+        response = get_authenticated_post_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+        return response
+
+    def get_downvote_response(self, user):
+        url = self.base_url + f'{self.paper.id}/downvote/'
+        data = {}
+        response = get_authenticated_post_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+        return response
