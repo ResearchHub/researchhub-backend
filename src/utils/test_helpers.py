@@ -211,6 +211,21 @@ class IntegrationTestHelper(TestData):
         return Client(HTTP_AUTHORIZATION=f'Token {auth_token}')
 
 
+def get_authenticated_get_response(
+    user,
+    url,
+    content_type
+):
+    client, content_format = _get_authenticated_client_config(
+        user,
+        url,
+        content_type
+    )
+
+    response = client.get(url, format=content_format)
+    return response
+
+
 def get_authenticated_post_response(
     user,
     url,
@@ -218,7 +233,9 @@ def get_authenticated_post_response(
     content_type
 ):
     client, content_format = _get_authenticated_client_config(
-        user, url, data, content_type
+        user,
+        url,
+        content_type
     )
     response = client.post(url, data, format=content_format)
     return response
@@ -231,7 +248,9 @@ def get_authenticated_patch_response(
     content_type
 ):
     client, content_format = _get_authenticated_client_config(
-        user, url, data, content_type
+        user,
+        url,
+        content_type
     )
     response = client.patch(url, data, format=content_format)
     return response
@@ -244,7 +263,9 @@ def get_authenticated_put_response(
     content_type
 ):
     client, content_format = _get_authenticated_client_config(
-        user, url, data, content_type
+        user,
+        url,
+        content_type
     )
     response = client.put(url, data, format=content_format)
     return response
@@ -253,14 +274,12 @@ def get_authenticated_put_response(
 def _get_authenticated_client_config(
     user,
     url,
-    data,
     content_type
 ):
     csrf = False
 
     if content_type == 'application/json':
         content_format = 'json'
-        data = json.dumps(data)
     elif content_type == 'multipart/form-data':
         content_format = 'multipart'
         csrf = True

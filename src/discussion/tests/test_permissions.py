@@ -1,43 +1,40 @@
 import random
 
+from .helpers import (
+    build_comment_data,
+    build_discussion_default_url,
+    build_discussion_detail_url,
+    build_reply_data,
+    build_thread_form,
+    create_comment,
+    create_reply,
+    create_thread
+)
 from .tests import (
     BaseIntegrationTestCase as DiscussionIntegrationTestCase
 )
+from user.tests.helpers import create_random_authenticated_user
+from paper.tests.helpers import create_paper
 from utils.test_helpers import (
-    get_authenticated_post_response,
-    IntegrationTestHelper,
-    TestHelper
+    get_authenticated_get_response,
+    get_authenticated_post_response
 )
 
 
-class BaseIntegrationMixin(
-    TestHelper,
-    IntegrationTestHelper
-):
-
-    def assertPostWithReputationResponds(self, reputation, status_code):
-        response = self.post_with_reputation(reputation)
-        self.assertEqual(response.status_code, status_code)
-
-    def post_with_reputation(self):
-        raise NotImplementedError
-
-    def create_user_with_reputation(self, reputation):
-        unique_value = self.random_generator.random()
-        user = self.create_random_authenticated_user(unique_value)
-        user.reputation = reputation
-        user.save()
-        return user
-
-
 class DiscussionThreadPermissionsIntegrationTests(
-    DiscussionIntegrationTestCase,
-    BaseIntegrationMixin
+    DiscussionIntegrationTestCase
 ):
 
     def setUp(self):
         SEED = 'discussion'
         self.random_generator = random.Random(SEED)
+        self.base_url = '/api/'
+        self.user = create_random_authenticated_user('discussion_permissions')
+        self.paper = create_paper(uploaded_by=self.user)
+        self.thread = create_thread(paper=self.paper, created_by=self.user)
+        self.comment = create_comment(thread=self.thread, created_by=self.user)
+        self.reply = create_reply(parent=self.comment, created_by=self.user)
+        self.trouble_maker = create_random_authenticated_user('trouble_maker')
 
     def test_all_users_can_view_threads(self):
         user = self.create_user_with_reputation(0)
@@ -46,37 +43,84 @@ class DiscussionThreadPermissionsIntegrationTests(
         self.assertEqual(status_code, 200)
 
     def test_can_post_thread_with_minimum_reputation(self):
-        reputation = 1
-        self.assertPostWithReputationResponds(reputation, 201)
+        user = self.create_user_with_reputation(1)
+        response = self.get_thread_post_response(user)
+        self.assertEqual(response.status_code, 201)
 
     def test_can_NOT_post_thread_below_minimum_reputation(self):
-        reputation = 0
-        self.assertPostWithReputationResponds(reputation, 403)
+        user = self.create_user_with_reputation(0)
+        response = self.get_thread_post_response(user)
+        self.assertEqual(response.status_code, 403)
 
-    def post_with_reputation(self, reputation):
-        user = self.create_user_with_reputation(reputation)
-        response = self.get_thread_submission_response(user)
-        return response
+    def test_can_post_comment_with_minimum_reputation(self):
+        user = self.create_user_with_reputation(2)
+        response = self.get_comment_post_response(user)
+        self.assertEqual(response.status_code, 201)
+
+    def test_can_NOT_post_comment_below_minimum_reputation(self):
+        user = self.create_user_with_reputation(-1)
+        response = self.get_comment_post_response(user)
+        self.assertEqual(response.status_code, 403)
+
+    def test_can_post_reply_with_minimum_reputation(self):
+        user = self.create_user_with_reputation(3)
+        response = self.get_reply_post_response(user)
+        self.assertEqual(response.status_code, 201)
+
+    def test_can_NOT_post_reply_below_minimum_reputation(self):
+        user = self.create_user_with_reputation(-2)
+        response = self.get_reply_post_response(user)
+        self.assertEqual(response.status_code, 403)
+
+    def create_user_with_reputation(self, reputation):
+        unique_value = self.random_generator.random()
+        user = self.create_random_authenticated_user(unique_value)
+        user.reputation = reputation
+        user.save()
+        return user
 
     def get_discussion_response(self, user):
-        thread_data = self.post_default_thread()
-        url = self.build_discussion_url(thread_data)
-        response = self.get_authenticated_get_response(
+        url = build_discussion_default_url(self, 'thread')
+        response = get_authenticated_get_response(
             user,
             url,
             content_type='application/json'
         )
         return response
 
-    def get_thread_submission_response(self, user):
-        paper = self.create_paper_without_authors()
-        paper_id = paper.id
-        url = self.base_url + f'{paper_id}/discussion/'
-        form_data = self.build_default_thread_form(paper_id)
+    def get_thread_post_response(self, user):
+        url = build_discussion_default_url(self, 'thread')
+        form_data = build_thread_form(
+            self.paper.id,
+            'Permission Thread',
+            'test permissions thread'
+        )
         response = get_authenticated_post_response(
             user,
             url,
             form_data,
             content_type='multipart/form-data'
+        )
+        return response
+
+    def get_comment_post_response(self, user):
+        url = build_discussion_default_url(self, 'comment')
+        data = build_comment_data(self.thread.id, 'test permissions comment')
+        response = get_authenticated_post_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+        return response
+
+    def get_reply_post_response(self, user):
+        url = build_discussion_default_url(self, 'reply')
+        data = build_reply_data(self.comment.id, 'test permissions reply')
+        response = get_authenticated_post_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
         )
         return response

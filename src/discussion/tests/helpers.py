@@ -1,3 +1,5 @@
+import json
+
 from discussion.models import Comment, Reply, Thread, Vote
 
 from paper.tests.helpers import create_paper
@@ -11,6 +13,68 @@ class TestData:
     thread_text = 'This is a thread.'
     comment_text = 'This is a comment.'
     reply_text = 'This is a reply.'
+
+
+def build_discussion_detail_url(self, discussion_type):
+    url = self.base_url + f'paper/{self.paper.id}/'
+    if discussion_type == 'paper':
+        return url
+
+    url += f'discussion/{self.thread.id}/'
+    if discussion_type == 'thread':
+        return url
+
+    url += f'comment/{self.comment.id}/'
+    if discussion_type == 'comment':
+        return url
+
+    url += f'reply/{self.reply.id}/'
+    if discussion_type == 'reply':
+        return url
+
+    return None
+
+
+def build_discussion_default_url(self, discussion_type):
+    url = self.base_url + f'paper/'
+    if discussion_type == 'paper':
+        return url
+
+    url += f'{self.paper.id}/discussion/'
+    if discussion_type == 'thread':
+        return url
+
+    url += f'{self.thread.id}/comment/'
+    if discussion_type == 'comment':
+        return url
+
+    url += f'{self.comment.id}/reply/'
+    if discussion_type == 'reply':
+        return url
+
+    return None
+
+
+def build_comment_data(parent, text):
+    return {
+        'parent': parent,
+        'text': text,
+    }
+
+
+def build_reply_data(parent, text):
+    return {
+        'parent': parent,
+        'text': text,
+    }
+
+
+def build_thread_form(paper, title, text):
+    return {
+        'paper': paper,
+        'title': title,
+        'text': json.dumps(text),
+    }
 
 
 def create_reply(
