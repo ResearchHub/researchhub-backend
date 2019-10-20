@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .models import Summary
-from .permissions import CreateSummary
+from .permissions import CreateSummary, ProposeSummaryEdit, UpdateSummary
 from .serializers import SummarySerializer
 from paper.models import Paper
 
@@ -15,9 +15,18 @@ class SummaryViewSet(viewsets.ModelViewSet):
     queryset = Summary.objects.all()
     serializer_class = SummarySerializer
 
-    permission_classes = [IsAuthenticatedOrReadOnly & CreateSummary]
+    permission_classes = [
+        IsAuthenticatedOrReadOnly
+        & CreateSummary
+        & UpdateSummary
+    ]
 
-    @action(detail=False, methods=['post'])
+    # TODO: Make this atomic and respond with failure message if it throws
+    @action(
+        detail=False,
+        methods=['post'],
+        permission_classes=[ProposeSummaryEdit]
+    )
     def propose_edit(self, request):
         summary = request.data.get('summary')
         paper_id = request.data.get('paper')
