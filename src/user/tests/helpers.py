@@ -50,3 +50,10 @@ def create_user(
         email=email,
         password=password
     )
+
+
+def create_random_authenticated_user_with_reputation(unique_value, reputation):
+    user = create_random_authenticated_user(unique_value)
+    user.reputation = reputation
+    user.save()
+    return user
