@@ -90,7 +90,6 @@ class DiscussionThreadPermissionsIntegrationTests(
     def test_can_NOT_downvote_thread_below_minimum_reputation(self):
         user = self.create_user_with_reputation(24)
         response = self.get_thread_downvote_post_response(user)
-        import pdb; pdb.set_trace()
         self.assertEqual(response.status_code, 403)
 
     def test_can_upvote_comment_with_minimum_reputation(self):
