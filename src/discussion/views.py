@@ -30,8 +30,6 @@ from .permissions import (
     DownvoteDiscussionThread
 )
 
-# TODO: Add permission to only delete your own flag
-
 
 class ActionMixin:
 
@@ -51,26 +49,18 @@ class ActionMixin:
             )
 
     def delete_flag(self, request, pk=None):
-        error = None
-
         item = self.get_object()
         user = request.user
-        flag = retrieve_flag(user, item)
-
-        if flag is not None:
-            try:
-                serialized = FlagSerializer(flag)
-                flag.delete()
-                return Response(serialized.data, status=200)
-            except Exception as e:
-                error = e
-        else:
-            error = Flag.DoesNotExist
-
-        return Response(
-            f'Failed to delete flag: {error}',
-            status=400
-        )
+        try:
+            flag = retrieve_flag(user, item)
+            serialized = FlagSerializer(flag)
+            flag.delete()
+            return Response(serialized.data, status=200)
+        except Exception as e:
+            return Response(
+                f'Failed to delete flag: {e}',
+                status=400
+            )
 
     def upvote(self, request, pk=None):
         item = self.get_object()
@@ -326,14 +316,11 @@ def create_vote(user, item, vote_type):
 
 
 def retrieve_flag(user, item):
-    try:
-        return Flag.objects.get(
-            object_id=item.id,
-            content_type=get_content_type_for_model(item),
-            created_by=user.id
-        )
-    except Flag.DoesNotExist:
-        return None
+    return Flag.objects.get(
+        object_id=item.id,
+        content_type=get_content_type_for_model(item),
+        created_by=user.id
+    )
 
 
 def create_flag(user, item, reason):
