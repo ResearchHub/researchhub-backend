@@ -271,6 +271,21 @@ def get_authenticated_put_response(
     return response
 
 
+def get_authenticated_delete_response(
+    user,
+    url,
+    data,
+    content_type
+):
+    client, content_format = _get_authenticated_client_config(
+        user,
+        url,
+        content_type
+    )
+    response = client.delete(url, data, format=content_format)
+    return response
+
+
 def _get_authenticated_client_config(
     user,
     url,
