@@ -1,7 +1,4 @@
-from enum import Enum
-
-
-class RequestMethods(Enum):
+class RequestMethods:
     POST = 'POST'
     PATCH = 'PATCH'
     PUT = 'PUT'
