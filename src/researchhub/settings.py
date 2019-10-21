@@ -15,6 +15,7 @@ from config import db, keys
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+APP_ENV = os.environ.get("APP_ENV") or 'development'
 PRODUCTION = APP_ENV == 'production'
 STAGING = APP_ENV == 'staging'
 PYTHONPATH = '/opt/python/current/app:$PYTHONPATH'
