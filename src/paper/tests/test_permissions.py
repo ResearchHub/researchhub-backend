@@ -41,6 +41,7 @@ class PaperPermissionsIntegrationTests(
         self.random_generator = random.Random(SEED)
         self.base_url = '/api/paper/'
         self.paper = create_paper()
+        self.flag_reason = 'Inappropriate'
 
     def test_can_post_paper_with_minimum_reputation(self):
         reputation = 1
@@ -49,6 +50,16 @@ class PaperPermissionsIntegrationTests(
     def test_can_NOT_post_paper_below_minimum_reputation(self):
         reputation = -1
         self.assertPostWithReputationResponds(reputation, 403)
+
+    def test_can_flag_paper_with_minimum_reputation(self):
+        user = self.create_user_with_reputation(50)
+        response = self.get_flag_response(user)
+        self.assertContains(response, self.flag_reason, status_code=201)
+
+    def test_can_NOT_flag_paper_below_minimum_reputation(self):
+        user = self.create_user_with_reputation(49)
+        response = self.get_flag_response(user)
+        self.assertEqual(response.status_code, 403)
 
     def test_can_upvote_paper_with_minimum_reputation(self):
         user = self.create_user_with_reputation(1)
@@ -103,6 +114,17 @@ class PaperPermissionsIntegrationTests(
             'authors': [1, author.id]
         }
         return form
+
+    def get_flag_response(self, user):
+        url = self.base_url + f'{self.paper.id}/flag/'
+        data = {'reason': self.flag_reason}
+        response = get_authenticated_post_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+        return response
 
     def get_upvote_response(self, user):
         url = self.base_url + f'{self.paper.id}/upvote/'

@@ -1,3 +1,4 @@
+from utils.http import RequestMethods
 from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission
 
 
@@ -21,6 +22,8 @@ class FlagPaper(RuleBasedPermission):
     message = 'Not enough reputation to flag paper.'
 
     def satisfies_rule(self, request):
+        if request.method == RequestMethods.DELETE:
+            return True
         return request.user.reputation >= 50
 
 
