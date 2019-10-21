@@ -72,6 +72,36 @@ class DiscussionThreadPermissionsIntegrationTests(
         response = self.get_reply_post_response(user)
         self.assertEqual(response.status_code, 403)
 
+    def test_can_flag_thread_with_minimum_reputation(self):
+        user = self.create_user_with_reputation(1)
+        response = self.get_thread_flag_post_response(user)
+        self.assertEqual(response.status_code, 201)
+
+    def test_can_NOT_flag_thread_below_minimum_reputation(self):
+        user = self.create_user_with_reputation(0)
+        response = self.get_thread_flag_post_response(user)
+        self.assertEqual(response.status_code, 403)
+
+    def test_can_flag_comment_with_minimum_reputation(self):
+        user = self.create_user_with_reputation(1)
+        response = self.get_comment_flag_post_response(user)
+        self.assertEqual(response.status_code, 201)
+
+    def test_can_NOT_flag_comment_below_minimum_reputation(self):
+        user = self.create_user_with_reputation(0)
+        response = self.get_comment_flag_post_response(user)
+        self.assertEqual(response.status_code, 403)
+
+    def test_can_flag_reply_with_minimum_reputation(self):
+        user = self.create_user_with_reputation(1)
+        response = self.get_reply_flag_post_response(user)
+        self.assertEqual(response.status_code, 201)
+
+    def test_can_NOT_flag_reply_below_minimum_reputation(self):
+        user = self.create_user_with_reputation(0)
+        response = self.get_reply_flag_post_response(user)
+        self.assertEqual(response.status_code, 403)
+
     def test_can_upvote_thread_with_minimum_reputation(self):
         user = self.create_user_with_reputation(1)
         response = self.get_thread_upvote_post_response(user)
@@ -163,6 +193,12 @@ class DiscussionThreadPermissionsIntegrationTests(
         )
         return response
 
+    def get_thread_flag_post_response(self, user):
+        url = build_discussion_detail_url(self, 'thread')
+        reason = 'This thread is inappropriate'
+        response = self.get_flag_response(user, url, reason)
+        return response
+
     def get_thread_upvote_post_response(self, user):
         url = build_discussion_detail_url(self, 'thread')
         response = self.get_upvote_response(user, url)
@@ -182,6 +218,12 @@ class DiscussionThreadPermissionsIntegrationTests(
             data,
             content_type='application/json'
         )
+        return response
+
+    def get_comment_flag_post_response(self, user):
+        url = build_discussion_detail_url(self, 'comment')
+        reason = 'This comment is inappropriate'
+        response = self.get_flag_response(user, url, reason)
         return response
 
     def get_comment_upvote_post_response(self, user):
@@ -205,6 +247,12 @@ class DiscussionThreadPermissionsIntegrationTests(
         )
         return response
 
+    def get_reply_flag_post_response(self, user):
+        url = build_discussion_detail_url(self, 'reply')
+        reason = 'This reply is inappropriate'
+        response = self.get_flag_response(user, url, reason)
+        return response
+
     def get_reply_upvote_post_response(self, user):
         url = build_discussion_detail_url(self, 'reply')
         response = self.get_upvote_response(user, url)
@@ -213,6 +261,19 @@ class DiscussionThreadPermissionsIntegrationTests(
     def get_reply_downvote_post_response(self, user):
         url = build_discussion_detail_url(self, 'reply')
         response = self.get_downvote_response(user, url)
+        return response
+
+    def get_flag_response(self, user, url, reason):
+        url += 'flag/'
+        data = {
+            'reason': reason
+        }
+        response = get_authenticated_post_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
         return response
 
     def get_upvote_response(self, user, url):
