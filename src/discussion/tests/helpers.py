@@ -1,6 +1,6 @@
 import json
 
-from discussion.models import Comment, Reply, Thread, Vote
+from discussion.models import Comment, Flag, Reply, Thread, Vote
 
 from paper.tests.helpers import create_paper
 from user.tests.helpers import create_random_default_user
@@ -140,6 +140,16 @@ def downvote_discussion(item, voter):
     comment, reply, thread)
     '''
     return create_vote(voter, item, Vote.DOWNVOTE)
+
+
+def create_flag(created_by, item, reason='Flag reason'):
+    if created_by is None:
+        created_by = create_random_default_user('flagger')
+    if item is None:
+        item = create_thread()
+    flag = Flag(created_by=created_by, item=item, reason=reason)
+    flag.save()
+    return flag
 
 
 def create_vote(created_by, item, vote_type):
