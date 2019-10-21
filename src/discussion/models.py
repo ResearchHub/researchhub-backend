@@ -58,6 +58,33 @@ class Flag(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
     reason = models.CharField(max_length=255, blank=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['content_type', 'object_id', 'created_by'],
+                name='unique_flag'
+            )
+        ]
+
+
+class Endorsement(models.Model):
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE
+    )
+    object_id = models.PositiveIntegerField()
+    item = GenericForeignKey('content_type', 'object_id')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_date = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['content_type', 'object_id'],
+                name='unique_endorsement'
+            )
+        ]
+
 
 class BaseComment(models.Model):
     created_by = models.ForeignKey(
@@ -87,6 +114,8 @@ class BaseComment(models.Model):
     )
     text = JSONField(blank=True, null=True)
     votes = GenericRelation(Vote)
+    flags = GenericRelation(Flag)
+    endorsement = GenericRelation(Endorsement)
 
     class Meta:
         abstract = True
