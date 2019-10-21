@@ -2,7 +2,9 @@ from django.test import TestCase
 from rest_framework.test import APIRequestFactory
 
 from .helpers import (
+    build_discussion_detail_url,
     create_comment,
+    create_flag,
     create_paper,
     create_reply,
     create_thread
@@ -10,6 +12,7 @@ from .helpers import (
 from discussion.views import get_thread_id_from_path
 from user.tests.helpers import create_random_authenticated_user
 from utils.test_helpers import (
+    get_authenticated_delete_response,
     get_authenticated_patch_response,
     get_authenticated_put_response
 )
@@ -85,6 +88,7 @@ class DiscussionViewsTests(TestCase):
             text
         )
         put_response = self.get_comment_put_response(self.trouble_maker, text)
+        import pdb; pdb.set_trace()
 
         self.assertEqual(patch_response.status_code, 403)
         self.assertEqual(put_response.status_code, 403)
@@ -111,6 +115,47 @@ class DiscussionViewsTests(TestCase):
         self.assertEqual(patch_response.status_code, 403)
         self.assertEqual(put_response.status_code, 403)
 
+    def test_flag_creator_can_delete_flag(self):
+        user = create_random_authenticated_user('flagger')
+
+        thread_flag = create_flag(created_by=user, item=self.thread)
+        thread_response = self.get_thread_flag_delete_response(user)
+
+        self.assertContains(
+            thread_response,
+            thread_flag.reason,
+            status_code=200
+        )
+
+        comment_flag = create_flag(created_by=user, item=self.comment)
+        comment_response = self.get_comment_flag_delete_response(user)
+
+        self.assertContains(
+            comment_response,
+            comment_flag.reason,
+            status_code=200
+        )
+
+        reply_flag = create_flag(created_by=user, item=self.reply)
+        reply_response = self.get_reply_flag_delete_response(user)
+
+        self.assertContains(reply_response, reply_flag.reason, status_code=200)
+
+    def test_ONLY_flag_creator_can_delete_flag(self):
+        user = create_random_authenticated_user('flagger1')
+
+        create_flag(created_by=user, item=self.thread)
+        response = self.get_thread_flag_delete_response(self.trouble_maker)
+        self.assertEqual(response.status_code, 400)
+
+        create_flag(created_by=user, item=self.comment)
+        response = self.get_comment_flag_delete_response(self.trouble_maker)
+        self.assertEqual(response.status_code, 400)
+
+        create_flag(created_by=user, item=self.reply)
+        response = self.get_reply_flag_delete_response(self.trouble_maker)
+        self.assertEqual(response.status_code, 400)
+
     def get_thread_patch_response(self, user, text):
         url, data = self.get_request_config('thread', text)
         response = get_authenticated_patch_response(
@@ -122,7 +167,7 @@ class DiscussionViewsTests(TestCase):
         return response
 
     def get_thread_put_response(self, user, text):
-        url = self.build_discussion_url('thread')
+        url = build_discussion_detail_url(self, 'thread')
         data = {
             'title': text,
             'text': text
@@ -166,7 +211,7 @@ class DiscussionViewsTests(TestCase):
         return response
 
     def get_reply_put_response(self, user, text):
-        url = self.build_discussion_url('reply')
+        url = build_discussion_detail_url(self, 'reply')
         data = {
             'parent': self.comment.id,
             'text': text
@@ -180,25 +225,32 @@ class DiscussionViewsTests(TestCase):
         return response
 
     def get_request_config(self, discussion_type, text):
-        url = self.build_discussion_url(discussion_type)
+        url = build_discussion_detail_url(self, discussion_type)
         data = {'text': text}
         return url, data
 
-    def build_discussion_url(self, discussion_type):
-        url = self.base_url + f'paper/{self.paper.id}/'
-        if discussion_type == 'paper':
-            return url
+    def get_thread_flag_delete_response(self, user):
+        url = build_discussion_detail_url(self, 'thread')
+        response = self.get_flag_delete_response(user, url)
+        return response
 
-        url += f'discussion/{self.thread.id}/'
-        if discussion_type == 'thread':
-            return url
+    def get_comment_flag_delete_response(self, user):
+        url = build_discussion_detail_url(self, 'comment')
+        response = self.get_flag_delete_response(user, url)
+        return response
 
-        url += f'comment/{self.comment.id}/'
-        if discussion_type == 'comment':
-            return url
+    def get_reply_flag_delete_response(self, user):
+        url = build_discussion_detail_url(self, 'reply')
+        response = self.get_flag_delete_response(user, url)
+        return response
 
-        url += f'reply/{self.reply.id}/'
-        if discussion_type == 'reply':
-            return url
-
-        return None
+    def get_flag_delete_response(self, user, url):
+        url += 'flag/'
+        data = None
+        response = get_authenticated_delete_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+        return response

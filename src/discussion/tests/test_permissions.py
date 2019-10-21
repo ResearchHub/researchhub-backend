@@ -7,7 +7,6 @@ from .helpers import (
     build_reply_data,
     build_thread_form,
     create_comment,
-    create_flag,
     create_reply,
     create_thread
 )
@@ -17,7 +16,6 @@ from .tests import (
 from user.tests.helpers import create_random_authenticated_user
 from paper.tests.helpers import create_paper
 from utils.test_helpers import (
-    get_authenticated_delete_response,
     get_authenticated_get_response,
     get_authenticated_post_response
 )
@@ -73,38 +71,6 @@ class DiscussionThreadPermissionsIntegrationTests(
         user = self.create_user_with_reputation(0)
         response = self.get_reply_post_response(user)
         self.assertEqual(response.status_code, 403)
-
-    def test_flag_creator_can_delete_flag(self):
-        user = create_random_authenticated_user('flagger')
-
-        thread_flag = create_flag(created_by=user, item=self.thread)
-        thread_response = self.get_thread_flag_delete_response(user)
-
-        self.assertContains(
-            thread_response,
-            thread_flag.reason,
-            status_code=200
-        )
-
-        comment_flag = create_flag(created_by=user, item=self.comment)
-        comment_response = self.get_comment_flag_delete_response(user)
-
-        self.assertContains(
-            comment_response,
-            comment_flag.reason,
-            status_code=200
-        )
-
-        reply_flag = create_flag(created_by=user, item=self.reply)
-        reply_response = self.get_reply_flag_delete_response(user)
-
-        self.assertContains(reply_response, reply_flag.reason, status_code=200)
-
-    def test_ONLY_flag_creator_can_delete_flag(self):
-        user = create_random_authenticated_user('flagger1')
-        create_flag(created_by=user, item=self.thread)
-        response = self.get_thread_flag_delete_response(self.trouble_maker)
-        self.assertEqual(response.status_code, 400)
 
     def test_can_flag_thread_with_minimum_reputation(self):
         user = self.create_user_with_reputation(1)
@@ -233,11 +199,6 @@ class DiscussionThreadPermissionsIntegrationTests(
         response = self.get_flag_response(user, url, reason)
         return response
 
-    def get_thread_flag_delete_response(self, user):
-        url = build_discussion_detail_url(self, 'thread')
-        response = self.get_flag_delete_response(user, url)
-        return response
-
     def get_thread_upvote_post_response(self, user):
         url = build_discussion_detail_url(self, 'thread')
         response = self.get_upvote_response(user, url)
@@ -265,11 +226,6 @@ class DiscussionThreadPermissionsIntegrationTests(
         response = self.get_flag_response(user, url, reason)
         return response
 
-    def get_comment_flag_delete_response(self, user):
-        url = build_discussion_detail_url(self, 'comment')
-        response = self.get_flag_delete_response(user, url)
-        return response
-
     def get_comment_upvote_post_response(self, user):
         url = build_discussion_detail_url(self, 'comment')
         response = self.get_upvote_response(user, url)
@@ -289,11 +245,6 @@ class DiscussionThreadPermissionsIntegrationTests(
             data,
             content_type='application/json'
         )
-        return response
-
-    def get_reply_flag_delete_response(self, user):
-        url = build_discussion_detail_url(self, 'reply')
-        response = self.get_flag_delete_response(user, url)
         return response
 
     def get_reply_flag_post_response(self, user):
@@ -318,17 +269,6 @@ class DiscussionThreadPermissionsIntegrationTests(
             'reason': reason
         }
         response = get_authenticated_post_response(
-            user,
-            url,
-            data,
-            content_type='application/json'
-        )
-        return response
-
-    def get_flag_delete_response(self, user, url):
-        url += 'flag/'
-        data = None
-        response = get_authenticated_delete_response(
             user,
             url,
             data,
