@@ -88,7 +88,6 @@ class DiscussionViewsTests(TestCase):
             text
         )
         put_response = self.get_comment_put_response(self.trouble_maker, text)
-        import pdb; pdb.set_trace()
 
         self.assertEqual(patch_response.status_code, 403)
         self.assertEqual(put_response.status_code, 403)
