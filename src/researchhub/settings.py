@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
 import os
+import requests
 from config import db, keys
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -27,6 +28,10 @@ ELASTIC_BEANSTALK = (APP_ENV in ['production','staging', 'dev'])
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY', keys.SECRET_KEY)
+
+# python manage.py check --deploy
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
