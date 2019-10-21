@@ -1,11 +1,12 @@
 from django.contrib.admin.options import get_content_type_for_model
 import rest_framework.serializers as serializers
 
-from .models import Comment, Thread, Reply, Vote
+from .models import Comment, Flag, Thread, Reply, Vote
 from user.serializers import UserSerializer
+from utils.http import get_user_from_request
 
 
-# TODO: Add isOwner permission and make is_public editable
+# TODO: Make is_public editable for creator
 
 class VoteMixin:
     def get_score(self, obj):
@@ -22,6 +23,13 @@ class VoteMixin:
             except Vote.DoesNotExist:
                 pass
         return vote
+
+
+def calculate_score(obj):
+    upvotes = obj.votes.filter(vote_type=Vote.UPVOTE)
+    downvotes = obj.votes.filter(vote_type=Vote.DOWNVOTE)
+    score = len(upvotes) - len(downvotes)
+    return score
 
 
 class ReplySerializer(serializers.ModelSerializer, VoteMixin):
@@ -170,15 +178,15 @@ class VoteSerializer(serializers.ModelSerializer):
         model = Vote
 
 
-def calculate_score(obj):
-    upvotes = obj.votes.filter(vote_type=Vote.UPVOTE)
-    downvotes = obj.votes.filter(vote_type=Vote.DOWNVOTE)
-    score = len(upvotes) - len(downvotes)
-    return score
+class FlagSerializer(serializers.ModelSerializer):
+    item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
 
-
-def get_user_from_request(ctx):
-    request = ctx.get('request')
-    if request and hasattr(request, 'user'):
-        return request.user
-    return None
+    class Meta:
+        fields = [
+            'content_type',
+            'created_by',
+            'created_date',
+            'item',
+            'reason',
+        ]
+        model = Flag

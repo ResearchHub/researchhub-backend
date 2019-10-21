@@ -4,9 +4,10 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
-from .models import Comment, Thread, Reply, Vote
+from .models import Comment, Flag, Thread, Reply, Vote
 from .serializers import (
     CommentSerializer,
+    FlagSerializer,
     ThreadSerializer,
     ReplySerializer,
     VoteSerializer
@@ -15,6 +16,9 @@ from .permissions import (
     CreateDiscussionComment,
     CreateDiscussionReply,
     CreateDiscussionThread,
+    FlagDiscussionComment,
+    FlagDiscussionReply,
+    FlagDiscussionThread,
     UpdateDiscussionComment,
     UpdateDiscussionReply,
     UpdateDiscussionThread,
@@ -26,17 +30,47 @@ from .permissions import (
     DownvoteDiscussionThread
 )
 
-# TODO: Add flag actions
+# TODO: Add permission to only delete your own flag
 
 
-class VoteMixin:
+class ActionMixin:
 
-    @action(detail=True, methods=['get'])
-    def user_vote(self, request, pk=None):
+    def flag(self, request, pk=None):
         item = self.get_object()
         user = request.user
-        vote = retrieve_vote(user, item)
-        return get_vote_response(vote, 200)
+        reason = request.data.get('reason')
+
+        try:
+            flag = create_flag(user, item, reason)
+            serialized = FlagSerializer(flag)
+            return Response(serialized.data, status=201)
+        except Exception as e:
+            return Response(
+                f'Failed to create flag: {e}',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    def delete_flag(self, request, pk=None):
+        error = None
+
+        item = self.get_object()
+        user = request.user
+        flag = retrieve_flag(user, item)
+
+        if flag is not None:
+            try:
+                serialized = FlagSerializer(flag)
+                flag.delete()
+                return Response(serialized.data, status=200)
+            except Exception as e:
+                error = e
+        else:
+            error = Flag.DoesNotExist
+
+        return Response(
+            f'Failed to delete flag: {error}',
+            status=400
+        )
 
     def upvote(self, request, pk=None):
         item = self.get_object()
@@ -66,8 +100,15 @@ class VoteMixin:
         response = update_or_create_vote(user, item, Vote.DOWNVOTE)
         return response
 
+    @action(detail=True, methods=['get'])
+    def user_vote(self, request, pk=None):
+        item = self.get_object()
+        user = request.user
+        vote = retrieve_vote(user, item)
+        return get_vote_response(vote, 200)
 
-class ThreadViewSet(viewsets.ModelViewSet, VoteMixin):
+
+class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     serializer_class = ThreadSerializer
 
     # Optional attributes
@@ -81,6 +122,18 @@ class ThreadViewSet(viewsets.ModelViewSet, VoteMixin):
         paper_id = get_paper_id_from_path(self.request)
         threads = Thread.objects.filter(paper=paper_id)
         return threads
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[FlagDiscussionThread]
+    )
+    def flag(self, *args, **kwargs):
+        return super().flag(*args, **kwargs)
+
+    @flag.mapping.delete
+    def delete_flag(self, *args, **kwargs):
+        return super().delete_flag(*args, **kwargs)
 
     @action(
         detail=True,
@@ -99,7 +152,7 @@ class ThreadViewSet(viewsets.ModelViewSet, VoteMixin):
         return super().downvote(*args, **kwargs)
 
 
-class CommentViewSet(viewsets.ModelViewSet, VoteMixin):
+class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
     serializer_class = CommentSerializer
 
     permission_classes = [
@@ -114,6 +167,18 @@ class CommentViewSet(viewsets.ModelViewSet, VoteMixin):
             parent=thread_id
         ).order_by('-created_date')
         return comments
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[FlagDiscussionComment]
+    )
+    def flag(self, *args, **kwargs):
+        return super().flag(*args, **kwargs)
+
+    @flag.mapping.delete
+    def delete_flag(self, *args, **kwargs):
+        return super().delete_flag(*args, **kwargs)
 
     @action(
         detail=True,
@@ -132,7 +197,7 @@ class CommentViewSet(viewsets.ModelViewSet, VoteMixin):
         return super().downvote(*args, **kwargs)
 
 
-class ReplyViewSet(viewsets.ModelViewSet, VoteMixin):
+class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
     serializer_class = ReplySerializer
 
     permission_classes = [
@@ -149,6 +214,18 @@ class ReplyViewSet(viewsets.ModelViewSet, VoteMixin):
             object_id=comment_id
         ).order_by('-created_date')
         return replies
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[FlagDiscussionReply]
+    )
+    def flag(self, *args, **kwargs):
+        return super().flag(*args, **kwargs)
+
+    @flag.mapping.delete
+    def delete_flag(self, *args, **kwargs):
+        return super().delete_flag(*args, **kwargs)
 
     @action(
         detail=True,
@@ -246,3 +323,20 @@ def create_vote(user, item, vote_type):
     vote = Vote(created_by=user, item=item, vote_type=vote_type)
     vote.save()
     return vote
+
+
+def retrieve_flag(user, item):
+    try:
+        return Flag.objects.get(
+            object_id=item.id,
+            content_type=get_content_type_for_model(item),
+            created_by=user.id
+        )
+    except Flag.DoesNotExist:
+        return None
+
+
+def create_flag(user, item, reason):
+    flag = Flag(created_by=user, item=item, reason=reason)
+    flag.save()
+    return flag
