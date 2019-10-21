@@ -15,7 +15,11 @@ from config import db, keys
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
+PRODUCTION = APP_ENV == 'production'
+STAGING = APP_ENV == 'staging'
+PYTHONPATH = '/opt/python/current/app:$PYTHONPATH'
+DJANGO_SETTINGS_MODULE = 'researchhub.settings'
+ELASTIC_BEANSTALK = (APP_ENV in ['production','staging', 'dev'])
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
@@ -24,14 +28,42 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = os.environ.get('SECRET_KEY', keys.SECRET_KEY)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
+if not (PRODUCTION or STAGING):
+    DEBUG = True
 
 # TODO: setup production
 GOOGLE_REDIRECT_URL = 'http://localhost:8000/auth/google/login/callback/'
 
 ALLOWED_HOSTS = [
-    'localhost',
+    '.quantfive.org',
+    '.elasticbeanstalk.com',
+    '.researchhub.com',
+    'localhost'
 ]
+
+if not (PRODUCTION or STAGING):
+    ALLOWED_HOSTS += [
+        '.ngrok.io',
+        'localhost',
+        '10.0.2.2',
+        '10.0.3.2'
+    ]
+
+if ELASTIC_BEANSTALK:
+    try:
+        ALLOWED_HOSTS.append(
+            requests.get('http://169.254.169.254/latest/meta-data/local-ipv4',
+                         timeout=0.01).text)
+        ALLOWED_HOSTS.append(
+            requests.get('http://172.31.19.162/latest/meta-data/local-ipv4',
+                         timeout=0.01).text)
+        ALLOWED_HOSTS.append(
+            requests.get('http://54.200.83.4/latest/meta-data/local-ipv4',
+                         timeout=0.01).text)
+    except requests.exceptions.RequestException:
+        pass
+
 
 # Cors
 
