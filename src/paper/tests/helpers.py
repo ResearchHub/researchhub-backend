@@ -1,4 +1,4 @@
-from paper.models import Paper, Vote
+from paper.models import Flag, Paper, Vote
 
 from user.tests.helpers import create_random_default_user
 
@@ -9,6 +9,23 @@ class TestData:
                    ' MARAUDER\'S MAP'
                    )
     paper_publish_date = '1990-10-01'
+
+
+def create_flag(
+    paper=None,
+    created_by=None,
+    reason='Create flag reason'
+):
+    if paper is None:
+        paper = create_paper()
+    if created_by is None:
+        created_by = create_random_default_user('createflag')
+
+    return Flag.objects.create(
+        paper=paper,
+        created_by=created_by,
+        reason=reason
+    )
 
 
 def create_paper(
