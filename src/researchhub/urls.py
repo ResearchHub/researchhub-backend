@@ -15,6 +15,7 @@ import oauth.views
 import user.views
 import summary.views
 import hub.views
+from researchhub import views as index_views
 
 router = routers.DefaultRouter()
 
@@ -61,6 +62,7 @@ router.register(r'user', user.views.UserViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('health/', index_views.healthcheck),
     re_path(r'^api/', include(router.urls)),
     path(
         'auth/google/login/callback/',
