@@ -9,13 +9,20 @@ class CreatePaper(RuleBasedPermission):
         return request.user.reputation >= 1
 
 
-# TODO: Implement
 class UpdatePaper(AuthorizationBasedPermission):
     message = 'Action not permitted.'
 
-    def is_authorized(self, request):
-        # user is author, moderator, or creator
-        pass
+    def is_authorized(self, request, view, obj):
+        if (
+            (request.method == RequestMethods.PATCH)
+            or (request.method == RequestMethods.PUT)
+        ):
+            return (
+                (request.user == obj.created_by)
+                or (request.user.id in obj.authors)
+                or (request.user.id in obj.moderators)
+            )
+        return True
 
 
 class FlagPaper(RuleBasedPermission):
