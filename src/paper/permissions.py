@@ -1,3 +1,4 @@
+from user.models import Author
 from utils.http import RequestMethods
 from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission
 
@@ -17,10 +18,12 @@ class UpdatePaper(AuthorizationBasedPermission):
             (request.method == RequestMethods.PATCH)
             or (request.method == RequestMethods.PUT)
         ):
+            user = request.user
+            author = Author.objects.get(user=request.user)
             return (
-                (request.user == obj.created_by)
-                or (request.user.id in obj.authors)
-                or (request.user.id in obj.moderators)
+                (user == obj.uploaded_by)
+                or (author in obj.authors.all())
+                or (user in obj.moderators.all())
             )
         return True
 

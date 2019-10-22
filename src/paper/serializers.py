@@ -32,6 +32,7 @@ class PaperSerializer(serializers.ModelSerializer):
         model = Paper
 
     def to_internal_value(self, data):
+        data = data.copy()
         valid_authors = []
         for author in data.getlist('authors'):
             try:
