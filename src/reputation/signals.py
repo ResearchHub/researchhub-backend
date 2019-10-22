@@ -30,6 +30,9 @@ from discussion.models import (
 )
 from paper.models import Paper
 
+# TODO: "Suspend" user if their reputation becomes negative
+# This could mean setting `is_active` to false
+
 
 @receiver(post_save, sender=Paper, dispatch_uid='create_paper')
 def distribute_for_create_paper(sender, instance, created, **kwargs):
