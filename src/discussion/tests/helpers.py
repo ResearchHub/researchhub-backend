@@ -1,6 +1,6 @@
 import json
 
-from discussion.models import Comment, Flag, Reply, Thread, Vote
+from discussion.models import Comment, Endorsement, Flag, Reply, Thread, Vote
 
 from paper.tests.helpers import create_paper
 from user.tests.helpers import create_random_default_user
@@ -75,6 +75,19 @@ def build_thread_form(paper, title, text):
         'title': title,
         'text': json.dumps(text),
     }
+
+
+def create_endorsement(
+    created_by=None,
+    item=None
+):
+    if created_by is None:
+        created_by = create_random_default_user('endorser')
+    if item is None:
+        item = create_reply()
+    endorsement = Endorsement(created_by=created_by, item=item)
+    endorsement.save()
+    return endorsement
 
 
 def create_reply(
