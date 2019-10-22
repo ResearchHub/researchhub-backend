@@ -51,9 +51,9 @@ class DownvotePaper(RuleBasedPermission):
         return request.user.reputation >= 25
 
 
-# TODO: Implement assign moderator functionality
-class AssignModerator(AuthorizationBasedPermission):
+class IsAuthor(AuthorizationBasedPermission):
+    message = 'User is not authorized.'
 
-    def is_authorized(self, request):
-        # user is author
-        pass
+    def is_authorized(self, request, view, obj):
+        author = Author.objects.get(user=request.user)
+        return author in obj.authors.all()
