@@ -30,6 +30,20 @@ class PaperViewSet(viewsets.ModelViewSet):
         & UpdatePaper
     ]
 
+    @action(
+        detail=True,
+        methods=['post', 'put', 'patch'],
+        permission_classes=[IsAuthor]
+    )
+    def assign_moderator(self, request, pk=None):
+        '''Assign users as paper moderators'''
+        paper = self.get_object()
+        moderators = request.data.get('moderators')
+        if not isinstance(moderators, list):
+            moderators = [moderators]
+        paper.moderators.add(*moderators)
+        paper.save()
+        return Response(PaperSerializer(paper).data)
 
     @action(
         detail=True,
