@@ -77,6 +77,10 @@ def build_thread_form(paper, title, text):
     }
 
 
+def endorse_discussion(item, endorser):
+    create_endorsement(created_by=endorser, item=item)
+
+
 def create_endorsement(
     created_by=None,
     item=None
