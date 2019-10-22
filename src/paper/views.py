@@ -8,13 +8,14 @@ from rest_framework.response import Response
 from .models import Paper, Vote
 from .serializers import PaperSerializer, VoteSerializer
 from reputation.permissions import CreatePaper, UpvotePaper
-
+from .filters import *
 
 class PaperViewSet(viewsets.ModelViewSet):
     queryset = Paper.objects.all()
     serializer_class = PaperSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('title', 'doi')
+    filter_class = PaperFilter
 
     # Optional attributes
     permission_classes = [IsAuthenticatedOrReadOnly & CreatePaper]

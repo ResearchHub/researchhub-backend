@@ -131,3 +131,5 @@ class VoteSerializer(serializers.ModelSerializer):
             'paper',
         ]
         model = Vote
+
+        fields.append('authors__id')
