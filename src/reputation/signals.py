@@ -5,20 +5,24 @@ from django.dispatch import receiver
 
 from .distributor import Distributor
 from .distributions import (
-    CommentDownvoted,
+    CommentEndorsed,
     CommentFlagged,
     CommentUpvoted,
+    CommentDownvoted,
     CreatePaper,
-    ReplyDownvoted,
+    ReplyEndorsed,
     ReplyFlagged,
     ReplyUpvoted,
-    ThreadDownvoted,
+    ReplyDownvoted,
+    ThreadEndorsed,
     ThreadFlagged,
-    ThreadUpvoted
+    ThreadUpvoted,
+    ThreadDownvoted
 )
 
 from discussion.models import (
     Comment,
+    Endorsement,
     Flag as DiscussionFlag,
     Reply,
     Thread,
@@ -40,17 +44,21 @@ def distribute_for_create_paper(sender, instance, created, **kwargs):
         distributor.distribute()
 
 
-@receiver(post_save, sender=DiscussionVote, dispatch_uid='discussion_vote')
-def distribute_for_vote(sender, instance, created, update_fields, **kwargs):
+@receiver(post_save, sender=Endorsement, dispatch_uid='discussion_endorsement')
+def distribute_for_endorsement(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
     timestamp = time()
     distributor = None
     recipient = instance.item.created_by
 
-    if (created or vote_type_updated(update_fields)) and is_eligible(
-        recipient
-    ):
+    if created and is_eligible(recipient):
         try:
-            distribution = get_vote_item_distribution(instance)
+            distribution = get_endorsement_item_distribution(instance)
             distributor = Distributor(
                 distribution,
                 recipient,
@@ -86,10 +94,64 @@ def distribute_for_flag(sender, instance, created, update_fields, **kwargs):
         distributor.distribute()
 
 
+@receiver(post_save, sender=DiscussionVote, dispatch_uid='discussion_vote')
+def distribute_for_vote(sender, instance, created, update_fields, **kwargs):
+    timestamp = time()
+    distributor = None
+    recipient = instance.item.created_by
+
+    if (created or vote_type_updated(update_fields)) and is_eligible(
+        recipient
+    ):
+        try:
+            distribution = get_vote_item_distribution(instance)
+            distributor = Distributor(
+                distribution,
+                recipient,
+                instance,
+                timestamp
+            )
+        except TypeError as e:
+            print(e)
+
+    if distributor is not None:
+        distributor.distribute()
+
+
 def is_eligible(user):
     if user is not None:
         return user.is_active
     return False
+
+
+def get_endorsement_item_distribution(instance):
+    item_type = type(instance.item)
+
+    error = TypeError(f'Instance of type {item_type} is not supported')
+
+    if item_type == Comment:
+        return CommentEndorsed
+    elif item_type == Reply:
+        return ReplyEndorsed
+    elif item_type == Thread:
+        return ThreadEndorsed
+    else:
+        raise error
+
+
+def get_flag_item_distribution(instance):
+    item_type = type(instance.item)
+
+    error = TypeError(f'Instance of type {item_type} is not supported')
+
+    if item_type == Comment:
+        return CommentFlagged
+    elif item_type == Reply:
+        return ReplyFlagged
+    elif item_type == Thread:
+        return ThreadFlagged
+    else:
+        raise error
 
 
 def vote_type_updated(update_fields):
@@ -123,18 +185,3 @@ def get_vote_item_distribution(instance):
             return ThreadDownvoted
         else:
             raise error
-
-
-def get_flag_item_distribution(instance):
-    item_type = type(instance.item)
-
-    error = TypeError(f'Instance of type {item_type} is not supported')
-
-    if item_type == Comment:
-        return CommentFlagged
-    elif item_type == Reply:
-        return ReplyFlagged
-    elif item_type == Thread:
-        return ThreadFlagged
-    else:
-        raise error

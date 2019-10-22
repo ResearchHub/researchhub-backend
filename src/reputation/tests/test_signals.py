@@ -6,6 +6,7 @@ from discussion.tests.helpers import (
     create_comment,
     create_reply,
     create_thread,
+    endorse_discussion,
     flag_discussion,
     upvote_discussion,
     downvote_discussion,
@@ -13,6 +14,7 @@ from discussion.tests.helpers import (
     update_to_downvote
 )
 from paper.tests.helpers import create_paper, upvote_paper
+from user.models import Author
 from user.tests.helpers import (
     create_random_authenticated_user,
     create_random_default_user
@@ -27,6 +29,11 @@ class SignalTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user('Molly')
         self.recipient = create_random_default_user('Harry')
+        self.paper = create_paper(title='Signal Test Paper')
+        self.author = create_random_authenticated_user('Dumbledore')
+
+        self.paper.authors.add(Author.objects.get(user=self.author))
+        self.paper.save()
 
     def test_create_paper_increases_rep_by_1(self):
         user = create_random_default_user('Ronald')
@@ -97,6 +104,27 @@ class SignalTests(TestCase):
 
         self.assertEqual(recipient.reputation, -1)
 
+    def test_comment_endorsed_increases_rep_by_15(self):
+        recipient = create_random_default_user('Malfoy')
+        comment = create_comment(created_by=recipient)
+        endorse_discussion(comment, self.author)
+
+        self.assertEqual(recipient.reputation, 16)
+
+    def test_reply_endorsed_decreases_rep_by_2(self):
+        recipient = create_random_default_user('Crab')
+        reply = create_reply(created_by=recipient)
+        endorse_discussion(reply, self.author)
+
+        self.assertEqual(recipient.reputation, 16)
+
+    def test_thread_endorsed_decreases_rep_by_2(self):
+        recipient = create_random_default_user('Goyle')
+        thread = create_thread(created_by=recipient)
+        endorse_discussion(thread, self.author)
+
+        self.assertEqual(recipient.reputation, 16)
+
     def test_multiple_reputation_distributions(self):
         thread = create_thread(created_by=self.recipient)
         self.assertEqual(self.recipient.reputation, 1)
@@ -161,8 +189,8 @@ class SignalConcurrencyTests(TransactionTestCase):
         self.assertEqual(self.recipient.reputation, starting_reputation)
 
     def test_X_comment_upvotes_increase_reputation_by_X(self):
-        runs = 2
-        delay = 1
+        runs = 90
+        delay = 0.01
 
         starting_reputation = self.recipient.reputation
 
