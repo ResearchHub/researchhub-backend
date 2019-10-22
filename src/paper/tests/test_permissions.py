@@ -4,8 +4,11 @@ from django.test import TestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from .helpers import create_paper
+from user.models import Author
 from utils.test_helpers import (
+    get_authenticated_patch_response,
     get_authenticated_post_response,
+    get_authenticated_put_response,
     IntegrationTestHelper,
     TestHelper
 )
@@ -61,6 +64,48 @@ class PaperPermissionsIntegrationTests(
         response = self.get_flag_response(user)
         self.assertEqual(response.status_code, 403)
 
+    def test_author_can_update_paper(self):
+        user = self.create_random_authenticated_user('author')
+        author = Author.objects.get(user=user)
+        paper = self.create_paper_with_authors([author.id])
+
+        response = self.get_patch_response(user, paper)
+        self.assertEqual(response.status_code, 200)
+
+        response = self.get_put_response(user, paper)
+        self.assertEqual(response.status_code, 200)
+
+    def test_moderator_can_update_paper(self):
+        moderator = self.create_random_authenticated_user('moderator')
+        paper = self.create_paper_with_moderators([moderator.id])
+
+        response = self.get_patch_response(moderator, paper)
+        self.assertEqual(response.status_code, 200)
+
+        response = self.get_put_response(moderator, paper)
+        self.assertEqual(response.status_code, 200)
+
+    def test_uploader_can_update_paper(self):
+        uploader = self.create_random_authenticated_user('uploader')
+        # We could optionally use create_paper here
+        self.paper.uploaded_by = uploader
+        self.paper.save()
+
+        response = self.get_patch_response(uploader, self.paper)
+        self.assertEqual(response.status_code, 200)
+
+        response = self.get_put_response(uploader, self.paper)
+        self.assertEqual(response.status_code, 200)
+
+    def test_can_NOT_update_paper_unless_author_moderator_or_uploader(self):
+        user = self.create_random_authenticated_user('millennial')
+
+        response = self.get_patch_response(user, self.paper)
+        self.assertEqual(response.status_code, 403)
+
+        response = self.get_put_response(user, self.paper)
+        self.assertEqual(response.status_code, 403)
+
     def test_can_upvote_paper_with_minimum_reputation(self):
         user = self.create_user_with_reputation(1)
         response = self.get_upvote_response(user)
@@ -97,6 +142,32 @@ class PaperPermissionsIntegrationTests(
         )
         return response
 
+    def get_patch_response(self, user, paper):
+        if paper is None:
+            paper = self.paper
+        url = self.base_url + f'{paper.id}/'
+        data = {'title': 'Patched Paper Title'}
+        response = get_authenticated_patch_response(
+            user,
+            url,
+            data,
+            content_type='multipart/form-data'
+        )
+        return response
+
+    def get_put_response(self, user, paper):
+        if paper is None:
+            paper = self.paper
+        url = self.base_url + f'{paper.id}/'
+        form_data = self.build_paper_form()
+        response = get_authenticated_put_response(
+            user,
+            url,
+            form_data,
+            content_type='multipart/form-data'
+        )
+        return response
+
     def build_paper_form(self):
         file = SimpleUploadedFile('../config/paper.pdf', b'file_content')
         hub = self.create_hub('Cryptography')
@@ -114,6 +185,18 @@ class PaperPermissionsIntegrationTests(
             'authors': [1, author.id]
         }
         return form
+
+    def create_paper_with_authors(self, author_ids):
+        paper = create_paper(title='Authored Paper')
+        paper.authors.add(*author_ids)
+        paper.save()
+        return paper
+
+    def create_paper_with_moderators(self, moderator_ids):
+        paper = create_paper(title='Moderated Paper')
+        paper.moderators.add(*moderator_ids)
+        paper.save()
+        return paper
 
     def get_flag_response(self, user):
         url = self.base_url + f'{self.paper.id}/flag/'
