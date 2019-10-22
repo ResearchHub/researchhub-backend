@@ -6,6 +6,7 @@ from discussion.tests.helpers import (
     create_comment,
     create_reply,
     create_thread,
+    flag_discussion,
     upvote_discussion,
     downvote_discussion,
     update_to_upvote,
@@ -74,6 +75,27 @@ class SignalTests(TestCase):
         downvote_discussion(thread, self.user)
 
         self.assertEqual(recipient.reputation, 0)
+
+    def test_comment_flagged_decreases_rep_by_2(self):
+        recipient = create_random_default_user('Ed')
+        comment = create_comment(created_by=recipient)
+        flag_discussion(comment, self.user)
+
+        self.assertEqual(recipient.reputation, -1)
+
+    def test_reply_flagged_decreases_rep_by_2(self):
+        recipient = create_random_default_user('Edd')
+        reply = create_reply(created_by=recipient)
+        flag_discussion(reply, self.user)
+
+        self.assertEqual(recipient.reputation, -1)
+
+    def test_thread_flagged_decreases_rep_by_2(self):
+        recipient = create_random_default_user('Eddie')
+        thread = create_thread(created_by=recipient)
+        flag_discussion(thread, self.user)
+
+        self.assertEqual(recipient.reputation, -1)
 
     def test_multiple_reputation_distributions(self):
         thread = create_thread(created_by=self.recipient)

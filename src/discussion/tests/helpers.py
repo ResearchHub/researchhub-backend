@@ -126,6 +126,10 @@ def create_thread(
     return thread
 
 
+def flag_discussion(item, flagger):
+    return create_flag(flagger, item)
+
+
 def upvote_discussion(item, voter):
     '''
     creates a new vote with vote_type upvote for the discussion item (one of

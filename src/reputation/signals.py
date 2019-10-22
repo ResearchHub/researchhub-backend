@@ -5,16 +5,25 @@ from django.dispatch import receiver
 
 from .distributor import Distributor
 from .distributions import (
-    CommentUpvoted,
     CommentDownvoted,
+    CommentFlagged,
+    CommentUpvoted,
     CreatePaper,
-    ReplyUpvoted,
     ReplyDownvoted,
-    ThreadUpvoted,
-    ThreadDownvoted
+    ReplyFlagged,
+    ReplyUpvoted,
+    ThreadDownvoted,
+    ThreadFlagged,
+    ThreadUpvoted
 )
 
-from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
+from discussion.models import (
+    Comment,
+    Flag as DiscussionFlag,
+    Reply,
+    Thread,
+    Vote as DiscussionVote
+)
 from paper.models import Paper
 
 
@@ -42,6 +51,28 @@ def distribute_for_vote(sender, instance, created, update_fields, **kwargs):
     ):
         try:
             distribution = get_vote_item_distribution(instance)
+            distributor = Distributor(
+                distribution,
+                recipient,
+                instance,
+                timestamp
+            )
+        except TypeError as e:
+            print(e)
+
+    if distributor is not None:
+        distributor.distribute()
+
+
+@receiver(post_save, sender=DiscussionFlag, dispatch_uid='discussion_flag')
+def distribute_for_flag(sender, instance, created, update_fields, **kwargs):
+    timestamp = time()
+    distributor = None
+    recipient = instance.item.created_by
+
+    if created and is_eligible(recipient):
+        try:
+            distribution = get_flag_item_distribution(instance)
             distributor = Distributor(
                 distribution,
                 recipient,
@@ -92,3 +123,18 @@ def get_vote_item_distribution(instance):
             return ThreadDownvoted
         else:
             raise error
+
+
+def get_flag_item_distribution(instance):
+    item_type = type(instance.item)
+
+    error = TypeError(f'Instance of type {item_type} is not supported')
+
+    if item_type == Comment:
+        return CommentFlagged
+    elif item_type == Reply:
+        return ReplyFlagged
+    elif item_type == Thread:
+        return ThreadFlagged
+    else:
+        raise error
