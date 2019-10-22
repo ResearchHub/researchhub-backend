@@ -4,9 +4,10 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
-from .models import Comment, Flag, Thread, Reply, Vote
+from .models import Comment, Endorsement, Flag, Thread, Reply, Vote
 from .serializers import (
     CommentSerializer,
+    EndorsementSerializer,
     FlagSerializer,
     ThreadSerializer,
     ReplySerializer,
@@ -16,6 +17,7 @@ from .permissions import (
     CreateDiscussionComment,
     CreateDiscussionReply,
     CreateDiscussionThread,
+    Endorse,
     FlagDiscussionComment,
     FlagDiscussionReply,
     FlagDiscussionThread,
@@ -29,9 +31,48 @@ from .permissions import (
     DownvoteDiscussionReply,
     DownvoteDiscussionThread
 )
+from .utils import (
+    get_comment_id_from_path,
+    get_paper_id_from_path,
+    get_thread_id_from_path
+)
 
 
 class ActionMixin:
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[Endorse]
+    )
+    def endorse(self, request, pk=None):
+        item = self.get_object()
+        user = request.user
+
+        try:
+            endorsement = create_endorsement(user, item)
+            serialized = EndorsementSerializer(endorsement)
+            return Response(serialized.data, status=201)
+        except Exception as e:
+            return Response(
+                f'Failed to create endorsement: {e}',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @endorse.mapping.delete
+    def delete_endorse(self, request, pk=None):
+        item = self.get_object()
+        user = request.user
+        try:
+            endorsement = retrieve_endorsement(user, item)
+            endorsement_id = endorsement.id
+            endorsement.delete()
+            return Response(endorsement_id, status=200)
+        except Exception as e:
+            return Response(
+                f'Failed to delete endorsement: {e}',
+                status=400
+            )
 
     def flag(self, request, pk=None):
         item = self.get_object()
@@ -234,40 +275,32 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
         return super().downvote(*args, **kwargs)
 
 
-def get_paper_id_from_path(request):
-    PAPER = 2
-    paper_id = None
-    path_parts = request.path.split('/')
-    if path_parts[PAPER] == 'paper':
-        try:
-            paper_id = int(path_parts[PAPER + 1])
-        except ValueError:
-            print('Failed to get paper id')
-    return paper_id
+def retrieve_endorsement(user, item):
+    return Endorsement.objects.get(
+        object_id=item.id,
+        content_type=get_content_type_for_model(item),
+        created_by=user.id
+    )
 
 
-def get_thread_id_from_path(request):
-    DISCUSSION = 4
-    thread_id = None
-    path_parts = request.path.split('/')
-    if path_parts[DISCUSSION] == 'discussion':
-        try:
-            thread_id = int(path_parts[DISCUSSION + 1])
-        except ValueError:
-            print('Failed to get discussion id')
-    return thread_id
+def create_endorsement(user, item):
+    endorsement = Endorsement(created_by=user, item=item)
+    endorsement.save()
+    return endorsement
 
 
-def get_comment_id_from_path(request):
-    COMMENT = 6
-    comment_id = None
-    path_parts = request.path.split('/')
-    if path_parts[COMMENT] == 'comment':
-        try:
-            comment_id = int(path_parts[COMMENT + 1])
-        except ValueError:
-            print('Failed to get comment id')
-    return comment_id
+def retrieve_flag(user, item):
+    return Flag.objects.get(
+        object_id=item.id,
+        content_type=get_content_type_for_model(item),
+        created_by=user.id
+    )
+
+
+def create_flag(user, item, reason):
+    flag = Flag(created_by=user, item=item, reason=reason)
+    flag.save()
+    return flag
 
 
 def find_vote(user, item, vote_type):
@@ -313,17 +346,3 @@ def create_vote(user, item, vote_type):
     vote = Vote(created_by=user, item=item, vote_type=vote_type)
     vote.save()
     return vote
-
-
-def retrieve_flag(user, item):
-    return Flag.objects.get(
-        object_id=item.id,
-        content_type=get_content_type_for_model(item),
-        created_by=user.id
-    )
-
-
-def create_flag(user, item, reason):
-    flag = Flag(created_by=user, item=item, reason=reason)
-    flag.save()
-    return flag
