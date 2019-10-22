@@ -1,13 +1,25 @@
 import rest_framework.serializers as rest_framework_serializers
 import rest_auth.registration.serializers as rest_auth_serializers
 
-from .models import User, Author
+from .models import User, Author, University
+
+class UniversitySerializer(rest_framework_serializers.ModelSerializer):
+    class Meta:
+        model = University
+        fields = '__all__'
 
 class AuthorSerializer(rest_framework_serializers.ModelSerializer):
+    university = UniversitySerializer()
+    # authored_papers = rest_framework_serializers.SerializerMethodField()
+
     class Meta:
         model = Author
         fields = '__all__'
-        
+    
+    # def get_authored_papers(self, obj):
+    #     papers = obj.authored_papers.all()
+    #     return PaperSerializer(papers, many=True)
+
 class UserSerializer(rest_framework_serializers.ModelSerializer):
     author_profile = AuthorSerializer()
     class Meta:
