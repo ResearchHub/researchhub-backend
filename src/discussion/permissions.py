@@ -1,3 +1,6 @@
+from .utils import get_paper_id_from_path
+from paper.models import Paper
+from user.models import Author
 from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission
 
 
@@ -106,10 +109,13 @@ class DownvoteDiscussionThread(RuleBasedPermission):
         return request.user.reputation >= 25
 
 
-# TODO: Build in endorsement functionality
+class Endorse(AuthorizationBasedPermission):
 
-class Endorse(RuleBasedPermission):
-
-    def satisfies_rule(self, request):
-        # user is author or moderator
-        pass
+    def is_authorized(self, request, view, obj):
+        paper_id = get_paper_id_from_path(request)
+        paper = Paper.objects.get(pk=paper_id)
+        author = Author.objects.get(user=request.user)
+        return (
+            (author in paper.authors.all())
+            or (request.user in paper.moderators.all())
+        )
