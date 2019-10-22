@@ -4,12 +4,14 @@ from rest_framework.test import APIRequestFactory
 from .helpers import (
     build_discussion_detail_url,
     create_comment,
+    create_endorsement,
     create_flag,
     create_paper,
     create_reply,
     create_thread
 )
 from discussion.views import get_thread_id_from_path
+from user.models import Author
 from user.tests.helpers import create_random_authenticated_user
 from utils.test_helpers import (
     get_authenticated_delete_response,
@@ -28,6 +30,10 @@ class DiscussionViewsTests(TestCase):
         self.comment = create_comment(thread=self.thread, created_by=self.user)
         self.reply = create_reply(parent=self.comment, created_by=self.user)
         self.trouble_maker = create_random_authenticated_user('trouble_maker')
+        self.author = create_random_authenticated_user('author')
+
+        self.paper.authors.add(Author.objects.get(user=self.author))
+        self.paper.save()
 
     def test_get_thread_id_from_path(self):
         factory = APIRequestFactory()
@@ -155,6 +161,82 @@ class DiscussionViewsTests(TestCase):
         response = self.get_reply_flag_delete_response(self.trouble_maker)
         self.assertEqual(response.status_code, 400)
 
+    def test_endorsement_creator_can_delete_endorsement(self):
+        user = self.author
+
+        thread_endorsement = create_endorsement(
+            created_by=user,
+            item=self.thread
+        )
+        thread_response = self.get_thread_endorsement_delete_response(user)
+        self.assertContains(
+            thread_response,
+            thread_endorsement.id,
+            status_code=200
+        )
+
+        comment_endorsement = create_endorsement(
+            created_by=user,
+            item=self.comment
+        )
+        comment_response = self.get_comment_endorsement_delete_response(user)
+        self.assertContains(
+            comment_response,
+            comment_endorsement.id,
+            status_code=200
+        )
+
+        reply_endorsement = create_endorsement(
+            created_by=user,
+            item=self.reply
+        )
+        reply_response = self.get_reply_endorsement_delete_response(user)
+        self.assertContains(
+            reply_response,
+            reply_endorsement.id,
+            status_code=200
+        )
+
+    def test_ONLY_endorsement_creator_can_delete_endorsement(self):
+        user = create_random_authenticated_user('endorser1')
+        self.paper.authors.add(Author.objects.get(user=user))
+
+        create_endorsement(
+            created_by=self.author,
+            item=self.thread
+        )
+        thread_response = self.get_thread_endorsement_delete_response(
+            user
+        )
+        self.assertEqual(
+            thread_response.status_code,
+            400
+        )
+
+        create_endorsement(
+            created_by=self.author,
+            item=self.comment
+        )
+        comment_response = self.get_comment_endorsement_delete_response(
+            user
+        )
+        self.assertEqual(
+            comment_response.status_code,
+            400
+        )
+
+        create_endorsement(
+            created_by=self.author,
+            item=self.reply
+        )
+        reply_response = self.get_reply_endorsement_delete_response(
+            user
+        )
+        self.assertEqual(
+            reply_response.status_code,
+            400
+        )
+
     def get_thread_patch_response(self, user, text):
         url, data = self.get_request_config('thread', text)
         response = get_authenticated_patch_response(
@@ -227,6 +309,32 @@ class DiscussionViewsTests(TestCase):
         url = build_discussion_detail_url(self, discussion_type)
         data = {'text': text}
         return url, data
+
+    def get_thread_endorsement_delete_response(self, user):
+        url = build_discussion_detail_url(self, 'thread')
+        response = self.get_endorsement_delete_response(user, url)
+        return response
+
+    def get_comment_endorsement_delete_response(self, user):
+        url = build_discussion_detail_url(self, 'comment')
+        response = self.get_endorsement_delete_response(user, url)
+        return response
+
+    def get_reply_endorsement_delete_response(self, user):
+        url = build_discussion_detail_url(self, 'reply')
+        response = self.get_endorsement_delete_response(user, url)
+        return response
+
+    def get_endorsement_delete_response(self, user, url):
+        url += 'endorse/'
+        data = None
+        response = get_authenticated_delete_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+        return response
 
     def get_thread_flag_delete_response(self, user):
         url = build_discussion_detail_url(self, 'thread')
