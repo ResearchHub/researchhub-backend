@@ -7,7 +7,7 @@ from django.contrib import admin
 from django.urls import include, path, re_path
 from rest_framework import routers
 
-from .views import index
+from .views import index, permissions
 import discussion.views
 import paper.views
 import oauth.urls
@@ -64,6 +64,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('health/', index_views.healthcheck),
     re_path(r'^api/', include(router.urls)),
+    path('api/permissions/', permissions, name='permissions'),
     path(
         'auth/google/login/callback/',
         oauth.views.google_callback,

@@ -1,0 +1,87 @@
+[
+  {
+    "key": "CreateHub",
+    "label": "create a hub",
+    "minimumReputation": 100
+  },
+  {
+    "key": "CreatePaper",
+    "label": "upload a paper",
+    "minimumReputation": 1
+  },
+  {
+    "key": "CreateDiscussionComment",
+    "label": "post a comment",
+    "minimumReputation": 1
+  },
+  {
+    "key": "CreateDiscussionReply",
+    "label": "post a reply",
+    "minimumReputation": 1
+  },
+  {
+    "key": "CreateDiscussionThread",
+    "label": "create a thread",
+    "minimumReputation": 1
+  },
+  {
+    "key": "FlagDiscussionComment",
+    "label": "flag a comment",
+    "minimumReputation": 1
+  },
+  {
+    "key": "FlagDiscussionReply",
+    "label": "flag a reply",
+    "minimumReputation": 1
+  },
+  {
+    "key": "FlagDiscussionThread",
+    "label": "create a thread",
+    "minimumReputation": 1
+  },
+  {
+    "key": "FlagPaper",
+    "label": "flag a paper",
+    "minimumReputation": 50
+  },
+  {
+    "key": "UpvoteDiscussionComment",
+    "label": "upvote",
+    "minimumReputation": 1
+  },
+  {
+    "key": "UpvoteDiscussionReply",
+    "label": "upvote",
+    "minimumReputation": 1
+  },
+  {
+    "key": "UpvoteDiscussionThread",
+    "label": "upvote",
+    "minimumReputation": 1
+  },
+  {
+    "key": "UpvotePaper",
+    "label": "upvote",
+    "minimumReputation": 1
+  },
+  {
+    "key": "DownvoteDiscussionComment",
+    "label": "downvote",
+    "minimumReputation": 25
+  },
+  {
+    "key": "DownvoteDiscussionReply",
+    "label": "downvote",
+    "minimumReputation": 25
+  },
+  {
+    "key": "DownvoteDiscussionThread",
+    "label": "downvote",
+    "minimumReputation": 25
+  },
+  {
+    "key": "DownvotePaper",
+    "label": "downvote",
+    "minimumReputation": 25
+  }
+]
