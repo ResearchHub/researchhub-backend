@@ -133,15 +133,21 @@ class AuthorViewSet(viewsets.ModelViewSet):
             for contribution in contributions:
                 if (isinstance(contribution, Reply)):
                     offsets['reply_offset'] = offsets['reply_offset'] + 1
-                    serialized_contributions.append(ReplySerializer(contribution).data)
+                    serialized_data = ReplySerializer(contribution).data
+                    serialized_data['type'] = 'reply'
+                    serialized_contributions.append(serialized_data)
 
                 elif (isinstance(contribution, Comment)):
                     offsets['comment_offset'] = offsets['comment_offset'] + 1
-                    serialized_contributions.append(CommentSerializer(contribution).data)
+                    serialized_data = CommentSerializer(contribution).data
+                    serialized_data['type'] = 'comment'
+                    serialized_contributions.append(serialized_data)
 
                 elif (isinstance(contribution, Paper)):
                     offsets['paper_upload_offset'] = offsets['paper_upload_offset'] + 1
-                    serialized_contributions.append(PaperSerializer(contribution).data)
+                    serialized_data = PaperSerializer(contribution).data
+                    serialized_data['type'] = 'paper'
+                    serialized_contributions.append(serialized_data)
 
             has_next = False
             if offsets['comment_offset'] < user_comments_count:

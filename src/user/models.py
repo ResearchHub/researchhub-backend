@@ -68,7 +68,10 @@ class Author(models.Model):
         null=True,
         blank=True
     )
-
+    facebook = models.CharField(max_length=255, default=None, null=True, blank=True)
+    twitter = models.CharField(max_length=255, default=None, null=True, blank=True)
+    linkedin = models.CharField(max_length=255, default=None, null=True, blank=True)
+    
     def __str__(self):
         university = self.university
         if university is None:
