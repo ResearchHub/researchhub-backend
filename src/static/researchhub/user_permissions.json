@@ -2,86 +2,103 @@
   {
     "key": "CreateHub",
     "label": "create a hub",
-    "minimumReputation": 100
+    "minimumReputation": 100,
+    "canEarn": false
   },
   {
     "key": "CreatePaper",
     "label": "upload a paper",
-    "minimumReputation": 1
+    "minimumReputation": 1,
+    "canEarn": true
   },
   {
     "key": "CreateDiscussionComment",
     "label": "post a comment",
-    "minimumReputation": 1
+    "minimumReputation": 1,
+    "canEarn": true
   },
   {
     "key": "CreateDiscussionReply",
     "label": "post a reply",
-    "minimumReputation": 1
+    "minimumReputation": 1,
+    "canEarn": true
   },
   {
     "key": "CreateDiscussionThread",
     "label": "create a thread",
-    "minimumReputation": 1
+    "minimumReputation": 1,
+    "canEarn": true
   },
   {
     "key": "FlagDiscussionComment",
     "label": "flag a comment",
-    "minimumReputation": 1
+    "minimumReputation": 1,
+    "canEarn": false
   },
   {
     "key": "FlagDiscussionReply",
     "label": "flag a reply",
-    "minimumReputation": 1
+    "minimumReputation": 1,
+    "canEarn": false
   },
   {
     "key": "FlagDiscussionThread",
     "label": "create a thread",
-    "minimumReputation": 1
+    "minimumReputation": 1,
+    "canEarn": false
   },
   {
     "key": "FlagPaper",
     "label": "flag a paper",
-    "minimumReputation": 50
+    "minimumReputation": 50,
+    "canEarn": false
   },
   {
     "key": "UpvoteDiscussionComment",
     "label": "upvote",
-    "minimumReputation": 1
+    "minimumReputation": 1,
+    "canEarn": false
   },
   {
     "key": "UpvoteDiscussionReply",
     "label": "upvote",
-    "minimumReputation": 1
+    "minimumReputation": 1,
+    "canEarn": false
   },
   {
     "key": "UpvoteDiscussionThread",
     "label": "upvote",
-    "minimumReputation": 1
+    "minimumReputation": 1,
+    "canEarn": false
   },
   {
     "key": "UpvotePaper",
     "label": "upvote",
-    "minimumReputation": 1
+    "minimumReputation": 1,
+    "canEarn": false
   },
   {
     "key": "DownvoteDiscussionComment",
     "label": "downvote",
-    "minimumReputation": 25
+    "minimumReputation": 25,
+    "canEarn": false
   },
   {
     "key": "DownvoteDiscussionReply",
     "label": "downvote",
-    "minimumReputation": 25
+    "minimumReputation": 25,
+    "canEarn": false
   },
   {
     "key": "DownvoteDiscussionThread",
     "label": "downvote",
-    "minimumReputation": 25
+    "minimumReputation": 25,
+    "canEarn": false
   },
   {
     "key": "DownvotePaper",
     "label": "downvote",
-    "minimumReputation": 25
+    "minimumReputation": 25,
+    "canEarn": false
   }
 ]
