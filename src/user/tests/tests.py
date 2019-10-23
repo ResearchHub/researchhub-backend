@@ -2,7 +2,7 @@ import json
 
 from django.test import TestCase, Client
 
-from .models import User, Author, University
+from user.models import User, Author, University
 
 
 class BaseTests(TestCase):

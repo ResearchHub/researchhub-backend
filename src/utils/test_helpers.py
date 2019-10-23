@@ -1,5 +1,8 @@
 import json
+import threading
+import time
 
+from django.db import connection
 from django.test import Client
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
@@ -31,6 +34,9 @@ class TestData:
                    )
     paper_publish_date = '1990-10-01'
 
+
+# REFACTOR: Instead of having to inherit this class, test cases should import
+# the needed functions from a test_helper module that is defined in each app.
 
 class TestHelper:
     test_data = TestData()
@@ -205,26 +211,147 @@ class IntegrationTestHelper(TestData):
         return Client(HTTP_AUTHORIZATION=f'Token {auth_token}')
 
 
+def get_authenticated_get_response(
+    user,
+    url,
+    content_type
+):
+    client, content_format = _get_authenticated_client_config(
+        user,
+        url,
+        content_type
+    )
+
+    response = client.get(url, format=content_format)
+    return response
+
+
 def get_authenticated_post_response(
     user,
     url,
     data,
     content_type
 ):
+    client, content_format = _get_authenticated_client_config(
+        user,
+        url,
+        content_type
+    )
+    response = client.post(url, data, format=content_format)
+    return response
+
+
+def get_authenticated_patch_response(
+    user,
+    url,
+    data,
+    content_type
+):
+    client, content_format = _get_authenticated_client_config(
+        user,
+        url,
+        content_type
+    )
+    response = client.patch(url, data, format=content_format)
+    return response
+
+
+def get_authenticated_put_response(
+    user,
+    url,
+    data,
+    content_type
+):
+    client, content_format = _get_authenticated_client_config(
+        user,
+        url,
+        content_type
+    )
+    response = client.put(url, data, format=content_format)
+    return response
+
+
+def get_authenticated_delete_response(
+    user,
+    url,
+    data,
+    content_type
+):
+    client, content_format = _get_authenticated_client_config(
+        user,
+        url,
+        content_type
+    )
+    response = client.delete(url, data, format=content_format)
+    return response
+
+
+def _get_authenticated_client_config(
+    user,
+    url,
+    content_type
+):
     csrf = False
 
     if content_type == 'application/json':
         content_format = 'json'
-        data = json.dumps(data)
     elif content_type == 'multipart/form-data':
         content_format = 'multipart'
         csrf = True
 
     client = APIClient(enforce_csrf_checks=csrf)
     client.force_authenticate(user=user, token=user.auth_token)
-    response = client.post(url, data, format=content_format)
-    return response
+    return client, content_format
 
 
 def get_user_from_response(response):
     return response.wsgi_request.user
+
+
+class DatabaseThread(threading.Thread):
+
+    def run(self):
+        super().run()
+        connection.close()
+
+
+# Copied from
+# https://www.caktusgroup.com/blog/2009/05/26/testing-django-views-for-concurrency-issues/
+def test_concurrently(runs, delay=None):
+    """
+    Add this decorator to small pieces of code that you want to test
+    concurrently to make sure they don't raise exceptions when run at the
+    same time.  E.g., some Django views that do a SELECT and then a subsequent
+    INSERT might fail when the INSERT assumes that the data has not changed
+    since the SELECT.
+    """
+    def test_concurrently_decorator(test_func):
+        def wrapper(*args, **kwargs):
+            exceptions = []
+
+            def call_test_func():
+                try:
+                    test_func(*args, **kwargs)
+                except Exception as e:
+                    exceptions.append(e)
+                    raise
+
+            threads = []
+            for i in range(runs):
+                threads.append(DatabaseThread(target=call_test_func))
+            for t in threads:
+                if delay is not None:
+                    time.sleep(delay)
+                t.start()
+            for t in threads:
+                if delay is not None:
+                    time.sleep(delay)
+                t.join()
+            if exceptions:
+                raise Exception(
+                    'test_concurrently intercepted %s exceptions: %s'
+                    % (len(exceptions), exceptions)
+                )
+
+        return wrapper
+    return test_concurrently_decorator

@@ -1,15 +1,22 @@
 from django.contrib.admin.options import get_content_type_for_model
 import rest_framework.serializers as serializers
 
-from .models import Comment, Thread, Reply, Vote
+from .models import Comment, Endorsement, Flag, Thread, Reply, Vote
 from user.serializers import UserSerializer
+from utils.http import get_user_from_request
 
 
-# TODO: Add isOwner permission and make is_public editable
+# TODO: Make is_public editable for creator as a delete mechanism
 
 class VoteMixin:
     def get_score(self, obj):
-        score = calculate_score(obj)
+        score = self.calculate_score(obj)
+        return score
+
+    def calculate_score(self, obj):
+        upvotes = obj.votes.filter(vote_type=Vote.UPVOTE)
+        downvotes = obj.votes.filter(vote_type=Vote.DOWNVOTE)
+        score = len(upvotes) - len(downvotes)
         return score
 
     def get_user_vote(self, obj):
@@ -22,6 +29,20 @@ class VoteMixin:
             except Vote.DoesNotExist:
                 pass
         return vote
+
+
+class VoteSerializer(serializers.ModelSerializer):
+    item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
+
+    class Meta:
+        fields = [
+            'content_type',
+            'created_by',
+            'created_date',
+            'vote_type',
+            'item',
+        ]
+        model = Vote
 
 
 class ReplySerializer(serializers.ModelSerializer, VoteMixin):
@@ -156,7 +177,7 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
         return count
 
 
-class VoteSerializer(serializers.ModelSerializer):
+class EndorsementSerializer(serializers.ModelSerializer):
     item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
 
     class Meta:
@@ -164,21 +185,20 @@ class VoteSerializer(serializers.ModelSerializer):
             'content_type',
             'created_by',
             'created_date',
-            'vote_type',
             'item',
         ]
-        model = Vote
+        model = Endorsement
 
 
-def calculate_score(obj):
-    upvotes = obj.votes.filter(vote_type=Vote.UPVOTE)
-    downvotes = obj.votes.filter(vote_type=Vote.DOWNVOTE)
-    score = len(upvotes) - len(downvotes)
-    return score
+class FlagSerializer(serializers.ModelSerializer):
+    item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
 
-
-def get_user_from_request(ctx):
-    request = ctx.get('request')
-    if request and hasattr(request, 'user'):
-        return request.user
-    return None
+    class Meta:
+        fields = [
+            'content_type',
+            'created_by',
+            'created_date',
+            'item',
+            'reason',
+        ]
+        model = Flag

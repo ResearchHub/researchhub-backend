@@ -121,6 +121,7 @@ INSTALLED_APPS = [
     'oauth',
     'paper',
     'user',
+    'reputation',
     'summary',
 ]
 

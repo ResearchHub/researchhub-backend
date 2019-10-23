@@ -5,10 +5,17 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
-from .models import Paper, Vote
-from .serializers import PaperSerializer, VoteSerializer
-from reputation.permissions import CreatePaper, UpvotePaper
 from .filters import *
+from .models import Flag, Paper, Vote
+from .permissions import (
+    CreatePaper,
+    FlagPaper,
+    IsAuthor,
+    UpdatePaper,
+    UpvotePaper,
+    DownvotePaper
+)
+from .serializers import FlagSerializer, PaperSerializer, VoteSerializer
 
 class PaperViewSet(viewsets.ModelViewSet):
     queryset = Paper.objects.all()
@@ -18,7 +25,54 @@ class PaperViewSet(viewsets.ModelViewSet):
     filter_class = PaperFilter
 
     # Optional attributes
-    permission_classes = [IsAuthenticatedOrReadOnly & CreatePaper]
+    permission_classes = [
+        IsAuthenticatedOrReadOnly
+        & CreatePaper
+        & UpdatePaper
+    ]
+
+    @action(
+        detail=True,
+        methods=['post', 'put', 'patch'],
+        permission_classes=[IsAuthor]
+    )
+    def assign_moderator(self, request, pk=None):
+        '''Assign users as paper moderators'''
+        paper = self.get_object()
+        moderators = request.data.get('moderators')
+        if not isinstance(moderators, list):
+            moderators = [moderators]
+        paper.moderators.add(*moderators)
+        paper.save()
+        return Response(PaperSerializer(paper).data)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[FlagPaper]  # Also applies to delete_flag below
+    )
+    def flag(self, request, pk=None):
+        paper = self.get_object()
+        reason = request.data.get('reason')
+        flag = Flag.objects.create(
+            paper=paper,
+            created_by=request.user,
+            reason=reason
+        )
+        return Response(FlagSerializer(flag).data, status=201)
+
+    @flag.mapping.delete
+    def delete_flag(self, request, pk=None):
+        try:
+            flag = Flag.objects.get(
+                paper=pk,
+                created_by=request.user.id
+            )
+            flag_id = flag.id
+            flag.delete()
+            return Response(flag_id, status=200)
+        except Exception as e:
+            return Response(f'Failed to delete flag: {e}', status=400)
 
     @action(detail=True, methods=['get'])
     def user_vote(self, request, pk=None):
@@ -49,6 +103,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
+        permission_classes=[DownvotePaper]
     )
     def downvote(self, request, pk=None):
         paper = self.get_object()
