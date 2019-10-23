@@ -1,6 +1,6 @@
 import rest_framework.serializers as serializers
 
-from .models import Paper, Vote
+from .models import Flag, Paper, Vote
 from hub.models import Hub
 from user.models import Author
 from discussion.serializers import ThreadSerializer
@@ -32,6 +32,7 @@ class PaperSerializer(serializers.ModelSerializer):
         model = Paper
 
     def to_internal_value(self, data):
+        data = data.copy()
         valid_authors = []
         for author in data.getlist('authors'):
             try:
@@ -119,6 +120,18 @@ class PaperSerializer(serializers.ModelSerializer):
             except Vote.DoesNotExist:
                 pass
         return vote
+
+
+class FlagSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        fields = [
+            'created_by',
+            'created_date',
+            'paper',
+            'reason',
+        ]
+        model = Flag
 
 
 class VoteSerializer(serializers.ModelSerializer):
