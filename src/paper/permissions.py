@@ -14,17 +14,17 @@ class UpdatePaper(AuthorizationBasedPermission):
     message = 'Action not permitted.'
 
     def is_authorized(self, request, view, obj):
-        if (
-            (request.method == RequestMethods.PATCH)
-            or (request.method == RequestMethods.PUT)
-        ):
-            user = request.user
-            author = Author.objects.get(user=request.user)
-            return (
-                (user == obj.uploaded_by)
-                or (author in obj.authors.all())
-                or (user in obj.moderators.all())
-            )
+        # if (
+        #     (request.method == RequestMethods.PATCH)
+        #     or (request.method == RequestMethods.PUT)
+        # ):
+        #     user = request.user
+        #     author = Author.objects.get(user=request.user)
+        #     return (
+        #         (user == obj.uploaded_by)
+        #         or (author in obj.authors.all())
+        #         or (user in obj.moderators.all())
+        #     )
         return True
 
 
