@@ -21,6 +21,11 @@ class Paper(models.Model):
         related_name='authored_papers',
         blank=True
     )
+    moderators = models.ManyToManyField(
+        User,
+        related_name='moderated_papers',
+        blank=True
+    )
     doi = models.CharField(max_length=255, default='', blank=True)
     hubs = models.ManyToManyField(
         Hub,

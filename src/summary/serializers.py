@@ -1,13 +1,14 @@
 import rest_framework.serializers as serializers
 
 from .models import Summary
-from user.models import User
 from user.serializers import UserSerializer
+
 
 class PreviousSummarySerializer(serializers.ModelSerializer):
     class Meta:
         fields = '__all__'
         model = Summary
+
 
 class SummarySerializer(serializers.ModelSerializer):
     proposed_by = UserSerializer(
