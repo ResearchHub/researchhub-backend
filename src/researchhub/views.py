@@ -1,3 +1,5 @@
+import os
+from researchhub.settings import BASE_DIR
 from django.http import HttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -7,6 +9,18 @@ def index(request):
     return HttpResponse(
         "Authenticate with a token in the Authorization header."
     )
+
+
+def permissions(request):
+    path = os.path.join(
+        BASE_DIR,
+        'static',
+        'researchhub',
+        'user_permissions.json'
+    )
+    with open(path, 'r') as file:
+        data = file.read()
+    return HttpResponse(content=data, content_type='application/json')
 
 
 @api_view(['GET'])
