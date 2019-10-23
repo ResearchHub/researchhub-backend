@@ -5,6 +5,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
+from .filters import *
 from .models import Flag, Paper, Vote
 from .permissions import (
     CreatePaper,
@@ -16,12 +17,12 @@ from .permissions import (
 )
 from .serializers import FlagSerializer, PaperSerializer, VoteSerializer
 
-
 class PaperViewSet(viewsets.ModelViewSet):
     queryset = Paper.objects.all()
     serializer_class = PaperSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('title', 'doi')
+    filter_class = PaperFilter
 
     # Optional attributes
     permission_classes = [
