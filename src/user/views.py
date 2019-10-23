@@ -11,6 +11,8 @@ from .serializers import UserSerializer, AuthorSerializer
 from .filters import *
 from paper.models import *
 from paper.serializers import *
+from discussion.models import *
+from discussion.serializers import *
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -54,7 +56,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 'count': paginator.count,
                 'has_next': page.has_next(),
                 'next': nextPage,
-                'results': PaperSerializer(authored_papers, many=True).data
+                'results': PaperSerializer(page, many=True).data
             }
             return Response(response, status=200)
         return Response(status=404)
@@ -68,10 +70,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
         if authors:
             author = authors.first()
             user = author.user
-            import pdb; pdb.set_trace()
-            authored_papers = author.authored_papers.all()
+            user_discussions = Thread.objects.filter(created_by=user)
             PAGE_SIZE = 20
-            paginator = Paginator(authored_papers, PAGE_SIZE)
+            paginator = Paginator(user_discussions, PAGE_SIZE)
             page_num = request.GET["page"]
             page = paginator.page(page_num)
             url = request.build_absolute_uri('?')
@@ -83,8 +84,81 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 'count': paginator.count,
                 'has_next': page.has_next(),
                 'next': nextPage,
-                'results': PaperSerializer(authored_papers, many=True).data
+                'results': ThreadSerializer(page, many=True).data
             }
             return Response(response, status=200)
         return Response(status=404)
+
+    @action(
+        detail=True,
+        methods=['get'],
+    )
+    def get_user_contributions(self, request, pk=None):
+        def sort(contribution):
+            return contribution.updated_date
+        
+        authors = Author.objects.filter(id=pk)
+        if authors:
+            author = authors.first()
+            user = author.user
+            PAGE_SIZE = 20
+
+            comment_offset = int(request.GET['commentOffset'])
+            reply_offset = int(request.GET['replyOffset'])
+            paper_upload_offset = int(request.GET['paperUploadOffset'])
+
+            user_comments = Comment.objects.filter(created_by=user)
+            user_replies = Reply.objects.filter(created_by=user)
+            user_paper_uploads = Paper.objects.filter(uploaded_by=user)
+
+            user_comments_count = len(user_comments)
+            user_replies_count = len(user_replies)
+            user_paper_uploads_count = len(user_paper_uploads)
+            count = user_comments_count + user_replies_count + user_paper_uploads_count
+
+            user_comments = list(user_comments[comment_offset:(comment_offset + PAGE_SIZE)])
+            user_replies = list(user_replies[reply_offset:(reply_offset + PAGE_SIZE)])
+            user_paper_uploads = list(user_paper_uploads[paper_upload_offset:(paper_upload_offset + PAGE_SIZE)])
+
+            contributions = user_comments + user_replies + user_paper_uploads
+            contributions.sort(reverse=True, key=sort)
+            contributions = contributions[0:PAGE_SIZE]
+            offsets = {
+                "comment_offset": comment_offset,
+                "reply_offset": reply_offset,
+                "paper_upload_offset": paper_upload_offset,
+            }
+
+            serialized_contributions = []
+            for contribution in contributions:
+                if (isinstance(contribution, Reply)):
+                    offsets['reply_offset'] = offsets['reply_offset'] + 1
+                    serialized_contributions.append(ReplySerializer(contribution).data)
+
+                elif (isinstance(contribution, Comment)):
+                    offsets['comment_offset'] = offsets['comment_offset'] + 1
+                    serialized_contributions.append(CommentSerializer(contribution).data)
+
+                elif (isinstance(contribution, Paper)):
+                    offsets['paper_upload_offset'] = offsets['paper_upload_offset'] + 1
+                    serialized_contributions.append(PaperSerializer(contribution).data)
+
+            has_next = False
+            if offsets['comment_offset'] < user_comments_count:
+                has_next = True
+            if offsets['reply_offset'] < user_replies_count:
+                has_next = True
+            if offsets['paper_upload_offset'] < user_paper_uploads_count:
+                has_next = True
+
+            response = {
+                'count': count,
+                'has_next': has_next,
+                'results': serialized_contributions,
+                'offsets': offsets
+            }
+            return Response(response, status=200)
+        return Response(status=404)
+
+
 
