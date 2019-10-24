@@ -216,6 +216,9 @@ def get_authenticated_get_response(
     url,
     content_type
 ):
+    '''
+    Sends a get request authenticated with `user` and returns the response.
+    '''
     client, content_format = _get_authenticated_client_config(
         user,
         url,
@@ -230,8 +233,11 @@ def get_authenticated_post_response(
     user,
     url,
     data,
-    content_type
+    content_type='application/json'
 ):
+    '''
+    Sends a post request authenticated with `user` and returns the response.
+    '''
     client, content_format = _get_authenticated_client_config(
         user,
         url,
@@ -247,6 +253,9 @@ def get_authenticated_patch_response(
     data,
     content_type
 ):
+    '''
+    Sends a patch request authenticated with `user` and returns the response.
+    '''
     client, content_format = _get_authenticated_client_config(
         user,
         url,
@@ -262,6 +271,9 @@ def get_authenticated_put_response(
     data,
     content_type
 ):
+    '''
+    Sends a put request authenticated with `user` and returns the response.
+    '''
     client, content_format = _get_authenticated_client_config(
         user,
         url,
@@ -277,6 +289,9 @@ def get_authenticated_delete_response(
     data,
     content_type
 ):
+    '''
+    Sends a delete request authenticated with `user` and returns the response.
+    '''
     client, content_format = _get_authenticated_client_config(
         user,
         url,
