@@ -189,8 +189,8 @@ class SignalConcurrencyTests(TransactionTestCase):
         self.assertEqual(self.recipient.reputation, starting_reputation)
 
     def test_X_comment_upvotes_increase_reputation_by_X(self):
-        runs = 90
-        delay = 0.01
+        runs = 2
+        delay = 1
 
         starting_reputation = self.recipient.reputation
 
