@@ -85,25 +85,14 @@ class PaperPermissionsIntegrationTests(
         response = self.get_put_response(moderator, paper)
         self.assertEqual(response.status_code, 200)
 
-    def test_uploader_can_update_paper(self):
-        uploader = self.create_random_authenticated_user('uploader')
-        # We could optionally use create_paper here
-        self.paper.uploaded_by = uploader
-        self.paper.save()
-
-        response = self.get_patch_response(uploader, self.paper)
-        self.assertEqual(response.status_code, 200)
-
-        response = self.get_put_response(uploader, self.paper)
-        self.assertEqual(response.status_code, 200)
-
-    def test_can_NOT_update_paper_unless_author_moderator_or_uploader(self):
-        user = self.create_random_authenticated_user('millennial')
-
+    def test_can_update_paper_with_minimum_reputation(self):
+        user = self.create_user_with_reputation(1)
         response = self.get_patch_response(user, self.paper)
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
 
-        response = self.get_put_response(user, self.paper)
+    def test_can_NOT_update_paper_below_minimum_reputation(self):
+        user = self.create_user_with_reputation(0)
+        response = self.get_patch_response(user, self.paper)
         self.assertEqual(response.status_code, 403)
 
     def test_can_upvote_paper_with_minimum_reputation(self):
