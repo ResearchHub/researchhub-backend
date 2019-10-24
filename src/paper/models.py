@@ -53,6 +53,10 @@ class Paper(models.Model):
         authors = list(self.authors.all())
         return '%s: %s' % (self.title, authors)
 
+    def update_summary(self, summary):
+        self.summary = summary
+        self.save()
+
 
 class Vote(models.Model):
     UPVOTE = 1
