@@ -25,10 +25,7 @@ class RuleBasedPermission(BasePermission):
     def has_permission(self, request, view):
         if self.is_read_only_request(request):
             return True
-        return (
-            bool(request.user and request.user.is_authenticated)
-            and self.satisfies_rule(request)
-        )
+        return self.satisfies_rule(request)
 
     def is_read_only_request(self, request):
         return request.method in SAFE_METHODS
