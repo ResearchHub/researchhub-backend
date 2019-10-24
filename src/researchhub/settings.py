@@ -21,7 +21,7 @@ PRODUCTION = APP_ENV == 'production'
 STAGING = APP_ENV == 'staging'
 PYTHONPATH = '/opt/python/current/app:$PYTHONPATH'
 DJANGO_SETTINGS_MODULE = 'researchhub.settings'
-ELASTIC_BEANSTALK = (APP_ENV in ['production','staging', 'dev'])
+ELASTIC_BEANSTALK = (APP_ENV in ['production', 'staging', 'dev'])
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
