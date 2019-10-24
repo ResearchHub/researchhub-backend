@@ -27,6 +27,9 @@ def create_random_authenticated_user(unique_value):
 
 
 def create_random_default_user(unique_value):
+    '''
+    Returns an instance of User with name and email based on `unique_value`.
+    '''
     first_name = TestData.first_name + str(unique_value)
     last_name = TestData.last_name + str(unique_value)
     email = str(unique_value) + TestData.valid_email
