@@ -1,10 +1,11 @@
+from django.db import transaction
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .models import Summary
-from .permissions import CreateSummary, ProposeSummaryEdit
+from .permissions import ProposeSummaryEdit
 from .serializers import SummarySerializer
 from paper.models import Paper
 
@@ -27,7 +28,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
 
         return Response(summary, status=200)
 
-    # TODO: Make this atomic and respond with failure message if it throws
+    @transaction.atomic
     @action(
         detail=False,
         methods=['post'],
@@ -37,32 +38,28 @@ class SummaryViewSet(viewsets.ModelViewSet):
         user = request.user
         summary = request.data.get('summary')
         paper_id = request.data.get('paper')
-        previous_summary_id = request.data.get('previousSummaryId')
+        previous_summary_id = request.data.get('previousSummaryId', None)
 
         previous_summary = None
-
-        if previous_summary_id:
+        if previous_summary_id is not None:
             previous_summary = Summary.objects.get(id=previous_summary_id)
-            # previous_summary.save()
-            # new_summary.previous = previous_summary
-            # new_summary.save()
 
         new_summary = Summary.objects.create(
             summary=summary,
             proposed_by=user,
             paper_id=paper_id,
-            previous=previous_summary,
+            previous=previous_summary
         )
 
         if self._user_can_direct_edit(user):
             new_summary.approve(by=user)
-            self._update_paper_summary(new_summary)
+            self._set_paper_summary(new_summary)
 
         return Response(SummarySerializer(new_summary).data, status=201)
 
     def _user_can_direct_edit(self, user):
         return user.reputation >= 50
 
-    def _update_paper_summary(self, paper_id, summary):
+    def _set_paper_summary(self, paper_id, summary):
         paper = Paper.objects.get(id=paper_id)
         paper.update_summary(summary)
