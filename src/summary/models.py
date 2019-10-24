@@ -1,3 +1,4 @@
+from datetime import datetime
 from django.db import models
 from django.contrib.postgres.fields import JSONField
 
@@ -40,3 +41,9 @@ class Summary(models.Model):
 
     def __str__(self):
         return self.id
+
+    def approve(self, by):
+        self.approved = True
+        self.approved_by = by
+        self.approved_at = datetime.now()
+        self.save()
