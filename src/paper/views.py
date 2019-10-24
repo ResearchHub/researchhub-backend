@@ -17,6 +17,7 @@ from .permissions import (
 )
 from .serializers import FlagSerializer, PaperSerializer, VoteSerializer
 
+
 class PaperViewSet(viewsets.ModelViewSet):
     queryset = Paper.objects.all()
     serializer_class = PaperSerializer
