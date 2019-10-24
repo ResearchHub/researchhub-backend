@@ -1,17 +1,29 @@
-import rest_framework.serializers as rest_framework_serializers
+from rest_framework import serializers
 
 from .models import Hub
+from utils.http import get_user_from_request
 
 
-class HubSerializer(rest_framework_serializers.ModelSerializer):
+class HubSerializer(serializers.ModelSerializer):
+    subscriber_count = serializers.SerializerMethodField()
+    user_is_subscribed = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
             'name',
             'is_locked',
-            'subscribers',
+            'subscriber_count',
+            'user_is_subscribed'
         ]
         read_only_fields = [
-            'subscribers'
+            'subscriber_count',
+            'user_is_subscribed'
         ]
         model = Hub
+
+    def get_subscriber_count(self, obj):
+        return len(obj.subscribers.all())
+
+    def get_user_is_subscribed(self, obj):
+        user = get_user_from_request(self.context)
+        return user in obj.subscribers.all()
