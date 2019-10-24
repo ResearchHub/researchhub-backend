@@ -24,7 +24,7 @@ class HubViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
-        permission_classes=[IsNotSubscribed]
+        permission_classes=[IsAuthenticated & IsNotSubscribed]
     )
     def subscribe(self, request, pk=None):
         hub = self.get_object()
