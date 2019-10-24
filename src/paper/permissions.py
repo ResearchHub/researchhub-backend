@@ -10,22 +10,11 @@ class CreatePaper(RuleBasedPermission):
         return request.user.reputation >= 1
 
 
-class UpdatePaper(AuthorizationBasedPermission):
-    message = 'Action not permitted.'
+class UpdatePaper(RuleBasedPermission):
+    message = 'Not enough reputation to upload paper.'
 
     def is_authorized(self, request, view, obj):
-        # if (
-        #     (request.method == RequestMethods.PATCH)
-        #     or (request.method == RequestMethods.PUT)
-        # ):
-        #     user = request.user
-        #     author = Author.objects.get(user=request.user)
-        #     return (
-        #         (user == obj.uploaded_by)
-        #         or (author in obj.authors.all())
-        #         or (user in obj.moderators.all())
-        #     )
-        return True
+        return request.user.reputation >= 1
 
 
 class FlagPaper(RuleBasedPermission):
