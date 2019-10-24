@@ -13,7 +13,7 @@ class CreatePaper(RuleBasedPermission):
 class UpdatePaper(RuleBasedPermission):
     message = 'Not enough reputation to upload paper.'
 
-    def is_authorized(self, request, view, obj):
+    def satisfies_rule(self, request):
         return request.user.reputation >= 1
 
 
