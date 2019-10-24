@@ -5,16 +5,22 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .models import Summary
-from .permissions import ProposeSummaryEdit
+from .permissions import ProposeSummaryEdit, UpdateOrDeleteSummaryEdit
 from .serializers import SummarySerializer
 from paper.models import Paper
+
+# TODO: Add flagging actions and permissions
 
 
 class SummaryViewSet(viewsets.ModelViewSet):
     queryset = Summary.objects.all()
     serializer_class = SummarySerializer
 
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [
+        IsAuthenticatedOrReadOnly
+        & ProposeSummaryEdit
+        & UpdateOrDeleteSummaryEdit
+    ]
 
     @action(detail=False, methods=['get'])
     def get_edit_history(self, request):
@@ -29,12 +35,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
         return Response(summary, status=200)
 
     @transaction.atomic
-    @action(
-        detail=False,
-        methods=['post'],
-        permission_classes=[ProposeSummaryEdit]
-    )
-    def propose_edit(self, request):
+    def create(self, request):
         user = request.user
         summary = request.data.get('summary')
         paper_id = request.data.get('paper')
