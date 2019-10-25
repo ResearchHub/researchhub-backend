@@ -10,6 +10,7 @@ class HubSerializer(serializers.ModelSerializer):
 
     class Meta:
         fields = [
+            'id',
             'name',
             'is_locked',
             'subscriber_count',
