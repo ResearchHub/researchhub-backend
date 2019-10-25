@@ -54,7 +54,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
 
         if self._user_can_direct_edit(user):
             new_summary.approve(by=user)
-            self._set_paper_summary(new_summary)
+            self._set_paper_summary(paper_id, new_summary)
 
         return Response(SummarySerializer(new_summary).data, status=201)
 
