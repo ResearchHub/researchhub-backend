@@ -1,6 +1,6 @@
-from datetime import datetime
 from django.db import models
 from django.contrib.postgres.fields import JSONField
+from django.utils import timezone
 
 from user.models import User
 
@@ -45,5 +45,5 @@ class Summary(models.Model):
     def approve(self, by):
         self.approved = True
         self.approved_by = by
-        self.approved_at = datetime.now()
+        self.approved_at = timezone.now()
         self.save()
