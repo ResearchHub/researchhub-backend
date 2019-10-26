@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/2.2/ref/settings/
 import os
 import requests
 from config import db, keys
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -287,6 +289,19 @@ AWS_SECRET_ACCESS_KEY = os.environ.get(
 
 if PRODUCTION:
     AWS_STORAGE_BUCKET_NAME = 'researchhub-paper-prod'
+
+    def before_send(event, hint):
+        log_record = hint.get('log_record')
+        if log_record and 'Invalid HTTP_HOST header' in log_record.message:
+            return None
+        return event
+
+    sentry_sdk.init(
+        dsn="https://eddb587c90ec4e59916d46bcc43f2957@sentry.io/1797024",
+        before_send=before_send,
+        integrations=[DjangoIntegration()],
+        environment=SENTRY_ENVIRONMENT
+    )
 
 AWS_S3_FILE_OVERWRITE = False
 AWS_DEFAULT_ACL = None

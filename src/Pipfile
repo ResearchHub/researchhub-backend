@@ -17,6 +17,7 @@ django-cors-headers = "*"
 boto3 = "*"
 django-storages = "*"
 django-filter = "*"
+sentry-sdk = "*"
 
 [requires]
 python_version = "3.7"
