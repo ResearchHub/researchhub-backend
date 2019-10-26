@@ -2,7 +2,7 @@ from django_filters import rest_framework as filters
 from .models import *
 
 class HubFilter(filters.FilterSet):
-    hubs_id__in = filters.Filter(field_name="hubs", lookup_expr='in')
+    name__iexact = filters.Filter(field_name="name", lookup_expr='iexact')
 
     class Meta:
         model = Hub
