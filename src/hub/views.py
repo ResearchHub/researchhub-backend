@@ -11,14 +11,15 @@ from rest_framework.response import Response
 from .models import Hub
 from .permissions import CreateHub, IsSubscribed, IsNotSubscribed
 from .serializers import HubSerializer
+from .filters import *
 
 
 class HubViewSet(viewsets.ModelViewSet):
     queryset = Hub.objects.all()
     serializer_class = HubSerializer
-
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     permission_classes = [IsAuthenticatedOrReadOnly & CreateHub]
+    filter_class = HubFilter
     search_fields = ('name')
 
     @action(
