@@ -146,6 +146,8 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'researchhub.urls'
 
+FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400 # 25MB max data allowed
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.TokenAuthentication',
