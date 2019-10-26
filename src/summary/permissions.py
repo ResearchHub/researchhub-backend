@@ -18,8 +18,8 @@ class UpdateOrDeleteSummaryEdit(AuthorizationBasedPermission):
         if (request.method == RequestMethods.PUT) or (
             request.method == RequestMethods.PATCH
         ) or (request.method == RequestMethods.DELETE):
-            if obj.approved is True:
-                return False
+            # if obj.approved is True:
+            #     return False
             return request.user == obj.proposed_by
         return True
 
