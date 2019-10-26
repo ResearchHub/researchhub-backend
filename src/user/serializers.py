@@ -9,7 +9,7 @@ class UniversitySerializer(rest_framework_serializers.ModelSerializer):
         fields = '__all__'
 
 class AuthorSerializer(rest_framework_serializers.ModelSerializer):
-    university = UniversitySerializer()
+    university = UniversitySerializer(required=False)
     # authored_papers = rest_framework_serializers.SerializerMethodField()
 
     class Meta:

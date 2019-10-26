@@ -165,6 +165,3 @@ class AuthorViewSet(viewsets.ModelViewSet):
             }
             return Response(response, status=200)
         return Response(status=404)
-
-
-
