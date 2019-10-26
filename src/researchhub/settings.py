@@ -287,6 +287,8 @@ AWS_SECRET_ACCESS_KEY = os.environ.get(
     keys.AWS_SECRET_ACCESS_KEY
 )
 
+SENTRY_ENVIRONMENT = 'production' if PRODUCTION else 'dev'
+
 if PRODUCTION:
     AWS_STORAGE_BUCKET_NAME = 'researchhub-paper-prod'
 
