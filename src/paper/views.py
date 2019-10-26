@@ -24,6 +24,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('title', 'doi')
     filter_class = PaperFilter
+    ordering = ('-uploaded_date')
 
     # Optional attributes
     permission_classes = [
