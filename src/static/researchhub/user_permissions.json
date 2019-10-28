@@ -60,6 +60,12 @@
     "canEarn": true
   },
   {
+    "key": "UpdatePaper",
+    "label": "update a paper",
+    "minimumReputation": 1,
+    "canEarn": false
+  },
+  {
     "key": "UpvoteDiscussionComment",
     "label": "upvote",
     "minimumReputation": 1,
