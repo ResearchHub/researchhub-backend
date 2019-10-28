@@ -54,6 +54,12 @@
     "canEarn": false
   },
   {
+    "key": "ProposeSummaryEdit",
+    "label": "propose a summary edit",
+    "minimumReputation": 5,
+    "canEarn": true
+  },
+  {
     "key": "UpvoteDiscussionComment",
     "label": "upvote",
     "minimumReputation": 1,
