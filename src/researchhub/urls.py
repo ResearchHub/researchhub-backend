@@ -13,6 +13,7 @@ import paper.views
 import oauth.urls
 import oauth.views
 import user.views
+import search.urls as search_urls
 import summary.views
 import hub.views
 from researchhub import views as index_views
@@ -61,6 +62,7 @@ router.register(
 router.register(r'user', user.views.UserViewSet)
 
 urlpatterns = [
+    re_path('^search/', include(search_urls)),
     path('admin/', admin.site.urls),
     path('health/', index_views.healthcheck),
     re_path(r'^api/', include(router.urls)),
