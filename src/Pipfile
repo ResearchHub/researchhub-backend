@@ -18,6 +18,8 @@ boto3 = "*"
 django-storages = "*"
 django-filter = "*"
 sentry-sdk = "*"
+django-elasticsearch-dsl = "*"
+django-elasticsearch-dsl-drf = "*"
 
 [requires]
 python_version = "3.7"

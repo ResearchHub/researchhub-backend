@@ -134,6 +134,12 @@ class Thread(BaseComment):
     def __str__(self):
         return '%s: %s' % (self.created_by, self.title)
 
+    @property
+    def paper_indexing(self):
+        '''Used in Elasticsearch indexing.'''
+        if self.paper is not None:
+            return self.paper.title
+
 
 class Reply(BaseComment):
     content_type = models.ForeignKey(
