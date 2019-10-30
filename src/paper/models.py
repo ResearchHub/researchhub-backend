@@ -3,6 +3,7 @@ from django.db import models
 from hub.models import Hub
 from user.models import Author, User
 from summary.models import Summary
+from utils.voting import calculate_score
 
 
 class Paper(models.Model):
@@ -58,8 +59,18 @@ class Paper(models.Model):
         '''Authors for Elasticsearch indexing.'''
         return [self.get_full_name(author) for author in self.authors.all()]
 
+    @property
+    def score_indexing(self):
+        '''Score for Elasticsearch indexing.'''
+        return self.get_score()
+
     def get_full_name(self, author_or_user):
         return f'{author_or_user.first_name} {author_or_user.last_name}'
+
+    def get_score(self):
+        if self.votes:
+            return calculate_score(self, Vote.UPVOTE, Vote.DOWNVOTE)
+        return 0
 
     def update_summary(self, summary):
         self.summary = summary

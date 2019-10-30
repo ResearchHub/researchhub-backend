@@ -22,6 +22,7 @@ class PaperDocument(Document):
             'suggest': es_fields.CompletionField(multi=True),
         }
     )
+    score = es_fields.IntegerField(attr='score_indexing')
     # TODO: Add summary
 
     class Index:
