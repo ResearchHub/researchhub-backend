@@ -32,12 +32,15 @@ class ThreadDocumentView(BaseDocumentViewSet):
     filter_backends = [
         FilteringFilterBackend,
         IdsFilterBackend,
+        OrderingFilterBackend,
+        DefaultOrderingFilterBackend,
         CompoundSearchFilterBackend,
     ]
     # Define search fields
     search_fields = (
         'title',
         'id',
+        'paper',
     )
     # Define filter fields
     filter_fields = {
@@ -55,13 +58,12 @@ class ThreadDocumentView(BaseDocumentViewSet):
             ],
         },
         'title': 'title.raw',
-        'created_by': 'created_by.raw',
+        'paper': 'paper.raw',
     }
     # Define ordering fields
     ordering_fields = {
         'id': 'id',
-        'title': 'title.raw',
-        'created_date': 'created_date',
+        'paper': 'paper.raw',
     }
     # Specify default ordering
-    ordering = ('id', 'create_date', 'title')
+    ordering = ('id',)

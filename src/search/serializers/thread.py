@@ -12,7 +12,7 @@ class ThreadDocumentSerializer(DocumentSerializer):
         # List the serializer fields. Note, that the order of the fields
         # is preserved in the ViewSet.
         fields = (
-            'title',
             'id',
+            'title',
             'paper'
         )

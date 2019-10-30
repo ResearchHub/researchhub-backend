@@ -7,7 +7,7 @@ from discussion.models import Thread
 html_strip = analyzer(
     'html_strip',
     tokenizer="standard",
-    filter=["standard", "lowercase", "stop", "snowball"],
+    filter=["lowercase", "stop", "snowball"],
     char_filter=["html_strip"]
 )
 
@@ -22,14 +22,20 @@ class ThreadDocument(Document):
         }
     )
 
+    title = es_fields.StringField(
+        analyzer=html_strip,
+        fields={
+            'raw': es_fields.StringField(analyzer='keyword'),
+        }
+    )
+
     class Index:
         name = 'discussion_threads'
 
     class Django:
         model = Thread
         fields = (
-            'title',
-            'id'
+            'id',
         )
 
         # Ignore auto updating of Elasticsearch when a model is saved
