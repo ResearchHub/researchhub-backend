@@ -39,3 +39,17 @@ PASS = ''
 ```
 
 Create a local postgres db called `researchhub`
+
+### ELASTICSEARCH
+
+In a new shell, pull the Elasticsearch docker image
+
+`$ docker pull docker.elastic.co/elasticsearch/elasticsearch:7.4.1`
+
+Then run a basic development cluster
+
+`$ docker run -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" docker.elastic.co/elasticsearch/elasticsearch:7.4.1`
+
+Back in the python virutal environment, build the indices
+
+`$ python manage.py search_index --rebuild`
