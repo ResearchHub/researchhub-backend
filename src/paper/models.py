@@ -97,6 +97,7 @@ class Vote(models.Model):
         related_query_name='paper_vote'
     )
     created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
     vote_type = models.IntegerField(choices=VOTE_TYPE_CHOICES)
 
     class Meta:
@@ -122,6 +123,7 @@ class Flag(models.Model):
         related_query_name='paper_flag'
     )
     created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
     reason = models.CharField(max_length=255, blank=True)
 
     class Meta:
