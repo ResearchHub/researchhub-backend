@@ -13,7 +13,9 @@ from django_elasticsearch_dsl_drf.constants import (
 from django_elasticsearch_dsl_drf.filter_backends import (
     CompoundSearchFilterBackend,
     DefaultOrderingFilterBackend,
+    HighlightBackend,
     FilteringFilterBackend,
+    NestedFilteringFilterBackend,
     IdsFilterBackend,
     OrderingFilterBackend,
 )
@@ -32,9 +34,11 @@ class PaperDocumentView(BaseDocumentViewSet):
     filter_backends = [
         CompoundSearchFilterBackend,
         DefaultOrderingFilterBackend,
-        # FilteringFilterBackend,
-        # IdsFilterBackend,
+        FilteringFilterBackend,
+        # NestedFilteringFilterBackend,
+        IdsFilterBackend,
         OrderingFilterBackend,
+        HighlightBackend,
     ]
 
     search_fields = [
@@ -45,5 +49,14 @@ class PaperDocumentView(BaseDocumentViewSet):
     ]
 
     ordering_fields = {
-        'score': 'score'
+        'score': 'score',
+    }
+
+    highlight_fields = {
+        'title': {
+            'options': {
+                'pre_tags': ["<b>"],
+                'post_tags': ["</b>"],
+            },
+        },
     }
