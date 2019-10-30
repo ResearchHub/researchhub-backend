@@ -53,6 +53,14 @@ class Paper(models.Model):
         authors = list(self.authors.all())
         return '%s: %s' % (self.title, authors)
 
+    @property
+    def authors_indexing(self):
+        '''Authors for Elasticsearch indexing.'''
+        return [self.get_full_name(author) for author in self.authors.all()]
+
+    def get_full_name(self, author_or_user):
+        return f'{author_or_user.first_name} {author_or_user.last_name}'
+
     def update_summary(self, summary):
         self.summary = summary
         self.save()
