@@ -32,6 +32,19 @@ class TestData:
                    ' Aids to Magical Mischief-Makers are proud to present THE'
                    ' MARAUDER\'S MAP'
                    )
+    paper_titles = [
+        'Engendering Extroverted Murder: Hamlet Revenge and/in the Oppressed',
+        'Freedom Of Speech',
+        'How Films Relate To Criminology',
+        'Constructing Reliable Vision',
+        'Self-Organization of Associative Database and Its Applications',
+        'Family Discovery',
+        'Learning the Structure of Similarity',
+        'Forward-backward retraining of recurrent neural networks',
+        'Stable Dynamic Parameter Adaption',
+        'Improving Elevator Performance Using Reinforcement Learning',
+        'Softassign versus Softmax: Benchmarks in Combinatorial Optimization',
+    ]
     paper_publish_date = '1990-10-01'
 
 
@@ -211,10 +224,16 @@ class IntegrationTestHelper(TestData):
         return Client(HTTP_AUTHORIZATION=f'Token {auth_token}')
 
 
+def bytes_to_json(data_bytes):
+    data_string = data_bytes.decode('utf-8')
+    json_dict = json.loads(data_string)
+    return json_dict
+
+
 def get_authenticated_get_response(
     user,
     url,
-    content_type
+    content_type='application/json'
 ):
     '''
     Sends a get request authenticated with `user` and returns the response.
