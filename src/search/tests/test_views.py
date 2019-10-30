@@ -1,3 +1,4 @@
+from unittest import skip
 from django.test import TestCase
 
 from discussion.tests.helpers import create_thread
@@ -9,9 +10,8 @@ from utils.test_helpers import (
     get_authenticated_get_response
 )
 
-# TODO: Use Elasticsearch test instance
 
-
+@skip('Until we have an ElasticSearch test instance')
 class SearchViewsTests(TestCase):
 
     def setUp(self):

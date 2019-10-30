@@ -34,5 +34,7 @@ class PaperDocument(Document):
             'id',
             'title',
             'doi',
-            'tagline'
+            'tagline',
+            'uploaded_date',
+            'paper_publish_date',
         ]
