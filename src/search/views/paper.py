@@ -59,4 +59,10 @@ class PaperDocumentView(BaseDocumentViewSet):
                 'post_tags': ["</b>"],
             },
         },
+        'tagline': {
+            'options': {
+                'pre_tags': ["<b>"],
+                'post_tags': ["</b>"],
+            },
+        },
     }
