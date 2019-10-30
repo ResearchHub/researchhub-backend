@@ -13,7 +13,7 @@ from utils.test_helpers import (
 class SearchViewsTests(TestCase):
 
     def setUp(self):
-        self.base_url = '/search/'
+        self.base_url = '/api/search/'
         self.user = create_random_authenticated_user('search_views')
         create_papers(10)
         create_threads(10, self.user)
