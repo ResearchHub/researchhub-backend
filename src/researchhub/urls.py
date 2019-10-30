@@ -62,11 +62,11 @@ router.register(
 router.register(r'user', user.views.UserViewSet)
 
 urlpatterns = [
-    re_path('^search/', include(search_urls)),
     path('admin/', admin.site.urls),
     path('health/', index_views.healthcheck),
     re_path(r'^api/', include(router.urls)),
     path('api/permissions/', permissions, name='permissions'),
+    path('api/search/', include(search_urls)),
     path(
         'auth/google/login/callback/',
         oauth.views.google_callback,
