@@ -15,4 +15,5 @@ class PaperDocumentSerializer(DocumentSerializer):
             'paper_publish_date',
             'authors',
             'tagline',
+            'score',
         ]

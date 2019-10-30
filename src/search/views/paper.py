@@ -31,10 +31,10 @@ class PaperDocumentView(BaseDocumentViewSet):
     lookup_field = 'id'
     filter_backends = [
         CompoundSearchFilterBackend,
-        # DefaultOrderingFilterBackend,
+        DefaultOrderingFilterBackend,
         # FilteringFilterBackend,
         # IdsFilterBackend,
-        # OrderingFilterBackend,
+        OrderingFilterBackend,
     ]
 
     search_fields = [
@@ -43,3 +43,7 @@ class PaperDocumentView(BaseDocumentViewSet):
         'doi',
         'authors',
     ]
+
+    ordering_fields = {
+        'score': 'score'
+    }
