@@ -9,7 +9,9 @@ from django_elasticsearch_dsl_drf.constants import (
     LOOKUP_QUERY_LT,
     LOOKUP_QUERY_LTE,
     LOOKUP_QUERY_EXCLUDE,
-    SUGGESTER_COMPLETION
+    SUGGESTER_COMPLETION,
+    SUGGESTER_PHRASE,
+    SUGGESTER_TERM,
 )
 from django_elasticsearch_dsl_drf.filter_backends import (
     CompoundSearchFilterBackend,
@@ -21,14 +23,14 @@ from django_elasticsearch_dsl_drf.filter_backends import (
     OrderingFilterBackend,
     SuggesterFilterBackend,
 )
-from django_elasticsearch_dsl_drf.viewsets import BaseDocumentViewSet
+from django_elasticsearch_dsl_drf.viewsets import BaseDocumentViewSet, DocumentViewSet
 from django_elasticsearch_dsl_drf.pagination import PageNumberPagination
 
 from search.documents.paper import PaperDocument
 from search.serializers.paper import PaperDocumentSerializer
 
 
-class PaperDocumentView(BaseDocumentViewSet):
+class PaperDocumentView(DocumentViewSet):
     document = PaperDocument
     serializer_class = PaperDocumentSerializer
     pagination_class = PageNumberPagination
@@ -37,7 +39,7 @@ class PaperDocumentView(BaseDocumentViewSet):
         CompoundSearchFilterBackend,
         DefaultOrderingFilterBackend,
         FilteringFilterBackend,
-        NestedFilteringFilterBackend,
+        # NestedFilteringFilterBackend,
         IdsFilterBackend,
         OrderingFilterBackend,
         HighlightBackend,
@@ -57,12 +59,12 @@ class PaperDocumentView(BaseDocumentViewSet):
         'doi': 'doi',
         'authors': 'authors',
     }
-    nested_filter_fields = {
-        'vote_type': {
-            'field': 'votes',
-            'path': 'votes.vote_type',
-        },
-    }
+    # nested_filter_fields = {
+    #     'vote_type': {
+    #         'field': 'votes',
+    #         'path': 'votes.vote_type',
+    #     },
+    # }
 
     ordering_fields = {
         'score': 'score',
@@ -84,9 +86,12 @@ class PaperDocumentView(BaseDocumentViewSet):
     }
 
     suggester_fields = {
-        'title_suggest': 'title',
-        "default_suggester": SUGGESTER_COMPLETION,
-        "options": {
-            'size': 4,  # By default, number of results is 5.
-        },
+        'title_suggest': {
+            'field': 'title.suggest',
+            'suggesters': [
+                SUGGESTER_COMPLETION,
+                SUGGESTER_TERM,
+                SUGGESTER_PHRASE,
+            ],
+        }
     }
