@@ -10,8 +10,8 @@ class User(AbstractUser):
     """
     reputation = models.IntegerField(default=1)
     profile_image = models.TextField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.email
@@ -43,8 +43,8 @@ class University(models.Model):
     country = models.CharField(max_length=255)
     state = models.CharField(max_length=255, blank=True)
     city = models.CharField(max_length=255)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f'{self.name}_{self.city}'
@@ -60,8 +60,8 @@ class Author(models.Model):
     )
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
     university = models.ForeignKey(
         University,
         on_delete=models.SET_NULL,
