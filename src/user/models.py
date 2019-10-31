@@ -62,6 +62,7 @@ class Author(models.Model):
     last_name = models.CharField(max_length=30)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    description = models.CharField(max_length=255, default=None, null=True, blank=True)
     university = models.ForeignKey(
         University,
         on_delete=models.SET_NULL,
