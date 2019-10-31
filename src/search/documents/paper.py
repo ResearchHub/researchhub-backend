@@ -14,13 +14,19 @@ html_strip = analyzer(
 
 @registry.register_document
 class PaperDocument(Document):
+    title = es_fields.StringField(
+        fields={
+            'raw': es_fields.StringField(analyzer='keyword'),
+            'suggest': es_fields.CompletionField(),
+        },
+    )
     authors = es_fields.StringField(
         attr='authors_indexing',
         analyzer=html_strip,
         fields={
             'raw': es_fields.StringField(analyzer='keyword', multi=True),
             'suggest': es_fields.CompletionField(multi=True),
-        }
+        },
     )
     score = es_fields.IntegerField(attr='score_indexing')
     votes = es_fields.NestedField(
@@ -38,7 +44,6 @@ class PaperDocument(Document):
         model = Paper
         fields = [
             'id',
-            'title',
             'doi',
             'tagline',
             'uploaded_date',
