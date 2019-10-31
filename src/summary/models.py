@@ -34,10 +34,10 @@ class Summary(models.Model):
         related_name='approved',
         on_delete='SET NULL'
     )
-    approved_at = models.DateTimeField(default=None, null=True, blank=True)
+    approved_date = models.DateTimeField(default=None, null=True, blank=True)
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.id
@@ -45,5 +45,5 @@ class Summary(models.Model):
     def approve(self, by):
         self.approved = True
         self.approved_by = by
-        self.approved_at = timezone.now()
+        self.approved_date = timezone.now()
         self.save()

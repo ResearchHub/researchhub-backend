@@ -29,7 +29,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
         summary_queryset = Summary.objects.filter(
             paper_id=paper_id,
             approved=True
-        ).order_by('-approved_at')
+        ).order_by('-approved_date')
         summary = SummarySerializer(summary_queryset, many=True).data
 
         return Response(summary, status=200)
