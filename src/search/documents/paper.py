@@ -36,6 +36,7 @@ class PaperDocument(Document):
             'updated_date': es_fields.DateField(),
         }
     )
+    # TODO: Add field for related summary
 
     class Index:
         name = 'papers'
