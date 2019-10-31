@@ -18,6 +18,7 @@ class PaperDocumentSerializer(DocumentSerializer):
             'authors',
             'tagline',
             'score',
+            'votes'
         ]
 
     def get_highlight(self, obj):

@@ -9,6 +9,7 @@ from django_elasticsearch_dsl_drf.constants import (
     LOOKUP_QUERY_LT,
     LOOKUP_QUERY_LTE,
     LOOKUP_QUERY_EXCLUDE,
+    SUGGESTER_COMPLETION
 )
 from django_elasticsearch_dsl_drf.filter_backends import (
     CompoundSearchFilterBackend,
@@ -18,6 +19,7 @@ from django_elasticsearch_dsl_drf.filter_backends import (
     NestedFilteringFilterBackend,
     IdsFilterBackend,
     OrderingFilterBackend,
+    SuggesterFilterBackend,
 )
 from django_elasticsearch_dsl_drf.viewsets import BaseDocumentViewSet
 from django_elasticsearch_dsl_drf.pagination import PageNumberPagination
@@ -35,10 +37,11 @@ class PaperDocumentView(BaseDocumentViewSet):
         CompoundSearchFilterBackend,
         DefaultOrderingFilterBackend,
         FilteringFilterBackend,
-        # NestedFilteringFilterBackend,
+        NestedFilteringFilterBackend,
         IdsFilterBackend,
         OrderingFilterBackend,
         HighlightBackend,
+        SuggesterFilterBackend,  # This should be the last backend
     ]
 
     search_fields = [
@@ -47,6 +50,19 @@ class PaperDocumentView(BaseDocumentViewSet):
         'doi',
         'authors',
     ]
+
+    filter_fields = {
+        'title': 'title',
+        'tagline': 'tagline',
+        'doi': 'doi',
+        'authors': 'authors',
+    }
+    nested_filter_fields = {
+        'vote_type': {
+            'field': 'votes',
+            'path': 'votes.vote_type',
+        },
+    }
 
     ordering_fields = {
         'score': 'score',
@@ -64,5 +80,13 @@ class PaperDocumentView(BaseDocumentViewSet):
                 'pre_tags': ["<b>"],
                 'post_tags': ["</b>"],
             },
+        },
+    }
+
+    suggester_fields = {
+        'title_suggest': 'title',
+        "default_suggester": SUGGESTER_COMPLETION,
+        "options": {
+            'size': 4,  # By default, number of results is 5.
         },
     }
