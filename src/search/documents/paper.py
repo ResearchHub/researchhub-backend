@@ -23,7 +23,13 @@ class PaperDocument(Document):
         }
     )
     score = es_fields.IntegerField(attr='score_indexing')
-    # TODO: Add summary
+    votes = es_fields.NestedField(
+        attr='votes_indexing',
+        properties={
+            'vote_type': es_fields.IntegerField(),
+            'updated_date': es_fields.DateField(),
+        }
+    )
 
     class Index:
         name = 'papers'
