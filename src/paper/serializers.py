@@ -102,6 +102,7 @@ class PaperSerializer(serializers.ModelSerializer):
         hubs = validated_data.pop('hubs')
 
         paper = super(PaperSerializer, self).update(instance, validated_data)
+        # TODO: Reindex the pdf
 
         instance.authors.add(*authors)
         instance.hubs.add(*hubs)
