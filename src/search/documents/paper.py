@@ -11,7 +11,6 @@ html_strip = analyzer(
     char_filter=['html_strip']
 )
 
-
 @registry.register_document
 class PaperDocument(Document):
     title = es_fields.StringField(
@@ -29,6 +28,7 @@ class PaperDocument(Document):
         },
     )
     score = es_fields.IntegerField(attr='score_indexing')
+    discussion_count = es_fields.IntegerField(attr='discussion_count_indexing')
     votes = es_fields.NestedField(
         attr='votes_indexing',
         properties={
