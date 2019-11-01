@@ -2,9 +2,13 @@ from elasticsearch_dsl import Search
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
-from search.serializers.paper import PaperDocumentSerializer
-from search.serializers.author import AuthorDocumentSerializer
-from search.serializers.thread import ThreadDocumentSerializer
+from search.serializers import (
+    AuthorDocumentSerializer,
+    HubDocumentSerializer,
+    PaperDocumentSerializer,
+    ThreadDocumentSerializer,
+)
+
 
 @api_view(['GET'])
 @permission_classes(())
@@ -16,9 +20,20 @@ def search(request):
     search = request.GET.get('search')
     page = request.GET.get('page', 1)
     size = request.GET.get('size', 10)
-    s = Search(index=['papers', 'authors', 'discussion_threads']) \
-    .query("query_string", query='{}*'.format(search), fields=['title', 'first_name', 'last_name', 'authors']) \
-    .highlight('title', 'first_name', 'last_name', 'authors', fragment_size=50)
+    s = Search(
+        index=['papers', 'authors', 'discussion_threads', 'hubs']
+    ).query(
+        'query_string',
+        query='{}*'.format(search),
+        fields=['title', 'first_name', 'last_name', 'authors', 'name']
+    ).highlight(
+        'title',
+        'first_name',
+        'last_name',
+        'authors',
+        'name',
+        fragment_size=50
+    )
 
     result = s.execute()
 
@@ -37,7 +52,9 @@ def search(request):
             res = AuthorDocumentSerializer(hit).data
         elif hit.meta.index == 'threads':
             res = ThreadDocumentSerializer(hit).data
-        
+        elif hit.meta.index == 'hubs':
+            res = HubDocumentSerializer(hit).data
+
         if res:
             res['meta'] = hit.meta.to_dict()
             results.append(res)
@@ -48,4 +65,3 @@ def search(request):
     }
 
     return Response(response)
-
