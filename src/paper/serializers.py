@@ -31,17 +31,20 @@ def index_pdf(base64_file, paper, serialized_paper):
         'Content-Type': 'application/json'
     }
 
-    re = requests.put(
-        es_host + '/papers/_doc/{}?pipeline=pdf'.format(paper.id),
-        data=json.dumps(data),
-        headers=headers
-    )
-    if not re.ok:
-        with configure_scope() as scope:
-            for k in serialized_paper:
-                scope.set_extra(k, serialized_paper[k])
-            scope.set_extra('req_error', re.text)
-            capture_exception('Paper index failed')
+    try:
+        re = requests.put(
+            es_host + '/papers/_doc/{}?pipeline=pdf'.format(paper.id),
+            data=json.dumps(data),
+            headers=headers
+        )
+        if not re.ok:
+            with configure_scope() as scope:
+                for k in serialized_paper:
+                    scope.set_extra(k, serialized_paper[k])
+                scope.set_extra('req_error', re.text)
+                capture_exception('Paper index failed')
+    except Exception as e:
+        print('Unable to index pdf:', e)
 
 
 class PaperSerializer(serializers.ModelSerializer):
