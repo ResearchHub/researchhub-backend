@@ -8,11 +8,13 @@ from django.core.paginator import Paginator
 
 from .models import User, Author
 from .serializers import UserSerializer, AuthorSerializer
-from .filters import *
+from .filters import AuthorFilter
+from .permissions import UpdateAuthor
 from paper.models import *
 from paper.serializers import *
 from discussion.models import *
 from discussion.serializers import *
+
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -33,8 +35,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     filter_class = AuthorFilter
     search_fields = ('first_name', 'last_name')
-    permission_classes = [IsAuthenticatedOrReadOnly]
-    
+    permission_classes = [IsAuthenticatedOrReadOnly & UpdateAuthor]
+
     @action(
         detail=True,
         methods=['get'],

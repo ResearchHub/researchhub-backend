@@ -2,7 +2,7 @@ from django_elasticsearch_dsl import Document, fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 from elasticsearch_dsl import analyzer
 
-from researchhub.settings import TESTING
+from researchhub.settings import DEVELOPMENT, TESTING
 from paper.models import Paper
 
 html_strip = analyzer(
@@ -54,8 +54,8 @@ class PaperDocument(Document):
 
         # Ignore auto updating of Elasticsearch when a model is saved
         # or deleted:
-        ignore_signals = (TESTING is True)
+        ignore_signals = (TESTING is True) or (DEVELOPMENT is True)
 
         # Don't perform an index refresh after every update (overrides global
         # setting):
-        auto_refresh = (TESTING is False)
+        auto_refresh = (TESTING is False) or (DEVELOPMENT is False)

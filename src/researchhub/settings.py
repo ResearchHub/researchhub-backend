@@ -17,16 +17,18 @@ from config import db, keys
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
 
-TESTING = 'test' in sys.argv
-
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-APP_ENV = os.environ.get("APP_ENV") or 'development'
+
+APP_ENV = os.environ.get('APP_ENV') or 'development'
+DEVELOPMENT = APP_ENV == 'development'
 PRODUCTION = APP_ENV == 'production'
 STAGING = APP_ENV == 'staging'
+TESTING = 'test' in sys.argv
+
 PYTHONPATH = '/opt/python/current/app:$PYTHONPATH'
 DJANGO_SETTINGS_MODULE = 'researchhub.settings'
-ELASTIC_BEANSTALK = (APP_ENV in ['production', 'staging', 'dev'])
+ELASTIC_BEANSTALK = (APP_ENV in ['production', 'staging', 'development'])
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
