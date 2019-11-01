@@ -33,7 +33,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     filter_class = AuthorFilter
     search_fields = ('first_name', 'last_name')
-
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    
     @action(
         detail=True,
         methods=['get'],
