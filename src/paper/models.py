@@ -64,7 +64,7 @@ class Paper(models.Model):
     def score_indexing(self):
         '''Score for Elasticsearch indexing.'''
         return self.get_score()
-    
+
     @property
     def discussion_count_indexing(self):
         '''Number of discussions.'''
