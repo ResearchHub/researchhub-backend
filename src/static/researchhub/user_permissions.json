@@ -56,7 +56,7 @@
   {
     "key": "ProposeSummaryEdit",
     "label": "propose a summary edit",
-    "minimumReputation": 5,
+    "minimumReputation": 1,
     "canEarn": true
   },
   {
