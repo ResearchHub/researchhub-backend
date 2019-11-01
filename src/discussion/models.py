@@ -56,6 +56,7 @@ class Flag(models.Model):
     item = GenericForeignKey('content_type', 'object_id')
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
     reason = models.CharField(max_length=255, blank=True)
 
     class Meta:
@@ -76,6 +77,7 @@ class Endorsement(models.Model):
     item = GenericForeignKey('content_type', 'object_id')
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
 
     class Meta:
         constraints = [
@@ -133,6 +135,12 @@ class Thread(BaseComment):
 
     def __str__(self):
         return '%s: %s' % (self.created_by, self.title)
+
+    @property
+    def paper_indexing(self):
+        '''Used in Elasticsearch indexing.'''
+        if self.paper is not None:
+            return self.paper.title
 
 
 class Reply(BaseComment):

@@ -1,6 +1,8 @@
 from .models import Distribution
 from .serializers import get_model_serializer
 
+# TODO: Add logging flag
+
 
 class Distributor:
     '''
@@ -26,7 +28,7 @@ class Distributor:
         try:
             self._record_distribution()
             self._update_reputation()
-            print('Distribution complete')
+            # print('Distribution complete')
         except Exception as e:
             print('Distribution failed', e)
 
@@ -38,7 +40,7 @@ class Distributor:
             proof=self.proof
         )
 
-        print('Distribution created:', str(record))
+        # print('Distribution created:', str(record))
 
     # TODO: Queue this so that there is no race condition
     def _update_reputation(self):
@@ -47,4 +49,4 @@ class Distributor:
         user.reputation = current + self.distribution.amount
         user.save(update_fields=['reputation'])
 
-        print(f'Reputation updated for user {user}:', str(user.reputation))
+        # print(f'Reputation updated for user {user}:', str(user.reputation))

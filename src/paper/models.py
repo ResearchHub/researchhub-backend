@@ -1,8 +1,10 @@
 from django.db import models
+from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
 from hub.models import Hub
 from user.models import Author, User
 from summary.models import Summary
+from utils.voting import calculate_score
 
 
 class Paper(models.Model):
@@ -53,6 +55,47 @@ class Paper(models.Model):
         authors = list(self.authors.all())
         return '%s: %s' % (self.title, authors)
 
+    @property
+    def authors_indexing(self):
+        '''Authors for Elasticsearch indexing.'''
+        return [self.get_full_name(author) for author in self.authors.all()]
+
+    @property
+    def score_indexing(self):
+        '''Score for Elasticsearch indexing.'''
+        return self.get_score()
+
+    @property
+    def discussion_count_indexing(self):
+        '''Number of discussions.'''
+        return self.get_discussion_count()
+
+    @property
+    def votes_indexing(self):
+        all_votes = self.votes.all()
+        if len(all_votes) > 0:
+            return [self.get_vote_for_index(vote) for vote in all_votes]
+        return {}
+
+    def get_vote_for_index(self, vote):
+        wrapper = dict_to_obj({
+            'vote_type': vote.vote_type,
+            'updated_date': vote.updated_date,
+        })
+
+        return wrapper
+
+    def get_full_name(self, author_or_user):
+        return f'{author_or_user.first_name} {author_or_user.last_name}'
+
+    def get_discussion_count(self):
+        return self.threads.count()
+
+    def get_score(self):
+        if self.votes:
+            return calculate_score(self, Vote.UPVOTE, Vote.DOWNVOTE)
+        return 0
+
     def update_summary(self, summary):
         self.summary = summary
         self.save()
@@ -78,6 +121,7 @@ class Vote(models.Model):
         related_query_name='paper_vote'
     )
     created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
     vote_type = models.IntegerField(choices=VOTE_TYPE_CHOICES)
 
     class Meta:
@@ -103,6 +147,7 @@ class Flag(models.Model):
         related_query_name='paper_flag'
     )
     created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
     reason = models.CharField(max_length=255, blank=True)
 
     class Meta:

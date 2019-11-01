@@ -118,6 +118,10 @@ INSTALLED_APPS = [
     # Storage
     'storages',
 
+    # Search
+    'django_elasticsearch_dsl',
+    'django_elasticsearch_dsl_drf',
+
     # Custom apps
     'discussion',
     'hub',
@@ -125,6 +129,7 @@ INSTALLED_APPS = [
     'paper',
     'user',
     'reputation',
+    'search',
     'summary',
 ]
 
@@ -146,7 +151,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'researchhub.urls'
 
-FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400 # 25MB max data allowed
+FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25MB max data allowed
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -309,3 +314,16 @@ if PRODUCTION:
 
 AWS_S3_FILE_OVERWRITE = False
 AWS_DEFAULT_ACL = None
+
+# Search
+
+ELASTICSEARCH_DSL = {
+    'default': {
+        'hosts': 'http://localhost:9200',
+    },
+}
+
+if PRODUCTION:
+    ELASTICSEARCH_DSL['default'] = {
+        'hosts': 'https://search-researchhub-es-dev-gk44gqpe2rvt4e4qmx4y6vl2qq.us-west-2.es.amazonaws.com',
+    }
