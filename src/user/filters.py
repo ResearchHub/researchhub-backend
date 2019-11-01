@@ -1,6 +1,8 @@
+from django.db import models
 from django_filters import rest_framework as filters
-from .models import *
+from .models import Author
 from utils.filters import ListExcludeFilter
+
 
 class AuthorFilter(filters.FilterSet):
     id__ne = ListExcludeFilter(field_name='id')
@@ -9,3 +11,8 @@ class AuthorFilter(filters.FilterSet):
         model = Author
         fields = [field.name for field in model._meta.fields]
         fields.append('id__ne')
+        filter_overrides = {
+            models.FileField: {
+                'filter_class': filters.CharFilter,
+            }
+        }
