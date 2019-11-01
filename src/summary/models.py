@@ -9,7 +9,7 @@ from user.models import User
 
 class Summary(models.Model):
     summary = JSONField(default=None, null=True)
-    summary_text = models.TextField(default=None, null=True)
+    # summary_text = models.TextField(default=None, null=True)
     proposed_by = models.ForeignKey(
         User,
         related_name='edits',
