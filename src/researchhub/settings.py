@@ -319,11 +319,11 @@ AWS_DEFAULT_ACL = None
 
 ELASTICSEARCH_DSL = {
     'default': {
-        'hosts': 'localhost:9200',
+        'hosts': 'http://localhost:9200',
     },
 }
 
 if PRODUCTION:
     ELASTICSEARCH_DSL['default'] = {
-        'hosts': 'search-researchhub-es-dev-gk44gqpe2rvt4e4qmx4y6vl2qq.us-west-2.es.amazonaws.com',
+        'hosts': 'https://search-researchhub-es-dev-gk44gqpe2rvt4e4qmx4y6vl2qq.us-west-2.es.amazonaws.com',
     }
