@@ -3,6 +3,7 @@ from django_elasticsearch_dsl.registries import registry
 from elasticsearch_dsl import analyzer
 
 from discussion.models import Thread
+from researchhub.settings import TESTING
 
 html_strip = analyzer(
     'html_strip',
@@ -40,11 +41,11 @@ class ThreadDocument(Document):
 
         # Ignore auto updating of Elasticsearch when a model is saved
         # or deleted:
-        # ignore_signals = True
+        ignore_signals = (TESTING is True)
 
         # Don't perform an index refresh after every update (overrides global
         # setting):
-        # auto_refresh = False
+        auto_refresh = (TESTING is False)
 
         # Paginate the django queryset used to populate the index with the
         # specified size (by default it uses the database driver's default
