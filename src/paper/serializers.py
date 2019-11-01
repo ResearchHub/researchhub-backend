@@ -11,7 +11,7 @@ from utils.http import get_user_from_request
 from utils.voting import calculate_score
 from sentry_sdk import capture_exception, configure_scope
 
-from researchhub.settings import ELASTICSEARCH_DSL
+from researchhub.settings import ELASTICSEARCH_DSL, PRODUCTION
 
 import base64
 import requests
@@ -29,7 +29,11 @@ def index_pdf(base64_file, paper, serialized_paper):
     headers = {
         'Content-Type': 'application/json'
     }
-    re = requests.put('http://' + es_host + '/paper/_doc/{}?pipeline=pdf'.format(paper.id), data=json.dumps(data), headers=headers)
+
+    http = 'http://'
+    if PRODUCTION: 
+        http = 'https://'
+    re = requests.put(http + es_host + '/paper/_doc/{}?pipeline=pdf'.format(paper.id), data=json.dumps(data), headers=headers)
     if not re.ok:
         with configure_scope() as scope:
             scope.set_extras(serialized_paper)
