@@ -9,7 +9,6 @@ class User(AbstractUser):
         https://docs.djangoproject.com/en/2.2/ref/contrib/auth/#django.contrib.auth.models.User
     """
     reputation = models.IntegerField(default=1)
-    profile_image = models.TextField(null=True, blank=True)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
@@ -62,8 +61,19 @@ class Author(models.Model):
     last_name = models.CharField(max_length=30)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
-    description = models.CharField(max_length=255, default=None, null=True, blank=True)
-    
+    description = models.CharField(
+        max_length=255,
+        default=None,
+        null=True,
+        blank=True
+    )
+    profile_image = models.FileField(
+        upload_to='uploads/author_profile_images/%Y/%m/%d',
+        default=None,
+        null=True,
+        blank=True
+    )
+
     university = models.ForeignKey(
         University,
         on_delete=models.SET_NULL,
