@@ -9,9 +9,10 @@ class SummaryViewsTests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user('summary_views')
 
-    def test_post_propose_edit_route_gives_403(self):
+    def test_post_propose_edit_route_gives_405(self):
+        # Because you can't post to a detail route
         response = self.get_propose_edit_post_response(self.user)
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 405)
 
     def get_propose_edit_post_response(self, user):
         url = '/api/summary/propose_edit/'
