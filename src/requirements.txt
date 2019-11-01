@@ -1,5 +1,5 @@
-boto3==1.10.2
-botocore==1.13.2
+boto3==1.10.4
+botocore==1.13.4
 certifi==2019.9.11
 chardet==3.0.4
 defusedxml==0.6.0
@@ -7,13 +7,18 @@ Django==2.2.6
 django-allauth==0.40.0
 django-contrib-comments==1.9.1
 django-cors-headers==3.1.1
+django-elasticsearch-dsl==7.1.0
+django-elasticsearch-dsl-drf==0.20.3
 django-filter==2.2.0
+django-nine==0.2.2
 django-rest-auth==0.9.5
 django-storages==1.7.2
 djangorestframework==3.10.3
 docutils==0.15.2
+elasticsearch==7.0.5
+elasticsearch-dsl==7.1.0
 entrypoints==0.3
-flake8==3.7.8
+flake8==3.7.9
 idna==2.8
 jmespath==0.9.4
 mccabe==0.6.1
