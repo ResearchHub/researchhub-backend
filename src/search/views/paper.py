@@ -29,7 +29,6 @@ from django_elasticsearch_dsl_drf.pagination import PageNumberPagination
 from search.documents.paper import PaperDocument
 from search.serializers.paper import PaperDocumentSerializer
 
-
 class PaperDocumentView(DocumentViewSet):
     document = PaperDocument
     serializer_class = PaperDocumentSerializer

@@ -64,6 +64,11 @@ class Paper(models.Model):
     def score_indexing(self):
         '''Score for Elasticsearch indexing.'''
         return self.get_score()
+    
+    @property
+    def discussion_count_indexing(self):
+        '''Number of discussions.'''
+        return self.get_discussion_count()
 
     @property
     def votes_indexing(self):
@@ -82,6 +87,9 @@ class Paper(models.Model):
 
     def get_full_name(self, author_or_user):
         return f'{author_or_user.first_name} {author_or_user.last_name}'
+
+    def get_discussion_count(self):
+        return self.threads.count()
 
     def get_score(self):
         if self.votes:

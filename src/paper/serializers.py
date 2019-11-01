@@ -33,7 +33,7 @@ def index_pdf(base64_file, paper, serialized_paper):
     http = 'http://'
     if PRODUCTION: 
         http = 'https://'
-    re = requests.put(http + es_host + '/paper/_doc/{}?pipeline=pdf'.format(paper.id), data=json.dumps(data), headers=headers)
+    re = requests.put(http + es_host + '/papers/_doc/{}?pipeline=pdf'.format(paper.id), data=json.dumps(data), headers=headers)
     if not re.ok:
         with configure_scope() as scope:
             scope.set_extras(serialized_paper)
