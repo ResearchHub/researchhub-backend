@@ -31,11 +31,8 @@ def index_pdf(base64_file, paper, serialized_paper):
         'Content-Type': 'application/json'
     }
 
-    http = 'http://'
-    if PRODUCTION:
-        http = 'https://'
     re = requests.put(
-        http + es_host + '/papers/_doc/{}?pipeline=pdf'.format(paper.id),
+        es_host + '/papers/_doc/{}?pipeline=pdf'.format(paper.id),
         data=json.dumps(data),
         headers=headers
     )
