@@ -17,6 +17,7 @@ import base64
 import requests
 import json
 
+
 def index_pdf(base64_file, paper, serialized_paper):
     """
     Indexes PDF in elastic search
