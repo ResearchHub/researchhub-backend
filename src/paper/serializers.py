@@ -9,6 +9,39 @@ from hub.serializers import HubSerializer
 from user.serializers import AuthorSerializer, UserSerializer
 from utils.http import get_user_from_request
 from utils.voting import calculate_score
+from sentry_sdk import capture_exception, configure_scope
+
+from researchhub.settings import ELASTICSEARCH_DSL, PRODUCTION
+
+import base64
+import requests
+import json
+
+
+def index_pdf(base64_file, paper, serialized_paper):
+    """
+    Indexes PDF in elastic search
+    """
+    es_host = ELASTICSEARCH_DSL.get('default').get('hosts')
+    data = {
+        "filename": "{}.pdf".format(paper.title),
+        "data": base64_file.decode('utf-8')
+    }
+    headers = {
+        'Content-Type': 'application/json'
+    }
+
+    re = requests.put(
+        es_host + '/papers/_doc/{}?pipeline=pdf'.format(paper.id),
+        data=json.dumps(data),
+        headers=headers
+    )
+    if not re.ok:
+        with configure_scope() as scope:
+            for k in serialized_paper:
+                scope.set_extra(k, serialized_paper[k])
+            scope.set_extra('req_error', re.text)
+            capture_exception('Paper index failed')
 
 
 class PaperSerializer(serializers.ModelSerializer):
@@ -57,7 +90,11 @@ class PaperSerializer(serializers.ModelSerializer):
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
 
+        pdf = validated_data.get('file')
+        encoded_pdf = base64.b64encode(pdf.read())
+        pdf.seek(0)
         paper = super(PaperSerializer, self).create(validated_data)
+        index_pdf(encoded_pdf, paper, validated_data)
 
         paper.authors.add(*authors)
         paper.hubs.add(*hubs)
@@ -69,6 +106,7 @@ class PaperSerializer(serializers.ModelSerializer):
         hubs = validated_data.pop('hubs')
 
         paper = super(PaperSerializer, self).update(instance, validated_data)
+        # TODO: Reindex the pdf
 
         instance.authors.add(*authors)
         instance.hubs.add(*hubs)
