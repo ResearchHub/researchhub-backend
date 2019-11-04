@@ -14,6 +14,7 @@ from allauth.utils import get_request_param
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.utils.decorators import method_decorator
+from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from rest_auth.registration.views import SocialLoginView
 from rest_framework import status
@@ -22,6 +23,7 @@ from rest_framework import serializers
 from django.http import HttpRequest
 from .helpers import complete_social_login
 from researchhub.settings import GOOGLE_REDIRECT_URL
+
 
 class SocialLoginSerializer(serializers.Serializer):
     access_token = serializers.CharField(required=False, allow_blank=True)
@@ -111,7 +113,8 @@ class SocialLoginSerializer(serializers.Serializer):
         try:
             login = self.get_social_login(adapter, app, social_token, access_token)
             complete_social_login(request, login)
-        except HTTPError:
+        except Exception as e:
+            print(e)
             raise serializers.ValidationError(_("Incorrect value"))
 
         if not login.is_existing:
@@ -142,6 +145,7 @@ class GoogleLogin(SocialLoginView):
     callback_url = GOOGLE_REDIRECT_URL
     client_class = OAuth2Client
     serializer_class = SocialLoginSerializer
+
 
 class CallbackView(OAuth2CallbackView):
     """
