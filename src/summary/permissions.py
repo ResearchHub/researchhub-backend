@@ -15,26 +15,18 @@ class UpdateOrDeleteSummaryEdit(AuthorizationBasedPermission):
     message = 'Action not permitted.'
 
     def is_authorized(self, request, view, obj):
-        if (request.method == RequestMethods.PUT) or (
-            request.method == RequestMethods.PATCH
-        ) or (request.method == RequestMethods.DELETE):
-            # TODO: Revisit this.
-            #
-            # One paradigm says that a summary "edit" is always a new proposed
-            # summary and should create a new proposed edit in the database via
-            # POST request. This means that a PUT or PATCH should ONLY be used
-            # if a user needs to update their proposed edit which has not yet
-            # been approved.
-            #
-            # Does this paradigm meet our needs?
-            # If not, let's agree on a new one.
-            #
-            # That will determine if the below code should be commented out or
-            # not.
-            #
-            # if obj.approved is True:
-            #     return False
-            return request.user == obj.proposed_by
+        method = request.method
+        user = request.user
+        if (
+            (method == RequestMethods.PUT)
+            or (method == RequestMethods.PATCH)
+            or (method == RequestMethods.DELETE)
+        ):
+            if (obj.approved_by is None) and (obj.paper.uploaded_by == user):
+                return True
+            elif obj.approved is True:
+                return False
+            return user == obj.proposed_by
         return True
 
 
