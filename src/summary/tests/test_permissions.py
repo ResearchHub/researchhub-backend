@@ -38,42 +38,184 @@ class SummaryPermissionsTests(TestCase):
         response = self.get_summary_post_response(user)
         self.assertEqual(response.status_code, 403)
 
-    def test_can_patch_summary_when_user_is_proposer(self):
-        user = create_random_authenticated_user_with_reputation(50, 50)
-        summary = create_summary('patch summary', user, self.paper.id)
-        response = self.get_summary_patch_response(user, summary=summary)
+    def test_can_propose_first_summary_if_user_is_uploader(self):
+        uploader = create_random_authenticated_user_with_reputation(
+            'uploader',
+            0
+        )
+        paper = create_paper(
+            title='Summary Paper With Uploader',
+            uploaded_by=uploader
+        )
+        response = self.get_first_summary_post_response(
+            uploader,
+            paper_id=paper.id
+        )
+        self.assertEqual(response.status_code, 201)
+
+    def test_can_NOT_propose_first_summary_if_user_is_not_uploader(self):
+        user = create_random_authenticated_user_with_reputation(
+            'not_uploader',
+            0
+        )
+        response = self.get_first_summary_post_response(
+            user
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_can_patch_unapproved_summary_when_user_is_proposer(self):
+        proposer = create_random_authenticated_user('patch_proposer')
+        summary = create_summary('patch summary', proposer, self.paper.id)
+        response = self.get_summary_patch_response(proposer, summary=summary)
         self.assertEqual(response.status_code, 200)
 
-    def test_can_NOT_patch_summary_when_not_proposer(self):
-        user = create_random_authenticated_user_with_reputation(49, 49)
+    def test_can_NOT_patch_unapproved_summary_when_not_proposer(self):
+        user = create_random_authenticated_user('not_patch_proposer')
         response = self.get_summary_patch_response(user)
         self.assertEqual(response.status_code, 403)
 
-    def test_can_put_summary_when_user_is_proposer(self):
-        user = create_random_authenticated_user_with_reputation(50, 50)
-        summary = create_summary('put summary', user, self.paper.id)
-        response = self.get_summary_put_response(user, summary=summary)
+    def test_uploader_can_patch_approved_summary_without_approver(self):
+        user = create_random_authenticated_user('patch_uploader')
+        paper = create_paper(uploaded_by=user)
+        approver = None
+        summary = self.create_approved_summary(
+            user,
+            approver,
+            paper_id=paper.id
+        )
+        response = self.get_summary_patch_response(user, summary=summary)
         self.assertEqual(response.status_code, 200)
 
-    def test_can_NOT_put_summary_when_not_proposer(self):
-        user = create_random_authenticated_user_with_reputation(49, 49)
+    def test_can_NOT_patch_approved_summary_without_approver(self):
+        user = create_random_authenticated_user('fail_patch_uploader')
+        approver = None
+        summary = self.create_approved_summary(
+            user,
+            approver
+        )
+        response = self.get_summary_patch_response(user, summary=summary)
+        self.assertEqual(response.status_code, 403)
+
+    def test_can_NOT_patch_summary_if_approved_by_user(self):
+        user = create_random_authenticated_user('fail_patch')
+        paper = create_paper(uploaded_by=user)
+        approver = self.user
+        summary = self.create_approved_summary(
+            user,
+            approver,
+            paper_id=paper.id
+        )
+        response = self.get_summary_patch_response(user, summary=summary)
+        self.assertEqual(response.status_code, 403)
+
+    def test_can_put_unapproved_summary_when_user_is_proposer(self):
+        proposer = create_random_authenticated_user('put_proposer')
+        summary = create_summary('put summary', proposer, self.paper.id)
+        response = self.get_summary_put_response(proposer, summary=summary)
+        self.assertEqual(response.status_code, 200)
+
+    def test_can_NOT_put_unapproved_summary_when_not_proposer(self):
+        user = create_random_authenticated_user('not_put_proposer')
         response = self.get_summary_put_response(user)
         self.assertEqual(response.status_code, 403)
 
-    def test_can_delete_summary_when_user_is_proposer(self):
-        user = create_random_authenticated_user_with_reputation(50, 50)
-        summary = create_summary('delete summary', user, self.paper.id)
-        response = self.get_summary_delete_response(user, summary=summary)
+    def test_uploader_can_put_approved_summary_without_approver(self):
+        user = create_random_authenticated_user('put_uploader')
+        paper = create_paper(uploaded_by=user)
+        approver = None
+        summary = self.create_approved_summary(
+            user,
+            approver,
+            paper_id=paper.id
+        )
+        response = self.get_summary_put_response(user, summary=summary)
+        self.assertEqual(response.status_code, 200)
+
+    def test_can_NOT_put_approved_summary_without_approver(self):
+        user = create_random_authenticated_user('fail_put_uploader')
+        approver = None
+        summary = self.create_approved_summary(
+            user,
+            approver
+        )
+        response = self.get_summary_put_response(user, summary=summary)
+        self.assertEqual(response.status_code, 403)
+
+    def test_can_NOT_put_summary_if_approved_by_user(self):
+        user = create_random_authenticated_user('fail_put')
+        paper = create_paper(uploaded_by=user)
+        approver = self.user
+        summary = self.create_approved_summary(
+            user,
+            approver,
+            paper_id=paper.id
+        )
+        response = self.get_summary_put_response(user, summary=summary)
+        self.assertEqual(response.status_code, 403)
+
+    def test_can_delete_unapproved_summary_when_user_is_proposer(self):
+        proposer = create_random_authenticated_user('delete_proposer')
+        summary = create_summary('delete summary', proposer, self.paper.id)
+        response = self.get_summary_delete_response(proposer, summary=summary)
         self.assertEqual(response.status_code, 204)
 
-    def test_can_NOT_delete_summary_when_not_proposer(self):
-        user = create_random_authenticated_user_with_reputation(49, 49)
+    def test_can_NOT_delete_unapproved_summary_when_not_proposer(self):
+        user = create_random_authenticated_user('not_delete_proposer')
         response = self.get_summary_delete_response(user)
         self.assertEqual(response.status_code, 403)
 
-    def get_summary_post_response(self, user):
+    def test_uploader_can_delete_approved_summary_without_approver(self):
+        user = create_random_authenticated_user('delete_uploader')
+        paper = create_paper(uploaded_by=user)
+        approver = None
+        summary = self.create_approved_summary(
+            user,
+            approver,
+            paper_id=paper.id
+        )
+        response = self.get_summary_delete_response(user, summary=summary)
+        self.assertEqual(response.status_code, 204)
+
+    def test_can_NOT_delete_approved_summary_without_approver(self):
+        user = create_random_authenticated_user('fail_delete_uploader')
+        approver = None
+        summary = self.create_approved_summary(
+            user,
+            approver
+        )
+        response = self.get_summary_delete_response(user, summary=summary)
+        self.assertEqual(response.status_code, 403)
+
+    def test_can_NOT_delete_summary_if_approved_by_user(self):
+        user = create_random_authenticated_user('fail_delete')
+        paper = create_paper(uploaded_by=user)
+        approver = self.user
+        summary = self.create_approved_summary(
+            user,
+            approver,
+            paper_id=paper.id
+        )
+        response = self.get_summary_delete_response(user, summary=summary)
+        self.assertEqual(response.status_code, 403)
+
+    def get_first_summary_post_response(self, user, paper_id=None):
+        if paper_id is None:
+            paper_id = self.paper.id
+        url = self.base_url + 'first/'
+        data = build_summary_data(self.summary_text, paper_id, None)
+        response = get_authenticated_post_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+        return response
+
+    def get_summary_post_response(self, user, paper_id=None):
+        if paper_id is None:
+            paper_id = self.paper.id
         url = self.base_url
-        data = build_summary_data(self.summary_text, self.paper.id, None)
+        data = build_summary_data(self.summary_text, paper_id, None)
         response = get_authenticated_post_response(
             user,
             url,
@@ -120,3 +262,11 @@ class SummaryPermissionsTests(TestCase):
             content_type='application/json'
         )
         return response
+
+    def create_approved_summary(self, proposed_by, approved_by, paper_id=None):
+        if paper_id is None:
+            paper_id = self.paper.id
+        summary = create_summary(self.summary_text, proposed_by, paper_id)
+        summary.approve(approved_by)
+        summary.save()
+        return summary
