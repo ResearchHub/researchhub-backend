@@ -74,7 +74,7 @@ urlpatterns = [
     ),
     path(
         'api/auth/google/login/',
-        oauth.views.google_login,
+        oauth.views.GoogleLogin.as_view(),
         name='google_login'
     ),
     re_path(r'^auth/signup/', include(oauth.urls.registration_urls)),
