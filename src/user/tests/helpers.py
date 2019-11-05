@@ -1,6 +1,6 @@
 from rest_framework.authtoken.models import Token
 
-from user.models import User
+from user.models import Author, University, User
 
 
 class TestData:
@@ -8,6 +8,11 @@ class TestData:
     last_name = 'Black'
     author_first_name = 'R. A.'
     author_last_name = 'Black'
+
+    author_description = 'The youngest Black'
+    author_facebook = 'facebook.com/rablack'
+    author_twitter = 'twitter.com/therealrab'
+    author_linkedin = 'linkedin.com/in/regulusblack'
 
     invalid_email = 'testuser@gmail'
     invalid_password = 'pass'
@@ -60,3 +65,45 @@ def create_random_authenticated_user_with_reputation(unique_value, reputation):
     user.reputation = reputation
     user.save()
     return user
+
+
+def create_author(
+    user=None,
+    first_name=TestData.first_name,
+    last_name=TestData.last_name,
+    description=TestData.author_description,
+    profile_image=None,
+    university=None,
+    facebook=TestData.author_facebook,
+    twitter=TestData.author_twitter,
+    linkedin=TestData.author_linkedin
+):
+    if user is None:
+        user = create_random_default_user(first_name)
+    if university is None:
+        university = create_university(name=last_name)
+    return Author.objects.create(
+        user=user,
+        first_name=first_name,
+        last_name=last_name,
+        description=description,
+        profile_image=profile_image,
+        university=university,
+        facebook=facebook,
+        twitter=twitter,
+        linkedin=linkedin
+    )
+
+
+def create_university(
+    name=TestData.university_name,
+    country=TestData.university_country,
+    state=TestData.university_state,
+    city=TestData.university_city
+):
+    return University.objects.create(
+        name=name,
+        country=country,
+        state=state,
+        city=city
+    )
