@@ -14,6 +14,7 @@ from .serializers import HubSerializer
 from .filters import *
 from paper.models import Paper
 from paper.serializers import PaperSerializer
+from utils.paginators import *
 
 import datetime
 
@@ -96,10 +97,19 @@ class HubViewSet(viewsets.ModelViewSet):
         elif ordering == "most_discussed":
             order_papers.sort(key=most_discussed_sort)
 
-        serialized_data = PaperSerializer(order_papers, many=True).data
+        page_num = request.GET["page"]
+        data = order_papers
+        url = request.build_absolute_uri()
+        (count, nextPage, page) = BasicPaginator(data, page_num, url)
+        serialized_data = PaperSerializer(page, many=True).data
+
         response = {
-            "results": serialized_data
+            'count': count,
+            'has_next': page.has_next(),
+            'next': nextPage,
+            'results': serialized_data
         }
+
         return Response(response, status=200)
 
 
