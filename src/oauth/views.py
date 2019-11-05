@@ -2,7 +2,10 @@ from allauth.socialaccount.helpers import render_authentication_error
 from allauth.socialaccount.models import SocialLogin
 from allauth.socialaccount.providers.base import ProviderException
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
-from allauth.socialaccount.providers.oauth2.client import OAuth2Error, OAuth2Client
+from allauth.socialaccount.providers.oauth2.client import (
+    OAuth2Error,
+    OAuth2Client
+)
 from allauth.socialaccount.providers.oauth2.views import (
     AuthError,
     OAuth2CallbackView,
@@ -11,16 +14,17 @@ from allauth.socialaccount.providers.oauth2.views import (
     RequestException
 )
 from allauth.utils import get_request_param
+
+from rest_auth.registration.views import SocialLoginView
+from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
+
+from django.http import HttpRequest
 from django.utils.decorators import method_decorator
 from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
-from rest_auth.registration.views import SocialLoginView
-from rest_framework import status
-from rest_framework import serializers
 
-from django.http import HttpRequest
 from .helpers import complete_social_login
 from researchhub.settings import GOOGLE_REDIRECT_URL
 
@@ -111,7 +115,12 @@ class SocialLoginSerializer(serializers.Serializer):
         social_token.app = app
 
         try:
-            login = self.get_social_login(adapter, app, social_token, access_token)
+            login = self.get_social_login(
+                adapter,
+                app,
+                social_token,
+                access_token
+            )
             complete_social_login(request, login)
         except Exception as e:
             print(e)
