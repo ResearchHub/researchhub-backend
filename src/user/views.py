@@ -14,7 +14,7 @@ from paper.models import *
 from paper.serializers import *
 from discussion.models import *
 from discussion.serializers import *
-
+from utils.paginators import *
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -46,17 +46,12 @@ class AuthorViewSet(viewsets.ModelViewSet):
         if authors:
             author = authors.first()
             authored_papers = author.authored_papers.all()
-            PAGE_SIZE = 20
-            paginator = Paginator(authored_papers, PAGE_SIZE)
+            data = authored_papers
             page_num = request.GET["page"]
-            page = paginator.page(page_num)
-            url = request.build_absolute_uri('?')
-            nextPageNum = int(page_num) + 1
-            nextPage = url + "?page=" + str(nextPageNum)
-            if not page.has_next():
-                nextPage = None
+            url = request.build_absolute_uri()
+            (count, nextPage, page) = BasicPaginator(data, page_num, url)
             response = {
-                'count': paginator.count,
+                'count': count,
                 'has_next': page.has_next(),
                 'next': nextPage,
                 'results': PaperSerializer(page, many=True).data
@@ -74,17 +69,12 @@ class AuthorViewSet(viewsets.ModelViewSet):
             author = authors.first()
             user = author.user
             user_discussions = Thread.objects.filter(created_by=user)
-            PAGE_SIZE = 20
-            paginator = Paginator(user_discussions, PAGE_SIZE)
+            data = user_discussions
             page_num = request.GET["page"]
-            page = paginator.page(page_num)
-            url = request.build_absolute_uri('?')
-            nextPageNum = int(page_num) + 1
-            nextPage = url + "?page=" + str(nextPageNum)
-            if not page.has_next():
-                nextPage = None
+            url = request.build_absolute_uri()
+            (count, nextPage, page) = BasicPaginator(data, page_num, url)
             response = {
-                'count': paginator.count,
+                'count': count,
                 'has_next': page.has_next(),
                 'next': nextPage,
                 'results': ThreadSerializer(page, many=True).data
