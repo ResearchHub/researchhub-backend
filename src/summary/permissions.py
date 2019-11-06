@@ -22,12 +22,21 @@ class UpdateOrDeleteSummaryEdit(AuthorizationBasedPermission):
             or (method == RequestMethods.PATCH)
             or (method == RequestMethods.DELETE)
         ):
-            if (obj.approved_by is None) and (obj.paper.uploaded_by == user):
+            if (
+                self.is_first_summary(obj)
+                and self.user_proposed_first_summary(obj, user)
+            ):
                 return True
             elif obj.approved is True:
                 return False
             return user == obj.proposed_by
         return True
+
+    def is_first_summary(self, obj):
+        return (obj.approved is True) and (obj.approved_by is None)
+
+    def user_proposed_first_summary(self, obj, user):
+        return (obj.paper.uploaded_by == user) and (obj.proposed_by == user)
 
 
 class FlagSummaryEdit(RuleBasedPermission):
