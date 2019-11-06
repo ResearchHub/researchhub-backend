@@ -1,7 +1,11 @@
 from django.test import TestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
 
-from utils.test_helpers import IntegrationTestHelper, TestHelper
+from utils.test_helpers import (
+    IntegrationTestHelper,
+    TestHelper,
+    get_user_from_response
+)
 
 
 class PaperTests(TestCase, TestHelper):
@@ -26,6 +30,12 @@ class PaperIntegrationTests(
     def test_upload_paper(self):
         response = self.submit_paper_form()
         text = 'The Simple Paper'
+        self.assertContains(response, text, status_code=201)
+
+    def test_paper_uploaded_by_request_user(self):
+        response = self.submit_paper_form()
+        user = get_user_from_response(response)
+        text = '"uploaded_by":{"id":%d' % user.id
         self.assertContains(response, text, status_code=201)
 
     def submit_paper_form(self):
