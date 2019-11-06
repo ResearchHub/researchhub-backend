@@ -18,35 +18,6 @@ import requests
 import json
 
 
-def index_pdf(base64_file, paper, serialized_paper):
-    """
-    Indexes PDF in elastic search
-    """
-    es_host = ELASTICSEARCH_DSL.get('default').get('hosts')
-    data = {
-        "filename": "{}.pdf".format(paper.title),
-        "data": base64_file.decode('utf-8')
-    }
-    headers = {
-        'Content-Type': 'application/json'
-    }
-
-    try:
-        re = requests.put(
-            es_host + '/papers/_doc/{}?pipeline=pdf'.format(paper.id),
-            data=json.dumps(data),
-            headers=headers
-        )
-        if not re.ok:
-            with configure_scope() as scope:
-                for k in serialized_paper:
-                    scope.set_extra(k, serialized_paper[k])
-                scope.set_extra('req_error', re.text)
-                capture_exception('Paper index failed')
-    except Exception as e:
-        print('Unable to index pdf:', e)
-
-
 class PaperSerializer(serializers.ModelSerializer):
     authors = AuthorSerializer(many=True, read_only=False)
     discussion = serializers.SerializerMethodField()
@@ -161,6 +132,35 @@ class PaperSerializer(serializers.ModelSerializer):
             except Vote.DoesNotExist:
                 pass
         return vote
+
+
+def index_pdf(base64_file, paper, serialized_paper):
+    """
+    Indexes PDF in elastic search
+    """
+    es_host = ELASTICSEARCH_DSL.get('default').get('hosts')
+    data = {
+        "filename": "{}.pdf".format(paper.title),
+        "data": base64_file.decode('utf-8')
+    }
+    headers = {
+        'Content-Type': 'application/json'
+    }
+
+    try:
+        re = requests.put(
+            es_host + '/papers/_doc/{}?pipeline=pdf'.format(paper.id),
+            data=json.dumps(data),
+            headers=headers
+        )
+        if not re.ok:
+            with configure_scope() as scope:
+                for k in serialized_paper:
+                    scope.set_extra(k, serialized_paper[k])
+                scope.set_extra('req_error', re.text)
+                capture_exception('Paper index failed')
+    except Exception as e:
+        print('Unable to index pdf:', e)
 
 
 class FlagSerializer(serializers.ModelSerializer):
