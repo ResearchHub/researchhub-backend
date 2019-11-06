@@ -46,17 +46,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
         if authors:
             author = authors.first()
             authored_papers = author.authored_papers.all()
-            data = authored_papers
-            page_num = request.GET["page"]
-            url = request.build_absolute_uri()
-            (count, nextPage, page) = BasicPaginator(data, page_num, url)
-            response = {
-                'count': count,
-                'has_next': page.has_next(),
-                'next': nextPage,
-                'results': PaperSerializer(page, many=True).data
-            }
-            return Response(response, status=200)
+            page = self.paginate_queryset(authored_papers)
+            serializer = PaperSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
         return Response(status=404)
 
     @action(
@@ -69,17 +61,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
             author = authors.first()
             user = author.user
             user_discussions = Thread.objects.filter(created_by=user)
-            data = user_discussions
-            page_num = request.GET["page"]
-            url = request.build_absolute_uri()
-            (count, nextPage, page) = BasicPaginator(data, page_num, url)
-            response = {
-                'count': count,
-                'has_next': page.has_next(),
-                'next': nextPage,
-                'results': ThreadSerializer(page, many=True).data
-            }
-            return Response(response, status=200)
+            page = self.paginate_queryset(user_discussions)
+            serializer = ThreadSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
         return Response(status=404)
 
     @action(
