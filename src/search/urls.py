@@ -2,7 +2,7 @@ from django.conf.urls import url, include
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 
-from .views import AuthorDocumentView
+from .views import AuthorDocumentView, ComboView
 from .views.thread import ThreadDocumentView
 from .views.paper import PaperDocumentView
 from .views.combined import search
@@ -26,5 +26,6 @@ threads = router.register(
 
 urlpatterns = [
     url(r'^', include(router.urls)),
+    path('combo/', ComboView.as_view(), name='combo_view'),
     path(r'all/', search)
 ]
