@@ -1,9 +1,13 @@
 from rest_framework import serializers
 
+from .mixins import HighlightSerializerMixin
 from user.models import Author
 
 
-class AuthorDocumentSerializer(serializers.ModelSerializer):
+class AuthorDocumentSerializer(
+    serializers.ModelSerializer,
+    HighlightSerializerMixin
+):
     highlight = serializers.SerializerMethodField()
 
     class Meta(object):
@@ -15,8 +19,3 @@ class AuthorDocumentSerializer(serializers.ModelSerializer):
             'highlight',
         ]
         read_only_fields = fields
-
-    def get_highlight(self, obj):
-        if hasattr(obj.meta, 'highlight'):
-            return obj.meta.highlight.__dict__['_d_']
-        return {}
