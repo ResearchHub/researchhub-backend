@@ -56,5 +56,3 @@ class HubViewSet(viewsets.ModelViewSet):
 
     def _is_subscribed(self, user, hub):
         return user in hub.subscribers.all()
-
-
