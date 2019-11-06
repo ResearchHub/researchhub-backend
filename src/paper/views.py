@@ -16,7 +16,9 @@ from .permissions import (
     DownvotePaper
 )
 from .serializers import FlagSerializer, PaperSerializer, VoteSerializer
+from utils.paginators import *
 
+import datetime
 
 class PaperViewSet(viewsets.ModelViewSet):
     queryset = Paper.objects.all()
@@ -120,6 +122,66 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(user, paper, Vote.DOWNVOTE)
         return response
+
+    @action(
+        detail=False,
+        methods=['get'],
+    )
+    def get_hub_papers(self, request):
+        def most_discussed_sort(paper):
+            discussions = paper.threads.all()
+            total_discussed = len(discussions)
+            comments = []
+            for discussion in discussions:
+                total_discussed = total_discussed + discussion.comments.count()
+                comments = comments + list(discussion.comments.all())
+
+            for comment in comments:
+                total_discussed = total_discussed + comment.replies.count()
+
+            print(total_discussed)
+            return total_discussed
+
+        uploaded_start = datetime.datetime.fromtimestamp(int(request.GET["uploaded_date__gte"]))
+        uploaded_end = datetime.datetime.fromtimestamp(int(request.GET["uploaded_date__lte"]))
+        ordering = request.GET['ordering']
+        page_num = request.GET["page"]
+        hub_id = request.GET["hub_id"]
+        if int(hub_id) == 0:
+            papers = Paper.objects.filter(
+                uploaded_date__gte=uploaded_start,
+                uploaded_date__lte=uploaded_end
+            )
+        else:
+            papers = Paper.objects.filter(
+                hubs=hub_id,
+                uploaded_date__gte=uploaded_start,
+                uploaded_date__lte=uploaded_end
+            )
+
+        order_papers = papers
+
+        if ordering == 'newest':
+            order_papers = papers.order_by("-uploaded_date")
+        elif ordering == "top_rated":
+            order_papers = papers.order_by()
+        elif ordering == "most_discussed":
+            order_papers = list(order_papers)
+            order_papers.sort(key=most_discussed_sort, reverse=True)
+
+        data = order_papers
+        url = request.build_absolute_uri()
+        (count, nextPage, page) = BasicPaginator(data, page_num, url)
+        serialized_data = PaperSerializer(page, many=True).data
+
+        response = {
+            'count': count,
+            'has_next': page.has_next(),
+            'next': nextPage,
+            'results': serialized_data
+        }
+
+        return Response(response, status=200)
 
 
 def find_vote(user, paper, vote_type):

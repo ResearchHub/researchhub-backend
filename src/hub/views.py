@@ -12,11 +12,7 @@ from .models import Hub
 from .permissions import CreateHub, IsSubscribed, IsNotSubscribed
 from .serializers import HubSerializer
 from .filters import *
-from paper.models import Paper
-from paper.serializers import PaperSerializer
-from utils.paginators import *
 
-import datetime
 
 class HubViewSet(viewsets.ModelViewSet):
     queryset = Hub.objects.all()
@@ -60,56 +56,5 @@ class HubViewSet(viewsets.ModelViewSet):
 
     def _is_subscribed(self, user, hub):
         return user in hub.subscribers.all()
-
-    @action(
-        detail=True,
-        methods=['get'],
-    )
-    def get_hub_papers(self, request, pk=None):
-        def most_discussed_sort(paper):
-            discussions = paper.threads.all()
-            total_discussed = len(discussion)
-            comments = []
-            for discussion in discussions:
-                total_discussed = total_discussed + discussion.comment.count()
-                comments = comments + discussion.comment.all()
-
-            for comment in comments:
-                total_discussed = total_discussed + comment.replies.count()
-
-            return total_discussed
-
-        uploaded_start = datetime.datetime.fromtimestamp(int(request.GET["uploaded_date__gte"]))
-        uploaded_end = datetime.datetime.fromtimestamp(int(request.GET["uploaded_date__lte"]))
-        ordering = request.GET['ordering']
-
-        papers = Paper.objects.filter(
-            hubs=pk,
-            uploaded_date__gte=uploaded_start,
-            uploaded_date__lte=uploaded_end
-        )
-        order_papers = papers
-
-        if ordering == 'newest':
-            order_papers = papers.order_by("-uploaded_date")
-        elif ordering == "top_rated":
-            order_papers = papers.order_by()
-        elif ordering == "most_discussed":
-            order_papers.sort(key=most_discussed_sort)
-
-        page_num = request.GET["page"]
-        data = order_papers
-        url = request.build_absolute_uri()
-        (count, nextPage, page) = BasicPaginator(data, page_num, url)
-        serialized_data = PaperSerializer(page, many=True).data
-
-        response = {
-            'count': count,
-            'has_next': page.has_next(),
-            'next': nextPage,
-            'results': serialized_data
-        }
-
-        return Response(response, status=200)
 
 
