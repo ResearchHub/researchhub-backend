@@ -24,10 +24,7 @@ class PaperSerializer(serializers.ModelSerializer):
     hubs = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
     summary = serializers.SerializerMethodField()
-    uploaded_by = UserSerializer(
-        read_only=False,
-        default=serializers.CurrentUserDefault()
-    )
+    uploaded_by = UserSerializer(read_only=True)
     user_vote = serializers.SerializerMethodField()
 
     class Meta:
@@ -67,7 +64,10 @@ class PaperSerializer(serializers.ModelSerializer):
         pdf = validated_data.get('file')
         encoded_pdf = base64.b64encode(pdf.read())
         pdf.seek(0)
+
+        validated_data['uploaded_by'] = self.context['request'].user
         paper = super(PaperSerializer, self).create(validated_data)
+
         index_pdf(encoded_pdf, paper, validated_data)
 
         paper.authors.add(*authors)
