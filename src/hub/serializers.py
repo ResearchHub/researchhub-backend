@@ -7,6 +7,7 @@ from utils.http import get_user_from_request
 class HubSerializer(serializers.ModelSerializer):
     subscriber_count = serializers.SerializerMethodField()
     user_is_subscribed = serializers.SerializerMethodField()
+    ordering = ['name']
 
     class Meta:
         fields = [
