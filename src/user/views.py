@@ -4,7 +4,6 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.core.paginator import Paginator
 
 from .models import User, Author
 from .serializers import UserSerializer, AuthorSerializer
@@ -14,7 +13,6 @@ from paper.models import *
 from paper.serializers import *
 from discussion.models import *
 from discussion.serializers import *
-from utils.paginators import *
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
