@@ -169,19 +169,10 @@ class PaperViewSet(viewsets.ModelViewSet):
             order_papers = list(order_papers)
             order_papers.sort(key=most_discussed_sort, reverse=True)
 
-        data = order_papers
-        url = request.build_absolute_uri()
-        (count, nextPage, page) = BasicPaginator(data, page_num, url)
-        serialized_data = PaperSerializer(page, many=True).data
-
-        response = {
-            'count': count,
-            'has_next': page.has_next(),
-            'next': nextPage,
-            'results': serialized_data
-        }
-
-        return Response(response, status=200)
+        
+        page = self.paginate_queryset(order_papers)
+        serializer = self.get_serializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
 
 
 def find_vote(user, paper, vote_type):
