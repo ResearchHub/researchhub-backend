@@ -21,6 +21,7 @@ class HubViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticatedOrReadOnly & CreateHub]
     filter_class = HubFilter
     search_fields = ('name')
+    ordering = ['name']
 
     @action(
         detail=True,
