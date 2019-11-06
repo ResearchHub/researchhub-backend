@@ -16,11 +16,6 @@ class ComboSerializer(serializers.BaseSerializer):
         'discussion_threads': ThreadDocumentSerializer
     }
 
-    fields = [
-        'hits',
-        'highlight'
-    ]
-
     def __init__(self, *args, **kwargs):
         many = kwargs.pop('many', True)
         super(ComboSerializer, self).__init__(many=many, *args, **kwargs)
