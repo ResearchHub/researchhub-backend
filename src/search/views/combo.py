@@ -19,7 +19,10 @@ class ComboView(ListAPIView):
     def __init__(self, *args, **kwargs):
         assert self.indices is not None
 
-        self.search = Search(index=self.indices)
+        self.search = Search(index=self.indices).highlight(
+            *self.search_fields,
+            fragment_size=50
+        )
 
         super(ComboView, self).__init__(*args, **kwargs)
 
