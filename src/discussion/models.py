@@ -122,6 +122,10 @@ class BaseComment(models.Model):
     class Meta:
         abstract = True
 
+    @property
+    def text_indexing(self):
+        return str(self.text)
+
 
 class Thread(BaseComment):
     paper = models.ForeignKey(
