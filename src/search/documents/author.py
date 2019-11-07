@@ -7,19 +7,25 @@ from user.models import Author
 
 @registry.register_document
 class AuthorDocument(Document):
-    user = es_fields.ObjectField()
-    university = es_fields.ObjectField()
+    university = es_fields.ObjectField(
+        attr='university_indexing',
+        properties={
+            'name': es_fields.StringField(),
+            'city': es_fields.StringField(),
+            'country': es_fields.StringField(),
+            'state': es_fields.StringField(),
+        }
+    )
 
     class Index:
-        name = 'authors'
+        name = 'author'
 
     class Django:
         model = Author
         fields = [
+            'id',
             'first_name',
             'last_name',
-            'created_date',
-            'updated_date',
         ]
 
         # Ignore auto updating of Elasticsearch when a model is saved
