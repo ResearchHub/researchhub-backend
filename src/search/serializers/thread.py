@@ -1,18 +1,30 @@
-from django_elasticsearch_dsl_drf.serializers import DocumentSerializer
+from rest_framework import serializers
 
-from search.documents.thread import ThreadDocument
+from discussion.models import Thread
 
 
-class ThreadDocumentSerializer(DocumentSerializer):
+class ThreadDocumentSerializer(
+    serializers.ModelSerializer
+):
+    paper = serializers.SerializerMethodField()
+    text = serializers.SerializerMethodField()
 
     class Meta(object):
-        # Specify the correspondent document class
-        document = ThreadDocument
-
-        # List the serializer fields. Note, that the order of the fields
-        # is preserved in the ViewSet.
-        fields = (
+        model = Thread
+        fields = [
             'id',
+            'created_date',
+            'is_public',
+            'is_removed',
+            'paper',
+            'text',
             'title',
-            'paper'
-        )
+            'updated_date',
+        ]
+        read_only_fields = fields
+
+    def get_paper(self, document):
+        return document.paper
+
+    def get_text(self, document):
+        return document.text
