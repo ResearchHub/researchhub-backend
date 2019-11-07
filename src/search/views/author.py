@@ -7,8 +7,6 @@ from search.documents import AuthorDocument
 from search.serializers import AuthorDocumentSerializer
 from utils.permissions import ReadOnly
 
-# TODO: Add highlight backend
-
 
 class AuthorDocumentView(viewsets.ReadOnlyModelViewSet):
     serializer_class = AuthorDocumentSerializer
