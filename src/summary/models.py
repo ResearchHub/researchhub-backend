@@ -48,3 +48,7 @@ class Summary(models.Model):
         self.approved_by = by
         self.approved_date = timezone.now()
         self.save()
+
+    @property
+    def summary_indexing(self):
+        return str(self.summary)
