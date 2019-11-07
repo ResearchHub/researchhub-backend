@@ -4,12 +4,10 @@ from django.utils import timezone
 
 from user.models import User
 
-# TODO: Add field for raw text
-
 
 class Summary(models.Model):
     summary = JSONField(default=None, null=True)
-    # summary_text = models.TextField(default=None, null=True)
+    summary_plain_text = models.TextField()
     proposed_by = models.ForeignKey(
         User,
         related_name='edits',
