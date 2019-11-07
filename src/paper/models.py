@@ -61,14 +61,24 @@ class Paper(models.Model):
         return [self.get_full_name(author) for author in self.authors.all()]
 
     @property
+    def discussion_count_indexing(self):
+        '''Number of discussions.'''
+        return self.get_discussion_count()
+
+    @property
+    def hubs_indexing(self):
+        return [hub.name for hub in self.hubs.all()]
+
+    @property
     def score_indexing(self):
         '''Score for Elasticsearch indexing.'''
         return self.get_score()
 
     @property
-    def discussion_count_indexing(self):
-        '''Number of discussions.'''
-        return self.get_discussion_count()
+    def summary_indexing(self):
+        if self.summary:
+            return self.summary.summary_plain_text
+        return ''
 
     @property
     def votes_indexing(self):
@@ -76,14 +86,6 @@ class Paper(models.Model):
         if len(all_votes) > 0:
             return [self.get_vote_for_index(vote) for vote in all_votes]
         return {}
-
-    def get_vote_for_index(self, vote):
-        wrapper = dict_to_obj({
-            'vote_type': vote.vote_type,
-            'updated_date': vote.updated_date,
-        })
-
-        return wrapper
 
     def get_full_name(self, author_or_user):
         return f'{author_or_user.first_name} {author_or_user.last_name}'
@@ -95,6 +97,14 @@ class Paper(models.Model):
         if self.votes:
             return calculate_score(self, Vote.UPVOTE, Vote.DOWNVOTE)
         return 0
+
+    def get_vote_for_index(self, vote):
+        wrapper = dict_to_obj({
+            'vote_type': vote.vote_type,
+            'updated_date': vote.updated_date,
+        })
+
+        return wrapper
 
     def update_summary(self, summary):
         self.summary = summary
