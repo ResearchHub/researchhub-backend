@@ -1,43 +1,28 @@
 from django_elasticsearch_dsl import Document, fields as es_fields
 from django_elasticsearch_dsl.registries import registry
-from elasticsearch_dsl import analyzer
 
 from discussion.models import Thread
 from researchhub.settings import DEVELOPMENT, TESTING
 
-html_strip = analyzer(
-    'html_strip',
-    tokenizer="standard",
-    filter=["lowercase", "stop", "snowball"],
-    char_filter=["html_strip"]
-)
-
 
 @registry.register_document
 class ThreadDocument(Document):
-    paper = es_fields.StringField(
-        attr='paper_indexing',
-        analyzer=html_strip,
-        fields={
-            'raw': es_fields.StringField(analyzer='keyword'),
-        }
-    )
-
-    title = es_fields.StringField(
-        analyzer=html_strip,
-        fields={
-            'raw': es_fields.StringField(analyzer='keyword'),
-        }
-    )
+    paper = es_fields.StringField(attr='paper_indexing')
+    text = es_fields.StringField(attr='text_indexing')
 
     class Index:
-        name = 'discussion_threads'
+        name = 'discussion_thread'
 
     class Django:
         model = Thread
-        fields = (
+        fields = [
             'id',
-        )
+            'title',
+            'created_date',
+            'updated_date',
+            'is_public',
+            'is_removed',
+        ]
 
         # Ignore auto updating of Elasticsearch when a model is saved
         # or deleted:
