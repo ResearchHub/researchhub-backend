@@ -109,3 +109,9 @@ class Author(models.Model):
             university_city = university.city
         return (f'{self.first_name}_{self.last_name}_{university_name}_'
                 f'{university_city}')
+
+    @property
+    def university_indexing(self):
+        if self.university is not None:
+            return self.university
+        return {}
