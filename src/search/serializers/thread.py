@@ -3,9 +3,7 @@ from rest_framework import serializers
 from discussion.models import Thread
 
 
-class ThreadDocumentSerializer(
-    serializers.ModelSerializer
-):
+class ThreadDocumentSerializer(serializers.ModelSerializer):
     paper = serializers.SerializerMethodField()
     text = serializers.SerializerMethodField()
 
