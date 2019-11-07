@@ -11,15 +11,15 @@ class HubDocument(Document):
     subscriber_count = IntegerField(attr='subscriber_count_indexing')
 
     class Index:
-        name = 'hubs'
+        name = 'hub'
 
     class Django:
         model = Hub
         fields = [
+            'id',
             'name',
+            'acronym',
             'is_locked',
-            'created_date',
-            'updated_date',
         ]
 
         # Ignore auto updating of Elasticsearch when a model is saved
