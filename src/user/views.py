@@ -4,7 +4,6 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.core.paginator import Paginator
 
 from .models import User, Author
 from .serializers import UserSerializer, AuthorSerializer
@@ -14,7 +13,6 @@ from paper.models import *
 from paper.serializers import *
 from discussion.models import *
 from discussion.serializers import *
-
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -46,22 +44,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
         if authors:
             author = authors.first()
             authored_papers = author.authored_papers.all()
-            PAGE_SIZE = 20
-            paginator = Paginator(authored_papers, PAGE_SIZE)
-            page_num = request.GET["page"]
-            page = paginator.page(page_num)
-            url = request.build_absolute_uri('?')
-            nextPageNum = int(page_num) + 1
-            nextPage = url + "?page=" + str(nextPageNum)
-            if not page.has_next():
-                nextPage = None
-            response = {
-                'count': paginator.count,
-                'has_next': page.has_next(),
-                'next': nextPage,
-                'results': PaperSerializer(page, many=True).data
-            }
-            return Response(response, status=200)
+            page = self.paginate_queryset(authored_papers)
+            serializer = PaperSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
         return Response(status=404)
 
     @action(
@@ -74,22 +59,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
             author = authors.first()
             user = author.user
             user_discussions = Thread.objects.filter(created_by=user)
-            PAGE_SIZE = 20
-            paginator = Paginator(user_discussions, PAGE_SIZE)
-            page_num = request.GET["page"]
-            page = paginator.page(page_num)
-            url = request.build_absolute_uri('?')
-            nextPageNum = int(page_num) + 1
-            nextPage = url + "?page=" + str(nextPageNum)
-            if not page.has_next():
-                nextPage = None
-            response = {
-                'count': paginator.count,
-                'has_next': page.has_next(),
-                'next': nextPage,
-                'results': ThreadSerializer(page, many=True).data
-            }
-            return Response(response, status=200)
+            page = self.paginate_queryset(user_discussions)
+            serializer = ThreadSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
         return Response(status=404)
 
     @action(
