@@ -1,14 +1,13 @@
+import json
 from rest_framework import serializers
 
-from .mixins import HighlightSerializerMixin
 from user.models import Author
 
 
 class AuthorDocumentSerializer(
-    serializers.ModelSerializer,
-    HighlightSerializerMixin
+    serializers.ModelSerializer
 ):
-    highlight = serializers.SerializerMethodField()
+    university = serializers.SerializerMethodField()
 
     class Meta(object):
         model = Author
@@ -16,6 +15,9 @@ class AuthorDocumentSerializer(
             'id',
             'first_name',
             'last_name',
-            'highlight',
+            'university'
         ]
         read_only_fields = fields
+
+    def get_university(self, document):
+        return document.university.to_dict()
