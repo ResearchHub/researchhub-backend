@@ -1,2 +1,4 @@
 from .author import AuthorDocumentView
-from .combo import ComboView
+from .combined import CombinedView
+from .paper import PaperDocumentView
+from .thread import ThreadDocumentView
