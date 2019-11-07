@@ -4,21 +4,23 @@ from search.serializers import (
     AuthorDocumentSerializer,
     HubDocumentSerializer,
     PaperDocumentSerializer,
-    ThreadDocumentSerializer
+    ThreadDocumentSerializer,
+    UniversityDocumentSerializer
 )
 
 
-class ComboSerializer(serializers.BaseSerializer):
+class CombinedSerializer(serializers.BaseSerializer):
     index_serializers = {
-        'authors': AuthorDocumentSerializer,
-        'hubs': HubDocumentSerializer,
-        'papers': PaperDocumentSerializer,
-        'discussion_threads': ThreadDocumentSerializer
+        'author': AuthorDocumentSerializer,
+        'discussion_thread': ThreadDocumentSerializer,
+        'hub': HubDocumentSerializer,
+        'paper': PaperDocumentSerializer,
+        'university': UniversityDocumentSerializer,
     }
 
     def __init__(self, *args, **kwargs):
         many = kwargs.pop('many', True)
-        super(ComboSerializer, self).__init__(many=many, *args, **kwargs)
+        super(CombinedSerializer, self).__init__(many=many, *args, **kwargs)
 
     def to_representation(self, obj):
         return self.get_hit(obj)
