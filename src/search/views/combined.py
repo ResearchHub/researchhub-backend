@@ -1,68 +1,38 @@
+from rest_framework.generics import ListAPIView
 from elasticsearch_dsl import Search
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.response import Response
 
-from search.serializers import (
-    AuthorDocumentSerializer,
-    HubDocumentSerializer,
-    PaperDocumentSerializer,
-    ThreadDocumentSerializer,
-)
+from search.filters import ElasticsearchFuzzyFilter
+from search.serializers.combined import CombinedSerializer
+from utils.permissions import ReadOnly
 
 
-@api_view(['GET'])
-@permission_classes(())
-def search(request):
-    """
-    Pings elasticsearch to do a combined search
-    """
+class CombinedView(ListAPIView):
+    indices = ['paper', 'author', 'discussion_thread', 'hub', 'university']
+    serializer_class = CombinedSerializer
 
-    search = request.GET.get('search')
-    page = request.GET.get('page', 1)
-    size = request.GET.get('size', 10)
-    s = Search(
-        index=['papers', 'authors', 'discussion_threads', 'hubs']
-    ).query(
-        'query_string',
-        query='{}*'.format(search),
-        fields=['title', 'first_name', 'last_name', 'authors', 'name']
-    ).highlight(
+    permission_classes = [ReadOnly]
+    filter_backends = [ElasticsearchFuzzyFilter]
+
+    search_fields = [
         'title',
+        'text',
         'first_name',
         'last_name',
         'authors',
         'name',
-        fragment_size=50
-    )
+        'summary',
+    ]
 
-    result = s.execute()
+    def __init__(self, *args, **kwargs):
+        assert self.indices is not None
 
-    # Paginate the ES results
-    # They are already paginated?
-    first = (page - 1) * size
-    last = first + size
-    total_count = len(result)
-    result = result[first:last]
+        self.search = Search(index=self.indices).highlight(
+            *self.search_fields,
+            fragment_size=50
+        )
 
-    results = []
-    for hit in result:
-        res = None
-        if hit.meta.index == 'papers':
-            res = PaperDocumentSerializer(hit).data
-        elif hit.meta.index == 'authors':
-            res = AuthorDocumentSerializer(hit).data
-        elif hit.meta.index == 'threads':
-            res = ThreadDocumentSerializer(hit).data
-        elif hit.meta.index == 'hubs':
-            res = HubDocumentSerializer(hit).data
+        super(CombinedView, self).__init__(*args, **kwargs)
 
-        if res:
-            res['meta'] = hit.meta.to_dict()
-            results.append(res)
-
-    response = {
-        'count': total_count,
-        'results': results,
-    }
-
-    return Response(response)
+    def get_queryset(self):
+        queryset = self.search.query()
+        return queryset
