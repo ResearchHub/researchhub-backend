@@ -25,7 +25,7 @@ class User(AbstractUser):
         # set username line.
 
         # TODO: Set the user reputation here for soft launch
-        # self.reputation = 100
+        self.reputation = 100
         self.username = self.email
         super().save(*args, **kwargs)
 
