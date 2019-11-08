@@ -4,6 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
+from django.db.models import Count, Q
 
 from .filters import *
 from .models import Flag, Paper, Vote
@@ -151,13 +152,13 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
             order_papers = papers.order_by("-uploaded_date")
         elif ordering == "top_rated":
-            upvotes = Count('vote', filter=Q(vote__vote_type=Vote.UPVOTE, created_date__gte=uploaded_start, uploaded_date__lte=uploaded_end))
-            downvotes = Count('vote', filter=Q(vote__vote_type=Vote.DOWNVOTE, created_date__gte=uploaded_start, uploaded_date__lte=uploaded_end))
+            upvotes = Count('vote', filter=Q(vote__vote_type=Vote.UPVOTE, vote__created_date__gte=uploaded_start, vote__created_date__lte=uploaded_end))
+            downvotes = Count('vote', filter=Q(vote__vote_type=Vote.DOWNVOTE, vote__created_date__gte=uploaded_start, vote__created_date__lte=uploaded_end))
             papers = papers.annotate(score=upvotes - downvotes)
             order_papers = papers.order_by('-score')
         elif ordering == "most_discussed":
-            threads = Count('threads', filter=Q(created_date__gte=uploaded_start, uploaded_date__lte=uploaded_end))
-            comments = Count('threads__comments', filter=Q(created_date__gte=uploaded_start, uploaded_date__lte=uploaded_ends))
+            threads = Count('threads', filter=Q(threads__created_date__gte=uploaded_start, threads__created_date__lte=uploaded_end))
+            comments = Count('threads__comments', filter=Q(threads__comments__created_date__gte=uploaded_start, threads__comments__created_date__lte=uploaded_ends))
             papers = papers.annotate(discussed=threads + comments)
             order_papers = papers.order_by('-discussed')
 
