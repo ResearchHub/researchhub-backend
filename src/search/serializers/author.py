@@ -19,4 +19,5 @@ class AuthorDocumentSerializer(
         read_only_fields = fields
 
     def get_university(self, document):
-        return document.university.to_dict()
+        if document.university is not None:
+            return document.university.to_dict()
