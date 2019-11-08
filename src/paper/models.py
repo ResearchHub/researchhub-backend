@@ -17,7 +17,7 @@ class Paper(models.Model):
     )
     uploaded_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
-    paper_publish_date = models.DateField()
+    paper_publish_date = models.DateField(null=True)
     authors = models.ManyToManyField(
         Author,
         related_name='authored_papers',
