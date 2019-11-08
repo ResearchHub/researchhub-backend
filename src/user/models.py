@@ -8,7 +8,7 @@ class User(AbstractUser):
     User objects have the following fields by default:
         https://docs.djangoproject.com/en/2.2/ref/contrib/auth/#django.contrib.auth.models.User
     """
-    reputation = models.IntegerField(default=1)
+    reputation = models.IntegerField(default=100)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
@@ -24,8 +24,6 @@ class User(AbstractUser):
         # If we want to allow client specified usernames, simply remove the
         # set username line.
 
-        # TODO: Set the user reputation here for soft launch
-        self.reputation = 100
         self.username = self.email
         super().save(*args, **kwargs)
 
