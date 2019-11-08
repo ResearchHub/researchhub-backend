@@ -129,8 +129,12 @@ class PaperViewSet(viewsets.ModelViewSet):
         methods=['get'],
     )
     def get_hub_papers(self, request):
-        uploaded_start = datetime.datetime.fromtimestamp(int(request.GET["uploaded_date__gte"]))
-        uploaded_end = datetime.datetime.fromtimestamp(int(request.GET["uploaded_date__lte"]))
+        start_date = datetime.datetime.fromtimestamp(
+            int(request.GET['start_date__gte'])
+        )
+        end_date = datetime.datetime.fromtimestamp(
+            int(request.GET['end_date__lte'])
+        )
         ordering = request.GET['ordering']
         hub_id = request.GET['hub_id']
 
@@ -145,18 +149,46 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         if ordering == 'newest':  # Recently added
             papers = papers.objects.filter(
-                uploaded_date__gte=uploaded_start,
-                uploaded_date__lte=uploaded_end
+                uploaded_date__gte=start_date,
+                uploaded_date__lte=end_date
             )
-            order_papers = papers.order_by("-uploaded_date")
-        elif ordering == "top_rated":
-            upvotes = Count('vote', filter=Q(vote__vote_type=Vote.UPVOTE, vote__created_date__gte=uploaded_start, vote__created_date__lte=uploaded_end))
-            downvotes = Count('vote', filter=Q(vote__vote_type=Vote.DOWNVOTE, vote__created_date__gte=uploaded_start, vote__created_date__lte=uploaded_end))
+            order_papers = papers.order_by('-uploaded_date')
+
+        elif ordering == 'top_rated':
+            upvotes = Count(
+                'vote',
+                filter=Q(
+                    vote__vote_type=Vote.UPVOTE,
+                    vote__updated_date__gte=start_date,
+                    vote__updated_date__lte=end_date
+                )
+            )
+            downvotes = Count(
+                'vote',
+                filter=Q(
+                    vote__vote_type=Vote.DOWNVOTE,
+                    vote__created_date__gte=start_date,
+                    vote__created_date__lte=end_date
+                )
+            )
             papers = papers.annotate(score=upvotes - downvotes)
             order_papers = papers.order_by('-score')
-        elif ordering == "most_discussed":
-            threads = Count('threads', filter=Q(threads__created_date__gte=uploaded_start, threads__created_date__lte=uploaded_end))
-            comments = Count('threads__comments', filter=Q(threads__comments__created_date__gte=uploaded_start, threads__comments__created_date__lte=uploaded_ends))
+
+        elif ordering == 'most_discussed':
+            threads = Count(
+                'threads',
+                filter=Q(
+                    threads__created_date__gte=start_date,
+                    threads__created_date__lte=end_date
+                )
+            )
+            comments = Count(
+                'threads__comments',
+                filter=Q(
+                    threads__comments__created_date__gte=start_date,
+                    threads__comments__created_date__lte=end_date
+                )
+            )
             papers = papers.annotate(discussed=threads + comments)
             order_papers = papers.order_by('-discussed')
 
