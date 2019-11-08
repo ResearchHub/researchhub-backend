@@ -1,12 +1,14 @@
+import datetime
+
+from django.db.models import Count, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
-from django.db.models import Count, Q
 
-from .filters import *
+from .filters import PaperFilter
 from .models import Flag, Paper, Vote
 from .permissions import (
     CreatePaper,
@@ -18,7 +20,6 @@ from .permissions import (
 )
 from .serializers import FlagSerializer, PaperSerializer, VoteSerializer
 
-import datetime
 
 class PaperViewSet(viewsets.ModelViewSet):
     queryset = Paper.objects.all()
@@ -131,21 +132,18 @@ class PaperViewSet(viewsets.ModelViewSet):
         uploaded_start = datetime.datetime.fromtimestamp(int(request.GET["uploaded_date__gte"]))
         uploaded_end = datetime.datetime.fromtimestamp(int(request.GET["uploaded_date__lte"]))
         ordering = request.GET['ordering']
-        hub_id = request.GET["hub_id"]
+        hub_id = request.GET['hub_id']
 
-        """
-        hub_id = 0 is the homepage, we aren't on a specific hub so don't filter by that hub_id
-        """
+        # hub_id = 0 is the homepage
+        # we aren't on a specific hub so don't filter by that hub_id
         if int(hub_id) == 0:
             papers = Paper.objects.all()
         else:
-            papers = Paper.objects.filter(
-                hubs=hub_id,
-            )
-        
+            papers = Paper.objects.filter(hubs=hub_id)
+
         order_papers = papers
 
-        if ordering == 'newest':
+        if ordering == 'newest':  # Recently added
             papers = papers.objects.filter(
                 uploaded_date__gte=uploaded_start,
                 uploaded_date__lte=uploaded_end
@@ -166,6 +164,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(page, many=True)
         return self.get_paginated_response(serializer.data)
 
+
 def find_vote(user, paper, vote_type):
     vote = Vote.objects.filter(
         paper=paper,
@@ -175,6 +174,7 @@ def find_vote(user, paper, vote_type):
     if vote:
         return True
     return False
+
 
 def update_or_create_vote(user, paper, vote_type):
     vote = retrieve_vote(user, paper)
@@ -186,9 +186,11 @@ def update_or_create_vote(user, paper, vote_type):
     vote = create_vote(user, paper, vote_type)
     return get_vote_response(vote, 201)
 
+
 def get_vote_response(vote, status_code):
     serializer = VoteSerializer(vote)
     return Response(serializer.data, status=status_code)
+
 
 def retrieve_vote(user, paper):
     try:
@@ -198,6 +200,7 @@ def retrieve_vote(user, paper):
         )
     except Vote.DoesNotExist:
         return None
+
 
 def create_vote(user, paper, vote_type):
     vote = Vote.objects.create(
