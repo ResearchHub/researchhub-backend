@@ -21,8 +21,11 @@ class User(AbstractUser):
         # requiring the client to enter a value in this field. It also forces
         # emails to be unique.
         #
-        # If we want to allow client specified usernames, simply delete this
-        # method.
+        # If we want to allow client specified usernames, simply remove the
+        # set username line.
+
+        # TODO: Set the user reputation here for soft launch
+        # self.reputation = 100
         self.username = self.email
         super().save(*args, **kwargs)
 
