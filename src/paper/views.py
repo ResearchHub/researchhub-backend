@@ -131,7 +131,6 @@ class PaperViewSet(viewsets.ModelViewSet):
         uploaded_end = datetime.datetime.fromtimestamp(int(request.GET["uploaded_date__lte"]))
         ordering = request.GET['ordering']
         hub_id = request.GET["hub_id"]
-        order_papers = papers
 
         """
         hub_id = 0 is the homepage, we aren't on a specific hub so don't filter by that hub_id
@@ -142,6 +141,8 @@ class PaperViewSet(viewsets.ModelViewSet):
             papers = Paper.objects.filter(
                 hubs=hub_id,
             )
+        
+        order_papers = papers
 
         if ordering == 'newest':
             papers = papers.objects.filter(
