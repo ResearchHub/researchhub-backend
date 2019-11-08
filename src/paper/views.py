@@ -130,10 +130,12 @@ class PaperViewSet(viewsets.ModelViewSet):
     )
     def get_hub_papers(self, request):
         start_date = datetime.datetime.fromtimestamp(
-            int(request.GET['start_date__gte'])
+            int(request.GET['start_date__gte']),
+            datetime.timezone.utc
         )
         end_date = datetime.datetime.fromtimestamp(
-            int(request.GET['end_date__lte'])
+            int(request.GET['end_date__lte']),
+            datetime.timezone.utc
         )
         ordering = request.GET['ordering']
         hub_id = request.GET['hub_id']
@@ -148,7 +150,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         order_papers = papers
 
         if ordering == 'newest':  # Recently added
-            papers = papers.objects.filter(
+            papers = papers.filter(
                 uploaded_date__gte=start_date,
                 uploaded_date__lte=end_date
             )
