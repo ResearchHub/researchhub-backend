@@ -1,7 +1,10 @@
 from django_elasticsearch_dsl import Document, fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 
-from researchhub.settings import DEVELOPMENT, TESTING
+from researchhub.settings import (
+    ELASTICSEARCH_AUTO_REINDEX_IN_DEVELOPMENT,
+    TESTING
+)
 from paper.models import Paper
 
 
@@ -29,9 +32,13 @@ class PaperDocument(Document):
         ]
 
         # Ignore auto updating of Elasticsearch when a model is saved
-        # or deleted:
-        ignore_signals = (TESTING is True) or (DEVELOPMENT is True)
+        # or deleted (defaults to False):
+        ignore_signals = (TESTING is True) or (
+            ELASTICSEARCH_AUTO_REINDEX_IN_DEVELOPMENT is False
+        )
 
-        # Don't perform an index refresh after every update (overrides global
-        # setting):
-        auto_refresh = (TESTING is False) or (DEVELOPMENT is False)
+        # Don't perform an index refresh after every update (False overrides
+        # global setting of True):
+        auto_refresh = (TESTING is False) or (
+            ELASTICSEARCH_AUTO_REINDEX_IN_DEVELOPMENT is True
+        )
