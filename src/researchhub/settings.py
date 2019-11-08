@@ -102,6 +102,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django_filters',
 
+    # https://github.com/django-extensions/django-extensions
+    'django_extensions',
+
     # CORS
     'corsheaders',
 
