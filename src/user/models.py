@@ -114,4 +114,4 @@ class Author(models.Model):
     def university_indexing(self):
         if self.university is not None:
             return self.university
-        return {}
+        return None
