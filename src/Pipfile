@@ -20,6 +20,7 @@ django-filter = "*"
 sentry-sdk = "*"
 django-elasticsearch-dsl = "*"
 django-elasticsearch-dsl-drf = "*"
+django-extensions = "*"
 
 [requires]
 python_version = "3.7"
