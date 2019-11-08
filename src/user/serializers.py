@@ -14,7 +14,7 @@ class UniversitySerializer(rest_framework_serializers.ModelSerializer):
 class AuthorSerializer(rest_framework_serializers.ModelSerializer):
     university = UniversitySerializer(required=False)
     profile_image = rest_framework_serializers.SerializerMethodField()
-    # authored_papers = rest_framework_serializers.SerializerMethodField()
+    reputation = rest_framework_serializers.SerializerMethodField()
 
     class Meta:
         model = Author
@@ -50,6 +50,11 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
         except Exception as e:
             print(e)
             return None
+
+    def get_reputation(self, obj):
+        if obj.user == None:
+            return 0
+        return obj.user.reputation
 
     # def get_authored_papers(self, obj):
     #     papers = obj.authored_papers.all()
