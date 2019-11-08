@@ -123,8 +123,26 @@ class BaseComment(models.Model):
         abstract = True
 
     @property
+    def created_by_author_profile_indexing(self):
+        if self.created_by:
+            author = self.created_by.author_profile
+            if author:
+                return author
+        return None
+
+    @property
+    def score_indexing(self):
+        return self.calculate_score()
+
+    @property
     def text_indexing(self):
         return str(self.text)
+
+    def calculate_score(self):
+        upvotes = self.votes.filter(vote_type=Vote.UPVOTE)
+        downvotes = self.votes.filter(vote_type=Vote.DOWNVOTE)
+        score = len(upvotes) - len(downvotes)
+        return score
 
 
 class Thread(BaseComment):
@@ -141,8 +159,16 @@ class Thread(BaseComment):
         return '%s: %s' % (self.created_by, self.title)
 
     @property
+    def comment_count_indexing(self):
+        return len(self.comments.all())
+
+    @property
     def paper_indexing(self):
-        '''Used in Elasticsearch indexing.'''
+        if self.paper is not None:
+            return self.paper.id
+
+    @property
+    def paper_title_indexing(self):
         if self.paper is not None:
             return self.paper.title
 
