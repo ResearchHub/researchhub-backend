@@ -1,5 +1,5 @@
 from allauth.socialaccount.helpers import render_authentication_error
-from allauth.socialaccount.models import SocialLogin
+from allauth.socialaccount.models import SocialLogin, SocialAccount
 from allauth.socialaccount.providers.base import ProviderException
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import (
@@ -14,6 +14,9 @@ from allauth.socialaccount.providers.oauth2.views import (
     RequestException
 )
 from allauth.utils import get_request_param
+from allauth.account.signals import user_signed_up, user_logged_in
+
+from django.dispatch import receiver
 
 from rest_auth.registration.views import SocialLoginView
 from rest_framework import serializers, status
@@ -206,3 +209,27 @@ class CallbackView(OAuth2CallbackView):
 
 google_login = OAuth2LoginView.adapter_view(GoogleOAuth2Adapter)
 google_callback = CallbackView.adapter_view(GoogleOAuth2Adapter)
+
+@receiver(user_signed_up)
+@receiver(user_logged_in)
+def user_signed_up_(request, user, **kwargs):
+    """ After a user signs up with social account, create a user profile for them"""
+    queryset = SocialAccount.objects.filter(
+        provider='google',
+        user=user
+    )
+
+    if queryset.exists():
+        if queryset.count() > 1:
+            # TODO: Make this exception more descriptive
+            raise Exception(
+                f'Expected 1 item in the queryset. Found {num_accounts}.'
+            )
+        google_account = queryset.first()
+        url = google_account.extra_data.get('picture', None)
+        if user.author_profile and not user.author_profile.profile_image:
+            user.author_profile.profile_image = url
+            user.author_profile.save()
+        return None
+    else:
+        return None
