@@ -1,7 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.dispatch import receiver
-
+from django.core.files.storage import FileSystemStorage
+from storages.backends.s3boto3 import S3Boto3Storage
 
 class User(AbstractUser):
     """
@@ -50,6 +51,18 @@ class University(models.Model):
         return f'{self.name}_{self.city}'
 
 
+class ProfileImageStorage(S3Boto3Storage):
+    def __init__(self):
+        super(ProfileImageStorage, self).__init__()
+
+    def url(self, name):
+        if 'http' in name:
+            return name
+        else:
+            return super(ProfileImageStorage, self).url(name)
+
+fs = ProfileImageStorage()
+
 class Author(models.Model):
     user = models.OneToOneField(
         User,
@@ -72,9 +85,9 @@ class Author(models.Model):
         upload_to='uploads/author_profile_images/%Y/%m/%d',
         default=None,
         null=True,
-        blank=True
+        blank=True,
+        storage=fs
     )
-
     university = models.ForeignKey(
         University,
         on_delete=models.SET_NULL,

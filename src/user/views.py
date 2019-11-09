@@ -26,7 +26,6 @@ class UserViewSet(viewsets.ModelViewSet):
         else:
             return []
 
-
 class AuthorViewSet(viewsets.ModelViewSet):
     queryset = Author.objects.all()
     serializer_class = AuthorSerializer
