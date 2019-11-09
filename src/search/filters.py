@@ -1,5 +1,6 @@
 from rest_framework import filters
 from elasticsearch_dsl.query import Fuzzy
+from elasticsearch_dsl import Q
 
 
 class ElasticsearchFilter(filters.SearchFilter):
@@ -23,14 +24,7 @@ class ElasticsearchFuzzyFilter(filters.SearchFilter):
         search = getattr(view, 'search')
         fields = getattr(view, 'search_fields')
         terms = ' '.join(self.get_search_terms(request))
-
-        query = Fuzzy(** {fields[0]: terms})
-
-        iterfields = iter(fields)
-        next(iterfields)
-        for field in iterfields:
-            query = query | Fuzzy(** {field: terms})
-
+        query = Q("multi_match", query=terms, fields=fields, fuzziness="AUTO")
         es = search.query(query)
 
         response = es.execute()
