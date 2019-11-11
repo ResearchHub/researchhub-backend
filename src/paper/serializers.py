@@ -1,3 +1,4 @@
+from django.http import QueryDict
 import rest_framework.serializers as serializers
 
 from .models import Flag, Paper, Vote
@@ -19,7 +20,7 @@ import json
 
 
 class PaperSerializer(serializers.ModelSerializer):
-    authors = AuthorSerializer(many=True, read_only=False)
+    authors = AuthorSerializer(many=True, read_only=False, required=False)
     discussion = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
@@ -37,8 +38,19 @@ class PaperSerializer(serializers.ModelSerializer):
 
     def to_internal_value(self, data):
         data = data.copy()
+
+        authors = []
+        hubs = []
+
+        if type(data) == QueryDict:
+            authors = data.getlist('authors')
+            hubs = data.getlist('hubs')
+        else:
+            authors = data.get('authors')
+            hubs = data.get('hubs')
+
         valid_authors = []
-        for author in data.getlist('authors'):
+        for author in authors:
             try:
                 a = Author.objects.get(id=author)
                 valid_authors.append(a)
@@ -47,7 +59,7 @@ class PaperSerializer(serializers.ModelSerializer):
         data['authors'] = valid_authors
 
         valid_hubs = []
-        for hub in data.getlist('hubs'):
+        for hub in hubs:
             try:
                 h = Hub.objects.get(id=hub)
                 valid_hubs.append(h)
