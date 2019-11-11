@@ -1,17 +1,17 @@
 from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.permissions import IsAuthenticatedOrReadOnly, AllowAny
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import User, Author
-from .serializers import UserSerializer, AuthorSerializer
+from .models import User, University, Author
+from .serializers import UserSerializer, UniversitySerializer, AuthorSerializer
 from .filters import AuthorFilter
 from .permissions import UpdateAuthor
-from paper.models import *
+from paper.models import Paper
 from paper.serializers import PaperSerializer
-from discussion.models import *
+from discussion.models import Comment, Reply, Thread
 from discussion.serializers import (
     CommentSerializer,
     ReplySerializer,
@@ -30,6 +30,12 @@ class UserViewSet(viewsets.ModelViewSet):
             return User.objects.filter(id=user.id)
         else:
             return []
+
+
+class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = University.objects.all()
+    serializer_class = UniversitySerializer
+    permission_classes = [AllowAny]
 
 
 class AuthorViewSet(viewsets.ModelViewSet):
@@ -76,7 +82,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
     def get_user_contributions(self, request, pk=None):
         def sort(contribution):
             return contribution.updated_date
-        
+
         authors = Author.objects.filter(id=pk)
         if authors:
             author = authors.first()
@@ -94,11 +100,23 @@ class AuthorViewSet(viewsets.ModelViewSet):
             user_comments_count = len(user_comments)
             user_replies_count = len(user_replies)
             user_paper_uploads_count = len(user_paper_uploads)
-            count = user_comments_count + user_replies_count + user_paper_uploads_count
+            count = (
+                user_comments_count
+                + user_replies_count
+                + user_paper_uploads_count
+            )
 
-            user_comments = list(user_comments[comment_offset:(comment_offset + PAGE_SIZE)])
-            user_replies = list(user_replies[reply_offset:(reply_offset + PAGE_SIZE)])
-            user_paper_uploads = list(user_paper_uploads[paper_upload_offset:(paper_upload_offset + PAGE_SIZE)])
+            user_comments = list(
+                user_comments[comment_offset:(comment_offset + PAGE_SIZE)]
+            )
+            user_replies = list(
+                user_replies[reply_offset:(reply_offset + PAGE_SIZE)]
+            )
+            user_paper_uploads = list(
+                user_paper_uploads[
+                    paper_upload_offset:(paper_upload_offset + PAGE_SIZE)
+                ]
+            )
 
             contributions = user_comments + user_replies + user_paper_uploads
             contributions.sort(reverse=True, key=sort)
@@ -124,7 +142,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     serialized_contributions.append(serialized_data)
 
                 elif (isinstance(contribution, Paper)):
-                    offsets['paper_upload_offset'] = offsets['paper_upload_offset'] + 1
+                    offsets['paper_upload_offset'] = (
+                        offsets['paper_upload_offset'] + 1
+                    )
                     serialized_data = PaperSerializer(contribution).data
                     serialized_data['type'] = 'paper'
                     serialized_contributions.append(serialized_data)
