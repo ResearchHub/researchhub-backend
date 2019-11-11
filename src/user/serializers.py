@@ -9,6 +9,7 @@ class UniversitySerializer(rest_framework_serializers.ModelSerializer):
         model = University
         fields = '__all__'
 
+
 class AuthorSerializer(rest_framework_serializers.ModelSerializer):
     university = UniversitySerializer(required=False)
     reputation = rest_framework_serializers.SerializerMethodField()
@@ -22,11 +23,14 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
             return 0
         return obj.user.reputation
 
+
 class UserSerializer(rest_framework_serializers.ModelSerializer):
     author_profile = AuthorSerializer()
+
     class Meta:
         model = User
-        exclude = ['password']       
+        exclude = ['password']
+
 
 class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
     username = rest_auth_serializers.serializers.CharField(
