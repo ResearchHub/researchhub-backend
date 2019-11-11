@@ -62,6 +62,12 @@ router.register(
     basename='hub'
 )
 
+router.register(
+    r'university',
+    user.views.UniversityViewSet,
+    basename='university'
+)
+
 router.register(r'user', user.views.UserViewSet)
 
 urlpatterns = [
