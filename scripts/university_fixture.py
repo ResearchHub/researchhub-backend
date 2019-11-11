@@ -1,35 +1,37 @@
 #!/usr/bin/env python
 # coding: utf-8
+# flake8: noqa
 
-# In[139]:
+# In[1]:
 
 
 import pandas as pd
+import numpy as np
 import json
 import datetime
 
 
-# In[140]:
+# In[2]:
 
 
-rh_path = '/Users/val/q5/researchhub-backend/'
+data_path = './.ipynb/'
 
 
-# In[141]:
+# In[3]:
 
 
 # https://www.kaggle.com/theriley106/university-statistics
 # Data was grabbed from US-News: https://www.usnews.com
-raw_us_df = pd.read_json(rh_path + 'schoolInfo.json', orient='columns')
+raw_us_df = pd.read_json(data_path + 'schoolInfo.json', orient='columns')
 
 
-# In[142]:
+# In[4]:
 
 
-raw_world_df = pd.read_csv(rh_path + 'timesData.csv')
+raw_world_df = pd.read_csv(data_path + 'timesData.csv')
 
 
-# In[143]:
+# In[5]:
 
 
 us_exclude_fields = [
@@ -66,7 +68,7 @@ us_exclude_fields = [
 ]
 
 
-# In[144]:
+# In[6]:
 
 
 def remove_columns_from_us_df(raw):
@@ -75,7 +77,7 @@ def remove_columns_from_us_df(raw):
     return raw
 
 
-# In[145]:
+# In[7]:
 
 
 cleaned_us_df = remove_columns_from_us_df(raw_us_df)
@@ -84,7 +86,7 @@ cleaned_us_df = cleaned_us_df.sort_values(by=['displayName'])
 cleaned_us_df
 
 
-# In[146]:
+# In[8]:
 
 
 cleaned_world_df = raw_world_df.drop_duplicates(subset=['university_name'])
@@ -92,21 +94,21 @@ cleaned_world_df = cleaned_world_df.sort_values(by=['university_name'])
 cleaned_world_df
 
 
-# In[147]:
+# In[9]:
 
 
 def orient_df_to_index(df):
     return pd.read_json(df.to_json(), orient='index')
 
 
-# In[148]:
+# In[10]:
 
 
 oriented_us_df = orient_df_to_index(cleaned_us_df)
 oriented_world_df = orient_df_to_index(cleaned_world_df)
 
 
-# In[149]:
+# In[11]:
 
 
 def convert_world_school(school):
@@ -116,7 +118,7 @@ def convert_world_school(school):
     return item
 
 
-# In[150]:
+# In[12]:
 
 
 def convert_us_school(school):
@@ -127,29 +129,26 @@ def convert_us_school(school):
     return item
 
 
-# In[151]:
+# In[13]:
 
 
-converted_us_schools = [
-    convert_us_school(oriented_us_df[i]) for i in oriented_us_df
-]
-converted_world_schools = [
-    convert_world_school(oriented_world_df[i]) for i in oriented_world_df
-]
+converted_us_schools = [convert_us_school(oriented_us_df[i]) for i in oriented_us_df]
+converted_world_schools = [convert_world_school(oriented_world_df[i]) for i in oriented_world_df]
 
 
-# In[152]:
+# In[14]:
 
 
 len(converted_us_schools), len(converted_world_schools)
 
 
-# In[153]:
+# In[15]:
 
 
-def merge_schools(us=converted_us_schools, world=converted_world_schools):
+def merge_schools(us=None, world=None):
     merged_on_name = []
     hits = 0
+    UNITED_STATES = ''
 
     for w in world:
         hit = 0
@@ -162,6 +161,7 @@ def merge_schools(us=converted_us_schools, world=converted_world_schools):
                 # merge
                 d = u
                 d['country'] = w['country']
+                UNITED_STATES = w['country']
 
                 merged_on_name.append(d)
                 del us[us.index(u)]
@@ -171,37 +171,35 @@ def merge_schools(us=converted_us_schools, world=converted_world_schools):
             merged_on_name.append(w)
 
     remaining_us_schools = us
-    print('hits', hits)
-    print('merged_on_name', len(merged_on_name))
-    print('remaining_us_schools', len(remaining_us_schools))
 
-    return merged_on_name + remaining_us_schools
+    for r in remaining_us_schools:
+        r['country'] = UNITED_STATES
+        merged_on_name.append(r)
+
+    return merged_on_name
 
 
-# In[154]:
+# In[16]:
 
 
 def sort_on_name(school):
     return school['name']
 
 
-# In[155]:
+# In[17]:
 
 
-merged_schools = merge_schools(
-    us=converted_us_schools,
-    world=converted_world_schools
-)
+merged_schools = merge_schools(us=converted_us_schools, world=converted_world_schools)
 merged_schools.sort(key=sort_on_name)
 
 
-# In[156]:
+# In[18]:
 
 
 len(merged_schools)
 
 
-# In[157]:
+# In[19]:
 
 
 def convert_to_fixture(schools):
@@ -211,24 +209,20 @@ def convert_to_fixture(schools):
         item['pk'] = schools.index(s) + 10
         item['model'] = 'user.University'
         item['fields'] = s
-        item['fields']['created_date'] = str(
-            datetime.datetime.now(tz=datetime.timezone.utc)
-        )
-        item['fields']['updated_date'] = str(
-            datetime.datetime.now(tz=datetime.timezone.utc)
-        )
+        item['fields']['created_date'] = str(datetime.datetime.now(tz=datetime.timezone.utc))
+        item['fields']['updated_date'] = str(datetime.datetime.now(tz=datetime.timezone.utc))
         fixture.append(item)
     return fixture
 
 
-# In[158]:
+# In[20]:
 
 
 fixture = convert_to_fixture(merged_schools)
 len(fixture), fixture
 
 
-# In[159]:
+# In[21]:
 
 
 with open('university_fixture.json', 'w') as f:
