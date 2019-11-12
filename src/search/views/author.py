@@ -2,7 +2,7 @@ from rest_framework import viewsets
 from elasticsearch_dsl import Search
 from elasticsearch_dsl.connections import connections
 
-from search.filters import ElasticsearchFilter
+from search.filters import ElasticsearchFuzzyFilter
 from search.documents import AuthorDocument
 from search.serializers import AuthorDocumentSerializer
 from utils.permissions import ReadOnly
@@ -13,7 +13,7 @@ class AuthorDocumentView(viewsets.ReadOnlyModelViewSet):
     document = AuthorDocument
 
     permission_classes = [ReadOnly]
-    filter_backends = [ElasticsearchFilter]
+    filter_backends = [ElasticsearchFuzzyFilter]
 
     search_fields = ['first_name', 'last_name']
 
