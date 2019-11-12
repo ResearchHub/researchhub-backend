@@ -13,6 +13,10 @@ class User(AbstractUser):
     upload_tutorial_complete = models.BooleanField(default=False)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+    bookmarks = models.ManyToManyField(
+        'paper.Paper',
+        related_name='users_who_bookmarked'
+    )
 
     def __str__(self):
         return self.email
