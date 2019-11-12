@@ -10,9 +10,14 @@ from .serializers import UserSerializer, AuthorSerializer
 from .filters import AuthorFilter
 from .permissions import UpdateAuthor
 from paper.models import *
-from paper.serializers import *
+from paper.serializers import PaperSerializer
 from discussion.models import *
-from discussion.serializers import *
+from discussion.serializers import (
+    CommentSerializer,
+    ReplySerializer,
+    ThreadSerializer
+)
+
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -25,6 +30,7 @@ class UserViewSet(viewsets.ModelViewSet):
             return User.objects.filter(id=user.id)
         else:
             return []
+
 
 class AuthorViewSet(viewsets.ModelViewSet):
     queryset = Author.objects.all()
