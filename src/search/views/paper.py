@@ -1,3 +1,6 @@
+# TODO: Refactor this to remove drf package
+# flake8: noqa
+
 from django_elasticsearch_dsl_drf.constants import (
     LOOKUP_FILTER_TERMS,
     LOOKUP_FILTER_RANGE,
@@ -23,11 +26,12 @@ from django_elasticsearch_dsl_drf.filter_backends import (
     OrderingFilterBackend,
     SuggesterFilterBackend,
 )
-from django_elasticsearch_dsl_drf.viewsets import BaseDocumentViewSet, DocumentViewSet
+from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
 from django_elasticsearch_dsl_drf.pagination import PageNumberPagination
 
 from search.documents.paper import PaperDocument
 from search.serializers.paper import PaperDocumentSerializer
+
 
 class PaperDocumentView(DocumentViewSet):
     document = PaperDocument
