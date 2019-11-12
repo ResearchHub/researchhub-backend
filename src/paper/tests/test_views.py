@@ -7,7 +7,10 @@ from user.tests.helpers import (
     create_random_authenticated_user,
     create_random_authenticated_user_with_reputation
 )
-from utils.test_helpers import get_authenticated_delete_response
+from utils.test_helpers import (
+    get_authenticated_post_response,
+    get_authenticated_delete_response
+)
 
 
 class PaperViewsTests(TestCase):
@@ -21,6 +24,14 @@ class PaperViewsTests(TestCase):
         self.trouble_maker = create_random_authenticated_user('trouble_maker')
         self.flag = create_flag(created_by=self.user, paper=self.paper)
         self.flag_reason = 'Inappropriate'
+
+    def test_can_bookmark_paper(self):
+        response = self.get_bookmark_post_response(self.user)
+        self.assertContains(response, self.paper.title, status_code=201)
+
+    def test_can_delete_bookmark(self):
+        response = self.get_bookmark_delete_response(self.user)
+        self.assertContains(response, self.paper.id, status_code=200)
 
     def test_can_delete_flag(self):
         response = self.get_flag_delete_response(self.user)
@@ -38,6 +49,28 @@ class PaperViewsTests(TestCase):
 
     def test_delete_flag_responds_400_if_request_user_has_no_flag(self):
         pass
+
+    def get_bookmark_post_response(self, user):
+        url = self.base_url + f'{self.paper.id}/bookmark/'
+        data = None
+        response = get_authenticated_post_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+        return response
+
+    def get_bookmark_delete_response(self, user):
+        url = self.base_url + f'{self.paper.id}/bookmark/'
+        data = None
+        response = get_authenticated_delete_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+        return response
 
     def get_flag_delete_response(self, user):
         url = self.base_url + f'{self.paper.id}/flag/'
