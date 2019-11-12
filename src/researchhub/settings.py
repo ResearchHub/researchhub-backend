@@ -336,7 +336,10 @@ if PRODUCTION:
         'hosts': 'https://search-researchhub-es-dev-gk44gqpe2rvt4e4qmx4y6vl2qq.us-west-2.es.amazonaws.com',
     }
 
-# Used only for development purposes
-ELASTICSEARCH_AUTO_REINDEX_IN_DEVELOPMENT = os.environ.get(
-    'ELASTICSEARCH_AUTO_REINDEX'
-) or False
+ELASTICSEARCH_AUTO_REINDEX = not PRODUCTION and os.environ.get(
+    'ELASTICSEARCH_AUTO_REINDEX',
+    False
+)
+
+if PRODUCTION:
+    ELASTICSEARCH_AUTO_REINDEX = True
