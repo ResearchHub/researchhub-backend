@@ -1,8 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.dispatch import receiver
-from django.core.files.storage import FileSystemStorage
 from storages.backends.s3boto3 import S3Boto3Storage
+
 
 class User(AbstractUser):
     """
@@ -12,6 +12,10 @@ class User(AbstractUser):
     reputation = models.IntegerField(default=100)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+    bookmarks = models.ManyToManyField(
+        'paper.Paper',
+        related_name='users_who_bookmarked'
+    )
 
     def __str__(self):
         return self.email
@@ -61,7 +65,9 @@ class ProfileImageStorage(S3Boto3Storage):
         else:
             return super(ProfileImageStorage, self).url(name)
 
+
 fs = ProfileImageStorage()
+
 
 class Author(models.Model):
     user = models.OneToOneField(
