@@ -10,6 +10,7 @@ class User(AbstractUser):
         https://docs.djangoproject.com/en/2.2/ref/contrib/auth/#django.contrib.auth.models.User
     """
     reputation = models.IntegerField(default=100)
+    upload_tutorial_complete = models.BooleanField(default=False)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
