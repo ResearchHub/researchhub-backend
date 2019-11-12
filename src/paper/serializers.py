@@ -12,7 +12,7 @@ from utils.http import get_user_from_request
 from utils.voting import calculate_score
 from sentry_sdk import capture_exception, configure_scope
 
-from researchhub.settings import ELASTICSEARCH_DSL, PRODUCTION
+from researchhub.settings import ELASTICSEARCH_DSL
 
 import base64
 import requests
@@ -173,6 +173,11 @@ def index_pdf(base64_file, paper, serialized_paper):
                 capture_exception('Paper index failed')
     except Exception as e:
         print('Unable to index pdf:', e)
+
+
+class BookmarkSerializer(serializers.Serializer):
+    user = serializers.IntegerField()
+    bookmarks = PaperSerializer(many=True)
 
 
 class FlagSerializer(serializers.ModelSerializer):
