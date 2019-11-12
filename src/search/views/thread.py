@@ -1,3 +1,6 @@
+# TODO: Refactor this to remove drf package
+# flake8: noqa
+
 from django_elasticsearch_dsl_drf.constants import (
     LOOKUP_FILTER_TERMS,
     LOOKUP_FILTER_RANGE,
