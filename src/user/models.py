@@ -1,8 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.dispatch import receiver
-from django.core.files.storage import FileSystemStorage
 from storages.backends.s3boto3 import S3Boto3Storage
+
 
 class User(AbstractUser):
     """
@@ -61,7 +61,9 @@ class ProfileImageStorage(S3Boto3Storage):
         else:
             return super(ProfileImageStorage, self).url(name)
 
+
 fs = ProfileImageStorage()
+
 
 class Author(models.Model):
     user = models.OneToOneField(
@@ -83,6 +85,7 @@ class Author(models.Model):
     )
     profile_image = models.FileField(
         upload_to='uploads/author_profile_images/%Y/%m/%d',
+        max_length=1024,
         default=None,
         null=True,
         blank=True,
