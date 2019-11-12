@@ -13,22 +13,20 @@ from allauth.socialaccount.providers.oauth2.views import (
     PermissionDenied,
     RequestException
 )
-from allauth.utils import get_request_param
+from allauth.utils import get_request_param, get_user_model
 from allauth.account.signals import user_signed_up, user_logged_in
-
-from django.dispatch import receiver
+from allauth.account import app_settings
 
 from rest_auth.registration.views import SocialLoginView
-from rest_framework import serializers, status
-from rest_framework.response import Response
+from rest_framework import serializers
 from rest_framework.permissions import AllowAny
 
+from django.dispatch import receiver
 from django.http import HttpRequest
-from django.utils.decorators import method_decorator
 from django.utils.translation import ugettext_lazy as _
-from django.views.decorators.csrf import csrf_exempt
 
 from .helpers import complete_social_login
+from .exceptions import LoginError
 from researchhub.settings import GOOGLE_REDIRECT_URL
 
 
@@ -126,7 +124,7 @@ class SocialLoginSerializer(serializers.Serializer):
             )
             complete_social_login(request, login)
         except Exception as e:
-            print(e)
+            print(LoginError(e, 'Login failed'))
             raise serializers.ValidationError(_("Incorrect value"))
 
         if not login.is_existing:
@@ -134,14 +132,14 @@ class SocialLoginSerializer(serializers.Serializer):
             # with the same email address: raise an exception.
             # This needs to be handled in the frontend. We can not just
             # link up the accounts due to security constraints
-            if allauth_settings.UNIQUE_EMAIL:
+            if app_settings.UNIQUE_EMAIL:
                 # Do we have an account already with this email address?
                 account_exists = get_user_model().objects.filter(
                     email=login.user.email,
                 ).exists()
                 if account_exists:
                     raise serializers.ValidationError(
-                        _("User is already registered with this e-mail address.")
+                        _("User already registered with this e-mail address.")
                     )
 
             login.lookup()
@@ -210,10 +208,12 @@ class CallbackView(OAuth2CallbackView):
 google_login = OAuth2LoginView.adapter_view(GoogleOAuth2Adapter)
 google_callback = CallbackView.adapter_view(GoogleOAuth2Adapter)
 
+
 @receiver(user_signed_up)
 @receiver(user_logged_in)
 def user_signed_up_(request, user, **kwargs):
-    """ After a user signs up with social account, create a user profile for them"""
+    """After a user signs up with social account, set their profile image"""
+
     queryset = SocialAccount.objects.filter(
         provider='google',
         user=user
@@ -221,15 +221,17 @@ def user_signed_up_(request, user, **kwargs):
 
     if queryset.exists():
         if queryset.count() > 1:
-            # TODO: Make this exception more descriptive
             raise Exception(
-                f'Expected 1 item in the queryset. Found {num_accounts}.'
+                f'Expected 1 item in the queryset. Found {queryset.count()}.'
             )
+
         google_account = queryset.first()
         url = google_account.extra_data.get('picture', None)
+
         if user.author_profile and not user.author_profile.profile_image:
             user.author_profile.profile_image = url
             user.author_profile.save()
         return None
+
     else:
         return None
