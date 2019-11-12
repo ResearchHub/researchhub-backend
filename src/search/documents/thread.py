@@ -5,6 +5,7 @@ from researchhub.settings import (
     ELASTICSEARCH_AUTO_REINDEX,
     TESTING
 )
+from search.analyzers import title_analyzer
 from discussion.models import Thread
 
 
@@ -21,9 +22,13 @@ class ThreadDocument(Document):
         }
     )
     paper = es_fields.IntegerField(attr='paper_indexing')
-    paper_title = es_fields.StringField(attr='paper_title_indexing')
+    paper_title = es_fields.StringField(
+        attr='paper_title_indexing',
+        analyzer=title_analyzer
+    )
     score = es_fields.IntegerField(attr='score_indexing')
     text = es_fields.StringField(attr='text_indexing')
+    title = es_fields.StringField(analyzer=title_analyzer)
 
     class Index:
         name = 'discussion_thread'
@@ -32,7 +37,6 @@ class ThreadDocument(Document):
         model = Thread
         fields = [
             'id',
-            'title',
             'created_date',
             'updated_date',
             'is_public',
