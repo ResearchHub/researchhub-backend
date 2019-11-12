@@ -4,7 +4,7 @@ from django_elasticsearch_dsl.registries import registry
 
 from hub.models import Hub
 from researchhub.settings import (
-    ELASTICSEARCH_AUTO_REINDEX_IN_DEVELOPMENT,
+    ELASTICSEARCH_AUTO_REINDEX,
     TESTING
 )
 
@@ -28,11 +28,11 @@ class HubDocument(Document):
         # Ignore auto updating of Elasticsearch when a model is saved
         # or deleted:
         ignore_signals = (TESTING is True) or (
-            ELASTICSEARCH_AUTO_REINDEX_IN_DEVELOPMENT is False
+            ELASTICSEARCH_AUTO_REINDEX is False
         )
 
         # Don't perform an index refresh after every update (overrides global
         # setting):
         auto_refresh = (TESTING is False) or (
-            ELASTICSEARCH_AUTO_REINDEX_IN_DEVELOPMENT is True
+            ELASTICSEARCH_AUTO_REINDEX is True
         )
