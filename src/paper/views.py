@@ -18,7 +18,12 @@ from .permissions import (
     UpvotePaper,
     DownvotePaper
 )
-from .serializers import FlagSerializer, PaperSerializer, VoteSerializer
+from .serializers import (
+    BookmarkSerializer,
+    FlagSerializer,
+    PaperSerializer,
+    VoteSerializer
+)
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -29,7 +34,6 @@ class PaperViewSet(viewsets.ModelViewSet):
     filter_class = PaperFilter
     ordering = ('-uploaded_date')
 
-    # Optional attributes
     permission_classes = [
         IsAuthenticatedOrReadOnly
         & CreatePaper
@@ -50,6 +54,42 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper.moderators.add(*moderators)
         paper.save()
         return Response(PaperSerializer(paper).data)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[IsAuthenticatedOrReadOnly]
+    )
+    def bookmark(self, request, pk=None):
+        paper = self.get_object()
+        user = request.user
+
+        if paper in user.bookmarks.all():
+            return Response('Bookmark already added', status=400)
+        else:
+            user.bookmarks.add(paper)
+            user.save()
+            serialied = BookmarkSerializer({
+                'user': user.id,
+                'bookmarks': user.bookmarks.all()
+            })
+            return Response(serialied.data, status=201)
+
+    @bookmark.mapping.delete
+    def delete_bookmark(self, request, pk=None):
+        paper = self.get_object()
+        user = request.user
+
+        try:
+            user.bookmarks.remove(paper)
+            user.save()
+            return Response(paper.id, status=200)
+        except Exception as e:
+            print(e)
+            return Response(
+                f'Failed to remove {paper.id} from bookmarks',
+                status=400
+            )
 
     @action(
         detail=True,
