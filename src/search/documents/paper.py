@@ -5,6 +5,7 @@ from researchhub.settings import (
     ELASTICSEARCH_AUTO_REINDEX,
     TESTING
 )
+from search.analyzers import title_analyzer
 from paper.models import Paper
 
 
@@ -15,6 +16,8 @@ class PaperDocument(Document):
     hubs = es_fields.StringField(attr='hubs_indexing')
     score = es_fields.IntegerField(attr='score_indexing')
     summary = es_fields.StringField(attr='summary_indexing')
+    title = es_fields.StringField(analyzer=title_analyzer)
+    tagline = es_fields.StringField(analyzer=title_analyzer)
 
     class Index:
         name = 'paper'
@@ -26,8 +29,6 @@ class PaperDocument(Document):
             'doi',
             'paper_publish_date',
             'publication_type',
-            'tagline',
-            'title',
             'url',
         ]
 
