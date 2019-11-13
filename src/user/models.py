@@ -129,6 +129,15 @@ class Author(models.Model):
                 f'{university_city}')
 
     @property
+    def profile_image_indexing(self):
+        if self.profile_image is not None:
+            try:
+                return self.profile_image.url
+            except ValueError:
+                return str(self.profile_image)
+        return None
+
+    @property
     def university_indexing(self):
         if self.university is not None:
             return self.university
