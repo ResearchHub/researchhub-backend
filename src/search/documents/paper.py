@@ -9,6 +9,7 @@ from search.analyzers import title_analyzer
 from paper.models import Paper
 
 
+# @plugins.ingest_pdf  # Must execute after registry
 @registry.register_document
 class PaperDocument(Document):
     authors = es_fields.StringField(attr='authors_indexing')
