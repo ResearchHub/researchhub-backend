@@ -21,6 +21,7 @@ sentry-sdk = "*"
 django-elasticsearch-dsl = "*"
 django-elasticsearch-dsl-drf = "*"
 django-extensions = "*"
+smart-open = "*"
 
 [requires]
 python_version = "3.7"
