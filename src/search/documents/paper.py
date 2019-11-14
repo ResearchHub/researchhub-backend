@@ -1,16 +1,20 @@
 from django_elasticsearch_dsl import Document, fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 
+from paper.models import Paper
 from researchhub.settings import (
     ELASTICSEARCH_AUTO_REINDEX,
     TESTING
 )
 from search.analyzers import title_analyzer
-from paper.models import Paper
+from search.plugins import ingest_pdf_processor
 
 
-# @plugins.ingest_pdf  # Must execute after registry
-@registry.register_document
+def wrapper(document):
+    ingest_pdf_processor.attach(registry.register_document(document))
+
+
+@wrapper
 class PaperDocument(Document):
     authors = es_fields.StringField(attr='authors_indexing')
     discussion_count = es_fields.IntegerField(attr='discussion_count_indexing')
