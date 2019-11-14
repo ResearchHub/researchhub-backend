@@ -1,3 +1,4 @@
+from django.core.files import File
 from django.http import QueryDict
 import rest_framework.serializers as serializers
 
@@ -12,7 +13,7 @@ from utils.http import get_user_from_request
 from utils.voting import calculate_score
 from sentry_sdk import capture_exception, configure_scope
 
-from researchhub.settings import ELASTICSEARCH_DSL, PRODUCTION
+from researchhub.settings import ELASTICSEARCH_DSL
 
 import base64
 import requests
@@ -73,17 +74,24 @@ class PaperSerializer(serializers.ModelSerializer):
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
 
-        pdf = validated_data.get('file')
-        encoded_pdf = base64.b64encode(pdf.read())
-        pdf.seek(0)
+        file = validated_data.get('file', None)
+        if file is None:
+            file = self._get_file_from_url(validated_data)
+        # TODO: Fix file indexing
+        # if file is not None:
+        #     # encode file to be indexed
+        #     encoded_pdf = base64.b64encode(file.read())
+        #     file.seek(0)
 
         validated_data['uploaded_by'] = self.context['request'].user
         paper = super(PaperSerializer, self).create(validated_data)
 
-        index_pdf(encoded_pdf, paper, validated_data)
+        # index_pdf(encoded_pdf, paper, validated_data)
 
+        paper.file = file
         paper.authors.add(*authors)
         paper.hubs.add(*hubs)
+        paper.save()
 
         return paper
 
@@ -144,6 +152,14 @@ class PaperSerializer(serializers.ModelSerializer):
             except Vote.DoesNotExist:
                 pass
         return vote
+
+    def _get_file_from_url(self, url):
+        r = requests.head(url)
+        content_type = r.headers.get('content-type')
+        if 'application/pdf' in content_type:
+            return File(requests.get(url).content)
+        else:
+            raise ValueError('Content type did not contain application/pdf')
 
 
 def index_pdf(base64_file, paper, serialized_paper):
