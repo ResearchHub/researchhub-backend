@@ -252,7 +252,8 @@ def get_authenticated_post_response(
     user,
     url,
     data,
-    content_type='application/json'
+    content_type='application/json',
+    follow=False,
 ):
     '''
     Sends a post request authenticated with `user` and returns the response.
@@ -262,7 +263,7 @@ def get_authenticated_post_response(
         url,
         content_type
     )
-    response = client.post(url, data, format=content_format)
+    response = client.post(url, data, format=content_format, follow=follow)
     return response
 
 
