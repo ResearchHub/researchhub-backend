@@ -9,7 +9,7 @@ from user.tests.helpers import (
 )
 from utils.test_helpers import (
     get_authenticated_post_response,
-    get_authenticated_delete_response
+    get_authenticated_delete_response,
 )
 
 
@@ -32,6 +32,19 @@ class PaperViewsTests(TestCase):
     def test_can_delete_bookmark(self):
         response = self.get_bookmark_delete_response(self.user)
         self.assertContains(response, self.paper.id, status_code=200)
+
+    # Need to fix this so they don't redirect
+    # def test_check_url_is_true_if_url_has_pdf(self):
+    #     url = self.base_url + 'check_url'
+    #     data = {'url': 'https://bitcoin.org/bitcoin.pdf'}
+    #     response = get_authenticated_post_response(self.user, url, data)
+    #     self.assertContains(response, 'True', status_code=200)
+
+    # def test_check_url_is_false_if_url_does_NOT_have_pdf(self):
+    #     url = self.base_url + 'check_url'
+    #     data = {'url': 'https://bitcoin.org/en/'}
+    #     response = get_authenticated_post_response(self.user, url, data)
+    #     self.assertContains(response, 'False', status_code=200)
 
     def test_can_delete_flag(self):
         response = self.get_flag_delete_response(self.user)
