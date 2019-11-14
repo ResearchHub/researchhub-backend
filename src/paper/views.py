@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
+import requests
 
 from .filters import PaperFilter
 from .models import Flag, Paper, Vote
@@ -164,10 +165,18 @@ class PaperViewSet(viewsets.ModelViewSet):
         response = update_or_create_vote(user, paper, Vote.DOWNVOTE)
         return response
 
-    @action(
-        detail=False,
-        methods=['get'],
-    )
+    @action(detail=False, methods=['post'])
+    def check_url(self, request):
+        url = request.data.get('url', None)
+        r = requests.head(url)
+        content_type = r.headers.get('content-type')
+        result = False
+        if 'application/pdf' in content_type:
+            result = True
+        data = {'found_file': result}
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
     def get_hub_papers(self, request):
         start_date = datetime.datetime.fromtimestamp(
             int(request.GET['start_date__gte']),
