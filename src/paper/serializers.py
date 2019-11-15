@@ -1,6 +1,7 @@
-from django.core.files import File
+from django.core.files.base import ContentFile
 from django.http import QueryDict
 import rest_framework.serializers as serializers
+from rest_framework.exceptions import ValidationError
 
 from .models import Flag, Paper, Vote
 from hub.models import Hub
@@ -9,14 +10,17 @@ from discussion.serializers import ThreadSerializer
 from summary.serializers import SummarySerializer
 from hub.serializers import HubSerializer
 from user.serializers import AuthorSerializer, UserSerializer
-from utils.http import get_user_from_request
+from utils.http import (
+    get_user_from_request,
+    http_request,
+    RequestMethods as methods
+)
 from utils.voting import calculate_score
 from sentry_sdk import capture_exception, configure_scope
 
 from researchhub.settings import ELASTICSEARCH_DSL
 
 import base64
-import requests
 import json
 
 
@@ -73,21 +77,25 @@ class PaperSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
+        file = validated_data.pop('file')
 
-        file = validated_data.get('file', None)
-        if (type(file) is str):
-            self.check_url_contains_pdf(file)
+        validated_data['uploaded_by'] = self.context['request'].user
+        paper = super(PaperSerializer, self).create(validated_data)
 
         # TODO: Fix file indexing
         # if file is not None:
         #     # encode file to be indexed
         #     encoded_pdf = base64.b64encode(file.read())
         #     file.seek(0)
-
-        validated_data['uploaded_by'] = self.context['request'].user
-        paper = super(PaperSerializer, self).create(validated_data)
-
         # index_pdf(encoded_pdf, paper, validated_data)
+
+        if (type(file) is str):
+            self.check_url_contains_pdf(file)
+            pdf = self._get_pdf_from_url(file)
+            filename = file.split('/').pop()
+            paper.file.save(filename, pdf)
+        else:
+            paper.file = file
 
         if type(file) is str:
             paper.file = file
@@ -156,12 +164,21 @@ class PaperSerializer(serializers.ModelSerializer):
         return vote
 
     def check_url_contains_pdf(self, url):
-        r = requests.head(url)
-        content_type = r.headers.get('content-type')
+        try:
+            r = http_request(methods.HEAD, url)
+            content_type = r.headers.get('content-type')
+        except Exception as e:
+            raise ValidationError(f'Request to {url} failed: {e}')
+
         if 'application/pdf' not in content_type:
             raise ValueError(
                 f'Did not find content type application/pdf at {url}'
             )
+
+    def _get_pdf_from_url(self, url):
+        response = http_request(methods.GET, url)
+        pdf = ContentFile(response.content)
+        return pdf
 
 
 def index_pdf(base64_file, paper, serialized_paper):
