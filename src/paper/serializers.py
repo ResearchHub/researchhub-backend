@@ -95,8 +95,6 @@ class PaperSerializer(serializers.ModelSerializer):
         else:
             paper.file = file
 
-        if type(file) is str:
-            paper.file = file
         paper.authors.add(*authors)
         paper.hubs.add(*hubs)
         paper.save()
