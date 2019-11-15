@@ -1,3 +1,4 @@
+import json
 from django.core.files.base import ContentFile
 from django.http import QueryDict
 import rest_framework.serializers as serializers
@@ -19,9 +20,6 @@ from utils.voting import calculate_score
 from sentry_sdk import capture_exception, configure_scope
 
 from researchhub.settings import ELASTICSEARCH_DSL
-
-import base64
-import json
 
 
 class PaperSerializer(serializers.ModelSerializer):
@@ -75,15 +73,15 @@ class PaperSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
+        # Prepare validated_data by removing m2m and file for now
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
-
         validated_data['uploaded_by'] = self.context['request'].user
+
         paper = super(PaperSerializer, self).create(validated_data)
 
-        # TODO: Add file indexing
-
+        # Add back file after processing
         if (type(file) is str):
             self.check_url_contains_pdf(file)
 
@@ -95,10 +93,11 @@ class PaperSerializer(serializers.ModelSerializer):
         else:
             paper.file = file
 
+        # Now add m2m values properly
         paper.authors.add(*authors)
         paper.hubs.add(*hubs)
-        paper.save()
 
+        paper.save(update_fields=['file'])  # m2m fields not allowed
         return paper
 
     def update(self, instance, validated_data):
@@ -107,11 +106,11 @@ class PaperSerializer(serializers.ModelSerializer):
 
         paper = super(PaperSerializer, self).update(instance, validated_data)
 
-        # TODO: Reindex the pdf if file changes
-
         instance.authors.add(*authors)
         instance.hubs.add(*hubs)
 
+        update_fields = [field for field in validated_data]
+        paper.save(update_fields=update_fields)  # m2m fields not allowed
         return paper
 
     def get_authors(self, obj):
