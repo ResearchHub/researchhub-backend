@@ -19,7 +19,33 @@ class IngestPdfPipeline:
         self._build_pipeline_if_not_exists()
         self.index = index
 
-    def attach_pdf_to_document(self, index, paper):
+    def attach_all(self):
+        """Encodes all paper files and adds them to Elasticsearch.
+
+        Loops through all papers regardless of failures.
+        """
+        for paper in Paper.objects.all():
+            self.attach_pdf_to_document(paper)
+
+    def attach_paper_pdf_by_id(self, paper_id):
+        """Encodes the paper file and adds it to Elasticsearch.
+
+        Arguments:
+            paper_id (int) -- id of Paper object to get and add the pdf
+
+        Return:
+            response (requests.Response) -- result of attachment put request
+
+        """
+        paper = None
+        try:
+            paper = Paper.objects.get(pk=paper_id)
+        except Paper.DoesNotExist as e:
+            print(ElasticsearchPluginError(e))
+            return
+        return self.attach_paper_pdf(paper)
+
+    def attach_paper_pdf(self, paper):
         """Encodes the `paper` file and adds it to Elasticsearch.
 
         Arguments:
@@ -42,6 +68,9 @@ class IngestPdfPipeline:
             headers,
             'Failed to index pdf'
         )
+
+    def delete(self):
+        return http_request(methods.DELETE, self.url)
 
     def encode_file(self, url):
         with smart_open.open(url, 'rb') as f:
