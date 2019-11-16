@@ -3,7 +3,7 @@ import requests
 import json
 
 from django.core.exceptions import ImproperlyConfigured
-from smart_open import open
+import smart_open
 
 from .exceptions import ElasticsearchPluginError
 from paper.models import Paper
@@ -13,23 +13,23 @@ from utils.http import http_request, RequestMethods as methods
 
 
 class IngestPdfPipeline:
-    def __init__(self):
+    def __init__(self, index):
         self.host = ELASTICSEARCH_DSL.get('default').get('hosts')
         self.url = self.host + f'/_ingest/pipeline/pdf'
         self._build_pipeline_if_not_exists()
+        self.index = index
 
     def attach_pdf_to_document(self, index, paper):
         """Encodes the `paper` file and adds it to Elasticsearch.
 
         Arguments:
-            index (str) -- name of the index where the document is located
             paper (obj) -- Paper object to get and add the pdf
 
         Return:
             response (requests.Response) -- result of attachment put request
 
         """
-        url = self.host + f'/{index}/_doc/{paper.id}?pipeline=pdf'
+        url = self.host + f'/{self.index}/_doc/{paper.id}?pipeline=pdf'
         pdf = self.encode_file(paper.file.url)
         data = {
             'filename': paper.file.name,
@@ -44,7 +44,7 @@ class IngestPdfPipeline:
         )
 
     def encode_file(self, url):
-        with open(url, 'rb') as f:
+        with smart_open.open(url, 'rb') as f:
             return base64.b64encode(f.read())
 
     def _build_pipeline_if_not_exists(self):
@@ -96,4 +96,4 @@ class IngestPdfPipeline:
             raise ElasticsearchPluginError(e, error_message)
 
 
-pdf_pipeline = IngestPdfPipeline()
+pdf_pipeline = IngestPdfPipeline('paper')
