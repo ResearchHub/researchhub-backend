@@ -7,14 +7,9 @@ from researchhub.settings import (
     TESTING
 )
 from search.analyzers import title_analyzer
-from search.plugins import ingest_pdf_processor
 
 
-def wrapper(document):
-    ingest_pdf_processor.attach(registry.register_document(document))
-
-
-@wrapper
+@registry.register_document
 class PaperDocument(Document):
     authors = es_fields.StringField(attr='authors_indexing')
     discussion_count = es_fields.IntegerField(attr='discussion_count_indexing')
