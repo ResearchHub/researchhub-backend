@@ -18,6 +18,8 @@ def get_user_from_request(ctx):
 
 
 def http_request(method, *args, timeout=1, **kwargs):
+    if method == RequestMethods.DELETE:
+        return requests.delete(*args, timeout=timeout, **kwargs)
     if method == RequestMethods.HEAD:
         return requests.head(*args, timeout=timeout, **kwargs)
     if method == RequestMethods.GET:
