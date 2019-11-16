@@ -225,6 +225,7 @@ class IntegrationTestHelper(TestData):
 
 
 def bytes_to_json(data_bytes):
+    """Returns `json_dict` representation of `data_bytes`."""
     data_string = data_bytes.decode('utf-8')
     json_dict = json.loads(data_string)
     return json_dict
