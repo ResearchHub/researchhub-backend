@@ -24,3 +24,5 @@ def http_request(method, *args, timeout=1, **kwargs):
         return requests.get(*args, timeout=timeout, **kwargs)
     if method == RequestMethods.POST:
         return requests.post(*args, timeout=timeout, **kwargs)
+    if method == RequestMethods.PUT:
+        return requests.put(*args, timeout=timeout, **kwargs)
