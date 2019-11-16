@@ -14,10 +14,7 @@ def attach_file_to_document(
     **kwargs
 ):
     if not created and check_file_updated(update_fields):
-        response = pdf_pipeline.attach_pdf_to_document(
-            'paper',
-            instance
-        )
+        response = pdf_pipeline.attach_paper_pdf(instance)
         return response.ok
 
 

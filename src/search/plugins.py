@@ -25,7 +25,7 @@ class IngestPdfPipeline:
         Loops through all papers regardless of failures.
         """
         for paper in Paper.objects.all():
-            self.attach_pdf_to_document(paper)
+            self.attach_paper_pdf(paper)
 
     def attach_paper_pdf_by_id(self, paper_id):
         """Encodes the paper file and adds it to Elasticsearch.
