@@ -88,9 +88,9 @@ class PaperSerializer(serializers.ModelSerializer):
         return paper
 
     def update(self, instance, validated_data):
-        authors = validated_data.pop('authors')
-        hubs = validated_data.pop('hubs')
-        file = validated_data.pop('file')
+        authors = validated_data.pop('authors', [None])
+        hubs = validated_data.pop('hubs', [None])
+        file = validated_data.pop('file', None)
 
         update_fields = [field for field in validated_data]
 
