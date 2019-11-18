@@ -164,7 +164,7 @@ class PaperSerializer(serializers.ModelSerializer):
 
     def check_url_contains_pdf(self, url):
         try:
-            r = http_request(methods.HEAD, url)
+            r = http_request(methods.HEAD, url, timeout=3)
             content_type = r.headers.get('content-type')
         except Exception as e:
             raise ValidationError(f'Request to {url} failed: {e}')
@@ -177,7 +177,7 @@ class PaperSerializer(serializers.ModelSerializer):
             return True
 
     def _get_pdf_from_url(self, url):
-        response = http_request(methods.GET, url)
+        response = http_request(methods.GET, url, timeout=3)
         pdf = ContentFile(response.content)
         return pdf
 
