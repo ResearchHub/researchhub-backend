@@ -109,6 +109,7 @@ class IngestPdfPipeline:
                 methods.PUT,
                 url,
                 json.dumps(data),
+                timeout=2,
                 headers=headers
             )
             if not response.ok:

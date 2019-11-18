@@ -1,4 +1,3 @@
-import json
 from django.core.files.base import ContentFile
 from django.http import QueryDict
 import rest_framework.serializers as serializers
@@ -17,9 +16,6 @@ from utils.http import (
     RequestMethods as methods
 )
 from utils.voting import calculate_score
-from sentry_sdk import capture_exception, configure_scope
-
-from researchhub.settings import ELASTICSEARCH_DSL
 
 
 class PaperSerializer(serializers.ModelSerializer):
@@ -73,29 +69,20 @@ class PaperSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
+        validated_data['uploaded_by'] = self.context['request'].user
+
         # Prepare validated_data by removing m2m and file for now
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
-        validated_data['uploaded_by'] = self.context['request'].user
 
         paper = super(PaperSerializer, self).create(validated_data)
-
-        # Add back file after processing
-        if (type(file) is str):
-            self.check_url_contains_pdf(file)
-
-            paper.url = file
-
-            pdf = self._get_pdf_from_url(file)
-            filename = file.split('/').pop()
-            paper.file.save(filename, pdf)
-        else:
-            paper.file = file
 
         # Now add m2m values properly
         paper.authors.add(*authors)
         paper.hubs.add(*hubs)
+
+        self._add_file(paper, file)
 
         paper.save(update_fields=['file'])  # m2m fields not allowed
         return paper
@@ -103,13 +90,19 @@ class PaperSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
+        file = validated_data.pop('file')
+
+        update_fields = [field for field in validated_data]
 
         paper = super(PaperSerializer, self).update(instance, validated_data)
 
-        instance.authors.add(*authors)
-        instance.hubs.add(*hubs)
+        paper.authors.add(*authors)
+        paper.hubs.add(*hubs)
 
-        update_fields = [field for field in validated_data]
+        if file:
+            update_fields.append('file')
+            self._add_file(paper, file)
+
         paper.save(update_fields=update_fields)  # m2m fields not allowed
         return paper
 
@@ -159,7 +152,19 @@ class PaperSerializer(serializers.ModelSerializer):
                 pass
         return vote
 
-    def check_url_contains_pdf(self, url):
+    def _add_file(self, paper, file):
+        if (type(file) is str):
+            self._check_url_contains_pdf(file)
+
+            paper.url = file
+
+            pdf = self._get_pdf_from_url(file)
+            filename = file.split('/').pop()
+            paper.file.save(filename, pdf)
+        else:
+            paper.file = file
+
+    def _check_url_contains_pdf(self, url):
         try:
             r = http_request(methods.HEAD, url, timeout=3)
             content_type = r.headers.get('content-type')
@@ -177,35 +182,6 @@ class PaperSerializer(serializers.ModelSerializer):
         response = http_request(methods.GET, url, timeout=3)
         pdf = ContentFile(response.content)
         return pdf
-
-
-def index_pdf(base64_file, paper, serialized_paper):
-    """
-    Indexes PDF in elastic search
-    """
-    es_host = ELASTICSEARCH_DSL.get('default').get('hosts')
-    data = {
-        "filename": "{}.pdf".format(paper.title),
-        "data": base64_file.decode('utf-8')
-    }
-    headers = {
-        'Content-Type': 'application/json'
-    }
-
-    try:
-        re = requests.put(
-            es_host + '/papers/_doc/{}?pipeline=pdf'.format(paper.id),
-            data=json.dumps(data),
-            headers=headers
-        )
-        if not re.ok:
-            with configure_scope() as scope:
-                for k in serialized_paper:
-                    scope.set_extra(k, serialized_paper[k])
-                scope.set_extra('req_error', re.text)
-                capture_exception('Paper index failed')
-    except Exception as e:
-        print('Unable to index pdf:', e)
 
 
 class BookmarkSerializer(serializers.Serializer):
