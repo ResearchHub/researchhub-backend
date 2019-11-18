@@ -14,7 +14,9 @@ class CombinedView(ListAPIView):
     filter_backends = [ElasticsearchFuzzyFilter]
 
     search_fields = [
+        'doi',
         'title',
+        'tagline',
         'text',
         'first_name',
         'last_name',
