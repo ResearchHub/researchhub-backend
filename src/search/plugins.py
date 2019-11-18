@@ -1,8 +1,6 @@
 import base64
-import requests
 import json
 
-from django.core.exceptions import ImproperlyConfigured
 import smart_open
 
 from .exceptions import ElasticsearchPluginError
