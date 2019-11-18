@@ -70,6 +70,7 @@ class IngestPdfPipeline:
         )
 
     def delete(self):
+        """Deletes the pipeline from Elasticsearch"""
         return http_request(methods.DELETE, self.url)
 
     def encode_file(self, url):
