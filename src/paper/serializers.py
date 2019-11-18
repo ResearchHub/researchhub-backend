@@ -82,15 +82,13 @@ class PaperSerializer(serializers.ModelSerializer):
         validated_data['uploaded_by'] = self.context['request'].user
         paper = super(PaperSerializer, self).create(validated_data)
 
-        # TODO: Fix file indexing
-        # if file is not None:
-        #     # encode file to be indexed
-        #     encoded_pdf = base64.b64encode(file.read())
-        #     file.seek(0)
-        # index_pdf(encoded_pdf, paper, validated_data)
+        # TODO: Add file indexing
 
         if (type(file) is str):
             self.check_url_contains_pdf(file)
+
+            paper.url = file
+
             pdf = self._get_pdf_from_url(file)
             filename = file.split('/').pop()
             paper.file.save(filename, pdf)
@@ -110,7 +108,8 @@ class PaperSerializer(serializers.ModelSerializer):
         hubs = validated_data.pop('hubs')
 
         paper = super(PaperSerializer, self).update(instance, validated_data)
-        # TODO: Reindex the pdf
+
+        # TODO: Reindex the pdf if file changes
 
         instance.authors.add(*authors)
         instance.hubs.add(*hubs)
@@ -174,6 +173,8 @@ class PaperSerializer(serializers.ModelSerializer):
             raise ValueError(
                 f'Did not find content type application/pdf at {url}'
             )
+        else:
+            return True
 
     def _get_pdf_from_url(self, url):
         response = http_request(methods.GET, url)
