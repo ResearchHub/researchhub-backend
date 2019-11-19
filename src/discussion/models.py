@@ -118,6 +118,7 @@ class BaseComment(models.Model):
     votes = GenericRelation(Vote)
     flags = GenericRelation(Flag)
     endorsement = GenericRelation(Endorsement)
+    plain_text = models.TextField(default='', blank=True)
 
     class Meta:
         abstract = True
