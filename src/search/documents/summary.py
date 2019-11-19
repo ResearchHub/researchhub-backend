@@ -5,18 +5,13 @@ from researchhub.settings import (
     ELASTICSEARCH_AUTO_REINDEX,
     TESTING
 )
-from summary.models import Summary
 
+from summary.models import Summary
+from search.analyzers import title_analyzer
 
 # @registry.register_document  # Do we need summaries independent of papers?
 class SummaryDocument(Document):
-    summary = es_fields.StringField(
-        attr='summary_indexing',
-        fields={
-            'raw': es_fields.StringField(analyzer='keyword', multi=True),
-            'suggest': es_fields.CompletionField(multi=True),
-        },
-    )
+    summary_plain_text = es_fields.StringField(analyzer=title_analyzer)
     proposed_by = es_fields.ObjectField()
     previous = es_fields.ObjectField()
     paper = es_fields.ObjectField()

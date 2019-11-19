@@ -71,6 +71,7 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
             'updated_date',
             'user_vote',
             'was_edited',
+            'plain_text',
         ]
         read_only_fields = [
             'is_public',
@@ -106,6 +107,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
             'updated_date',
             'user_vote',
             'was_edited',
+            'plain_text',
         ]
         read_only_fields = [
             'is_public',
@@ -163,6 +165,7 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
             'score',
             'user_vote',
             'was_edited',
+            'plain_text',
         ]
         read_only_fields = [
             'is_public',
