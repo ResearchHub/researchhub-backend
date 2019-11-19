@@ -9,7 +9,6 @@ class ThreadDocumentSerializer(serializers.ModelSerializer):
     paper = serializers.SerializerMethodField()
     paper_title = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
-    text = serializers.SerializerMethodField()
 
     class Meta(object):
         model = Thread
@@ -23,9 +22,9 @@ class ThreadDocumentSerializer(serializers.ModelSerializer):
             'paper',
             'paper_title',
             'score',
-            'text',
             'title',
             'updated_date',
+            'plain_text',
         ]
         read_only_fields = fields
 

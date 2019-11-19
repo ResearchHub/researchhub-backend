@@ -12,7 +12,6 @@ class SummaryDocumentSerializer(
         model = Summary
         fields = [
             'id',
-            'summary',
             'summary_plain_text',
             # 'proposed_by',
             # 'previous',

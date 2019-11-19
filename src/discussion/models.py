@@ -118,6 +118,7 @@ class BaseComment(models.Model):
     votes = GenericRelation(Vote)
     flags = GenericRelation(Flag)
     endorsement = GenericRelation(Endorsement)
+    plain_text = models.TextField(default='', blank=True)
 
     class Meta:
         abstract = True
@@ -133,10 +134,6 @@ class BaseComment(models.Model):
     @property
     def score_indexing(self):
         return self.calculate_score()
-
-    @property
-    def text_indexing(self):
-        return str(self.text)
 
     def calculate_score(self):
         upvotes = self.votes.filter(vote_type=Vote.UPVOTE)
