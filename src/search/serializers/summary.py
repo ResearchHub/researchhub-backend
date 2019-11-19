@@ -6,7 +6,7 @@ from summary.models import Summary
 class SummaryDocumentSerializer(
     serializers.ModelSerializer,
 ):
-    summary = serializers.SerializerMethodField()
+    summary_plain_text = serializers.SerializerMethodField()
 
     class Meta(object):
         model = Summary
@@ -26,3 +26,6 @@ class SummaryDocumentSerializer(
 
     def get_summary(self, obj):
         return obj.summary
+
+    def get_summary_plain_text(self, document):
+        return document.summary_plain_text
