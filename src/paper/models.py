@@ -8,7 +8,7 @@ from utils.voting import calculate_score
 
 
 class Paper(models.Model):
-    title = models.CharField(max_length=255)
+    title = models.CharField(max_length=1024)
     uploaded_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -44,9 +44,7 @@ class Paper(models.Model):
         on_delete='SET NULL'
     )
     file = models.FileField(upload_to='uploads/papers/%Y/%m/%d')
-    tagline = models.CharField(
-        max_length=255,
-        default=None,
+    tagline = models.TextField(
         null=True,
         blank=True
     )

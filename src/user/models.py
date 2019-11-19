@@ -82,9 +82,7 @@ class Author(models.Model):
     last_name = models.CharField(max_length=150)  # Same max_length as User
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
-    description = models.CharField(
-        max_length=255,
-        default=None,
+    description = models.TextField(
         null=True,
         blank=True
     )
