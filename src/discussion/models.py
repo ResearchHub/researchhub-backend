@@ -135,10 +135,6 @@ class BaseComment(models.Model):
     def score_indexing(self):
         return self.calculate_score()
 
-    @property
-    def text_indexing(self):
-        return str(self.text)
-
     def calculate_score(self):
         upvotes = self.votes.filter(vote_type=Vote.UPVOTE)
         downvotes = self.votes.filter(vote_type=Vote.DOWNVOTE)

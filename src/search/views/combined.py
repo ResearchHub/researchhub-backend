@@ -17,12 +17,12 @@ class CombinedView(ListAPIView):
         'doi',
         'title',
         'tagline',
-        'text',
         'first_name',
         'last_name',
         'authors',
         'name',
-        'summary',
+        'summary_plain_text',
+        'plain_text',
     ]
 
     def __init__(self, *args, **kwargs):

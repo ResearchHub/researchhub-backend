@@ -27,7 +27,7 @@ class ThreadDocument(Document):
         analyzer=title_analyzer
     )
     score = es_fields.IntegerField(attr='score_indexing')
-    text = es_fields.StringField(attr='text_indexing')
+    plain_text = es_fields.StringField()
     title = es_fields.StringField(analyzer=title_analyzer)
 
     class Index:
