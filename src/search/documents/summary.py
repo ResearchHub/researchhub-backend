@@ -11,7 +11,7 @@ from search.analyzers import title_analyzer
 
 # @registry.register_document  # Do we need summaries independent of papers?
 class SummaryDocument(Document):
-    summary_plain_text = es_fields.StringField(attr=title_analyzer)
+    summary_plain_text = es_fields.StringField(analyzer=title_analyzer)
     proposed_by = es_fields.ObjectField()
     previous = es_fields.ObjectField()
     paper = es_fields.ObjectField()
