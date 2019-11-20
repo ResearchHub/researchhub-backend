@@ -31,23 +31,23 @@ class PaperDocumentSerializer(serializers.ModelSerializer):
             'url',
         ]
 
-        def get_authors(self, document):
-            return document.authors
+    def get_authors(self, document):
+        return document.authors
 
-        def get_discussion_count(self, document):
-            return document.discussion_count
+    def get_discussion_count(self, document):
+        return document.discussion_count
 
-        def get_hubs(self, document):
-            return document.hubs
+    def get_hubs(self, document):
+        return document.hubs
 
-        def get_score(self, document):
-            return document.score
+    def get_score(self, document):
+        return document.score
 
-        def get_summary(self, document):
-            return document.summary
+    def get_summary(self, document):
+        return document.summary
 
-        def get_title(self, document):
-            return document.title
+    def get_title(self, document):
+        return document.title
 
-        def get_tagline(self, document):
-            return document.tagline
+    def get_tagline(self, document):
+        return document.tagline
