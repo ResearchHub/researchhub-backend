@@ -35,6 +35,8 @@ class UserViewSet(viewsets.ModelViewSet):
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = University.objects.all()
     serializer_class = UniversitySerializer
+    filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
+    search_fields = ('name', 'city', 'state', 'country')
     permission_classes = [AllowAny]
 
 
