@@ -2,7 +2,7 @@
 from django_elasticsearch_dsl_drf.serializers import DocumentSerializer
 from rest_framework import serializers
 
-from search.documents.paper import PaperDocument
+from paper.models import Paper
 
 
 class PaperDocumentSerializer(serializers.ModelSerializer):
@@ -15,6 +15,7 @@ class PaperDocumentSerializer(serializers.ModelSerializer):
     tagline = serializers.SerializerMethodField()
 
     class Meta(object):
+        model = Paper
         fields = [
             'id',
             'authors',
