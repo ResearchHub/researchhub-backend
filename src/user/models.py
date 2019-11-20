@@ -153,3 +153,14 @@ class Author(models.Model):
         if self.university is not None:
             return self.university
         return None
+
+
+class Wallet(models.Model):
+    user = models.OneToOneField(
+        User,
+        related_name='wallet',
+        on_delete=models.CASCADE
+    )
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
+    passphrase = models.TextField()
