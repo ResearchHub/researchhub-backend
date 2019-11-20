@@ -137,6 +137,7 @@ INSTALLED_APPS = [
 
     # Custom apps
     'discussion',
+    'ethereum',
     'hub',
     'oauth',
     'paper',
@@ -355,3 +356,20 @@ ELASTICSEARCH_AUTO_REINDEX = not PRODUCTION and os.environ.get(
 
 if PRODUCTION:
     ELASTICSEARCH_AUTO_REINDEX = True
+
+
+# WEB3
+# https://web3py.readthedocs.io/en/stable/
+
+WEB3_PROVIDER_URI = os.environ.get(
+    'INFURA_ENDPOINT',
+    keys.INFURA_RINKEBY_ENDPOINT
+)
+WEB3_INFURA_PROJECT_ID = os.environ.get(
+    'INFURA_PROJECT_ID',
+    keys.INFURA_PROJECT_ID
+)
+WEB3_INFURA_API_SECRET = os.environ.get(
+    'INFURA_PROJECT_SECRET',
+    keys.INFURA_PROJECT_SECRET
+)
