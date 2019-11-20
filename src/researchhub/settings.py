@@ -358,7 +358,7 @@ if PRODUCTION:
     ELASTICSEARCH_AUTO_REINDEX = True
 
 
-# WEB3
+# Web3
 # https://web3py.readthedocs.io/en/stable/
 
 WEB3_PROVIDER_URI = os.environ.get(
