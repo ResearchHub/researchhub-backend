@@ -11,3 +11,10 @@ class UpdateAuthor(AuthorizationBasedPermission):
         ) or (request.method == RequestMethods.DELETE):
             return request.user == obj.user
         return True
+
+
+class IsWalletOwner(AuthorizationBasedPermission):
+    message = 'Action not permitted.'
+
+    def is_authorized(self, request, view, obj):
+        return request.user == obj.user
