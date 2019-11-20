@@ -42,6 +42,10 @@ Create a local postgres db called `researchhub`
 
 ### ELASTICSEARCH
 
+EASY RUN: `./start-es.sh`
+
+
+
 In a new shell, pull the Elasticsearch docker image
 
 `$ docker pull docker.elastic.co/elasticsearch/elasticsearch:7.4.1`
