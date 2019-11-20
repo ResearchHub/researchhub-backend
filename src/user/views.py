@@ -1,12 +1,25 @@
 from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticatedOrReadOnly, AllowAny
+from rest_framework.permissions import (
+    AllowAny,
+    IsAdminUser,
+    IsAuthenticatedOrReadOnly,
+    IsAuthenticated
+)
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.decorators import action
+from rest_framework.decorators import (
+    action,
+    permission_classes as permission_classes_decorator
+)
 from rest_framework.response import Response
 
 from .models import User, University, Author, EmailPreference
-from .serializers import UserSerializer, UniversitySerializer, AuthorSerializer, EmailPreferenceSerializer
+from .serializers import (
+    AuthorSerializer,
+    EmailPreferenceSerializer,
+    UserSerializer,
+    UniversitySerializer
+)
 from .filters import AuthorFilter
 from .permissions import UpdateAuthor
 from paper.models import Paper
