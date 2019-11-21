@@ -1,4 +1,3 @@
-# TODO: Refactor to remove drf
 from django_elasticsearch_dsl_drf.serializers import DocumentSerializer
 
 from search.documents.paper import PaperDocument
