@@ -3,14 +3,11 @@ from rest_framework.permissions import (
     AllowAny,
     IsAdminUser,
     IsAuthenticatedOrReadOnly,
-    IsAuthenticated
+    IsAuthenticated,
 )
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.decorators import (
-    action,
-    permission_classes as permission_classes_decorator
-)
+from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .models import User, University, Author, EmailPreference
@@ -21,7 +18,7 @@ from .serializers import (
     UniversitySerializer
 )
 from .filters import AuthorFilter
-from .permissions import UpdateAuthor
+from .permissions import IsWalletOwner, UpdateAuthor
 from paper.models import Paper
 from paper.serializers import PaperSerializer
 from discussion.models import Comment, Reply, Thread
