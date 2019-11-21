@@ -11,18 +11,18 @@ class UniversitySerializer(rest_framework_serializers.ModelSerializer):
 
 
 class AuthorSerializer(rest_framework_serializers.ModelSerializer):
-    university = UniversitySerializer(required=False)
+    university = UniversitySerializer
     reputation = rest_framework_serializers.SerializerMethodField()
 
     class Meta:
         model = Author
-        fields = '__all__'
+        fields = [field.name for field in Author._meta.fields] + ['university', 'reputation']
 
     def get_reputation(self, obj):
         if obj.user == None:
             return 0
         return obj.user.reputation
-
+        
 
 class UserSerializer(rest_framework_serializers.ModelSerializer):
     author_profile = AuthorSerializer()
