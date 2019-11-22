@@ -7,7 +7,7 @@ class SoftDeletableModel(models.Model):
     """Adapted from https://github.com/jazzband/django-model-utils"""
 
     is_removed = models.BooleanField(default=False)
-    is_removed_date = models.DateTimeField()
+    is_removed_date = models.DateTimeField(default=None, null=True, blank=True)
 
     class Meta:
         abstract = True
