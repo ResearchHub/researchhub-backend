@@ -16,7 +16,7 @@ class ReputationViewsTests(APITestCase):
         user_withdrawals = len(user.withdrawals.all())
         response = self.get_withdrawals_get_response(user)
         self.assertGreater(self.all_withdrawals, user_withdrawals)
-        self.assertContains(response, '"results": []', status_code=200)
+        self.assertContains(response, '"results":[]', status_code=200)
 
     def get_withdrawals_get_response(self, user):
         url = '/api/withdrawal/'
