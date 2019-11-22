@@ -13,19 +13,13 @@ class SummaryDocumentSerializer(
         fields = [
             'id',
             'summary_plain_text',
-            # 'proposed_by',
-            # 'previous',
-            # 'paper',
+            'paper',
             'approved',
-            # 'approved_by',
             'approved_date',
             'created_date',
             'updated_date',
         ]
         read_only_fields = fields
-
-    def get_summary(self, obj):
-        return obj.summary
 
     def get_summary_plain_text(self, document):
         return document.summary_plain_text
