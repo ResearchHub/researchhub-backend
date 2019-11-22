@@ -7,7 +7,14 @@ from utils.permissions import ReadOnly
 
 
 class CombinedView(ListAPIView):
-    indices = ['paper', 'author', 'discussion_thread', 'hub', 'university']
+    indices = [
+        'paper',
+        'author',
+        'discussion_thread',
+        'hub',
+        'summary',
+        'university'
+    ]
     serializer_class = CombinedSerializer
 
     permission_classes = [ReadOnly]

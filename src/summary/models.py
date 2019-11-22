@@ -50,5 +50,16 @@ class Summary(models.Model):
         self.save()
 
     @property
-    def summary_indexing(self):
-        return str(self.summary)
+    def paper_indexing(self):
+        return self.paper.id
+
+    @property
+    def paper_title_indexing(self):
+        return self.paper.title
+
+    @property
+    def proposed_by_indexing(self):
+        return (
+            f'{self.proposed_by.author_profile.first_name}'
+            f' {self.proposed_by.author_profile.last_name}'
+        )
