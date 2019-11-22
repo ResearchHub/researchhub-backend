@@ -3,9 +3,10 @@ from django.db import models
 
 import reputation.distributions as distributions
 from user.models import User
+from utils.models import SoftDeletableModel
 
 
-class Distribution(models.Model):
+class Distribution(SoftDeletableModel):
     DISTRIBUTION_TYPE_CHOICES = [
         (distributions.CreatePaper.name, distributions.CreatePaper.name),
         (
@@ -52,3 +53,28 @@ class Distribution(models.Model):
             f' Recipient: {self.recipient},'
             f' Amount: {self.amount}'
         )
+
+
+class Withdrawal(SoftDeletableModel):
+    # TOKEN_ADDRESS_CHOICES = ethereum.lib.TOKEN_ADDRESS_CHOICES
+
+    user = models.ForeignKey(
+        User,
+        related_name='withdrawals',
+        on_delete=models.SET_NULL,
+        null=True
+    )
+    # token_address = models.CharField(max_length=255, choices=TOKEN_ADDRESS_CHOICES)
+    amount_integer_part = models.BigIntegerField()
+    amount_decimal_part = models.BigIntegerField()
+    from_address = models.CharField(max_length=255)
+    to_address = models.CharField(max_length=255)
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
+    paid_date = models.DateTimeField(default=None, null=True)
+    is_paid = models.BooleanField(default=False)
+    transaction_hash = models.CharField(
+        default='',
+        blank=True,
+        max_length=255
+    )
