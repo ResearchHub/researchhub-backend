@@ -1,37 +1,46 @@
+import os
 from django.apps import AppConfig
+from web3 import Web3
+
+from researchhub.settings import BASE_DIR, WEB3_PROVIDER_URL
+from config import wallet
 
 
 class EthereumConfig(AppConfig):
     name = 'ethereum'
 
-    def ready(self):
-        import os
-        self._os = os
-        self.configureWeb3()
-        self.setDefaultPrivateKey()
 
-    def configureWeb3(self):
-        from researchhub.settings import WEB3_INFURA_PROJECT_ID
+class ConfigureWeb3:
+    def __init__(self):
+        self.w3 = self.configure_Web3()
+        self.DEFAULT_PRIVATE_KEY = self.get_default_private_key()
+        self.DEFAULT_ADDRESS = self.get_default_address()
 
-        # Set the environment variable before w3 import so it can auto connect
-        self._os.environ['WEB3_INFURA_PROJECT_ID'] = WEB3_INFURA_PROJECT_ID
-
-        from web3.auto.infura import w3
+    def configure_Web3(self):
+        w3 = Web3(Web3.HTTPProvider(WEB3_PROVIDER_URL))
         if (w3.isConnected()):
-            self.w3 = w3
             print('web3 connected to', w3.clientVersion)
+            return w3
 
-    def setDefaultPrivateKey(self):
-        from researchhub.settings import BASE_DIR
-        from config import wallet
-        path = self._os.path.join(
+    def get_default_private_key(self):
+        path = os.path.join(
             BASE_DIR,
             'config',
             wallet.KEYSTORE_FILE
         )
         with open(path) as keyfile:
             encrypted_key = keyfile.read()
-            self.DEFAULT_PRIVATE_KEY = self.w3.eth.account.decrypt(
+            return self.w3.eth.account.decrypt(
                 encrypted_key,
                 wallet.KEYSTORE_PASSWORD
             )
+
+    def get_default_address(self):
+        return self.w3.eth.account.from_key(self.DEFAULT_PRIVATE_KEY).address
+
+
+web3_config = ConfigureWeb3()
+
+w3 = web3_config.w3
+DEFAULT_PRIVATE_KEY = web3_config.DEFAULT_PRIVATE_KEY
+DEFAULT_ADDRESS = web3_config.DEFAULT_ADDRESS
