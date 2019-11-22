@@ -1,11 +1,9 @@
 from rest_framework import viewsets
-from rest_framework.permissions import (
-    IsAuthenticated,
-    UpdateOrDeleteWithdrawal
-)
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from reputation.models import Withdrawal
+from reputation.permissions import UpdateOrDeleteWithdrawal
 from reputation.serializers import WithdrawalSerializer
 
 
