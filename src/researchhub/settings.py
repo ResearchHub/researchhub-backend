@@ -361,7 +361,7 @@ if PRODUCTION:
 # Web3
 # https://web3py.readthedocs.io/en/stable/
 
-WEB3_PROVIDER_URI = os.environ.get(
+WEB3_PROVIDER_URL = os.environ.get(
     'INFURA_ENDPOINT',
     keys.INFURA_RINKEBY_ENDPOINT
 )
