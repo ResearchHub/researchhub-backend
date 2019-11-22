@@ -1,5 +1,5 @@
 from django_elasticsearch_dsl import Document, fields as es_fields
-# from django_elasticsearch_dsl.registries import registry
+from django_elasticsearch_dsl.registries import registry
 
 from researchhub.settings import (
     ELASTICSEARCH_AUTO_REINDEX,
@@ -9,7 +9,8 @@ from researchhub.settings import (
 from summary.models import Summary
 from search.analyzers import title_analyzer
 
-# @registry.register_document  # Do we need summaries independent of papers?
+
+@registry.register_document
 class SummaryDocument(Document):
     summary_plain_text = es_fields.StringField(analyzer=title_analyzer)
     proposed_by = es_fields.ObjectField()
@@ -25,7 +26,6 @@ class SummaryDocument(Document):
         model = Summary
         fields = [
             'id',
-            'summary_plain_text',
             'approved_date',
             'created_date',
             'updated_date',
