@@ -79,6 +79,7 @@ router.register(
 router.register(r'user', user.views.UserViewSet)
 
 router.register(r'wallet', user.views.WalletViewSet, basename='wallet')
+router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
