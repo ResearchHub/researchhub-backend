@@ -131,6 +131,10 @@ INSTALLED_APPS = [
     'django_elasticsearch_dsl',
     'django_elasticsearch_dsl_drf',
 
+    # Emails
+    'django_ses',
+    'django_inlinecss',
+
     # Custom apps
     'discussion',
     'hub',
@@ -302,6 +306,13 @@ AWS_SECRET_ACCESS_KEY = os.environ.get(
     'AWS_SECRET_ACCESS_KEY',
     keys.AWS_SECRET_ACCESS_KEY
 )
+
+AWS_SES_REGION_NAME = 'us-west-2'
+AWS_SES_REGION_ENDPOINT = 'email.us-west-2.amazonaws.com'
+
+EMAIL_BACKEND = 'django_ses.SESBackend'
+
+EMAIL_WHITELIST = []
 
 SENTRY_ENVIRONMENT = 'production' if PRODUCTION else 'dev'
 
