@@ -1,12 +1,12 @@
 from django_elasticsearch_dsl import Document, fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 
+from discussion.models import Thread
 from researchhub.settings import (
     ELASTICSEARCH_AUTO_REINDEX,
     TESTING
 )
 from search.analyzers import title_analyzer
-from discussion.models import Thread
 
 
 @registry.register_document
