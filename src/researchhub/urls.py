@@ -9,11 +9,12 @@ from rest_framework import routers
 
 from .views import index, permissions
 import discussion.views
+import ethereum.urls
 import paper.views
 import oauth.urls
 import oauth.views
 import user.views
-import search.urls as search_urls
+import search.urls
 import summary.views
 import hub.views
 from researchhub import views as index_views
@@ -82,8 +83,9 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('health/', index_views.healthcheck),
     re_path(r'^api/', include(router.urls)),
+    path('api/ethereum/', include(ethereum.urls)),
     path('api/permissions/', permissions, name='permissions'),
-    path('api/search/', include(search_urls)),
+    path('api/search/', include(search.urls)),
     path(
         'auth/google/login/callback/',
         oauth.views.google_callback,
