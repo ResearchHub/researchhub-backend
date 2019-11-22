@@ -8,7 +8,7 @@ ADDRESS_2 = '0x1123581321345589144233377610987159725844'
 
 def create_withdrawals(count):
     for x in range(count):
-        user = create_random_default_user('withdrawal_user_' + x)
+        user = create_random_default_user(f'withdrawal_user_{x}')
         create_withdrawal(user)
 
 
