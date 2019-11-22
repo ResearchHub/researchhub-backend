@@ -62,3 +62,24 @@ In a new shell, run this Docker image script
 Back in the python virutal environment, build the indices
 
 `$ python manage.py search_index --rebuild`
+
+
+### ETHEREUM
+
+Create a wallet file in config
+
+`$ touch src/config/wallet.py`
+
+Add the following to wallet.py (fill in the blanks)
+
+```python
+KEYSTORE_FILE = ''
+KEYSTORE_PASSWORD = ''
+```
+
+Add the keystore file to the config directory
+
+> Ask a team member for the file or create one from MyEtherWallet
+> https://www.myetherwallet.com/create-wallet
+
+Make sure you have added the Infura keys (see above^)
