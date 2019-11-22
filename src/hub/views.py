@@ -13,6 +13,7 @@ from .permissions import CreateHub, IsSubscribed, IsNotSubscribed
 from .serializers import HubSerializer
 from .filters import HubFilter
 
+from utils.message import send_email_message
 
 class HubViewSet(viewsets.ModelViewSet):
     queryset = Hub.objects.all()
@@ -57,3 +58,18 @@ class HubViewSet(viewsets.ModelViewSet):
 
     def _is_subscribed(self, user, hub):
         return user in hub.subscribers.all()
+
+    @action(
+        detail=True,
+        methods=['post']
+    )
+    def invite_to_hub(self, request, pk=None):
+        recipients = request.data['emails']
+        subject = 'Test'
+        message = 'You have been invited to join this hub on Researchhub ' + str(pk)
+
+        email_sent = send_email_message(recipients, message, subject)
+        response = {'email_sent': False}
+        if email_sent == 1:
+            response['email_sent'] = True
+        return Response(response, status=200)
