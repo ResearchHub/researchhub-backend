@@ -16,7 +16,7 @@ def send_email_message(recipients, message, subject, html_message=None):
         return send_mail(
             subject,
             message,
-            'craig@quantfive.org',
+            'noreply@researchhub.com',
             recipients,
             html_message=html_message,
             fail_silently=False,
