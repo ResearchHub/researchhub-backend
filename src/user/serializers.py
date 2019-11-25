@@ -11,7 +11,7 @@ class UniversitySerializer(rest_framework_serializers.ModelSerializer):
 
 
 class AuthorSerializer(rest_framework_serializers.ModelSerializer):
-    university = UniversitySerializer
+    university = UniversitySerializer(required=False)
     reputation = rest_framework_serializers.SerializerMethodField()
 
     class Meta:
