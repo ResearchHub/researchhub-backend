@@ -76,6 +76,13 @@ class HubViewSet(viewsets.ModelViewSet):
             'link': base_url + '/hubs/{}/'.format(hub.name)
         }
 
+        subscribers = hub.subscribers.all()
+
+        if subscribers:
+            for subscriber in subscribers:
+                if subscriber.email in recipients:
+                    recipients.remove(subscriber.email)
+
         msg_plain = render_to_string('invite_to_hub_email.txt', emailContext)
         msg_html = render_to_string('invite_to_hub_email.html', emailContext)
 
