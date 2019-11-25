@@ -1,0 +1,7 @@
+You're Invited!
+
+Someone has invited you to join the {{ hub_name }} Hub on Researchhub.
+
+Join now to colaborate with scholars, researchers, and enthusiasts in creating a community invested in expanding research and knowledge in the {{hub_name}} field!
+
+Researchhub
