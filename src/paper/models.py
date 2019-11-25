@@ -22,7 +22,6 @@ class Paper(models.Model):
         Author,
         related_name='authored_papers',
         blank=True,
-        null=True
     )
     moderators = models.ManyToManyField(
         User,
