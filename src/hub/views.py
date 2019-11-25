@@ -7,12 +7,14 @@ from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly
 )
 from rest_framework.response import Response
+from django.template.loader import render_to_string
 
 from .models import Hub
 from .permissions import CreateHub, IsSubscribed, IsNotSubscribed
 from .serializers import HubSerializer
 from .filters import HubFilter
 
+from utils.message import send_email_message
 
 class HubViewSet(viewsets.ModelViewSet):
     queryset = Hub.objects.all()
@@ -57,3 +59,35 @@ class HubViewSet(viewsets.ModelViewSet):
 
     def _is_subscribed(self, user, hub):
         return user in hub.subscribers.all()
+
+    @action(
+        detail=True,
+        methods=['post']
+    )
+    def invite_to_hub(self, request, pk=None):
+        recipients = request.data['emails']
+        subject = 'Researchhub Hub Invitation'
+        hub = Hub.objects.get(id=pk)
+        
+        base_url = request.META['HTTP_ORIGIN']
+
+        emailContext = {
+            'hub_name': hub.name.capitalize(),
+            'link': base_url + '/hubs/{}/'.format(hub.name)
+        }
+
+        subscribers = hub.subscribers.all()
+
+        if subscribers:
+            for subscriber in subscribers:
+                if subscriber.email in recipients:
+                    recipients.remove(subscriber.email)
+
+        msg_plain = render_to_string('invite_to_hub_email.txt', emailContext)
+        msg_html = render_to_string('invite_to_hub_email.html', emailContext)
+
+        email_sent = send_email_message(recipients, msg_plain, subject, msg_html)
+        response = {'email_sent': False}
+        if email_sent == 1:
+            response['email_sent'] = True
+        return Response(response, status=200)

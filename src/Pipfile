@@ -23,6 +23,9 @@ django-elasticsearch-dsl-drf = "*"
 django-extensions = "*"
 smart-open = "*"
 pre-commit = "*"
+boto = "*"
+django-ses = "*"
+django-inlinecss = "*"
 
 [requires]
 python_version = "3.7"
