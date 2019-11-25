@@ -1,9 +1,10 @@
 from django_filters import rest_framework as filters
-from .models import *
+from .models import Paper
+
 
 class PaperFilter(filters.FilterSet):
     hubs_id__in = filters.Filter(field_name="hubs", lookup_expr='in')
 
     class Meta:
         model = Paper
-        fields = [field.name for field in model._meta.fields if not field.name == 'file']
+        fields = [field.name for field in model._meta.fields if not field.name == 'file']  # noqa: E501
