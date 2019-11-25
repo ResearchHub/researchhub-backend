@@ -33,7 +33,7 @@ class Distributor:
             print('Distribution failed', e)
 
     def _record_distribution(self):
-        record = Distribution.objects.create(
+        Distribution.objects.create(
             recipient=self.recipient,
             amount=self.distribution.amount,
             distribution_type=self.distribution.name,

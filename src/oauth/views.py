@@ -51,7 +51,12 @@ class SocialLoginSerializer(serializers.Serializer):
             `allauth.socialaccount.SocialLoginView` instance
         """
         request = self._get_request()
-        social_login = adapter.complete_login(request, app, token, response=response)
+        social_login = adapter.complete_login(
+            request,
+            app,
+            token,
+            response=response
+        )
         social_login.token = token
         return social_login
 
@@ -66,7 +71,9 @@ class SocialLoginSerializer(serializers.Serializer):
 
         adapter_class = getattr(view, 'adapter_class', None)
         if not adapter_class:
-            raise serializers.ValidationError(_("Define adapter_class in view"))
+            raise serializers.ValidationError(
+                _("Define adapter_class in view")
+            )
 
         adapter = adapter_class(request)
         app = adapter.get_provider().get_app(request)
