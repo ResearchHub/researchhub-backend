@@ -6,8 +6,8 @@ import smart_open
 from .exceptions import ElasticsearchPluginError
 from paper.models import Paper
 from researchhub.settings import ELASTICSEARCH_DSL
-import utils.sentry as sentry
 from utils.http import http_request, RequestMethods as methods
+import utils.sentry as sentry
 
 
 class IngestPdfPipeline:
@@ -76,8 +76,14 @@ class IngestPdfPipeline:
             return base64.b64encode(f.read())
 
     def _build_pipeline_if_not_exists(self):
-        if self._check_pipeline_exists() is False:
-            self._build_pipeline()
+        try:
+            if self._check_pipeline_exists() is False:
+                self._build_pipeline()
+        except Exception as e:
+            sentry.log_error(
+                e,
+                'Failed to build pipeline'
+            )
 
     def _check_pipeline_exists(self):
         response = http_request(methods.GET, self.url)
@@ -103,12 +109,16 @@ class IngestPdfPipeline:
         )
 
     def _send_put_request(self, url, data, headers, error_message):
+        """Returns the response of a put request to Elasticsearch.
+
+        Raises ElasticsearchPluginError on error.
+        """
         try:
             response = http_request(
                 methods.PUT,
                 url,
                 json.dumps(data),
-                timeout=2,
+                timeout=4,
                 headers=headers
             )
             if not response.ok:
