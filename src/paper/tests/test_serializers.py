@@ -1,7 +1,4 @@
-from urllib.parse import urlencode
-
 from django.test import TestCase
-from django.http import QueryDict
 from django.forms.models import model_to_dict
 
 from paper.serializers import PaperSerializer
