@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from .models import Hub
 from .permissions import CreateHub, IsSubscribed, IsNotSubscribed
 from .serializers import HubSerializer
-from .filters import *
+from .filters import HubFilter
 
 
 class HubViewSet(viewsets.ModelViewSet):

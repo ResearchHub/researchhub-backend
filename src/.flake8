@@ -2,4 +2,3 @@
 exclude =
     migrations
 count = True
-

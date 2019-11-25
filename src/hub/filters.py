@@ -1,9 +1,10 @@
 from django_filters import rest_framework as filters
-from .models import *
+from .models import Hub
+
 
 class HubFilter(filters.FilterSet):
     name__iexact = filters.Filter(field_name="name", lookup_expr='iexact')
 
     class Meta:
         model = Hub
-        fields = [field.name for field in model._meta.fields if not field.name == 'file']
+        fields = [field.name for field in model._meta.fields if not field.name == 'file']  # noqa: E501
