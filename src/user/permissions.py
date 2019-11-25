@@ -1,5 +1,5 @@
 from utils.http import RequestMethods
-from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission
+from utils.permissions import AuthorizationBasedPermission
 
 
 class UpdateAuthor(AuthorizationBasedPermission):

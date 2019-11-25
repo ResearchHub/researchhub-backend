@@ -1,7 +1,38 @@
-from django.db.models import Q, Model
+from django.db.models import Q
 from django_filters import rest_framework as filters
 
-FIELD_LOOKUPS = ('exact', 'iexact', 'contains', 'icontains', 'in', 'gt', 'gte', 'lt', 'lte', 'startswith', 'istartswith', 'endswith', 'iendswith', 'range', 'date', 'year', 'iso_year', 'month', 'day', 'week', 'week_day', 'quarter', 'time', 'hour', 'minute', 'second', 'isnull', 'regex', 'iregex')
+FIELD_LOOKUPS = (
+    'exact',
+    'iexact',
+    'contains',
+    'icontains',
+    'in',
+    'gt',
+    'gte',
+    'lt',
+    'lte',
+    'startswith',
+    'istartswith',
+    'endswith',
+    'iendswith',
+    'range',
+    'date',
+    'year',
+    'iso_year',
+    'month',
+    'day',
+    'week',
+    'week_day',
+    'quarter',
+    'time',
+    'hour',
+    'minute',
+    'second',
+    'isnull',
+    'regex',
+    'iregex'
+)
+
 
 class ListFilter(filters.CharFilter):
 
@@ -27,6 +58,7 @@ class ListFilter(filters.CharFilter):
             f = f | Q(**kwargs)
         return qs.filter(f).distinct()
 
+
 class ListExcludeFilter(filters.CharFilter):
 
     def __init__(self, **kwargs):
@@ -51,6 +83,7 @@ class ListExcludeFilter(filters.CharFilter):
             f = f | Q(**kwargs)
         return qs.exclude(f)
 
+
 class OrFilter(filters.CharFilter):
     '''
     Syntax:
@@ -65,9 +98,9 @@ class OrFilter(filters.CharFilter):
             raise ValueError('no model provided to or_filter')
 
         # Force field_name to be or_filter?
-        #if kwargs.get('field_name', 'or_filter') != 'or_filter':
+        # if kwargs.get('field_name', 'or_filter') != 'or_filter':
         #    raise ValueError('OrFilter must have field_name as "or_filter"')
-        #kwargs['field_name'] = 'or_filter'
+        # kwargs['field_name'] = 'or_filter'
 
         # Set field_name to or_filter if none provided
         if kwargs.get('field_name') is None:
@@ -87,7 +120,10 @@ class OrFilter(filters.CharFilter):
         if '__' in field:
             if field[field.index('__') + 2:] in FIELD_LOOKUPS:
                 return self.get_field(field[:field.index('__')], model)
-            return self.get_field(field[field.index('__') + 2:], model._meta.get_field(field[:field.index('__')]).related_model)
+            return self.get_field(
+                field[field.index('__') + 2:],
+                model._meta.get_field(field[:field.index('__')]).related_model
+            )
         else:
             return model._meta.get_field(field)
 
@@ -125,7 +161,7 @@ class OrFilter(filters.CharFilter):
         for k in sanitized_keys:
             for v in sanitized_values:
                 val = self.sanitize_value(k, v)
-                or_expr = {k:val}
+                or_expr = {k: val}
                 f = f | Q(**or_expr)
 
         return qs.filter(f)
