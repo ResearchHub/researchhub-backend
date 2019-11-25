@@ -334,7 +334,7 @@ ELASTICSEARCH_DSL = {
 
 if PRODUCTION:
     ELASTICSEARCH_DSL['default'] = {
-        'hosts': 'https://search-researchhub-es-dev-gk44gqpe2rvt4e4qmx4y6vl2qq.us-west-2.es.amazonaws.com',
+        'hosts': 'https://search-researchhub-es-dev-gk44gqpe2rvt4e4qmx4y6vl2qq.us-west-2.es.amazonaws.com',  # noqa: E501
     }
 
 ELASTICSEARCH_AUTO_REINDEX = not PRODUCTION and os.environ.get(

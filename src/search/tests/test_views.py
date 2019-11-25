@@ -6,7 +6,6 @@ from paper.tests.helpers import create_paper
 from user.tests.helpers import create_random_authenticated_user
 from utils.test_helpers import (
     TestData,
-    bytes_to_json,
     get_authenticated_get_response
 )
 
