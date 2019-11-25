@@ -22,5 +22,4 @@ def send_email_message(recipients, message, subject, html_message=None):
             fail_silently=False,
         )
     except Exception as e:
-        print(e)
-        # capture_exception(e)
+        capture_exception(e)
