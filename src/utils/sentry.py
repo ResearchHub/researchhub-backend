@@ -1,10 +1,11 @@
-from sentry_sdk import capture_exception, configure_scope
+from sentry_sdk import capture_exception, capture_message, configure_scope
 
 
-def log_error(base_error, message):
+def log_error(e, message=None):
     with configure_scope() as scope:
-        scope.set_extra('base_error', base_error)
-        capture_exception(message)
+        if message is not None:
+            scope.set_extra('message', message)
+        capture_exception(e)
 
 
 def log_request_error(response, message, extra=None):
@@ -14,3 +15,10 @@ def log_request_error(response, message, extra=None):
                 scope.set_extra(k, extra[k])
         scope.set_extra('req_error', response.reason)
         capture_exception(message)
+
+
+def log_info(message, error=None):
+    with configure_scope() as scope:
+        if error is not None:
+            scope.set_extra('error', error)
+        capture_message(message)
