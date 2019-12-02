@@ -1,20 +1,23 @@
 from django.core.files.base import ContentFile
+from django.db import transaction
 from django.http import QueryDict
-import rest_framework.serializers as serializers
 from rest_framework.exceptions import ValidationError
+import rest_framework.serializers as serializers
 
-from .models import Flag, Paper, Vote
-from hub.models import Hub
-from user.models import Author
 from discussion.serializers import ThreadSerializer
-from summary.serializers import SummarySerializer
+from hub.models import Hub
 from hub.serializers import HubSerializer
+from paper.exceptions import PaperSerializerError
+from paper.models import Flag, Paper, Vote
+from summary.serializers import SummarySerializer
+from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
 from utils.http import (
     get_user_from_request,
     http_request,
     RequestMethods as methods
 )
+import utils.sentry as sentry
 from utils.voting import calculate_score
 
 
@@ -76,16 +79,24 @@ class PaperSerializer(serializers.ModelSerializer):
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
 
-        paper = super(PaperSerializer, self).create(validated_data)
+        try:
+            with transaction.atomic():
+                paper = super(PaperSerializer, self).create(validated_data)
 
-        # Now add m2m values properly
-        paper.authors.add(*authors)
-        paper.hubs.add(*hubs)
+                # Now add m2m values properly
+                paper.authors.add(*authors)
+                paper.hubs.add(*hubs)
 
-        self._add_file(paper, file)
+                self._add_file(paper, file)
 
-        paper.save(update_fields=['file'])  # m2m fields not allowed
-        return paper
+                paper.save(update_fields=['file'])  # m2m fields not allowed
+                return paper
+        except Exception as e:
+            error = PaperSerializerError(e, 'Failed to created paper')
+            sentry.log_error(
+                error,
+                base_error=error.trigger
+            )
 
     def update(self, instance, validated_data):
         authors = validated_data.pop('authors', [None])
@@ -94,17 +105,29 @@ class PaperSerializer(serializers.ModelSerializer):
 
         update_fields = [field for field in validated_data]
 
-        paper = super(PaperSerializer, self).update(instance, validated_data)
+        try:
+            with transaction.atomic():
+                paper = super(PaperSerializer, self).update(
+                    instance,
+                    validated_data
+                )
 
-        paper.authors.add(*authors)
-        paper.hubs.add(*hubs)
+                paper.authors.add(*authors)
+                paper.hubs.add(*hubs)
 
-        if file:
-            update_fields.append('file')
-            self._add_file(paper, file)
+                if file:
+                    update_fields.append('file')
+                    self._add_file(paper, file)
 
-        paper.save(update_fields=update_fields)  # m2m fields not allowed
-        return paper
+                # m2m fields not allowed in update_fields
+                paper.save(update_fields=update_fields)
+                return paper
+        except Exception as e:
+            error = PaperSerializerError(e, 'Failed to created paper')
+            sentry.log_error(
+                error,
+                base_error=error.trigger
+            )
 
     def get_authors(self, obj):
         authors_queryset = obj.authors.all()
