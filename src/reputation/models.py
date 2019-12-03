@@ -123,6 +123,10 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
             f' Amount: {self.amount}'
         )
 
+    def set_withdrawal(self, withdrawal_instance):
+        self.withdrawal = withdrawal_instance
+        self.save()
+
 
 class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
     TOKEN_ADDRESS_CHOICES = ethereum.lib.TOKEN_ADDRESS_CHOICES
