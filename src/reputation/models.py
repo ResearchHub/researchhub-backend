@@ -186,8 +186,8 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
         max_length=255,
         choices=TOKEN_ADDRESS_CHOICES
     )
-    amount_integer_part = models.BigIntegerField()
-    amount_decimal_part = models.BigIntegerField()
+    amount_integer_part = models.BigIntegerField(default=0)
+    amount_decimal_part = models.BigIntegerField(default=0)
     from_address = models.CharField(max_length=255)
     to_address = models.CharField(max_length=255)
     created_date = models.DateTimeField(auto_now_add=True)
