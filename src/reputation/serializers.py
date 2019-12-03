@@ -1,12 +1,25 @@
 from rest_framework import serializers
 
 from reputation.models import Withdrawal
+from user.serializers import UserSerializer
 
 
 class WithdrawalSerializer(serializers.ModelSerializer):
+    user = UserSerializer(default=serializers.CurrentUserDefault())
+
     class Meta:
         model = Withdrawal
         fields = '__all__'
+        read_only_fields = [
+            'amount_integer_part',
+            'amount_decimal_part',
+            'from_address',
+            'transaction_hash',
+            'paid_date',
+            'paid_status',
+            'is_removed',
+            'is_removed_date',
+        ]
 
 
 def get_model_serializer(model_arg):
