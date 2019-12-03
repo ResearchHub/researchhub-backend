@@ -13,6 +13,7 @@ class WithdrawalSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'amount_integer_part',
             'amount_decimal_part',
+            'token_address',
             'from_address',
             'transaction_hash',
             'paid_date',
