@@ -1,3 +1,5 @@
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.db import models
 from django.utils import timezone
@@ -29,7 +31,11 @@ class PaidStatusModelMixin(models.Model):
         null=True
     )
 
-    def set_pending(self):
+    def set_paid_failed(self):
+        self.paid_status = self.FAILED
+        self.save()
+
+    def set_paid_pending(self):
         self.paid_status = self.PENDING
         self.save()
 
@@ -95,6 +101,15 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
         ),
     ]
 
+    FAILED = 'failed'
+    DISTRIBUTED = 'distributed'
+    PENDING = 'pending'
+    DISTRIBUTED_STATUS_CHOICES = [
+        (FAILED, FAILED),
+        (DISTRIBUTED, DISTRIBUTED),
+        (PENDING, PENDING),
+    ]
+
     recipient = models.ForeignKey(
         User,
         related_name='reputation_records',
@@ -104,11 +119,28 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
     )
     amount = models.IntegerField(default=0)
     created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
     distribution_type = models.CharField(
         max_length=255,
         choices=DISTRIBUTION_TYPE_CHOICES
     )
+    proof_item_content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE
+    )
+    proof_item_object_id = models.PositiveIntegerField()
+    proof_item = GenericForeignKey(
+        'proof_item_content_type',
+        'proof_item_object_id'
+    )
     proof = JSONField()
+    distributed_date = models.DateTimeField(default=None, null=True)
+    distributed_status = models.CharField(
+        max_length=255,
+        choices=DISTRIBUTED_STATUS_CHOICES,
+        default=None,
+        null=True
+    )
     withdrawal = models.ForeignKey(
         'reputation.Withdrawal',
         on_delete=models.CASCADE,
@@ -122,6 +154,19 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
             f' Recipient: {self.recipient},'
             f' Amount: {self.amount}'
         )
+
+    def set_distributed_failed(self):
+        self.distributed_status = self.FAILED
+        self.save()
+
+    def set_distributed_pending(self):
+        self.distributed_status = self.PENDING
+        self.save()
+
+    def set_distributed(self):
+        self.distributed_status = self.DISTRIBUTED
+        self.distributed_date = timezone.now()
+        self.save()
 
     def set_withdrawal(self, withdrawal_instance):
         self.withdrawal = withdrawal_instance

@@ -41,6 +41,7 @@ class SignalTests(TestCase):
         user = create_random_default_user('Ronald')
         create_paper(uploaded_by=user)
 
+        user.refresh_from_db()
         self.assertEqual(user.reputation, self.start_rep + 1)
 
     def test_comment_upvoted_increases_rep_by_5(self):
@@ -48,6 +49,7 @@ class SignalTests(TestCase):
         comment = create_comment(created_by=recipient)
         upvote_discussion(comment, self.user)
 
+        recipient.refresh_from_db()
         self.assertEqual(recipient.reputation, self.start_rep + 5)
 
     def test_comment_downvoted_decreases_rep_by_1(self):
@@ -55,6 +57,7 @@ class SignalTests(TestCase):
         comment = create_comment(created_by=recipient)
         downvote_discussion(comment, self.user)
 
+        recipient.refresh_from_db()
         self.assertEqual(recipient.reputation, self.start_rep - 1)
 
     def test_reply_upvoted_increases_rep_by_5(self):
@@ -62,6 +65,7 @@ class SignalTests(TestCase):
         reply = create_reply(created_by=recipient)
         upvote_discussion(reply, self.user)
 
+        recipient.refresh_from_db()
         self.assertEqual(recipient.reputation, self.start_rep + 5)
 
     def test_reply_downvoted_decreases_rep_by_1(self):
@@ -69,6 +73,7 @@ class SignalTests(TestCase):
         reply = create_reply(created_by=recipient)
         downvote_discussion(reply, self.user)
 
+        recipient.refresh_from_db()
         self.assertEqual(recipient.reputation, self.start_rep - 1)
 
     def test_thread_upvoted_increases_rep_by_5(self):
@@ -76,6 +81,7 @@ class SignalTests(TestCase):
         thread = create_thread(created_by=recipient)
         upvote_discussion(thread, self.user)
 
+        recipient.refresh_from_db()
         self.assertEqual(recipient.reputation, self.start_rep + 5)
 
     def test_thread_downvoted_decreases_rep_by_1(self):
@@ -83,6 +89,7 @@ class SignalTests(TestCase):
         thread = create_thread(created_by=recipient)
         downvote_discussion(thread, self.user)
 
+        recipient.refresh_from_db()
         self.assertEqual(recipient.reputation, self.start_rep - 1)
 
     def test_comment_flagged_decreases_rep_by_2(self):
@@ -90,6 +97,7 @@ class SignalTests(TestCase):
         comment = create_comment(created_by=recipient)
         flag_discussion(comment, self.user)
 
+        recipient.refresh_from_db()
         self.assertEqual(recipient.reputation, self.start_rep - 2)
 
     def test_reply_flagged_decreases_rep_by_2(self):
@@ -97,6 +105,7 @@ class SignalTests(TestCase):
         reply = create_reply(created_by=recipient)
         flag_discussion(reply, self.user)
 
+        recipient.refresh_from_db()
         self.assertEqual(recipient.reputation, self.start_rep - 2)
 
     def test_thread_flagged_decreases_rep_by_2(self):
@@ -104,6 +113,7 @@ class SignalTests(TestCase):
         thread = create_thread(created_by=recipient)
         flag_discussion(thread, self.user)
 
+        recipient.refresh_from_db()
         self.assertEqual(recipient.reputation, self.start_rep - 2)
 
     def test_comment_endorsed_increases_rep_by_15(self):
@@ -111,6 +121,7 @@ class SignalTests(TestCase):
         comment = create_comment(created_by=recipient)
         endorse_discussion(comment, self.author)
 
+        recipient.refresh_from_db()
         self.assertEqual(recipient.reputation, self.start_rep + 15)
 
     # TODO: I think this should be increases?
@@ -132,28 +143,34 @@ class SignalTests(TestCase):
     def test_multiple_reputation_distributions(self):
         thread = create_thread(created_by=self.recipient)
         current_rep = self.start_rep
+
+        self.recipient.refresh_from_db()
         self.assertEqual(self.recipient.reputation, current_rep)
 
         comment = create_comment(thread=thread, created_by=self.recipient)
         comment_vote = upvote_discussion(comment, self.user)
         current_rep = current_rep + 5
 
+        self.recipient.refresh_from_db()
         self.assertEqual(self.recipient.reputation, current_rep)
 
         update_to_downvote(comment_vote)
         current_rep = current_rep - 1
 
+        self.recipient.refresh_from_db()
         self.assertEqual(self.recipient.reputation, current_rep)
 
         reply = create_reply(parent=comment, created_by=self.recipient)
         reply_vote = downvote_discussion(reply, self.user)
         current_rep -= 1
 
+        self.recipient.refresh_from_db()
         self.assertEqual(self.recipient.reputation, current_rep)
 
         update_to_upvote(reply_vote)
         current_rep += 5
 
+        self.recipient.refresh_from_db()
         self.assertEqual(self.recipient.reputation, current_rep)
 
 
@@ -182,9 +199,10 @@ class SignalConcurrencyTests(TransactionTestCase):
             created_by=self.recipient
         )
 
-    def test_X_paper_upvotes_do_NOT_increase_reputation(self):
-        runs = 2
+    def test_X_paper_upvotes_do_NOT_increase_reputation_if_not_author(self):
+        runs = 90
 
+        self.recipient.refresh_from_db()
         starting_reputation = self.recipient.reputation
 
         @test_concurrently(runs)
@@ -198,9 +216,10 @@ class SignalConcurrencyTests(TransactionTestCase):
         self.assertEqual(self.recipient.reputation, starting_reputation)
 
     def test_X_comment_upvotes_increase_reputation_by_X(self):
-        runs = 2
-        delay = 1
+        runs = 90
+        delay = 0
 
+        self.recipient.refresh_from_db()
         starting_reputation = self.recipient.reputation
 
         @test_concurrently(runs, delay)
@@ -213,6 +232,7 @@ class SignalConcurrencyTests(TransactionTestCase):
         expected = starting_reputation + (runs * 5)
 
         self.recipient.refresh_from_db()
+        # print('start', starting_reputation, 'runs', runs, 'rate', 5, 'rep', self.recipient.reputation)  # noqa: E501
         self.assertEqual(self.recipient.reputation, expected)
 
     def get_thread_upvote_response(self, user):
