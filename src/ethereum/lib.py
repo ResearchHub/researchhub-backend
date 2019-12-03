@@ -17,3 +17,12 @@ def get_token_address_choices():
 
 
 TOKEN_ADDRESS_CHOICES = get_token_address_choices()
+
+
+TOKEN_REPUTATION_EXCHANGE_RATES = {
+    f'{TOKENS["rhc"]}': 0.1
+}
+
+
+def convert_reputation_amount_to_token_amount(token, reputation_amount):
+    return TOKEN_REPUTATION_EXCHANGE_RATES[token] * reputation_amount
