@@ -38,7 +38,9 @@ def execute_erc20_transfer(contract, to, amount):
     !!! NOTE: This method should be used carefully because the default
     msg.sender is this server's default account.
 
-    Attributes:
+    Returns the transaction hash.
+
+    Args:
         contract (obj) - w3 contract instance of the ERC20
         to (str) - Ethereum address of recipient
         amount (int) - Amount of token to send (in smallest possible
@@ -53,7 +55,7 @@ def transact(method_call, gas=None, sender=None, sender_signing_key=None):
     !!! NOTE: This method should be used carefully because the default
     msg.sender is this server's default account.
 
-    Attributes:
+    Args:
         gas (int) - Amount of gas to fund transaction execution. Defaults to
             method_call.estimateGas()
         sender (str) - Address of message sender
