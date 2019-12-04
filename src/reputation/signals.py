@@ -30,12 +30,10 @@ from reputation.distributions import (
     ThreadUpvoted,
     ThreadDownvoted
 )
-from reputation.lib import (
-    get_unpaid_distributions,
-    get_total_reputation_from_distributions
-)
-from reputation.models import Withdrawal
 from reputation.exceptions import ReputationSignalError
+from reputation.lib import get_unpaid_distributions
+from reputation.models import Withdrawal
+from reputation.utils import get_total_reputation_from_distributions
 import utils.sentry as sentry
 
 # TODO: "Suspend" user if their reputation becomes negative
