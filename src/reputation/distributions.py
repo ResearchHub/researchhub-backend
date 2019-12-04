@@ -64,3 +64,58 @@ SummaryRejected = Distribution(
 SummaryFlagged = Distribution(
     'SUMMARY_FLAGGED', -5
 )
+
+DISTRIBUTION_TYPE_CHOICES = [
+    (
+        CreatePaper.name,
+        CreatePaper.name
+    ),
+    (
+        CommentEndorsed.name,
+        CommentEndorsed.name
+    ),
+    (
+        CommentFlagged.name,
+        CommentFlagged.name
+    ),
+    (
+        CommentUpvoted.name,
+        CommentUpvoted.name
+    ),
+    (
+        CommentDownvoted.name,
+        CommentDownvoted.name
+    ),
+    (
+        ReplyEndorsed.name,
+        ReplyEndorsed.name
+    ),
+    (
+        ReplyFlagged.name,
+        ReplyFlagged.name
+    ),
+    (
+        ReplyUpvoted.name,
+        ReplyUpvoted.name
+    ),
+    (
+        ReplyDownvoted.name,
+        ReplyDownvoted.name
+    ),
+    (
+        ThreadEndorsed.name,
+        ThreadEndorsed.name
+    ),
+    (
+        ThreadFlagged.name,
+        ThreadFlagged.name
+    ),
+    (
+        ThreadUpvoted.name,
+        ThreadUpvoted.name
+    ),
+    (
+        ThreadDownvoted.name,
+        ThreadDownvoted.name
+    ),
+]
