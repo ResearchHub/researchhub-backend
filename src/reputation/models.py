@@ -46,60 +46,7 @@ class PaidStatusModelMixin(models.Model):
 
 
 class Distribution(SoftDeletableModel, PaidStatusModelMixin):
-    DISTRIBUTION_TYPE_CHOICES = [
-        (
-            distributions.CreatePaper.name,
-            distributions.CreatePaper.name
-        ),
-        (
-            distributions.CommentEndorsed.name,
-            distributions.CommentEndorsed.name
-        ),
-        (
-            distributions.CommentFlagged.name,
-            distributions.CommentFlagged.name
-        ),
-        (
-            distributions.CommentUpvoted.name,
-            distributions.CommentUpvoted.name
-        ),
-        (
-            distributions.CommentDownvoted.name,
-            distributions.CommentDownvoted.name
-        ),
-        (
-            distributions.ReplyEndorsed.name,
-            distributions.ReplyEndorsed.name
-        ),
-        (
-            distributions.ReplyFlagged.name,
-            distributions.ReplyFlagged.name
-        ),
-        (
-            distributions.ReplyUpvoted.name,
-            distributions.ReplyUpvoted.name
-        ),
-        (
-            distributions.ReplyDownvoted.name,
-            distributions.ReplyDownvoted.name
-        ),
-        (
-            distributions.ThreadEndorsed.name,
-            distributions.ThreadEndorsed.name
-        ),
-        (
-            distributions.ThreadFlagged.name,
-            distributions.ThreadFlagged.name
-        ),
-        (
-            distributions.ThreadUpvoted.name,
-            distributions.ThreadUpvoted.name
-        ),
-        (
-            distributions.ThreadDownvoted.name,
-            distributions.ThreadDownvoted.name
-        ),
-    ]
+    DISTRIBUTION_TYPE_CHOICES = distributions.DISTRIBUTION_TYPE_CHOICES
 
     FAILED = 'failed'
     DISTRIBUTED = 'distributed'
@@ -186,8 +133,7 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
         max_length=255,
         choices=TOKEN_ADDRESS_CHOICES
     )
-    amount_integer_part = models.BigIntegerField(default=0)
-    amount_decimal_part = models.BigIntegerField(default=0)
+    amount = models.CharField(max_length=255, default='0.0')
     from_address = models.CharField(max_length=255)
     to_address = models.CharField(max_length=255)
     created_date = models.DateTimeField(auto_now_add=True)
@@ -197,3 +143,17 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
         blank=True,
         max_length=255
     )
+    paid_status = models.CharField(
+        max_length=255,
+        choices=PaidStatusModelMixin.PAID_STATUS_CHOICES,
+        default=PaidStatusModelMixin.PENDING,
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'paid_status'],
+                condition=models.Q(paid_status=PaidStatusModelMixin.PENDING),
+                name='user_paid_status_pending'
+            )
+        ]
