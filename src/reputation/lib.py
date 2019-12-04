@@ -1,4 +1,5 @@
 from reputation.models import Distribution
+from reputation.utils import get_total_reputation_from_distributions
 
 
 def get_unpaid_distributions(user):
@@ -8,5 +9,6 @@ def get_unpaid_distributions(user):
     )
 
 
-def get_total_reputation_from_distributions(distributions):
-    return sum([d.amount for d in distributions])
+def get_user_balance(user):
+    unpaid_distributions = get_unpaid_distributions(user)
+    return get_total_reputation_from_distributions(unpaid_distributions)
