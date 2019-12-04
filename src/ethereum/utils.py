@@ -27,12 +27,6 @@ def get_address():
     return DEFAULT_ADDRESS
 
 
-def get_eth_balance(account):
-    if account is None:
-        account = get_address()
-    return w3.eth.getBalance(account)
-
-
 def get_erc20_balance(contract, account):
     return contract.functions.balanceOf(account).call()
 
