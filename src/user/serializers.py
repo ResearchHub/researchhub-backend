@@ -34,11 +34,6 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = [
-            'author_profile',
-            'balance',
-            'reputation',
-        ]
         exclude = ['password']
 
     def get_balance(self, obj):
