@@ -1,10 +1,21 @@
 from time import time
 
+from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from .distributor import Distributor
-from .distributions import (
+import ethereum.lib
+from discussion.models import (
+    Comment,
+    Endorsement,
+    Flag as DiscussionFlag,
+    Reply,
+    Thread,
+    Vote as DiscussionVote
+)
+from paper.models import Paper
+from reputation.distributor import Distributor
+from reputation.distributions import (
     CommentEndorsed,
     CommentFlagged,
     CommentUpvoted,
@@ -19,16 +30,13 @@ from .distributions import (
     ThreadUpvoted,
     ThreadDownvoted
 )
-
-from discussion.models import (
-    Comment,
-    Endorsement,
-    Flag as DiscussionFlag,
-    Reply,
-    Thread,
-    Vote as DiscussionVote
+from reputation.lib import (
+    get_unpaid_distributions,
+    get_total_reputation_from_distributions
 )
-from paper.models import Paper
+from reputation.models import Withdrawal
+from reputation.exceptions import ReputationSignalError
+import utils.sentry as sentry
 
 # TODO: "Suspend" user if their reputation becomes negative
 # This could mean setting `is_active` to false
@@ -69,7 +77,11 @@ def distribute_for_endorsement(
                 timestamp
             )
         except TypeError as e:
-            print(e)
+            error = ReputationSignalError(
+                e,
+                'Failed to distribute for endorsement'
+            )
+            print(error)
 
     if distributor is not None:
         distributor.distribute()
@@ -91,7 +103,11 @@ def distribute_for_flag(sender, instance, created, update_fields, **kwargs):
                 timestamp
             )
         except TypeError as e:
-            print(e)
+            error = ReputationSignalError(
+                e,
+                'Failed to distribute for flag'
+            )
+            print(error)
 
     if distributor is not None:
         distributor.distribute()
@@ -115,7 +131,11 @@ def distribute_for_vote(sender, instance, created, update_fields, **kwargs):
                 timestamp
             )
         except TypeError as e:
-            print(e)
+            error = ReputationSignalError(
+                e,
+                'Failed to distribute for flag'
+            )
+            print(error)
 
     if distributor is not None:
         distributor.distribute()
@@ -188,3 +208,67 @@ def get_vote_item_distribution(instance):
             return ThreadDownvoted
         else:
             raise error
+
+
+@receiver(post_save, sender=Withdrawal, dispatch_uid='')
+def pay_withdrawal(sender, instance, created, **kwargs):
+    if not created:
+        return
+
+    withdrawal = instance
+    withdrawal_for_update = Withdrawal.objects.filter(
+        pk=instance.id
+    ).select_for_update(of=('self',))
+
+    unpaid_distributions = get_unpaid_distributions(
+        withdrawal.user
+    ).select_for_update(of=('self',))
+
+    eligible_distributions = []
+    for distribution in unpaid_distributions:
+        distribution.set_paid_pending()
+        distribution.set_withdrawal(withdrawal)
+        eligible_distributions.append(distribution)
+
+    reputation_payout = get_total_reputation_from_distributions(
+        eligible_distributions
+    )
+    if reputation_payout <= 0:
+        error = ReputationSignalError(
+            None,
+            'Insufficient balance to pay out'
+        )
+        sentry.log_info(error.message)
+        print(error)
+        return
+
+    token_payout = ethereum.lib.convert_reputation_amount_to_token_amount(
+        'rhc',
+        reputation_payout
+    )
+    token_contract = ethereum.contracts.research_coin_contract
+
+    try:
+        with transaction.atomic():
+            w = withdrawal_for_update.get()
+
+            for d in eligible_distributions:
+                d.set_paid()
+            w.set_paid()
+
+            transaction_hash = ethereum.utils.execute_erc20_transfer(
+                token_contract,
+                w.to_address,
+                token_payout
+            )
+            w.transaction_hash = transaction_hash
+            w.save()
+    except Exception as e:
+        withdrawal.set_paid_failed()
+        error = ReputationSignalError(
+            e,
+            f'Failed to pay withdrawal {withdrawal.id}'
+        )
+        sentry.log_error(error, error.message)
+        print(error)
+        return
