@@ -14,15 +14,13 @@ def create_withdrawals(count):
 
 def create_withdrawal(
     user,
-    amount_integer_part=1,
-    amount_decimal_part=0,
+    amount='1.0',
     from_address=ADDRESS_1,
     to_address=ADDRESS_2,
 ):
     Withdrawal.objects.create(
         user=user,
-        amount_integer_part=amount_integer_part,
-        amount_decimal_part=amount_decimal_part,
+        amount=amount,
         from_address=from_address,
         to_address=to_address
     )
