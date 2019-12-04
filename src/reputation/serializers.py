@@ -15,8 +15,7 @@ class WithdrawalSerializer(serializers.ModelSerializer):
         model = Withdrawal
         fields = '__all__'
         read_only_fields = [
-            'amount_integer_part',
-            'amount_decimal_part',
+            'amount',
             'token_address',
             'from_address',
             'transaction_hash',
