@@ -1,9 +1,18 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
+from utils.http import RequestMethods
 
 
 class ReadOnly(BasePermission):
     def has_permission(self, request, view):
         return request.method in SAFE_METHODS
+
+
+class CreateOrReadOnly(BasePermission):
+    def has_permission(self, request, view):
+        return (
+            (request.method in SAFE_METHODS)
+            or (request.method == RequestMethods.POST)
+        )
 
 
 class AuthorizationBasedPermission(BasePermission):
