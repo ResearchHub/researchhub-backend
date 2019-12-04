@@ -1,5 +1,15 @@
+import math
+from decimal import Decimal
 from ethereum.apps import w3, DEFAULT_PRIVATE_KEY, DEFAULT_ADDRESS
-from ethereum.contracts import research_coin_contract
+
+
+def decimal_to_big_integer(value, denomination):
+    assert type(value) is Decimal
+    integer_part = math.trunc(value)
+    value_string = str(value)
+    decimal_part_string = value_string.split('.')[1].ljust(denomination, '0')
+    decimal_part = int(decimal_part_string)
+    return integer_part, decimal_part
 
 
 def get_client_version():
@@ -14,12 +24,6 @@ def get_eth_balance(account):
     if account is None:
         account = get_address()
     return w3.eth.getBalance(account)
-
-
-def get_rhc_balance(account):
-    if account is None:
-        account = get_address()
-    return get_erc20_balance(research_coin_contract, account)
 
 
 def get_erc20_balance(contract, account):

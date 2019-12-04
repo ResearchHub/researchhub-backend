@@ -3,6 +3,7 @@ import os
 from researchhub.settings import BASE_DIR
 from ethereum.apps import w3
 from ethereum.lib import TOKENS
+from ethereum.utils import get_address, get_erc20_balance
 
 
 class ContractComposer:
@@ -31,3 +32,9 @@ research_coin_contract = ContractComposer(
     TOKENS['rhc']['contract_address'],
     'MiniMeToken.json'
 ).contract
+
+
+def get_rhc_balance(account):
+    if account is None:
+        account = get_address()
+    return get_erc20_balance(research_coin_contract, account)
