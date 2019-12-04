@@ -43,5 +43,5 @@ def balance(request):
 
 @api_view()
 def nonce(request):
-    nonce = get_nonce()
+    nonce = get_nonce(None)
     return Response({'nonce': nonce}, status=200)
