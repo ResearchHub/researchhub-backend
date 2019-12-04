@@ -213,56 +213,43 @@ def pay_withdrawal(sender, instance, created, **kwargs):
     if not created:
         return
 
-    withdrawal = instance
+    withdrawal_instance = instance
     withdrawal_for_update = Withdrawal.objects.filter(
         pk=instance.id
     ).select_for_update(of=('self',))
-
-    unpaid_distributions = get_unpaid_distributions(
-        withdrawal.user
-    ).select_for_update(of=('self',))
-
-    eligible_distributions = []
-    for distribution in unpaid_distributions:
-        distribution.set_paid_pending()
-        distribution.set_withdrawal(withdrawal)
-        eligible_distributions.append(distribution)
-
-    reputation_payout = get_total_reputation_from_distributions(
-        eligible_distributions
-    )
-    if reputation_payout <= 0:
-        error = ReputationSignalError(
-            None,
-            'Insufficient balance to pay out'
-        )
-        sentry.log_info(error.message)
-        print(error)
-        return
-
-    token_payout = ethereum.lib.convert_reputation_amount_to_token_amount(
-        'rhc',
-        reputation_payout
-    )
-    token_contract = ethereum.contracts.research_coin_contract
-
     try:
         with transaction.atomic():
-            w = withdrawal_for_update.get()
+            withdrawal = withdrawal_for_update.get()
 
-            for d in eligible_distributions:
-                d.set_paid()
-            w.set_paid()
+            # only getting distributions with paid status None
+            unpaid_distributions = get_unpaid_distributions(
+                withdrawal.user
+            ).select_for_update(of=('self',))
 
-            transaction_hash = ethereum.utils.execute_erc20_transfer(
-                token_contract,
-                w.to_address,
-                token_payout
+            eligible_distributions = add_withdrawal_to_distributions(
+                unpaid_distributions,
+                withdrawal
             )
-            w.transaction_hash = transaction_hash
-            w.save()
+
+            reputation_payout = get_reputation_payout(
+                eligible_distributions
+            )
+
+            token_payout = ethereum.lib.convert_reputation_amount_to_token_amount(  # noqa: E501
+                'rhc',
+                reputation_payout
+            )
+
+            for ed in eligible_distributions:
+                ed.set_paid()
+            withdrawal.set_paid()
+            complete_withdrawal_transfer(
+                token_payout,
+                withdrawal
+            )
+
     except Exception as e:
-        withdrawal.set_paid_failed()
+        withdrawal_instance.set_paid_failed()
         error = ReputationSignalError(
             e,
             f'Failed to pay withdrawal {withdrawal.id}'
@@ -270,3 +257,39 @@ def pay_withdrawal(sender, instance, created, **kwargs):
         sentry.log_error(error, error.message)
         print(error)
         return
+
+
+def add_withdrawal_to_distributions(distributions, withdrawal):
+    updated_distributions = []
+    for d in distributions:
+        try:
+            with transaction.atomic():
+                d.set_paid_pending()
+                d.set_withdrawal(withdrawal)
+                updated_distributions.append(d)
+        except Exception:
+            pass
+    return updated_distributions
+
+
+def get_reputation_payout(distributions):
+    reputation_payout = get_total_reputation_from_distributions(
+        distributions
+    )
+    if reputation_payout <= 0:
+        raise ReputationSignalError(
+            None,
+            'Insufficient balance to pay out'
+        )
+    return reputation_payout
+
+
+def complete_withdrawal_transfer(amount, withdrawal):
+    token_contract = ethereum.contracts.research_coin_contract
+    transaction_hash = ethereum.utils.execute_erc20_transfer(
+        token_contract,
+        withdrawal.to_address,
+        amount
+    )
+    withdrawal.transaction_hash = transaction_hash
+    withdrawal.save()
