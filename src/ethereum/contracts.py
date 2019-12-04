@@ -28,6 +28,12 @@ class ContractComposer:
         self.contract = w3.eth.contract(address=self.address, abi=self.abi)
 
 
+def get_eth_balance(account):
+    if account is None:
+        account = get_address()
+    return w3.eth.getBalance(account)
+
+
 research_coin_contract = ContractComposer(
     TOKENS['rhc']['contract_address'],
     'MiniMeToken.json'
