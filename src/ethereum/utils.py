@@ -1,15 +1,22 @@
-import math
 from decimal import Decimal
 from ethereum.apps import w3, DEFAULT_PRIVATE_KEY, DEFAULT_ADDRESS
 
 
-def decimal_to_big_integer(value, denomination):
-    assert type(value) is Decimal
-    integer_part = math.trunc(value)
+def decimal_to_token_amount(value, denomination):
+    if type(value) is not Decimal:
+        raise TypeError('`value` must be of type Decimal')
+
     value_string = str(value)
-    decimal_part_string = value_string.split('.')[1].ljust(denomination, '0')
-    decimal_part = int(decimal_part_string)
-    return integer_part, decimal_part
+
+    integer_string = value_string.split('.')[0]
+    integer_pad_width = len(integer_string) + denomination
+    integer_padded = integer_string.ljust(integer_pad_width, '0')
+    integer_part = int(integer_padded)
+
+    decimal_padded = value_string.split('.')[1].ljust(denomination, '0')
+    decimal_part = int(decimal_padded)
+
+    return integer_part + decimal_part
 
 
 def get_client_version():
