@@ -1,6 +1,7 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+import ethereum.contracts
 import ethereum.utils
 from ethereum.utils import (
     get_address,
@@ -27,7 +28,10 @@ def balance(request):
     ticker = request.query_params.get('ticker', '').lower()
     if ticker != '':
         try:
-            balance = getattr(ethereum.utils, f'get_{ticker}_balance')(address)
+            balance = getattr(
+                ethereum.contracts,
+                f'get_{ticker}_balance'
+            )(address)
             return Response({'balance': balance}, status=200)
         except AttributeError:
             return Response('No data for the provided ticker', status=200)
