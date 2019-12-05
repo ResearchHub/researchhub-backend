@@ -6,6 +6,7 @@ import smart_open
 from .exceptions import ElasticsearchPluginError
 from paper.models import Paper
 from researchhub.settings import ELASTICSEARCH_DSL
+from utils.aws import http_to_s3
 from utils.http import http_request, RequestMethods as methods
 import utils.sentry as sentry
 
@@ -72,6 +73,8 @@ class IngestPdfPipeline:
         return http_request(methods.DELETE, self.url)
 
     def encode_file(self, url):
+        if '.s3.' in url:
+            url = http_to_s3(url, with_credentials=True)
         with smart_open.open(url, 'rb') as f:
             return base64.b64encode(f.read())
 
