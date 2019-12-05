@@ -55,6 +55,15 @@ class University(models.Model):
     def __str__(self):
         return f'{self.name}_{self.city}'
 
+class EmailPreference(models.Model):
+    email = models.CharField(max_length=255, unique=True)
+    subscribe = models.BooleanField(default=False)
+    opt_out = models.BooleanField(default=False)
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.email}'
 
 class ProfileImageStorage(S3Boto3Storage):
     def __init__(self):
