@@ -68,6 +68,12 @@ router.register(
     basename='university'
 )
 
+router.register(
+    r'email/preference',
+    user.views.EmailPreferenceViewSet,
+    basename='email_preference'
+)
+
 router.register(r'user', user.views.UserViewSet)
 
 urlpatterns = [

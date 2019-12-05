@@ -5,8 +5,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import User, University, Author
-from .serializers import UserSerializer, UniversitySerializer, AuthorSerializer
+from .models import User, University, Author, EmailPreference
+from .serializers import UserSerializer, UniversitySerializer, AuthorSerializer, EmailPreferenceSerializer
 from .filters import AuthorFilter
 from .permissions import UpdateAuthor
 from paper.models import Paper
@@ -39,6 +39,28 @@ class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ('name', 'city', 'state', 'country')
     permission_classes = [AllowAny]
 
+class EmailPreferenceViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = EmailPreference.objects.all()
+    serializer_class = EmailPreferenceSerializer
+    filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
+    permission_classes = [AllowAny]
+
+    @action(
+        detail=False,
+        methods=['post'],
+    )
+    def update_or_create_email_preference(self, request):
+        email = request.data['email']
+        opt_out = request.data['opt_out']
+        subscribe = request.data['subscribe']
+
+        preference, created = EmailPreference.objects.get_or_create(email=email)
+
+        preference.subscribe = subscribe
+        preference.opt_out = opt_out
+        preference.save()
+
+        return Response({'preference_updated': True}, status=200)
 
 class AuthorViewSet(viewsets.ModelViewSet):
     queryset = Author.objects.all()
