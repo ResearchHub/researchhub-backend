@@ -235,14 +235,20 @@ def pay_withdrawal(sender, instance, created, **kwargs):
                 eligible_distributions
             )
 
-            token_payout = ethereum.lib.convert_reputation_amount_to_token_amount(  # noqa: E501
+            token_payout, withdrawal_amount = ethereum.lib.convert_reputation_amount_to_token_amount(  # noqa: E501
                 'rhc',
                 reputation_payout
             )
 
+            # TODO: Clean this up a bit
+            withdrawal.amount = withdrawal_amount
+            withdrawal.save()
+
+            # TODO: Replace paid updates this with a call to our async service
             for ed in eligible_distributions:
                 ed.set_paid()
             withdrawal.set_paid()
+
             complete_withdrawal_transfer(
                 token_payout,
                 withdrawal
