@@ -27,6 +27,13 @@ TOKEN_ADDRESS_CHOICES = get_token_address_choices()
 
 
 def convert_reputation_amount_to_token_amount(token, reputation_amount):
+    """Converts `reputation_amount` based on the `token` reputation exchange
+    rate.
+
+    Returns:
+        (int, str) -- Amount of `token` in integer and decimal forms.
+    """
+
     if reputation_amount < 0:
         raise ValueError('`reputation_amount` must be a positive number')
 
@@ -35,4 +42,4 @@ def convert_reputation_amount_to_token_amount(token, reputation_amount):
     reputation = Decimal(str(reputation_amount))
     total = rate * reputation
     denomination = token['denomination']
-    return decimal_to_token_amount(total, denomination)
+    return decimal_to_token_amount(total, denomination), str(total)
