@@ -24,7 +24,11 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         user = request.user
         user_balance = get_user_balance(user)
         if user_balance > 0:
-            return super().create(request)
+            response = super().create(request)
+            withdrawal_id = response.data['id']
+            withdrawal = Withdrawal.objects.get(pk=withdrawal_id)
+            serialized = WithdrawalSerializer(withdrawal)
+            return Response(serialized.data, status=201)
         else:
             return Response(
                 f'Insufficient balance of {user_balance}',
