@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.contrib.admin.options import get_content_type_for_model
 
 from reputation.exceptions import ReputationDistributorError
 from reputation.models import Distribution
@@ -62,7 +63,10 @@ class Distributor:
             amount=self.distribution.amount,
             distribution_type=self.distribution.name,
             proof=self.proof,
-            proof_item=self.proof_item
+            proof_item_content_type=get_content_type_for_model(
+                self.proof_item
+            ),
+            proof_item_object_id=self.proof_item.id
         )
         return record
 
