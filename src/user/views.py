@@ -1,9 +1,7 @@
 from rest_framework import viewsets
 from rest_framework.permissions import (
     AllowAny,
-    IsAdminUser,
-    IsAuthenticatedOrReadOnly,
-    IsAuthenticated,
+    IsAuthenticatedOrReadOnly
 )
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
@@ -18,7 +16,7 @@ from .serializers import (
     UniversitySerializer
 )
 from .filters import AuthorFilter
-from .permissions import IsWalletOwner, UpdateAuthor
+from .permissions import UpdateAuthor
 from paper.models import Paper
 from paper.serializers import PaperSerializer
 from discussion.models import Comment, Reply, Thread
@@ -49,6 +47,7 @@ class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ('name', 'city', 'state', 'country')
     permission_classes = [AllowAny]
 
+
 class EmailPreferenceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = EmailPreference.objects.all()
     serializer_class = EmailPreferenceSerializer
@@ -64,13 +63,16 @@ class EmailPreferenceViewSet(viewsets.ReadOnlyModelViewSet):
         opt_out = request.data['opt_out']
         subscribe = request.data['subscribe']
 
-        preference, created = EmailPreference.objects.get_or_create(email=email)
+        preference, created = EmailPreference.objects.get_or_create(
+            email=email
+        )
 
         preference.subscribe = subscribe
         preference.opt_out = opt_out
         preference.save()
 
         return Response({'preference_updated': True}, status=200)
+
 
 class AuthorViewSet(viewsets.ModelViewSet):
     queryset = Author.objects.all()
