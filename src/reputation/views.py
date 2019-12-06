@@ -18,7 +18,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         if user.is_staff:
             return Withdrawal.objects.all()
         else:
-            return list(user.withdrawals.all())
+            return Withdrawal.objects.filter(user=user)
 
     def create(self, request):
         user = request.user
