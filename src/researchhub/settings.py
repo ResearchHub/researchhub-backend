@@ -13,7 +13,7 @@ https://docs.djangoproject.com/en/2.2/ref/settings/
 import os
 import requests
 import sys
-from config import db, keys
+from config import db, keys, wallet
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
 
@@ -375,4 +375,13 @@ WEB3_INFURA_PROJECT_ID = os.environ.get(
 WEB3_INFURA_API_SECRET = os.environ.get(
     'INFURA_PROJECT_SECRET',
     keys.INFURA_PROJECT_SECRET
+)
+
+WEB3_KEYSTORE_FILE = os.environ.get(
+    'WEB3_KEYSTORE_FILE',
+    wallet.KEYSTORE_FILE
+)
+WEB3_KEYSTORE_PASSWORD = os.environ.get(
+    'WEB3_KEYSTORE_PASSWORD',
+    wallet.KEYSTORE_PASSWORD
 )
