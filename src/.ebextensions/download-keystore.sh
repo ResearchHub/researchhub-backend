@@ -1,1 +1,0 @@
-aws s3 sync s3://keystore-researchcoin/ /opt/python/current/app/config/
