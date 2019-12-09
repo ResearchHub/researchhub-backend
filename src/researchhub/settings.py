@@ -48,6 +48,12 @@ if not (PRODUCTION or STAGING):
 # TODO: setup production
 GOOGLE_REDIRECT_URL = 'http://localhost:8000/auth/google/login/callback/'
 
+if PRODUCTION:
+    GOOGLE_REDIRECT_URL = 'https://backend.researchhub.com/auth/google/login/callback/'
+
+if STAGING:
+    GOOGLE_REDIRECT_URL = 'https://staging-backend.researchhub.com/auth/google/login/callback/'
+
 ALLOWED_HOSTS = [
     '.quantfive.org',
     '.elasticbeanstalk.com',
