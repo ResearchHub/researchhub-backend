@@ -365,15 +365,17 @@ if PRODUCTION:
 # https://web3py.readthedocs.io/en/stable/
 
 WEB3_PROVIDER_URL = os.environ.get(
-    'INFURA_ENDPOINT',
+    'WEB3_PROVIDER_URL',
     keys.INFURA_RINKEBY_ENDPOINT
 )
+
 WEB3_INFURA_PROJECT_ID = os.environ.get(
-    'INFURA_PROJECT_ID',
+    'WEB3_INFURA_PROJECT_ID',
     keys.INFURA_PROJECT_ID
 )
+
 WEB3_INFURA_API_SECRET = os.environ.get(
-    'INFURA_PROJECT_SECRET',
+    'WEB3_INFURA_API_SECRET',
     keys.INFURA_PROJECT_SECRET
 )
 
@@ -381,6 +383,7 @@ WEB3_KEYSTORE_FILE = os.environ.get(
     'WEB3_KEYSTORE_FILE',
     wallet.KEYSTORE_FILE
 )
+
 WEB3_KEYSTORE_PASSWORD = os.environ.get(
     'WEB3_KEYSTORE_PASSWORD',
     wallet.KEYSTORE_PASSWORD
