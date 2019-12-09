@@ -2,8 +2,12 @@ import os
 from django.apps import AppConfig
 from web3 import Web3
 
-from researchhub.settings import BASE_DIR, WEB3_PROVIDER_URL
-from config import wallet
+from researchhub.settings import (
+    BASE_DIR,
+    WEB3_PROVIDER_URL,
+    WEB3_KEYSTORE_FILE,
+    WEB3_KEYSTORE_PASSWORD
+)
 
 
 class EthereumConfig(AppConfig):
@@ -26,13 +30,13 @@ class ConfigureWeb3:
         path = os.path.join(
             BASE_DIR,
             'config',
-            wallet.KEYSTORE_FILE
+            WEB3_KEYSTORE_FILE
         )
         with open(path) as keyfile:
             encrypted_key = keyfile.read()
             return self.w3.eth.account.decrypt(
                 encrypted_key,
-                wallet.KEYSTORE_PASSWORD
+                WEB3_KEYSTORE_PASSWORD
             )
 
     def get_default_address(self):
