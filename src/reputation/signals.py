@@ -24,6 +24,8 @@ from reputation.distributions import (
     CommentUpvoted,
     CommentDownvoted,
     CreatePaper,
+    PaperUpvoted,
+    PaperDownvoted,
     ReplyEndorsed,
     ReplyFlagged,
     ReplyUpvoted,
@@ -32,7 +34,6 @@ from reputation.distributions import (
     ThreadFlagged,
     ThreadUpvoted,
     ThreadDownvoted,
-    VotePaper
 )
 from reputation.exceptions import ReputationSignalError
 from reputation.lib import get_unpaid_distributions
@@ -57,8 +58,42 @@ def distribute_for_create_paper(sender, instance, created, **kwargs):
         distributor.distribute()
 
 
+@receiver(post_save, sender=PaperVote, dispatch_uid='paper_vote')
+def distribute_for_paper_vote(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
+    timestamp = time()
+    distributor = None
+    recipient = instance.paper.uploaded_by
+
+    if (created or vote_type_updated(update_fields)) and is_eligible(
+        recipient
+    ):
+        try:
+            distribution = get_paper_vote_distribution(instance)
+            distributor = Distributor(
+                distribution,
+                recipient,
+                instance,
+                timestamp
+            )
+        except TypeError as e:
+            error = ReputationSignalError(
+                e,
+                'Failed to distribute for paper vote'
+            )
+            print(error)
+
+    if distributor is not None:
+        distributor.distribute()
+
+
 @receiver(post_save, sender=Endorsement, dispatch_uid='discussion_endorsement')
-def distribute_for_endorsement(
+def distribute_for_discussion_endorsement(
     sender,
     instance,
     created,
@@ -71,7 +106,9 @@ def distribute_for_endorsement(
 
     if created and is_eligible(recipient):
         try:
-            distribution = get_endorsement_item_distribution(instance)
+            distribution = get_discussion_endorsement_item_distribution(
+                instance
+            )
             distributor = Distributor(
                 distribution,
                 recipient,
@@ -90,14 +127,20 @@ def distribute_for_endorsement(
 
 
 @receiver(post_save, sender=DiscussionFlag, dispatch_uid='discussion_flag')
-def distribute_for_flag(sender, instance, created, update_fields, **kwargs):
+def distribute_for_discussion_flag(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
     timestamp = time()
     distributor = None
     recipient = instance.item.created_by
 
     if created and is_eligible(recipient):
         try:
-            distribution = get_flag_item_distribution(instance)
+            distribution = get_discussion_flag_item_distribution(instance)
             distributor = Distributor(
                 distribution,
                 recipient,
@@ -116,7 +159,13 @@ def distribute_for_flag(sender, instance, created, update_fields, **kwargs):
 
 
 @receiver(post_save, sender=DiscussionVote, dispatch_uid='discussion_vote')
-def distribute_for_vote(sender, instance, created, update_fields, **kwargs):
+def distribute_for_discussion_vote(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
     timestamp = time()
     distributor = None
     recipient = instance.item.created_by
@@ -125,7 +174,7 @@ def distribute_for_vote(sender, instance, created, update_fields, **kwargs):
         recipient
     ):
         try:
-            distribution = get_vote_item_distribution(instance)
+            distribution = get_discussion_vote_item_distribution(instance)
             distributor = Distributor(
                 distribution,
                 recipient,
@@ -142,30 +191,6 @@ def distribute_for_vote(sender, instance, created, update_fields, **kwargs):
     if distributor is not None:
         distributor.distribute()
 
-@receiver(post_save, sender=PaperVote, dispatch_uid='paper_vote')
-def distribute_for_paper_vote(sender, instance, created, update_fields, **kwargs):
-    timestamp = time()
-    distributor = None
-    recipient = instance.created_by
-
-    if (created) and is_eligible(recipient):
-        try:
-            distribution = get_paper_vote_distribution(instance)
-            distributor = Distributor(
-                distribution,
-                recipient,
-                instance,
-                timestamp
-            )
-        except TypeError as e:
-            error = ReputationSignalError(
-                e,
-                'Failed to distribute for flag'
-            )
-            print(error)
-
-    if distributor is not None:
-        distributor.distribute()
 
 def is_eligible(user):
     if user is not None:
@@ -173,7 +198,22 @@ def is_eligible(user):
     return False
 
 
-def get_endorsement_item_distribution(instance):
+def vote_type_updated(update_fields):
+    if update_fields is not None:
+        return 'vote_type' in update_fields
+    return False
+
+
+def get_paper_vote_distribution(instance):
+    vote_type = instance.vote_type
+
+    if vote_type == PaperVote.UPVOTE:
+        return PaperUpvoted
+    elif vote_type == DiscussionVote.DOWNVOTE:
+        return PaperDownvoted
+
+
+def get_discussion_endorsement_item_distribution(instance):
     item_type = type(instance.item)
 
     error = TypeError(f'Instance of type {item_type} is not supported')
@@ -188,7 +228,7 @@ def get_endorsement_item_distribution(instance):
         raise error
 
 
-def get_flag_item_distribution(instance):
+def get_discussion_flag_item_distribution(instance):
     item_type = type(instance.item)
 
     error = TypeError(f'Instance of type {item_type} is not supported')
@@ -203,16 +243,7 @@ def get_flag_item_distribution(instance):
         raise error
 
 
-def vote_type_updated(update_fields):
-    if update_fields is not None:
-        return 'vote_type' in update_fields
-    return False
-
-
-def get_paper_vote_distribution(instance):
-    return VotePaper
-
-def get_vote_item_distribution(instance):
+def get_discussion_vote_item_distribution(instance):
     vote_type = instance.vote_type
     item_type = type(instance.item)
 
