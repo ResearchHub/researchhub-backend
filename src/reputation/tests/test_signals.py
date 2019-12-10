@@ -44,13 +44,33 @@ class SignalTests(TestCase):
         user.refresh_from_db()
         self.assertEqual(user.reputation, self.start_rep + 1)
 
-    def test_comment_upvoted_increases_rep_by_5(self):
-        recipient = create_random_default_user('Ginny')
-        comment = create_comment(created_by=recipient)
-        upvote_discussion(comment, self.user)
+    def test_paper_upvoted_increases_uploader_rep_by_1(self):
+        recipient = create_random_default_user('Shacklebolt')
+        paper = create_paper(uploaded_by=recipient)
+        upvote_paper(paper, self.user)
 
         recipient.refresh_from_db()
-        self.assertEqual(recipient.reputation, self.start_rep + 5)
+        upload_rep = 1
+        upvote_rep = 1
+        total_received_rep = upload_rep + upvote_rep
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + total_received_rep
+        )
+
+    def test_paper_downvoted_decreases_uploader_rep_by_1(self):
+        recipient = create_random_default_user('Griphook')
+        paper = create_paper(uploaded_by=recipient)
+        upvote_paper(paper, self.user)
+
+        recipient.refresh_from_db()
+        upload_rep = 1
+        upvote_rep = -1
+        total_received_rep = upload_rep + upvote_rep
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + total_received_rep
+        )
 
     def test_comment_downvoted_decreases_rep_by_1(self):
         recipient = create_random_default_user('Fred')

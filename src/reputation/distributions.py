@@ -15,6 +15,12 @@ class Distribution:
 CreatePaper = Distribution(
     'CREATE_PAPER', 1
 )
+PaperUpvoted = Distribution(
+    'PAPER_UPVOTED', 1
+)
+PaperDownvoted = Distribution(
+    'PAPER_DOWNVOTED', -1
+)
 
 CommentEndorsed = Distribution(
     'COMMENT_ENDORSED', 15
@@ -65,14 +71,18 @@ SummaryFlagged = Distribution(
     'SUMMARY_FLAGGED', -5
 )
 
-VotePaper = Distribution(
-    'VOTE_PAPER', 1
-)
-
 DISTRIBUTION_TYPE_CHOICES = [
     (
         CreatePaper.name,
         CreatePaper.name
+    ),
+    (
+        PaperUpvoted.name,
+        PaperUpvoted.name
+    ),
+    (
+        PaperDownvoted.name,
+        PaperDownvoted.name
     ),
     (
         CommentEndorsed.name,
@@ -122,8 +132,4 @@ DISTRIBUTION_TYPE_CHOICES = [
         ThreadDownvoted.name,
         ThreadDownvoted.name
     ),
-    (
-        VotePaper.name,
-        VotePaper.name
-    )
 ]
