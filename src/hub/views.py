@@ -94,7 +94,8 @@ class HubViewSet(viewsets.ModelViewSet):
             recipients,
             'invite_to_hub_email.txt',
             subject,
-            emailContext, 'invite_to_hub_email.html'
+            emailContext,
+            'invite_to_hub_email.html'
         )
         response = {'email_sent': False}
         if email_sent == 1:
