@@ -13,7 +13,7 @@ from discussion.tests.helpers import (
     update_to_upvote,
     update_to_downvote
 )
-from paper.tests.helpers import create_paper, upvote_paper
+from paper.tests.helpers import create_paper, downvote_paper, upvote_paper
 from user.models import Author
 from user.tests.helpers import (
     create_random_authenticated_user,
@@ -61,7 +61,7 @@ class SignalTests(TestCase):
     def test_paper_downvoted_decreases_uploader_rep_by_1(self):
         recipient = create_random_default_user('Griphook')
         paper = create_paper(uploaded_by=recipient)
-        upvote_paper(paper, self.user)
+        downvote_paper(paper, self.user)
 
         recipient.refresh_from_db()
         upload_rep = 1
