@@ -31,7 +31,8 @@ from reputation.distributions import (
     ThreadEndorsed,
     ThreadFlagged,
     ThreadUpvoted,
-    ThreadDownvoted
+    ThreadDownvoted,
+    VotePaper
 )
 from reputation.exceptions import ReputationSignalError
 from reputation.lib import get_unpaid_distributions
@@ -145,11 +146,9 @@ def distribute_for_vote(sender, instance, created, update_fields, **kwargs):
 def distribute_for_paper_vote(sender, instance, created, update_fields, **kwargs):
     timestamp = time()
     distributor = None
-    recipient = instance.item.created_by
+    recipient = instance.created_by
 
-    if (created or vote_type_updated(update_fields)) and is_eligible(
-        recipient
-    ):
+    if (created) and is_eligible(recipient):
         try:
             distribution = get_paper_vote_distribution(instance)
             distributor = Distributor(
@@ -211,7 +210,7 @@ def vote_type_updated(update_fields):
 
 
 def get_paper_vote_distribution(instance):
-    return 1
+    return VotePaper
 
 def get_vote_item_distribution(instance):
     vote_type = instance.vote_type

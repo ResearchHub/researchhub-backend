@@ -65,6 +65,10 @@ SummaryFlagged = Distribution(
     'SUMMARY_FLAGGED', -5
 )
 
+VotePaper = Distribution(
+    'VOTE_PAPER', 1
+)
+
 DISTRIBUTION_TYPE_CHOICES = [
     (
         CreatePaper.name,
@@ -118,4 +122,8 @@ DISTRIBUTION_TYPE_CHOICES = [
         ThreadDownvoted.name,
         ThreadDownvoted.name
     ),
+    (
+        VotePaper.name,
+        VotePaper.name
+    )
 ]
