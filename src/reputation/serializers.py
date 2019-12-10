@@ -2,11 +2,13 @@ from rest_framework import serializers
 
 import ethereum.lib
 from reputation.models import Withdrawal
-from user.serializers import UserSerializer
 
 
 class WithdrawalSerializer(serializers.ModelSerializer):
-    user = UserSerializer(default=serializers.CurrentUserDefault())
+    user = serializers.PrimaryKeyRelatedField(
+        default=serializers.CurrentUserDefault(),
+        read_only=True
+    )
     token_address = serializers.CharField(
         default=ethereum.lib.RESEARCHCOIN_CONTRACT_ADDRESS
     )

@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from reputation.lib import get_user_balance
 from reputation.models import Withdrawal
 from reputation.serializers import WithdrawalSerializer
+from user.serializers import UserSerializer
 from utils.permissions import CreateOrReadOnly
 
 
@@ -34,3 +35,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 f'Insufficient balance of {user_balance}',
                 status=400
             )
+
+    def list(self, request):
+        resp = super().list(request)
+        resp.data['user'] = UserSerializer(request.user).data
+        return resp
