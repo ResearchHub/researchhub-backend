@@ -13,7 +13,10 @@ from discussion.models import (
     Thread,
     Vote as DiscussionVote
 )
-from paper.models import Paper
+from paper.models import (
+    Paper,
+    Vote as PaperVote
+)
 from reputation.distributor import Distributor
 from reputation.distributions import (
     CommentEndorsed,
@@ -138,6 +141,32 @@ def distribute_for_vote(sender, instance, created, update_fields, **kwargs):
     if distributor is not None:
         distributor.distribute()
 
+@receiver(post_save, sender=PaperVote, dispatch_uid='paper_vote')
+def distribute_for_paper_vote(sender, instance, created, update_fields, **kwargs):
+    timestamp = time()
+    distributor = None
+    recipient = instance.item.created_by
+
+    if (created or vote_type_updated(update_fields)) and is_eligible(
+        recipient
+    ):
+        try:
+            distribution = get_paper_vote_distribution(instance)
+            distributor = Distributor(
+                distribution,
+                recipient,
+                instance,
+                timestamp
+            )
+        except TypeError as e:
+            error = ReputationSignalError(
+                e,
+                'Failed to distribute for flag'
+            )
+            print(error)
+
+    if distributor is not None:
+        distributor.distribute()
 
 def is_eligible(user):
     if user is not None:
@@ -180,6 +209,9 @@ def vote_type_updated(update_fields):
         return 'vote_type' in update_fields
     return False
 
+
+def get_paper_vote_distribution(instance):
+    return 1
 
 def get_vote_item_distribution(instance):
     vote_type = instance.vote_type
