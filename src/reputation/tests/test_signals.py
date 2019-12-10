@@ -13,7 +13,7 @@ from discussion.tests.helpers import (
     update_to_upvote,
     update_to_downvote
 )
-from paper.tests.helpers import create_paper, downvote_paper, upvote_paper
+from paper.tests.helpers import create_paper, upvote_paper
 from user.models import Author
 from user.tests.helpers import (
     create_random_authenticated_user,
@@ -44,33 +44,22 @@ class SignalTests(TestCase):
         user.refresh_from_db()
         self.assertEqual(user.reputation, self.start_rep + 1)
 
-    def test_paper_upvoted_increases_uploader_rep_by_1(self):
-        recipient = create_random_default_user('Shacklebolt')
-        paper = create_paper(uploaded_by=recipient)
-        upvote_paper(paper, self.user)
+    def test_vote_on_paper_increases_rep_by_1(self):
+        recipient = create_random_default_user('Luna')
+        upvote_paper(self.paper, recipient)
 
         recipient.refresh_from_db()
-        upload_rep = 1
-        upvote_rep = 1
-        total_received_rep = upload_rep + upvote_rep
-        self.assertEqual(
-            recipient.reputation,
-            self.start_rep + total_received_rep
-        )
+        self.assertEqual(recipient.reputation, self.start_rep + 1)
 
-    def test_paper_downvoted_decreases_uploader_rep_by_1(self):
-        recipient = create_random_default_user('Griphook')
-        paper = create_paper(uploaded_by=recipient)
-        downvote_paper(paper, self.user)
+    def test_vote_on_paper_ONLY_increases_rep_once(self):
+        recipient = create_random_default_user('Xenophilius')
+        upvote_paper(self.paper, recipient)
+
+        paper = create_paper(title='Rep increase once paper')
+        upvote_paper(paper, recipient)
 
         recipient.refresh_from_db()
-        upload_rep = 1
-        upvote_rep = -1
-        total_received_rep = upload_rep + upvote_rep
-        self.assertEqual(
-            recipient.reputation,
-            self.start_rep + total_received_rep
-        )
+        self.assertEqual(recipient.reputation, self.start_rep + 1)
 
     def test_comment_downvoted_decreases_rep_by_1(self):
         recipient = create_random_default_user('Fred')
@@ -219,7 +208,7 @@ class SignalConcurrencyTests(TransactionTestCase):
             created_by=self.recipient
         )
 
-    def test_X_paper_upvotes_increase_uploader_reputation_by_X(self):
+    def test_X_paper_upvotes_do_NOT_increase_uploader_reputation_by_X(self):
         runs = 90
 
         self.recipient.refresh_from_db()
@@ -233,7 +222,7 @@ class SignalConcurrencyTests(TransactionTestCase):
         run()
 
         self.recipient.refresh_from_db()
-        self.assertEqual(self.recipient.reputation, starting_reputation + runs)
+        self.assertEqual(self.recipient.reputation, starting_reputation)
 
     def test_X_comment_upvotes_increase_reputation_by_X(self):
         runs = 90

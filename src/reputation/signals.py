@@ -1,6 +1,6 @@
 from time import time
 
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -24,8 +24,6 @@ from reputation.distributions import (
     CommentUpvoted,
     CommentDownvoted,
     CreatePaper,
-    PaperUpvoted,
-    PaperDownvoted,
     ReplyEndorsed,
     ReplyFlagged,
     ReplyUpvoted,
@@ -34,6 +32,7 @@ from reputation.distributions import (
     ThreadFlagged,
     ThreadUpvoted,
     ThreadDownvoted,
+    VoteOnPaper,
 )
 from reputation.exceptions import ReputationSignalError
 from reputation.lib import get_unpaid_distributions
@@ -58,8 +57,8 @@ def distribute_for_create_paper(sender, instance, created, **kwargs):
         distributor.distribute()
 
 
-@receiver(post_save, sender=PaperVote, dispatch_uid='paper_vote')
-def distribute_for_paper_vote(
+@receiver(post_save, sender=PaperVote, dispatch_uid='vote_on_paper')
+def distribute_for_vote_on_paper(
     sender,
     instance,
     created,
@@ -68,28 +67,25 @@ def distribute_for_paper_vote(
 ):
     timestamp = time()
     distributor = None
-    recipient = instance.paper.uploaded_by
+    recipient = instance.created_by
 
-    if (created or vote_type_updated(update_fields)) and is_eligible(
-        recipient
-    ):
+    if created and is_eligible(recipient):
         try:
-            distribution = get_paper_vote_distribution(instance)
+            distribution = VoteOnPaper
             distributor = Distributor(
                 distribution,
                 recipient,
                 instance,
                 timestamp
             )
-        except TypeError as e:
+            with transaction.atomic():
+                distributor.distribute()
+        except IntegrityError as e:
             error = ReputationSignalError(
                 e,
-                'Failed to distribute for paper vote'
+                'Failed to distribute for vote on paper'
             )
             print(error)
-
-    if distributor is not None:
-        distributor.distribute()
 
 
 @receiver(post_save, sender=Endorsement, dispatch_uid='discussion_endorsement')
@@ -202,15 +198,6 @@ def vote_type_updated(update_fields):
     if update_fields is not None:
         return 'vote_type' in update_fields
     return False
-
-
-def get_paper_vote_distribution(instance):
-    vote_type = instance.vote_type
-
-    if vote_type == PaperVote.UPVOTE:
-        return PaperUpvoted
-    elif vote_type == DiscussionVote.DOWNVOTE:
-        return PaperDownvoted
 
 
 def get_discussion_endorsement_item_distribution(instance):
