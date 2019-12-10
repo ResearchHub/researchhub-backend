@@ -301,12 +301,8 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 
-# Storage
+# AWS
 
-DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-
-AWS_STORAGE_BUCKET_NAME = 'researchhub-paper-dev1'
-AWS_S3_REGION_NAME = 'us-west-2'
 AWS_ACCESS_KEY_ID = os.environ.get(
     'AWS_ACCESS_KEY_ID',
     keys.AWS_ACCESS_KEY_ID
@@ -316,12 +312,26 @@ AWS_SECRET_ACCESS_KEY = os.environ.get(
     keys.AWS_SECRET_ACCESS_KEY
 )
 
+
+# Storage
+
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+
+AWS_STORAGE_BUCKET_NAME = 'researchhub-paper-dev1'
+AWS_S3_REGION_NAME = 'us-west-2'
+
+
+# Email
+
 AWS_SES_REGION_NAME = 'us-west-2'
 AWS_SES_REGION_ENDPOINT = 'email.us-west-2.amazonaws.com'
 
 EMAIL_BACKEND = 'django_ses.SESBackend'
 
 EMAIL_WHITELIST = []
+
+
+# Sentry
 
 SENTRY_ENVIRONMENT = 'production' if PRODUCTION else 'dev'
 

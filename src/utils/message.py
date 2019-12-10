@@ -1,20 +1,23 @@
-from researchhub.settings import PRODUCTION, EMAIL_WHITELIST
-
-from django.template.loader import render_to_string
+from time import sleep
 from django.core.mail import send_mail
+from django.template.loader import render_to_string
 from sentry_sdk import capture_exception
 
+from researchhub.settings import EMAIL_WHITELIST, PRODUCTION
 from user.models import EmailPreference
 
-from time import sleep
 
 def is_valid_email(email):
     preferences = EmailPreference.objects.filter(email=email)
     opt_out = False
     for preference in preferences:
         opt_out = preference.opt_out
-    send = PRODUCTION or 'quantfive.org' in email or email in EMAIL_WHITELIST
-    return send and not opt_out
+    return (
+        PRODUCTION
+        or 'quantfive.org' in email
+        or email in EMAIL_WHITELIST
+    ) and not opt_out
+
 
 def send_email_message(recipients, message, subject, emailContext, html_message=None):
     if not isinstance(recipients, list):
@@ -31,7 +34,7 @@ def send_email_message(recipients, message, subject, emailContext, html_message=
         msg_html = render_to_string(html_message, customContext)
         send_to = [recipient]
         try:
-           send_mail(
+            send_mail(
                 subject,
                 msg_plain,
                 'noreply@researchhub.com',
