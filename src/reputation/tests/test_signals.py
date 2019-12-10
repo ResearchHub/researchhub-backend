@@ -219,7 +219,7 @@ class SignalConcurrencyTests(TransactionTestCase):
             created_by=self.recipient
         )
 
-    def test_X_paper_upvotes_do_NOT_increase_reputation_if_not_author(self):
+    def test_X_paper_upvotes_increase_uploader_reputation_by_X(self):
         runs = 90
 
         self.recipient.refresh_from_db()
@@ -233,7 +233,7 @@ class SignalConcurrencyTests(TransactionTestCase):
         run()
 
         self.recipient.refresh_from_db()
-        self.assertEqual(self.recipient.reputation, starting_reputation)
+        self.assertEqual(self.recipient.reputation, starting_reputation + runs)
 
     def test_X_comment_upvotes_increase_reputation_by_X(self):
         runs = 90
