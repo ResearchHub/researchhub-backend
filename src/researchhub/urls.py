@@ -82,7 +82,9 @@ router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('email_notifications/', index_views.email_notifications),
     path('health/', index_views.healthcheck),
+
     re_path(r'^api/', include(router.urls)),
     path('api/ethereum/', include(ethereum.urls)),
     path('api/permissions/', permissions, name='permissions'),

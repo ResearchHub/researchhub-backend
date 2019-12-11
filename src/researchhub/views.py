@@ -1,14 +1,66 @@
+import json
 import os
 from researchhub.settings import BASE_DIR
 from django.http import HttpResponse
-from rest_framework.decorators import api_view, permission_classes
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.decorators import (
+    api_view,
+    parser_classes,
+    permission_classes
+)
 from rest_framework.response import Response
+
+from user.models import EmailPreference
+from utils.http import http_request
+from utils.parsers import PlainTextParser
+from utils.sentry import log_info, log_request_error
 
 
 def index(request):
     return HttpResponse(
         "Authenticate with a token in the Authorization header."
     )
+
+
+@api_view(['POST'])
+@permission_classes(())  # Override default permission classes
+@parser_classes([PlainTextParser])
+@csrf_exempt
+def email_notifications(request):
+    """Handles AWS SNS email notifications."""
+
+    data = json.loads(request.data)
+
+    if data['Type'] == 'SubscriptionConfirmation':
+        url = data['SubscribeURL']
+        resp = http_request('GET', url)
+        if resp.status_code != 200:
+            message = 'Failed to subscribe to SNS'
+            log_request_error(resp, message)
+
+    elif data['Type'] == 'Notification':
+        data_message = json.loads(data['Message'])
+        if data_message['notificationType'] == 'Bounce':
+            bounced_recipients = data_message['bounce']['bouncedRecipients']
+            for b_r in bounced_recipients:
+                email_address = b_r['emailAddress']
+                preference, created = EmailPreference.objects.get_or_create(
+                    email=email_address
+                )
+                preference.bounced = True
+                preference.save()
+            print(bounced_recipients)
+
+    elif data['Type'] == 'Complaint':
+        print('complaint')
+    else:
+        message = (
+            f'`email_notifications` received unsupported type {data["Type"]}'
+        )
+        print(message)
+        log_info(message)
+
+    return Response({})
 
 
 def permissions(request):
