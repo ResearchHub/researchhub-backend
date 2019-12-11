@@ -8,22 +8,21 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import User, University, Author, EmailPreference
-from .serializers import (
-    AuthorSerializer,
-    EmailPreferenceSerializer,
-    UniversitySerializer,
-    UserSerializer
-)
-from .filters import AuthorFilter
-from .permissions import UpdateAuthor
-from paper.models import Paper
-from paper.serializers import PaperSerializer
 from discussion.models import Comment, Reply, Thread
 from discussion.serializers import (
     CommentSerializer,
     ReplySerializer,
     ThreadSerializer
+)
+from paper.models import Paper
+from paper.serializers import PaperSerializer
+from user.filters import AuthorFilter
+from user.models import User, University, Author
+from user.permissions import UpdateAuthor
+from user.serializers import (
+    AuthorSerializer,
+    UniversitySerializer,
+    UserSerializer
 )
 from utils.http import RequestMethods
 
@@ -60,32 +59,6 @@ class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('name', 'city', 'state', 'country')
     permission_classes = [AllowAny]
-
-
-class EmailPreferenceViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = EmailPreference.objects.all()
-    serializer_class = EmailPreferenceSerializer
-    filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
-    permission_classes = [AllowAny]
-
-    @action(
-        detail=False,
-        methods=['post'],
-    )
-    def update_or_create_email_preference(self, request):
-        email = request.data['email']
-        opt_out = request.data['opt_out']
-        subscribe = request.data['subscribe']
-
-        preference, created = EmailPreference.objects.get_or_create(
-            email=email
-        )
-
-        preference.subscribe = subscribe
-        preference.opt_out = opt_out
-        preference.save()
-
-        return Response({'preference_updated': True}, status=200)
 
 
 class AuthorViewSet(viewsets.ModelViewSet):

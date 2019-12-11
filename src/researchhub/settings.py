@@ -138,12 +138,13 @@ INSTALLED_APPS = [
     'discussion',
     'ethereum',
     'hub',
+    'mailing_list',
     'oauth',
     'paper',
-    'user',
     'reputation',
     'search',
     'summary',
+    'user',
 ]
 
 SITE_ID = 1

@@ -7,10 +7,10 @@ from django.contrib import admin
 from django.urls import include, path, re_path
 from rest_framework import routers
 
-from .views import index, permissions
 import discussion.views
 import ethereum.urls
 import hub.views
+import mailing_list.views
 import oauth.urls
 import oauth.views
 import paper.views
@@ -71,9 +71,9 @@ router.register(
 )
 
 router.register(
-    r'email/preference',
-    user.views.EmailPreferenceViewSet,
-    basename='email_preference'
+    r'email_recipient',
+    mailing_list.views.EmailRecipientViewSet,
+    basename='email_recipient'
 )
 
 router.register(r'user', user.views.UserViewSet)
@@ -82,12 +82,12 @@ router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('email_notifications/', index_views.email_notifications),
+    path('email_notifications/', mailing_list.views.email_notifications),
     path('health/', index_views.healthcheck),
 
     re_path(r'^api/', include(router.urls)),
     path('api/ethereum/', include(ethereum.urls)),
-    path('api/permissions/', permissions, name='permissions'),
+    path('api/permissions/', index_views.permissions, name='permissions'),
     path('api/search/', include(search.urls)),
     path(
         'auth/google/login/callback/',
@@ -103,5 +103,5 @@ urlpatterns = [
     re_path(r'^auth/', include(oauth.urls.default_urls)),
 
     path(r'api/auth/', include('rest_auth.urls')),
-    path('', index, name='index'),
+    path('', index_views.index, name='index'),
 ]
