@@ -1,34 +1,111 @@
+import json
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets
-from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny
+from rest_framework.decorators import (
+    action,
+    api_view,
+    parser_classes,
+    permission_classes
+)
+from rest_framework.exceptions import ParseError
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import Response
 
-from mailing_list.models import EmailAddress
-from mailing_list.serializers import EmailAddressSerializer
+from mailing_list.models import EmailRecipient
+from mailing_list.serializers import EmailRecipientSerializer
+from utils.http import http_request, RequestMethods
+from utils.parsers import PlainTextParser
+from utils.sentry import log_info, log_request_error
 
 
-class MailingListViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = EmailAddress.objects.all()
-    serializer_class = EmailAddressSerializer
-    permission_classes = [AllowAny]
+class EmailRecipientViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = EmailRecipient.objects.all()
+    serializer_class = EmailRecipientSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return EmailRecipient.objects.all()
+        else:
+            return EmailRecipient.objects.filter(pk=user.id)
 
     @action(
         detail=False,
-        methods=['POST'],
+        methods=[RequestMethods.POST],
+        permission_classes=[AllowAny]
     )
     def update_or_create_email_preference(self, request):
-        address = request.data['email']
-        is_opted_out = request.data['opt_out']
+        email = request.data.get('email')
+        is_opted_out = request.data.get('opt_out')
+        is_subscribed = request.data.get('subscribe')
 
-        email_address, created = EmailAddress.objects.get_or_create(
-            address=address
+        email_recipient, created = EmailRecipient.objects.get_or_create(
+            email=email
         )
-        email_address.set_opt_out(is_opted_out)
 
-        serialized = EmailAddressSerializer(email_address)
+        if email_recipient.is_opted_out != is_opted_out:
+            email_recipient.set_opted_out(is_opted_out)
+        if email_recipient.is_subscribed != is_subscribed:
+            email_recipient.set_subscribed(is_subscribed)
+
+        serialized = EmailRecipientSerializer(email_recipient)
 
         status = 200
         if created:
             status = 201
 
         return Response(serialized.data, status=status)
+
+
+@api_view([RequestMethods.POST])
+@permission_classes(())  # Override default permission classes
+@parser_classes([PlainTextParser])
+@csrf_exempt
+def email_notifications(request):
+    """Handles AWS SNS email notifications."""
+
+    data = request.data
+    if type(request.data) is not dict:
+        data = json.loads(request.data)
+
+    data_type = None
+    try:
+        data_type = data['Type']
+    except KeyError:
+        raise ParseError(f'Did not find key `Type` in {data}')
+
+    if data_type == 'SubscriptionConfirmation':
+        url = data['SubscribeURL']
+        resp = http_request('GET', url)
+        if resp.status_code != 200:
+            message = 'Failed to subscribe to SNS'
+            log_request_error(resp, message)
+
+    elif data_type == 'Notification':
+        data_message = json.loads(data['Message'])
+        if data_message['notificationType'] == 'Bounce':
+            bounced_recipients = data_message['bounce']['bouncedRecipients']
+
+            for b_r in bounced_recipients:
+                email_address = b_r['emailAddress']
+                try:
+                    recipient, created = EmailRecipient.objects.get_or_create(
+                        email=email_address
+                    )
+                    recipient.bounced()
+                except Exception as e:
+                    print(e)
+
+            print(bounced_recipients)
+
+    elif data_type == 'Complaint':
+        print('complaint type')
+    else:
+        message = (
+            f'`email_notifications` received unsupported type {data_type}'
+        )
+        print(message)
+        log_info(message)
+
+    return Response({})

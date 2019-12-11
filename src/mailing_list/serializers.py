@@ -1,8 +1,17 @@
 from rest_framework import serializers
-from mailing_list.models import EmailAddress
+from mailing_list.models import EmailRecipient
 
 
-class EmailAddressSerializer(serializers.ModelSerializer):
+class EmailRecipientSerializer(serializers.ModelSerializer):
     class Meta:
-        model = EmailAddress
-        fields = '__all__'
+        model = EmailRecipient
+        fields = [
+            'id',
+            'email',
+            'do_not_email',
+            'is_opted_out',
+            'is_subscribed',
+            'bounced_date',
+            'created_date',
+            'updated_date',
+        ]

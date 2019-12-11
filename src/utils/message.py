@@ -4,17 +4,17 @@ from django.template.loader import render_to_string
 from sentry_sdk import capture_exception
 
 from researchhub.settings import EMAIL_WHITELIST, PRODUCTION
-from user.models import EmailPreference
+from mailing_list.models import EmailRecipient
 
 
 def is_valid_email(email):
     if not PRODUCTION:
         return email in EMAIL_WHITELIST
 
-    preference = EmailPreference.objects.get(email=email)
+    recipient = EmailRecipient.objects.get(email=email)
     return (email in EMAIL_WHITELIST) or (
-        (not preference.opt_out)
-        and (not preference.bounced)
+        (not recipient.do_not_email)
+        and (not recipient.is_opted_out)
     )
 
 

@@ -2,7 +2,7 @@ import rest_framework.serializers as rest_framework_serializers
 import rest_auth.registration.serializers as rest_auth_serializers
 
 import reputation.lib
-from user.models import Author, EmailPreference, User, University
+from user.models import Author, University, User
 
 
 class UniversitySerializer(rest_framework_serializers.ModelSerializer):
@@ -57,9 +57,3 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
     def save(self, request):
         return super().save(request)
-
-
-class EmailPreferenceSerializer(rest_framework_serializers.ModelSerializer):
-    class Meta:
-        model = EmailPreference
-        fields = '__all__'
