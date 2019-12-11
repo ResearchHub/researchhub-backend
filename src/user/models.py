@@ -11,6 +11,7 @@ class User(AbstractUser):
     """
     reputation = models.IntegerField(default=100)
     upload_tutorial_complete = models.BooleanField(default=False)
+    has_seen_first_vote_modal = models.BooleanField(default=False)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     bookmarks = models.ManyToManyField(
@@ -32,6 +33,10 @@ class User(AbstractUser):
 
         self.username = self.email
         super().save(*args, **kwargs)
+
+    def set_has_seen_first_vote_modal(self, has_seen):
+        self.has_seen_first_vote_modal = has_seen
+        self.save()
 
 
 @receiver(models.signals.post_save, sender=User)

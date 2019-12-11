@@ -25,6 +25,7 @@ from discussion.serializers import (
     ReplySerializer,
     ThreadSerializer
 )
+from utils.http import RequestMethods
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -33,11 +34,23 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
+        # TODO: Change this so that admins can see the full list of users
         user = self.request.user
         if user.is_authenticated:
             return User.objects.filter(id=user.id)
         else:
             return []
+
+    @action(
+        detail=False,
+        methods=[RequestMethods.PATCH],
+    )
+    def has_seen_first_vote_modal(self, request):
+        user = request.user
+        user = User.objects.get(pk=user.id)
+        user.set_has_seen_first_vote_modal(True)
+        serialized = UserSerializer(user)
+        return Response(serialized.data, status=200)
 
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
