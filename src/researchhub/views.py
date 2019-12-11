@@ -15,6 +15,8 @@ from utils.http import http_request
 from utils.parsers import PlainTextParser
 from utils.sentry import log_info, log_request_error
 
+from rest_framework.exceptions import ParseError
+
 
 def index(request):
     return HttpResponse(
@@ -29,16 +31,24 @@ def index(request):
 def email_notifications(request):
     """Handles AWS SNS email notifications."""
 
-    data = json.loads(request.data)
+    data = request.data
+    if type(request.data) is not dict:
+        data = json.loads(request.data)
 
-    if data['Type'] == 'SubscriptionConfirmation':
+    data_type = None
+    try:
+        data_type = data['Type']
+    except KeyError:
+        raise ParseError(f'Did not find key `Type` in {data}')
+
+    if data_type == 'SubscriptionConfirmation':
         url = data['SubscribeURL']
         resp = http_request('GET', url)
         if resp.status_code != 200:
             message = 'Failed to subscribe to SNS'
             log_request_error(resp, message)
 
-    elif data['Type'] == 'Notification':
+    elif data_type == 'Notification':
         data_message = json.loads(data['Message'])
         if data_message['notificationType'] == 'Bounce':
             bounced_recipients = data_message['bounce']['bouncedRecipients']
@@ -51,11 +61,11 @@ def email_notifications(request):
                 preference.save()
             print(bounced_recipients)
 
-    elif data['Type'] == 'Complaint':
+    elif data_type == 'Complaint':
         print('complaint')
     else:
         message = (
-            f'`email_notifications` received unsupported type {data["Type"]}'
+            f'`email_notifications` received unsupported type {data_type}'
         )
         print(message)
         log_info(message)
