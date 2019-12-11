@@ -170,12 +170,13 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
-        # 'rest_framework.permissions.AllowAny', # FOR TESTING ONLY
+        # 'rest_framework.permissions.AllowAny',  # FOR TESTING ONLY
     ],
     'DEFAULT_PAGINATION_CLASS':
         'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
 }
+
 
 TEMPLATES = [
     {
@@ -328,7 +329,10 @@ AWS_SES_REGION_ENDPOINT = 'email.us-west-2.amazonaws.com'
 
 EMAIL_BACKEND = 'django_ses.SESBackend'
 
-EMAIL_WHITELIST = []
+EMAIL_WHITELIST = [
+    'craig@quantfive.org',
+    'val@quantfive.org',
+]
 
 
 # Sentry

@@ -12,8 +12,8 @@ from .models import User, University, Author, EmailPreference
 from .serializers import (
     AuthorSerializer,
     EmailPreferenceSerializer,
-    UserSerializer,
-    UniversitySerializer
+    UniversitySerializer,
+    UserSerializer
 )
 from .filters import AuthorFilter
 from .permissions import UpdateAuthor

@@ -8,18 +8,23 @@ from user.models import EmailPreference
 
 
 def is_valid_email(email):
-    preferences = EmailPreference.objects.filter(email=email)
-    opt_out = False
-    for preference in preferences:
-        opt_out = preference.opt_out
-    return (
-        PRODUCTION
-        or 'quantfive.org' in email
-        or email in EMAIL_WHITELIST
-    ) and not opt_out
+    if not PRODUCTION:
+        return email in EMAIL_WHITELIST
+
+    preference = EmailPreference.objects.get(email=email)
+    return (email in EMAIL_WHITELIST) or (
+        (not preference.opt_out)
+        and (not preference.bounced)
+    )
 
 
-def send_email_message(recipients, message, subject, emailContext, html_message=None):
+def send_email_message(
+    recipients,
+    message,
+    subject,
+    emailContext,
+    html_message=None
+):
     if not isinstance(recipients, list):
         recipients = [recipients]
 

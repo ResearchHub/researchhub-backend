@@ -62,9 +62,10 @@ class University(models.Model):
 
 
 class EmailPreference(models.Model):
-    email = models.CharField(max_length=255, unique=True)
-    subscribe = models.BooleanField(default=False)
-    opt_out = models.BooleanField(default=False)
+    email = models.EmailField(unique=True)
+    bounced = models.BooleanField(default=False)
+    subscribed = models.BooleanField(default=False)
+    opted_out = models.BooleanField(default=False)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
