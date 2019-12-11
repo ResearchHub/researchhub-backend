@@ -18,6 +18,12 @@ class User(AbstractUser):
         'paper.Paper',
         related_name='users_who_bookmarked'
     )
+    first_vote_on_paper_distribution = models.ForeignKey(
+        'reputation.Distribution',
+        on_delete=models.SET_NULL,
+        default=None,
+        null=True
+    )
 
     def __str__(self):
         return self.email
@@ -33,6 +39,10 @@ class User(AbstractUser):
 
         self.username = self.email
         super().save(*args, **kwargs)
+
+    def set_first_vote_on_paper_distribution(self, distribution):
+        self.first_vote_on_paper_distribution = distribution
+        self.save()
 
     def set_has_seen_first_vote_modal(self, has_seen):
         self.has_seen_first_vote_modal = has_seen

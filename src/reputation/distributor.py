@@ -56,6 +56,7 @@ class Distributor:
             error = ReputationDistributorError(e, error_message)
             sentry.log_error(error)
             print(error_message, e)
+        return record
 
     def _record_distribution(self):
         record = Distribution.objects.create(

@@ -69,7 +69,9 @@ def distribute_for_vote_on_paper(
     distributor = None
     recipient = instance.created_by
 
-    if created and is_eligible(recipient):
+    if created and is_eligible(recipient) and (
+        recipient.first_vote_on_paper_distribution is None
+    ):
         try:
             distribution = VoteOnPaper
             distributor = Distributor(
@@ -79,7 +81,9 @@ def distribute_for_vote_on_paper(
                 timestamp
             )
             with transaction.atomic():
-                distributor.distribute()
+                record = distributor.distribute()
+                recipient.refresh_from_db()
+                recipient.set_first_vote_on_paper_distribution(record)
         except IntegrityError as e:
             error = ReputationSignalError(
                 e,
