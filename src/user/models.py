@@ -61,18 +61,6 @@ class University(models.Model):
         return f'{self.name}_{self.city}'
 
 
-class EmailPreference(models.Model):
-    email = models.EmailField(unique=True)
-    bounced = models.BooleanField(default=False)
-    subscribed = models.BooleanField(default=False)
-    opted_out = models.BooleanField(default=False)
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f'{self.email}'
-
-
 class ProfileImageStorage(S3Boto3Storage):
     def __init__(self):
         super(ProfileImageStorage, self).__init__()
