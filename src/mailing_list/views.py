@@ -11,11 +11,12 @@ from rest_framework.exceptions import ParseError
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import Response
 
+from mailing_list.exceptions import EmailNotificationError
 from mailing_list.models import EmailRecipient
 from mailing_list.serializers import EmailRecipientSerializer
 from utils.http import http_request, RequestMethods
 from utils.parsers import PlainTextParser
-from utils.sentry import log_info, log_request_error
+from utils.sentry import log_info, log_error, log_request_error
 
 
 class EmailRecipientViewSet(viewsets.ReadOnlyModelViewSet):
@@ -95,17 +96,19 @@ def email_notifications(request):
                     )
                     recipient.bounced()
                 except Exception as e:
-                    print(e)
-
-            print(bounced_recipients)
-
+                    message = (
+                        f'Failed handling bounced recipient: {email_address}'
+                    )
+                    error = EmailNotificationError(e, message)
+                    print(error)
+                    log_error(error, base_error=e)
     elif data_type == 'Complaint':
-        print('complaint type')
+        message = (f'`email_notifications` received {data_type}')
+        log_info(message)
     else:
         message = (
             f'`email_notifications` received unsupported type {data_type}'
         )
         print(message)
-        log_info(message)
 
     return Response({})
