@@ -329,11 +329,13 @@ def _get_authenticated_client_config(
 ):
     csrf = False
 
-    if content_type == 'application/json':
-        content_format = 'json'
-    elif content_type == 'multipart/form-data':
+    if content_type == 'multipart/form-data':
         content_format = 'multipart'
         csrf = True
+    elif content_type == 'plain/text':
+        content_format = 'txt'
+    else:
+        content_format = 'json'
 
     client = APIClient(enforce_csrf_checks=csrf)
     client.force_authenticate(user=user, token=user.auth_token)
