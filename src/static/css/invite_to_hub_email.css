@@ -81,3 +81,10 @@ body {
     margin-right: 8px;
 }
 
+.footer {
+    font-size: 12px;
+    color: #aaa;
+    padding: 10px;
+    text-align: center;
+}
+
