@@ -1,0 +1,11 @@
+#!/bin/sh
+# Deploy researchhub-backend to staging
+
+start="Deploying to staging environments:"
+echo $start
+
+echo "Deploying to staging-backend"
+eb deploy staging-backend
+
+done="Finished executing staging deployment"
+echo $done
