@@ -1,4 +1,3 @@
-
 #!/bin/sh
 # Deploy researchhub-backend to production
 
@@ -8,5 +7,5 @@ echo $start
 echo "Deploying to production"
 eb deploy production
 
-done="\nFinished executing production deployment"
+done="Finished executing production deployment"
 echo $done
