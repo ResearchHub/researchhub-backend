@@ -9,14 +9,16 @@ from rest_framework import routers
 
 from .views import index, permissions
 import discussion.views
-import paper.views
+import ethereum.urls
+import hub.views
 import oauth.urls
 import oauth.views
-import user.views
-import search.urls as search_urls
-import summary.views
-import hub.views
+import paper.views
+import reputation.views
 from researchhub import views as index_views
+import search.urls
+import summary.views
+import user.views
 
 router = routers.DefaultRouter()
 
@@ -76,12 +78,15 @@ router.register(
 
 router.register(r'user', user.views.UserViewSet)
 
+router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('health/', index_views.healthcheck),
     re_path(r'^api/', include(router.urls)),
+    path('api/ethereum/', include(ethereum.urls)),
     path('api/permissions/', permissions, name='permissions'),
-    path('api/search/', include(search_urls)),
+    path('api/search/', include(search.urls)),
     path(
         'auth/google/login/callback/',
         oauth.views.google_callback,

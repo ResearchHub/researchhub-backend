@@ -13,7 +13,7 @@ https://docs.djangoproject.com/en/2.2/ref/settings/
 import os
 import requests
 import sys
-from config import db, keys
+from config import db, keys, wallet
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
 
@@ -82,6 +82,7 @@ CORS_ORIGIN_WHITELIST = [
     'https://dev.researchhub.com',
     'https://researchnow.researchhub.com',
     'https://www.researchhub.com',
+    'https://staging-web.researchhub.com'
 ]
 
 CORS_ORIGIN_REGEX_WHITELIST = [
@@ -134,6 +135,7 @@ INSTALLED_APPS = [
 
     # Custom apps
     'discussion',
+    'ethereum',
     'hub',
     'oauth',
     'paper',
@@ -214,7 +216,10 @@ if PRODUCTION:
     GOOGLE_REDIRECT_URL = (
         'https://backend.researchhub.com/auth/google/login/callback/'
     )
-
+if STAGING:
+    GOOGLE_REDIRECT_URL = (
+        'https://staging-backend.researchhub.com/auth/google/login/callback/'
+    )
 
 # Django AllAuth setup
 # https://django-allauth.readthedocs.io/en/latest/configuration.html
@@ -294,6 +299,7 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
+
 # Storage
 
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
@@ -337,6 +343,7 @@ if PRODUCTION:
 AWS_S3_FILE_OVERWRITE = False
 AWS_DEFAULT_ACL = None
 
+
 # Search
 
 ELASTICSEARCH_DSL = {
@@ -357,3 +364,32 @@ ELASTICSEARCH_AUTO_REINDEX = not PRODUCTION and os.environ.get(
 
 if PRODUCTION:
     ELASTICSEARCH_AUTO_REINDEX = True
+
+
+# Web3
+# https://web3py.readthedocs.io/en/stable/
+
+WEB3_PROVIDER_URL = os.environ.get(
+    'WEB3_PROVIDER_URL',
+    keys.INFURA_RINKEBY_ENDPOINT
+)
+
+WEB3_INFURA_PROJECT_ID = os.environ.get(
+    'WEB3_INFURA_PROJECT_ID',
+    keys.INFURA_PROJECT_ID
+)
+
+WEB3_INFURA_API_SECRET = os.environ.get(
+    'WEB3_INFURA_API_SECRET',
+    keys.INFURA_PROJECT_SECRET
+)
+
+WEB3_KEYSTORE_FILE = os.environ.get(
+    'WEB3_KEYSTORE_FILE',
+    wallet.KEYSTORE_FILE
+)
+
+WEB3_KEYSTORE_PASSWORD = os.environ.get(
+    'WEB3_KEYSTORE_PASSWORD',
+    wallet.KEYSTORE_PASSWORD
+)

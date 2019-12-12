@@ -1,10 +1,24 @@
 from time import time
 
+from django.db import transaction, IntegrityError
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from .distributor import Distributor
-from .distributions import (
+import ethereum.lib
+from discussion.models import (
+    Comment,
+    Endorsement,
+    Flag as DiscussionFlag,
+    Reply,
+    Thread,
+    Vote as DiscussionVote
+)
+from paper.models import (
+    Paper,
+    Vote as PaperVote
+)
+from reputation.distributor import Distributor
+from reputation.distributions import (
     CommentEndorsed,
     CommentFlagged,
     CommentUpvoted,
@@ -17,18 +31,14 @@ from .distributions import (
     ThreadEndorsed,
     ThreadFlagged,
     ThreadUpvoted,
-    ThreadDownvoted
+    ThreadDownvoted,
+    VoteOnPaper,
 )
-
-from discussion.models import (
-    Comment,
-    Endorsement,
-    Flag as DiscussionFlag,
-    Reply,
-    Thread,
-    Vote as DiscussionVote
-)
-from paper.models import Paper
+from reputation.exceptions import ReputationSignalError
+from reputation.lib import get_unpaid_distributions
+from reputation.models import Withdrawal
+from reputation.utils import get_total_reputation_from_distributions
+import utils.sentry as sentry
 
 # TODO: "Suspend" user if their reputation becomes negative
 # This could mean setting `is_active` to false
@@ -47,8 +57,43 @@ def distribute_for_create_paper(sender, instance, created, **kwargs):
         distributor.distribute()
 
 
+@receiver(post_save, sender=PaperVote, dispatch_uid='vote_on_paper')
+def distribute_for_vote_on_paper(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
+    timestamp = time()
+    distributor = None
+    recipient = instance.created_by
+
+    if created and is_eligible(recipient) and (
+        recipient.first_vote_on_paper_distribution is None
+    ):
+        try:
+            distribution = VoteOnPaper
+            distributor = Distributor(
+                distribution,
+                recipient,
+                instance,
+                timestamp
+            )
+            with transaction.atomic():
+                record = distributor.distribute()
+                recipient.refresh_from_db()
+                recipient.set_first_vote_on_paper_distribution(record)
+        except IntegrityError as e:
+            error = ReputationSignalError(
+                e,
+                'Failed to distribute for vote on paper'
+            )
+            print(error)
+
+
 @receiver(post_save, sender=Endorsement, dispatch_uid='discussion_endorsement')
-def distribute_for_endorsement(
+def distribute_for_discussion_endorsement(
     sender,
     instance,
     created,
@@ -61,7 +106,9 @@ def distribute_for_endorsement(
 
     if created and is_eligible(recipient):
         try:
-            distribution = get_endorsement_item_distribution(instance)
+            distribution = get_discussion_endorsement_item_distribution(
+                instance
+            )
             distributor = Distributor(
                 distribution,
                 recipient,
@@ -69,21 +116,31 @@ def distribute_for_endorsement(
                 timestamp
             )
         except TypeError as e:
-            print(e)
+            error = ReputationSignalError(
+                e,
+                'Failed to distribute for endorsement'
+            )
+            print(error)
 
     if distributor is not None:
         distributor.distribute()
 
 
 @receiver(post_save, sender=DiscussionFlag, dispatch_uid='discussion_flag')
-def distribute_for_flag(sender, instance, created, update_fields, **kwargs):
+def distribute_for_discussion_flag(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
     timestamp = time()
     distributor = None
     recipient = instance.item.created_by
 
     if created and is_eligible(recipient):
         try:
-            distribution = get_flag_item_distribution(instance)
+            distribution = get_discussion_flag_item_distribution(instance)
             distributor = Distributor(
                 distribution,
                 recipient,
@@ -91,14 +148,24 @@ def distribute_for_flag(sender, instance, created, update_fields, **kwargs):
                 timestamp
             )
         except TypeError as e:
-            print(e)
+            error = ReputationSignalError(
+                e,
+                'Failed to distribute for flag'
+            )
+            print(error)
 
     if distributor is not None:
         distributor.distribute()
 
 
 @receiver(post_save, sender=DiscussionVote, dispatch_uid='discussion_vote')
-def distribute_for_vote(sender, instance, created, update_fields, **kwargs):
+def distribute_for_discussion_vote(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
     timestamp = time()
     distributor = None
     recipient = instance.item.created_by
@@ -107,7 +174,7 @@ def distribute_for_vote(sender, instance, created, update_fields, **kwargs):
         recipient
     ):
         try:
-            distribution = get_vote_item_distribution(instance)
+            distribution = get_discussion_vote_item_distribution(instance)
             distributor = Distributor(
                 distribution,
                 recipient,
@@ -115,7 +182,11 @@ def distribute_for_vote(sender, instance, created, update_fields, **kwargs):
                 timestamp
             )
         except TypeError as e:
-            print(e)
+            error = ReputationSignalError(
+                e,
+                'Failed to distribute for flag'
+            )
+            print(error)
 
     if distributor is not None:
         distributor.distribute()
@@ -127,7 +198,13 @@ def is_eligible(user):
     return False
 
 
-def get_endorsement_item_distribution(instance):
+def vote_type_updated(update_fields):
+    if update_fields is not None:
+        return 'vote_type' in update_fields
+    return False
+
+
+def get_discussion_endorsement_item_distribution(instance):
     item_type = type(instance.item)
 
     error = TypeError(f'Instance of type {item_type} is not supported')
@@ -142,7 +219,7 @@ def get_endorsement_item_distribution(instance):
         raise error
 
 
-def get_flag_item_distribution(instance):
+def get_discussion_flag_item_distribution(instance):
     item_type = type(instance.item)
 
     error = TypeError(f'Instance of type {item_type} is not supported')
@@ -157,13 +234,7 @@ def get_flag_item_distribution(instance):
         raise error
 
 
-def vote_type_updated(update_fields):
-    if update_fields is not None:
-        return 'vote_type' in update_fields
-    return False
-
-
-def get_vote_item_distribution(instance):
+def get_discussion_vote_item_distribution(instance):
     vote_type = instance.vote_type
     item_type = type(instance.item)
 
@@ -188,3 +259,96 @@ def get_vote_item_distribution(instance):
             return ThreadDownvoted
         else:
             raise error
+
+
+@receiver(post_save, sender=Withdrawal, dispatch_uid='')
+def pay_withdrawal(sender, instance, created, **kwargs):
+    if not created:
+        return
+
+    withdrawal_instance = instance
+    withdrawal_for_update = Withdrawal.objects.filter(
+        pk=instance.id
+    ).select_for_update(of=('self',))
+    try:
+        with transaction.atomic():
+            withdrawal = withdrawal_for_update.get()
+
+            # only getting distributions with paid status None
+            unpaid_distributions = get_unpaid_distributions(
+                withdrawal.user
+            ).select_for_update(of=('self',))
+
+            eligible_distributions = add_withdrawal_to_distributions(
+                unpaid_distributions,
+                withdrawal
+            )
+
+            reputation_payout = get_reputation_payout(
+                eligible_distributions
+            )
+
+            token_payout, withdrawal_amount = ethereum.lib.convert_reputation_amount_to_token_amount(  # noqa: E501
+                'rhc',
+                reputation_payout
+            )
+
+            # TODO: Clean this up a bit
+            withdrawal.amount = withdrawal_amount
+            withdrawal.save()
+
+            # TODO: Replace paid updates this with a call to our async service
+            for ed in eligible_distributions:
+                ed.set_paid()
+            withdrawal.set_paid()
+
+            complete_withdrawal_transfer(
+                token_payout,
+                withdrawal
+            )
+
+    except Exception as e:
+        withdrawal_instance.set_paid_failed()
+        error = ReputationSignalError(
+            e,
+            f'Failed to pay withdrawal {withdrawal.id}'
+        )
+        sentry.log_error(error, error.message)
+        print(error)
+        return
+
+
+def add_withdrawal_to_distributions(distributions, withdrawal):
+    updated_distributions = []
+    for d in distributions:
+        try:
+            with transaction.atomic():
+                d.set_paid_pending()
+                d.set_withdrawal(withdrawal)
+                updated_distributions.append(d)
+        except Exception:
+            pass
+    return updated_distributions
+
+
+def get_reputation_payout(distributions):
+    reputation_payout = get_total_reputation_from_distributions(
+        distributions
+    )
+    if reputation_payout <= 0:
+        raise ReputationSignalError(
+            None,
+            'Insufficient balance to pay out'
+        )
+    return reputation_payout
+
+
+def complete_withdrawal_transfer(amount, withdrawal):
+    token_contract = ethereum.contracts.research_coin_contract
+    transaction_hash = ethereum.utils.execute_erc20_transfer(
+        token_contract,
+        withdrawal.to_address,
+        amount
+    )
+    withdrawal.transaction_hash = transaction_hash
+    withdrawal.save()

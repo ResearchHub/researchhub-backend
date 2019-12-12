@@ -1,12 +1,20 @@
 from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticatedOrReadOnly, AllowAny
+from rest_framework.permissions import (
+    AllowAny,
+    IsAuthenticatedOrReadOnly
+)
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .models import User, University, Author, EmailPreference
-from .serializers import UserSerializer, UniversitySerializer, AuthorSerializer, EmailPreferenceSerializer
+from .serializers import (
+    AuthorSerializer,
+    EmailPreferenceSerializer,
+    UserSerializer,
+    UniversitySerializer
+)
 from .filters import AuthorFilter
 from .permissions import UpdateAuthor
 from paper.models import Paper
@@ -17,6 +25,7 @@ from discussion.serializers import (
     ReplySerializer,
     ThreadSerializer
 )
+from utils.http import RequestMethods
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -25,11 +34,23 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
+        # TODO: Change this so that admins can see the full list of users
         user = self.request.user
         if user.is_authenticated:
             return User.objects.filter(id=user.id)
         else:
             return []
+
+    @action(
+        detail=False,
+        methods=[RequestMethods.PATCH],
+    )
+    def has_seen_first_vote_modal(self, request):
+        user = request.user
+        user = User.objects.get(pk=user.id)
+        user.set_has_seen_first_vote_modal(True)
+        serialized = UserSerializer(user)
+        return Response(serialized.data, status=200)
 
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
@@ -38,6 +59,7 @@ class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('name', 'city', 'state', 'country')
     permission_classes = [AllowAny]
+
 
 class EmailPreferenceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = EmailPreference.objects.all()
@@ -54,13 +76,16 @@ class EmailPreferenceViewSet(viewsets.ReadOnlyModelViewSet):
         opt_out = request.data['opt_out']
         subscribe = request.data['subscribe']
 
-        preference, created = EmailPreference.objects.get_or_create(email=email)
+        preference, created = EmailPreference.objects.get_or_create(
+            email=email
+        )
 
         preference.subscribe = subscribe
         preference.opt_out = opt_out
         preference.save()
 
         return Response({'preference_updated': True}, status=200)
+
 
 class AuthorViewSet(viewsets.ModelViewSet):
     queryset = Author.objects.all()

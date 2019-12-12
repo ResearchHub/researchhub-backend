@@ -16,7 +16,8 @@ class ModelTests(TestCase, TestHelper):
             recipient=user,
             amount=1,
             distribution_type=CreatePaper.name,
-            proof='proof'
+            proof='proof',
+            proof_item=user
         )
         self.assertEqual(
             str(distribution),

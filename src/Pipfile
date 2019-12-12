@@ -6,7 +6,7 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
-django = "*"
+django = "~=2.2"
 postgres = "*"
 djangorestframework = "*"
 django-allauth = "*"
@@ -26,6 +26,7 @@ pre-commit = "*"
 boto = "*"
 django-ses = "*"
 django-inlinecss = "*"
+web3 = "*"
 
 [requires]
 python_version = "3.7"
