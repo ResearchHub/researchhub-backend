@@ -1,8 +1,6 @@
 branch-defaults:
   master:
     environment: production
-  default:
-    environment: staging-backend
 environment-defaults:
   production:
     branch: null
