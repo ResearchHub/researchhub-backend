@@ -11,11 +11,18 @@ class User(AbstractUser):
     """
     reputation = models.IntegerField(default=100)
     upload_tutorial_complete = models.BooleanField(default=False)
+    has_seen_first_vote_modal = models.BooleanField(default=False)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     bookmarks = models.ManyToManyField(
         'paper.Paper',
         related_name='users_who_bookmarked'
+    )
+    first_vote_on_paper_distribution = models.ForeignKey(
+        'reputation.Distribution',
+        on_delete=models.SET_NULL,
+        default=None,
+        null=True
     )
 
     def __str__(self):
@@ -32,6 +39,14 @@ class User(AbstractUser):
 
         self.username = self.email
         super().save(*args, **kwargs)
+
+    def set_first_vote_on_paper_distribution(self, distribution):
+        self.first_vote_on_paper_distribution = distribution
+        self.save()
+
+    def set_has_seen_first_vote_modal(self, has_seen):
+        self.has_seen_first_vote_modal = has_seen
+        self.save()
 
 
 @receiver(models.signals.post_save, sender=User)
@@ -55,6 +70,7 @@ class University(models.Model):
     def __str__(self):
         return f'{self.name}_{self.city}'
 
+
 class EmailPreference(models.Model):
     email = models.CharField(max_length=255, unique=True)
     subscribe = models.BooleanField(default=False)
@@ -64,6 +80,7 @@ class EmailPreference(models.Model):
 
     def __str__(self):
         return f'{self.email}'
+
 
 class ProfileImageStorage(S3Boto3Storage):
     def __init__(self):
