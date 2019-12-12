@@ -45,9 +45,6 @@ DEBUG = False
 if not (PRODUCTION or STAGING):
     DEBUG = True
 
-# TODO: setup production
-GOOGLE_REDIRECT_URL = 'http://localhost:8000/auth/google/login/callback/'
-
 ALLOWED_HOSTS = [
     '.quantfive.org',
     '.elasticbeanstalk.com',
@@ -148,8 +145,6 @@ INSTALLED_APPS = [
 
 SITE_ID = 1
 
-# GOOGLE_REDIRECT_URL = 'http://localhost:8000/api/v1/auth/google'
-
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'researchhub.middleware.csrf_disable.DisableCSRF',
@@ -213,6 +208,13 @@ OAUTH_METHOD = 'token'
 REST_AUTH_REGISTER_SERIALIZERS = {
     'REGISTER_SERIALIZER': 'user.serializers.RegisterSerializer',
 }
+
+GOOGLE_REDIRECT_URL = 'http://localhost:8000/auth/google/login/callback/'
+if PRODUCTION:
+    GOOGLE_REDIRECT_URL = (
+        'https://backend.researchhub.com/auth/google/login/callback/'
+    )
+
 
 # Django AllAuth setup
 # https://django-allauth.readthedocs.io/en/latest/configuration.html
