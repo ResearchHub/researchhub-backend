@@ -7,7 +7,6 @@ from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly
 )
 from rest_framework.response import Response
-from django.template.loader import render_to_string
 
 from .models import Hub
 from .permissions import CreateHub, IsSubscribed, IsNotSubscribed
@@ -73,7 +72,8 @@ class HubViewSet(viewsets.ModelViewSet):
 
         emailContext = {
             'hub_name': hub.name.capitalize(),
-            'link': base_url + '/hubs/{}/'.format(hub.name)
+            'link': base_url + '/hubs/{}/'.format(hub.name),
+            'opt_out': base_url + '/email/opt-out/'
         }
 
         subscribers = hub.subscribers.all()
@@ -83,10 +83,7 @@ class HubViewSet(viewsets.ModelViewSet):
                 if subscriber.email in recipients:
                     recipients.remove(subscriber.email)
 
-        msg_plain = render_to_string('invite_to_hub_email.txt', emailContext)
-        msg_html = render_to_string('invite_to_hub_email.html', emailContext)
-
-        email_sent = send_email_message(recipients, msg_plain, subject, msg_html)
+        email_sent = send_email_message(recipients, 'invite_to_hub_email.txt', subject, emailContext, 'invite_to_hub_email.html')
         response = {'email_sent': False}
         if email_sent == 1:
             response['email_sent'] = True
