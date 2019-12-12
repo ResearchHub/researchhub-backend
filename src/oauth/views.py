@@ -96,10 +96,13 @@ class SocialLoginSerializer(serializers.Serializer):
                     _("Define callback_url in view")
                 )
                 sentry.log_error(error)
+                raise error
             if not self.client_class:
-                raise serializers.ValidationError(
+                error = serializers.ValidationError(
                     _("Define client_class in view")
                 )
+                sentry.log_error(error)
+                raise error
 
             code = attrs.get('code')
 
