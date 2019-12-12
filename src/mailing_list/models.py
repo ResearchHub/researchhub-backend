@@ -7,7 +7,7 @@ class EmailRecipient(models.Model):
     do_not_email = models.BooleanField(default=False)
     is_opted_out = models.BooleanField(default=False)
     is_subscribed = models.BooleanField(default=False)
-    bounced_date = models.BooleanField(default=None, null=True)
+    bounced_date = models.DateTimeField(default=None, null=True)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
