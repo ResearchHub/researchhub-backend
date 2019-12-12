@@ -28,6 +28,7 @@ from django.utils.translation import ugettext_lazy as _
 from .helpers import complete_social_login
 from .exceptions import LoginError
 from researchhub.settings import GOOGLE_REDIRECT_URL
+from utils import sentry
 
 
 class SocialLoginSerializer(serializers.Serializer):
@@ -91,9 +92,10 @@ class SocialLoginSerializer(serializers.Serializer):
             self.client_class = getattr(view, 'client_class', None)
 
             if not self.callback_url:
-                raise serializers.ValidationError(
+                error = serializers.ValidationError(
                     _("Define callback_url in view")
                 )
+                sentry.log_error(error)
             if not self.client_class:
                 raise serializers.ValidationError(
                     _("Define client_class in view")
@@ -131,7 +133,8 @@ class SocialLoginSerializer(serializers.Serializer):
             )
             complete_social_login(request, login)
         except Exception as e:
-            print(LoginError(e, 'Login failed'))
+            error = LoginError(e, 'Login failed')
+            sentry.log_error(error, base_error=e)
             raise serializers.ValidationError(_("Incorrect value"))
 
         if not login.is_existing:
@@ -145,6 +148,7 @@ class SocialLoginSerializer(serializers.Serializer):
                     email=login.user.email,
                 ).exists()
                 if account_exists:
+                    sentry.log_info('User already registered with this e-mail')
                     raise serializers.ValidationError(
                         _("User already registered with this e-mail address.")
                     )
