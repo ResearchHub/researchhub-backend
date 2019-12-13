@@ -1,10 +1,10 @@
 body {
-    font-family: 'K2D', sans-serif;
+    font-family: 'Roboto', sans-serif;
 }
 .email-container {
     width: 600px;
     border: 1px solid #ddd;
-    font-family: 'K2D', sans-serif;
+    font-family: 'Roboto', sans-serif;
     margin: 0px auto;
 }
 
@@ -15,6 +15,7 @@ body {
     justify-content: space-between;
     padding: 16px;
     border-bottom: 1px solid #ddd;
+    font-family: 'Roboto', sans-serif;
 }
 
 .img-logo {
@@ -29,6 +30,7 @@ body {
     display: flex;
     align-items: center;
     color: rgb(78,83,255);
+    font-family: 'Roboto', sans-serif;
 }
 
 .instructions {
@@ -65,12 +67,14 @@ body {
     margin-bottom: auto;
     letter-spacing: 1.5px;
     padding: 10px;
+    font-family: 'Roboto', sans-serif;
 }
 
 .join-text {
     text-align: center;
     text-decoration: none;
     color: #fff;
+    font-family: 'Roboto', sans-serif;
 }
 
 .button-container {
@@ -86,5 +90,6 @@ body {
     color: #aaa;
     padding: 10px;
     text-align: center;
+    font-family: 'Roboto', sans-serif;
 }
 
