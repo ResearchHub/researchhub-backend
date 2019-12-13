@@ -4,6 +4,8 @@ from user.models import User
 
 
 class Hub(models.Model):
+    UNLOCK_AFTER = 14
+
     name = models.CharField(max_length=1024, unique=True)
     acronym = models.CharField(max_length=255, default='', blank=True)
     is_locked = models.BooleanField(default=True)
@@ -21,3 +23,7 @@ class Hub(models.Model):
     @property
     def subscriber_count_indexing(self):
         return len(self.subscribers.all())
+
+    def unlock(self):
+        self.is_locked = False
+        self.save()
