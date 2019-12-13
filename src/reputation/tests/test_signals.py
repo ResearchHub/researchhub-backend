@@ -16,6 +16,7 @@ from discussion.tests.helpers import (
     update_to_downvote
 )
 from paper.tests.helpers import create_paper, upvote_paper
+from summary.tests.helpers import create_summary
 from user.models import Author
 from user.tests.helpers import (
     create_random_authenticated_user,
@@ -237,6 +238,30 @@ class SignalTests(TestCase):
             recipient.reputation,
             self.start_rep + self.create_rep + 15
         )
+
+    def test_create_summary_increases_rep_below_200_by_1_in_first_week(self):
+        user = create_random_default_user('Lavender')
+        create_summary('', user, self.paper.id)
+
+        user.refresh_from_db()
+        self.assertEqual(user.reputation, self.start_rep + 1)
+
+        old_user = create_random_default_user('Brown')
+        old_user.date_joined = timezone.now() - timedelta(days=7)
+        old_user.save()
+        create_summary('', old_user, self.paper.id)
+
+        old_user.refresh_from_db()
+        self.assertEqual(old_user.reputation, self.start_rep)
+
+        rich_user = create_random_default_user('Muggle')
+        rich_user.reputation = 200
+        rich_user.save()
+        rich_user.refresh_from_db()
+        create_summary('', rich_user, self.paper.id)
+
+        rich_user.refresh_from_db()
+        self.assertEqual(rich_user.reputation, 200)
 
     # TODO: I think this should be increases?
     # def test_reply_endorsed_decreases_rep_by_2(self):
