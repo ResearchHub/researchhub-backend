@@ -11,18 +11,12 @@ class User(AbstractUser):
     """
     reputation = models.IntegerField(default=100)
     upload_tutorial_complete = models.BooleanField(default=False)
-    has_seen_first_vote_modal = models.BooleanField(default=False)
+    has_seen_first_coin_modal = models.BooleanField(default=False)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     bookmarks = models.ManyToManyField(
         'paper.Paper',
         related_name='users_who_bookmarked'
-    )
-    first_vote_on_paper_distribution = models.ForeignKey(
-        'reputation.Distribution',
-        on_delete=models.SET_NULL,
-        default=None,
-        null=True
     )
 
     def __str__(self):
@@ -40,12 +34,8 @@ class User(AbstractUser):
         self.username = self.email
         super().save(*args, **kwargs)
 
-    def set_first_vote_on_paper_distribution(self, distribution):
-        self.first_vote_on_paper_distribution = distribution
-        self.save()
-
-    def set_has_seen_first_vote_modal(self, has_seen):
-        self.has_seen_first_vote_modal = has_seen
+    def set_has_seen_first_coin_modal(self, has_seen):
+        self.has_seen_first_coin_modal = has_seen
         self.save()
 
 
