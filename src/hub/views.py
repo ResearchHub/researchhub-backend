@@ -15,6 +15,7 @@ from .filters import HubFilter
 
 from utils.message import send_email_message
 
+
 class HubViewSet(viewsets.ModelViewSet):
     queryset = Hub.objects.all()
     serializer_class = HubSerializer
@@ -34,6 +35,12 @@ class HubViewSet(viewsets.ModelViewSet):
         try:
             hub.subscribers.add(request.user)
             hub.save()
+
+            if hub.is_locked and (
+                len(hub.subscribers.all()) > Hub.UNLOCK_AFTER
+            ):
+                hub.unlock()
+
             return self._get_hub_serialized_response(hub, 200)
         except Exception as e:
             return Response(e, status=400)
@@ -67,7 +74,7 @@ class HubViewSet(viewsets.ModelViewSet):
         recipients = request.data['emails']
         subject = 'Researchhub Hub Invitation'
         hub = Hub.objects.get(id=pk)
-        
+
         base_url = request.META['HTTP_ORIGIN']
 
         emailContext = {
@@ -83,7 +90,12 @@ class HubViewSet(viewsets.ModelViewSet):
                 if subscriber.email in recipients:
                     recipients.remove(subscriber.email)
 
-        email_sent = send_email_message(recipients, 'invite_to_hub_email.txt', subject, emailContext, 'invite_to_hub_email.html')
+        email_sent = send_email_message(
+            recipients,
+            'invite_to_hub_email.txt',
+            subject,
+            emailContext, 'invite_to_hub_email.html'
+        )
         response = {'email_sent': False}
         if email_sent == 1:
             response['email_sent'] = True
