@@ -95,17 +95,6 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
         null=True
     )
 
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=['recipient', 'distribution_type'],
-                condition=models.Q(
-                    distribution_type=distributions.VoteOnPaper.name
-                ),
-                name='recipient_vote_on_paper'
-            )
-        ]
-
     def __str__(self):
         return (
             f'Distribution: {self.distribution_type},'
