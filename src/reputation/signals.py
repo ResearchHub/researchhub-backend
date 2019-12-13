@@ -1,7 +1,7 @@
 from datetime import timedelta
 from time import time
 
-from django.db import transaction, IntegrityError
+from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
@@ -53,34 +53,22 @@ def distribute_for_vote_on_paper(
     **kwargs
 ):
     timestamp = time()
-    distributor = None
     recipient = instance.created_by
 
     if created and is_eligible_for_vote_on_paper(recipient):
-        try:
-            distribution = distributions.VoteOnPaper
-            distributor = Distributor(
-                distribution,
-                recipient,
-                instance,
-                timestamp
-            )
-            with transaction.atomic():
-                record = distributor.distribute()
-                recipient.refresh_from_db()
-                recipient.set_first_vote_on_paper_distribution(record)
-        except IntegrityError as e:
-            error = ReputationSignalError(
-                e,
-                'Failed to distribute for vote on paper'
-            )
-            print(error)
+        distributor = Distributor(
+            distributions.VoteOnPaper,
+            recipient,
+            instance,
+            timestamp
+        )
+        distributor.distribute()
 
 
 def is_eligible_for_vote_on_paper(user):
     return is_eligible(user) and (
-        (user.first_vote_on_paper_distribution is None)
-        or (user.date_joined > seven_days_ago())
+        (user.date_joined > seven_days_ago())
+        and (user.reputation < 200)
     )
 
 
@@ -127,7 +115,10 @@ def distribute_for_create_thread(sender, instance, created, **kwargs):
 
 
 def is_eligible_for_create_discussion(user):
-    return is_eligible(user) and user.date_joined > seven_days_ago()
+    return is_eligible(user) and (
+        (user.date_joined > seven_days_ago())
+        and (user.reputation < 200)
+    )
 
 
 @receiver(post_save, sender=Endorsement, dispatch_uid='discussion_endorsement')
