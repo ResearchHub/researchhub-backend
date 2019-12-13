@@ -25,6 +25,7 @@ from reputation.exceptions import ReputationSignalError
 from reputation.lib import get_unpaid_distributions
 from reputation.models import Withdrawal
 from reputation.utils import get_total_reputation_from_distributions
+from summary.models import Summary
 import utils.sentry as sentry
 
 # TODO: "Suspend" user if their reputation becomes negative
@@ -66,6 +67,27 @@ def distribute_for_vote_on_paper(
 
 
 def is_eligible_for_vote_on_paper(user):
+    return is_eligible(user) and (
+        (user.date_joined > seven_days_ago())
+        and (user.reputation < 200)
+    )
+
+
+@receiver(post_save, sender=Summary, dispatch_uid='create_summary')
+def distribute_for_create_summary(sender, instance, created, **kwargs):
+    timestamp = time()
+    recipient = instance.proposed_by
+    if created and is_eligible_for_create_summary(recipient):
+        distributor = Distributor(
+            distributions.CreateSummary,
+            recipient,
+            instance,
+            timestamp
+        )
+        distributor.distribute()
+
+
+def is_eligible_for_create_summary(user):
     return is_eligible(user) and (
         (user.date_joined > seven_days_ago())
         and (user.reputation < 200)
