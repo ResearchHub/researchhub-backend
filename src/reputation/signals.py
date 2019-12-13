@@ -1,8 +1,10 @@
+from datetime import timedelta
 from time import time
 
 from django.db import transaction, IntegrityError
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 import ethereum.lib
 from discussion.models import (
@@ -18,22 +20,7 @@ from paper.models import (
     Vote as PaperVote
 )
 from reputation.distributor import Distributor
-from reputation.distributions import (
-    CommentEndorsed,
-    CommentFlagged,
-    CommentUpvoted,
-    CommentDownvoted,
-    CreatePaper,
-    ReplyEndorsed,
-    ReplyFlagged,
-    ReplyUpvoted,
-    ReplyDownvoted,
-    ThreadEndorsed,
-    ThreadFlagged,
-    ThreadUpvoted,
-    ThreadDownvoted,
-    VoteOnPaper,
-)
+import reputation.distributions as distributions
 from reputation.exceptions import ReputationSignalError
 from reputation.lib import get_unpaid_distributions
 from reputation.models import Withdrawal
@@ -49,7 +36,7 @@ def distribute_for_create_paper(sender, instance, created, **kwargs):
     timestamp = time()
     if created and is_eligible(instance.uploaded_by):
         distributor = Distributor(
-            CreatePaper,
+            distributions.CreatePaper,
             instance.uploaded_by,
             instance,
             timestamp
@@ -69,11 +56,9 @@ def distribute_for_vote_on_paper(
     distributor = None
     recipient = instance.created_by
 
-    if created and is_eligible(recipient) and (
-        recipient.first_vote_on_paper_distribution is None
-    ):
+    if created and is_eligible_for_vote_on_paper(recipient):
         try:
-            distribution = VoteOnPaper
+            distribution = distributions.VoteOnPaper
             distributor = Distributor(
                 distribution,
                 recipient,
@@ -90,6 +75,59 @@ def distribute_for_vote_on_paper(
                 'Failed to distribute for vote on paper'
             )
             print(error)
+
+
+def is_eligible_for_vote_on_paper(user):
+    return is_eligible(user) and (
+        (user.first_vote_on_paper_distribution is None)
+        or (user.date_joined > seven_days_ago())
+    )
+
+
+@receiver(post_save, sender=Comment, dispatch_uid='create_comment')
+def distribute_for_create_comment(sender, instance, created, **kwargs):
+    timestamp = time()
+    recipient = instance.created_by
+    if created and is_eligible_for_create_discussion(recipient):
+        distributor = Distributor(
+            distributions.CreateComment,
+            recipient,
+            instance,
+            timestamp
+        )
+        distributor.distribute()
+
+
+@receiver(post_save, sender=Reply, dispatch_uid='create_reply')
+def distribute_for_create_reply(sender, instance, created, **kwargs):
+    timestamp = time()
+    recipient = instance.created_by
+    if created and is_eligible_for_create_discussion(recipient):
+        distributor = Distributor(
+            distributions.CreateReply,
+            recipient,
+            instance,
+            timestamp
+        )
+        distributor.distribute()
+
+
+@receiver(post_save, sender=Thread, dispatch_uid='create_thread')
+def distribute_for_create_thread(sender, instance, created, **kwargs):
+    timestamp = time()
+    recipient = instance.created_by
+    if created and is_eligible_for_create_discussion(recipient):
+        distributor = Distributor(
+            distributions.CreateThread,
+            recipient,
+            instance,
+            timestamp
+        )
+        distributor.distribute()
+
+
+def is_eligible_for_create_discussion(user):
+    return is_eligible(user) and user.date_joined > seven_days_ago()
 
 
 @receiver(post_save, sender=Endorsement, dispatch_uid='discussion_endorsement')
@@ -184,7 +222,7 @@ def distribute_for_discussion_vote(
         except TypeError as e:
             error = ReputationSignalError(
                 e,
-                'Failed to distribute for flag'
+                'Failed to distribute for discussion vote'
             )
             print(error)
 
@@ -192,10 +230,52 @@ def distribute_for_discussion_vote(
         distributor.distribute()
 
 
+@receiver(post_save, sender=DiscussionVote, dispatch_uid='vote_on_discussion')
+def distribute_for_vote_on_discussion(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
+    timestamp = time()
+    distributor = None
+    recipient = instance.created_by
+
+    if created and is_eligible_for_vote_on_discussion(recipient):
+        try:
+            distribution = get_vote_on_discussion_item_distribution(
+                instance
+            )
+            distributor = Distributor(
+                distribution,
+                recipient,
+                instance,
+                timestamp
+            )
+        except TypeError as e:
+            error = ReputationSignalError(
+                e,
+                'Failed to distribute for vote on discussion'
+            )
+            print(error)
+
+    if distributor is not None:
+        distributor.distribute()
+
+
+def is_eligible_for_vote_on_discussion(user):
+    return is_eligible(user) and user.date_joined > seven_days_ago()
+
+
 def is_eligible(user):
     if user is not None:
         return user.is_active
     return False
+
+
+def seven_days_ago():
+    return timezone.now() - timedelta(days=7)
 
 
 def vote_type_updated(update_fields):
@@ -210,11 +290,11 @@ def get_discussion_endorsement_item_distribution(instance):
     error = TypeError(f'Instance of type {item_type} is not supported')
 
     if item_type == Comment:
-        return CommentEndorsed
+        return distributions.CommentEndorsed
     elif item_type == Reply:
-        return ReplyEndorsed
+        return distributions.ReplyEndorsed
     elif item_type == Thread:
-        return ThreadEndorsed
+        return distributions.ThreadEndorsed
     else:
         raise error
 
@@ -225,11 +305,11 @@ def get_discussion_flag_item_distribution(instance):
     error = TypeError(f'Instance of type {item_type} is not supported')
 
     if item_type == Comment:
-        return CommentFlagged
+        return distributions.CommentFlagged
     elif item_type == Reply:
-        return ReplyFlagged
+        return distributions.ReplyFlagged
     elif item_type == Thread:
-        return ThreadFlagged
+        return distributions.ThreadFlagged
     else:
         raise error
 
@@ -242,23 +322,38 @@ def get_discussion_vote_item_distribution(instance):
 
     if vote_type == DiscussionVote.UPVOTE:
         if item_type == Comment:
-            return CommentUpvoted
+            return distributions.CommentUpvoted
         elif item_type == Reply:
-            return ReplyUpvoted
+            return distributions.ReplyUpvoted
         elif item_type == Thread:
-            return ThreadUpvoted
+            return distributions.ThreadUpvoted
         else:
             raise error
 
     elif vote_type == DiscussionVote.DOWNVOTE:
         if item_type == Comment:
-            return CommentDownvoted
+            return distributions.CommentDownvoted
         elif item_type == Reply:
-            return ReplyDownvoted
+            return distributions.ReplyDownvoted
         elif item_type == Thread:
-            return ThreadDownvoted
+            return distributions.ThreadDownvoted
         else:
             raise error
+
+
+def get_vote_on_discussion_item_distribution(instance):
+    item_type = type(instance.item)
+
+    error = TypeError(f'Instance of type {item_type} is not supported')
+
+    if item_type == Comment:
+        return distributions.VoteOnComment
+    elif item_type == Reply:
+        return distributions.VoteOnReply
+    elif item_type == Thread:
+        return distributions.VoteOnThread
+    else:
+        raise error
 
 
 @receiver(post_save, sender=Withdrawal, dispatch_uid='')
