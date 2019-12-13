@@ -112,6 +112,13 @@ def create_reply(
 
 
 def create_comment(thread=None, created_by=None, text=TestData.comment_text):
+    """Create a discussion comment.
+
+    Args:
+        thread (:obj:) - discussion Thread object
+        created_by (:obj:) - User object
+        text (:str:) - comment text
+    """
     if thread is None:
         thread = create_thread()
     if created_by is None:

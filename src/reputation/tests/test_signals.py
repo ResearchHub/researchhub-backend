@@ -1,5 +1,7 @@
+from datetime import timedelta
 import random
 from django.test import TestCase, TransactionTestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from discussion.tests.helpers import (
@@ -36,6 +38,7 @@ class SignalTests(TestCase):
         self.paper.save()
 
         self.start_rep = 100
+        self.create_rep = 1
 
     def test_create_paper_increases_rep_by_1(self):
         user = create_random_default_user('Ronald')
@@ -51,15 +54,60 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(recipient.reputation, self.start_rep + 1)
 
-    def test_vote_on_paper_ONLY_increases_rep_once(self):
+    def test_vote_on_paper_ONLY_increases_rep_in_first_week(self):
         recipient = create_random_default_user('Xenophilius')
         upvote_paper(self.paper, recipient)
+        recipient.refresh_from_db()
 
+        recipient.date_joined = timezone.now() - timedelta(days=7)
+        recipient.save()
+        paper = create_paper(title='Rep increase first week paper')
+        upvote_paper(paper, recipient)
+
+        recipient.refresh_from_db()
+        self.assertEqual(recipient.reputation, self.start_rep + 1)
+
+    def test_vote_on_paper_ONLY_increases_rep_below_200_first_week(self):
+        recipient = create_random_default_user('Xenophilius')
+        upvote_paper(self.paper, recipient)
+        recipient.refresh_from_db()
+
+        recipient.date_joined = timezone.now() - timedelta(days=7)
+        recipient.save()
         paper = create_paper(title='Rep increase once paper')
         upvote_paper(paper, recipient)
 
         recipient.refresh_from_db()
         self.assertEqual(recipient.reputation, self.start_rep + 1)
+
+    def test_create_comment_increases_rep_by_1_in_first_week(self):
+        user = create_random_default_user('Ludo')
+        create_comment(created_by=user)
+
+        user.refresh_from_db()
+        self.assertEqual(user.reputation, self.start_rep + 1)
+
+        old_user = create_random_default_user('Bagman')
+        old_user.date_joined = timezone.now() - timedelta(days=7)
+        old_user.save()
+        create_comment(created_by=old_user)
+
+        old_user.refresh_from_db()
+        self.assertEqual(old_user.reputation, self.start_rep)
+
+    def test_create_comment_ONLY_increases_rep_under_200_first_week(self):
+        user = create_random_default_user('Winky')
+        create_comment(created_by=user)
+
+        user.refresh_from_db()
+        self.assertEqual(user.reputation, self.start_rep + 1)
+
+        user.reputation = 200
+        user.save()
+        create_comment(created_by=user)
+
+        user.refresh_from_db()
+        self.assertEqual(user.reputation, 200)
 
     def test_comment_downvoted_decreases_rep_by_1(self):
         recipient = create_random_default_user('Fred')
@@ -67,7 +115,25 @@ class SignalTests(TestCase):
         downvote_discussion(comment, self.user)
 
         recipient.refresh_from_db()
-        self.assertEqual(recipient.reputation, self.start_rep - 1)
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + self.create_rep - 1
+        )
+
+    def test_create_reply_increases_rep_by_1_in_first_week(self):
+        user = create_random_default_user('Bathilda')
+        create_reply(created_by=user)
+
+        user.refresh_from_db()
+        self.assertEqual(user.reputation, self.start_rep + 1)
+
+        old_user = create_random_default_user('Bagshot')
+        old_user.date_joined = timezone.now() - timedelta(days=7)
+        old_user.save()
+        create_reply(created_by=old_user)
+
+        old_user.refresh_from_db()
+        self.assertEqual(old_user.reputation, self.start_rep)
 
     def test_reply_upvoted_increases_rep_by_5(self):
         recipient = create_random_default_user('George')
@@ -75,7 +141,10 @@ class SignalTests(TestCase):
         upvote_discussion(reply, self.user)
 
         recipient.refresh_from_db()
-        self.assertEqual(recipient.reputation, self.start_rep + 5)
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + self.create_rep + 5
+        )
 
     def test_reply_downvoted_decreases_rep_by_1(self):
         recipient = create_random_default_user('Bill')
@@ -83,7 +152,25 @@ class SignalTests(TestCase):
         downvote_discussion(reply, self.user)
 
         recipient.refresh_from_db()
-        self.assertEqual(recipient.reputation, self.start_rep - 1)
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + self.create_rep - 1
+        )
+
+    def test_create_thread_increases_rep_by_1_in_first_week(self):
+        user = create_random_default_user('Bellatrix')
+        create_thread(created_by=user)
+
+        user.refresh_from_db()
+        self.assertEqual(user.reputation, self.start_rep + 1)
+
+        old_user = create_random_default_user('Lestrange')
+        old_user.date_joined = timezone.now() - timedelta(days=7)
+        old_user.save()
+        create_reply(created_by=old_user)
+
+        old_user.refresh_from_db()
+        self.assertEqual(old_user.reputation, self.start_rep)
 
     def test_thread_upvoted_increases_rep_by_5(self):
         recipient = create_random_default_user('Percy')
@@ -91,7 +178,10 @@ class SignalTests(TestCase):
         upvote_discussion(thread, self.user)
 
         recipient.refresh_from_db()
-        self.assertEqual(recipient.reputation, self.start_rep + 5)
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + self.create_rep + 5
+        )
 
     def test_thread_downvoted_decreases_rep_by_1(self):
         recipient = create_random_default_user('Charlie')
@@ -99,7 +189,10 @@ class SignalTests(TestCase):
         downvote_discussion(thread, self.user)
 
         recipient.refresh_from_db()
-        self.assertEqual(recipient.reputation, self.start_rep - 1)
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + self.create_rep - 1
+        )
 
     def test_comment_flagged_decreases_rep_by_2(self):
         recipient = create_random_default_user('Ed')
@@ -107,7 +200,10 @@ class SignalTests(TestCase):
         flag_discussion(comment, self.user)
 
         recipient.refresh_from_db()
-        self.assertEqual(recipient.reputation, self.start_rep - 2)
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + self.create_rep - 2
+        )
 
     def test_reply_flagged_decreases_rep_by_2(self):
         recipient = create_random_default_user('Edd')
@@ -115,7 +211,10 @@ class SignalTests(TestCase):
         flag_discussion(reply, self.user)
 
         recipient.refresh_from_db()
-        self.assertEqual(recipient.reputation, self.start_rep - 2)
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + self.create_rep - 2
+        )
 
     def test_thread_flagged_decreases_rep_by_2(self):
         recipient = create_random_default_user('Eddie')
@@ -123,7 +222,10 @@ class SignalTests(TestCase):
         flag_discussion(thread, self.user)
 
         recipient.refresh_from_db()
-        self.assertEqual(recipient.reputation, self.start_rep - 2)
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + self.create_rep - 2
+        )
 
     def test_comment_endorsed_increases_rep_by_15(self):
         recipient = create_random_default_user('Malfoy')
@@ -131,7 +233,10 @@ class SignalTests(TestCase):
         endorse_discussion(comment, self.author)
 
         recipient.refresh_from_db()
-        self.assertEqual(recipient.reputation, self.start_rep + 15)
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + self.create_rep + 15
+        )
 
     # TODO: I think this should be increases?
     # def test_reply_endorsed_decreases_rep_by_2(self):
@@ -151,14 +256,14 @@ class SignalTests(TestCase):
 
     def test_multiple_reputation_distributions(self):
         thread = create_thread(created_by=self.recipient)
-        current_rep = self.start_rep
+        current_rep = self.start_rep + self.create_rep
 
         self.recipient.refresh_from_db()
         self.assertEqual(self.recipient.reputation, current_rep)
 
         comment = create_comment(thread=thread, created_by=self.recipient)
         comment_vote = upvote_discussion(comment, self.user)
-        current_rep = current_rep + 5
+        current_rep = current_rep + 5 + self.create_rep
 
         self.recipient.refresh_from_db()
         self.assertEqual(self.recipient.reputation, current_rep)
@@ -171,7 +276,7 @@ class SignalTests(TestCase):
 
         reply = create_reply(parent=comment, created_by=self.recipient)
         reply_vote = downvote_discussion(reply, self.user)
-        current_rep -= 1
+        current_rep = current_rep - 1 + self.create_rep
 
         self.recipient.refresh_from_db()
         self.assertEqual(self.recipient.reputation, current_rep)

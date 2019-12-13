@@ -1,3 +1,5 @@
+import random
+
 from rest_framework.authtoken.models import Token
 
 from user.models import Author, University, User
@@ -37,7 +39,7 @@ def create_random_default_user(unique_value):
     '''
     first_name = TestData.first_name + str(unique_value)
     last_name = TestData.last_name + str(unique_value)
-    email = str(unique_value) + TestData.valid_email
+    email = str(unique_value) + str(random.random()) + TestData.valid_email
     user = create_user(
         first_name=first_name,
         last_name=last_name,
