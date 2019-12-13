@@ -19,6 +19,12 @@ VoteOnPaper = Distribution(
     'VOTE_ON_PAPER', 1
 )
 
+CreateComment = Distribution(
+    'CREATE_COMMENT', 1
+)
+VoteOnComment = Distribution(
+    'VOTE_ON_COMMENT', 1
+)
 CommentEndorsed = Distribution(
     'COMMENT_ENDORSED', 15
 )
@@ -32,6 +38,12 @@ CommentDownvoted = Distribution(
     'COMMENT_DOWNVOTED', -1
 )
 
+CreateReply = Distribution(
+    'CREATE_REPLY', 1
+)
+VoteOnReply = Distribution(
+    'VOTE_ON_REPLY', 1
+)
 ReplyEndorsed = Distribution(
     'REPLY_ENDORSED', 15
 )
@@ -45,6 +57,12 @@ ReplyDownvoted = Distribution(
     'REPLY_DOWNVOTED', -1
 )
 
+CreateThread = Distribution(
+    'CREATE_THREAD', 1
+)
+VoteOnThread = Distribution(
+    'VOTE_ON_THREAD', 1
+)
 ThreadEndorsed = Distribution(
     'THREAD_ENDORSED', 15
 )
@@ -58,6 +76,9 @@ ThreadDownvoted = Distribution(
     'THREAD_DOWNVOTED', -1
 )
 
+CreateSummary = Distribution(
+    'CREATE_SUMMARY', 1
+)
 SummaryApproved = Distribution(
     'SUMMARY_APPROVED', 15
 )
@@ -78,6 +99,14 @@ DISTRIBUTION_TYPE_CHOICES = [
         VoteOnPaper.name
     ),
     (
+        CreateComment.name,
+        CreateComment.name
+    ),
+    (
+        VoteOnComment.name,
+        VoteOnComment.name
+    ),
+    (
         CommentEndorsed.name,
         CommentEndorsed.name
     ),
@@ -92,6 +121,14 @@ DISTRIBUTION_TYPE_CHOICES = [
     (
         CommentDownvoted.name,
         CommentDownvoted.name
+    ),
+    (
+        CreateReply.name,
+        CreateReply.name
+    ),
+    (
+        VoteOnReply.name,
+        VoteOnReply.name
     ),
     (
         ReplyEndorsed.name,
@@ -110,6 +147,14 @@ DISTRIBUTION_TYPE_CHOICES = [
         ReplyDownvoted.name
     ),
     (
+        CreateThread.name,
+        CreateThread.name
+    ),
+    (
+        VoteOnThread.name,
+        VoteOnThread.name
+    ),
+    (
         ThreadEndorsed.name,
         ThreadEndorsed.name
     ),
@@ -124,5 +169,9 @@ DISTRIBUTION_TYPE_CHOICES = [
     (
         ThreadDownvoted.name,
         ThreadDownvoted.name
+    ),
+    (
+        CreateSummary.name,
+        CreateSummary.name
     ),
 ]
