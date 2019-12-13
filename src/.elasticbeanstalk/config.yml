@@ -1,4 +1,6 @@
 branch-defaults:
+  default:
+    environment: production
   master:
     environment: production
 environment-defaults:
