@@ -76,7 +76,6 @@ if ELASTIC_BEANSTALK:
 
 
 # Cors
-
 CORS_ORIGIN_WHITELIST = [
     "http://localhost:3000",
     'https://dev.researchhub.com',
@@ -86,9 +85,9 @@ CORS_ORIGIN_WHITELIST = [
     'https://researchhub.com'
 ]
 
-CORS_ORIGIN_REGEX_WHITELIST = [
-    r"^https://\w+\.researchhub\.com$",
-]
+# CORS_ORIGIN_REGEX_WHITELIST = [
+#     r"^https://\w+\.researchhub\.com$",
+# ]
 
 # Application definition
 
