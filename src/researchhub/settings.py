@@ -82,7 +82,8 @@ CORS_ORIGIN_WHITELIST = [
     'https://dev.researchhub.com',
     'https://researchnow.researchhub.com',
     'https://www.researchhub.com',
-    'https://staging-web.researchhub.com'
+    'https://staging-web.researchhub.com',
+    'https://researchhub.com'
 ]
 
 CORS_ORIGIN_REGEX_WHITELIST = [
