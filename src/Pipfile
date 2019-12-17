@@ -28,6 +28,7 @@ boto = "*"
 django-ses = "*"
 web3 = "*"
 celery = {extras = ["redis"],version = "*"}
+manubot = {git = "https://github.com/manubot/manubot",ref = "f1772c1b3ebfa42d675e2508250e02fcf0d49917"}
 
 [requires]
 python_version = "3.7"
