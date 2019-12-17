@@ -90,21 +90,27 @@ class HubViewSet(viewsets.ModelViewSet):
             'opt_out': base_url + '/email/opt-out/'
         }
 
-        subscribers = hub.subscribers.all()
+        subscriber_emails = hub.subscribers.all().values_list(
+            'email',
+            flat=True
+        )
 
-        if subscribers:
-            for subscriber in subscribers:
-                if subscriber.email in recipients:
-                    recipients.remove(subscriber.email)
+        # Don't send to hub subscribers
+        if len(subscriber_emails) > 0:
+            for recipient in recipients:
+                if recipient in subscriber_emails:
+                    recipients.remove(recipient)
 
-        email_sent = send_email_message(
+        result = send_email_message(
             recipients,
             'invite_to_hub_email.txt',
             subject,
             emailContext,
             'invite_to_hub_email.html'
         )
-        response = {'email_sent': False}
-        if email_sent == 1:
-            response['email_sent'] = True
+
+        response = {'email_sent': False, 'result': result}
+        if len(result['success']) > 0:
+            response = {'email_sent': True, 'result': result}
+
         return Response(response, status=200)

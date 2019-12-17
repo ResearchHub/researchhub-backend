@@ -51,6 +51,31 @@ class HubViewsTests(TestCase):
         hub.refresh_from_db()
         self.assertFalse(hub.is_locked)
 
+    def test_invite_to_hub(self):
+        hub = create_hub('Invite to Hub')
+        email = 'val@quantfive.org'
+
+        response = self.get_invite_to_hub_response(
+            self.user,
+            hub,
+            [email]
+        )
+        self.assertContains(response, email, status_code=200)
+
+    def test_invite_to_hub_does_not_email_subscribers(self):
+        subscriber = create_random_default_user('subscriber')
+        subscriber.email = 'val@quantfive.org'  # Must use whitelisted email
+        subscriber.save()
+        hub = create_hub('Invite to Hub No Email')
+        hub.subscribers.add(subscriber)
+
+        response = self.get_invite_to_hub_response(
+            self.user,
+            hub,
+            [subscriber.email]
+        )
+        self.assertNotContains(response, subscriber.email, status_code=200)
+
     def is_subscribed(self, user, hub):
         return user in hub.subscribers.all()
 
@@ -78,4 +103,16 @@ class HubViewsTests(TestCase):
             user,
             url,
             data
+        )
+
+    def get_invite_to_hub_response(self, user, hub, emails):
+        url = self.base_url + f'{hub.id}/invite_to_hub/'
+        data = {
+            'emails': emails
+        }
+        return get_authenticated_post_response(
+            user,
+            url,
+            data,
+            headers={'HTTP_ORIGIN': 'researchhub.com'}
         )
