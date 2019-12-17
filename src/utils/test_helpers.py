@@ -255,6 +255,7 @@ def get_authenticated_post_response(
     data,
     content_type='application/json',
     follow=False,
+    headers=None
 ):
     '''
     Sends a post request authenticated with `user` and returns the response.
@@ -262,7 +263,8 @@ def get_authenticated_post_response(
     client, content_format = _get_authenticated_client_config(
         user,
         url,
-        content_type
+        content_type,
+        http_origin=headers and headers.get('HTTP_ORIGIN', None)
     )
     response = client.post(url, data, format=content_format, follow=follow)
     return response
@@ -325,7 +327,8 @@ def get_authenticated_delete_response(
 def _get_authenticated_client_config(
     user,
     url,
-    content_type
+    content_type,
+    http_origin=None
 ):
     csrf = False
 
@@ -337,7 +340,7 @@ def _get_authenticated_client_config(
     else:
         content_format = 'json'
 
-    client = APIClient(enforce_csrf_checks=csrf)
+    client = APIClient(enforce_csrf_checks=csrf, HTTP_ORIGIN=http_origin)
     client.force_authenticate(user=user, token=user.auth_token)
     return client, content_format
 
