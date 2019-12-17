@@ -1,6 +1,7 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.permissions import (
     IsAuthenticated,
@@ -71,7 +72,13 @@ class HubViewSet(viewsets.ModelViewSet):
         methods=['post']
     )
     def invite_to_hub(self, request, pk=None):
-        recipients = request.data['emails']
+        recipients = request.data.get('emails', [])
+
+        if len(recipients) < 1:
+            message = 'Field `emails` can not be empty'
+            error = ValidationError(message)
+            return Response(error.detail, status=400)
+
         subject = 'Researchhub Hub Invitation'
         hub = Hub.objects.get(id=pk)
 
