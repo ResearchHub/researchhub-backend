@@ -26,7 +26,6 @@ pre-commit = "*"
 django-inlinecss = "*"
 boto = "*"
 django-ses = "*"
-django-inlinecss = "*"
 web3 = "*"
 
 [requires]
