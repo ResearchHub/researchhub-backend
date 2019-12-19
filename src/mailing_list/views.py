@@ -50,13 +50,11 @@ class EmailRecipientViewSet(viewsets.ReadOnlyModelViewSet):
         if email_recipient.is_subscribed != is_subscribed:
             email_recipient.set_subscribed(is_subscribed)
 
-        serialized = EmailRecipientSerializer(email_recipient)
-
         status = 200
         if created:
             status = 201
 
-        return Response(serialized.data, status=status)
+        return Response('success', status=status)
 
 
 @api_view([RequestMethods.POST])
