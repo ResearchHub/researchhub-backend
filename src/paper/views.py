@@ -179,6 +179,20 @@ class PaperViewSet(viewsets.ModelViewSet):
         data = {'found_file': result}
         return Response(data, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['post'])
+    def get_csl_item(self, request):
+        from manubot.cite.citekey import (
+            citekey_to_csl_item, standardize_citekey, url_to_citekey)
+        url = request.data.get('url')
+        if not url:
+            return Response(
+                "get_csl_item requests must specify 'url'", status=400)
+        citekey = url_to_citekey(url)
+        citekey = standardize_citekey(citekey)
+        csl_item = citekey_to_csl_item(citekey)
+        data = {'csl_item': csl_item}
+        return Response(data, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['get'])
     def get_hub_papers(self, request):
         start_date = datetime.datetime.fromtimestamp(
