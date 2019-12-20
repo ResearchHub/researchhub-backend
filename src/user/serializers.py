@@ -3,7 +3,7 @@ import rest_auth.registration.serializers as rest_auth_serializers
 
 import reputation.lib
 from user.models import Author, University, User
-
+from hub.serializers import HubSerializer
 
 class UniversitySerializer(rest_framework_serializers.ModelSerializer):
     class Meta:
@@ -31,6 +31,7 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
 class UserSerializer(rest_framework_serializers.ModelSerializer):
     author_profile = AuthorSerializer()
     balance = rest_framework_serializers.SerializerMethodField()
+    subscribed = rest_framework_serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -38,6 +39,9 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
 
     def get_balance(self, obj):
         return reputation.lib.get_user_balance(obj)
+    def get_subscribed(self, obj):
+        subscribed_query = obj.subscribed_hubs.all()
+        return HubSerializer(subscribed_query, many=True).data
 
 
 class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
