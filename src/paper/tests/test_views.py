@@ -9,7 +9,7 @@ from user.tests.helpers import (
 )
 from utils.test_helpers import (
     get_authenticated_post_response,
-    get_authenticated_delete_response,
+    get_authenticated_delete_response
 )
 
 
@@ -33,19 +33,6 @@ class PaperViewsTests(TestCase):
         response = self.get_bookmark_delete_response(self.user)
         self.assertContains(response, self.paper.id, status_code=200)
 
-    # Need to fix this so they don't redirect
-    # def test_check_url_is_true_if_url_has_pdf(self):
-    #     url = self.base_url + 'check_url'
-    #     data = {'url': 'https://bitcoin.org/bitcoin.pdf'}
-    #     response = get_authenticated_post_response(self.user, url, data)
-    #     self.assertContains(response, 'True', status_code=200)
-
-    # def test_check_url_is_false_if_url_does_NOT_have_pdf(self):
-    #     url = self.base_url + 'check_url'
-    #     data = {'url': 'https://bitcoin.org/en/'}
-    #     response = get_authenticated_post_response(self.user, url, data)
-    #     self.assertContains(response, 'False', status_code=200)
-
     def test_can_delete_flag(self):
         response = self.get_flag_delete_response(self.user)
         self.assertContains(response, self.flag.id, status_code=200)
@@ -62,6 +49,28 @@ class PaperViewsTests(TestCase):
 
     def test_delete_flag_responds_400_if_request_user_has_no_flag(self):
         pass
+
+    def test_check_url_is_true_if_url_has_pdf(self):
+        url = self.base_url + 'check_url/'
+        data = {'url': 'https://bitcoin.org/bitcoin.pdf'}
+        response = get_authenticated_post_response(self.user, url, data)
+        self.assertContains(response, 'true', status_code=200)
+
+    def test_check_url_is_false_if_url_does_NOT_have_pdf(self):
+        url = self.base_url + 'check_url/'
+        data = {'url': 'https://bitcoin.org/en/'}
+        response = get_authenticated_post_response(self.user, url, data)
+        self.assertContains(response, 'false', status_code=200)
+
+    def test_check_url_responds_400_for_malformed_url(self):
+        url = self.base_url + 'check_url/'
+        data = {'url': 'bitcoin.org/bitcoin.pdf/'}
+        response = get_authenticated_post_response(self.user, url, data)
+        self.assertContains(response, 'No schema', status_code=400)
+
+        data = {'url': 'bitcoin'}
+        response = get_authenticated_post_response(self.user, url, data)
+        self.assertContains(response, 'Invalid', status_code=400)
 
     def get_bookmark_post_response(self, user):
         url = self.base_url + f'{self.paper.id}/bookmark/'

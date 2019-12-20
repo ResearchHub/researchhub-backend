@@ -7,7 +7,8 @@ from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
-import requests
+from requests.exceptions import MissingSchema, InvalidURL
+
 
 from .filters import PaperFilter
 from .models import Flag, Paper, Vote
@@ -25,6 +26,7 @@ from .serializers import (
     PaperSerializer,
     VoteSerializer
 )
+from utils.http import http_request, RequestMethods
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -165,14 +167,22 @@ class PaperViewSet(viewsets.ModelViewSet):
         response = update_or_create_vote(user, paper, Vote.DOWNVOTE)
         return response
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=[RequestMethods.POST])
     def check_url(self, request):
         url = request.data.get('url', None)
-        r = requests.head(url)
-        content_type = r.headers.get('content-type')
+
+        try:
+            response = http_request(RequestMethods.HEAD, url)
+        except MissingSchema as e:
+            return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+        except InvalidURL as e:
+            return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+
+        content_type = response.headers.get('content-type')
         result = False
         if 'application/pdf' in content_type:
             result = True
+
         data = {'found_file': result}
         return Response(data, status=status.HTTP_200_OK)
 
