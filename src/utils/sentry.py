@@ -20,6 +20,12 @@ def log_request_error(response, message, extra=None):
 
 
 def log_info(message, error=None):
+    """Captures a message with the sentry sdk.
+
+    Arguments:
+        message (str)
+        error (obj) -- Optional error to send with the message
+    """
     with configure_scope() as scope:
         if error is not None:
             scope.set_extra('error', error)
