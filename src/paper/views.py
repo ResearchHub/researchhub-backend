@@ -7,7 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
-from requests.exceptions import MissingSchema, InvalidURL
+from requests.exceptions import MissingSchema, InvalidSchema, InvalidURL
 
 
 from .filters import PaperFilter
@@ -26,7 +26,7 @@ from .serializers import (
     PaperSerializer,
     VoteSerializer
 )
-from utils.http import http_request, RequestMethods
+from utils.http import RequestMethods, check_url_contains_pdf
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -172,16 +172,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         url = request.data.get('url', None)
 
         try:
-            response = http_request(RequestMethods.HEAD, url)
-        except MissingSchema as e:
+            result = check_url_contains_pdf(url)
+        except (MissingSchema, InvalidSchema, InvalidURL) as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
-        except InvalidURL as e:
-            return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
-
-        content_type = response.headers.get('content-type')
-        result = False
-        if 'application/pdf' in content_type:
-            result = True
 
         data = {'found_file': result}
         return Response(data, status=status.HTTP_200_OK)
