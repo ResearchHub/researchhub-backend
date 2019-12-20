@@ -28,3 +28,13 @@ def http_request(method, *args, timeout=1, **kwargs):
         return requests.post(*args, timeout=timeout, **kwargs)
     if method == RequestMethods.PUT:
         return requests.put(*args, timeout=timeout, **kwargs)
+
+
+def check_url_contains_pdf(url):
+    try:
+        response = http_request(RequestMethods.HEAD, url, timeout=2)
+    except Exception as e:
+        raise e
+
+    content_type = response.headers.get('content-type')
+    return 'application/pdf' in content_type
