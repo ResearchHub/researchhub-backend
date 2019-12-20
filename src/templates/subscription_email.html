@@ -10,47 +10,33 @@
     <body>
         <div class="email-container">
             <div class="email-header">
-            <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
-            <div class="user-name">User's Digest</div>
-            <div class="header">
-                top activity on subscribed hubs
-            </div>
-            </div>
-            
-            <div class="content">
-            <div class="title">Paper Title</div>
-            <div class="meta">
-                <div class="author-avatar"></div>
-                <div class="column">
-                <div class="author-name">Author Name</div>
-                <div class="publish-date">March 1999</div>
+                <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
+                <div class="user-name">{{User}}'s Digest</div>
+                <div class="header">
+                    top activity on subscribed hubs
                 </div>
             </div>
-            <div class="body">
-                Join now to colaborate with scholars, researchers, and enthusiasts in creating a community invested in expanding research and knowledge in the {{hub_name}} field!
-            </div> 
-            <div class="divider">
-                <div class="line"></div>
-            </div>
-            </div>
-        
-            <div class="content">
-            <div class="title">Paper Title</div>
-            <div class="meta">
-                <div class="author-avatar"></div>
-                <div class="column">
-                <div class="author-name">Author Name</div>
-                <div class="publish-date">March 1999</div>
+            {% for paper in paper_list %}
+                <div class="content">
+                    <div class="title">{{paper.title}}</div>
+                    <div class="meta">
+                        <img 
+                            class="author-avatar"
+                            src=""
+                        />
+                        <div class="column">
+                        <div class="author-name">{{paper.author.first_name}} {{paper.author.last_name}}</div>
+                        <div class="publish-date">{{paper.publish_date}</div>
+                        </div>
+                    </div>
+                    <div class="body">
+                        {{paper.tagline}}
+                    </div> 
+                    <div class="divider">
+                        <div class="line"></div>
+                    </div>
                 </div>
-            </div>
-            <div class="body">
-                Join now to colaborate with scholars, researchers, and enthusiasts in creating a community invested in expanding research and knowledge in the {{hub_name}} field!
-            </div> 
-            <div class="divider">
-                <div class="line"></div>
-            </div>
-            </div>
-        
+            {% endfor %}
         <div class="footer">
             If you would like to stop receiving emails from ResearchHub <a href={{opt_out}}>opt-out here</a>
         </div>

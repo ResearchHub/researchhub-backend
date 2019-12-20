@@ -65,6 +65,7 @@ body {
   width: 40px;
   border-radius: 20px;
   background-color: #000;
+  object-fit: contain;
 }
 
 .author-name {
