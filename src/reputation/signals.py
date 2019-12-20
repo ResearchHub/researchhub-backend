@@ -1,4 +1,5 @@
 from datetime import timedelta
+import json
 from time import time
 
 from django.db import transaction
@@ -20,6 +21,7 @@ from paper.models import (
     Paper,
     Vote as PaperVote
 )
+from researchhub.settings import ASYNC_SERVICE_HOST
 from reputation.distributor import Distributor
 import reputation.distributions as distributions
 from reputation.exceptions import ReputationSignalError
@@ -27,6 +29,7 @@ from reputation.lib import get_unpaid_distributions
 from reputation.models import Distribution, Withdrawal
 from reputation.utils import get_total_reputation_from_distributions
 from summary.models import Summary
+from utils.http import http_request, RequestMethods
 import utils.sentry as sentry
 
 # TODO: "Suspend" user if their reputation becomes negative
@@ -472,40 +475,17 @@ def pay_withdrawal(sender, instance, created, **kwargs):
     try:
         with transaction.atomic():
             withdrawal = withdrawal_for_update.get()
-
             # only getting distributions with paid status None
+            # TODO: None or failed?
             unpaid_distributions = get_unpaid_distributions(
                 withdrawal.user
             ).select_for_update(of=('self',))
 
-            eligible_distributions = add_withdrawal_to_distributions(
-                unpaid_distributions,
-                withdrawal
+            pending_withdrawal = PendingWithdrawal(
+                withdrawal,
+                unpaid_distributions
             )
-
-            reputation_payout = get_reputation_payout(
-                eligible_distributions
-            )
-
-            token_payout, withdrawal_amount = ethereum.lib.convert_reputation_amount_to_token_amount(  # noqa: E501
-                'rhc',
-                reputation_payout
-            )
-
-            # TODO: Clean this up a bit
-            withdrawal.amount = withdrawal_amount
-            withdrawal.save()
-
-            # TODO: Replace paid updates this with a call to our async service
-            for ed in eligible_distributions:
-                ed.set_paid()
-            withdrawal.set_paid()
-
-            complete_withdrawal_transfer(
-                token_payout,
-                withdrawal
-            )
-
+            pending_withdrawal.complete_token_transfer()
     except Exception as e:
         withdrawal_instance.set_paid_failed()
         error = ReputationSignalError(
@@ -517,37 +497,71 @@ def pay_withdrawal(sender, instance, created, **kwargs):
         return
 
 
-def add_withdrawal_to_distributions(distributions, withdrawal):
-    updated_distributions = []
-    for d in distributions:
-        try:
-            with transaction.atomic():
-                d.set_paid_pending()
-                d.set_withdrawal(withdrawal)
-                updated_distributions.append(d)
-        except Exception:
-            pass
-    return updated_distributions
-
-
-def get_reputation_payout(distributions):
-    reputation_payout = get_total_reputation_from_distributions(
-        distributions
-    )
-    if reputation_payout <= 0:
-        raise ReputationSignalError(
-            None,
-            'Insufficient balance to pay out'
+class PendingWithdrawal:
+    def __init__(self, withdrawal, distributions):
+        self.withdrawal = withdrawal
+        self.distributions = self.add_withdrawal_to_distributions(
+            distributions
         )
-    return reputation_payout
+        self.reputation_payout = self.calculate_reputation_payout()
+        self.token_payout = self.calculate_tokens_and_withdrawal_amount()
 
+    def add_withdrawal_to_distributions(self, distributions):
+        pending_distributions = []
+        for distribution in distributions:
+            try:
+                with transaction.atomic():
+                    distribution.set_paid_pending()
+                    distribution.set_withdrawal(self.withdrawal)
+                    pending_distributions.append(distribution)
+            except Exception:
+                pass
+        return pending_distributions
 
-def complete_withdrawal_transfer(amount, withdrawal):
-    token_contract = ethereum.contracts.research_coin_contract
-    transaction_hash = ethereum.utils.execute_erc20_transfer(
-        token_contract,
-        withdrawal.to_address,
-        amount
-    )
-    withdrawal.transaction_hash = transaction_hash
-    withdrawal.save()
+    def calculate_reputation_payout(self):
+        reputation_payout = get_total_reputation_from_distributions(
+            self.distributions
+        )
+        if reputation_payout <= 0:
+            raise ReputationSignalError(
+                None,
+                'Insufficient balance to pay out'
+            )
+        return reputation_payout
+
+    def calculate_tokens_and_withdrawal_amount(self):
+        token_payout, withdrawal_amount = ethereum.lib.convert_reputation_amount_to_token_amount(  # noqa: E501
+            'rhc',
+            self.reputation_payout
+        )
+        self.withdrawal.amount = withdrawal_amount
+        self.withdrawal.save()
+        return token_payout
+
+    def complete_token_transfer(self):
+        self.withdrawal.set_paid_pending()
+
+        token_contract = ethereum.contracts.research_coin_contract
+        transaction_hash = ethereum.utils.execute_erc20_transfer(
+            token_contract,
+            self.withdrawal.to_address,
+            self.token_payout
+        )
+
+        self.withdrawal.transaction_hash = transaction_hash
+        self.withdrawal.save()
+        self.track_withdrawal_paid_status()
+
+    def track_withdrawal_paid_status(self):
+        url = ASYNC_SERVICE_HOST + f'/ethereum/track_withdrawal'
+        data = {
+            'withdrawal': self.withdrawal.id,
+            'transaction_hash': self.withdrawal.transaction_hash
+        }
+        response = http_request(
+            RequestMethods.POST,
+            url,
+            data=json.dumps(data),
+            timeout=3
+        )
+        response.raise_for_status()
