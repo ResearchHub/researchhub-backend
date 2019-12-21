@@ -61,11 +61,22 @@ body {
 }
 
 .author-avatar {
+  height: 100%;
+  min-height: 100%;
+  max-height: 100%;
+  width: 100%;
+  min-width: 100%;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.avatar-wrapper {
   height: 40px;
   width: 40px;
   border-radius: 20px;
   background-color: #000;
   object-fit: contain;
+  overflow: hidden;
 }
 
 .author-name {
@@ -113,7 +124,7 @@ body {
 .body {
   line-height: 1.4;
   font-size: 14px;
-  padding-bottom: 20px;
+  padding-bottom: 10px;
 }
 
 .divider {
@@ -138,4 +149,37 @@ body {
   padding: 10px;
   padding-top: 25px;
   text-align: center;
+}
+
+.hubtags-list {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+  width: 600px;
+  padding-bottom: 20px;
+}
+
+.hubtag-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #edeefe;
+  height: 21px;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 1px solid #fff;
+  margin-right: 10px;
+}
+
+.hubtag-label {
+  font-family: Roboto;
+  font-size: 10px;
+  color: rgb(78, 83, 255);
+  height: 12px;
+  text-transform: uppercase;
+  font-weight: bold;
+  letter-spacing: 1px;
+  padding: 3px 10px 3px 10px;
+  font-family: "K2D", sans-serif;
 }

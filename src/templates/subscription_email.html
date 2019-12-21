@@ -20,10 +20,13 @@
                 <div class="content">
                     <div class="title">{{paper.title}}</div>
                     <div class="meta">
-                        <img 
-                            class="author-avatar"
-                            src=""
-                        />
+                        <div class="avatar-wrapper">
+                            <img 
+                                class="author-avatar"
+                                src=""
+                                alt=""
+                            />
+                        </div>
                         <div class="column">
                         <div class="author-name">{{paper.author.first_name}} {{paper.author.last_name}}</div>
                         <div class="publish-date">{{paper.publish_date}</div>
@@ -31,7 +34,14 @@
                     </div>
                     <div class="body">
                         {{paper.tagline}}
-                    </div> 
+                    </div>
+                    <div class="hubtags-list">
+                        {% for hub in hubs_list %}
+                        <div class="hubtag-wrapper">
+                            <div class="hubtag-label">{{hub.label}}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
                     <div class="divider">
                         <div class="line"></div>
                     </div>
