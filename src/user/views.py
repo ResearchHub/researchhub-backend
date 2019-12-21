@@ -26,6 +26,7 @@ from user.serializers import (
 )
 from utils.http import RequestMethods
 
+import datetime
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -52,6 +53,45 @@ class UserViewSet(viewsets.ModelViewSet):
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
 
+    def weekly_digest(self, request):
+        user = request.user
+        end_date = datetime.datetime.now()
+        start_date = end_date - datetime.timedelta(days=7)
+
+        hubs = user.subscribed_hub.all()
+        all_papers = None
+        for hub in hubs:
+            papers = Paper.objects.filter(hubs=hub.id)
+            if not all_papers:
+                all_papers = papers
+            else:
+                all_papers = all_papers | papers
+
+        upvotes = Count(
+            'vote',
+            filter=Q(
+                vote__vote_type=Vote.UPVOTE,
+                vote__updated_date__gte=start_date,
+                vote__updated_date__lte=end_date
+            )
+        )
+        downvotes = Count(
+            'vote',
+            filter=Q(
+                vote__vote_type=Vote.DOWNVOTE,
+                vote__created_date__gte=start_date,
+                vote__created_date__lte=end_date
+            )
+        )
+        all_papers = all_papers.annotate(score=upvotes - downvotes)
+        ordered_papers = all_papers.order_by('-score')
+
+        ordered_papers = order_papers[0:3]
+
+        email_context = {
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+        }
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = University.objects.all()
