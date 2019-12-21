@@ -11,7 +11,7 @@
         <div class="email-container">
             <div class="email-header">
                 <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
-                <div class="user-name">{{User}}'s Digest</div>
+                <div class="user-name">{{first_name}} {{last_name}}'s Digest</div>
                 <div class="header">
                     top activity on subscribed hubs
                 </div>
@@ -36,10 +36,10 @@
                         {{paper.tagline}}
                     </div>
                     <div class="hubtags-list">
-                        {% for hub in hubs_list %}
-                        <div class="hubtag-wrapper">
-                            <div class="hubtag-label">{{hub.label}}</div>
-                        </div>
+                        {% for hub in paper.hubs %}
+                            <div class="hubtag-wrapper">
+                                <div class="hubtag-label">{{hub.label}}</div>
+                            </div>
                         {% endfor %}
                     </div>
                     <div class="divider">
