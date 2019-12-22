@@ -2,10 +2,7 @@
 config/
 
 # Django
-**/__pycache__/
-
-# IDE
-.vscode/
+__pycache__/
 
 # Elastic Beanstalk Files
 .elasticbeanstalk/*
