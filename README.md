@@ -24,7 +24,7 @@ AWS_ACCESS_KEY_ID = ''
 AWS_SECRET_ACCESS_KEY = ''
 INFURA_PROJECT_ID = ''
 INFURA_PROJECT_SECRET = ''
-INFURA_RINKEBY_ENDPOINT = f'rinkeby.infura.io/v3/{INFURA_PROJECT_ID}'
+INFURA_RINKEBY_ENDPOINT = f'https://rinkeby.infura.io/v3/{INFURA_PROJECT_ID}'
 ```
 
 Set executable permissions on scripts
@@ -129,8 +129,10 @@ pipenv install package_name
 
 ### DEVELOPMENT
 
-Some helpful commands for development:
+This sections contains some helpful commands for development.
 
-```
+Run a development server and make the API available at <http://localhost:8000/api/>:
+
+```shell
 python src/manage.py runserver
 ```
