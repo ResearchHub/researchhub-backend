@@ -39,8 +39,6 @@ class PaperSerializer(serializers.ModelSerializer):
         model = Paper
 
     def to_internal_value(self, data):
-        data = data.copy()
-
         authors = []
         hubs = []
 
