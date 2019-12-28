@@ -149,7 +149,7 @@ python src/manage.py drf_create_token <email>
 python src/manage.py runserver
 
 # query the API
-curl \
+curl --silent \
   --header 'Authorization: Token <token>' \
   http://localhost:8000/api/
 ```
