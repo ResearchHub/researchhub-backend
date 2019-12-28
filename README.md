@@ -131,8 +131,25 @@ pipenv install package_name
 
 This sections contains some helpful commands for development.
 
+Update the database schema:
+
+```shell
+python src/manage.py makemigrations
+python src/manage.py migrate
+```
+
 Run a development server and make the API available at <http://localhost:8000/api/>:
 
 ```shell
+# create a superuser and retrieve an authentication token
+python src/manage.py createsuperuser --username=<username> --email=<email>
+python src/manage.py drf_create_token <email>
+
+# run the development server
 python src/manage.py runserver
+
+# query the API
+curl \
+  --header 'Authorization: Token <token>' \
+  http://localhost:8000/api/
 ```
