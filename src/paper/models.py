@@ -1,10 +1,28 @@
+import datetime
+
 from django.db import models
+from django.contrib.postgres.fields import JSONField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
 from hub.models import Hub
 from user.models import Author, User
 from summary.models import Summary
 from utils.voting import calculate_score
+
+
+class LowerCharField(models.CharField):
+    """
+    CharField but where values are converted to lowercase.
+    Useful for case-insensitive strings like DOIs.
+
+    FIXME: could not use for Paper.doi due to:
+    django_elasticsearch_dsl.exceptions.ModelFieldNotMappedError: Cannot convert model field doi to an Elasticsearch field!
+    """
+    def __init__(self, *args, **kwargs):
+        super(LowerCharField, self).__init__(*args, **kwargs)
+
+    def get_prep_value(self, value):
+        return str(value).lower()
 
 
 class Paper(models.Model):
@@ -48,6 +66,26 @@ class Paper(models.Model):
         blank=True
     )
     publication_type = models.CharField(max_length=255, default='', blank=True)
+    csl_item = JSONField(
+        default=dict,
+        help_text='bibliographic metadata as a single '
+                  'Citation Styles Language JSON item.'
+    )
+
+    @classmethod
+    def create_from_csl_item(cls, csl_item):
+        paper = cls(title=csl_item['title'])
+        try:
+            date_parts = csl_item['issued']['date-parts'][0]
+            if date_parts:
+                while len(date_parts) < 3:
+                    date_parts.append(1)
+                paper.paper_publish_date = datetime.date(*date_parts)
+        except KeyError:
+            pass
+        if 'DOI' in csl_item:
+            paper.doi = csl_item['DOI'].lower()
+        return paper
 
     def __str__(self):
         return '{} - {}'.format(self.title, self.uploaded_by)
