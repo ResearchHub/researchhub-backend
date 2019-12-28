@@ -1,4 +1,6 @@
+import logging
 import os
+
 from django.apps import AppConfig
 from web3 import Web3
 
@@ -22,9 +24,10 @@ class ConfigureWeb3:
 
     def configure_Web3(self):
         w3 = Web3(Web3.HTTPProvider(WEB3_PROVIDER_URL))
-        if (w3.isConnected()):
-            print('web3 connected to', w3.clientVersion)
+        if w3.isConnected():
+            logging.info(f'web3 connected to {w3.clientVersion}')
             return w3
+        logging.warning(f'web3 could not connect to {WEB3_PROVIDER_URL}')
 
     def get_default_private_key(self):
         path = os.path.join(
