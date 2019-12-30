@@ -42,6 +42,9 @@ class PaperSerializer(serializers.ModelSerializer):
         authors = []
         hubs = []
 
+        if not data.get('file'):
+            data = data.copy()
+
         if type(data) == QueryDict:
             authors = data.getlist('authors')
             hubs = data.getlist('hubs')
