@@ -190,7 +190,8 @@ class PaperViewSet(viewsets.ModelViewSet):
         citekey = url_to_citekey(url)
         citekey = standardize_citekey(citekey)
         csl_item = citekey_to_csl_item(citekey)
-        data = {'csl_item': csl_item}
+        paper = Paper.create_from_csl_item(csl_item)
+        data = {'csl_item': csl_item, 'paper': PaperSerializer(paper).data}
         return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'])
