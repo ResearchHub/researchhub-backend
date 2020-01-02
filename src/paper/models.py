@@ -16,7 +16,7 @@ class LowerCharField(models.CharField):
     Useful for case-insensitive strings like DOIs.
 
     FIXME: could not use for Paper.doi due to:
-    django_elasticsearch_dsl.exceptions.ModelFieldNotMappedError: Cannot convert model field doi to an Elasticsearch field!
+    django_elasticsearch_dsl.exceptions.ModelFieldNotMappedError: Cannot convert model field doi to an Elasticsearch field! # noqa E501
     """
     def __init__(self, *args, **kwargs):
         super(LowerCharField, self).__init__(*args, **kwargs)
@@ -80,7 +80,7 @@ class Paper(models.Model):
             if date_parts:
                 while len(date_parts) < 3:
                     date_parts.append(1)
-                paper.paper_publish_date = datetime.date(*date_parts)
+                paper.paper_publish_date = datetime.date(*map(int, date_parts))
         except KeyError:
             pass
         if 'DOI' in csl_item:
