@@ -107,6 +107,9 @@ class Paper(models.Model):
     def update_summary(self, summary):
         self.summary = summary
         self.save()
+    
+    def __str__(self):
+        return '{} / {}'.format(self.title, self.uploaded_by)
 
 
 class Vote(models.Model):
@@ -139,7 +142,9 @@ class Vote(models.Model):
                 name='unique_paper_vote'
             )
         ]
-
+    
+    def __str__(self):
+        return '{} / {}'.format(self.created_by, self.vote_type)
 
 class Flag(models.Model):
     paper = models.ForeignKey(
