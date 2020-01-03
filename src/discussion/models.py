@@ -45,6 +45,9 @@ class Vote(models.Model):
                 name='unique_vote'
             )
         ]
+    
+    def __str__(self):
+        return '{} / {}'.format(self.created_by, self.vote_type)
 
 
 class Flag(models.Model):
@@ -190,3 +193,7 @@ class Comment(BaseComment):
         null=True
     )
     replies = GenericRelation(Reply)
+
+    def __str__(self):
+        return '{} / {}'.format(self.created_by, self.plain_text)
+
