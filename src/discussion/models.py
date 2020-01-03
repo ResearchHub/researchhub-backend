@@ -47,7 +47,7 @@ class Vote(models.Model):
         ]
     
     def __str__(self):
-        return '{} / {}'.format(self.created_by, self.vote_type)
+        return '{} - {}'.format(self.created_by, self.vote_type)
 
 
 class Flag(models.Model):
@@ -195,5 +195,5 @@ class Comment(BaseComment):
     replies = GenericRelation(Reply)
 
     def __str__(self):
-        return '{} / {}'.format(self.created_by, self.plain_text)
+        return '{} - {}'.format(self.created_by, self.plain_text)
 
