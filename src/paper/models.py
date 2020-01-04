@@ -74,15 +74,13 @@ class Paper(models.Model):
 
     @classmethod
     def create_from_csl_item(cls, csl_item):
+        from manubot.cite.csl_item import CSL_Item
+        if not isinstance(csl_item, CSL_Item):
+            csl_item = CSL_Item(csl_item)
         paper = cls(title=csl_item['title'])
-        try:
-            date_parts = csl_item['issued']['date-parts'][0]
-            if date_parts:
-                while len(date_parts) < 3:
-                    date_parts.append(1)
-                paper.paper_publish_date = datetime.date(*map(int, date_parts))
-        except KeyError:
-            pass
+        date = csl_item.get_date("issued", fill=True)
+        if date:
+            paper.paper_publish_date = datetime.date.fromisoformat(date)
         if 'DOI' in csl_item:
             paper.doi = csl_item['DOI'].lower()
         return paper
