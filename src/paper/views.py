@@ -27,6 +27,7 @@ from .serializers import (
     VoteSerializer
 )
 from utils.http import RequestMethods, check_url_contains_pdf
+from search.documents.paper import PaperDocument
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -190,11 +191,14 @@ class PaperViewSet(viewsets.ModelViewSet):
         citekey = url_to_citekey(url)
         citekey = standardize_citekey(citekey)
         csl_item = citekey_to_csl_item(citekey)
-        paper = Paper.create_from_csl_item(csl_item)
+        # will call create_from_csl_item on return
+        # paper = Paper.create_from_csl_item(csl_item)
+        search = PaperDocument.search()
+        search.query("multi_match", query=csl_item['title'], fields=['title'])
+        search = search.execute()
         data = {
             'csl_item': csl_item,
-            # 'paper': PaperSerializer(paper).data,
-            'search': [],
+            'search': search,
         }
         return Response(data, status=status.HTTP_200_OK)
 
