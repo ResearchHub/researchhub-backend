@@ -11,10 +11,10 @@ from summary.models import Summary
 
 @registry.register_document
 class SummaryDocument(Document):
-    summary_plain_text = es_fields.StringField(analyzer=title_analyzer)
-    proposed_by = es_fields.StringField(attr='proposed_by_indexing')
+    summary_plain_text = es_fields.TextField(analyzer=title_analyzer)
+    proposed_by = es_fields.TextField(attr='proposed_by_indexing')
     paper = es_fields.IntegerField(attr='paper_indexing')
-    paper_title = es_fields.StringField(
+    paper_title = es_fields.TextField(
         attr='paper_title_indexing',
         analyzer=title_analyzer
     )
