@@ -11,13 +11,13 @@ from search.analyzers import title_analyzer
 
 @registry.register_document
 class PaperDocument(Document):
-    authors = es_fields.StringField(attr='authors_indexing')
+    authors = es_fields.TextField(attr='authors_indexing')
     discussion_count = es_fields.IntegerField(attr='discussion_count_indexing')
-    hubs = es_fields.StringField(attr='hubs_indexing')
+    hubs = es_fields.TextField(attr='hubs_indexing')
     score = es_fields.IntegerField(attr='score_indexing')
-    summary = es_fields.StringField(attr='summary_indexing')
-    title = es_fields.StringField(analyzer=title_analyzer)
-    tagline = es_fields.StringField(analyzer=title_analyzer)
+    summary = es_fields.TextField(attr='summary_indexing')
+    title = es_fields.TextField(analyzer=title_analyzer)
+    tagline = es_fields.TextField(analyzer=title_analyzer)
 
     class Index:
         name = 'paper'

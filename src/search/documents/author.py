@@ -10,14 +10,14 @@ from user.models import Author
 
 @registry.register_document
 class AuthorDocument(Document):
-    profile_image = es_fields.StringField(attr='profile_image_indexing')
+    profile_image = es_fields.TextField(attr='profile_image_indexing')
     university = es_fields.ObjectField(
         attr='university_indexing',
         properties={
-            'name': es_fields.StringField(),
-            'city': es_fields.StringField(),
-            'country': es_fields.StringField(),
-            'state': es_fields.StringField(),
+            'name': es_fields.TextField(),
+            'city': es_fields.TextField(),
+            'country': es_fields.TextField(),
+            'state': es_fields.TextField(),
         }
     )
 
