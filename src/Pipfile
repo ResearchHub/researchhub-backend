@@ -27,6 +27,7 @@ django-inlinecss = "*"
 boto = "*"
 django-ses = "*"
 web3 = "*"
+celery = {extras = ["redis"],version = "*"}
 
 [requires]
 python_version = "3.7"
