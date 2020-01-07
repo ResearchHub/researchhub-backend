@@ -12,8 +12,8 @@ class PaperTests(TestCase, TestHelper):
 
     def test_string_representation(self):
         paper = self.create_paper_without_authors()
-        text = '%s: []' % self.test_data.paper_title
-        self.assertEqual(str(paper), text)
+        expected = f'{self.test_data.paper_title} - {paper.uploaded_by}'
+        self.assertEqual(str(paper), expected)
 
 
 class PaperIntegrationTests(
@@ -46,7 +46,6 @@ class PaperIntegrationTests(
         return response
 
     def build_paper_form(self):
-        print('build_paper_form')
         file = SimpleUploadedFile('../config/paper.pdf', b'file_content')
         hub = self.create_hub('Film')
         university = self.create_university(name='Charleston')

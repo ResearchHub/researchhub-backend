@@ -116,7 +116,11 @@ class UserTests(BaseTests):
 
     def test_string_representation(self):
         user = self.create_user()
-        self.assertEqual(str(user), self.valid_email)
+        expected = (
+            f'{self.valid_email} / {self.author_first_name}'
+            f' {self.author_last_name}'
+        )
+        self.assertEqual(str(user), expected)
 
     def test_username_is_set_to_email(self):
         user = self.create_user()

@@ -71,9 +71,10 @@ class ThreadTests(BaseTestCase):
 
     def test_string_representation(self):
         thread = self.create_default_thread()
+        created_by = thread.created_by
         self.assertEqual(
             str(thread),
-            'threadtestuser@gmail.com: Thread Title'
+            f'{str(created_by)}: Thread Title'
         )
 
 
