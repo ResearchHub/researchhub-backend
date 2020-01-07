@@ -45,7 +45,7 @@ class Vote(models.Model):
                 name='unique_vote'
             )
         ]
-    
+
     def __str__(self):
         return '{} - {}'.format(self.created_by, self.vote_type)
 
@@ -196,4 +196,3 @@ class Comment(BaseComment):
 
     def __str__(self):
         return '{} - {}'.format(self.created_by, self.plain_text)
-

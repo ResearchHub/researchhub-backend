@@ -50,8 +50,7 @@ class Paper(models.Model):
     publication_type = models.CharField(max_length=255, default='', blank=True)
 
     def __str__(self):
-        authors = list(self.authors.all())
-        return '%s: %s' % (self.title, authors)
+        return '{} - {}'.format(self.title, self.uploaded_by)
 
     @property
     def authors_indexing(self):
@@ -107,9 +106,6 @@ class Paper(models.Model):
     def update_summary(self, summary):
         self.summary = summary
         self.save()
-    
-    def __str__(self):
-        return '{} - {}'.format(self.title, self.uploaded_by)
 
 
 class Vote(models.Model):
@@ -142,9 +138,10 @@ class Vote(models.Model):
                 name='unique_paper_vote'
             )
         ]
-    
+
     def __str__(self):
         return '{} - {}'.format(self.created_by, self.vote_type)
+
 
 class Flag(models.Model):
     paper = models.ForeignKey(
