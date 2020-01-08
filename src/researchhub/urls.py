@@ -82,6 +82,7 @@ router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('test/', mailing_list.views.test),
     path('email_notifications/', mailing_list.views.email_notifications),
     path('health/', index_views.healthcheck),
 
