@@ -1,7 +1,11 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.dispatch import receiver
 from storages.backends.s3boto3 import S3Boto3Storage
+
+from utils.models import DefaultModel
 
 
 class User(AbstractUser):
@@ -152,3 +156,19 @@ class Author(models.Model):
         if self.university is not None:
             return self.university
         return None
+
+
+class Action(DefaultModel):
+    user = models.ForeignKey(
+        User,
+        related_name='actions',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE
+    )
+    object_id = models.PositiveIntegerField()
+    item = GenericForeignKey('content_type', 'object_id')
