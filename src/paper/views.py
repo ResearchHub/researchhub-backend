@@ -182,6 +182,11 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     @staticmethod
     def get_csl_item(url):
+        """
+        Generate a CSL JSON item for a URL. Currently, does not work
+        for most PDF URLs unless they are from known domains where
+        persistent identifiers can be extracted.
+        """
         from manubot.cite.citekey import (
             citekey_to_csl_item, standardize_citekey, url_to_citekey)
         citekey = url_to_citekey(url)
@@ -189,18 +194,35 @@ class PaperViewSet(viewsets.ModelViewSet):
         csl_item = citekey_to_csl_item(citekey)
         return csl_item
 
+    @staticmethod
+    def search_by_csl_item(csl_item):
+        """
+        Perform an elasticsearch query for papers matching
+        the input CSL_Item.
+        """
+        from elasticsearch_dsl import Search, Q
+        search = Search(index="paper")
+        query = Q("match", title=csl_item['title'])
+        if csl_item.get('DOI'):
+            query |= Q("match", doi=csl_item['DOI'])
+        search.query(query)
+        return search
+
     @action(detail=False, methods=['post'])
     def search_by_url(self, request):
-        import elasticsearch_dsl
+        """
+        Retrieve bibliographic metadata and potential paper matches
+        from the database for `url` (specified via request post data).
+        """
         url = request.data.get('url')
         if not url:
             return Response(
                 "get_csl_item requests must specify 'url'", status=400)
         csl_item = self.get_csl_item(url)
-        search = elasticsearch_dsl.Search(index="paper")
-        search.query("multi_match", query=csl_item['title'], fields=['title'])
+        search = self.search_by_csl_item(csl_item)
         search = search.execute()
         data = {
+            'url': url,
             'csl_item': csl_item,
             'search': [hit.to_dict() for hit in search.hits],
         }
