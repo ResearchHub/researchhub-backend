@@ -19,9 +19,10 @@ from user.models import Action
 @receiver(post_save, sender=PaperVote, dispatch_uid='create_paper_vote_action')
 def create_action(sender, instance, created, **kwargs):
     if created:
-        user = instance.created_by
         if isinstance(sender, Summary):
             user = instance.proposed_by
+        else:
+            user = instance.created_by
         return Action.objects.create(
             item=instance,
             user=user
