@@ -14,6 +14,7 @@ from rest_framework.views import Response
 from mailing_list.exceptions import EmailNotificationError
 from mailing_list.models import EmailRecipient
 from mailing_list.serializers import EmailRecipientSerializer
+from mailing_list.tasks import test as test_task
 from utils.http import http_request, RequestMethods
 from utils.parsers import PlainTextParser
 from utils.sentry import log_info, log_error, log_request_error
@@ -55,6 +56,12 @@ class EmailRecipientViewSet(viewsets.ReadOnlyModelViewSet):
             status = 201
 
         return Response('success', status=status)
+
+
+@api_view([RequestMethods.GET])
+def test(request):
+    total = test_task.delay(1, 1)
+    return Response(f'test success {total}')
 
 
 @api_view([RequestMethods.POST])
