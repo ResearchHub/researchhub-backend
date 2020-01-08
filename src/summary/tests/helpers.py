@@ -11,6 +11,13 @@ def build_summary_data(summary, paper_id, previous_summary_id):
 
 
 def create_summary(summary, proposed_by, paper_id):
+    """Returns a Summary instance.
+
+    Args:
+        summary (str)
+        proposed_by (obj) - user
+        paper_id (int)
+    """
     return Summary.objects.create(
         summary=summary,
         summary_plain_text=summary,
