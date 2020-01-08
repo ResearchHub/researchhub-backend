@@ -2,8 +2,10 @@ import rest_framework.serializers as rest_framework_serializers
 import rest_auth.registration.serializers as rest_auth_serializers
 
 import reputation.lib
-from user.models import Author, University, User
+from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from hub.serializers import HubSerializer
+from paper.models import Vote as PaperVote
+from user.models import Author, University, User
 
 
 class UniversitySerializer(rest_framework_serializers.ModelSerializer):
@@ -63,3 +65,77 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
     def save(self, request):
         return super().save(request)
+
+
+class UserActions:
+    # Using local imports to avoid circular dependency error
+    from discussion.serializers import (
+        CommentSerializer,
+        ReplySerializer,
+        ThreadSerializer,
+        VoteSerializer as DiscussionVoteSerializer
+    )
+    from paper.serializers import VoteSerializer as PaperVoteSerializer
+
+    def __init__(self, user_id, **kwargs):
+        self.all = self.get_actions(user_id)
+        self.serialized = []
+        self.comments = []
+        self.replies = []
+        self.threads = []
+        self.discussion_votes = []
+        self.paper_votes = []
+        self._group_and_serialize_actions()
+
+    @property
+    def actions_by_type(self):
+        return {
+            'comments': self.comments,
+            'replies': self.replies,
+            'threads': self.threads,
+            'discussion_votes': self.discussion_votes,
+            'paper_votes': self.paper_votes,
+        }
+
+    def get_actions(self, user_id):
+        user = User.objects.get(pk=user_id)
+        return user.actions.all()
+
+    def _group_and_serialize_actions(self):
+        for action in self.all:
+            item = action.item
+
+            if isinstance(item, Comment):
+                self.comments.append(item)
+                data = self.CommentSerializer(item).data
+                data['content_type'] = str(action.content_type)
+                self.serialized.append(data)
+
+            elif isinstance(item, Reply):
+                self.replies.append(item)
+                data = self.ReplySerializer(item).data
+                data['content_type'] = str(action.content_type)
+                self.serialized.append(data)
+
+            elif isinstance(item, Thread):
+                self.threads.append(item)
+                data = self.ThreadSerializer(item).data
+                data['content_type'] = str(action.content_type)
+                self.serialized.append(data)
+
+            elif isinstance(item, DiscussionVote):
+                self.discussion_votes.append(item)
+                data = self.DiscussionVoteSerializer(item).data
+                data['content_type'] = str(action.content_type)
+                self.serialized.append(data)
+
+            elif isinstance(item, PaperVote):
+                self.paper_votes.append(item)
+                data = self.PaperVoteSerializer(item).data
+                data['content_type'] = str(action.content_type)
+                self.serialized.append(data)
+
+            else:
+                raise TypeError(
+                    f'Instance of type {type(item)} is not supported'
+                )
