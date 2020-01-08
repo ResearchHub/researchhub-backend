@@ -201,7 +201,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         """
         from elasticsearch_dsl import Search, Q
         search = Search(index="paper")
-        query = Q("match", title=csl_item['title'])
+        query = Q("match", title=csl_item.get('title', ''))
         if csl_item.get('DOI'):
             query |= Q("match", doi=csl_item['DOI'])
         search.query(query)
@@ -216,12 +216,25 @@ class PaperViewSet(viewsets.ModelViewSet):
         url = request.data.get('url')
         if not url:
             return Response(
-                "get_csl_item requests must specify 'url'", status=400)
-        csl_item = self.get_csl_item(url)
+                "search_by_url requests must specify 'url'",
+                status=status.HTTP_400_BAD_REQUEST)
+        try:
+            url_is_pdf = check_url_contains_pdf(url)
+        except Exception as error:
+            return Response(
+                f"Double check that URL is valid: {url}\n:{error}",
+                status=status.HTTP_400_BAD_REQUEST)
+        try:
+            csl_item = self.get_csl_item(url)
+        except Exception as error:
+            return Response(
+                f"Generating csl_item for {url} failed with:\n{error}",
+                status=status.HTTP_400_BAD_REQUEST)
         search = self.search_by_csl_item(csl_item)
         search = search.execute()
         data = {
             'url': url,
+            'url_is_pdf': url_is_pdf,
             'csl_item': csl_item,
             'search': [hit.to_dict() for hit in search.hits],
         }
