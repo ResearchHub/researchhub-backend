@@ -10,21 +10,6 @@ from summary.models import Summary
 from utils.voting import calculate_score
 
 
-class LowerCharField(models.CharField):
-    """
-    CharField but where values are converted to lowercase.
-    Useful for case-insensitive strings like DOIs.
-
-    FIXME: could not use for Paper.doi due to:
-    django_elasticsearch_dsl.exceptions.ModelFieldNotMappedError: Cannot convert model field doi to an Elasticsearch field! # noqa E501
-    """
-    def __init__(self, *args, **kwargs):
-        super(LowerCharField, self).__init__(*args, **kwargs)
-
-    def get_prep_value(self, value):
-        return str(value).lower()
-
-
 class Paper(models.Model):
     title = models.CharField(max_length=1024)
     uploaded_by = models.ForeignKey(
@@ -52,6 +37,7 @@ class Paper(models.Model):
         related_name='papers',
         blank=True
     )
+    # currently this is the PDF url enterred by users during upload (seed URL)
     url = models.URLField(default='', blank=True)
     summary = models.ForeignKey(
         Summary,
@@ -74,6 +60,11 @@ class Paper(models.Model):
 
     @classmethod
     def create_from_csl_item(cls, csl_item):
+        """
+        Create a paper object (but do not save) from a CSL_Item.
+        This may be useful if we want to auto-populate the paper
+        database at some point.
+        """
         from manubot.cite.csl_item import CSL_Item
         if not isinstance(csl_item, CSL_Item):
             csl_item = CSL_Item(csl_item)
@@ -83,6 +74,7 @@ class Paper(models.Model):
             paper.paper_publish_date = datetime.date.fromisoformat(date)
         if 'DOI' in csl_item:
             paper.doi = csl_item['DOI'].lower()
+        paper.csl_item = csl_item
         return paper
 
     def __str__(self):

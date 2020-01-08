@@ -27,7 +27,6 @@ from .serializers import (
     VoteSerializer
 )
 from utils.http import RequestMethods, check_url_contains_pdf
-from search.documents.paper import PaperDocument
 
 
 class PaperViewSet(viewsets.ModelViewSet):
