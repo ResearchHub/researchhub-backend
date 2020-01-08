@@ -3,6 +3,14 @@ from django.utils import timezone
 from utils.managers import SoftDeletableManager
 
 
+class DefaultModel(models.Model):
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
 class SoftDeletableModel(models.Model):
     """Adapted from https://github.com/jazzband/django-model-utils"""
 
