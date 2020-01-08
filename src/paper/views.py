@@ -193,12 +193,13 @@ class PaperViewSet(viewsets.ModelViewSet):
         csl_item = citekey_to_csl_item(citekey)
         # will call create_from_csl_item on return
         # paper = Paper.create_from_csl_item(csl_item)
+        # paper.save()
         search = PaperDocument.search()
         search.query("multi_match", query=csl_item['title'], fields=['title'])
         search = search.execute()
         data = {
             'csl_item': csl_item,
-            'search': search,
+            #'search': list(search),
         }
         return Response(data, status=status.HTTP_200_OK)
 
