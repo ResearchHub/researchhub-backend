@@ -12,3 +12,7 @@ class PlainTextParser(BaseParser):
         Simply return a string representing the body of the request.
         """
         return stream.read()
+
+
+def dict_to_tuple(obj):
+    return [(key, obj[key]) for key in obj]
