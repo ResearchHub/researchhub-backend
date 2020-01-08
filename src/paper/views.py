@@ -180,26 +180,29 @@ class PaperViewSet(viewsets.ModelViewSet):
         data = {'found_file': result}
         return Response(data, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['post'])
-    def get_csl_item(self, request):
+    @staticmethod
+    def get_csl_item(url):
         from manubot.cite.citekey import (
             citekey_to_csl_item, standardize_citekey, url_to_citekey)
+        citekey = url_to_citekey(url)
+        citekey = standardize_citekey(citekey)
+        csl_item = citekey_to_csl_item(citekey)
+        return csl_item
+
+    @action(detail=False, methods=['post'])
+    def search_by_url(self, request):
+        import elasticsearch_dsl
         url = request.data.get('url')
         if not url:
             return Response(
                 "get_csl_item requests must specify 'url'", status=400)
-        citekey = url_to_citekey(url)
-        citekey = standardize_citekey(citekey)
-        csl_item = citekey_to_csl_item(citekey)
-        # will call create_from_csl_item on return
-        # paper = Paper.create_from_csl_item(csl_item)
-        # paper.save()
-        search = PaperDocument.search()
+        csl_item = self.get_csl_item(url)
+        search = elasticsearch_dsl.Search(index="paper")
         search.query("multi_match", query=csl_item['title'], fields=['title'])
         search = search.execute()
         data = {
             'csl_item': csl_item,
-            #'search': list(search),
+            'search': [hit.to_dict() for hit in search.hits],
         }
         return Response(data, status=status.HTTP_200_OK)
 
