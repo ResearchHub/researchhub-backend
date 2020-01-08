@@ -1,6 +1,7 @@
 from rest_framework import viewsets
 from rest_framework.permissions import (
     AllowAny,
+    IsAuthenticated,
     IsAuthenticatedOrReadOnly
 )
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -22,7 +23,8 @@ from user.permissions import UpdateAuthor
 from user.serializers import (
     AuthorSerializer,
     UniversitySerializer,
-    UserSerializer
+    UserSerializer,
+    UserActions
 )
 from utils.http import RequestMethods
 
@@ -40,6 +42,19 @@ class UserViewSet(viewsets.ModelViewSet):
             return User.objects.filter(id=user.id)
         else:
             return User.objects.none()
+
+    @action(
+        detail=True,
+        methods=[RequestMethods.GET],
+        permission_classes=[IsAuthenticated]
+    )
+    def actions(self, request, pk=None):
+        user = request.user
+        if not user.is_staff:
+            pk = user.id
+        user_actions = UserActions(pk)
+        page = self.paginate_queryset(user_actions.serialized)
+        return self.get_paginated_response(page)
 
     @action(
         detail=False,
