@@ -98,6 +98,12 @@ class BaseComment(models.Model):
         blank=True,
         null=True
     )
+    paper = models.ForeignKey(
+        Paper,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True
+    )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     was_edited = models.BooleanField(
@@ -146,13 +152,6 @@ class BaseComment(models.Model):
 
 
 class Thread(BaseComment):
-    paper = models.ForeignKey(
-        Paper,
-        on_delete=models.SET_NULL,
-        related_name='threads',
-        blank=True,
-        null=True
-    )
     title = models.CharField(max_length=255)
 
     def __str__(self):
