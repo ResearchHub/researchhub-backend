@@ -39,6 +39,13 @@ Install git hooks
 ./scripts/install-hooks
 ```
 
+Add a PDF to the config directory for testing.
+
+```shell
+curl --output src/config/paper.pdf \
+  https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf
+```
+
 ### DATABASE
 
 Create a db file in config
