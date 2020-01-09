@@ -39,18 +39,15 @@ class PaperSerializer(serializers.ModelSerializer):
         model = Paper
 
     def to_internal_value(self, data):
+        if type(data) == QueryDict:
+            data = data.dict()
+
         data = self._copy_data(data)
 
         # TODO: Refactor below
 
-        authors = []
-        hubs = []
-        if type(data) == QueryDict:
-            authors = data.getlist('authors')
-            hubs = data.getlist('hubs')
-        else:
-            authors = data.get('authors')
-            hubs = data.get('hubs')
+        authors = data.get('authors', [])
+        hubs = data.get('hubs', [])
 
         valid_authors = []
         for author in authors:
