@@ -72,6 +72,53 @@ class PaperViewsTests(TestCase):
         response = get_authenticated_post_response(self.user, url, data)
         self.assertContains(response, 'Invalid', status_code=400)
 
+    def test_search_by_url_arxiv(self):
+        url = self.base_url + 'get/'
+        data = {'url': 'https://arxiv.org/abs/1407.3561v1'}
+        response = get_authenticated_post_response(self.user, url, data)
+        self.assertEquals(response.status_code, 200)
+        result = response.data
+        self.assertEquals(result['url'], data['url'])
+        self.assertFalse(result['url_is_pdf'])
+        self.assertEquals(
+            result['csl_item']['title'],
+            "IPFS - Content Addressed, Versioned, P2P File System")
+        self.assertIsInstance(result['search'], list)
+
+    def test_search_by_url_arxiv_pdf(self):
+        url = self.base_url + 'get/'
+        data = {'url': 'https://arxiv.org/pdf/1407.3561v1.pdf'}
+        response = get_authenticated_post_response(self.user, url, data)
+        self.assertEquals(response.status_code, 200)
+        result = response.data
+        self.assertEquals(result['url'], data['url'])
+        self.assertTrue(result['url_is_pdf'])
+        self.assertEquals(
+            result['csl_item']['title'],
+            "IPFS - Content Addressed, Versioned, P2P File System")
+        self.assertIsInstance(result['search'], list)
+
+    def test_search_by_url_publisher(self):
+        url = self.base_url + 'get/'
+        data = {'url': 'https://www.nature.com/articles/s41586-019-1099-1'}
+        response = get_authenticated_post_response(self.user, url, data)
+        self.assertEquals(response.status_code, 200)
+        result = response.data
+        self.assertEquals(result['url'], data['url'])
+        self.assertFalse(result['url_is_pdf'])
+        self.assertEquals(
+            result['csl_item']['title'],
+            "Restoration of brain circulation and cellular functions hours post-mortem")  # noqa E501
+        self.assertEquals(
+            result['csl_item']['DOI'], "10.1038/s41586-019-1099-1")
+        self.assertIsInstance(result['search'], list)
+
+    def test_search_by_url_bad(self):
+        url = self.base_url + 'get/'
+        data = {'url': 'https://doi.org/this-is-a-bad-url'}
+        response = get_authenticated_post_response(self.user, url, data)
+        self.assertContains(response, 'Double check that URL', status_code=400)
+
     def get_bookmark_post_response(self, user):
         url = self.base_url + f'{self.paper.id}/bookmark/'
         data = None
