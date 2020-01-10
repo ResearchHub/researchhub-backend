@@ -2,6 +2,8 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
+from mailing_list.models import EmailRecipient
+from mailing_list.tasks import send_action_notification_emails
 from paper.models import Vote as PaperVote
 from summary.models import Summary
 from user.models import Action
@@ -27,3 +29,15 @@ def create_action(sender, instance, created, **kwargs):
             item=instance,
             user=user
         )
+
+
+@receiver(post_save, sender=Action, dispatch_uid='send_action_notification')
+def send_immediate_action_notification(sender, instance, created, **kwargs):
+    if created:
+        IMMEDIATE = EmailRecipient.NOTIFICATION_FREQUENCIES['IMMEDIATE']
+        if isinstance(instance.item, Thread):
+            recipients = EmailRecipient.objects.filter(
+                thread_subscription__isnull=False,
+                notification_frequency=IMMEDIATE
+            )
+            send_action_notification_emails(recipients)

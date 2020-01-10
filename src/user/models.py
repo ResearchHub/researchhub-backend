@@ -3,6 +3,7 @@ from django.contrib.auth.models import AbstractUser
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.dispatch import receiver
+from django.utils import timezone
 from storages.backends.s3boto3 import S3Boto3Storage
 
 from utils.models import DefaultModel
@@ -172,3 +173,8 @@ class Action(DefaultModel):
     )
     object_id = models.PositiveIntegerField()
     item = GenericForeignKey('content_type', 'object_id')
+    read_date = models.DateTimeField(default=None, null=True)
+
+    def set_read(self):
+        self.read_date = timezone.now()
+        self.save()
