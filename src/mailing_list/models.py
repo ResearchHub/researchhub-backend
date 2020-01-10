@@ -1,13 +1,7 @@
 from django.db import models
 from django.utils import timezone
 
-from utils.parsers import dict_to_tuple
-
-NOTIFICATION_FREQUENCIES = {  # In minutes
-    'IMMEDIATE': 0,
-    'DAILY': 1440,
-    '3HOUR': 180,
-}
+from mailing_list.lib import NotificationFrequencies
 
 
 class SubscriptionField(models.OneToOneField):
@@ -18,8 +12,11 @@ class SubscriptionField(models.OneToOneField):
 
 
 class EmailRecipient(models.Model):
-    NOTIFICATION_FREQUENCIES = NOTIFICATION_FREQUENCIES
-    NOTIFICATION_FREQUENCY_CHOICES = dict_to_tuple(NOTIFICATION_FREQUENCIES)
+    NOTIFICATION_FREQUENCY_CHOICES = (
+        ('IMMEDIATE', NotificationFrequencies.IMMEDIATE),
+        ('DAILY', NotificationFrequencies.DAILY),
+        ('THREE_HOUR', NotificationFrequencies.THREE_HOUR)
+    )
     email = models.EmailField(unique=True)
     do_not_email = models.BooleanField(default=False)
     is_opted_out = models.BooleanField(default=False)
