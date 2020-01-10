@@ -44,17 +44,13 @@ def get_my_updates(user, actions):
     for action in actions:
         item = action.item
 
-        if isinstance(item, Thread):
-            # is it a thread on my paper?
-            if check_thread_in_papers(item, my_papers):
-                updates.append(action)
-
-        elif isinstance(item, Comment):
+        if isinstance(item, Comment):
             # is it a comment on my thread?
             if check_comment_in_threads(item, my_threads):
                 updates.append(action)
             # is it a comment on my paper?
             # TODO
+
         elif isinstance(item, Reply):
             # is it a reply on my thread?
             if check_reply_in_threads(item, my_threads):
@@ -63,6 +59,11 @@ def get_my_updates(user, actions):
             if check_reply_in_comments(item, my_comments):
                 updates.append(action)
             # is it a reply on my reply?
+
+        elif isinstance(item, Thread):
+            # is it a thread on my paper?
+            if check_thread_in_papers(item, my_papers):
+                updates.append(action)
 
 
 def filter_comments_on_my_threads(comments, threads):

@@ -16,3 +16,13 @@ class PlainTextParser(BaseParser):
 
 def dict_to_tuple(obj):
     return [(key, obj[key]) for key in obj]
+
+
+def get_class_attributes(cls):
+    attributes = {}
+    for attribute in cls.__dict__.keys():
+        if attribute[:2] != '__':
+            value = getattr(cls, attribute)
+            if not callable(value):
+                attributes[attribute] = value
+    return attributes
