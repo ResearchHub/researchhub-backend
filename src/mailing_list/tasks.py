@@ -47,7 +47,7 @@ def get_subscribed_actions(user, action_cursor, thread_subscription):
 
     for action in actions:
         item = action.item
-        content_type = item.content_type
+        content_type = str(action.content_type)
 
         if isinstance(item, Comment):
 
