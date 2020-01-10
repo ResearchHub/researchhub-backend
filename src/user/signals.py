@@ -2,6 +2,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
+from mailing_list.lib import NotificationFrequencies
 from mailing_list.models import EmailRecipient
 from mailing_list.tasks import send_action_notification_emails
 from paper.models import Vote as PaperVote
@@ -34,10 +35,10 @@ def create_action(sender, instance, created, **kwargs):
 @receiver(post_save, sender=Action, dispatch_uid='send_action_notification')
 def send_immediate_action_notification(sender, instance, created, **kwargs):
     if created:
-        IMMEDIATE = EmailRecipient.NOTIFICATION_FREQUENCIES['IMMEDIATE']
         if isinstance(instance.item, Thread):
             email_recipient_ids = EmailRecipient.objects.filter(
                 thread_subscription__isnull=False,
-                notification_frequency=IMMEDIATE
+                notification_frequency=NotificationFrequencies.IMMEDIATE
             ).values_list('id', flat=True)
-            send_action_notification_emails.delay(email_recipient_ids)
+            # TODO: Add delay when running celery
+            send_action_notification_emails(email_recipient_ids)

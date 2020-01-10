@@ -22,6 +22,7 @@ class EmailRecipient(models.Model):
     is_opted_out = models.BooleanField(default=False)
     is_subscribed = models.BooleanField(default=False)
     notification_frequency = models.IntegerField(
+        default=NotificationFrequencies.IMMEDIATE,
         choices=NOTIFICATION_FREQUENCY_CHOICES
     )
     user = models.OneToOneField(
