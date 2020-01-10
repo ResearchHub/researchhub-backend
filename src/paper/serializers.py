@@ -43,7 +43,6 @@ class PaperSerializer(serializers.ModelSerializer):
             data = data.dict()
 
         data = self._copy_data(data)
-        sentry.log_info(f'Data: {data} Type: {type(data)}')
 
         # TODO: Refactor below
 
