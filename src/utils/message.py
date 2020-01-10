@@ -30,9 +30,18 @@ def send_email_message(
     recipients,
     message,
     subject,
-    emailContext,
+    email_context,
     html_message=None
 ):
+    """Emails `message` to `recipients`.
+
+    Args:
+        recipients (str|list) - Email addresses to send to
+        message (str) - Message to send
+        subject (str) - Email subject
+        email_context (dict) -
+        html_message (:str:) - Optional html version of message
+    """
     if not isinstance(recipients, list):
         recipients = [recipients]
 
@@ -46,8 +55,8 @@ def send_email_message(
 
     for recipient in recipients:
         # Build email context
-        customContext = emailContext
-        if 'opt_out' in emailContext.keys():
+        customContext = email_context
+        if 'opt_out' in email_context.keys():
             customContext['opt_out'] += '?email={}'.format(recipient)
 
         msg_plain = render_to_string(message, customContext)
