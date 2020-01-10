@@ -25,6 +25,7 @@ class EmailRecipient(models.Model):
         default=NotificationFrequencies.IMMEDIATE,
         choices=NOTIFICATION_FREQUENCY_CHOICES
     )
+    next_cursor = models.IntegerField(default=0)
     user = models.OneToOneField(
         'user.User',
         on_delete=models.SET_NULL,

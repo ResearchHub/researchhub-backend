@@ -10,26 +10,22 @@ from utils.message import send_email_message
 @app.task
 def send_action_notification_emails(email_recipient_ids):
     for email_recipient_id in email_recipient_ids:
-        try:
-            email_recipient = EmailRecipient.objects.get(pk=email_recipient_id)
-            if email_recipient.user is None:
-                # TODO: get non-user actions?
-                pass
-            else:
-                actions, actions_by_type, next_cursor = get_subscribed_actions(
-                    email_recipient.user,
-                    email_recipient.next_cursor,
-                    email_recipient.thread_subscription
-                )
-            send_action_notification_email(
-                email_recipient,
-                actions,
-                actions_by_type,
-                next_cursor
-            )
-        except Exception:
-            # TODO: Handle this better
+        email_recipient = EmailRecipient.objects.get(pk=email_recipient_id)
+        if email_recipient.user is None:
+            # TODO: get non-user actions?
             pass
+        else:
+            actions, actions_by_type, next_cursor = get_subscribed_actions(
+                email_recipient.user,
+                email_recipient.next_cursor,
+                email_recipient.thread_subscription
+            )
+        send_action_notification_email(
+            email_recipient,
+            actions,
+            actions_by_type,
+            next_cursor
+        )
 
 
 def get_subscribed_actions(user, action_cursor, thread_subscription):
@@ -78,23 +74,24 @@ def send_action_notification_email(
     actions_by_type,
     next_cursor
 ):
-    subject = build_subject(email_recipient.notification_frequency, actions[0])
+    subject = build_subject(email_recipient.notification_frequency)
     context = build_notification_context(actions_by_type)
 
     # TODO: Replace with name of email template
-    send_email_message(
+    result = send_email_message(
         email_recipient,
-        'email_template.txt',
+        'invite_to_hub_email.txt',
         subject,
         context,
-        html_message='email_template.html'
+        html_message='invite_to_hub_email.html'
     )
+    print('email result', result)
     # TODO: check for success first
     email_recipient.next_cursor = next_cursor
     email_recipient.save()
 
 
-def build_subject(notification_frequency, action):
+def build_subject(notification_frequency):
     # TODO: Change subject based on frequency and include action info
     prefix = 'Research Hub | '
     if notification_frequency == NotificationFrequencies.IMMEDIATE:
