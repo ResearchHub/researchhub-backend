@@ -36,8 +36,8 @@ def send_immediate_action_notification(sender, instance, created, **kwargs):
     if created:
         IMMEDIATE = EmailRecipient.NOTIFICATION_FREQUENCIES['IMMEDIATE']
         if isinstance(instance.item, Thread):
-            recipients = EmailRecipient.objects.filter(
+            email_recipient_ids = EmailRecipient.objects.filter(
                 thread_subscription__isnull=False,
                 notification_frequency=IMMEDIATE
-            )
-            send_action_notification_emails(recipients)
+            ).values_list('id', flat=True)
+            send_action_notification_emails.delay(email_recipient_ids)
