@@ -1,9 +1,10 @@
+from mailing_list.lib import NotificationFrequencies
 from mailing_list.models import EmailRecipient, ThreadSubscription
 
 
 class TestData:
     valid_email = 'validemail@quantfive.org'
-    notification_frequency = EmailRecipient.NOTIFICATION_FREQUENCIES['ALL']
+    notification_frequency = NotificationFrequencies.IMMEDIATE
 
 
 def create_thread_subscription(none=False, comments=True, replies=True):
