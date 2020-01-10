@@ -11,7 +11,7 @@ from user.tests.helpers import create_user, create_random_default_user
 
 class MailingListTasksTests(TestCase):
     def setUp(self):
-        self.user = create_user()
+        self.user = create_user(email='val@quantfive.org')
         self.thread_subscription = create_thread_subscription()
 
         self.email_recipient = create_email_recipient(
