@@ -153,3 +153,13 @@ curl --silent \
   --header 'Authorization: Token <token>' \
   http://localhost:8000/api/
 ```
+
+Run the test suite:
+
+```shell
+# run all tests
+python manage.py test
+
+# run tests for the paper app, excluding ones that require AWS secrets
+python manage.py test paper --exclude-tag=aws
+```
