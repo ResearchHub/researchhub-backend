@@ -17,6 +17,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install pipenv
       run: |
+        pip install pipenv
         cd src
         pipenv --version
         pipenv install --deploy
