@@ -73,7 +73,7 @@ class PaperViewsTests(TestCase):
         self.assertContains(response, 'Invalid', status_code=400)
 
     def test_search_by_url_arxiv(self):
-        url = self.base_url + 'get/'
+        url = self.base_url + 'search_by_url/'
         data = {'url': 'https://arxiv.org/abs/1407.3561v1'}
         response = get_authenticated_post_response(self.user, url, data)
         self.assertEquals(response.status_code, 200)
@@ -86,7 +86,7 @@ class PaperViewsTests(TestCase):
         self.assertIsInstance(result['search'], list)
 
     def test_search_by_url_arxiv_pdf(self):
-        url = self.base_url + 'get/'
+        url = self.base_url + 'search_by_url/'
         data = {'url': 'https://arxiv.org/pdf/1407.3561v1.pdf'}
         response = get_authenticated_post_response(self.user, url, data)
         self.assertEquals(response.status_code, 200)
@@ -99,7 +99,7 @@ class PaperViewsTests(TestCase):
         self.assertIsInstance(result['search'], list)
 
     def test_search_by_url_publisher(self):
-        url = self.base_url + 'get/'
+        url = self.base_url + 'search_by_url/'
         data = {'url': 'https://www.nature.com/articles/s41586-019-1099-1'}
         response = get_authenticated_post_response(self.user, url, data)
         self.assertEquals(response.status_code, 200)
@@ -114,7 +114,7 @@ class PaperViewsTests(TestCase):
         self.assertIsInstance(result['search'], list)
 
     def test_search_by_url_bad(self):
-        url = self.base_url + 'get/'
+        url = self.base_url + 'search_by_url/'
         data = {'url': 'https://doi.org/this-is-a-bad-url'}
         response = get_authenticated_post_response(self.user, url, data)
         self.assertContains(response, 'Double check that URL', status_code=400)
