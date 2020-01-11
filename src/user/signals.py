@@ -35,7 +35,7 @@ def create_action(sender, instance, created, **kwargs):
 @receiver(post_save, sender=Action, dispatch_uid='send_action_notification')
 def send_immediate_action_notification(sender, instance, created, **kwargs):
     if created:
-        if isinstance(instance.item, Thread):
+        if isinstance(instance.item, Comment):
             email_recipient_ids = EmailRecipient.objects.filter(
                 thread_subscription__isnull=False,
                 notification_frequency=NotificationFrequencies.IMMEDIATE
