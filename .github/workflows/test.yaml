@@ -26,7 +26,13 @@ jobs:
         pipenv install --dev --deploy
     - name: Django test suite
       working-directory: ./src
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        INFURA_PROJECT_ID: ${{ secrets.INFURA_PROJECT_ID }}
+        INFURA_PROJECT_SECRET: ${{ secrets.INFURA_PROJECT_SECRET }}
       run: |
+        cp config/ci/* config
         pipenv run python manage.py test paper --exclude-tag=aws
 
 
