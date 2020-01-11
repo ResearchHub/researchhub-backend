@@ -1,4 +1,7 @@
+import datetime
+
 from django.db import models
+from django.contrib.postgres.fields import JSONField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
 from hub.models import Hub
@@ -34,6 +37,7 @@ class Paper(models.Model):
         related_name='papers',
         blank=True
     )
+    # currently this is the PDF url entered by users during upload (seed URL)
     url = models.URLField(default='', blank=True)
     summary = models.ForeignKey(
         Summary,
@@ -48,6 +52,31 @@ class Paper(models.Model):
         blank=True
     )
     publication_type = models.CharField(max_length=255, default='', blank=True)
+    csl_item = JSONField(
+        default=dict,
+        help_text='bibliographic metadata as a single '
+                  'Citation Styles Language JSON item.'
+    )
+
+    @classmethod
+    def create_from_csl_item(cls, csl_item):
+        """
+        Create a paper object from a CSL_Item.
+        This may be useful if we want to auto-populate the paper
+        database at some point.
+        """
+        from manubot.cite.csl_item import CSL_Item
+        if not isinstance(csl_item, CSL_Item):
+            csl_item = CSL_Item(csl_item)
+        paper = cls(title=csl_item['title'])
+        date = csl_item.get_date("issued", fill=True)
+        if date:
+            paper.paper_publish_date = datetime.date.fromisoformat(date)
+        if 'DOI' in csl_item:
+            paper.doi = csl_item['DOI'].lower()
+        paper.csl_item = csl_item
+        paper.save()
+        return paper
 
     def __str__(self):
         return '{} - {}'.format(self.title, self.uploaded_by)

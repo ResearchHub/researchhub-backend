@@ -17,7 +17,8 @@ def get_user_from_request(ctx):
     return None
 
 
-def http_request(method, *args, timeout=1, **kwargs):
+def http_request(
+        method, *args, timeout=1, **kwargs) -> requests.models.Response:
     if method == RequestMethods.DELETE:
         return requests.delete(*args, timeout=timeout, **kwargs)
     if method == RequestMethods.HEAD:
@@ -30,11 +31,18 @@ def http_request(method, *args, timeout=1, **kwargs):
         return requests.put(*args, timeout=timeout, **kwargs)
 
 
-def check_url_contains_pdf(url):
-    try:
-        response = http_request(RequestMethods.HEAD, url, timeout=2)
-    except Exception as e:
-        raise e
+def get_url_headers(url: str) -> requests.structures.CaseInsensitiveDict:
+    """
+    Perform a HEAD request to retrieve the response headers
+    for `url`. If `url` is invalid or returns a bad status code,
+    a subclass of `requests.exceptions.RequestException` will be raised.
+    """
+    response = http_request(RequestMethods.HEAD, url, timeout=2)
+    response.raise_for_status()
+    return response.headers
 
-    content_type = response.headers.get('content-type')
+
+def check_url_contains_pdf(url) -> bool:
+    headers = get_url_headers(url)
+    content_type = headers.get('content-type', '')
     return 'application/pdf' in content_type
