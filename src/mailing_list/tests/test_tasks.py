@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.core import mail
 
 from mailing_list.tests.helpers import (
     create_thread_subscription,
@@ -22,13 +23,13 @@ class MailingListTasksTests(TestCase):
         self.user_thread = create_thread(created_by=self.user)
 
     def test_get_thread_comment_actions(self):
-        # TODO: Finish this test
         rando = create_random_default_user('rando')
         create_comment(thread=self.user_thread, created_by=rando)
         cursor = 0
-        actions = get_subscribed_actions(
+        actions, actions_by_type, next_cursor = get_subscribed_actions(
             self.user,
             cursor,
             self.thread_subscription
         )
-        print(actions)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(len(mail.outbox), 1)
