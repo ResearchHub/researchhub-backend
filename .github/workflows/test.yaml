@@ -20,24 +20,13 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install pipenv
+      working-directory: ./src
       run: |
         pip install pipenv
-        cd src
-        pipenv --version
-        pipenv install --deploy
+        pipenv install --dev --deploy
+    - name: Django test suite
+      working-directory: ./src
+      run: |
+        pipenv run python manage.py test paper --exclude-tag=aws
 
-    # - name: Install dependencies
-    #   run: |
-    #     python -m pip install --upgrade pip
-    #     pip install -r requirements.txt
-    # - name: Lint with flake8
-    #   run: |
-    #     pip install flake8
-    #     # stop the build if there are Python syntax errors or undefined names
-    #     flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-    #     # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-    #     flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    # - name: Test with pytest
-    #   run: |
-    #     pip install pytest
-    #     pytest
+
