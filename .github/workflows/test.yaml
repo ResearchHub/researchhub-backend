@@ -25,6 +25,13 @@ jobs:
         #- 5432/tcp
         # needed because the postgres container does not provide a healthcheck
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      elasticsearch:
+        image: ../../src/Dockerfile
+        ports:
+        - 9200:9200
+        - 9300:9300
+        env:
+          discovery.type: single-node
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
