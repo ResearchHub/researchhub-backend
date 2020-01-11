@@ -75,6 +75,7 @@ def send_email_message(
             )
             result['success'].append(recipient)
         except Exception as e:
+            print(e)
             result['failure'].append(recipient)
             capture_exception(e)
 
