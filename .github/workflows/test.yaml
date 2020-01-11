@@ -39,11 +39,18 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install pipenv
+    - name: pipenv install
       working-directory: ./src
       run: |
         pip install pipenv
         pipenv install --dev --deploy
+    - name: copy config
+      working-directory: ./src
+      run: cp config/ci/* config
+    - name: configure elasticsearch
+      working-directory: ./src
+      run: |
+        pipenv run python manage.py search_index --rebuild
     - name: Django test suite
       working-directory: ./src
       env:
@@ -52,7 +59,6 @@ jobs:
         INFURA_PROJECT_ID: ${{ secrets.INFURA_PROJECT_ID }}
         INFURA_PROJECT_SECRET: ${{ secrets.INFURA_PROJECT_SECRET }}
       run: |
-        cp config/ci/* config
         pipenv run python manage.py test paper --exclude-tag=aws
 
 
