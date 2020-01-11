@@ -7,4 +7,4 @@ class PaperFilter(filters.FilterSet):
 
     class Meta:
         model = Paper
-        fields = [field.name for field in model._meta.fields if not field.name == 'file']  # noqa: E501
+        exclude = ['file', 'csl_item']

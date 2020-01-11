@@ -7,11 +7,13 @@ from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
-from requests.exceptions import MissingSchema, InvalidSchema, InvalidURL
+from requests.exceptions import (
+    RequestException, MissingSchema, InvalidSchema, InvalidURL)
 
 
 from .filters import PaperFilter
 from .models import Flag, Paper, Vote
+from .utils import get_csl_item
 from .permissions import (
     CreatePaper,
     FlagPaper,
@@ -172,11 +174,55 @@ class PaperViewSet(viewsets.ModelViewSet):
         url = request.data.get('url', None)
 
         try:
-            result = check_url_contains_pdf(url)
+            url_is_pdf = check_url_contains_pdf(url)
         except (MissingSchema, InvalidSchema, InvalidURL) as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
-        data = {'found_file': result}
+        data = {'found_file': url_is_pdf}
+        return Response(data, status=status.HTTP_200_OK)
+
+    @staticmethod
+    def search_by_csl_item(csl_item):
+        """
+        Perform an elasticsearch query for papers matching
+        the input CSL_Item.
+        """
+        from elasticsearch_dsl import Search, Q
+        search = Search(index="paper")
+        query = Q("match", title=csl_item.get('title', ''))
+        if csl_item.get('DOI'):
+            query |= Q("match", doi=csl_item['DOI'])
+        search.query(query)
+        return search
+
+    @action(detail=False, methods=['post'])
+    def search_by_url(self, request):
+        """
+        Retrieve bibliographic metadata and potential paper matches
+        from the database for `url` (specified via request post data).
+        """
+        url = request.data.get('url')
+        data = {'url': url}
+        if not url:
+            return Response(
+                "search_by_url requests must specify 'url'",
+                status=status.HTTP_400_BAD_REQUEST)
+        try:
+            data['url_is_pdf'] = check_url_contains_pdf(url)
+        except RequestException as error:
+            return Response(
+                f"Double check that URL is valid: {url}\n:{error}",
+                status=status.HTTP_400_BAD_REQUEST)
+        try:
+            csl_item = get_csl_item(url)
+        except Exception as error:
+            data['warning'] = f"Generating csl_item failed with:\n{error}"
+            csl_item = None
+        if csl_item:
+            search = self.search_by_csl_item(csl_item)
+            search = search.execute()
+            data['csl_item'] = csl_item
+            data['search'] = [hit.to_dict() for hit in search.hits]
         return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'])
