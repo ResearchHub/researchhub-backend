@@ -1,6 +1,6 @@
 import random
 
-from django.test import TestCase
+from django.test import TestCase, tag
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from .helpers import create_paper
@@ -46,6 +46,7 @@ class PaperPermissionsIntegrationTests(
         self.paper = create_paper()
         self.flag_reason = 'Inappropriate'
 
+    @tag('aws')
     def test_can_post_paper_with_minimum_reputation(self):
         reputation = 1
         self.assertPostWithReputationResponds(reputation, 201)
@@ -64,6 +65,7 @@ class PaperPermissionsIntegrationTests(
         response = self.get_flag_response(user)
         self.assertEqual(response.status_code, 403)
 
+    @tag('aws')
     def test_author_can_update_paper(self):
         user = self.create_random_authenticated_user('author')
         author = Author.objects.get(user=user)
@@ -75,6 +77,7 @@ class PaperPermissionsIntegrationTests(
         response = self.get_put_response(user, paper)
         self.assertEqual(response.status_code, 200)
 
+    @tag('aws')
     def test_moderator_can_update_paper(self):
         moderator = self.create_random_authenticated_user('moderator')
         paper = self.create_paper_with_moderators([moderator.id])

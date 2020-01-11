@@ -1,5 +1,8 @@
 .DS_Store
 
+# testing files
+/output.txt
+
 # python notebooks
 .ipynb/
 .ipynb_checkpoints/
