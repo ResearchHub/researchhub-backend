@@ -1,4 +1,4 @@
-from django.test import TestCase
+from django.test import TestCase, tag
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from utils.test_helpers import (
@@ -27,11 +27,13 @@ class PaperIntegrationTests(
         response = self.get_get_response(self.base_url)
         self.assertEqual(response.status_code, 200)
 
+    @tag('aws')
     def test_upload_paper(self):
         response = self.submit_paper_form()
         text = 'The Simple Paper'
         self.assertContains(response, text, status_code=201)
 
+    @tag('aws')
     def test_paper_uploaded_by_request_user(self):
         response = self.submit_paper_form()
         user = get_user_from_response(response)

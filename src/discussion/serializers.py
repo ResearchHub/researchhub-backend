@@ -44,104 +44,6 @@ class VoteSerializer(serializers.ModelSerializer):
         ]
         model = Vote
 
-
-class ReplySerializer(serializers.ModelSerializer, VoteMixin):
-    created_by = UserSerializer(
-        read_only=False,
-        default=serializers.CurrentUserDefault()
-    )
-    parent = serializers.PrimaryKeyRelatedField(
-        queryset=Comment.objects.all(),
-        many=False,
-        read_only=False
-    )
-    score = serializers.SerializerMethodField()
-    user_vote = serializers.SerializerMethodField()
-
-    class Meta:
-        fields = [
-            'id',
-            'created_by',
-            'created_date',
-            'is_public',
-            'is_removed',
-            'parent',
-            'score',
-            'text',
-            'updated_date',
-            'user_vote',
-            'was_edited',
-            'plain_text',
-        ]
-        read_only_fields = [
-            'is_public',
-            'is_removed',
-            'score',
-            'user_vote'
-        ]
-        model = Reply
-
-
-class CommentSerializer(serializers.ModelSerializer, VoteMixin):
-    created_by = UserSerializer(
-        read_only=False,
-        default=serializers.CurrentUserDefault()
-    )
-    reply_count = serializers.SerializerMethodField()
-    replies = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
-    user_vote = serializers.SerializerMethodField()
-
-    class Meta:
-        fields = [
-            'id',
-            'created_by',
-            'created_date',
-            'is_public',
-            'is_removed',
-            'parent',
-            'reply_count',
-            'replies',
-            'score',
-            'text',
-            'updated_date',
-            'user_vote',
-            'was_edited',
-            'plain_text',
-        ]
-        read_only_fields = [
-            'is_public',
-            'is_removed',
-            'reply_count',
-            'replies',
-            'score',
-            'user_vote'
-        ]
-        model = Comment
-
-    def get_replies(self, obj):
-        AMOUNT = 20
-        request = self.context.get('request')
-
-        reply_queryset = Reply.objects.filter(
-            content_type=get_content_type_for_model(obj),
-            object_id=obj.id
-        ).order_by('-created_date')[:AMOUNT]
-
-        replies = ReplySerializer(
-            reply_queryset,
-            many=True,
-            context={'request': request}
-        ).data
-
-        return replies
-
-    def get_reply_count(self, obj):
-        replies = self.get_replies(obj)
-        count = len(replies)
-        return count
-
-
 class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
         read_only=False,
@@ -178,6 +80,126 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     def get_comment_count(self, obj):
         count = len(obj.comments.all())
         return count
+
+class ReplySerializer(serializers.ModelSerializer, VoteMixin):
+    created_by = UserSerializer(
+        read_only=False,
+        default=serializers.CurrentUserDefault()
+    )
+    parent = serializers.PrimaryKeyRelatedField(
+        queryset=Comment.objects.all(),
+        many=False,
+        read_only=False
+    )
+    score = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
+    thread = serializers.SerializerMethodField()
+
+    class Meta:
+        fields = [
+            'id',
+            'created_by',
+            'created_date',
+            'is_public',
+            'is_removed',
+            'parent',
+            'score',
+            'text',
+            'updated_date',
+            'user_vote',
+            'was_edited',
+            'plain_text',
+            'thread',
+        ]
+        read_only_fields = [
+            'is_public',
+            'is_removed',
+            'score',
+            'user_vote'
+        ]
+        model = Reply
+
+    def get_thread(self, obj):
+        current_obj = obj
+        
+        while not isinstance(current_obj, Thread) and obj.parent:
+            current_obj = current_obj.parent
+
+
+        if isinstance(current_obj, Thread):
+            return ThreadSerializer(current_obj).data
+        return None
+
+class CommentSerializer(serializers.ModelSerializer, VoteMixin):
+    created_by = UserSerializer(
+        read_only=False,
+        default=serializers.CurrentUserDefault()
+    )
+    reply_count = serializers.SerializerMethodField()
+    replies = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
+    thread = serializers.SerializerMethodField()
+
+    class Meta:
+        fields = [
+            'id',
+            'created_by',
+            'created_date',
+            'is_public',
+            'is_removed',
+            'parent',
+            'reply_count',
+            'replies',
+            'score',
+            'text',
+            'updated_date',
+            'user_vote',
+            'was_edited',
+            'plain_text',
+            'thread',
+        ]
+        read_only_fields = [
+            'is_public',
+            'is_removed',
+            'reply_count',
+            'replies',
+            'score',
+            'user_vote',
+        ]
+        model = Comment
+
+    def get_replies(self, obj):
+        AMOUNT = 20
+        request = self.context.get('request')
+
+        reply_queryset = Reply.objects.filter(
+            content_type=get_content_type_for_model(obj),
+            object_id=obj.id
+        ).order_by('-created_date')[:AMOUNT]
+
+        replies = ReplySerializer(
+            reply_queryset,
+            many=True,
+            context={'request': request}
+        ).data
+
+        return replies
+
+    def get_reply_count(self, obj):
+        replies = self.get_replies(obj)
+        count = len(replies)
+        return count
+
+    def get_thread(self, obj):
+        current_obj = obj
+        while not isinstance(current_obj, Thread) and obj.parent:
+            current_obj = current_obj.parent
+
+
+        if isinstance(current_obj, Thread):
+            return ThreadSerializer(current_obj).data
+        return None
 
 
 class EndorsementSerializer(serializers.ModelSerializer):

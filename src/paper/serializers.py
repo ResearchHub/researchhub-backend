@@ -39,18 +39,15 @@ class PaperSerializer(serializers.ModelSerializer):
         model = Paper
 
     def to_internal_value(self, data):
-        authors = []
-        hubs = []
-
-        if not data.get('file'):
-            data = data.copy()
-
         if type(data) == QueryDict:
-            authors = data.getlist('authors')
-            hubs = data.getlist('hubs')
-        else:
-            authors = data.get('authors')
-            hubs = data.get('hubs')
+            data = data.dict()
+
+        data = self._copy_data(data)
+
+        # TODO: Refactor below
+
+        authors = data.get('authors', [])
+        hubs = data.get('hubs', [])
 
         valid_authors = []
         for author in authors:
@@ -70,6 +67,22 @@ class PaperSerializer(serializers.ModelSerializer):
                 print(f'Hub with id {hub} was not found.')
         data['hubs'] = valid_hubs
 
+        return data
+
+    def _copy_data(self, data):
+        """Returns a copy of `data`.
+
+        This is a helper method used to handle files which, when present in the
+        data, prevent `.copy()` from working.
+        """
+        file = None
+        try:
+            file = data.pop('file')
+        except KeyError:
+            pass
+
+        data = data.copy()
+        data['file'] = file
         return data
 
     def create(self, validated_data):
