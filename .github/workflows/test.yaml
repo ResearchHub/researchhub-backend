@@ -34,6 +34,7 @@ jobs:
         python-version: '3.7'
     - name: elasticsearch plugins
       run: docker exec elasticsearch bin/elasticsearch-plugin install --batch ingest-attachment
+    # todo: investigate whether the cache is working
     - name: cache pipenv
       uses: actions/cache@v1
       with:
