@@ -41,13 +41,24 @@ jobs:
       run: |
         pip install pipenv
         pipenv install --dev --deploy
+    - name: set secrets
+      # env:
+      #   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #   INFURA_PROJECT_ID: ${{ secrets.INFURA_PROJECT_ID }}
+      #   INFURA_PROJECT_SECRET: ${{ secrets.INFURA_PROJECT_SECRET }}
+      run: |
+        echo "::set-env name=AWS_ACCESS_KEY_ID::${{ secrets.AWS_ACCESS_KEY_ID }}"
+        echo "::set-env name=AWS_SECRET_ACCESS_KEY::${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+        echo "::set-env name=INFURA_PROJECT_ID::${{ secrets.INFURA_PROJECT_ID }}"
+        echo "::set-env name=INFURA_PROJECT_SECRET::${{ secrets.INFURA_PROJECT_SECRET }}"
     - name: prepare django
       working-directory: ./src
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        INFURA_PROJECT_ID: ${{ secrets.INFURA_PROJECT_ID }}
-        INFURA_PROJECT_SECRET: ${{ secrets.INFURA_PROJECT_SECRET }}
+      # env:
+      #   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #   INFURA_PROJECT_ID: ${{ secrets.INFURA_PROJECT_ID }}
+      #   INFURA_PROJECT_SECRET: ${{ secrets.INFURA_PROJECT_SECRET }}
       run: |
         cp config/ci/* config
         # next two lines address https://github.com/quantfive/researchhub-backend/pull/147#issuecomment-573422798
