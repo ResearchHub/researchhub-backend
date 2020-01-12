@@ -52,5 +52,8 @@ jobs:
         INFURA_PROJECT_SECRET: ${{ secrets.INFURA_PROJECT_SECRET }}
       run: |
         cp config/ci/* config
+        # next two lines address https://github.com/quantfive/researchhub-backend/pull/147#issuecomment-573422798
+        pipenv run python manage.py makemigrations
+        pipenv run python manage.py migrate
         pipenv run python manage.py search_index --create
         pipenv run python manage.py test
