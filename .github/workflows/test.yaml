@@ -33,12 +33,15 @@ jobs:
         - 9300:9300
         env:
           discovery.type: single-node
+        options: --name elasticsearch
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
       with:
         python-version: ${{ matrix.python-version }}
+    - name: elasticsearch plugins
+      run: docker exec elasticsearch bin/elasticsearch-plugin install --batch ingest-attachment
     - name: pipenv install
       working-directory: ./src
       run: |
