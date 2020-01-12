@@ -30,7 +30,7 @@ jobs:
     steps:
     - name: checkout repository
       uses: actions/checkout@v2
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: setup python
       uses: actions/setup-python@v1
       with:
         python-version: '3.7'
@@ -42,11 +42,6 @@ jobs:
         pip install pipenv
         pipenv install --dev --deploy
     - name: set secrets
-      # env:
-      #   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      #   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      #   INFURA_PROJECT_ID: ${{ secrets.INFURA_PROJECT_ID }}
-      #   INFURA_PROJECT_SECRET: ${{ secrets.INFURA_PROJECT_SECRET }}
       run: |
         echo "::set-env name=AWS_ACCESS_KEY_ID::${{ secrets.AWS_ACCESS_KEY_ID }}"
         echo "::set-env name=AWS_SECRET_ACCESS_KEY::${{ secrets.AWS_SECRET_ACCESS_KEY }}"
@@ -54,22 +49,12 @@ jobs:
         echo "::set-env name=INFURA_PROJECT_SECRET::${{ secrets.INFURA_PROJECT_SECRET }}"
     - name: prepare django
       working-directory: ./src
-      # env:
-      #   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      #   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      #   INFURA_PROJECT_ID: ${{ secrets.INFURA_PROJECT_ID }}
-      #   INFURA_PROJECT_SECRET: ${{ secrets.INFURA_PROJECT_SECRET }}
       run: |
         cp config/ci/* config
         # next two lines address https://github.com/quantfive/researchhub-backend/pull/147#issuecomment-573422798
         pipenv run python manage.py makemigrations
         pipenv run python manage.py migrate
         pipenv run python manage.py search_index --create
-    - name: test
+    - name: django tests
       working-directory: ./src
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        INFURA_PROJECT_ID: ${{ secrets.INFURA_PROJECT_ID }}
-        INFURA_PROJECT_SECRET: ${{ secrets.INFURA_PROJECT_SECRET }}
       run: pipenv run python manage.py test
