@@ -52,7 +52,5 @@ jobs:
         INFURA_PROJECT_SECRET: ${{ secrets.INFURA_PROJECT_SECRET }}
       run: |
         cp config/ci/* config
-        pipenv run python manage.py makemigrations
-        pipenv run python manage.py migrate
         pipenv run python manage.py search_index --create
         pipenv run python manage.py test
