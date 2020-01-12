@@ -37,7 +37,7 @@ jobs:
     - name: cache pipenv
       uses: actions/cache@v1
       with:
-        path: ~/.cache/pipenv
+        path: ~/.local/share/virtualenvs/
         key: ${{ runner.os }}-pipenv-${{ hashFiles('src/Pipfile.lock') }}
         restore-keys: |
           ${{ runner.os }}-pipenv-
