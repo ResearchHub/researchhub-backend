@@ -9,9 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [3.7]
     services:
       postgres:
         image: postgres:12
@@ -31,11 +28,12 @@ jobs:
           discovery.type: single-node
         options: --name elasticsearch
     steps:
-    - uses: actions/checkout@v2
+    - name: checkout repository
+      uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: '3.7'
     - name: elasticsearch plugins
       run: docker exec elasticsearch bin/elasticsearch-plugin install --batch ingest-attachment
     - name: pipenv install
@@ -43,7 +41,7 @@ jobs:
       run: |
         pip install pipenv
         pipenv install --dev --deploy
-    - name: tests
+    - name: prepare django
       working-directory: ./src
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -56,4 +54,11 @@ jobs:
         pipenv run python manage.py makemigrations
         pipenv run python manage.py migrate
         pipenv run python manage.py search_index --create
-        pipenv run python manage.py test
+    - name: test
+      working-directory: ./src
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        INFURA_PROJECT_ID: ${{ secrets.INFURA_PROJECT_ID }}
+        INFURA_PROJECT_SECRET: ${{ secrets.INFURA_PROJECT_SECRET }}
+      run: pipenv run python manage.py test
