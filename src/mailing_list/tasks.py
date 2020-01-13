@@ -22,12 +22,14 @@ def send_action_notification_emails(email_recipient_ids):
             actions, actions_by_type, next_cursor = get_subscribed_actions(
                 email_recipient
             )
-        send_action_notification_email(
-            email_recipient,
-            actions,
-            actions_by_type,
-            next_cursor
-        )
+
+        if len(actions) > 0:
+            send_action_notification_email(
+                email_recipient,
+                actions,
+                actions_by_type,
+                next_cursor
+            )
 
 
 class SubscribedActions:
