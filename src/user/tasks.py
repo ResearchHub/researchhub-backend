@@ -12,8 +12,10 @@ from discussion.models import (
 
 
 def get_latest_actions(cursor):
-    actions = Action.objects.all().order_by('-id')[cursor:]
-    next_cursor = cursor + len(actions)
+    actions = Action.objects.all().order_by('id')[cursor:]
+    next_cursor = cursor
+    if len(actions) > 0:
+        next_cursor += len(actions)
     return actions, next_cursor
 
 
