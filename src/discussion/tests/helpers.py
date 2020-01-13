@@ -126,7 +126,8 @@ def create_comment(thread=None, created_by=None, text=TestData.comment_text):
     comment = Comment.objects.create(
         parent=thread,
         created_by=created_by,
-        text=text
+        text=text,
+        plain_text=text
     )
     return comment
 
