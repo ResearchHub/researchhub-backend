@@ -34,16 +34,33 @@ def send_action_notification_emails(email_recipient_ids):
 
 class SubscribedActions:
     def __init__(self):
-        self.actions = []
+        self.actions = set()
         self.actions_by_type = {}
 
     def add(self, action):
         content_type = str(action.content_type)
-        self.actions.append(action)
+        formatted_action = {
+            'item': action.item,
+            'label': self.get_action_label(action.item),
+            'created_date': self.get_action_created_date(action)
+        }
+        self.actions.add(formatted_action)
         try:
-            self.subscribed_actions_by_type[content_type].append(action)
+            self.actions_by_type[content_type].add(
+                formatted_action
+            )
         except KeyError:
-            self.subscribed_actions_by_type[content_type] = [action]
+            self.actions_by_type[content_type] = set([formatted_action])
+
+    def get_action_label(self, action_item):
+        if isinstance(action_item, Comment):
+            return 'commented on your thread'
+        elif isinstance(action_item, Reply):
+            return 'replied to your comment'
+
+    def get_action_created_date(self, action):
+        # TODO: Format this
+        return action.created_date
 
 
 # TODO: Refactor and make this a class method
