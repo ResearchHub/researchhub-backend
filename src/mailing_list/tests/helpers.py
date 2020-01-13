@@ -1,5 +1,9 @@
 from mailing_list.lib import NotificationFrequencies
-from mailing_list.models import EmailRecipient, ThreadSubscription
+from mailing_list.models import (
+    CommentSubscription,
+    EmailRecipient,
+    ThreadSubscription
+)
 
 
 class TestData:
@@ -11,6 +15,13 @@ def create_thread_subscription(none=False, comments=True, replies=True):
     return ThreadSubscription.objects.create(
         none=none,
         comments=comments,
+        replies=replies
+    )
+
+
+def create_comment_subscription(none=False, replies=True):
+    return CommentSubscription.objects.create(
+        none=none,
         replies=replies
     )
 
