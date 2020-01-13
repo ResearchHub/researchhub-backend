@@ -13,30 +13,31 @@
           <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
           <div class="header">Notifications</div>
         </div>
-        <!-- {% for paper in paper_list %} -->
+        {% for action in actions %}
         <div class="content">
           <div class="meta">
             <div class="avatar-wrapper">
-              <img 
+              <img
                 class="author-avatar"
-                src=""
-                alt=""
+                src="{{ action.item.created_by.author_profile.profile_image }}"
+                alt="{{ action.item.created_by.author_profile.profile_image }}"
               />
             </div>
             <div class="notification-wrapper">
               <div class="notification-title">
-                <b>Mark Robertson</b> replied to your comment.
+                <b>
+                  {{ action.item.created_by.author_profile.first_name }}
+                   {{ action.item.created_by.author_profile.last_name }}
+                </b> {{ action.label }}.
                 <span class="timestamp">
                   <span class="timestamp-icon">•</span>
-                  Just now
-                </span> 
+                  {{ action.created_date }}
+                </span>
               </div>
             </div>
           </div>
           <div class="body">
-          "Thanks Katy for the question.
-You are totally correct that biomedical data is being generated more quickly than ever. New technologies, like genomic sequencing and single-cell assay methods, are creating an explosion in raw data. 
-Furthermore, we're able to extract more knowledge from existing datasets, for example by mining electronic health records and scientific papers. While the records and papers were always there, we're only now able to really analyze them efficiently due to digitization and improvements in data access / reuse."
+          "{{ action.item.plain_text }}"
           </div>
           <div class="hubtags-list">
             <div class="button-wrapper">
@@ -49,9 +50,9 @@ Furthermore, we're able to extract more knowledge from existing datasets, for ex
             <div class="line"></div>
           </div>
         </div>
-          <!-- {% endfor %} -->
+      {% endfor %}
       <div class="footer">
-        <a>Unsubscribe or change how frequently I get updated</a>
+        <a href="{{opt_out}}">Unsubscribe or change how frequently I get updated</a>
       </div>
     </body>
 </html>
