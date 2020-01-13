@@ -29,19 +29,27 @@ def is_valid_email(email):
 
 def send_email_message(
     recipients,
-    message,
+    template,
     subject,
     email_context,
-    html_message=None
+    html_template=None
 ):
-    """Emails `message` to `recipients`.
+    """Emails `message` to `recipients` and returns a dict with results in the
+    following form:
+    ```
+    {
+        'success':[recipient_email_address, ...],
+        'failure':[recipient_email_address, ...],
+        'exclude':[recipient_email_address, ...]
+    }
+    ```
 
     Args:
         recipients (str|list) - Email addresses to send to
-        message (str) - Message to send
+        template (str) - Template name
         subject (str) - Email subject
-        email_context (dict) -
-        html_message (:str:) - Optional html version of message
+        email_context (dict) - Data to send to template
+        html_template (:str:) - Optional html template name
     """
     if not isinstance(recipients, list):
         recipients = [recipients]
@@ -60,17 +68,17 @@ def send_email_message(
         if 'opt_out' in email_context.keys():
             customContext['opt_out'] += '?email={}'.format(recipient)
 
-        msg_plain = render_to_string(message, customContext)
-        msg_html = render_to_string(html_message, customContext)
+        message = render_to_string(template, customContext)
+        html_message = render_to_string(html_template, customContext)
         send_to = [recipient]
 
         try:
             send_mail(
                 subject,
-                msg_plain,
+                message,
                 'noreply@researchhub.com',
                 send_to,
-                html_message=msg_html,
+                html_message=html_message,
                 fail_silently=False,
             )
             result['success'].append(recipient)

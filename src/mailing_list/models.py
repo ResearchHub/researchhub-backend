@@ -32,6 +32,10 @@ class EmailRecipient(models.Model):
         default=None,
         null=True
     )
+    comment_subscription = SubscriptionField(
+        'mailing_list.CommentSubscription',
+        related_name='email_recipient'
+    )
     thread_subscription = SubscriptionField(
         'mailing_list.ThreadSubscription',
         related_name='email_recipient'
@@ -57,11 +61,21 @@ class EmailRecipient(models.Model):
         self.save()
 
 
-class ThreadSubscription(models.Model):
-    none = models.BooleanField(default=False)
-    comments = models.BooleanField(default=True)
-    replies = models.BooleanField(default=True)
+class BaseSubscription(models.Model):
+    class Meta:
+        abstract = True
 
     def __str__(self):
         # TODO: Strip hidden functions
         return str(self.__dict__.items())
+
+
+class ThreadSubscription(BaseSubscription):
+    none = models.BooleanField(default=False)
+    comments = models.BooleanField(default=True)
+    replies = models.BooleanField(default=True)
+
+
+class CommentSubscription(BaseSubscription):
+    none = models.BooleanField(default=False)
+    replies = models.BooleanField(default=True)
