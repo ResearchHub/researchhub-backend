@@ -57,8 +57,6 @@ jobs:
       working-directory: ./src
       run: |
         cp config/ci/* config
-        # next two lines address https://github.com/quantfive/researchhub-backend/pull/147#issuecomment-573422798
-        pipenv run python manage.py makemigrations
         pipenv run python manage.py migrate
         pipenv run python manage.py search_index --create
     - name: django tests
