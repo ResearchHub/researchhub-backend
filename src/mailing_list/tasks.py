@@ -133,18 +133,17 @@ def send_action_notification_email(
     next_cursor
 ):
     subject = build_subject(email_recipient.notification_frequency)
-    context = build_notification_context(actions_by_type)
+    context = build_notification_context(actions)
 
-    # TODO: Replace with name of email template
     result = send_email_message(
         email_recipient.email,
         'notification_email.txt',
         subject,
         context,
-        html_message='notification_email.html'
+        html_template='notification_email.html'
     )
-    print('email result', result)
     # TODO: check for success first
+    print(result)
     email_recipient.next_cursor = next_cursor
     email_recipient.save()
 
@@ -162,5 +161,5 @@ def build_subject(notification_frequency):
         return f'{prefix}Updates'
 
 
-def build_notification_context(actions_by_type):
-    return {**base_email_context, **actions_by_type}
+def build_notification_context(actions):
+    return {**base_email_context, 'actions': list(actions)}
