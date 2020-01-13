@@ -92,21 +92,32 @@ def get_subscribed_actions(email_recipient):
     for action in actions:
         item = action.item
 
-        if isinstance(item, Comment):
+        if action.item.created_by != user:
 
-            if thread_subscription.comments and not thread_subscription.none:
-                if check_comment_in_threads(item, user_threads):
-                    subscribed_actions.add(action)
+            if isinstance(item, Comment):
 
-        elif isinstance(item, Reply):
+                if (
+                    thread_subscription.comments
+                    and not thread_subscription.none
+                ):
+                    if check_comment_in_threads(item, user_threads):
+                        subscribed_actions.add(action)
 
-            if thread_subscription.replies and not thread_subscription.none:
-                if check_reply_in_threads(item, user_threads):
-                    subscribed_actions.add(action)
+            elif isinstance(item, Reply):
 
-            if comment_subscription.replies and not comment_subscription.none:
-                if check_reply_in_comments(item, user_comments):
-                    subscribed_actions.add(action)
+                if (
+                    thread_subscription.replies
+                    and not thread_subscription.none
+                ):
+                    if check_reply_in_threads(item, user_threads):
+                        subscribed_actions.add(action)
+
+                if (
+                    comment_subscription.replies
+                    and not comment_subscription.none
+                ):
+                    if check_reply_in_comments(item, user_comments):
+                        subscribed_actions.add(action)
 
     return (
         subscribed_actions.actions,
