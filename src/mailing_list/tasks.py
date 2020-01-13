@@ -80,10 +80,10 @@ def send_action_notification_email(
     # TODO: Replace with name of email template
     result = send_email_message(
         email_recipient.email,
-        'invite_to_hub_email.txt',
+        'notification_email.txt',
         subject,
         context,
-        html_message='invite_to_hub_email.html'
+        html_message='notification_email.html'
     )
     print('email result', result)
     # TODO: check for success first
