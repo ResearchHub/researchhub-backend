@@ -38,7 +38,7 @@ def send_immediate_action_notification(sender, instance, created, **kwargs):
         if isinstance(instance.item, Comment):
             email_recipient_ids = EmailRecipient.objects.filter(
                 thread_subscription__isnull=False,
+                comment_subscription_isnull=False,
                 notification_frequency=NotificationFrequencies.IMMEDIATE
             ).values_list('id', flat=True)
-            # TODO: Add delay when running celery
-            send_action_notification_emails(email_recipient_ids)
+            send_action_notification_emails.delay(email_recipient_ids)
