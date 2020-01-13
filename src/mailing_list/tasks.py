@@ -1,4 +1,8 @@
-from discussion.lib import check_comment_in_threads, check_reply_in_threads
+from discussion.lib import (
+    check_comment_in_threads,
+    check_reply_in_threads,
+    check_reply_in_comments
+)
 from discussion.models import Comment, Reply, Thread
 from mailing_list.lib import base_email_context
 from mailing_list.models import EmailRecipient, NotificationFrequencies
@@ -16,9 +20,7 @@ def send_action_notification_emails(email_recipient_ids):
             pass
         else:
             actions, actions_by_type, next_cursor = get_subscribed_actions(
-                email_recipient.user,
-                email_recipient.next_cursor,
-                email_recipient.thread_subscription
+                email_recipient
             )
         send_action_notification_email(
             email_recipient,
@@ -28,44 +30,70 @@ def send_action_notification_emails(email_recipient_ids):
         )
 
 
-def get_subscribed_actions(user, action_cursor, thread_subscription):
+class SubscribedActions:
+    def __init__(self):
+        self.actions = []
+        self.actions_by_type = {}
+
+    def add(self, action):
+        content_type = str(action.content_type)
+        self.actions.append(action)
+        try:
+            self.subscribed_actions_by_type[content_type].append(action)
+        except KeyError:
+            self.subscribed_actions_by_type[content_type] = [action]
+
+
+# TODO: Refactor and make this a class method
+def get_subscribed_actions(email_recipient):
     """Returns subscribed actions, subscribed actions by type, and the next
-        action cursor.
+    action cursor.
+
+    Args:
+        email_recipient (obj) -- EmailRecipient instance with a user. If the
+        user field is None the function `get_non_user_subscribed_actions`
+        should be used instead of this.
+
     """
-    # TODO: Refactor
+
+    user = email_recipient.user
+    action_cursor = email_recipient.next_cursor
+
+    thread_subscription = email_recipient.thread_subscription
+    comment_subscription = email_recipient.comment_subscription
+
     actions, next_cursor = get_latest_actions(action_cursor)
 
     # TODO: Add more than threads here
     user_threads = Thread.objects.filter(created_by=user)
+    user_comments = Comment.objects.filter(created_by=user)
 
-    subscribed_actions = []
-    subscribed_actions_by_type = {}
+    subscribed_actions = SubscribedActions()
 
     for action in actions:
         item = action.item
-        content_type = str(action.content_type)
 
         if isinstance(item, Comment):
 
             if thread_subscription.comments and not thread_subscription.none:
                 if check_comment_in_threads(item, user_threads):
-                    subscribed_actions.append(action)
-                    try:
-                        subscribed_actions_by_type[content_type].append(action)
-                    except KeyError:
-                        subscribed_actions_by_type[content_type] = [action]
+                    subscribed_actions.add(action)
 
         elif isinstance(item, Reply):
 
             if thread_subscription.replies and not thread_subscription.none:
                 if check_reply_in_threads(item, user_threads):
-                    subscribed_actions.append(action)
-                    try:
-                        subscribed_actions_by_type[content_type].append(action)
-                    except KeyError:
-                        subscribed_actions_by_type[content_type] = [action]
+                    subscribed_actions.add(action)
 
-    return subscribed_actions, subscribed_actions_by_type, next_cursor
+            if comment_subscription.replies and not comment_subscription.none:
+                if check_reply_in_comments(item, user_comments):
+                    subscribed_actions.add(action)
+
+    return (
+        subscribed_actions.actions,
+        subscribed_actions.actions_by_type,
+        next_cursor
+    )
 
 
 def send_action_notification_email(
