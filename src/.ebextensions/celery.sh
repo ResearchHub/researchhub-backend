@@ -22,7 +22,7 @@ celery_conf="
 directory=/opt/python/current/app
 
 ; Run celery from virtual env
-command=/opt/python/run/venv/bin/celery worker -A researchhub -B -P solo --loglevel=INFO -n worker.%%h -Q ${app_env} --scheduler django_celery_beat.schedulers:DatabaseScheduler
+command=/opt/python/run/venv/bin/celery worker -A researchhub -B -P solo --loglevel=INFO -n worker.%%h -Q ${app_env}
 process_name=%(program_name)s_%(process_num)02d
 
 user=ec2-user
@@ -46,7 +46,7 @@ environment=$celery_env
 # Copy the above script into celery.conf file
 echo "$celery_conf" | tee /opt/python/etc/celery.conf
 
-# Add the conf to supervisord
+# Add the conf to supervisord (if not already there)
 if ! grep -Fxq "[include]" /opt/python/etc/supervisord.conf
   then
   echo "[include]" | tee -a /opt/python/etc/supervisord.conf
