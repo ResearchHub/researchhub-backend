@@ -246,13 +246,19 @@ class PaperViewSet(viewsets.ModelViewSet):
             papers = Paper.objects.filter(hubs=hub_id)
 
         order_papers = papers
+        no_results = False
 
         if ordering == 'newest':  # Recently added
-            papers = papers.filter(
+            filtered_papers = papers.filter(
                 uploaded_date__gte=start_date,
                 uploaded_date__lte=end_date
             )
-            order_papers = papers.order_by('-uploaded_date')
+            if filtered_papers:
+                order_papers = filtered_papers.order_by('-uploaded_date')
+                order_papers = order_papers | papers.order_by('-uploaded_date').exclude(id__in=order_papers)
+            else:
+                order_papers = papers.order_by('-uploaded_date')
+                no_results = True
 
         elif ordering == 'top_rated':
             upvotes = Count(
@@ -267,12 +273,35 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'vote',
                 filter=Q(
                     vote__vote_type=Vote.DOWNVOTE,
-                    vote__created_date__gte=start_date,
-                    vote__created_date__lte=end_date
+                    vote__updated_date__gte=start_date,
+                    vote__updated_date__lte=end_date
                 )
             )
-            papers = papers.annotate(score=upvotes - downvotes)
-            order_papers = papers.order_by('-score')
+
+            papers = papers.annotate(score=upvotes - downvotes, total_votes=upvotes + downvotes)
+            filtered_papers = papers.filter(total_votes__gte=1)
+            order_papers = []
+
+            all_time_upvotes = Count(
+                'vote',
+                filter=Q(
+                    vote__vote_type=Vote.UPVOTE,
+                )
+            )
+            all_time_downvotes = Count(
+                'vote',
+                filter=Q(
+                    vote__vote_type=Vote.DOWNVOTE,
+                )
+            )
+            all_time_papers = papers.annotate(score=all_time_upvotes + all_time_downvotes)
+            
+            if filtered_papers:
+                order_papers = filtered_papers.order_by('-score')
+                order_papers = order_papers | all_time_papers.order_by('-score').exclude(id__in=filtered_papers)
+            else:
+                order_papers = all_time_papers.order_by('-score')
+                no_results = True
 
         elif ordering == 'most_discussed':
             threads = Count(
@@ -290,11 +319,25 @@ class PaperViewSet(viewsets.ModelViewSet):
                 )
             )
             papers = papers.annotate(discussed=threads + comments)
-            order_papers = papers.order_by('-discussed')
+            filtered_papers = papers.filter(discussed__gte=1)
+
+            all_time_threads = Count(
+                'threads',
+            )
+            all_time_comments = Count(
+                'threads__comments',
+            )
+            all_time_papers = papers.annotate(discussed=all_time_threads + all_time_comments)
+            if filtered_papers:
+                order_papers = filtered_papers.order_by('-discussed')
+                order_papers = all_time_papers.order_by('-discussed').exclude(id__in=filtered_papers)
+            else:
+                order_papers = all_time_papers.order_by('-discussed')
+                no_results = True
 
         page = self.paginate_queryset(order_papers)
         serializer = self.get_serializer(page, many=True)
-        return self.get_paginated_response(serializer.data)
+        return self.get_paginated_response({'data': serializer.data, 'no_results': no_results})
 
 
 def find_vote(user, paper, vote_type):
