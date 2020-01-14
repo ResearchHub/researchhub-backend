@@ -19,9 +19,12 @@ def send_action_notification_emails(email_recipient_ids):
             # TODO: get non-user actions?
             pass
         else:
-            actions, actions_by_type, next_cursor = get_subscribed_actions(
-                email_recipient
-            )
+            subscribed_actions = SubscribedActions(email_recipient)
+            (
+                actions,
+                actions_by_type,
+                next_cursor
+            ) = subscribed_actions.get_subscribed_actions()
 
         if len(actions) > 0:
             send_action_notification_email(
@@ -33,24 +36,89 @@ def send_action_notification_emails(email_recipient_ids):
 
 
 class SubscribedActions:
-    def __init__(self):
+    def __init__(self, email_recipient):
+        self.email_recipient = email_recipient
         self.actions = set()
         self.actions_by_type = {}
+        self.formatted_actions = []
+
+    def get_subscribed_actions(self):
+        """Returns subscribed actions, subscribed actions by type, and the next
+        action cursor.
+
+        Args:
+            email_recipient (obj) -- EmailRecipient instance with a user. If
+            the user field is None the function
+            `get_non_user_subscribed_actions` should be used instead of this.
+        """
+
+        user = self.email_recipient.user
+        action_cursor = self.email_recipient.next_cursor
+
+        thread_subscription = self.email_recipient.thread_subscription
+        comment_subscription = self.email_recipient.comment_subscription
+
+        actions, next_cursor = get_latest_actions(action_cursor)
+
+        # TODO: Add more than threads here
+        user_threads = Thread.objects.filter(created_by=user)
+        user_comments = Comment.objects.filter(created_by=user)
+
+        for action in actions:
+            item = action.item
+
+            if action.item.created_by != user:
+
+                if isinstance(item, Comment):
+
+                    if (
+                        thread_subscription.comments
+                        and not thread_subscription.none
+                    ):
+                        if check_comment_in_threads(item, user_threads):
+                            self.add(action)
+
+                elif isinstance(item, Reply):
+
+                    if (
+                        thread_subscription.replies
+                        and not thread_subscription.none
+                    ):
+                        if check_reply_in_threads(item, user_threads):
+                            self.add(action)
+
+                    if (
+                        comment_subscription.replies
+                        and not comment_subscription.none
+                    ):
+                        if check_reply_in_comments(item, user_comments):
+                            self.add(action)
+
+        return (
+            self.actions,
+            self.actions_by_type,
+            next_cursor
+        )
 
     def add(self, action):
         content_type = str(action.content_type)
+
+        if action not in self.actions:
+            self.actions.add(action)
+            self.add_formatted_action(action)
+
+            try:
+                self.actions_by_type[content_type].add(action)
+            except KeyError:
+                self.actions_by_type[content_type] = set([action])
+
+    def add_formatted_action(self, action):
         formatted_action = {
             'item': action.item,
             'label': self.get_action_label(action.item),
             'created_date': self.get_action_created_date(action)
         }
-        self.actions.add(formatted_action)
-        try:
-            self.actions_by_type[content_type].add(
-                formatted_action
-            )
-        except KeyError:
-            self.actions_by_type[content_type] = set([formatted_action])
+        self.formatted_actions.append(formatted_action)
 
     def get_action_label(self, action_item):
         if isinstance(action_item, Comment):
@@ -61,69 +129,6 @@ class SubscribedActions:
     def get_action_created_date(self, action):
         # TODO: Format this
         return action.created_date
-
-
-# TODO: Refactor and make this a class method
-def get_subscribed_actions(email_recipient):
-    """Returns subscribed actions, subscribed actions by type, and the next
-    action cursor.
-
-    Args:
-        email_recipient (obj) -- EmailRecipient instance with a user. If the
-        user field is None the function `get_non_user_subscribed_actions`
-        should be used instead of this.
-
-    """
-
-    user = email_recipient.user
-    action_cursor = email_recipient.next_cursor
-
-    thread_subscription = email_recipient.thread_subscription
-    comment_subscription = email_recipient.comment_subscription
-
-    actions, next_cursor = get_latest_actions(action_cursor)
-
-    # TODO: Add more than threads here
-    user_threads = Thread.objects.filter(created_by=user)
-    user_comments = Comment.objects.filter(created_by=user)
-
-    subscribed_actions = SubscribedActions()
-
-    for action in actions:
-        item = action.item
-
-        if action.item.created_by != user:
-
-            if isinstance(item, Comment):
-
-                if (
-                    thread_subscription.comments
-                    and not thread_subscription.none
-                ):
-                    if check_comment_in_threads(item, user_threads):
-                        subscribed_actions.add(action)
-
-            elif isinstance(item, Reply):
-
-                if (
-                    thread_subscription.replies
-                    and not thread_subscription.none
-                ):
-                    if check_reply_in_threads(item, user_threads):
-                        subscribed_actions.add(action)
-
-                if (
-                    comment_subscription.replies
-                    and not comment_subscription.none
-                ):
-                    if check_reply_in_comments(item, user_comments):
-                        subscribed_actions.add(action)
-
-    return (
-        subscribed_actions.actions,
-        subscribed_actions.actions_by_type,
-        next_cursor
-    )
 
 
 def send_action_notification_email(
