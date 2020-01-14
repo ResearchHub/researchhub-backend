@@ -31,6 +31,19 @@ Enter the python shell
 >
 ```
 
+from user.models import User
+val = User.objects.get(pk=5)
+regulus = User.objects.get(pk=3)
+from discussion.tests.helpers import create_comment
+from discussion.models import Comment, Thread
+thread = Thread.objects.filter(created_by=val)[0]
+comment = create_comment(created_by=regulus, thread=thread)
+comment = create_comment(created_by=val, thread=thread)
+from discussion.tests.helpers import create_comment, create_reply
+comment = Comment.objects.filter(created_by=val)[0]
+reply = create_reply(created_by=regulus, parent=comment)
+
+
 6. Check your email and you should see something from RH
 
 """
