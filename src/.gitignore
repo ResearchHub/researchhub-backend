@@ -1,6 +1,7 @@
 # Config
 config/*
 !config/paper.pdf
+!config/ci
 
 # Django
 __pycache__/

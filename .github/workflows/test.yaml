@@ -1,0 +1,64 @@
+name: Backend CI
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:12
+        env:
+          POSTGRES_DB: researchhub
+          POSTGRES_USER: rh_developer
+          POSTGRES_PASSWORD: not_secure
+        ports:
+        - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:7.4.1
+        ports:
+        - 9200:9200
+        - 9300:9300
+        env:
+          discovery.type: single-node
+        options: --name elasticsearch
+    steps:
+    - name: checkout repository
+      uses: actions/checkout@v2
+    - name: setup python
+      uses: actions/setup-python@v1
+      with:
+        python-version: '3.7'
+    - name: elasticsearch plugins
+      run: docker exec elasticsearch bin/elasticsearch-plugin install --batch ingest-attachment
+    # todo: investigate whether the cache is working
+    - name: cache pipenv
+      uses: actions/cache@v1
+      with:
+        path: ~/.local/share/virtualenvs/
+        key: ${{ runner.os }}-pipenv-${{ hashFiles('src/Pipfile.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-pipenv-
+    - name: pipenv install
+      working-directory: ./src
+      run: |
+        pip install pipenv
+        pipenv install --dev --deploy
+    - name: set secrets
+      run: |
+        echo "::set-env name=AWS_ACCESS_KEY_ID::${{ secrets.AWS_ACCESS_KEY_ID }}"
+        echo "::set-env name=AWS_SECRET_ACCESS_KEY::${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+        echo "::set-env name=INFURA_PROJECT_ID::${{ secrets.INFURA_PROJECT_ID }}"
+        echo "::set-env name=INFURA_PROJECT_SECRET::${{ secrets.INFURA_PROJECT_SECRET }}"
+    - name: prepare django
+      working-directory: ./src
+      run: |
+        cp config/ci/* config
+        pipenv run python manage.py migrate
+        pipenv run python manage.py search_index --create
+    - name: django tests
+      working-directory: ./src
+      run: pipenv run python manage.py test
