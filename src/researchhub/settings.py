@@ -434,7 +434,15 @@ WEB3_KEYSTORE_PASSWORD = os.environ.get(
 )
 
 
+# Redis
+# redis://:password@hostname:port/db_number
+
+REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
+REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
+
+
 # Celery
-CELERY_BROKER_URL = 'redis://'  # redis://:password@hostname:port/db_number
+
+CELERY_BROKER_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
