@@ -67,7 +67,7 @@ jobs:
       run: |
         pipenv lock --requirements > requirements.txt
         # may switch following command to zip to include requirements.txt
-        git archive --output=deploy.zip master
+        # git archive --output=deploy.zip master
     - name: deploy
       if: "github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy]')"
       # pinned to specific version by hash for security (only include vetted codebases)
