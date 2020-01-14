@@ -432,3 +432,9 @@ WEB3_KEYSTORE_PASSWORD = os.environ.get(
     'WEB3_KEYSTORE_PASSWORD',
     wallet.KEYSTORE_PASSWORD
 )
+
+
+# Celery
+CELERY_BROKER_URL = 'redis://'  # redis://:password@hostname:port/db_number
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
