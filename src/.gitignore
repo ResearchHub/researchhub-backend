@@ -1,5 +1,6 @@
 # Config
 config/*
+config_local/*
 !config/paper.pdf
 !config/ci
 
