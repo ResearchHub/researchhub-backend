@@ -59,6 +59,8 @@ class EmailRecipientViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 @api_view([RequestMethods.GET])
+@permission_classes(())  # Override default permission classes
+@csrf_exempt
 def test(request):
     total = test_task.delay(1, 1)
     return Response(f'test success {total}')
