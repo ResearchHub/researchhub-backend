@@ -4,6 +4,9 @@
 start="Deploying to staging environments:"
 echo $start
 
+echo "Creating requirements.txt"
+pipenv lock --requirements > requirements.txt
+
 echo "Deploying to staging-backend"
 eb deploy staging-backend
 
