@@ -1,0 +1,2 @@
+KEYSTORE_FILE = 'keystore.json'
+KEYSTORE_PASSWORD = '3K$DvLFUfANd'
