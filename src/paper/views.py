@@ -32,7 +32,14 @@ from utils.http import RequestMethods, check_url_contains_pdf
 
 
 class PaperViewSet(viewsets.ModelViewSet):
-    queryset = Paper.objects.all()
+    queryset = Paper.objects.all().prefetch_related(
+        'uploaded_by',
+        'authors',
+        'hubs',
+        'summary',
+        'threads',
+        'votes',
+    )
     serializer_class = PaperSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('title', 'doi')
