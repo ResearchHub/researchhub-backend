@@ -39,8 +39,7 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
         exclude = ['password', 'groups', 'is_superuser', 'is_staff', 'user_permissions']
 
     def get_balance(self, obj):
-        if self.context.get('get_balance'):
-            return reputation.lib.get_user_balance(obj)
+        return reputation.lib.get_user_balance(obj)
 
     def get_subscribed(self, obj):
         if self.context.get('get_subscribed'):
