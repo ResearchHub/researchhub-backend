@@ -20,6 +20,8 @@ import search.urls
 import summary.views
 import user.views
 
+from researchhub.settings import CLOUD
+
 router = routers.DefaultRouter()
 
 router.register(
@@ -105,3 +107,6 @@ urlpatterns = [
     path(r'api/auth/', include('rest_auth.urls')),
     path('', index_views.index, name='index'),
 ]
+
+if not CLOUD:
+    urlpatterns += [path('silk/', include('silk.urls', namespace='silk'))]
