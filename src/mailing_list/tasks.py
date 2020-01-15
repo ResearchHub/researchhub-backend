@@ -114,21 +114,36 @@ class SubscribedActions:
     def add_formatted_action(self, action):
         formatted_action = {
             'item': action.item,
-            'label': self.get_action_label(action.item),
-            'created_date': self.get_action_created_date(action),
-            'initials': action.item.created_by.author_profile.first_name[0] + action.item.created_by.author_profile.last_name[0], 
+            'label': self._get_action_label(action.item),
+            'created_date': self._get_action_created_date(action),
+            'initials': self._get_creator_initials(action.item.created_by),
         }
         self.formatted_actions.append(formatted_action)
 
-    def get_action_label(self, action_item):
+    def _get_action_label(self, action_item):
         if isinstance(action_item, Comment):
             return 'commented on your thread'
         elif isinstance(action_item, Reply):
             return 'replied to your comment'
+        else:
+            return 'posted'
 
-    def get_action_created_date(self, action):
-        # TODO: Format this
+    def _get_action_created_date(self, action):
+        # TODO: Format this with user's timezone
         return action.created_date
+
+    def _get_creator_initials(self, user):
+        first_letter = ''
+        last_letter = ''
+        try:
+            first_letter = user.author_profile.first_name[0]
+        except Exception:
+            pass
+        try:
+            last_letter = user.author_profile.last_name[0]
+        except Exception:
+            pass
+        return f'{first_letter}{last_letter}'
 
 
 def send_action_notification_email(
