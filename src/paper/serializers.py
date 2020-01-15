@@ -57,9 +57,9 @@ class PaperSerializer(serializers.ModelSerializer):
             except Author.DoesNotExist:
                 print(f'Author with id {author} was not found.')
         data['authors'] = valid_authors
-
         valid_hubs = []
-        for hub in hubs:
+        parsed_hubs = hubs.split(',')
+        for hub in parsed_hubs:
             try:
                 h = Hub.objects.get(id=hub)
                 valid_hubs.append(h)
@@ -92,7 +92,6 @@ class PaperSerializer(serializers.ModelSerializer):
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
-
         try:
             with transaction.atomic():
                 paper = super(PaperSerializer, self).create(validated_data)
