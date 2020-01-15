@@ -13,7 +13,7 @@ fi
 
 # Get eb environment variables
 app_env=`grep -oP "(?<=APP_ENV=\").*(?=\")" /opt/python/current/env`
-celery_env=`cat /opt/python/current/env | tr '\n' ',' | sed 's/export //g' | sed 's/$PATH/%(ENV_PATH)s/g' | sed 's/$PYTHONPATH//g' | sed 's/$LD_LIBRARY_PATH//g'`
+celery_env=`cat /opt/python/current/env | tr '\n' ',' | sed 's/%/%%/g' | sed 's/export //g' | sed 's/$PATH/%(ENV_PATH)s/g' | sed 's/$PYTHONPATH//g' | sed 's/$LD_LIBRARY_PATH//g'`
 celery_env=${celery_env%?}
 
 celery_conf="[program:celeryd-worker]
