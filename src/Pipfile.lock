@@ -1,15 +1,7 @@
 {
     "_meta": {
         "hash": {
-<<<<<<< HEAD
-<<<<<<< HEAD
-            "sha256": "065d9c0e7153879d0f9caf44d46b0be4a31d31e86b488f3abf938d491c4bc6f3"
-=======
-            "sha256": "03dab3963220415a0105db9490b8e2ed29e62fc8b618c0985d950dadf9cb2c48"
->>>>>>> Fix - Add celery and redis to pipenv
-=======
-            "sha256": "0c862d13c69aae172a38c5a37a30b61743e628c9982e5b8bc86de9f3cbbe186c"
->>>>>>> Add django celery beat package
+            "sha256": "209281692df68b306018afae8dc5c5ef37eadb48270eebc6111019a18ec816fc"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -102,8 +94,6 @@
                 "sha256:e2e2bfac52b454335a1a0c1a3dd651928ad2b9fc8cd46d5b367fbb8d6622dc9d"
             ],
             "version": "==1.14.2"
-<<<<<<< HEAD
-=======
         },
         "celery": {
             "extras": [
@@ -115,7 +105,6 @@
             ],
             "index": "pypi",
             "version": "==4.4.0"
->>>>>>> Fix - Add celery and redis to pipenv
         },
         "certifi": {
             "hashes": [
