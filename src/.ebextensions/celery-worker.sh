@@ -20,7 +20,6 @@ celery_conf="[program:celeryd-worker]
 
 ; Run celery from virtual env
 command=/opt/python/run/venv/bin/celery worker -A researchhub -B -P solo --loglevel=INFO -n worker.%%h -Q ${app_env}
-process_name=%(program_name)s_%(process_num)02d
 
 directory=/opt/python/current/app
 user=ec2-user
