@@ -40,8 +40,7 @@ killasgroup=true
 
 priority=998
 
-environment=$celery_env
-"
+environment=$celery_env"
 
 # Copy the above script into celery.conf file
 echo "$celery_conf" | tee /opt/python/etc/celery.conf
