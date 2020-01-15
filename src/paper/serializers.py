@@ -126,6 +126,12 @@ class PaperSerializer(serializers.ModelSerializer):
                     validated_data
                 )
 
+                current_hubs = paper.hubs.all()
+                remove_hubs = []
+                for current_hub in current_hubs:
+                    if current_hub not in hubs:
+                        remove_hubs.append(current_hub)
+                paper.hubs.remove(*remove_hubs) 
                 paper.authors.add(*authors)
                 paper.hubs.add(*hubs)
 
