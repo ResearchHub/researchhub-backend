@@ -23,13 +23,15 @@ APP_ENV = os.environ.get('APP_ENV') or 'development'
 DEVELOPMENT = APP_ENV == 'development'
 PRODUCTION = APP_ENV == 'production'
 STAGING = APP_ENV == 'staging'
+CI = "GITHUB_ACTIONS" in os.environ
+CLOUD = PRODUCTION or STAGING or CI
 TESTING = 'test' in sys.argv
 
 PYTHONPATH = '/opt/python/current/app:$PYTHONPATH'
 DJANGO_SETTINGS_MODULE = 'researchhub.settings'
 ELASTIC_BEANSTALK = (APP_ENV in ['production', 'staging', 'development'])
 
-if PRODUCTION:
+if CLOUD:
     from config import db, keys, wallet
 else:
     from config_local import db, keys, wallet
