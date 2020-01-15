@@ -25,6 +25,7 @@ cytoolz==0.10.1
 defusedxml==0.6.0
 Django==2.2.9
 django-allauth==0.41.0
+django-celery-beat==1.5.0
 django-contrib-comments==1.9.2
 django-cors-headers==3.2.1
 django-elasticsearch-dsl==7.1.1
@@ -36,6 +37,7 @@ django-nine==0.2.3
 django-rest-auth==0.9.5
 django-ses==0.8.13
 django-storages==1.8
+django-timezone-field==4.0
 djangorestframework==3.11.0
 docker==3.7.3
 docker-compose==1.23.2
@@ -98,6 +100,7 @@ pynliner==0.8.0
 pyOpenSSL==19.1.0
 pyparsing==2.4.6
 pyrsistent==0.15.7
+python-crontab==2.4.0
 python-dateutil==2.8.1
 python3-openid==3.1.0
 pytz==2019.3
