@@ -9,42 +9,50 @@
     {% inlinecss "css/notification_email.css" %}
     <body>
       <div class="email-container">
-        <div class="email-header">
+        <div class="email-header" style="align-items: center; justify-content: center;">
           <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
-          <div class="header">Notifications</div>
+          <div class="header">
+            Your Notifications
+          </div>
         </div>
         {% for action in actions %}
         <div class="content">
           <div class="meta">
             <div class="avatar-wrapper">
-              <img
-                class="author-avatar"
-                src="{{ action.item.created_by.author_profile.profile_image }}"
-                alt="{{ action.item.created_by.author_profile.profile_image }}"
-              />
+              {% if action.item.created_by.author_profile.profile_image %}
+                <img
+                  class="author-avatar"
+                  src="{{ action.item.created_by.author_profile.profile_image|default:"https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg" }}"
+                  alt="{{ action.item.created_by.author_profile.profile_image }}"
+                />
+              {% else %}
+                <div class="initials">
+                  {{ action.initials }}
+                </div>
+              {% endif %}
             </div>
             <div class="notification-wrapper">
               <div class="notification-title">
-                <b>
-                  {{ action.item.created_by.author_profile.first_name }}
-                   {{ action.item.created_by.author_profile.last_name }}
-                </b> {{ action.label }}.
-                <span class="timestamp">
-                  <span class="timestamp-icon">•</span>
-                  {{ action.created_date }}
+                <span class="first-line">
+                  <b>
+                    {{ action.item.created_by.author_profile.first_name }}
+                     {{ action.item.created_by.author_profile.last_name }}
+                  </b> {{ action.label }}.
                 </span>
+                <div class="timestamp">
+                  <!-- <span class="timestamp-icon">•</span> -->
+                  {{ action.created_date }}
+                </div>
               </div>
             </div>
           </div>
           <div class="body">
-          "{{ action.item.plain_text }}"
+            "{{ action.item.plain_text|truncatewords:"100" }}"
           </div>
           <div class="hubtags-list">
-            <div class="button-wrapper">
-                <div class="button-label">
-                View Thread / Reply
-                </div>
-            </div>
+            <button class="button-label">
+              View Thread / Reply
+            </button>
           </div>
           <div class="divider">
             <div class="line"></div>
