@@ -48,7 +48,7 @@ echo "$celery_conf" | tee /opt/python/etc/celery.conf
 if ! grep -Fxq "[include]" /opt/python/etc/supervisord.conf
   then
   echo "[include]" | tee -a /opt/python/etc/supervisord.conf
-  echo "files: celery.conf" | tee -a /opt/python/etc/supervisord.conf
+  echo "files=/opt/python/etc/celery.conf" | tee -a /opt/python/etc/supervisord.conf
 fi
 
 # Reread the conf
