@@ -31,6 +31,7 @@ manubot = {git = "https://github.com/manubot/manubot",ref = "36bc1c4ff3dfc135dbb
 django-silk = "*"
 django-dbbackup = "*"
 celery = {extras = ["redis"],version = "*"}
+django-celery-beat = "*"
 
 [requires]
 python_version = "3.7"
