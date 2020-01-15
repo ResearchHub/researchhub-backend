@@ -95,7 +95,7 @@ class SubscribedActions:
                             self.add(action)
 
         return (
-            self.actions,
+            self.formatted_actions,
             self.actions_by_type,
             next_cursor
         )
@@ -106,7 +106,6 @@ class SubscribedActions:
         if action not in self.actions:
             self.actions.add(action)
             self.add_formatted_action(action)
-
             try:
                 self.actions_by_type[content_type].add(action)
             except KeyError:
@@ -116,7 +115,8 @@ class SubscribedActions:
         formatted_action = {
             'item': action.item,
             'label': self.get_action_label(action.item),
-            'created_date': self.get_action_created_date(action)
+            'created_date': self.get_action_created_date(action),
+            'initials': action.item.created_by.author_profile.first_name[0] + action.item.created_by.author_profile.last_name[0], 
         }
         self.formatted_actions.append(formatted_action)
 
