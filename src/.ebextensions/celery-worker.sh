@@ -38,6 +38,8 @@ stopwaitsecs=600
 ; Send SIGKILL to the process group to terminate child processes
 killasgroup=true
 
+priority=998
+
 environment=$celery_env
 "
 
