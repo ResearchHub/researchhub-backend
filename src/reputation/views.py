@@ -14,6 +14,9 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
     serializer_class = WithdrawalSerializer
     permission_classes = [IsAuthenticated, CreateOrReadOnly]
 
+    def get_serializer_context(self):
+        return {'get_balance': True}
+
     def get_queryset(self):
         user = self.request.user
         if user.is_staff:

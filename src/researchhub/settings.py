@@ -166,6 +166,19 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+if not CLOUD:
+    INSTALLED_APPS += [
+        'silk',
+        'dbbackup'
+    ]
+
+    MIDDLEWARE += [
+        'silk.middleware.SilkyMiddleware',
+    ]
+
+    DBBACKUP_STORAGE = 'django.core.files.storage.FileSystemStorage'
+    DBBACKUP_STORAGE_OPTIONS = {'location': 'backups'}
+
 ROOT_URLCONF = 'researchhub.urls'
 
 FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25MB max data allowed
