@@ -1,5 +1,5 @@
 {% load inlinecss %}
-
+{% load l10n %}
 <html>
     <head>
         <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     {% inlinecss "css/notification_email.css" %}
     <body>
       <div class="email-container">
-        <div class="email-header" style="align-items: center; justify-content: center;">
+        <div class="email-header">
           <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
           <div class="header">
             Your Notifications
@@ -41,7 +41,7 @@
                 </span>
                 <div class="timestamp">
                   <!-- <span class="timestamp-icon">•</span> -->
-                  {{ action.created_date }}
+                  {{ action.created_date|localize }}
                 </div>
               </div>
             </div>
