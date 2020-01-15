@@ -7,5 +7,8 @@ echo $start
 echo "Deploying to staging-backend"
 eb deploy staging-backend
 
+echo "Deploying to staging-backend-worker"
+eb deploy staging-backend-worker
+
 done="Finished executing staging deployment"
 echo $done

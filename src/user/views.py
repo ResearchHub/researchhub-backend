@@ -1,3 +1,6 @@
+import datetime
+from django.db.models import Count, Q
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.permissions import (
     AllowAny,
@@ -5,7 +8,6 @@ from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly
 )
 from rest_framework.filters import SearchFilter, OrderingFilter
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -15,8 +17,7 @@ from discussion.serializers import (
     ReplySerializer,
     ThreadSerializer
 )
-
-from paper.models import Paper
+from paper.models import Paper, Vote as PaperVote
 from paper.serializers import PaperSerializer
 from user.filters import AuthorFilter
 from user.models import User, University, Author
@@ -27,16 +28,17 @@ from user.serializers import (
     UserSerializer,
     UserActions
 )
-
 from utils.message import send_email_message
 from utils.http import RequestMethods
 
-import datetime
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get_serializer_context(self):
+        return {'get_subscribed': True, 'get_balance': True}
 
     def get_queryset(self):
         user = self.request.user
@@ -90,7 +92,7 @@ class UserViewSet(viewsets.ModelViewSet):
         upvotes = Count(
             'vote',
             filter=Q(
-                vote__vote_type=Vote.UPVOTE,
+                vote__vote_type=PaperVote.UPVOTE,
                 vote__updated_date__gte=start_date,
                 vote__updated_date__lte=end_date
             )
@@ -98,7 +100,7 @@ class UserViewSet(viewsets.ModelViewSet):
         downvotes = Count(
             'vote',
             filter=Q(
-                vote__vote_type=Vote.DOWNVOTE,
+                vote__vote_type=PaperVote.DOWNVOTE,
                 vote__created_date__gte=start_date,
                 vote__created_date__lte=end_date
             )
@@ -106,7 +108,7 @@ class UserViewSet(viewsets.ModelViewSet):
         all_papers = all_papers.annotate(score=upvotes - downvotes)
         ordered_papers = all_papers.order_by('-score')
 
-        ordered_papers = order_papers[0:3]
+        ordered_papers = ordered_papers[0:3]
 
         email_context = {
             'first_name': user.first_name,
@@ -124,11 +126,12 @@ class UserViewSet(viewsets.ModelViewSet):
             email_context,
             'weekly_digest_email.html'
         )
-        
+
         response = {'email_sent': False}
         if email_sent == 1:
             response['email_sent'] = True
         return Response(response, status=200)
+
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = University.objects.all()
@@ -231,13 +234,19 @@ class AuthorViewSet(viewsets.ModelViewSet):
             for contribution in contributions:
                 if (isinstance(contribution, Reply)):
                     offsets['reply_offset'] = offsets['reply_offset'] + 1
-                    serialized_data = ReplySerializer(contribution, context={'request': request}).data
+                    serialized_data = ReplySerializer(
+                        contribution,
+                        context={'request': request}
+                    ).data
                     serialized_data['type'] = 'reply'
                     serialized_contributions.append(serialized_data)
 
                 elif (isinstance(contribution, Comment)):
                     offsets['comment_offset'] = offsets['comment_offset'] + 1
-                    serialized_data = CommentSerializer(contribution, context={'request': request}).data
+                    serialized_data = CommentSerializer(
+                        contribution,
+                        context={'request': request}
+                    ).data
                     serialized_data['type'] = 'comment'
                     serialized_contributions.append(serialized_data)
 
@@ -245,7 +254,10 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     offsets['paper_upload_offset'] = (
                         offsets['paper_upload_offset'] + 1
                     )
-                    serialized_data = PaperSerializer(contribution, context={'request': request}).data
+                    serialized_data = PaperSerializer(
+                        contribution,
+                        context={'request': request}
+                    ).data
                     serialized_data['type'] = 'paper'
                     serialized_contributions.append(serialized_data)
 

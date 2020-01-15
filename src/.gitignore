@@ -1,5 +1,6 @@
 # Config
 config/*
+config_local/*
 !config/paper.pdf
 !config/ci
 
@@ -10,3 +11,8 @@ __pycache__/
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
+
+# Ignore DB
+db.json
+static/
+backups/
