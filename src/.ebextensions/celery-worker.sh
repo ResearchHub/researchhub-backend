@@ -13,18 +13,16 @@ fi
 
 # Get eb environment variables
 app_env=`grep -oP "(?<=APP_ENV=\").*(?=\")" /opt/python/current/env`
-celery_env=`cat /opt/python/curent/env | tr '\n' ',' | sed 's/export //g' | sed 's/$PATH/%(ENV_PATH)s/g' | sed 's/$PYTHONPATH//g' | sed 's/$LD_LIBRARY_PATH//g'`
+celery_env=`cat /opt/python/current/env | tr '\n' ',' | sed 's/export //g' | sed 's/$PATH/%(ENV_PATH)s/g' | sed 's/$PYTHONPATH//g' | sed 's/$LD_LIBRARY_PATH//g'`
 celery_env=${celery_env%?}
 
-celery_conf="
-[program:celeryd-worker]
-
-directory=/opt/python/current/app
+celery_conf="[program:celeryd-worker]
 
 ; Run celery from virtual env
 command=/opt/python/run/venv/bin/celery worker -A researchhub -B -P solo --loglevel=INFO -n worker.%%h -Q ${app_env}
 process_name=%(program_name)s_%(process_num)02d
 
+directory=/opt/python/current/app
 user=ec2-user
 numprocs=1
 stdout_logfile=/var/log/celery/worker.out.log
