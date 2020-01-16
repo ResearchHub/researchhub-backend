@@ -7,7 +7,7 @@ from django.utils import timezone
 from storages.backends.s3boto3 import S3Boto3Storage
 
 from utils.models import DefaultModel
-
+from hub.models import Hub
 
 class User(AbstractUser):
     """
@@ -173,6 +173,13 @@ class Action(DefaultModel):
     object_id = models.PositiveIntegerField()
     item = GenericForeignKey('content_type', 'object_id')
     read_date = models.DateTimeField(default=None, null=True)
+    hub = models.ForeignKey(
+        Hub,
+        related_name='actions',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
 
     def set_read(self):
         self.read_date = timezone.now()
