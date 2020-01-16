@@ -153,6 +153,13 @@ class BaseComment(models.Model):
 
 class Thread(BaseComment):
     title = models.CharField(max_length=255)
+    paper = models.ForeignKey(
+        Paper,
+        on_delete=models.SET_NULL,
+        related_name='threads',
+        blank=True,
+        null=True
+    )
 
     def __str__(self):
         return '%s: %s' % (self.created_by, self.title)
