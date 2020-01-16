@@ -6,7 +6,7 @@ from user.serializers import UserSerializer
 
 
 class WithdrawalSerializer(serializers.ModelSerializer):
-    user = UserSerializer(default=serializers.CurrentUserDefault)
+    user = UserSerializer(default=serializers.CurrentUserDefault())
     token_address = serializers.CharField(
         default=ethereum.lib.RESEARCHCOIN_CONTRACT_ADDRESS
     )
