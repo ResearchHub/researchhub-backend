@@ -1,11 +1,15 @@
 import os
-from researchhub.settings import BASE_DIR
 from django.http import HttpResponse
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import (
     api_view,
     permission_classes
 )
 from rest_framework.response import Response
+
+from researchhub.settings import BASE_DIR
+from researchhub.tasks import test_task
+from utils.http import RequestMethods
 
 
 def index(request):
@@ -26,7 +30,7 @@ def permissions(request):
     return HttpResponse(content=data, content_type='application/json')
 
 
-@api_view(['GET'])
+@api_view([RequestMethods.GET])
 @permission_classes(())
 def healthcheck(request):
     """
@@ -34,3 +38,11 @@ def healthcheck(request):
     """
 
     return Response({'PONG'})
+
+
+@api_view([RequestMethods.GET])
+@permission_classes(())
+@csrf_exempt
+def test(request):
+    total = test_task.delay(1, 1)
+    return Response(f'Celery test success: {total}')

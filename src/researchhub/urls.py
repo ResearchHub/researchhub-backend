@@ -15,7 +15,7 @@ import oauth.urls
 import oauth.views
 import paper.views
 import reputation.views
-from researchhub import views as index_views
+import researchhub.views
 import search.urls
 import summary.views
 import user.views
@@ -82,13 +82,17 @@ router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('test/', mailing_list.views.test),
+    path('celery_test/', researchhub.views.test),
     path('email_notifications/', mailing_list.views.email_notifications),
-    path('health/', index_views.healthcheck),
+    path('health/', researchhub.views.healthcheck),
 
     re_path(r'^api/', include(router.urls)),
     path('api/ethereum/', include(ethereum.urls)),
-    path('api/permissions/', index_views.permissions, name='permissions'),
+    path(
+        'api/permissions/',
+        researchhub.views.permissions,
+        name='permissions'
+    ),
     path('api/search/', include(search.urls)),
     path(
         'auth/google/login/callback/',
@@ -104,5 +108,5 @@ urlpatterns = [
     re_path(r'^auth/', include(oauth.urls.default_urls)),
 
     path(r'api/auth/', include('rest_auth.urls')),
-    path('', index_views.index, name='index'),
+    path('', researchhub.views.index, name='index'),
 ]
