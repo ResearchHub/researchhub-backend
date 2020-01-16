@@ -173,7 +173,7 @@ class PaperSerializer(serializers.ModelSerializer):
         threads = []
         request = self.context.get('request')
 
-        threads_queryset = obj.threads.all().order_by('-created_date')
+        threads_queryset = obj.thread_set.all().order_by('-created_date')
         if threads_queryset:
             AMOUNT = 20
             count = len(threads_queryset)
