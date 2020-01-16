@@ -61,10 +61,10 @@ class PaperViewSet(viewsets.ModelViewSet):
             'hubs',
             'hubs__subscribers',
             'votes',
-            'threads',
-            'threads__created_by',
-            'threads__created_by__author_profile',
-            'threads__created_by__bookmarks',
+            'thread_set',
+            'thread_set__created_by',
+            'thread_set__created_by__author_profile',
+            'thread_set__created_by__bookmarks',
             Prefetch(
                 "votes",
                 queryset=Vote.objects.filter(
@@ -318,7 +318,9 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
             if filtered_papers:
                 order_papers = filtered_papers.order_by('-uploaded_date')
-                order_papers = order_papers | papers.order_by('-uploaded_date').exclude(id__in=order_papers)
+                order_papers = order_papers | papers.order_by(
+                    '-uploaded_date'
+                ).exclude(id__in=order_papers)
             else:
                 order_papers = papers.order_by('-uploaded_date')
                 no_results = True
@@ -341,7 +343,10 @@ class PaperViewSet(viewsets.ModelViewSet):
                 )
             )
 
-            papers = papers.annotate(score=upvotes - downvotes, total_votes=upvotes + downvotes)
+            papers = papers.annotate(
+                score=upvotes - downvotes,
+                total_votes=upvotes + downvotes
+            )
             filtered_papers = papers.filter(total_votes__gte=1)
             order_papers = []
 
@@ -357,11 +362,15 @@ class PaperViewSet(viewsets.ModelViewSet):
                     vote__vote_type=Vote.DOWNVOTE,
                 )
             )
-            all_time_papers = papers.annotate(score=all_time_upvotes + all_time_downvotes)
-            
+            all_time_papers = papers.annotate(
+                score=all_time_upvotes + all_time_downvotes
+            )
+
             if filtered_papers:
                 order_papers = filtered_papers.order_by('-score')
-                order_papers = order_papers | all_time_papers.order_by('-score').exclude(id__in=filtered_papers)
+                order_papers = order_papers | all_time_papers.order_by(
+                    '-score'
+                ).exclude(id__in=filtered_papers)
             else:
                 order_papers = all_time_papers.order_by('-score')
                 no_results = True
@@ -390,17 +399,24 @@ class PaperViewSet(viewsets.ModelViewSet):
             all_time_comments = Count(
                 'threads__comments',
             )
-            all_time_papers = papers.annotate(discussed=all_time_threads + all_time_comments)
+            all_time_papers = papers.annotate(
+                discussed=all_time_threads + all_time_comments
+            )
             if filtered_papers:
                 order_papers = filtered_papers.order_by('-discussed')
-                order_papers = all_time_papers.order_by('-discussed').exclude(id__in=filtered_papers)
+                order_papers = all_time_papers.order_by('-discussed').exclude(
+                    id__in=filtered_papers
+                )
             else:
                 order_papers = all_time_papers.order_by('-discussed')
                 no_results = True
 
         page = self.paginate_queryset(order_papers)
         serializer = self.get_serializer(page, many=True)
-        return self.get_paginated_response({'data': serializer.data, 'no_results': no_results})
+        return self.get_paginated_response({
+            'data': serializer.data,
+            'no_results': no_results
+        })
 
 
 def find_vote(user, paper, vote_type):
