@@ -13,7 +13,8 @@ from .models import Hub
 from .permissions import CreateHub, IsSubscribed, IsNotSubscribed
 from .serializers import HubSerializer
 from .filters import HubFilter
-
+from user.models import Action
+from user.serializers import UserActions
 from utils.message import send_email_message
 
 
@@ -114,3 +115,19 @@ class HubViewSet(viewsets.ModelViewSet):
             response = {'email_sent': True, 'result': result}
 
         return Response(response, status=200)
+
+    @action(
+        detail=True,
+        methods=['get']
+    )
+    def get_live_feed(self, request, pk=None):
+        actions = []
+        if pk:
+            actions = Action.objects.filter(hub=pk)
+        else:
+            actions = Action.objects.all()
+
+        actions.order_by('-created_date')
+        user_actions = UserActions(actions)
+        page = self.paginate_queryset(user_actions.serialized)
+        return self.get_paginated_response(page)
