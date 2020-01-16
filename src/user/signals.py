@@ -44,4 +44,4 @@ def send_immediate_action_notification(sender, instance, created, **kwargs):
                 comment_subscription__isnull=False,
                 notification_frequency=NotificationFrequencies.IMMEDIATE
             ).values_list('id', flat=True)
-            send_action_notification_emails(email_recipient_ids)
+            send_action_notification_emails.delay(email_recipient_ids)
