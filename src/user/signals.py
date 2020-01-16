@@ -6,6 +6,7 @@ from mailing_list.lib import NotificationFrequencies
 from mailing_list.models import EmailRecipient
 from mailing_list.tasks import send_action_notification_emails
 from paper.models import Vote as PaperVote
+from researchhub.settings import TESTING
 from summary.models import Summary
 from user.models import Action
 
@@ -44,4 +45,7 @@ def send_immediate_action_notification(sender, instance, created, **kwargs):
                 comment_subscription__isnull=False,
                 notification_frequency=NotificationFrequencies.IMMEDIATE
             ).values_list('id', flat=True)
-            send_action_notification_emails.delay(email_recipient_ids)
+            if TESTING:
+                send_action_notification_emails(email_recipient_ids)
+            else:
+                send_action_notification_emails.delay(email_recipient_ids)
