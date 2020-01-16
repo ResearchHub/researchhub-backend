@@ -6,15 +6,10 @@ from user.serializers import UserSerializer
 
 
 class WithdrawalSerializer(serializers.ModelSerializer):
-    user = UserSerializer()
+    user = UserSerializer(default=serializers.CurrentUserDefault)
     token_address = serializers.CharField(
         default=ethereum.lib.RESEARCHCOIN_CONTRACT_ADDRESS
     )
-
-    # def __init__(self, *args, **kwargs):
-    #     super(WithdrawalSerializer, self).__init__(*args, **kwargs)
-    #     import pdb; pdb.set_trace()
-    #     self.fields['user'].default = self.context
 
     class Meta:
         model = Withdrawal
