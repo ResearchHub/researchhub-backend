@@ -27,10 +27,54 @@ def create_action(sender, instance, created, **kwargs):
             user = instance.proposed_by
         else:
             user = instance.created_by
-        return Action.objects.create(
+
+        action = Action.objects.create(
             item=instance,
             user=user
         )
+
+        if isinstance(instance, Summary):
+            paper = instance.paper
+            hubs = paper.hubs.all()
+        if isinstance(instance, Comment):
+            thread = data.parent
+            paper = thread.paper
+            hubs = paper.hubs.all()          
+        if isinstance(instance, Reply):
+            current = instance.item
+            while not isinstance(current, Thread) and current.parent:
+                current = current.parent
+
+            if isinstance(current, Thread):
+                paper = current.paper
+                hubs = paper.hubs.all()
+        if isinstance(instance, Thread):
+            paper = instance.paper
+            hubs = paper.hubs.all()
+        if isinstance(instance, DiscussionVote):
+            data = instance.item
+            
+            if isinstance(data, Comment):
+                thread = data.parent
+                paper = thread.paper
+                hubs = paper.hubs.all()
+            elif isinstance(data, Reply):
+                current = data
+                while not isinstance(current, Thread) and current.parent:
+                    current = current.parent
+
+                if isinstance(current, Thread):
+                    paper = current.paper
+                    hubs = paper.hubs.all()
+            else:
+                paper = data.paper
+                hubs = paper.hubs.all()
+            action.hubs.add(*hubs)
+        if isinstance(instance, PaperVote):
+            paper = instance.paper
+            hubs = paper.hubs.all()
+            action.hubs.add(*hubs)
+        return action
 
 
 @receiver(post_save, sender=Action, dispatch_uid='send_action_notification')
