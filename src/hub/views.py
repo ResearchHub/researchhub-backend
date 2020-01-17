@@ -117,17 +117,19 @@ class HubViewSet(viewsets.ModelViewSet):
         return Response(response, status=200)
 
     @action(
-        detail=True,
+        detail=False,
         methods=['get']
     )
-    def get_live_feed(self, request, pk=None):
+    def get_live_feed(self, request):
+        hub_id = request.GET['hub_id']
+
         actions = []
-        if pk:
-            actions = Action.objects.filter(hub=pk)
-        else:
+        if int(hub_id) == 0:
             actions = Action.objects.all()
+        else:
+            actions = Action.objects.filter(hub=hub_id)
 
         actions.order_by('-created_date')
-        user_actions = UserActions(actions)
+        user_actions = UserActions(actions, False)
         page = self.paginate_queryset(user_actions.serialized)
         return self.get_paginated_response(page)
