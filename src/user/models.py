@@ -48,14 +48,13 @@ class User(AbstractUser):
 
 
 @receiver(models.signals.post_save, sender=User)
-def attach_author(sender, instance, created, *args, **kwargs):
+def attach_author_and_email_preference(sender, instance, created, *args, **kwargs):
     if created:
         Author.objects.create(
             user=instance,
             first_name=instance.first_name,
             last_name=instance.last_name,
         )
-
 
 class University(models.Model):
     name = models.CharField(max_length=255)
