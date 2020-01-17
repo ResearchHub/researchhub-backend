@@ -4,7 +4,7 @@ from django.dispatch import receiver
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from mailing_list.lib import NotificationFrequencies
 from mailing_list.models import EmailRecipient
-from mailing_list.tasks import send_action_notification_emails
+from mailing_list.tasks import send_action_notification_emails, send_email_simple
 from paper.models import Vote as PaperVote
 from researchhub.settings import TESTING
 from summary.models import Summary
@@ -36,16 +36,18 @@ def create_action(sender, instance, created, **kwargs):
 @receiver(post_save, sender=Action, dispatch_uid='send_action_notification')
 def send_immediate_action_notification(sender, instance, created, **kwargs):
     if created:
-        if (
-            isinstance(instance.item, Comment)
-            or isinstance(instance.item, Reply)
-        ):
+        if isinstance(instance.item, Comment):
+            email_recipients = list(instance.item.parent.comments.all().values_list('created_by__email', flat=True).distinct('created_by'))
             email_recipient_ids = EmailRecipient.objects.filter(
                 thread_subscription__isnull=False,
                 comment_subscription__isnull=False,
                 notification_frequency=NotificationFrequencies.IMMEDIATE
             ).values_list('id', flat=True)
             if TESTING:
-                send_action_notification_emails(email_recipient_ids)
+                send_email_simple(email_recipients, instance.id)
+                # send_action_notification_emails(email_recipient_ids)
             else:
-                send_action_notification_emails.delay(email_recipient_ids)
+                send_email_simple.delay(email_recipients, instance.id)
+                # send_action_notification_emails.delay(email_recipient_ids)
+
+        # if isinstance(instance.item, Reply):

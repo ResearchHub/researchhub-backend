@@ -9,7 +9,7 @@ from mailing_list.models import EmailRecipient, NotificationFrequencies
 from researchhub.celery import app
 from user.tasks import get_latest_actions
 from utils.message import send_email_message
-
+from user.models import Action
 
 @app.task
 def send_action_notification_emails(email_recipient_ids):
@@ -33,6 +33,23 @@ def send_action_notification_emails(email_recipient_ids):
                 actions_by_type,
                 next_cursor
             )
+
+
+@app.task
+def send_email_simple(email_list, action_id):
+    """
+    Sends an email to a specified email list
+    """
+    action = Action.objects.get(id=action_id)
+    subject = build_subject(NotificationFrequencies.IMMEDIATE)
+    context = build_notification_context([action])
+    result = send_email_message(
+        email_list,
+        'notification_email.txt',
+        subject,
+        context,
+        html_template='notification_email.html'
+    )
 
 
 class SubscribedActions:
