@@ -173,12 +173,9 @@ class Action(DefaultModel):
     object_id = models.PositiveIntegerField()
     item = GenericForeignKey('content_type', 'object_id')
     read_date = models.DateTimeField(default=None, null=True)
-    hub = models.ForeignKey(
+    hubs = models.ManyToManyField(
         Hub,
         related_name='actions',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
     )
 
     def set_read(self):

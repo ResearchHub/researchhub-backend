@@ -201,7 +201,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
 
     def get_thread(self, obj):
         current_obj = obj
-        while not isinstance(current_obj, Thread) and obj.parent:
+        while not isinstance(current_obj, Thread) and current_obj.parent:
             current_obj = current_obj.parent
 
 
