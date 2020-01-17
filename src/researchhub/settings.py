@@ -77,11 +77,29 @@ if ELASTIC_BEANSTALK:
         ALLOWED_HOSTS.append(
             requests.get('http://54.200.83.4/latest/meta-data/local-ipv4',
                          timeout=0.01).text)
+        # Production private ips
+        ALLOWED_HOSTS.append(
+            requests.get('http://172.31.0.82/latest/meta-data/local-ipv4',
+                         timeout=0.01).text)
+        ALLOWED_HOSTS.append(
+            requests.get('http://172.31.9.43/latest/meta-data/local-ipv4',
+                         timeout=0.01).text)
+        # Staging private ips
+        ALLOWED_HOSTS.append(
+            requests.get('http://172.31.8.17/latest/meta-data/local-ipv4',
+                         timeout=0.01).text)
+        ALLOWED_HOSTS.append(
+            requests.get('http://172.31.6.81/latest/meta-data/local-ipv4',
+                         timeout=0.01).text)
+        ALLOWED_HOSTS.append(
+            requests.get('http://172.31.5.32/latest/meta-data/local-ipv4',
+                         timeout=0.01).text)
     except requests.exceptions.RequestException:
         pass
 
 
 # Cors
+
 CORS_ORIGIN_WHITELIST = [
     "http://localhost:3000",
     'https://dev.researchhub.com',
@@ -91,9 +109,6 @@ CORS_ORIGIN_WHITELIST = [
     'https://researchhub.com'
 ]
 
-# CORS_ORIGIN_REGEX_WHITELIST = [
-#     r"^https://\w+\.researchhub\.com$",
-# ]
 
 # Application definition
 
@@ -165,6 +180,19 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+if not CLOUD:
+    INSTALLED_APPS += [
+        'silk',
+        'dbbackup'
+    ]
+
+    MIDDLEWARE += [
+        'silk.middleware.SilkyMiddleware',
+    ]
+
+    DBBACKUP_STORAGE = 'django.core.files.storage.FileSystemStorage'
+    DBBACKUP_STORAGE_OPTIONS = {'location': 'backups'}
 
 ROOT_URLCONF = 'researchhub.urls'
 
@@ -419,3 +447,17 @@ WEB3_KEYSTORE_PASSWORD = os.environ.get(
     'WEB3_KEYSTORE_PASSWORD',
     wallet.KEYSTORE_PASSWORD
 )
+
+
+# Redis
+# redis://:password@hostname:port/db_number
+
+REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
+REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
+
+
+# Celery
+
+CELERY_BROKER_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'

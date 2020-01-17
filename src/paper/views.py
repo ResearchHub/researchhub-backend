@@ -1,6 +1,6 @@
 import datetime
 
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Prefetch
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -13,6 +13,7 @@ from requests.exceptions import (
 
 from .filters import PaperFilter
 from .models import Flag, Paper, Vote
+from discussion.models import Vote as DiscussionVote, Thread
 from .utils import get_csl_item
 from .permissions import (
     CreatePaper,
@@ -45,6 +46,68 @@ class PaperViewSet(viewsets.ModelViewSet):
         & UpdatePaper
     ]
 
+    def get_queryset(self):
+        return self.queryset.prefetch_related(
+            'uploaded_by',
+            'uploaded_by__bookmarks',
+            'uploaded_by__author_profile',
+            'authors',
+            'summary',
+            'summary__previous',
+            'summary__proposed_by__bookmarks',
+            'summary__proposed_by__subscribed_hubs',
+            'summary__proposed_by__author_profile',
+            'moderators',
+            'hubs',
+            'hubs__subscribers',
+            'votes',
+            'threads',
+            'threads__created_by',
+            'threads__created_by__author_profile',
+            'threads__created_by__bookmarks',
+            Prefetch(
+                "votes",
+                queryset=Vote.objects.filter(
+                    vote_type=Vote.UPVOTE
+                ),
+                to_attr="upvotes"
+            ),
+            Prefetch(
+                "votes",
+                queryset=Vote.objects.filter(
+                    vote_type=Vote.DOWNVOTE
+                ),
+                to_attr="downvotes"
+            ),
+            Prefetch(
+                'votes',
+                queryset=Vote.objects.filter(
+                    created_by=self.request.user.id,
+                ),
+                to_attr="vote_created_by",
+            ),
+            Prefetch(
+                "threads",
+                queryset=Thread.objects.prefetch_related(
+                    Prefetch(
+                        'votes',
+                        queryset=DiscussionVote.objects.filter(
+                            vote_type=DiscussionVote.DOWNVOTE
+                        ),
+                        to_attr="thread_downvotes"
+                    ),
+                    Prefetch(
+                        'votes',
+                        queryset=DiscussionVote.objects.filter(
+                            vote_type=DiscussionVote.UPVOTE
+                        ),
+                        to_attr="thread_upvotes"
+                    )
+                ),
+                to_attr="thread_obj"
+            ),
+        )
+
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
@@ -74,11 +137,11 @@ class PaperViewSet(viewsets.ModelViewSet):
         else:
             user.bookmarks.add(paper)
             user.save()
-            serialied = BookmarkSerializer({
+            serialized = BookmarkSerializer({
                 'user': user.id,
                 'bookmarks': user.bookmarks.all()
             })
-            return Response(serialied.data, status=201)
+            return Response(serialized.data, status=201)
 
     @bookmark.mapping.delete
     def delete_bookmark(self, request, pk=None):
@@ -241,9 +304,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         # hub_id = 0 is the homepage
         # we aren't on a specific hub so don't filter by that hub_id
         if int(hub_id) == 0:
-            papers = Paper.objects.all()
+            papers = self.get_queryset()
         else:
-            papers = Paper.objects.filter(hubs=hub_id)
+            papers = self.get_queryset().filter(hubs=hub_id)
 
         order_papers = papers
         no_results = False
