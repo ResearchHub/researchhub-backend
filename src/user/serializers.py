@@ -78,8 +78,12 @@ class UserActions:
     )
     from paper.serializers import VoteSerializer as PaperVoteSerializer
 
-    def __init__(self, user_id, **kwargs):
-        self.all = self.get_actions(user_id)
+    def __init__(self, data, is_user_id=True, **kwargs):
+        self.all = []
+        if is_user_id:
+            self.all = self.get_actions(data)
+        else:
+            self.all = data
         self.serialized = []
         self.comments = []
         self.replies = []
@@ -105,7 +109,6 @@ class UserActions:
     def _group_and_serialize_actions(self):
         for action in self.all:
             item = action.item
-
             if isinstance(item, Comment):
                 self.comments.append(item)
                 data = self.CommentSerializer(item).data
