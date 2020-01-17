@@ -57,10 +57,12 @@ def send_email_message(
     result = {'success': [], 'failure': [], 'exclude': []}
 
     # Exclude invalid recipients
-    for recipient in recipients:
-        if not is_valid_email(recipient):
-            result['exclude'].append(recipient)
-            recipients.remove(recipient)
+    # for recipient in recipients:
+    #     if not is_valid_email(recipient):
+    #         result['exclude'].append(recipient)
+    #         recipients.remove(recipient)
+
+    print(recipients)
 
     for recipient in recipients:
         # Build email context

@@ -6,7 +6,7 @@
         <title></title>
         <link href="https://fonts.googleapis.com/css?family=K2D:400,700" rel="stylesheet" />
     </head>
-    {% inlinecss "stylesheets/notification_email.css" %}
+    {% inlinecss "notification_email.css" %}
     <body>
       <div class="email-container">
         <div class="email-header">
@@ -40,12 +40,12 @@
                   </b> {{ action.label }}.
                   <span class="thread"> {{ action.thread }} </span>
                 </span>
-                <div class="paper">
-                  {{ action.paper }}
-                </div>
                 <div class="timestamp">
                   <!-- <span class="timestamp-icon">•</span> -->
                   {{ action.created_date|localize }}
+                </div>
+                <div class="paper">
+                  {{ action.paper }}
                 </div>
               </div>
             </div>
