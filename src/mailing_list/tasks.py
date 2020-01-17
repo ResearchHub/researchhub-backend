@@ -46,6 +46,7 @@ def send_email_simple(email_list, action_id):
     subscribed_actions.add_formatted_action(action)
     subject = build_subject(NotificationFrequencies.IMMEDIATE)
     context = build_notification_context(subscribed_actions.formatted_actions)
+    print(context)
     result = send_email_message(
         email_list,
         'notification_email.txt',
@@ -53,8 +54,6 @@ def send_email_simple(email_list, action_id):
         context,
         html_template='notification_email.html'
     )
-    rdb.set_trace()
-
 
 class SubscribedActions:
     def __init__(self, email_recipient):
