@@ -38,7 +38,11 @@
                     {{ action.item.created_by.author_profile.first_name }}
                      {{ action.item.created_by.author_profile.last_name }}
                   </b> {{ action.label }}.
+                  <span class="thread"> {{ action.thread }} </span>
                 </span>
+                <div class="paper">
+                  {{ action.paper }}
+                </div>
                 <div class="timestamp">
                   <!-- <span class="timestamp-icon">•</span> -->
                   {{ action.created_date|localize }}
@@ -47,7 +51,7 @@
             </div>
           </div>
           <div class="body">
-            "{{ action.item.plain_text|truncatewords:"100" }}"
+            {{ action.item.plain_text }}
           </div>
           <div class="hubtags-list">
             <button class="button-label">
