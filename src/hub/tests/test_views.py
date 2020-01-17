@@ -38,19 +38,6 @@ class HubViewsTests(TestCase):
         end_state = self.is_subscribed(self.user, self.hub)
         self.assertFalse(end_state)
 
-    def test_hub_unlocks_after_15_subscriptions(self):
-        users = self.create_users(14)
-        hub = create_hub('Confetti')
-        hub.subscribers.add(*users)
-
-        hub.refresh_from_db()
-        self.assertTrue(hub.is_locked)
-
-        self.get_hub_subscribe_response(self.user, hub=hub)
-
-        hub.refresh_from_db()
-        self.assertFalse(hub.is_locked)
-
     def test_invite_to_hub(self):
         hub = create_hub('Invite to Hub')
         email = 'val@quantfive.org'
