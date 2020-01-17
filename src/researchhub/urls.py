@@ -20,6 +20,8 @@ import search.urls
 import summary.views
 import user.views
 
+from researchhub.settings import CLOUD
+
 router = routers.DefaultRouter()
 
 router.register(
@@ -85,6 +87,7 @@ urlpatterns = [
     path('celery_test/', researchhub.views.test),
     path('email_notifications/', mailing_list.views.email_notifications),
     path('health/', researchhub.views.healthcheck),
+    path('celery_test/', researchhub.views.celery_test),
 
     re_path(r'^api/', include(router.urls)),
     path('api/ethereum/', include(ethereum.urls)),
@@ -110,3 +113,6 @@ urlpatterns = [
     path(r'api/auth/', include('rest_auth.urls')),
     path('', researchhub.views.index, name='index'),
 ]
+
+if not CLOUD:
+    urlpatterns += [path('silk/', include('silk.urls', namespace='silk'))]

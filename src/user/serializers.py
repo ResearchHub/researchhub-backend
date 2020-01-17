@@ -38,14 +38,15 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
 
     class Meta:
         model = User
-        exclude = ['password']
+        exclude = ['password', 'groups', 'is_superuser', 'is_staff', 'user_permissions']
 
     def get_balance(self, obj):
         return reputation.lib.get_user_balance(obj)
 
     def get_subscribed(self, obj):
-        subscribed_query = obj.subscribed_hubs.all()
-        return HubSerializer(subscribed_query, many=True).data
+        if self.context.get('get_subscribed'):
+            subscribed_query = obj.subscribed_hubs.all()
+            return HubSerializer(subscribed_query, many=True).data
 
 
 class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
