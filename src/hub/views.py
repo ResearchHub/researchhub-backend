@@ -127,7 +127,7 @@ class HubViewSet(viewsets.ModelViewSet):
         if int(hub_id) == 0:
             actions = Action.objects.all()
         else:
-            actions = Action.objects.filter(hub=hub_id)
+            actions = Action.objects.filter(hubs=hub_id)
 
         actions.order_by('-created_date')
         user_actions = UserActions(actions, False)
