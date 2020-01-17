@@ -10,6 +10,7 @@ from researchhub.celery import app
 from user.tasks import get_latest_actions
 from utils.message import send_email_message
 from user.models import Action
+from celery.contrib import rdb
 
 @app.task
 def send_action_notification_emails(email_recipient_ids):
@@ -52,6 +53,7 @@ def send_email_simple(email_list, action_id):
         context,
         html_template='notification_email.html'
     )
+    rdb.set_trace()
 
 
 class SubscribedActions:
@@ -134,6 +136,8 @@ class SubscribedActions:
         formatted_action = {
             'item': action.item,
             'label': self.get_action_label(action.item),
+            'paper': action.item.parent.paper.title,
+            'thread': action.item.parent.title,
             'created_date': self.get_action_created_date(action),
             'initials': action.item.created_by.author_profile.first_name[0] + action.item.created_by.author_profile.last_name[0], 
         }
@@ -141,9 +145,9 @@ class SubscribedActions:
 
     def get_action_label(self, action_item):
         if isinstance(action_item, Comment):
-            return 'commented on your thread: {} for Paper: {}'.format(action_item.parent.title, action_item.parent.paper.title)
+            return 'commented on your thread'
         elif isinstance(action_item, Reply):
-            return 'replied to your comment: {}'.format()
+            return 'replied to your comment'
 
     def get_action_created_date(self, action):
         # TODO: Format this
