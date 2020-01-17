@@ -37,6 +37,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             )
 
     def list(self, request):
+        # TODO: Do we really need the user on this list? Can we make some
+        # changes on the frontend so that we don't need to pass the user here?
         resp = super().list(request)
         resp.data['user'] = UserSerializer(request.user).data
         return resp

@@ -38,6 +38,9 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
 
+    def get_serializer_context(self):
+        return {'get_subscribed': True, 'get_balance': True} 
+
     def get_queryset(self):
         user = self.request.user
         if user.is_staff:
