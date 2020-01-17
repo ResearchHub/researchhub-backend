@@ -41,8 +41,10 @@ def send_email_simple(email_list, action_id):
     Sends an email to a specified email list
     """
     action = Action.objects.get(id=action_id)
+    subscribed_actions = SubscribedActions(email_recipient=None)
+    subscribed_actions.add_formatted_action(action)
     subject = build_subject(NotificationFrequencies.IMMEDIATE)
-    context = build_notification_context([action])
+    context = build_notification_context(subscribed_actions.formatted_actions)
     result = send_email_message(
         email_list,
         'notification_email.txt',
@@ -139,9 +141,9 @@ class SubscribedActions:
 
     def get_action_label(self, action_item):
         if isinstance(action_item, Comment):
-            return 'commented on your thread'
+            return 'commented on your thread: {} for Paper: {}'.format(action_item.parent.title, action_item.parent.paper.title)
         elif isinstance(action_item, Reply):
-            return 'replied to your comment'
+            return 'replied to your comment: {}'.format()
 
     def get_action_created_date(self, action):
         # TODO: Format this

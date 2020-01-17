@@ -25,8 +25,7 @@ PRODUCTION = APP_ENV == 'production'
 STAGING = APP_ENV == 'staging'
 CI = "GITHUB_ACTIONS" in os.environ
 CLOUD = PRODUCTION or STAGING or CI
-TESTING = 'test' in sys.argv
-
+TESTING = 'test' in APP_ENV
 PYTHONPATH = '/opt/python/current/app:$PYTHONPATH'
 DJANGO_SETTINGS_MODULE = 'researchhub.settings'
 ELASTIC_BEANSTALK = (APP_ENV in ['production', 'staging', 'development'])
