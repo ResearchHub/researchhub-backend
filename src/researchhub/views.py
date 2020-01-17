@@ -7,10 +7,7 @@ from rest_framework.decorators import (
 )
 from rest_framework.response import Response
 
-<<<<<<< HEAD
 from researchhub.settings import BASE_DIR
-=======
->>>>>>> master
 from researchhub.tasks import test_task
 from utils.http import RequestMethods
 

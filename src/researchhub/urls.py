@@ -84,7 +84,6 @@ router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('celery_test/', researchhub.views.test),
     path('email_notifications/', mailing_list.views.email_notifications),
     path('health/', researchhub.views.healthcheck),
     path('celery_test/', researchhub.views.celery_test),
