@@ -15,9 +15,12 @@ body {
   border: 1px solid #DDDDDD;
 }
 
+.notification-wrapper {
+  width: 80%;
+}
+
 .paper {
   color: #0098ca;
-  width: 80%;
   padding-right: 16px;
 }
 
