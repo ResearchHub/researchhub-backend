@@ -14,8 +14,16 @@ class VoteMixin:
         return score
 
     def calculate_score(self, obj):
-        upvotes = obj.votes.filter(vote_type=Vote.UPVOTE)
-        downvotes = obj.votes.filter(vote_type=Vote.DOWNVOTE)
+        try:
+            upvotes = obj.thread_upvotes
+        except AttributeError:
+            upvotes = obj.votes.filter(vote_type=Vote.UPVOTE)
+
+        try:
+            downvotes = obj.thread_upvotes
+        except AttributeError:
+            downvotes = obj.votes.filter(vote_type=Vote.DOWNVOTE)
+
         score = len(upvotes) - len(downvotes)
         return score
 

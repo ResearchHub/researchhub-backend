@@ -173,7 +173,10 @@ class PaperSerializer(serializers.ModelSerializer):
         threads = []
         request = self.context.get('request')
 
-        threads_queryset = obj.threads.all().order_by('-created_date')
+        try:
+            threads_queryset = obj.thread_obj
+        except AttributeError:
+            threads_queryset = obj.threads.all().order_by('-created_date')
         if threads_queryset:
             AMOUNT = 20
             count = len(threads_queryset)
@@ -201,10 +204,16 @@ class PaperSerializer(serializers.ModelSerializer):
         user = get_user_from_request(self.context)
         if user:
             try:
-                vote = obj.votes.get(created_by=user.id)
-                vote = VoteSerializer(vote).data
-            except Vote.DoesNotExist:
-                pass
+                vote_created_by = obj.vote_created_by
+                if len(vote_created_by) == 0:
+                    return None
+                vote = VoteSerializer(vote_created_by).data
+            except AttributeError:
+                try:
+                    vote = obj.votes.get(created_by=user.id)
+                    vote = VoteSerializer(vote).data
+                except Vote.DoesNotExist:
+                    pass
         return vote
 
     def _add_file(self, paper, file):
