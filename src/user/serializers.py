@@ -6,7 +6,7 @@ from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from hub.serializers import HubSerializer
 from paper.models import Vote as PaperVote
 from user.models import Author, University, User
-
+from summary.models import Summary
 
 class UniversitySerializer(rest_framework_serializers.ModelSerializer):
     class Meta:
@@ -77,7 +77,7 @@ class UserActions:
         VoteSerializer as DiscussionVoteSerializer
     )
     from paper.serializers import VoteSerializer as PaperVoteSerializer
-
+    from summary.serializers import SummarySerializer
     def __init__(self, data, is_user_id=True, **kwargs):
         self.all = []
         if is_user_id:
@@ -136,6 +136,11 @@ class UserActions:
             elif isinstance(item, PaperVote):
                 self.paper_votes.append(item)
                 data = self.PaperVoteSerializer(item).data
+                data['content_type'] = str(action.content_type)
+                self.serialized.append(data)
+            elif isinstance(item, Summary):
+                self.summaries.append(item)
+                data = self.SummarySerializer(item).data
                 data['content_type'] = str(action.content_type)
                 self.serialized.append(data)
 
