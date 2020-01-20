@@ -126,6 +126,25 @@ class PaperViewsTests(TestCase):
             result['csl_item']['DOI'], "10.1038/s41586-019-1099-1")
         self.assertIsInstance(result['search'], list)
 
+    def test_search_by_url_doi(self):
+        url = self.base_url + 'search_by_url/'
+        data = {'url': 'https://doi.org/10.1038/ng.3259'}
+        response = get_authenticated_post_response(self.user, url, data)
+        self.assertEquals(response.status_code, 200)
+        result = response.data
+        self.assertEquals(result['url'], data['url'])
+        self.assertFalse(result['url_is_pdf'])
+        self.assertFalse(result['url_is_unsupported_pdf'])
+        self.assertEquals(
+            result['csl_item']['title'],
+            "Understanding multicellular function and disease with human tissue-specific networks")  # noqa E501
+        self.assertEquals(
+            result['csl_item']['DOI'], "10.1038/ng.3259")
+        self.assertEquals(
+            result['pdf_location']['url_for_pdf'],
+            "http://europepmc.org/articles/pmc4828725?pdf=render")
+        self.assertIsInstance(result['search'], list)
+
     def test_search_by_url_unsupported_pdf(self):
         url = self.base_url + 'search_by_url/'
         data = {'url': 'https://bitcoin.org/bitcoin.pdf'}
