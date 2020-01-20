@@ -1,5 +1,7 @@
 # researchhub-backend
 
+[![GitHub Actions Status Badge](https://github.com/ResearchHub/researchhub-backend/workflows/Build/badge.svg)](https://github.com/ResearchHub/researchhub-backend/actions)
+
 ## Setup
 
 ### GENERAL
