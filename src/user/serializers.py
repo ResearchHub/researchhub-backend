@@ -90,6 +90,7 @@ class UserActions:
         self.threads = []
         self.discussion_votes = []
         self.paper_votes = []
+        self.summaries = []
         self._group_and_serialize_actions()
 
     @property
@@ -130,14 +131,31 @@ class UserActions:
             elif isinstance(item, DiscussionVote):
                 self.discussion_votes.append(item)
                 data = self.DiscussionVoteSerializer(item).data
-                data['content_type'] = str(action.content_type)
+
+                discussion_item = item.item
+                if isinstance(discussion_item, Comment):
+                    discussion_data = self.CommentSerializer(discussion_item).data
+                    data['content_type'] = str(action.content_type) + '_comment'
+                    data['comment'] = discussion_data
+
+                elif isinstance(discussion_item, Reply):
+                    discussion_data = self.ReplySerializer(discussion_item).data
+                    data['content_type'] = str(action.content_type) + '_reply'
+                    data['reply'] = discussion_data
+
+                elif isinstance(discussion_item, Thread):
+                    discussion_data = self.ThreadSerializer(discussion_item).data
+                    data['content_type'] = str(action.content_type) + '_reply'
+                    data['reply'] = discussion_data
+
                 self.serialized.append(data)
 
             elif isinstance(item, PaperVote):
                 self.paper_votes.append(item)
                 data = self.PaperVoteSerializer(item).data
-                data['content_type'] = str(action.content_type)
+                data['content_type'] = str(action.content_type) + '_paper'
                 self.serialized.append(data)
+
             elif isinstance(item, Summary):
                 self.summaries.append(item)
                 data = self.SummarySerializer(item).data
