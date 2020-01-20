@@ -60,7 +60,7 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     comment_count = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
-
+    
     class Meta:
         fields = [
             'id',
