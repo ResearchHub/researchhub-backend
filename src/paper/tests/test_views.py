@@ -145,6 +145,24 @@ class PaperViewsTests(TestCase):
             "http://europepmc.org/articles/pmc4828725?pdf=render")
         self.assertIsInstance(result['search'], list)
 
+    def test_search_by_url_pmid(self):
+        """
+        Search by PMID without a DOI from an inactive journal
+        """
+        url = self.base_url + 'search_by_url/'
+        data = {'url': 'https://www.ncbi.nlm.nih.gov/pubmed/18888140'}
+        response = get_authenticated_post_response(self.user, url, data)
+        self.assertEquals(response.status_code, 200)
+        result = response.data
+        self.assertEquals(result['url'], data['url'])
+        self.assertFalse(result['url_is_pdf'])
+        self.assertFalse(result['url_is_unsupported_pdf'])
+        self.assertEquals(
+            result['csl_item']['title'],
+            "[Major achievements in the second plan year in the Soviet Union].")  # noqa E501
+        self.assertIsNone(result['pdf_location'])
+        self.assertIsInstance(result['search'], list)
+
     def test_search_by_url_unsupported_pdf(self):
         url = self.base_url + 'search_by_url/'
         data = {'url': 'https://bitcoin.org/bitcoin.pdf'}
