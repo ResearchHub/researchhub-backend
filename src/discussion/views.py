@@ -138,6 +138,18 @@ class ActionMixin:
         vote = retrieve_vote(user, item)
         return get_vote_response(vote, 200)
 
+    @user_vote.mapping.delete
+    def delete_user_vote(self, request, pk=None):
+        try:
+            item = self.get_object()
+            user = request.user
+            vote = retrieve_vote(user, item)
+            vote_id = vote.id
+            vote.delete()
+            return Response(vote_id, status=200)
+        except Exception as e:
+            return Response(f'Failed to delete vote: {e}', status=400)
+
 
 class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     serializer_class = ThreadSerializer
