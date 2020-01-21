@@ -1,14 +1,16 @@
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory
 
-from .helpers import (
+from discussion.tests.helpers import (
     build_discussion_detail_url,
     create_comment,
     create_endorsement,
     create_flag,
     create_paper,
     create_reply,
-    create_thread
+    create_thread,
+    upvote_discussion,
+    downvote_discussion
 )
 from discussion.views import get_thread_id_from_path
 from user.models import Author
@@ -237,6 +239,14 @@ class DiscussionViewsTests(TestCase):
             400
         )
 
+    def test_can_delete_upvote(self):
+        upvote_discussion(self.comment, self.user)
+        self.get_comment_vote_delete_response(self.user)
+
+    def test_can_delete_downvote(self):
+        downvote_discussion(self.comment, self.user)
+        self.get_comment_vote_delete_response(self.user)
+
     def get_thread_patch_response(self, user, text):
         url, data = self.get_request_config('thread', text)
         response = get_authenticated_patch_response(
@@ -353,6 +363,22 @@ class DiscussionViewsTests(TestCase):
 
     def get_flag_delete_response(self, user, url):
         url += 'flag/'
+        data = None
+        response = get_authenticated_delete_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+        return response
+
+    def get_comment_vote_delete_response(self, user):
+        url = build_discussion_detail_url(self, 'comment')
+        response = self.get_vote_delete_response(user, url)
+        return response
+
+    def get_vote_delete_response(self, user, url):
+        url += 'user_vote/'
         data = None
         response = get_authenticated_delete_response(
             user,
