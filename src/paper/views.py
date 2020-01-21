@@ -196,11 +196,15 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     @user_vote.mapping.delete
     def delete_user_vote(self, request, pk=None):
-        paper = self.get_object()
-        user = request.user
-        vote = retrieve_vote(user, paper)
-        vote.delete()
-        return Response(vote.id, 200)
+        try:
+            paper = self.get_object()
+            user = request.user
+            vote = retrieve_vote(user, paper)
+            vote_id = vote.id
+            vote.delete()
+            return Response(vote_id, status=200)
+        except Exception as e:
+            return Response(f'Failed to delete vote: {e}', status=400)
 
     @action(
         detail=True,
