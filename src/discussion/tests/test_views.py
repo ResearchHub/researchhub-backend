@@ -240,12 +240,14 @@ class DiscussionViewsTests(TestCase):
         )
 
     def test_can_delete_upvote(self):
-        upvote_discussion(self.comment, self.user)
-        self.get_comment_vote_delete_response(self.user)
+        comment_vote = upvote_discussion(self.comment, self.user)
+        response = self.get_comment_vote_delete_response(self.user)
+        self.assertContains(response, comment_vote.id, status_code=200)
 
     def test_can_delete_downvote(self):
-        downvote_discussion(self.comment, self.user)
-        self.get_comment_vote_delete_response(self.user)
+        comment_vote = downvote_discussion(self.comment, self.user)
+        response = self.get_comment_vote_delete_response(self.user)
+        self.assertContains(response, comment_vote.id, status_code=200)
 
     def get_thread_patch_response(self, user, text):
         url, data = self.get_request_config('thread', text)
