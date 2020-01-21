@@ -2,7 +2,7 @@ import random
 
 from django.test import TestCase
 
-from paper.helpers import create_flag, create_paper, upvote_paper
+from paper.tests.helpers import create_flag, create_paper, upvote_paper
 from user.tests.helpers import (
     create_random_authenticated_user,
     create_random_authenticated_user_with_reputation
