@@ -11,9 +11,9 @@ from utils.models import SoftDeletableModel
 
 
 class PaidStatusModelMixin(models.Model):
-    FAILED = 'failed'
-    PAID = 'paid'
-    PENDING = 'pending'
+    FAILED = 'FAILED'
+    PAID = 'PAID'
+    PENDING = 'PENDING'
     PAID_STATUS_CHOICES = [
         (FAILED, FAILED),
         (PAID, PAID),
@@ -48,9 +48,9 @@ class PaidStatusModelMixin(models.Model):
 class Distribution(SoftDeletableModel, PaidStatusModelMixin):
     DISTRIBUTION_TYPE_CHOICES = distributions.DISTRIBUTION_TYPE_CHOICES
 
-    FAILED = 'failed'
-    DISTRIBUTED = 'distributed'
-    PENDING = 'pending'
+    FAILED = 'FAILED'
+    DISTRIBUTED = 'DISTRIBUTED'
+    PENDING = 'PENDING'
     DISTRIBUTED_STATUS_CHOICES = [
         (FAILED, FAILED),
         (DISTRIBUTED, DISTRIBUTED),
