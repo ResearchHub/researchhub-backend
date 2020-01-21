@@ -31,13 +31,14 @@ class Paper(models.Model):
         related_name='moderated_papers',
         blank=True
     )
+    paper_title = models.CharField(max_length=1024, default=None, blank=True)
     doi = models.CharField(max_length=255, default='', blank=True)
     hubs = models.ManyToManyField(
         Hub,
         related_name='papers',
         blank=True
     )
-    # currently this is the PDF url entered by users during upload (seed URL)
+    # currently this is the url entered by users during upload (seed URL)
     url = models.URLField(default='', blank=True)
     summary = models.ForeignKey(
         Summary,
@@ -47,6 +48,9 @@ class Paper(models.Model):
         on_delete='SET NULL'
     )
     file = models.FileField(upload_to='uploads/papers/%Y/%m/%d')
+    pdf_file_license = models.TextField(default=None, blank=True)
+    pdf_url = models.URLField(default=None, blank=True)
+    pdf_url_for_landing_page = models.URLField(default=None, blank=True)
     tagline = models.TextField(
         null=True,
         blank=True
@@ -56,6 +60,11 @@ class Paper(models.Model):
         default=dict,
         help_text='bibliographic metadata as a single '
                   'Citation Styles Language JSON item.'
+    )
+    pdf_location = JSONField(
+        default=dict,
+        help_text='information on PDF availability '
+                  'in the Unpaywall OA Location data format.'
     )
 
     @classmethod
