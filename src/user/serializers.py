@@ -128,7 +128,7 @@ class UserActions:
             elif isinstance(item, Thread):
                 self.threads.append(item)
                 data = self.ThreadSerializer(item).data
-                data['paper'] = self.PaperSerializer(Paper.objects.get(data['paper'])).data
+                data['paper'] = self.PaperSerializer(Paper.objects.get(id=data['paper'])).data
                 data['content_type'] = str(action.content_type)
 
             elif isinstance(item, DiscussionVote):
