@@ -252,7 +252,8 @@ class PaperViewSet(viewsets.ModelViewSet):
         """
         from elasticsearch_dsl import Search, Q
         search = Search(index="paper")
-        query = Q("match", title=csl_item.get('title', ''))
+        title = csl_item.get('title', '')
+        query = Q("match", title=title) | Q("match", paper_title=title)
         if csl_item.get('DOI'):
             query |= Q("match", doi=csl_item['DOI'])
         search.query(query)
