@@ -96,40 +96,22 @@ def is_eligible_for_create_summary(user):
 
 
 @receiver(post_save, sender=Comment, dispatch_uid='create_comment')
-def distribute_for_create_comment(sender, instance, created, **kwargs):
-    timestamp = time()
-    recipient = instance.created_by
-    if created and is_eligible_for_create_discussion(recipient):
-        distributor = Distributor(
-            distributions.CreateComment,
-            recipient,
-            instance,
-            timestamp
-        )
-        distributor.distribute()
-
-
 @receiver(post_save, sender=Reply, dispatch_uid='create_reply')
-def distribute_for_create_reply(sender, instance, created, **kwargs):
-    timestamp = time()
-    recipient = instance.created_by
-    if created and is_eligible_for_create_discussion(recipient):
-        distributor = Distributor(
-            distributions.CreateReply,
-            recipient,
-            instance,
-            timestamp
-        )
-        distributor.distribute()
-
-
 @receiver(post_save, sender=Thread, dispatch_uid='create_thread')
-def distribute_for_create_thread(sender, instance, created, **kwargs):
+def distribute_for_create_discussion(sender, instance, created, **kwargs):
     timestamp = time()
     recipient = instance.created_by
     if created and is_eligible_for_create_discussion(recipient):
+        if isinstance(instance, Comment):
+            distribution = distributions.CreateComment
+        elif isinstance(instance, Reply):
+            distribution = distributions.CreateReply
+        elif isinstance(instance, Thread):
+            distribution = distributions.CreateThread
+        else:
+            return
         distributor = Distributor(
-            distributions.CreateThread,
+            distribution,
             recipient,
             instance,
             timestamp
@@ -144,42 +126,9 @@ def is_eligible_for_create_discussion(user):
     )
 
 
-@receiver(post_save, sender=Endorsement, dispatch_uid='discussion_endorsement')
-def distribute_for_discussion_endorsement(
-    sender,
-    instance,
-    created,
-    update_fields,
-    **kwargs
-):
-    timestamp = time()
-    distributor = None
-    recipient = instance.item.created_by
-
-    if created and is_eligible(recipient):
-        try:
-            distribution = get_discussion_endorsement_item_distribution(
-                instance
-            )
-            distributor = Distributor(
-                distribution,
-                recipient,
-                instance,
-                timestamp
-            )
-        except TypeError as e:
-            error = ReputationSignalError(
-                e,
-                'Failed to distribute for endorsement'
-            )
-            print(error)
-
-    if distributor is not None:
-        distributor.distribute()
-
-
 @receiver(post_save, sender=DiscussionFlag, dispatch_uid='discussion_flag')
-def distribute_for_discussion_flag(
+@receiver(post_save, sender=Endorsement, dispatch_uid='discussion_endorsement')
+def distribute_for_discussion_action(
     sender,
     instance,
     created,
@@ -192,7 +141,15 @@ def distribute_for_discussion_flag(
 
     if created and is_eligible(recipient):
         try:
-            distribution = get_discussion_flag_item_distribution(instance)
+            if isinstance(instance, DiscussionFlag):
+                distribution = get_discussion_flag_item_distribution(instance)
+            elif isinstance(instance, Endorsement):
+                distribution = get_discussion_endorsement_item_distribution(
+                    instance
+                )
+            else:
+                raise TypeError
+
             distributor = Distributor(
                 distribution,
                 recipient,
@@ -202,7 +159,7 @@ def distribute_for_discussion_flag(
         except TypeError as e:
             error = ReputationSignalError(
                 e,
-                'Failed to distribute for flag'
+                'Failed to distribute'
             )
             print(error)
 
