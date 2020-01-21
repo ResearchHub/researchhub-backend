@@ -4,7 +4,7 @@ import rest_auth.registration.serializers as rest_auth_serializers
 import reputation.lib
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from hub.serializers import HubSerializer
-from paper.models import Vote as PaperVote
+from paper.models import Paper, Vote as PaperVote
 from user.models import Author, University, User
 from summary.models import Summary
 
@@ -76,7 +76,7 @@ class UserActions:
         ThreadSerializer,
         VoteSerializer as DiscussionVoteSerializer
     )
-    from paper.serializers import VoteSerializer as PaperVoteSerializer
+    from paper.serializers import PaperSerializer, VoteSerializer as PaperVoteSerializer
     from summary.serializers import SummarySerializer
     def __init__(self, data, is_user_id=True, **kwargs):
         self.all = []
@@ -110,23 +110,26 @@ class UserActions:
     def _group_and_serialize_actions(self):
         for action in self.all:
             item = action.item
+            if isinstance(item, Summary):
+                created_by = UserSerializer(item.proposed_by).data
+            else:
+                created_by = UserSerializer(item.created_by).data
+
             if isinstance(item, Comment):
                 self.comments.append(item)
                 data = self.CommentSerializer(item).data
                 data['content_type'] = str(action.content_type)
-                self.serialized.append(data)
 
             elif isinstance(item, Reply):
                 self.replies.append(item)
                 data = self.ReplySerializer(item).data
                 data['content_type'] = str(action.content_type)
-                self.serialized.append(data)
 
             elif isinstance(item, Thread):
                 self.threads.append(item)
                 data = self.ThreadSerializer(item).data
+                data['paper'] = self.PaperSerializer(Paper.objects.get(data['paper'])).data
                 data['content_type'] = str(action.content_type)
-                self.serialized.append(data)
 
             elif isinstance(item, DiscussionVote):
                 self.discussion_votes.append(item)
@@ -135,34 +138,35 @@ class UserActions:
                 discussion_item = item.item
                 if isinstance(discussion_item, Comment):
                     discussion_data = self.CommentSerializer(discussion_item).data
+                    data['paper'] = self.PaperSerializer(Paper.objects.get(id=discussion_data['thread']['paper'])).data
                     data['content_type'] = str(action.content_type) + '_comment'
                     data['comment'] = discussion_data
 
                 elif isinstance(discussion_item, Reply):
                     discussion_data = self.ReplySerializer(discussion_item).data
+                    data['paper'] = self.PaperSerializer(Paper.objects.get(id=discussion_data['thread']['paper'])).data
                     data['content_type'] = str(action.content_type) + '_reply'
                     data['reply'] = discussion_data
 
                 elif isinstance(discussion_item, Thread):
                     discussion_data = self.ThreadSerializer(discussion_item).data
+                    data['paper'] = self.PaperSerializer(Paper.objects.get(id=discussion_data['paper'])).data
                     data['content_type'] = str(action.content_type) + '_reply'
-                    data['reply'] = discussion_data
-
-                self.serialized.append(data)
+                    data['thread'] = discussion_data
 
             elif isinstance(item, PaperVote):
                 self.paper_votes.append(item)
                 data = self.PaperVoteSerializer(item).data
                 data['content_type'] = str(action.content_type) + '_paper'
-                self.serialized.append(data)
 
             elif isinstance(item, Summary):
                 self.summaries.append(item)
                 data = self.SummarySerializer(item).data
                 data['content_type'] = str(action.content_type)
-                self.serialized.append(data)
-
             else:
                 raise TypeError(
                     f'Instance of type {type(item)} is not supported'
                 )
+
+            data['created_by'] = created_by
+            self.serialized.append(data)
