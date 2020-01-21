@@ -31,7 +31,7 @@ class Paper(models.Model):
         related_name='moderated_papers',
         blank=True
     )
-    paper_title = models.CharField(max_length=1024, default=None, blank=True)
+    paper_title = models.CharField(max_length=1024, default='', blank=True)
     doi = models.CharField(max_length=255, default='', blank=True)
     hubs = models.ManyToManyField(
         Hub,
@@ -48,9 +48,9 @@ class Paper(models.Model):
         on_delete='SET NULL'
     )
     file = models.FileField(upload_to='uploads/papers/%Y/%m/%d')
-    pdf_file_license = models.TextField(default=None, blank=True)
-    pdf_url = models.URLField(default=None, blank=True)
-    pdf_url_for_landing_page = models.URLField(default=None, blank=True)
+    pdf_file_license = models.TextField(default='', blank=True)
+    pdf_url = models.URLField(default='', blank=True)
+    pdf_url_for_landing_page = models.URLField(default='', blank=True)
     tagline = models.TextField(
         null=True,
         blank=True
