@@ -15,7 +15,9 @@ from .serializers import HubSerializer
 from .filters import HubFilter
 from user.models import Action
 from user.serializers import UserActions
+from utils.http import PATCH, POST, PUT, GET
 from utils.message import send_email_message
+from utils.sentry import log_error
 
 
 class HubViewSet(viewsets.ModelViewSet):
@@ -29,7 +31,7 @@ class HubViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=['post', 'put', 'patch'],
+        methods=[POST, PUT, PATCH],
         permission_classes=[IsAuthenticated & IsNotSubscribed]
     )
     def subscribe(self, request, pk=None):
@@ -49,7 +51,7 @@ class HubViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=['post', 'put', 'patch'],
+        methods=[POST, PUT, PATCH],
         permission_classes=[IsSubscribed]
     )
     def unsubscribe(self, request, pk=None):
@@ -70,7 +72,7 @@ class HubViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=['post']
+        methods=[POST]
     )
     def invite_to_hub(self, request, pk=None):
         recipients = request.data.get('emails', [])
@@ -118,18 +120,25 @@ class HubViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=['get']
+        methods=[GET]
     )
-    def get_live_feed(self, request):
-        hub_id = request.GET['hub_id']
+    def latest_hub_actions(self, request):
+        actions = Action.objects.all()
+        try:
+            hub_id = request.query_params.get('hub')
+            if int(hub_id) != 0:
+                actions = Action.objects.filter(hubs=hub_id)
+        except Exception as e:
+            log_error(e)
+            return Response(str(e), status=400)
 
-        actions = []
-        if int(hub_id) == 0:
-            actions = Action.objects.all()
-        else:
-            actions = Action.objects.filter(hubs=hub_id)
+        actions = actions.order_by('created_date')
 
-        actions.order_by('-created_date')
-        user_actions = UserActions(actions, False)
-        page = self.paginate_queryset(user_actions.serialized)
-        return self.get_paginated_response(page)
+        page = self.paginate_queryset(actions)
+
+        if page is not None:
+            data = UserActions(data=page).serialized
+            return self.get_paginated_response(data)
+
+        data = UserActions(data=actions).serialized
+        return Response(data)

@@ -8,6 +8,7 @@ from paper.models import Paper, Vote as PaperVote
 from user.models import Author, University, User
 from summary.models import Summary
 
+
 class UniversitySerializer(rest_framework_serializers.ModelSerializer):
     class Meta:
         model = University
@@ -38,7 +39,13 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
 
     class Meta:
         model = User
-        exclude = ['password', 'groups', 'is_superuser', 'is_staff', 'user_permissions']
+        exclude = [
+            'password',
+            'groups',
+            'is_superuser',
+            'is_staff',
+            'user_permissions'
+        ]
 
     def get_balance(self, obj):
         return reputation.lib.get_user_balance(obj)
@@ -76,14 +83,20 @@ class UserActions:
         ThreadSerializer,
         VoteSerializer as DiscussionVoteSerializer
     )
-    from paper.serializers import PaperSerializer, VoteSerializer as PaperVoteSerializer
+    from paper.serializers import (
+        PaperSerializer,
+        VoteSerializer as PaperVoteSerializer
+    )
     from summary.serializers import SummarySerializer
-    def __init__(self, data, is_user_id=True, **kwargs):
-        self.all = []
-        if is_user_id:
-            self.all = self.get_actions(data)
-        else:
-            self.all = data
+
+    def __init__(self, data=None, user_id=None, **kwargs):
+        assert (data is not None) or (user_id is not None), f'Arguments data'
+        f' and user_id can not both be None'
+
+        self.all = data
+        if data is None:
+            self.all = self.get_actions(user_id)
+
         self.serialized = []
         self.comments = []
         self.replies = []
@@ -108,6 +121,10 @@ class UserActions:
         return user.actions.all()
 
     def _group_and_serialize_actions(self):
+        # TODO: Refactor this to only get the data we need instead of
+        # serializing everything
+        #
+        # user object, thread id, paper id, action timestamp
         for action in self.all:
             item = action.item
             if isinstance(item, Summary):
@@ -128,7 +145,9 @@ class UserActions:
             elif isinstance(item, Thread):
                 self.threads.append(item)
                 data = self.ThreadSerializer(item).data
-                data['paper'] = self.PaperSerializer(Paper.objects.get(id=data['paper'])).data
+                data['paper'] = self.PaperSerializer(
+                    Paper.objects.get(id=data['paper'])
+                ).data
                 data['content_type'] = str(action.content_type)
 
             elif isinstance(item, DiscussionVote):
@@ -137,20 +156,34 @@ class UserActions:
 
                 discussion_item = item.item
                 if isinstance(discussion_item, Comment):
-                    discussion_data = self.CommentSerializer(discussion_item).data
-                    data['paper'] = self.PaperSerializer(Paper.objects.get(id=discussion_data['thread']['paper'])).data
-                    data['content_type'] = str(action.content_type) + '_comment'
+                    discussion_data = self.CommentSerializer(
+                        discussion_item
+                    ).data
+                    data['paper'] = self.PaperSerializer(Paper.objects.get(
+                        id=discussion_data['thread']['paper'])
+                    ).data
+                    data['content_type'] = f'{action.content_type}_comment'
                     data['comment'] = discussion_data
 
                 elif isinstance(discussion_item, Reply):
-                    discussion_data = self.ReplySerializer(discussion_item).data
-                    data['paper'] = self.PaperSerializer(Paper.objects.get(id=discussion_data['thread']['paper'])).data
+                    discussion_data = self.ReplySerializer(
+                        discussion_item
+                    ).data
+                    data['paper'] = self.PaperSerializer(
+                        Paper.objects.get(
+                            id=discussion_data['thread']['paper']
+                        )
+                    ).data
                     data['content_type'] = str(action.content_type) + '_reply'
                     data['reply'] = discussion_data
 
                 elif isinstance(discussion_item, Thread):
-                    discussion_data = self.ThreadSerializer(discussion_item).data
-                    data['paper'] = self.PaperSerializer(Paper.objects.get(id=discussion_data['paper'])).data
+                    discussion_data = self.ThreadSerializer(
+                        discussion_item
+                    ).data
+                    data['paper'] = self.PaperSerializer(
+                        Paper.objects.get(id=discussion_data['paper'])
+                    ).data
                     data['content_type'] = str(action.content_type) + '_reply'
                     data['thread'] = discussion_data
 
