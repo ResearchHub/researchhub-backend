@@ -76,14 +76,14 @@ class HubViewsTests(TestCase):
         for x in range(21):
             create_thread(paper=paper, created_by=self.user)
         page = 1
-        url = self.base_url + f'latest_actions/?hub={hub.id}&page={page}'
+        url = self.base_url + f'latest_hub_actions/?hub={hub.id}&page={page}'
         response = get_get_response(url)
         self.assertContains(response, 'count":21', status_code=200)
         result_count = len(response.data['results'])
         self.assertEqual(result_count, 20)
 
         page = 2
-        url = self.base_url + f'latest_actions/?hub={hub.id}&page={page}'
+        url = self.base_url + f'latest_hub_actions/?hub={hub.id}&page={page}'
         response = get_get_response(url)
         self.assertContains(response, 'count":21', status_code=200)
         result_count = len(response.data['results'])
