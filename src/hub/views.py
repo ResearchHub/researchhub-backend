@@ -17,7 +17,6 @@ from user.models import Action
 from user.serializers import UserActions
 from utils.http import PATCH, POST, PUT, GET
 from utils.message import send_email_message
-from utils.sentry import log_error
 
 
 class HubViewSet(viewsets.ModelViewSet):
@@ -119,23 +118,14 @@ class HubViewSet(viewsets.ModelViewSet):
         return Response(response, status=200)
 
     @action(
-        detail=False,
+        detail=True,
         methods=[GET]
     )
-    def latest_hub_actions(self, request):
-        actions = Action.objects.all()
-        try:
-            hub_id = request.query_params.get('hub')
-            if int(hub_id) != 0:
-                actions = Action.objects.filter(hubs=hub_id)
-        except Exception as e:
-            log_error(e)
-            return Response(str(e), status=400)
-
-        actions = actions.order_by('created_date')
+    def latest_actions(self, request):
+        hub = self.get_object()
+        actions = Action.objects.filter(hubs=hub.id).order_by('created_date')
 
         page = self.paginate_queryset(actions)
-
         if page is not None:
             data = UserActions(data=page).serialized
             return self.get_paginated_response(data)
