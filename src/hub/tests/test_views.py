@@ -1,11 +1,16 @@
 from django.test import TestCase
 
-from .helpers import create_hub
+from discussion.tests.helpers import create_thread
+from hub.tests.helpers import create_hub
+from paper.tests.helpers import create_paper
 from user.tests.helpers import (
     create_random_default_user,
     create_random_authenticated_user
 )
-from utils.test_helpers import get_authenticated_post_response
+from utils.test_helpers import (
+    get_authenticated_post_response,
+    get_get_response
+)
 
 
 class HubViewsTests(TestCase):
@@ -62,6 +67,27 @@ class HubViewsTests(TestCase):
             [subscriber.email]
         )
         self.assertNotContains(response, subscriber.email, status_code=200)
+
+    def test_hub_actions_is_paginated(self):
+        hub = create_hub(name='Calpurnia')
+        paper = create_paper()
+        hub.papers.add(paper)
+
+        for x in range(21):
+            create_thread(paper=paper, created_by=self.user)
+        page = 1
+        url = self.base_url + f'latest_actions/?hub={hub.id}&page={page}'
+        response = get_get_response(url)
+        self.assertContains(response, 'count":21', status_code=200)
+        result_count = len(response.data['results'])
+        self.assertEqual(result_count, 20)
+
+        page = 2
+        url = self.base_url + f'latest_actions/?hub={hub.id}&page={page}'
+        response = get_get_response(url)
+        self.assertContains(response, 'count":21', status_code=200)
+        result_count = len(response.data['results'])
+        self.assertEqual(result_count, 1)
 
     def is_subscribed(self, user, hub):
         return user in hub.subscribers.all()
