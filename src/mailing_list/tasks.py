@@ -10,7 +10,7 @@ from researchhub.celery import app
 from user.tasks import get_latest_actions
 from utils.message import send_email_message
 from user.models import Action
-from celery.contrib import rdb
+
 
 @app.task
 def send_action_notification_emails(email_recipient_ids):
@@ -46,14 +46,14 @@ def send_email_simple(email_list, action_id):
     subscribed_actions.add_formatted_action(action)
     subject = build_subject(NotificationFrequencies.IMMEDIATE)
     context = build_notification_context(subscribed_actions.formatted_actions)
-    print(context)
-    result = send_email_message(
+    send_email_message(
         email_list,
         'notification_email.txt',
         subject,
         context,
         html_template='notification_email.html'
     )
+
 
 class SubscribedActions:
     def __init__(self, email_recipient):
@@ -138,7 +138,10 @@ class SubscribedActions:
             'paper': action.item.parent.paper.title,
             'thread': action.item.parent.title,
             'created_date': self.get_action_created_date(action),
-            'initials': action.item.created_by.author_profile.first_name[0] + action.item.created_by.author_profile.last_name[0], 
+            'initials': (
+                f'{action.item.created_by.author_profile.first_name[0]}'
+                f' {action.item.created_by.author_profile.last_name[0]}'
+            ),
         }
         self.formatted_actions.append(formatted_action)
 
@@ -162,7 +165,7 @@ def send_action_notification_email(
     subject = build_subject(email_recipient.notification_frequency)
     context = build_notification_context(actions)
 
-    result = send_email_message(
+    send_email_message(
         email_recipient.email,
         'notification_email.txt',
         subject,
@@ -170,7 +173,7 @@ def send_action_notification_email(
         html_template='notification_email.html'
     )
     # TODO: check for success first
-    print(result)
+    # print(result)
     email_recipient.next_cursor = next_cursor
     email_recipient.save()
 

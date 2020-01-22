@@ -2,9 +2,9 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
-from mailing_list.lib import NotificationFrequencies
-from mailing_list.models import EmailRecipient
-from mailing_list.tasks import send_action_notification_emails, send_email_simple
+from mailing_list.tasks import (
+    send_email_simple
+)
 from paper.models import Vote as PaperVote
 from researchhub.settings import TESTING
 from summary.models import Summary
@@ -33,57 +33,35 @@ def create_action(sender, instance, created, **kwargs):
             user=user
         )
 
-        if isinstance(instance, Summary):
-            paper = instance.paper
-        if isinstance(instance, Comment):
-            thread = instance.parent
-            paper = thread.paper        
-        if isinstance(instance, Reply):
-            current = instance
-            while not isinstance(current, Thread) and current.parent:
-                current = current.parent
-
-            if isinstance(current, Thread):
-                paper = current.paper
-        if isinstance(instance, Thread):
-            paper = instance.paper
-        if isinstance(instance, DiscussionVote):
-            data = instance.item
-            
-            if isinstance(data, Comment):
-                thread = data.parent
-                paper = thread.paper
-            elif isinstance(data, Reply):
-                current = data
-                while not isinstance(current, Thread) and current.parent:
-                    current = current.parent
-
-                if isinstance(current, Thread):
-                    paper = current.paper
-            else:
-                paper = data.paper
-        if isinstance(instance, PaperVote):
-            paper = instance.paper
-        hubs = paper.hubs.all()    
+        hubs = get_related_hubs(instance)
         action.hubs.add(*hubs)
         return action
+
+
+def get_related_hubs(instance):
+    paper = instance.paper
+    return paper.hubs.all()
 
 
 @receiver(post_save, sender=Action, dispatch_uid='send_action_notification')
 def send_immediate_action_notification(sender, instance, created, **kwargs):
     if created:
         if isinstance(instance.item, Comment):
-            email_recipients = list(instance.item.parent.comments.all().values_list('created_by__email', flat=True).distinct('created_by'))
-            email_recipient_ids = EmailRecipient.objects.filter(
-                thread_subscription__isnull=False,
-                comment_subscription__isnull=False,
-                notification_frequency=NotificationFrequencies.IMMEDIATE
-            ).values_list('id', flat=True)
+            email_recipients = list(
+                instance.item.parent.comments.all().values_list(
+                    'created_by__email',
+                    flat=True
+                ).distinct('created_by')
+            )
+            # TODO: Come back to this
+            # email_recipient_ids = EmailRecipient.objects.filter(
+            #     thread_subscription__isnull=False,
+            #     comment_subscription__isnull=False,
+            #     notification_frequency=NotificationFrequencies.IMMEDIATE
+            # ).values_list('id', flat=True)
             if TESTING:
                 send_email_simple(email_recipients, instance.id)
                 # send_action_notification_emails(email_recipient_ids)
             else:
                 send_email_simple.delay(email_recipients, instance.id)
                 # send_action_notification_emails.delay(email_recipient_ids)
-
-        # if isinstance(instance.item, Reply):
