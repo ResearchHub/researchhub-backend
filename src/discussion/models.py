@@ -49,6 +49,10 @@ class Vote(models.Model):
     def __str__(self):
         return '{} - {}'.format(self.created_by, self.vote_type)
 
+    @property
+    def paper(self):
+        return self.item.paper
+
 
 class Flag(models.Model):
     content_type = models.ForeignKey(
@@ -94,12 +98,6 @@ class Endorsement(models.Model):
 class BaseComment(models.Model):
     created_by = models.ForeignKey(
         User,
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True
-    )
-    paper = models.ForeignKey(
-        Paper,
         on_delete=models.SET_NULL,
         blank=True,
         null=True
@@ -189,6 +187,22 @@ class Reply(BaseComment):
     object_id = models.PositiveIntegerField()
     parent = GenericForeignKey('content_type', 'object_id')
 
+    @property
+    def paper(self):
+        comment = self.get_comment_of_reply()
+        thread = comment.parent
+        paper = thread.parent
+        return paper
+
+    def get_comment_of_reply(self):
+        obj = self
+        while isinstance(obj, Reply):
+            obj = obj.parent
+
+        if isinstance(obj, Comment):
+            return obj
+        return None
+
 
 class Comment(BaseComment):
     parent = models.ForeignKey(
@@ -202,3 +216,9 @@ class Comment(BaseComment):
 
     def __str__(self):
         return '{} - {}'.format(self.created_by, self.plain_text)
+
+    @property
+    def paper(self):
+        thread = self.parent
+        paper = thread.parent
+        return paper
