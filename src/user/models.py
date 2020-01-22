@@ -9,6 +9,7 @@ from storages.backends.s3boto3 import S3Boto3Storage
 from utils.models import DefaultModel
 from hub.models import Hub
 
+
 class User(AbstractUser):
     """
     User objects have the following fields by default:
@@ -48,13 +49,20 @@ class User(AbstractUser):
 
 
 @receiver(models.signals.post_save, sender=User)
-def attach_author_and_email_preference(sender, instance, created, *args, **kwargs):
+def attach_author_and_email_preference(
+    sender,
+    instance,
+    created,
+    *args,
+    **kwargs
+):
     if created:
         Author.objects.create(
             user=instance,
             first_name=instance.first_name,
             last_name=instance.last_name,
         )
+
 
 class University(models.Model):
     name = models.CharField(max_length=255)
