@@ -163,6 +163,10 @@ class Thread(BaseComment):
         return '%s: %s' % (self.created_by, self.title)
 
     @property
+    def parent(self):
+        return self.paper
+
+    @property
     def comment_count_indexing(self):
         return len(self.comments.all())
 
