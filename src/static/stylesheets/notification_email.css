@@ -64,7 +64,7 @@ body {
   display: inline;
   line-height: 15px;
   color: rgb(255, 255, 255)
-} 
+}
 
 .meta {
   width: 600px;
@@ -94,7 +94,7 @@ body {
   color: rgb(0,0,0);
 }
 
-.first-line { 
+.first-line {
   color: rgb(0,0,0);
 }
 
@@ -129,7 +129,7 @@ body {
   object-fit: contain;
   overflow: hidden;
   text-align: center;
-  background-color: #4e4d5e; 
+  background-color: #4e4d5e;
 }
 
 .initials {
