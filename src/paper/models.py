@@ -77,7 +77,7 @@ class Paper(models.Model):
         from manubot.cite.csl_item import CSL_Item
         if not isinstance(csl_item, CSL_Item):
             csl_item = CSL_Item(csl_item)
-        paper = cls(title=csl_item['title'])
+        paper = cls(title=csl_item['title'], paper_title=csl_item['title'])
         date = csl_item.get_date("issued", fill=True)
         if date:
             paper.paper_publish_date = datetime.date.fromisoformat(date)
