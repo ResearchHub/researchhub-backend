@@ -14,7 +14,7 @@ from requests.exceptions import (
 from .filters import PaperFilter
 from .models import Flag, Paper, Vote
 from discussion.models import Vote as DiscussionVote, Thread
-from .utils import get_csl_item
+from .utils import get_csl_item, get_pdf_location_for_csl_item
 from .permissions import (
     CreatePaper,
     FlagPaper,
@@ -252,7 +252,8 @@ class PaperViewSet(viewsets.ModelViewSet):
         """
         from elasticsearch_dsl import Search, Q
         search = Search(index="paper")
-        query = Q("match", title=csl_item.get('title', ''))
+        title = csl_item.get('title', '')
+        query = Q("match", title=title) | Q("match", paper_title=title)
         if csl_item.get('DOI'):
             query |= Q("match", doi=csl_item['DOI'])
         search.query(query)
@@ -271,7 +272,8 @@ class PaperViewSet(viewsets.ModelViewSet):
                 "search_by_url requests must specify 'url'",
                 status=status.HTTP_400_BAD_REQUEST)
         try:
-            data['url_is_pdf'] = check_url_contains_pdf(url)
+            url_is_pdf = check_url_contains_pdf(url)
+            data['url_is_pdf'] = url_is_pdf
         except RequestException as error:
             return Response(
                 f"Double check that URL is valid: {url}\n:{error}",
@@ -282,9 +284,14 @@ class PaperViewSet(viewsets.ModelViewSet):
             data['warning'] = f"Generating csl_item failed with:\n{error}"
             csl_item = None
         if csl_item:
+            url_is_unsupported_pdf = url_is_pdf and csl_item.get("URL") == url
+            data['url_is_unsupported_pdf'] = url_is_unsupported_pdf
+            csl_item.url_is_unsupported_pdf = url_is_unsupported_pdf
+            data['csl_item'] = csl_item
+            data['pdf_location'] = get_pdf_location_for_csl_item(csl_item)
+            # search existing papers
             search = self.search_by_csl_item(csl_item)
             search = search.execute()
-            data['csl_item'] = csl_item
             data['search'] = [hit.to_dict() for hit in search.hits]
         return Response(data, status=status.HTTP_200_OK)
 

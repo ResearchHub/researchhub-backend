@@ -7,4 +7,4 @@ class PaperFilter(filters.FilterSet):
 
     class Meta:
         model = Paper
-        exclude = ['file', 'csl_item']
+        exclude = ['file', 'csl_item', 'pdf_location']
