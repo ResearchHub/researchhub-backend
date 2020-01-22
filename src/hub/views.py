@@ -121,9 +121,8 @@ class HubViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=[GET]
     )
-    def latest_actions(self, request):
-        hub = self.get_object()
-        actions = Action.objects.filter(hubs=hub.id).order_by('created_date')
+    def latest_actions(self, request, pk=None):
+        actions = Action.objects.filter(hubs=pk).order_by('created_date')
 
         page = self.paginate_queryset(actions)
         if page is not None:
