@@ -1,3 +1,5 @@
+import requests
+
 
 def get_csl_item(url) -> dict:
     """
@@ -31,7 +33,7 @@ def get_pdf_location_for_csl_item(csl_item):
         return get_location_for_unsupported_pdf(csl_item)
     try:
         upw = Unpaywall.from_csl_item(csl_item)
-    except ValueError:
+    except (ValueError, requests.RequestException):
         return None
     oa_location = upw.best_openly_licensed_pdf or upw.best_pdf
     return oa_location
