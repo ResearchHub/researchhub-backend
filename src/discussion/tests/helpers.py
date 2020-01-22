@@ -138,6 +138,14 @@ def create_thread(
     title=TestData.thread_title,
     text=TestData.thread_text
 ):
+    """Returns a newly created discussion Thread.
+
+    Arguments:
+        paper (Paper)
+        created_by (User)
+        title (str)
+        text (str)
+    """
     if paper is None:
         paper = create_paper()
     if created_by is None:

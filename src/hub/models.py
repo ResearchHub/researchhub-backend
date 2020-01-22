@@ -1,12 +1,16 @@
 from django.db import models
 
+
 class Hub(models.Model):
     UNLOCK_AFTER = 14
 
     name = models.CharField(max_length=1024, unique=True)
     acronym = models.CharField(max_length=255, default='', blank=True)
     is_locked = models.BooleanField(default=False)
-    subscribers = models.ManyToManyField('user.User', related_name='subscribed_hubs')
+    subscribers = models.ManyToManyField(
+        'user.User',
+        related_name='subscribed_hubs'
+    )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 

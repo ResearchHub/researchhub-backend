@@ -2,6 +2,13 @@ from sentry_sdk import capture_exception, capture_message, configure_scope
 
 
 def log_error(e, base_error=None, message=None):
+    """Captures an exception with the sentry sdk.
+
+    Arguments:
+        e (Exception)
+        base_error (Exception) -- Exception that triggered e
+        message (str) -- Optional message for additional info
+    """
     with configure_scope() as scope:
         if base_error is not None:
             scope.set_extra('base_error', message)
