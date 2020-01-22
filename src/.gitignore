@@ -1,8 +1,10 @@
 # Config
 config/*
-config_local/*
 !config/paper.pdf
+!config/*.py
 !config/ci
+config_local/*
+!config_local/__init__.py
 
 # Django
 __pycache__/
