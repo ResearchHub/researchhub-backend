@@ -195,6 +195,44 @@ class SignalTests(TestCase):
             self.start_rep + self.create_rep - 1
         )
 
+    def test_delete_upvote_decreases_rep_by_5(self):
+        recipient = create_random_default_user('Percy Delete')
+        thread = create_thread(created_by=recipient)
+        vote = upvote_discussion(thread, self.user)
+
+        recipient.refresh_from_db()
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + self.create_rep + 5
+        )
+
+        vote.delete()
+
+        recipient.refresh_from_db()
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + self.create_rep
+        )
+
+    def test_delete_downvote_increases_rep_by_1(self):
+        recipient = create_random_default_user('Charlie Delete')
+        thread = create_thread(created_by=recipient)
+        vote = downvote_discussion(thread, self.user)
+
+        recipient.refresh_from_db()
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + self.create_rep - 1
+        )
+
+        vote.delete()
+
+        recipient.refresh_from_db()
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + self.create_rep
+        )
+
     def test_comment_flagged_decreases_rep_by_2(self):
         recipient = create_random_default_user('Ed')
         comment = create_comment(created_by=recipient)
