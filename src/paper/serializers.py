@@ -39,41 +39,54 @@ class PaperSerializer(serializers.ModelSerializer):
         model = Paper
 
     def to_internal_value(self, data):
-        if type(data) == QueryDict:
-            data = data.dict()
-
+        data = self._transform_to_dict(data)
         data = self._copy_data(data)
 
         # TODO: Refactor below
 
-        authors = data.get('authors', [])
-        hubs = data.get('hubs', [])
-
         valid_authors = []
-        for author in authors:
+        for author_id in data['authors']:
+            if isinstance(author_id, Author):
+                author_id = author_id.id
+
             try:
-                a = Author.objects.get(id=author)
-                valid_authors.append(a)
+                author = Author.objects.get(pk=author_id)
+                valid_authors.append(author)
             except Author.DoesNotExist:
-                print(f'Author with id {author} was not found.')
+                print(f'Author with id {author_id} was not found.')
         data['authors'] = valid_authors
 
         valid_hubs = []
-        for hub in hubs:
+        for hub_id in data['hubs']:
+            if isinstance(hub_id, Hub):
+                hub_id = hub_id.id
+
             try:
-                h = Hub.objects.get(id=hub)
-                valid_hubs.append(h)
+                hub = Hub.objects.get(pk=hub_id)
+                valid_hubs.append(hub)
             except Hub.DoesNotExist:
-                print(f'Hub with id {hub} was not found.')
+                print(f'Hub with id {hub_id} was not found.')
         data['hubs'] = valid_hubs
 
         return data
+
+    def _transform_to_dict(self, obj):
+        if isinstance(obj, QueryDict):
+            authors = obj.getlist('authors', [])
+            hubs = obj.getlist('hubs', [])
+            obj = obj.dict()
+            obj['authors'] = authors
+            obj['hubs'] = hubs
+        return obj
 
     def _copy_data(self, data):
         """Returns a copy of `data`.
 
         This is a helper method used to handle files which, when present in the
         data, prevent `.copy()` from working.
+
+        Args:
+            data (dict)
         """
         file = None
         try:
@@ -92,7 +105,6 @@ class PaperSerializer(serializers.ModelSerializer):
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
-
         try:
             with transaction.atomic():
                 paper = super(PaperSerializer, self).create(validated_data)
@@ -126,6 +138,12 @@ class PaperSerializer(serializers.ModelSerializer):
                     validated_data
                 )
 
+                current_hubs = paper.hubs.all()
+                remove_hubs = []
+                for current_hub in current_hubs:
+                    if current_hub not in hubs:
+                        remove_hubs.append(current_hub)
+                paper.hubs.remove(*remove_hubs)
                 paper.authors.add(*authors)
                 paper.hubs.add(*hubs)
 
@@ -155,7 +173,10 @@ class PaperSerializer(serializers.ModelSerializer):
         threads = []
         request = self.context.get('request')
 
-        threads_queryset = obj.threads.all().order_by('-created_date')
+        try:
+            threads_queryset = obj.thread_obj
+        except AttributeError:
+            threads_queryset = obj.threads.all().order_by('-created_date')
         if threads_queryset:
             AMOUNT = 20
             count = len(threads_queryset)
@@ -183,10 +204,16 @@ class PaperSerializer(serializers.ModelSerializer):
         user = get_user_from_request(self.context)
         if user:
             try:
-                vote = obj.votes.get(created_by=user.id)
-                vote = VoteSerializer(vote).data
-            except Vote.DoesNotExist:
-                pass
+                vote_created_by = obj.vote_created_by
+                if len(vote_created_by) == 0:
+                    return None
+                vote = VoteSerializer(vote_created_by).data
+            except AttributeError:
+                try:
+                    vote = obj.votes.get(created_by=user.id)
+                    vote = VoteSerializer(vote).data
+                except Vote.DoesNotExist:
+                    pass
         return vote
 
     def _add_file(self, paper, file):

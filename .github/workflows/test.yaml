@@ -6,6 +6,7 @@ on:
   pull_request:
 jobs:
   build:
+    name: build
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -34,14 +35,6 @@ jobs:
         python-version: '3.7'
     - name: elasticsearch plugins
       run: docker exec elasticsearch bin/elasticsearch-plugin install --batch ingest-attachment
-    # todo: investigate whether the cache is working
-    - name: cache pipenv
-      uses: actions/cache@v1
-      with:
-        path: ~/.local/share/virtualenvs/
-        key: ${{ runner.os }}-pipenv-${{ hashFiles('src/Pipfile.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-pipenv-
     - name: pipenv install
       working-directory: ./src
       run: |

@@ -1,6 +1,6 @@
 import datetime
 
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Prefetch
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -13,7 +13,8 @@ from requests.exceptions import (
 
 from .filters import PaperFilter
 from .models import Flag, Paper, Vote
-from .utils import get_csl_item
+from discussion.models import Vote as DiscussionVote, Thread
+from .utils import get_csl_item, get_pdf_location_for_csl_item
 from .permissions import (
     CreatePaper,
     FlagPaper,
@@ -45,6 +46,68 @@ class PaperViewSet(viewsets.ModelViewSet):
         & UpdatePaper
     ]
 
+    def get_queryset(self):
+        return self.queryset.prefetch_related(
+            'uploaded_by',
+            'uploaded_by__bookmarks',
+            'uploaded_by__author_profile',
+            'authors',
+            'summary',
+            'summary__previous',
+            'summary__proposed_by__bookmarks',
+            'summary__proposed_by__subscribed_hubs',
+            'summary__proposed_by__author_profile',
+            'moderators',
+            'hubs',
+            'hubs__subscribers',
+            'votes',
+            'threads',
+            'threads__created_by',
+            'threads__created_by__author_profile',
+            'threads__created_by__bookmarks',
+            Prefetch(
+                "votes",
+                queryset=Vote.objects.filter(
+                    vote_type=Vote.UPVOTE
+                ),
+                to_attr="upvotes"
+            ),
+            Prefetch(
+                "votes",
+                queryset=Vote.objects.filter(
+                    vote_type=Vote.DOWNVOTE
+                ),
+                to_attr="downvotes"
+            ),
+            Prefetch(
+                'votes',
+                queryset=Vote.objects.filter(
+                    created_by=self.request.user.id,
+                ),
+                to_attr="vote_created_by",
+            ),
+            Prefetch(
+                "threads",
+                queryset=Thread.objects.prefetch_related(
+                    Prefetch(
+                        'votes',
+                        queryset=DiscussionVote.objects.filter(
+                            vote_type=DiscussionVote.DOWNVOTE
+                        ),
+                        to_attr="thread_downvotes"
+                    ),
+                    Prefetch(
+                        'votes',
+                        queryset=DiscussionVote.objects.filter(
+                            vote_type=DiscussionVote.UPVOTE
+                        ),
+                        to_attr="thread_upvotes"
+                    )
+                ),
+                to_attr="thread_obj"
+            ),
+        )
+
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
@@ -74,11 +137,11 @@ class PaperViewSet(viewsets.ModelViewSet):
         else:
             user.bookmarks.add(paper)
             user.save()
-            serialied = BookmarkSerializer({
+            serialized = BookmarkSerializer({
                 'user': user.id,
                 'bookmarks': user.bookmarks.all()
             })
-            return Response(serialied.data, status=201)
+            return Response(serialized.data, status=201)
 
     @bookmark.mapping.delete
     def delete_bookmark(self, request, pk=None):
@@ -189,7 +252,8 @@ class PaperViewSet(viewsets.ModelViewSet):
         """
         from elasticsearch_dsl import Search, Q
         search = Search(index="paper")
-        query = Q("match", title=csl_item.get('title', ''))
+        title = csl_item.get('title', '')
+        query = Q("match", title=title) | Q("match", paper_title=title)
         if csl_item.get('DOI'):
             query |= Q("match", doi=csl_item['DOI'])
         search.query(query)
@@ -208,7 +272,8 @@ class PaperViewSet(viewsets.ModelViewSet):
                 "search_by_url requests must specify 'url'",
                 status=status.HTTP_400_BAD_REQUEST)
         try:
-            data['url_is_pdf'] = check_url_contains_pdf(url)
+            url_is_pdf = check_url_contains_pdf(url)
+            data['url_is_pdf'] = url_is_pdf
         except RequestException as error:
             return Response(
                 f"Double check that URL is valid: {url}\n:{error}",
@@ -219,9 +284,14 @@ class PaperViewSet(viewsets.ModelViewSet):
             data['warning'] = f"Generating csl_item failed with:\n{error}"
             csl_item = None
         if csl_item:
+            url_is_unsupported_pdf = url_is_pdf and csl_item.get("URL") == url
+            data['url_is_unsupported_pdf'] = url_is_unsupported_pdf
+            csl_item.url_is_unsupported_pdf = url_is_unsupported_pdf
+            data['csl_item'] = csl_item
+            data['pdf_location'] = get_pdf_location_for_csl_item(csl_item)
+            # search existing papers
             search = self.search_by_csl_item(csl_item)
             search = search.execute()
-            data['csl_item'] = csl_item
             data['search'] = [hit.to_dict() for hit in search.hits]
         return Response(data, status=status.HTTP_200_OK)
 
@@ -241,18 +311,24 @@ class PaperViewSet(viewsets.ModelViewSet):
         # hub_id = 0 is the homepage
         # we aren't on a specific hub so don't filter by that hub_id
         if int(hub_id) == 0:
-            papers = Paper.objects.all()
+            papers = self.get_queryset()
         else:
-            papers = Paper.objects.filter(hubs=hub_id)
+            papers = self.get_queryset().filter(hubs=hub_id)
 
         order_papers = papers
+        no_results = False
 
         if ordering == 'newest':  # Recently added
-            papers = papers.filter(
+            filtered_papers = papers.filter(
                 uploaded_date__gte=start_date,
                 uploaded_date__lte=end_date
             )
-            order_papers = papers.order_by('-uploaded_date')
+            if filtered_papers:
+                order_papers = filtered_papers.order_by('-uploaded_date')
+                order_papers = order_papers | papers.order_by('-uploaded_date').exclude(id__in=order_papers)
+            else:
+                order_papers = papers.order_by('-uploaded_date')
+                no_results = True
 
         elif ordering == 'top_rated':
             upvotes = Count(
@@ -267,12 +343,35 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'vote',
                 filter=Q(
                     vote__vote_type=Vote.DOWNVOTE,
-                    vote__created_date__gte=start_date,
-                    vote__created_date__lte=end_date
+                    vote__updated_date__gte=start_date,
+                    vote__updated_date__lte=end_date
                 )
             )
-            papers = papers.annotate(score=upvotes - downvotes)
-            order_papers = papers.order_by('-score')
+
+            papers = papers.annotate(score=upvotes - downvotes, total_votes=upvotes + downvotes)
+            filtered_papers = papers.filter(total_votes__gte=1)
+            order_papers = []
+
+            all_time_upvotes = Count(
+                'vote',
+                filter=Q(
+                    vote__vote_type=Vote.UPVOTE,
+                )
+            )
+            all_time_downvotes = Count(
+                'vote',
+                filter=Q(
+                    vote__vote_type=Vote.DOWNVOTE,
+                )
+            )
+            all_time_papers = papers.annotate(score=all_time_upvotes + all_time_downvotes)
+            
+            if filtered_papers:
+                order_papers = filtered_papers.order_by('-score')
+                order_papers = order_papers | all_time_papers.order_by('-score').exclude(id__in=filtered_papers)
+            else:
+                order_papers = all_time_papers.order_by('-score')
+                no_results = True
 
         elif ordering == 'most_discussed':
             threads = Count(
@@ -290,11 +389,25 @@ class PaperViewSet(viewsets.ModelViewSet):
                 )
             )
             papers = papers.annotate(discussed=threads + comments)
-            order_papers = papers.order_by('-discussed')
+            filtered_papers = papers.filter(discussed__gte=1)
+
+            all_time_threads = Count(
+                'threads',
+            )
+            all_time_comments = Count(
+                'threads__comments',
+            )
+            all_time_papers = papers.annotate(discussed=all_time_threads + all_time_comments)
+            if filtered_papers:
+                order_papers = filtered_papers.order_by('-discussed')
+                order_papers = all_time_papers.order_by('-discussed').exclude(id__in=filtered_papers)
+            else:
+                order_papers = all_time_papers.order_by('-discussed')
+                no_results = True
 
         page = self.paginate_queryset(order_papers)
         serializer = self.get_serializer(page, many=True)
-        return self.get_paginated_response(serializer.data)
+        return self.get_paginated_response({'data': serializer.data, 'no_results': no_results})
 
 
 def find_vote(user, paper, vote_type):

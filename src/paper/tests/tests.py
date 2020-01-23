@@ -50,6 +50,7 @@ class PaperIntegrationTests(
     def build_paper_form(self):
         file = SimpleUploadedFile('../config/paper.pdf', b'file_content')
         hub = self.create_hub('Film')
+        hub_2 = self.create_hub('Comedy')
         university = self.create_university(name='Charleston')
         author = self.create_author_without_user(
             university,
@@ -61,7 +62,7 @@ class PaperIntegrationTests(
             'title': 'The Simple Paper',
             'paper_publish_date': self.paper_publish_date,
             'file': file,
-            'hubs': [hub.id],
+            'hubs': [hub.id, hub_2.id],
             'authors': [author.id],
         }
         return form
