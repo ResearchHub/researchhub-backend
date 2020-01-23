@@ -1,4 +1,4 @@
-from . import get_env_var
+import os
 
 KEYSTORE_FILE = 'keystore.json'
-KEYSTORE_PASSWORD = get_env_var('KEYSTORE_PASSWORD', '3K$DvLFUfANd')
+KEYSTORE_PASSWORD = os.environ.get('KEYSTORE_PASSWORD', '3K$DvLFUfANd')
