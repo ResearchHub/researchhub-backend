@@ -62,7 +62,7 @@ jobs:
         # fail if requirements.txt has unstaged changes
         git diff --exit-code requirements.txt
         # create an archive of the ./src directory
-        git archive --output=deploy.zip master
+        git archive --output=deploy.zip HEAD
     - name: deploy to staging
       if: contains(github.event.head_commit.message, '[deploy staging]')
       #if: "github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy staging]')"
