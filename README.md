@@ -129,6 +129,9 @@ pipenv shell
 
 # add a package to the project environment
 pipenv install package_name
+
+# update requirements.txt which is used by elastic beanstalk
+pipenv lock --requirements > requirements.txt
 ```
 
 ### DEVELOPMENT
