@@ -64,7 +64,8 @@ jobs:
         # create an archive of the ./src directory
         git archive --output=deploy.zip master
     - name: deploy to staging
-      if: "github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy staging]')"
+      if: contains(github.event.head_commit.message, '[deploy staging]')
+      #if: "github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy staging]')"
       # pinned to specific version by hash for security (only include vetted codebases)
       uses: einaregilsson/beanstalk-deploy@4ef7d7b80e68f85dae8dd45d2f06c7f65dc509a0
       with:
