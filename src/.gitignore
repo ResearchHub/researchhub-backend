@@ -17,4 +17,7 @@ __pycache__/
 # Ignore DB
 db.json
 static/
+!static/css
+!static/ethereum
+!static/researchhub
 backups/
