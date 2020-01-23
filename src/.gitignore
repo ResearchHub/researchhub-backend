@@ -1,8 +1,10 @@
 # Config
 config/*
-config_local/*
 !config/paper.pdf
+!config/*.py
 !config/ci
+config_local/*
+!config_local/__init__.py
 
 # Django
 __pycache__/
@@ -15,4 +17,7 @@ __pycache__/
 # Ignore DB
 db.json
 static/
+!static/css
+!static/ethereum
+!static/researchhub
 backups/
