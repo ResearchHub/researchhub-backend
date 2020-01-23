@@ -58,9 +58,9 @@ jobs:
     - name: prepare deployment
       working-directory: ./src
       run: |
-        pipenv lock --requirements > requirements.txt
+        pipenv lock --requirements >| requirements.txt
         # fail if requirements.txt has unstaged changes
-        git diff-index --exit-code HEAD requirements.txt
+        git diff --exit-code requirements.txt
         # create an archive of the ./src directory
         git archive --output=deploy.zip master
     - name: deploy to staging
