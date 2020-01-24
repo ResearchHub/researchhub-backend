@@ -3,6 +3,9 @@
 # testing files
 /output.txt
 
+# deployment files
+deploy.zip
+
 # python notebooks
 .ipynb/
 .ipynb_checkpoints/
