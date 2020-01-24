@@ -75,3 +75,15 @@ jobs:
         version_label: ${{ github.sha }}
         region: us-west-2
         deployment_package: src/deploy.zip
+    - name: deploy to production
+      if: "github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy production]')"
+      # pinned to specific version by hash for security (only include vetted codebases)
+      uses: einaregilsson/beanstalk-deploy@4ef7d7b80e68f85dae8dd45d2f06c7f65dc509a0
+      with:
+        aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        application_name: researchhub-backend
+        environment_name: production
+        version_label: ${{ github.sha }}
+        region: us-west-2
+        deployment_package: src/deploy.zip
