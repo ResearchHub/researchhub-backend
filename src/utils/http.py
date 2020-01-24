@@ -1,6 +1,15 @@
 import requests
 
 
+# TODO: Use contstants instead of class
+GET = 'GET'
+HEAD = 'HEAD'
+POST = 'POST'
+PATCH = 'PATCH'
+PUT = 'PUT'
+DELETE = 'DELETE'
+
+
 class RequestMethods:
     GET = 'GET'
     HEAD = 'HEAD'

@@ -1,7 +1,13 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.dispatch import receiver
+from django.utils import timezone
 from storages.backends.s3boto3 import S3Boto3Storage
+
+from utils.models import DefaultModel
+from hub.models import Hub
 
 
 class User(AbstractUser):
@@ -43,7 +49,13 @@ class User(AbstractUser):
 
 
 @receiver(models.signals.post_save, sender=User)
-def attach_author(sender, instance, created, *args, **kwargs):
+def attach_author_and_email_preference(
+    sender,
+    instance,
+    created,
+    *args,
+    **kwargs
+):
     if created:
         Author.objects.create(
             user=instance,
@@ -152,3 +164,28 @@ class Author(models.Model):
         if self.university is not None:
             return self.university
         return None
+
+
+class Action(DefaultModel):
+    user = models.ForeignKey(
+        User,
+        related_name='actions',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE
+    )
+    object_id = models.PositiveIntegerField()
+    item = GenericForeignKey('content_type', 'object_id')
+    read_date = models.DateTimeField(default=None, null=True)
+    hubs = models.ManyToManyField(
+        Hub,
+        related_name='actions',
+    )
+
+    def set_read(self):
+        self.read_date = timezone.now()
+        self.save()

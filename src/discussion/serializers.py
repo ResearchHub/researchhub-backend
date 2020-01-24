@@ -52,6 +52,7 @@ class VoteSerializer(serializers.ModelSerializer):
         ]
         model = Vote
 
+
 class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
         read_only=False,
@@ -88,6 +89,7 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     def get_comment_count(self, obj):
         count = len(obj.comments.all())
         return count
+
 
 class ReplySerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
@@ -129,14 +131,14 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
 
     def get_thread(self, obj):
         current_obj = obj
-        
+
         while not isinstance(current_obj, Thread) and obj.parent:
             current_obj = current_obj.parent
-
 
         if isinstance(current_obj, Thread):
             return ThreadSerializer(current_obj).data
         return None
+
 
 class CommentSerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
@@ -200,14 +202,11 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
         return count
 
     def get_thread(self, obj):
-        current_obj = obj
-        while not isinstance(current_obj, Thread) and obj.parent:
-            current_obj = current_obj.parent
-
-
-        if isinstance(current_obj, Thread):
-            return ThreadSerializer(current_obj).data
-        return None
+        # TODO: Improve error handling
+        try:
+            return ThreadSerializer(obj.parent).data
+        except Exception:
+            return None
 
 
 class EndorsementSerializer(serializers.ModelSerializer):

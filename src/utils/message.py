@@ -3,14 +3,15 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from sentry_sdk import capture_exception
 
-from researchhub.settings import EMAIL_WHITELIST, PRODUCTION
+from researchhub.settings import EMAIL_WHITELIST
+# from researchhub.settings import PRODUCTION
 from mailing_list.models import EmailRecipient
 
 
 def is_valid_email(email):
     # Comment out production conditional for testing
-    if not PRODUCTION:
-        return email in EMAIL_WHITELIST
+    # if not PRODUCTION:
+    #     return email in EMAIL_WHITELIST
 
     # TODO: Add regex validation
     try:
@@ -28,43 +29,63 @@ def is_valid_email(email):
 
 def send_email_message(
     recipients,
-    message,
+    template,
     subject,
-    emailContext,
-    html_message=None
+    email_context,
+    html_template=None
 ):
+    """Emails `message` to `recipients` and returns a dict with results in the
+    following form:
+    ```
+    {
+        'success':[recipient_email_address, ...],
+        'failure':[recipient_email_address, ...],
+        'exclude':[recipient_email_address, ...]
+    }
+    ```
+
+    Args:
+        recipients (str|list) - Email addresses to send to
+        template (str) - Template name
+        subject (str) - Email subject
+        email_context (dict) - Data to send to template
+        html_template (:str:) - Optional html template name
+    """
     if not isinstance(recipients, list):
         recipients = [recipients]
 
     result = {'success': [], 'failure': [], 'exclude': []}
 
     # Exclude invalid recipients
-    for recipient in recipients:
-        if not is_valid_email(recipient):
-            result['exclude'].append(recipient)
-            recipients.remove(recipient)
+    # for recipient in recipients:
+    #     if not is_valid_email(recipient):
+    #         result['exclude'].append(recipient)
+    #         recipients.remove(recipient)
+
+    print(recipients)
 
     for recipient in recipients:
         # Build email context
-        customContext = emailContext
-        if 'opt_out' in emailContext.keys():
+        customContext = email_context
+        if 'opt_out' in email_context.keys():
             customContext['opt_out'] += '?email={}'.format(recipient)
 
-        msg_plain = render_to_string(message, customContext)
-        msg_html = render_to_string(html_message, customContext)
+        message = render_to_string(template, customContext)
+        html_message = render_to_string(html_template, customContext)
         send_to = [recipient]
 
         try:
             send_mail(
                 subject,
-                msg_plain,
+                message,
                 'noreply@researchhub.com',
                 send_to,
-                html_message=msg_html,
+                html_message=html_message,
                 fail_silently=False,
             )
             result['success'].append(recipient)
         except Exception as e:
+            print(e)
             result['failure'].append(recipient)
             capture_exception(e)
 
