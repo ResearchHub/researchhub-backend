@@ -46,7 +46,7 @@ class HubViewSet(viewsets.ModelViewSet):
 
             return self._get_hub_serialized_response(hub, 200)
         except Exception as e:
-            return Response(e, status=400)
+            return Response(str(e), status=400)
 
     @action(
         detail=True,
@@ -60,10 +60,10 @@ class HubViewSet(viewsets.ModelViewSet):
             hub.save()
             return self._get_hub_serialized_response(hub, 200)
         except Exception as e:
-            return Response(e, status=400)
+            return Response(str(e), status=400)
 
     def _get_hub_serialized_response(self, hub, status_code):
-        serialized = HubSerializer(hub)
+        serialized = HubSerializer(hub, context=self.get_serializer_context())
         return Response(serialized.data, status=status_code)
 
     def _is_subscribed(self, user, hub):

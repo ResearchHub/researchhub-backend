@@ -403,6 +403,11 @@ AWS_DEFAULT_ACL = None
 
 
 # Search
+ELASTICSEARCH_DSL = {
+    'default': {
+        'hosts': 'http://localhost:9200',
+    },
+}
 
 ELASTICSEARCH_DSL = {
     'default': {
@@ -411,8 +416,17 @@ ELASTICSEARCH_DSL = {
 }
 
 if PRODUCTION:
-    ELASTICSEARCH_DSL['default'] = {
-        'hosts': 'https://search-researchhub-es-dev-gk44gqpe2rvt4e4qmx4y6vl2qq.us-west-2.es.amazonaws.com',  # noqa: E501
+    ELASTICSEARCH_DSL = {
+        'default': {
+            'hosts': 'https://search-researchhub-es-dev-gk44gqpe2rvt4e4qmx4y6vl2qq.us-west-2.es.amazonaws.com',  # noqa: E501
+        },
+    }
+
+if STAGING:
+    ELASTICSEARCH_DSL = {
+        'default': {
+            'hosts': 'https://search-researchhub-es-dev-gk44gqpe2rvt4e4qmx4y6vl2qq.us-west-2.es.amazonaws.com',  # noqa: E501
+        },
     }
 
 ELASTICSEARCH_AUTO_REINDEX = not PRODUCTION and os.environ.get(
@@ -421,6 +435,9 @@ ELASTICSEARCH_AUTO_REINDEX = not PRODUCTION and os.environ.get(
 )
 
 if PRODUCTION:
+    ELASTICSEARCH_AUTO_REINDEX = True
+
+if STAGING:
     ELASTICSEARCH_AUTO_REINDEX = True
 
 

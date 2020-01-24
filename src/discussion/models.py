@@ -7,6 +7,7 @@ from django.contrib.postgres.fields import JSONField
 from django.db import models
 
 from paper.models import Paper
+from reputation.models import Distribution
 from user.models import User
 
 HELP_TEXT_WAS_EDITED = (
@@ -33,6 +34,11 @@ class Vote(models.Model):
     )
     object_id = models.PositiveIntegerField()
     item = GenericForeignKey('content_type', 'object_id')
+    distributions = GenericRelation(
+        Distribution,
+        object_id_field='proof_item_object_id',
+        content_type_field='proof_item_content_type'
+    )
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)

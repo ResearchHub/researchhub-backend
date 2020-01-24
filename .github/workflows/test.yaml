@@ -6,6 +6,7 @@ on:
   pull_request:
 jobs:
   build:
+    name: build
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -34,14 +35,6 @@ jobs:
         python-version: '3.7'
     - name: elasticsearch plugins
       run: docker exec elasticsearch bin/elasticsearch-plugin install --batch ingest-attachment
-    # todo: investigate whether the cache is working
-    - name: cache pipenv
-      uses: actions/cache@v1
-      with:
-        path: ~/.local/share/virtualenvs/
-        key: ${{ runner.os }}-pipenv-${{ hashFiles('src/Pipfile.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-pipenv-
     - name: pipenv install
       working-directory: ./src
       run: |
@@ -62,3 +55,35 @@ jobs:
     - name: django tests
       working-directory: ./src
       run: pipenv run python manage.py test
+    - name: prepare deployment
+      working-directory: ./src
+      run: |
+        pipenv lock --requirements >| requirements.txt
+        # fail if requirements.txt has unstaged changes
+        git diff --exit-code requirements.txt
+        # create an archive of the ./src directory
+        git archive --output=deploy.zip HEAD
+    - name: deploy to staging
+      if: contains(github.event.head_commit.message, '[deploy staging]')
+      # pinned to specific version by hash for security (only include vetted codebases)
+      uses: einaregilsson/beanstalk-deploy@4ef7d7b80e68f85dae8dd45d2f06c7f65dc509a0
+      with:
+        aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        application_name: researchhub-backend
+        environment_name: staging-backend
+        version_label: ${{ github.sha }}
+        region: us-west-2
+        deployment_package: src/deploy.zip
+    - name: deploy to production
+      if: github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy production]')
+      # pinned to specific version by hash for security (only include vetted codebases)
+      uses: einaregilsson/beanstalk-deploy@4ef7d7b80e68f85dae8dd45d2f06c7f65dc509a0
+      with:
+        aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        application_name: researchhub-backend
+        environment_name: production
+        version_label: ${{ github.sha }}
+        region: us-west-2
+        deployment_package: src/deploy.zip

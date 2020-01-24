@@ -2,7 +2,7 @@ import random
 
 from django.test import TestCase
 
-from .helpers import create_flag, create_paper
+from paper.tests.helpers import create_flag, create_paper, upvote_paper
 from user.tests.helpers import (
     create_random_authenticated_user,
     create_random_authenticated_user_with_reputation
@@ -50,6 +50,12 @@ class PaperViewsTests(TestCase):
     def test_delete_flag_responds_400_if_request_user_has_no_flag(self):
         pass
 
+    def test_can_delete_vote(self):
+        user = create_random_authenticated_user('deleting vote')
+        vote = upvote_paper(self.paper, user)
+        response = self.get_vote_delete_response(user)
+        self.assertContains(response, vote.id, status_code=200)
+
     def test_check_url_is_true_if_url_has_pdf(self):
         url = self.base_url + 'check_url/'
         data = {'url': 'https://bitcoin.org/bitcoin.pdf'}
@@ -83,19 +89,31 @@ class PaperViewsTests(TestCase):
         self.assertEquals(
             result['csl_item']['title'],
             "IPFS - Content Addressed, Versioned, P2P File System")
+        self.assertEqual(
+            result['pdf_location']['url_for_pdf'],
+            'https://arxiv.org/pdf/1407.3561v1.pdf')
         self.assertIsInstance(result['search'], list)
 
     def test_search_by_url_arxiv_pdf(self):
         url = self.base_url + 'search_by_url/'
-        data = {'url': 'https://arxiv.org/pdf/1407.3561v1.pdf'}
+        data = {'url': 'https://arxiv.org/pdf/1407.3561.pdf'}
         response = get_authenticated_post_response(self.user, url, data)
         self.assertEquals(response.status_code, 200)
         result = response.data
         self.assertEquals(result['url'], data['url'])
         self.assertTrue(result['url_is_pdf'])
+        self.assertFalse(result['url_is_unsupported_pdf'])
         self.assertEquals(
             result['csl_item']['title'],
             "IPFS - Content Addressed, Versioned, P2P File System")
+        pdf_location = result['pdf_location']
+        self.assertEqual(
+            pdf_location['url_for_pdf'],
+            'https://arxiv.org/pdf/1407.3561.pdf')
+        self.assertEqual(pdf_location['license'], 'cc-by')
+        self.assertEqual(
+            pdf_location['url_for_landing_page'],
+            'https://arxiv.org/abs/1407.3561')
         self.assertIsInstance(result['search'], list)
 
     def test_search_by_url_publisher(self):
@@ -106,12 +124,61 @@ class PaperViewsTests(TestCase):
         result = response.data
         self.assertEquals(result['url'], data['url'])
         self.assertFalse(result['url_is_pdf'])
+        self.assertFalse(result['url_is_unsupported_pdf'])
         self.assertEquals(
             result['csl_item']['title'],
             "Restoration of brain circulation and cellular functions hours post-mortem")  # noqa E501
         self.assertEquals(
             result['csl_item']['DOI'], "10.1038/s41586-019-1099-1")
         self.assertIsInstance(result['search'], list)
+
+    def test_search_by_url_doi(self):
+        url = self.base_url + 'search_by_url/'
+        data = {'url': 'https://doi.org/10.1038/ng.3259'}
+        response = get_authenticated_post_response(self.user, url, data)
+        self.assertEquals(response.status_code, 200)
+        result = response.data
+        self.assertEquals(result['url'], data['url'])
+        self.assertFalse(result['url_is_pdf'])
+        self.assertFalse(result['url_is_unsupported_pdf'])
+        self.assertEquals(
+            result['csl_item']['title'],
+            "Understanding multicellular function and disease with human tissue-specific networks")  # noqa E501
+        self.assertEquals(
+            result['csl_item']['DOI'], "10.1038/ng.3259")
+        self.assertEquals(
+            result['pdf_location']['url_for_pdf'],
+            "http://europepmc.org/articles/pmc4828725?pdf=render")
+        self.assertIsInstance(result['search'], list)
+
+    def test_search_by_url_pmid(self):
+        """
+        Search by PMID without a DOI from an inactive journal
+        """
+        url = self.base_url + 'search_by_url/'
+        data = {'url': 'https://www.ncbi.nlm.nih.gov/pubmed/18888140'}
+        response = get_authenticated_post_response(self.user, url, data)
+        self.assertEquals(response.status_code, 200)
+        result = response.data
+        self.assertEquals(result['url'], data['url'])
+        self.assertFalse(result['url_is_pdf'])
+        self.assertFalse(result['url_is_unsupported_pdf'])
+        self.assertEquals(
+            result['csl_item']['title'],
+            "[Major achievements in the second plan year in the Soviet Union].")  # noqa E501
+        self.assertIsNone(result['pdf_location'])
+        self.assertIsInstance(result['search'], list)
+
+    def test_search_by_url_unsupported_pdf(self):
+        url = self.base_url + 'search_by_url/'
+        data = {'url': 'https://bitcoin.org/bitcoin.pdf'}
+        response = get_authenticated_post_response(self.user, url, data)
+        self.assertEquals(response.status_code, 200)
+        result = response.data
+        self.assertTrue(result['url_is_pdf'])
+        self.assertTrue(result['url_is_unsupported_pdf'])
+        self.assertEqual(result['csl_item']['URL'], data['url'])
+        self.assertEqual(result['pdf_location']['url_for_pdf'], data['url'])
 
     def test_search_by_url_bad(self):
         url = self.base_url + 'search_by_url/'
@@ -144,6 +211,17 @@ class PaperViewsTests(TestCase):
     def get_flag_delete_response(self, user):
         url = self.base_url + f'{self.paper.id}/flag/'
         data = None
+        response = get_authenticated_delete_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+        return response
+
+    def get_vote_delete_response(self, user):
+        url = self.base_url + f'{self.paper.id}/user_vote/'
+        data = {}
         response = get_authenticated_delete_response(
             user,
             url,

@@ -2,7 +2,7 @@ from datetime import timedelta
 from time import time
 
 from django.db import transaction
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 
@@ -23,7 +23,7 @@ from reputation.distributor import Distributor
 import reputation.distributions as distributions
 from reputation.exceptions import ReputationSignalError
 from reputation.lib import get_unpaid_distributions
-from reputation.models import Withdrawal
+from reputation.models import Distribution, Withdrawal
 from reputation.utils import get_total_reputation_from_distributions
 from summary.models import Summary
 import utils.sentry as sentry
@@ -53,6 +53,7 @@ def distribute_for_vote_on_paper(
     update_fields,
     **kwargs
 ):
+    """Distributes reputation to the voter."""
     timestamp = time()
     recipient = instance.created_by
 
@@ -95,40 +96,22 @@ def is_eligible_for_create_summary(user):
 
 
 @receiver(post_save, sender=Comment, dispatch_uid='create_comment')
-def distribute_for_create_comment(sender, instance, created, **kwargs):
-    timestamp = time()
-    recipient = instance.created_by
-    if created and is_eligible_for_create_discussion(recipient):
-        distributor = Distributor(
-            distributions.CreateComment,
-            recipient,
-            instance,
-            timestamp
-        )
-        distributor.distribute()
-
-
 @receiver(post_save, sender=Reply, dispatch_uid='create_reply')
-def distribute_for_create_reply(sender, instance, created, **kwargs):
-    timestamp = time()
-    recipient = instance.created_by
-    if created and is_eligible_for_create_discussion(recipient):
-        distributor = Distributor(
-            distributions.CreateReply,
-            recipient,
-            instance,
-            timestamp
-        )
-        distributor.distribute()
-
-
 @receiver(post_save, sender=Thread, dispatch_uid='create_thread')
-def distribute_for_create_thread(sender, instance, created, **kwargs):
+def distribute_for_create_discussion(sender, instance, created, **kwargs):
     timestamp = time()
     recipient = instance.created_by
     if created and is_eligible_for_create_discussion(recipient):
+        if isinstance(instance, Comment):
+            distribution = distributions.CreateComment
+        elif isinstance(instance, Reply):
+            distribution = distributions.CreateReply
+        elif isinstance(instance, Thread):
+            distribution = distributions.CreateThread
+        else:
+            return
         distributor = Distributor(
-            distributions.CreateThread,
+            distribution,
             recipient,
             instance,
             timestamp
@@ -143,42 +126,9 @@ def is_eligible_for_create_discussion(user):
     )
 
 
-@receiver(post_save, sender=Endorsement, dispatch_uid='discussion_endorsement')
-def distribute_for_discussion_endorsement(
-    sender,
-    instance,
-    created,
-    update_fields,
-    **kwargs
-):
-    timestamp = time()
-    distributor = None
-    recipient = instance.item.created_by
-
-    if created and is_eligible(recipient):
-        try:
-            distribution = get_discussion_endorsement_item_distribution(
-                instance
-            )
-            distributor = Distributor(
-                distribution,
-                recipient,
-                instance,
-                timestamp
-            )
-        except TypeError as e:
-            error = ReputationSignalError(
-                e,
-                'Failed to distribute for endorsement'
-            )
-            print(error)
-
-    if distributor is not None:
-        distributor.distribute()
-
-
 @receiver(post_save, sender=DiscussionFlag, dispatch_uid='discussion_flag')
-def distribute_for_discussion_flag(
+@receiver(post_save, sender=Endorsement, dispatch_uid='discussion_endorsement')
+def distribute_for_discussion_action(
     sender,
     instance,
     created,
@@ -191,7 +141,15 @@ def distribute_for_discussion_flag(
 
     if created and is_eligible(recipient):
         try:
-            distribution = get_discussion_flag_item_distribution(instance)
+            if isinstance(instance, DiscussionFlag):
+                distribution = get_discussion_flag_item_distribution(instance)
+            elif isinstance(instance, Endorsement):
+                distribution = get_discussion_endorsement_item_distribution(
+                    instance
+                )
+            else:
+                raise TypeError
+
             distributor = Distributor(
                 distribution,
                 recipient,
@@ -201,7 +159,7 @@ def distribute_for_discussion_flag(
         except TypeError as e:
             error = ReputationSignalError(
                 e,
-                'Failed to distribute for flag'
+                'Failed to distribute'
             )
             print(error)
 
@@ -217,6 +175,7 @@ def distribute_for_discussion_vote(
     update_fields,
     **kwargs
 ):
+    """Distributes reputation to the creator of the item voted on."""
     timestamp = time()
     distributor = None
     recipient = instance.item.created_by
@@ -224,6 +183,8 @@ def distribute_for_discussion_vote(
     if (created or vote_type_updated(update_fields)) and is_eligible(
         recipient
     ):
+        # TODO: This needs to be altered so that if the vote changes the
+        # original distribution is deleted if not yet withdrawn
         try:
             distribution = get_discussion_vote_item_distribution(instance)
             distributor = Distributor(
@@ -251,6 +212,7 @@ def distribute_for_vote_on_discussion(
     update_fields,
     **kwargs
 ):
+    """Distributes reputation to the voter."""
     timestamp = time()
     distributor = None
     recipient = instance.created_by
@@ -369,7 +331,16 @@ def get_vote_on_discussion_item_distribution(instance):
         raise error
 
 
-@receiver(post_save, sender=Withdrawal, dispatch_uid='')
+@receiver(post_delete, sender=Distribution, dispatch_uid='delete_distribution')
+def revoke_reputation(sender, instance, **kwargs):
+    recipient = instance.recipient
+    amount = instance.amount
+    current = recipient.reputation
+    recipient.reputation = current - amount
+    recipient.save(update_fields=['reputation'])
+
+
+@receiver(post_save, sender=Withdrawal, dispatch_uid='withdrawal')
 def pay_withdrawal(sender, instance, created, **kwargs):
     if not created:
         return

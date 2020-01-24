@@ -1,5 +1,9 @@
 # researchhub-backend
 
+[![GitHub Actions Status Badge](https://github.com/ResearchHub/researchhub-backend/workflows/Backend%20CI/badge.svg?branch=master)](https://github.com/ResearchHub/researchhub-backend/actions)
+
+This repository contains the Django backend for <https://www.researchhub.com/>.
+
 ## Setup
 
 ### GENERAL
@@ -125,6 +129,9 @@ pipenv shell
 
 # add a package to the project environment
 pipenv install package_name
+
+# update requirements.txt which is used by elastic beanstalk
+pipenv lock --requirements >| requirements.txt
 ```
 
 ### DEVELOPMENT
