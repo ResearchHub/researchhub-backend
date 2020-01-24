@@ -1,15 +1,12 @@
 import logging
 import os
 
-import boto3
 import smart_open
 from django.apps import AppConfig
 from web3 import Web3
 
 from researchhub.settings import (
     BASE_DIR,
-    AWS_ACCESS_KEY_ID,
-    AWS_SECRET_ACCESS_KEY,
     WEB3_PROVIDER_URL,
     WEB3_KEYSTORE_FILE,
     WEB3_KEYSTORE_PASSWORD
@@ -51,10 +48,10 @@ class ConfigureWeb3:
         path = self.get_keystore_path()
         with smart_open.open(path) as keyfile:
             encrypted_key = keyfile.read()
-            return self.w3.eth.account.decrypt(
-                encrypted_key,
-                WEB3_KEYSTORE_PASSWORD
-            )
+        return self.w3.eth.account.decrypt(
+            encrypted_key,
+            WEB3_KEYSTORE_PASSWORD
+        )
 
     def get_default_address(self):
         return self.w3.eth.account.from_key(self.DEFAULT_PRIVATE_KEY).address
