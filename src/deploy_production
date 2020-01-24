@@ -4,6 +4,9 @@
 start="Deploying to production environments:"
 echo $start
 
+echo "Creating requirements.txt"
+pipenv lock --requirements > requirements.txt
+
 echo "Deploying to production"
 eb deploy production
 
