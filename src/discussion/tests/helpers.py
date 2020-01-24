@@ -126,7 +126,8 @@ def create_comment(thread=None, created_by=None, text=TestData.comment_text):
     comment = Comment.objects.create(
         parent=thread,
         created_by=created_by,
-        text=text
+        text=text,
+        plain_text=text
     )
     return comment
 
@@ -137,6 +138,14 @@ def create_thread(
     title=TestData.thread_title,
     text=TestData.thread_text
 ):
+    """Returns a newly created discussion Thread.
+
+    Arguments:
+        paper (Paper)
+        created_by (User)
+        title (str)
+        text (str)
+    """
     if paper is None:
         paper = create_paper()
     if created_by is None:

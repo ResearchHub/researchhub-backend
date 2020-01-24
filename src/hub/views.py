@@ -13,7 +13,9 @@ from .models import Hub
 from .permissions import CreateHub, IsSubscribed, IsNotSubscribed
 from .serializers import HubSerializer
 from .filters import HubFilter
-
+from user.models import Action
+from user.serializers import UserActions
+from utils.http import PATCH, POST, PUT, GET
 from utils.message import send_email_message
 
 
@@ -28,7 +30,7 @@ class HubViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=['post', 'put', 'patch'],
+        methods=[POST, PUT, PATCH],
         permission_classes=[IsAuthenticated & IsNotSubscribed]
     )
     def subscribe(self, request, pk=None):
@@ -48,7 +50,7 @@ class HubViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=['post', 'put', 'patch'],
+        methods=[POST, PUT, PATCH],
         permission_classes=[IsSubscribed]
     )
     def unsubscribe(self, request, pk=None):
@@ -69,7 +71,7 @@ class HubViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=['post']
+        methods=[POST]
     )
     def invite_to_hub(self, request, pk=None):
         recipients = request.data.get('emails', [])
@@ -114,3 +116,18 @@ class HubViewSet(viewsets.ModelViewSet):
             response = {'email_sent': True, 'result': result}
 
         return Response(response, status=200)
+
+    @action(
+        detail=True,
+        methods=[GET]
+    )
+    def latest_actions(self, request, pk=None):
+        actions = Action.objects.filter(hubs=pk).order_by('created_date')
+
+        page = self.paginate_queryset(actions)
+        if page is not None:
+            data = UserActions(data=page).serialized
+            return self.get_paginated_response(data)
+
+        data = UserActions(data=actions).serialized
+        return Response(data)

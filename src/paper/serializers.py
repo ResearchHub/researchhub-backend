@@ -266,7 +266,8 @@ class FlagSerializer(serializers.ModelSerializer):
 
 
 class VoteSerializer(serializers.ModelSerializer):
-
+    paper = PaperSerializer()
+    
     class Meta:
         fields = [
             'created_by',

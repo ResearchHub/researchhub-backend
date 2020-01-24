@@ -2,7 +2,7 @@ import random
 
 from rest_framework.authtoken.models import Token
 
-from user.models import Author, University, User
+from user.models import Action, Author, University, User
 
 
 class TestData:
@@ -108,4 +108,18 @@ def create_university(
         country=country,
         state=state,
         city=city
+    )
+
+
+def create_actions(count, item=None):
+    return [create_action(item=item) for idx in range(count)]
+
+
+def create_action(user=None, item=None):
+    if item is None:
+        item = create_university()
+
+    return Action.objects.create(
+        user=user,
+        item=item
     )

@@ -55,6 +55,10 @@ class Vote(models.Model):
     def __str__(self):
         return '{} - {}'.format(self.created_by, self.vote_type)
 
+    @property
+    def paper(self):
+        return self.item.paper
+
 
 class Flag(models.Model):
     content_type = models.ForeignKey(
@@ -152,6 +156,7 @@ class BaseComment(models.Model):
 
 
 class Thread(BaseComment):
+    title = models.CharField(max_length=255)
     paper = models.ForeignKey(
         Paper,
         on_delete=models.SET_NULL,
@@ -159,10 +164,13 @@ class Thread(BaseComment):
         blank=True,
         null=True
     )
-    title = models.CharField(max_length=255)
 
     def __str__(self):
         return '%s: %s' % (self.created_by, self.title)
+
+    @property
+    def parent(self):
+        return self.paper
 
     @property
     def comment_count_indexing(self):
@@ -189,6 +197,22 @@ class Reply(BaseComment):
     object_id = models.PositiveIntegerField()
     parent = GenericForeignKey('content_type', 'object_id')
 
+    @property
+    def paper(self):
+        comment = self.get_comment_of_reply()
+        thread = comment.parent
+        paper = thread.parent
+        return paper
+
+    def get_comment_of_reply(self):
+        obj = self
+        while isinstance(obj, Reply):
+            obj = obj.parent
+
+        if isinstance(obj, Comment):
+            return obj
+        return None
+
 
 class Comment(BaseComment):
     parent = models.ForeignKey(
@@ -202,3 +226,9 @@ class Comment(BaseComment):
 
     def __str__(self):
         return '{} - {}'.format(self.created_by, self.plain_text)
+
+    @property
+    def paper(self):
+        thread = self.parent
+        paper = thread.parent
+        return paper

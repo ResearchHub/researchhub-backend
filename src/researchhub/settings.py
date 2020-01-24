@@ -25,8 +25,7 @@ PRODUCTION = APP_ENV == 'production'
 STAGING = APP_ENV == 'staging'
 CI = "GITHUB_ACTIONS" in os.environ
 CLOUD = PRODUCTION or STAGING or CI
-TESTING = 'test' in sys.argv
-
+TESTING = 'test' in APP_ENV
 PYTHONPATH = '/opt/python/current/app:$PYTHONPATH'
 DJANGO_SETTINGS_MODULE = 'researchhub.settings'
 ELASTIC_BEANSTALK = (APP_ENV in ['production', 'staging', 'development'])
@@ -339,6 +338,9 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+STATICFILES_DIRS = [
+    'stylesheets'
+]
 
 
 # AWS
@@ -367,6 +369,8 @@ AWS_SES_REGION_NAME = 'us-west-2'
 AWS_SES_REGION_ENDPOINT = 'email.us-west-2.amazonaws.com'
 
 EMAIL_BACKEND = 'django_ses.SESBackend'
+if TESTING:
+    EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
 
 EMAIL_WHITELIST = [
     'craig@quantfive.org',
