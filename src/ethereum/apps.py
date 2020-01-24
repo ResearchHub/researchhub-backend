@@ -1,6 +1,7 @@
 import logging
 import os
 
+import smart_open
 from django.apps import AppConfig
 from web3 import Web3
 
@@ -10,6 +11,7 @@ from researchhub.settings import (
     WEB3_KEYSTORE_FILE,
     WEB3_KEYSTORE_PASSWORD
 )
+from utils.aws import http_to_s3
 
 
 class EthereumConfig(AppConfig):
@@ -29,18 +31,27 @@ class ConfigureWeb3:
             return w3
         logging.warning(f'web3 could not connect to {WEB3_PROVIDER_URL}')
 
-    def get_default_private_key(self):
-        path = os.path.join(
+    def get_keystore_path(self):
+        local_path = os.path.join(
             BASE_DIR,
             'config',
             WEB3_KEYSTORE_FILE
         )
-        with open(path) as keyfile:
+        if os.path.exists(local_path):
+            return local_path
+        # assume keystore is hosted on AWS
+        bucket = 'keystore-researchcoin'
+        url = f"https://{bucket}.s3-us-west-2.amazonaws.com/{WEB3_KEYSTORE_FILE}"  # noqa E501
+        return http_to_s3(url, with_credentials=True)
+
+    def get_default_private_key(self):
+        path = self.get_keystore_path()
+        with smart_open.open(path) as keyfile:
             encrypted_key = keyfile.read()
-            return self.w3.eth.account.decrypt(
-                encrypted_key,
-                WEB3_KEYSTORE_PASSWORD
-            )
+        return self.w3.eth.account.decrypt(
+            encrypted_key,
+            WEB3_KEYSTORE_PASSWORD
+        )
 
     def get_default_address(self):
         return self.w3.eth.account.from_key(self.DEFAULT_PRIVATE_KEY).address
