@@ -1,0 +1,94 @@
+body {
+    font-family: 'Roboto', sans-serif;
+}
+.email-container {
+    width: 600px;
+    border: 1px solid #ddd;
+    font-family: 'Roboto', sans-serif;
+    margin: 0px auto;
+}
+
+.email-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid #ddd;
+    font-family: 'Roboto', sans-serif;
+}
+
+.img-logo {
+    height: 40px;
+}
+
+.header-text {
+    margin-left: auto;
+    font-size: 24px;
+    letter-spacing: .7px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    color: rgb(78,83,255);
+    font-family: 'Roboto', sans-serif;
+}
+
+.instructions {
+    padding: 16px;
+}
+
+.reset-text {
+    padding: 16px;
+    margin-bottom: 16px;
+    font-size: 16px;
+}
+
+.tagline {
+    font-weight: bold;
+}
+
+.content {
+    font-size: 16px;
+    padding: 16px;
+}
+
+.join {
+    width: 150px;
+    height: 50px;
+    font-size: 18px;
+    background: rgb(78,83,255);
+    border-radius: 8px;
+    text-transform: uppercase;
+    font-weight: bold;
+    box-sizing: border-box;
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: auto;
+    margin-bottom: auto;
+    letter-spacing: 1.5px;
+    padding: 10px;
+    font-family: 'Roboto', sans-serif;
+}
+
+.join-text {
+    text-align: center;
+    text-decoration: none;
+    color: #fff;
+    font-family: 'Roboto', sans-serif;
+}
+
+.button-container {
+    width: 100%;
+}
+
+.product-name {
+    margin-right: 8px;
+}
+
+.footer {
+    font-size: 12px;
+    color: #aaa;
+    padding: 10px;
+    text-align: center;
+    font-family: 'Roboto', sans-serif;
+}
