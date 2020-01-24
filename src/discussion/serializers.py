@@ -1,8 +1,7 @@
 from django.contrib.admin.options import get_content_type_for_model
 import rest_framework.serializers as serializers
 
-from researchhub.settings import REST_FRAMEWORK
-PAGINATION_PAGE_SIZE = REST_FRAMEWORK.get('PAGE_SIZE', 20)
+from researchhub.settings import PAGINATION_PAGE_SIZE
 
 from .models import Comment, Endorsement, Flag, Thread, Reply, Vote
 from user.serializers import UserSerializer
