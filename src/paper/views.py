@@ -14,7 +14,7 @@ from requests.exceptions import (
 from .filters import PaperFilter
 from .models import Flag, Paper, Vote
 from discussion.models import Vote as DiscussionVote, Thread
-from .utils import get_csl_item
+from .utils import get_csl_item, get_pdf_location_for_csl_item
 from .permissions import (
     CreatePaper,
     FlagPaper,
@@ -194,6 +194,18 @@ class PaperViewSet(viewsets.ModelViewSet):
         vote = retrieve_vote(user, paper)
         return get_vote_response(vote, 200)
 
+    @user_vote.mapping.delete
+    def delete_user_vote(self, request, pk=None):
+        try:
+            paper = self.get_object()
+            user = request.user
+            vote = retrieve_vote(user, paper)
+            vote_id = vote.id
+            vote.delete()
+            return Response(vote_id, status=200)
+        except Exception as e:
+            return Response(f'Failed to delete vote: {e}', status=400)
+
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
@@ -252,7 +264,8 @@ class PaperViewSet(viewsets.ModelViewSet):
         """
         from elasticsearch_dsl import Search, Q
         search = Search(index="paper")
-        query = Q("match", title=csl_item.get('title', ''))
+        title = csl_item.get('title', '')
+        query = Q("match", title=title) | Q("match", paper_title=title)
         if csl_item.get('DOI'):
             query |= Q("match", doi=csl_item['DOI'])
         search.query(query)
@@ -271,7 +284,8 @@ class PaperViewSet(viewsets.ModelViewSet):
                 "search_by_url requests must specify 'url'",
                 status=status.HTTP_400_BAD_REQUEST)
         try:
-            data['url_is_pdf'] = check_url_contains_pdf(url)
+            url_is_pdf = check_url_contains_pdf(url)
+            data['url_is_pdf'] = url_is_pdf
         except RequestException as error:
             return Response(
                 f"Double check that URL is valid: {url}\n:{error}",
@@ -282,9 +296,14 @@ class PaperViewSet(viewsets.ModelViewSet):
             data['warning'] = f"Generating csl_item failed with:\n{error}"
             csl_item = None
         if csl_item:
+            url_is_unsupported_pdf = url_is_pdf and csl_item.get("URL") == url
+            data['url_is_unsupported_pdf'] = url_is_unsupported_pdf
+            csl_item.url_is_unsupported_pdf = url_is_unsupported_pdf
+            data['csl_item'] = csl_item
+            data['pdf_location'] = get_pdf_location_for_csl_item(csl_item)
+            # search existing papers
             search = self.search_by_csl_item(csl_item)
             search = search.execute()
-            data['csl_item'] = csl_item
             data['search'] = [hit.to_dict() for hit in search.hits]
         return Response(data, status=status.HTTP_200_OK)
 
@@ -318,7 +337,9 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
             if filtered_papers:
                 order_papers = filtered_papers.order_by('-uploaded_date')
-                order_papers = order_papers | papers.order_by('-uploaded_date').exclude(id__in=order_papers)
+                order_papers = order_papers | papers.order_by(
+                    '-uploaded_date'
+                ).exclude(id__in=order_papers)
             else:
                 order_papers = papers.order_by('-uploaded_date')
                 no_results = True
@@ -341,7 +362,10 @@ class PaperViewSet(viewsets.ModelViewSet):
                 )
             )
 
-            papers = papers.annotate(score=upvotes - downvotes, total_votes=upvotes + downvotes)
+            papers = papers.annotate(
+                score=upvotes - downvotes,
+                total_votes=upvotes + downvotes
+            )
             filtered_papers = papers.filter(total_votes__gte=1)
             order_papers = []
 
@@ -357,11 +381,15 @@ class PaperViewSet(viewsets.ModelViewSet):
                     vote__vote_type=Vote.DOWNVOTE,
                 )
             )
-            all_time_papers = papers.annotate(score=all_time_upvotes + all_time_downvotes)
-            
+            all_time_papers = papers.annotate(
+                score=all_time_upvotes + all_time_downvotes
+            )
+
             if filtered_papers:
                 order_papers = filtered_papers.order_by('-score')
-                order_papers = order_papers | all_time_papers.order_by('-score').exclude(id__in=filtered_papers)
+                order_papers = order_papers | all_time_papers.order_by(
+                    '-score'
+                ).exclude(id__in=filtered_papers)
             else:
                 order_papers = all_time_papers.order_by('-score')
                 no_results = True
@@ -390,17 +418,24 @@ class PaperViewSet(viewsets.ModelViewSet):
             all_time_comments = Count(
                 'threads__comments',
             )
-            all_time_papers = papers.annotate(discussed=all_time_threads + all_time_comments)
+            all_time_papers = papers.annotate(
+                discussed=all_time_threads + all_time_comments
+            )
             if filtered_papers:
                 order_papers = filtered_papers.order_by('-discussed')
-                order_papers = all_time_papers.order_by('-discussed').exclude(id__in=filtered_papers)
+                order_papers = all_time_papers.order_by('-discussed').exclude(
+                    id__in=filtered_papers
+                )
             else:
                 order_papers = all_time_papers.order_by('-discussed')
                 no_results = True
 
         page = self.paginate_queryset(order_papers)
         serializer = self.get_serializer(page, many=True)
-        return self.get_paginated_response({'data': serializer.data, 'no_results': no_results})
+        return self.get_paginated_response({
+            'data': serializer.data,
+            'no_results': no_results
+        })
 
 
 def find_vote(user, paper, vote_type):
@@ -426,6 +461,7 @@ def update_or_create_vote(user, paper, vote_type):
 
 
 def get_vote_response(vote, status_code):
+    """Returns Response with serialized `vote` data and `status_code`."""
     serializer = VoteSerializer(vote)
     return Response(serializer.data, status=status_code)
 

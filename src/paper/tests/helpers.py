@@ -43,10 +43,12 @@ def create_paper(
 
 
 def upvote_paper(paper, voter):
+    """Returns vote on `paper` created by `voter` with type upvote."""
     return create_vote(created_by=voter, paper=paper, vote_type=Vote.UPVOTE)
 
 
 def downvote_paper(paper, voter):
+    """Returns vote on `paper` created by `voter` with type downvote."""
     return create_vote(created_by=voter, paper=paper, vote_type=Vote.DOWNVOTE)
 
 
