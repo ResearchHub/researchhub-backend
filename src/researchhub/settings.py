@@ -199,6 +199,8 @@ ROOT_URLCONF = 'researchhub.urls'
 
 FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25MB max data allowed
 
+PAGINATION_PAGE_SIZE = 20
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.TokenAuthentication',
@@ -209,7 +211,7 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS':
         'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20,
+    'PAGE_SIZE': PAGINATION_PAGE_SIZE,
     'TEST_REQUEST_RENDERER_CLASSES': [
         'rest_framework.renderers.MultiPartRenderer',
         'rest_framework.renderers.JSONRenderer',
