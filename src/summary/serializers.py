@@ -16,10 +16,14 @@ class SummarySerializer(serializers.ModelSerializer):
         default=serializers.CurrentUserDefault()
     )
     previous__summary = serializers.SerializerMethodField()
+    paper_title = serializers.SerializerMethodField()
 
     class Meta:
         fields = '__all__'
         model = Summary
+
+    def get_paper_title(self, obj):
+        return obj.paper.title
 
     def get_previous__summary(self, obj):
         if obj.previous:
