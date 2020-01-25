@@ -186,6 +186,9 @@ class Action(DefaultModel):
         related_name='actions',
     )
 
+    def __str__(self):
+        return 'Action: {}-{}, '.format(self.content_type.app_label, self.content_type.model, self.object_id)
+
     def set_read(self):
         self.read_date = timezone.now()
         self.save()
