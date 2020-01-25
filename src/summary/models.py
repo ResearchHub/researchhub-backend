@@ -41,7 +41,7 @@ class Summary(models.Model):
     updated_date = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.id
+        return 'Summary: {}, Paper: {}'.format(self.id, self.paper.title)
 
     def approve(self, by):
         self.approved = True

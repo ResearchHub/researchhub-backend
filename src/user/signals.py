@@ -22,7 +22,7 @@ from user.models import Action
 )
 @receiver(post_save, sender=PaperVote, dispatch_uid='create_paper_vote_action')
 def create_action(sender, instance, created, **kwargs):
-    if created or sender == Summary:
+    if created:
         if sender == Summary:
             user = instance.proposed_by
         else:
