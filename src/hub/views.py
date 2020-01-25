@@ -1,3 +1,4 @@
+from django.db.models import prefetch_related_objects
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -124,9 +125,9 @@ class HubViewSet(viewsets.ModelViewSet):
     def latest_actions(self, request, pk=None):
         # PK == 0 indicates for now that we're on the homepage
         if pk == '0':
-            actions = Action.objects.all().order_by('-created_date')
+            actions = Action.objects.all().order_by('-created_date').prefetch_related('item')
         else:
-            actions = Action.objects.filter(hubs=pk).order_by('-created_date')
+            actions = Action.objects.filter(hubs=pk).order_by('-created_date').prefetch_related('item')
 
         page = self.paginate_queryset(actions)
         if page is not None:
