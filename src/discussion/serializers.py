@@ -95,7 +95,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
         return Reply.objects.filter(
             content_type=get_content_type_for_model(obj),
             object_id=obj.id
-        ).order_by('-created_date')
+        ).order_by(*self.context.get('ordering', ['-created_date']))
 
     def get_replies(self, obj):
         reply_queryset = self._replies_query(obj)[:PAGINATION_PAGE_SIZE]
@@ -152,10 +152,11 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
         model = Thread
 
     def get_comments(self, obj):
-        comments_queryset = obj.comments.all().order_by('-created_date')[:PAGINATION_PAGE_SIZE]
+        comments_queryset = obj.comments.order_by(*self.context.get('ordering', ['-created_date']))[:PAGINATION_PAGE_SIZE]
         comment_serializer = CommentSerializer(
             comments_queryset,
             many=True,
+            context=self.context,
         )
         return comment_serializer.data
 
