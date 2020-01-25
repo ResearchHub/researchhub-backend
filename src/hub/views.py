@@ -122,7 +122,11 @@ class HubViewSet(viewsets.ModelViewSet):
         methods=[GET]
     )
     def latest_actions(self, request, pk=None):
-        actions = Action.objects.filter(hubs=pk).order_by('-created_date')
+        # PK == 0 indicates for now that we're on the homepage
+        if pk == 0:
+            actions = Action.objects.all().order_by('-created_date')
+        else:
+            actions = Action.objects.filter(hubs=pk).order_by('-created_date')
 
         page = self.paginate_queryset(actions)
         if page is not None:
