@@ -1,6 +1,7 @@
 from django.contrib.admin.options import get_content_type_for_model
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
@@ -160,11 +161,22 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         & CreateDiscussionThread
         & UpdateDiscussionThread
     ]
+    filter_backends = (OrderingFilter,)
+    order_fields = '__all__'
+    ordering = ('-created_date',)
 
     def get_queryset(self):
         paper_id = get_paper_id_from_path(self.request)
         threads = Thread.objects.filter(paper=paper_id)
         return threads
+
+    def get_serializer_context(self):
+        ordering = self.request.query_params.get('ordering', self.ordering)
+        if isinstance(ordering, str):
+            ordering = [ordering]
+        return {
+            'ordering': ordering,
+        }
 
     @action(
         detail=True,
