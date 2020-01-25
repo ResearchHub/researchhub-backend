@@ -201,13 +201,9 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
         model = Reply
 
     def get_thread_id(self, obj):
-        current_obj = obj
-
-        while not isinstance(current_obj, Thread) and obj.parent:
-            current_obj = current_obj.parent
-
-        if isinstance(current_obj, Thread):
-            return current_obj.id
+        comment = obj.get_comment_of_reply()
+        if comment and isinstance(comment.parent, Thread):
+            return comment.parent.id
         return None
 
 class EndorsementSerializer(serializers.ModelSerializer):
