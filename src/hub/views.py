@@ -123,7 +123,7 @@ class HubViewSet(viewsets.ModelViewSet):
     )
     def latest_actions(self, request, pk=None):
         # PK == 0 indicates for now that we're on the homepage
-        if pk == 0:
+        if pk == '0':
             actions = Action.objects.all().order_by('-created_date')
         else:
             actions = Action.objects.filter(hubs=pk).order_by('-created_date')
