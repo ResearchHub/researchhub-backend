@@ -7,6 +7,7 @@ from web3 import Web3
 
 from researchhub.settings import (
     BASE_DIR,
+    CONFIG_BASE_DIR,
     WEB3_PROVIDER_URL,
     WEB3_KEYSTORE_FILE,
     WEB3_KEYSTORE_PASSWORD
@@ -16,7 +17,6 @@ from utils.aws import http_to_s3
 
 class EthereumConfig(AppConfig):
     name = 'ethereum'
-
 
 class ConfigureWeb3:
     def __init__(self):
@@ -34,7 +34,7 @@ class ConfigureWeb3:
     def get_keystore_path(self):
         local_path = os.path.join(
             BASE_DIR,
-            'config',
+            CONFIG_BASE_DIR,
             WEB3_KEYSTORE_FILE
         )
         if os.path.exists(local_path):

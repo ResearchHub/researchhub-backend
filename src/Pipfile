@@ -32,6 +32,7 @@ django-silk = "*"
 django-dbbackup = "*"
 celery = {extras = ["redis"],version = "*"}
 django-celery-beat = "*"
+ipdb = "*"
 
 [requires]
 python_version = "3.7"

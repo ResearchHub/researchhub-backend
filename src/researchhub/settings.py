@@ -31,8 +31,10 @@ DJANGO_SETTINGS_MODULE = 'researchhub.settings'
 ELASTIC_BEANSTALK = (APP_ENV in ['production', 'staging', 'development'])
 
 if CLOUD:
+    CONFIG_BASE_DIR = 'config'
     from config import db, keys, wallet
 else:
+    CONFIG_BASE_DIR = 'config_local'
     from config_local import db, keys, wallet
 
 # Quick-start development settings - unsuitable for production
