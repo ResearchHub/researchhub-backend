@@ -43,11 +43,22 @@ class Summary(models.Model):
     def __str__(self):
         return 'Summary: {}, Paper: {}'.format(self.id, self.paper.title)
 
+    @property
+    def is_first_paper_summary(self):
+        if (
+            self.approved
+            and (self.previous is None)
+            and (self.paper is not None)
+        ):
+            return len(self.paper.summaries.all()) == 1
+        else:
+            return False
+
     def approve(self, by):
         self.approved = True
         self.approved_by = by
         self.approved_date = timezone.now()
-        self.save()
+        self.save(update_fields=['approved', 'approved_by', 'approved_date'])
 
     @property
     def paper_indexing(self):

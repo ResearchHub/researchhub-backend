@@ -108,17 +108,34 @@ def is_eligible_for_vote_on_paper(user):
 
 
 @receiver(post_save, sender=Summary, dispatch_uid='create_summary')
-def distribute_for_create_summary(sender, instance, created, **kwargs):
+def distribute_for_create_summary(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
     timestamp = time()
     recipient = instance.proposed_by
+
     if created and is_eligible_for_create_summary(recipient):
-        distributor = Distributor(
-            distributions.CreateSummary,
-            recipient,
-            instance,
-            timestamp
-        )
-        distributor.distribute()
+        distribution = distributions.CreateSummary
+    elif (
+        not created
+        and check_approved_updated(update_fields)
+        and instance.is_first_paper_summary
+    ):
+        distribution = distributions.CreateFirstSummary
+    else:
+        return
+
+    distributor = Distributor(
+        distribution,
+        recipient,
+        instance,
+        timestamp
+    )
+    distributor.distribute()
 
 
 def is_eligible_for_create_summary(user):
@@ -126,6 +143,12 @@ def is_eligible_for_create_summary(user):
         (user.date_joined > seven_days_ago())
         and (user.reputation < 200)
     )
+
+
+def check_approved_updated(update_fields):
+    if update_fields is not None:
+        return 'approved' in update_fields
+    return False
 
 
 @receiver(post_save, sender=Comment, dispatch_uid='create_comment')

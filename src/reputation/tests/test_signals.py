@@ -24,7 +24,8 @@ from user.tests.helpers import (
     create_random_default_user
 )
 from utils.test_helpers import (
-    test_concurrently
+    test_concurrently,
+    get_authenticated_post_response
 )
 
 
@@ -325,6 +326,28 @@ class SignalTests(TestCase):
             self.start_rep + self.first_week_create_rep + 15
         )
 
+    def test_create_first_summary_increases_rep_by_5(self):
+        user = create_random_authenticated_user('Lavender first summary')
+        paper = create_paper(uploaded_by=user)
+        self.get_first_summary_post_response(user, paper.id)
+        earned_rep = (
+            self.first_week_create_rep  # paper
+            + self.first_week_create_rep  # summary
+            + 5  # first summary
+        )
+
+        user.refresh_from_db()
+        self.assertEqual(user.reputation, self.start_rep + earned_rep)
+
+        next_user = create_random_authenticated_user('Brown next user')
+        self.get_summary_post_response(next_user, paper.id)
+
+        next_user.refresh_from_db()
+        self.assertEqual(
+            next_user.reputation,
+            self.start_rep + self.first_week_create_rep
+        )
+
     def test_create_summary_increases_rep_below_200_by_1_in_first_week(self):
         user = create_random_default_user('Lavender')
         create_summary('', user, self.paper.id)
@@ -397,6 +420,26 @@ class SignalTests(TestCase):
 
         self.recipient.refresh_from_db()
         self.assertEqual(self.recipient.reputation, current_rep)
+
+    def get_first_summary_post_response(self, user, paper_id):
+        url = '/api/summary/first/'
+        data = {'paper': paper_id, 'summary': 'summary text'}
+        return get_authenticated_post_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+
+    def get_summary_post_response(self, user, paper_id):
+        url = '/api/summary/'
+        data = {'paper': paper_id, 'summary': 'summary text'}
+        return get_authenticated_post_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
 
 
 class SignalConcurrencyTests(TransactionTestCase):
