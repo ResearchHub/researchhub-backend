@@ -324,14 +324,19 @@ def get_discussion_flag_item_distribution(instance):
 
 def get_discussion_vote_item_distribution(instance):
     vote_type = instance.vote_type
-    item_type = type(instance.item)
+    item = instance.item
+    item_type = type(item)
 
     error = TypeError(f'Instance of type {item_type} is not supported')
 
     if vote_type == DiscussionVote.UPVOTE:
         if item_type == Comment:
+            if check_comment_created_by_comment_paper_author(item):
+                return distributions.AuthorCommentUpvoted
             return distributions.CommentUpvoted
         elif item_type == Reply:
+            if check_reply_created_by_reply_paper_author(item):
+                return distributions.AuthorReplyUpvoted
             return distributions.ReplyUpvoted
         elif item_type == Thread:
             return distributions.ThreadUpvoted
@@ -347,6 +352,14 @@ def get_discussion_vote_item_distribution(instance):
             return distributions.ThreadDownvoted
         else:
             raise error
+
+
+def check_comment_created_by_comment_paper_author(comment):
+    return comment.created_by.author_profile in comment.paper.authors.all()
+
+
+def check_reply_created_by_reply_paper_author(reply):
+    return reply.created_by.author_profile in reply.paper.authors.all()
 
 
 def get_vote_on_discussion_item_distribution(instance):
