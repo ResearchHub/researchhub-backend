@@ -47,6 +47,9 @@ CommentDownvoted = Distribution(
 CreateReply = Distribution(
     'CREATE_REPLY', 1
 )
+CreateReplyAsAuthor = Distribution(
+    'CREATE_REPLY_AS_AUTHOR', 5
+)
 VoteOnReply = Distribution(
     'VOTE_ON_REPLY', 1
 )

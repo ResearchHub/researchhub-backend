@@ -162,6 +162,8 @@ def distribute_for_create_discussion(sender, instance, created, **kwargs):
             distribution = distributions.CreateComment
         elif isinstance(instance, Reply):
             distribution = distributions.CreateReply
+            if check_author_replied_to_user_comment(instance):
+                distribution = distributions.CreateReplyAsAuthor
         elif isinstance(instance, Thread):
             distribution = distributions.CreateThread
         else:
@@ -180,6 +182,20 @@ def is_eligible_for_create_discussion(user):
         (user.date_joined > seven_days_ago())
         and (user.reputation < 200)
     )
+
+
+def check_author_replied_to_user_comment(reply):
+    if isinstance(reply.parent, Comment):
+        return (
+            check_reply_created_by_reply_paper_author(reply)
+            and check_reply_to_other_creator(reply)
+        )
+    else:
+        return False
+
+
+def check_reply_to_other_creator(reply):
+    return reply.parent.created_by is not reply.created_by
 
 
 @receiver(post_save, sender=DiscussionFlag, dispatch_uid='discussion_flag')
