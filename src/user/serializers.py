@@ -127,6 +127,8 @@ class UserActions:
         # user object, thread id, paper id, action timestamp
         for action in self.all:
             item = action.item
+            if not item:
+                continue
             if isinstance(item, Summary):
                 created_by = UserSerializer(item.proposed_by).data
             elif item:
