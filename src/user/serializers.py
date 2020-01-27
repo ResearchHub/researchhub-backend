@@ -129,7 +129,7 @@ class UserActions:
             item = action.item
             if isinstance(item, Summary):
                 created_by = UserSerializer(item.proposed_by).data
-            else:
+            else if item:
                 created_by = UserSerializer(item.created_by).data
 
             if isinstance(item, Comment):
