@@ -167,15 +167,52 @@ class SignalTests(TestCase):
         old_user.refresh_from_db()
         self.assertEqual(old_user.reputation, self.start_rep)
 
+    def test_create_reply_increases_rep_by_5_if_author(self):
+        author = create_random_default_user('Viktor')
+        paper = create_paper()
+        paper.authors.add(author.author_profile)
+
+        user = create_random_default_user('Cedric')
+        thread = create_thread(paper=paper)
+        comment = create_comment(thread=thread, created_by=user)
+        create_reply(parent=comment, created_by=author)
+
+        author.refresh_from_db()
+        self.assertEqual(
+            author.reputation,
+            self.start_rep + distributions.CreateReplyAsAuthor.amount
+        )
+
+    def test_create_reply_does_NOT_increase_author_rep_on_own_comment(self):
+        author = create_random_default_user('Maxine')
+        paper = create_paper()
+        paper.authors.add(author.author_profile)
+
+        create_comment(created_by=author)
+        create_reply(created_by=author)
+
+        earned_rep = (
+            self.first_week_create_rep  # for comment
+            + self.first_week_create_rep  # for reply
+        )
+
+        author.refresh_from_db()
+        self.assertEqual(
+            author.reputation,
+            self.start_rep + earned_rep
+        )
+
     def test_reply_upvoted_increases_rep_by_1(self):
         recipient = create_random_default_user('George')
         reply = create_reply(created_by=recipient)
         upvote_discussion(reply, self.user)
 
+        earned_rep = distributions.ReplyUpvoted.amount
+
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep + 1
+            self.start_rep + self.first_week_create_rep + earned_rep
         )
 
     def test_reply_upvoted_increases_rep_by_5_if_created_by_paper_author(self):
@@ -190,10 +227,15 @@ class SignalTests(TestCase):
 
         upvote_discussion(reply, self.user)
 
+        earned_rep = (
+            distributions.CreateReplyAsAuthor.amount
+            + distributions.AuthorReplyUpvoted.amount
+        )
+
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep + 5
+            self.start_rep + earned_rep
         )
 
     def test_reply_downvoted_decreases_rep_by_1(self):
