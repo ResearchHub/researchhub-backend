@@ -52,6 +52,7 @@ jobs:
         cp config/ci/* config
         pipenv run python manage.py migrate
         pipenv run python manage.py search_index --create
+        pipenv run python manage.py collectstatic
     - name: django tests
       working-directory: ./src
       run: pipenv run python manage.py test
