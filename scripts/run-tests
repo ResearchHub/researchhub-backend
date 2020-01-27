@@ -6,7 +6,7 @@ fail_msg="\nTests failed. Your commits may be breaking some existing functionali
 end_msg="\nFinished running tests. Found no failures."
 
 run_tests() {
-  command="python manage.py test"
+  command="python manage.py test --failfast"
   cd src && pipenv run $command
 }
 
