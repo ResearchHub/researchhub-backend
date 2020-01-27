@@ -16,6 +16,7 @@ from discussion.models import (
     Vote as DiscussionVote
 )
 from paper.models import (
+    Flag as PaperFlag,
     Paper,
     Vote as PaperVote
 )
@@ -30,6 +31,8 @@ import utils.sentry as sentry
 
 # TODO: "Suspend" user if their reputation becomes negative
 # This could mean setting `is_active` to false
+
+ELIGIBLE_PAPER_FLAG_COUNT = 3
 
 
 @receiver(post_save, sender=Paper, dispatch_uid='create_paper')
@@ -105,6 +108,38 @@ def is_eligible_for_vote_on_paper(user):
         (user.date_joined > seven_days_ago())
         and (user.reputation < 200)
     )
+
+
+@receiver(post_save, sender=PaperFlag, dispatch_uid='flag_paper')
+def distribute_for_flag_paper(
+    sender,
+    instance,
+    created,
+    **kwargs
+):
+    timestamp = time()
+    if created:
+        recipients = get_eligible_paper_flaggers(instance.paper)
+        if len(recipients) == ELIGIBLE_PAPER_FLAG_COUNT:
+            for recipient in recipients:
+                if is_eligible(recipient):
+                    distributor = Distributor(
+                        distributions.FlagPaper,
+                        recipient,
+                        instance,
+                        timestamp
+                    )
+                    distributor.distribute()
+
+
+def get_eligible_paper_flaggers(paper):
+    flaggers = []
+    flags = paper.flags.all()
+    if len(flags) == ELIGIBLE_PAPER_FLAG_COUNT:
+        flags = flags[:ELIGIBLE_PAPER_FLAG_COUNT]
+        for flag in flags:
+            flaggers.append(flag.created_by)
+    return flaggers
 
 
 @receiver(post_save, sender=Summary, dispatch_uid='create_summary')

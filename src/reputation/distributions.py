@@ -21,6 +21,9 @@ CreateAuthoredPaper = Distribution(
 VoteOnPaper = Distribution(
     'VOTE_ON_PAPER', 1
 )
+FlagPaper = Distribution(
+    'FLAG_PAPER', 1
+)
 
 CreateComment = Distribution(
     'CREATE_COMMENT', 1
