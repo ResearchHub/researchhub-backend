@@ -92,6 +92,8 @@ class SummaryViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def _create_summary(self, request):
+        # TODO: Should we fail if they don't provide the previous summary?
+        # Or just grab the last paper summary created and set it to previous?
         user = request.user
         summary = request.data.get('summary')
         paper_id = request.data.get('paper')

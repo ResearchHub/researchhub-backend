@@ -88,6 +88,9 @@ ThreadDownvoted = Distribution(
 CreateSummary = Distribution(
     'CREATE_SUMMARY', 1
 )
+CreateFirstSummary = Distribution(
+    'CREATE_FIRST_SUMMARY', 5
+)
 SummaryApproved = Distribution(
     'SUMMARY_APPROVED', 15
 )
