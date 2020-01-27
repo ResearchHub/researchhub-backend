@@ -12,7 +12,6 @@ https://docs.djangoproject.com/en/2.2/ref/settings/
 
 import os
 import requests
-import sys
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
 
@@ -405,12 +404,6 @@ AWS_DEFAULT_ACL = None
 
 
 # Search
-ELASTICSEARCH_DSL = {
-    'default': {
-        'hosts': 'http://localhost:9200',
-    },
-}
-
 ELASTICSEARCH_DSL = {
     'default': {
         'hosts': 'http://localhost:9200',
