@@ -80,7 +80,7 @@ class PaperViewsTests(TestCase):
 
     def test_search_by_url_arxiv(self):
         url = self.base_url + 'search_by_url/'
-        data = {'url': 'https://arxiv.org/abs/1407.3561v1'}
+        data = {'url': 'https://arxiv.org/abs/1407.3561v1', 'search': True}
         response = get_authenticated_post_response(self.user, url, data)
         self.assertEquals(response.status_code, 200)
         result = response.data
@@ -114,7 +114,7 @@ class PaperViewsTests(TestCase):
         self.assertEqual(
             pdf_location['url_for_landing_page'],
             'https://arxiv.org/abs/1407.3561')
-        self.assertIsInstance(result['search'], list)
+        self.assertFalse('search' in result)
 
     def test_search_by_url_publisher(self):
         url = self.base_url + 'search_by_url/'
@@ -130,7 +130,6 @@ class PaperViewsTests(TestCase):
             "Restoration of brain circulation and cellular functions hours post-mortem")  # noqa E501
         self.assertEquals(
             result['csl_item']['DOI'], "10.1038/s41586-019-1099-1")
-        self.assertIsInstance(result['search'], list)
 
     def test_search_by_url_doi(self):
         url = self.base_url + 'search_by_url/'
@@ -149,7 +148,6 @@ class PaperViewsTests(TestCase):
         self.assertEquals(
             result['pdf_location']['url_for_pdf'],
             "http://europepmc.org/articles/pmc4828725?pdf=render")
-        self.assertIsInstance(result['search'], list)
 
     def test_search_by_url_pmid(self):
         """
@@ -167,7 +165,6 @@ class PaperViewsTests(TestCase):
             result['csl_item']['title'],
             "[Major achievements in the second plan year in the Soviet Union].")  # noqa E501
         self.assertIsNone(result['pdf_location'])
-        self.assertIsInstance(result['search'], list)
 
     def test_search_by_url_unsupported_pdf(self):
         url = self.base_url + 'search_by_url/'

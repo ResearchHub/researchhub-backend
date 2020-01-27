@@ -1,5 +1,6 @@
 import datetime
 
+from elasticsearch.exceptions import ConnectionError
 from django.db.models import Count, Q, Prefetch
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
@@ -9,7 +10,6 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from requests.exceptions import (
     RequestException, MissingSchema, InvalidSchema, InvalidURL)
-
 
 from .filters import PaperFilter
 from .models import Flag, Paper, Vote
@@ -301,9 +301,15 @@ class PaperViewSet(viewsets.ModelViewSet):
             csl_item.url_is_unsupported_pdf = url_is_unsupported_pdf
             data['csl_item'] = csl_item
             data['pdf_location'] = get_pdf_location_for_csl_item(csl_item)
+        if csl_item and request.data.get('search', False):
             # search existing papers
             search = self.search_by_csl_item(csl_item)
-            search = search.execute()
+            try:
+                search = search.execute()
+            except ConnectionError:
+                return Response(
+                    "Search failed due to an elasticsearch ConnectionError.",
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             data['search'] = [hit.to_dict() for hit in search.hits]
         return Response(data, status=status.HTTP_200_OK)
 
