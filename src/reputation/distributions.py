@@ -15,6 +15,9 @@ class Distribution:
 CreatePaper = Distribution(
     'CREATE_PAPER', 1
 )
+CreateAuthoredPaper = Distribution(
+    'CREATE_AUTHORED_PAPER', 9
+)
 VoteOnPaper = Distribution(
     'VOTE_ON_PAPER', 1
 )

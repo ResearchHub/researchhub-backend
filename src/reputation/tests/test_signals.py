@@ -48,6 +48,14 @@ class SignalTests(TestCase):
         user.refresh_from_db()
         self.assertEqual(user.reputation, self.start_rep + 1)
 
+    def test_create_paper_increases_rep_by_10_if_uploaded_by_author(self):
+        user = create_random_default_user('Ronald the Author')
+        paper = create_paper(uploaded_by=user)
+        paper.authors.add(user.author_profile)
+
+        user.refresh_from_db()
+        self.assertEqual(user.reputation, self.start_rep + 10)
+
     def test_vote_on_paper_increases_rep_by_1(self):
         recipient = create_random_default_user('Luna')
         upvote_paper(self.paper, recipient)

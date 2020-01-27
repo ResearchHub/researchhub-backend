@@ -2,7 +2,7 @@ from datetime import timedelta
 from time import time
 
 from django.db import transaction
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import m2m_changed, post_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 
@@ -43,6 +43,39 @@ def distribute_for_create_paper(sender, instance, created, **kwargs):
             timestamp
         )
         distributor.distribute()
+
+
+@receiver(
+    m2m_changed,
+    sender=Paper.authors.through,
+    dispatch_uid='create_authored_paper'
+)
+def distribute_for_create_authored_paper(
+    sender,
+    instance,
+    action,
+    reverse,
+    model,
+    pk_set,
+    **kwargs
+):
+    timestamp = time()
+    if (action == "post_add") and pk_set is not None:
+        if (
+            is_eligible(instance.uploaded_by)
+            and check_uploaded_by_author(instance, pk_set)
+        ):
+            distributor = Distributor(
+                distributions.CreateAuthoredPaper,
+                instance.uploaded_by,
+                instance,
+                timestamp
+            )
+            distributor.distribute()
+
+
+def check_uploaded_by_author(paper, pk_set):
+    return paper.uploaded_by.author_profile.id in pk_set
 
 
 @receiver(post_save, sender=PaperVote, dispatch_uid='vote_on_paper')
