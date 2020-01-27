@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/2.2/ref/settings/
 
 import os
 import requests
+import sys
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
 
@@ -24,7 +25,7 @@ PRODUCTION = APP_ENV == 'production'
 STAGING = APP_ENV == 'staging'
 CI = "GITHUB_ACTIONS" in os.environ
 CLOUD = PRODUCTION or STAGING or CI
-TESTING = 'test' in APP_ENV
+TESTING = ('test' in APP_ENV) or ('test' in sys.argv)
 PYTHONPATH = '/opt/python/current/app:$PYTHONPATH'
 DJANGO_SETTINGS_MODULE = 'researchhub.settings'
 ELASTIC_BEANSTALK = (APP_ENV in ['production', 'staging', 'development'])
