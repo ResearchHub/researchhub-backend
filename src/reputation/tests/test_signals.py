@@ -15,7 +15,7 @@ from discussion.tests.helpers import (
     update_to_upvote,
     update_to_downvote
 )
-from paper.tests.helpers import create_paper, upvote_paper
+from paper.tests.helpers import create_flag, create_paper, upvote_paper
 from reputation import distributions
 from summary.tests.helpers import create_summary
 from user.models import Author
@@ -94,6 +94,32 @@ class SignalTests(TestCase):
 
         recipient.refresh_from_db()
         self.assertEqual(recipient.reputation, self.start_rep + 1)
+
+    def test_flag_paper_increases_rep_by_1_after_3_flags(self):
+        recipient_1 = create_random_default_user('Allister')
+        recipient_2 = create_random_default_user('Allister2')
+        recipient_3 = create_random_default_user('Allister3')
+        late_user = create_random_default_user('late user')
+
+        create_flag(paper=self.paper, created_by=recipient_1)
+        self.assertEqual(recipient_1.reputation, self.start_rep)
+
+        create_flag(paper=self.paper, created_by=recipient_2)
+        self.assertEqual(recipient_1.reputation, self.start_rep)
+
+        earned_rep = distributions.FlagPaper.amount
+
+        create_flag(paper=self.paper, created_by=recipient_3)
+        recipient_1.refresh_from_db()
+        recipient_2.refresh_from_db()
+        recipient_3.refresh_from_db()
+        self.assertEqual(recipient_1.reputation, self.start_rep + earned_rep)
+        self.assertEqual(recipient_2.reputation, self.start_rep + earned_rep)
+        self.assertEqual(recipient_3.reputation, self.start_rep + earned_rep)
+
+        create_flag(paper=self.paper, created_by=late_user)
+        late_user.refresh_from_db()
+        self.assertEqual(late_user.reputation, self.start_rep)
 
     def test_create_comment_increases_rep_by_1_in_first_week(self):
         user = create_random_default_user('Ludo')
