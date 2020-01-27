@@ -35,7 +35,10 @@ CommentFlagged = Distribution(
     'COMMENT_FLAGGED', -2
 )
 CommentUpvoted = Distribution(
-    'COMMENT_UPVOTED', 5
+    'COMMENT_UPVOTED', 1
+)
+AuthorCommentUpvoted = Distribution(
+    'AUTHOR_COMMENT_UPVOTED', 5
 )
 CommentDownvoted = Distribution(
     'COMMENT_DOWNVOTED', -1
@@ -54,7 +57,10 @@ ReplyFlagged = Distribution(
     'REPLY_FLAGGED', -2
 )
 ReplyUpvoted = Distribution(
-    'REPLY_UPVOTED', 5
+    'REPLY_UPVOTED', 1
+)
+AuthorReplyUpvoted = Distribution(
+    'AUTHOR_REPLY_UPVOTED', 5
 )
 ReplyDownvoted = Distribution(
     'REPLY_DOWNVOTED', -1
