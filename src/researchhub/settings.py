@@ -121,7 +121,6 @@ CORS_ORIGIN_WHITELIST = [
 ]
 
 
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -517,9 +516,11 @@ REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
 CELERY_BROKER_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
+
+
 # Async service
 
-if PRODUCTION:
+if PRODUCTION or STAGING:
     ASYNC_SERVICE_HOST = (
         'http://ec2-34-219-51-163.us-west-2.compute.amazonaws.com'
     )
