@@ -148,13 +148,3 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
         choices=PaidStatusModelMixin.PAID_STATUS_CHOICES,
         default=PaidStatusModelMixin.PENDING,
     )
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=['user', 'paid_status'],
-                condition=models.Q(paid_status=PaidStatusModelMixin.PENDING),
-                name='user_paid_status_pending'
-            )
-        ]
-        ordering = ['-created_date']
