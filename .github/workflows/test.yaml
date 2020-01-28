@@ -67,19 +67,20 @@ jobs:
     - name: deploy to staging
       if: contains(github.event.head_commit.message, '[deploy staging]')
       # pinned to specific version by hash for security (only include vetted codebases)
-      uses: einaregilsson/beanstalk-deploy@4ef7d7b80e68f85dae8dd45d2f06c7f65dc509a0
+      uses: einaregilsson/beanstalk-deploy@778ea5ec7c1fedbd233b2fcea9e7d24d647984bc
       with:
         aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         application_name: researchhub-backend
         environment_name: staging-backend
         version_label: ${{ github.sha }}
+        use_existing_version_if_available: true
         region: us-west-2
         deployment_package: src/deploy.zip
     - name: deploy worker to staging
       if: contains(github.event.head_commit.message, '[deploy staging]')
       # pinned to specific version by hash for security (only include vetted codebases)
-      uses: einaregilsson/beanstalk-deploy@4ef7d7b80e68f85dae8dd45d2f06c7f65dc509a0
+      uses: einaregilsson/beanstalk-deploy@778ea5ec7c1fedbd233b2fcea9e7d24d647984bc
       with:
         aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -90,19 +91,20 @@ jobs:
     - name: deploy to production
       if: github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy production]')
       # pinned to specific version by hash for security (only include vetted codebases)
-      uses: einaregilsson/beanstalk-deploy@4ef7d7b80e68f85dae8dd45d2f06c7f65dc509a0
+      uses: einaregilsson/beanstalk-deploy@778ea5ec7c1fedbd233b2fcea9e7d24d647984bc
       with:
         aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         application_name: researchhub-backend
         environment_name: production
         version_label: ${{ github.sha }}
+        use_existing_version_if_available: true
         region: us-west-2
         deployment_package: src/deploy.zip
     - name: deploy worker to production
       if: github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy production]')
       # pinned to specific version by hash for security (only include vetted codebases)
-      uses: einaregilsson/beanstalk-deploy@4ef7d7b80e68f85dae8dd45d2f06c7f65dc509a0
+      uses: einaregilsson/beanstalk-deploy@778ea5ec7c1fedbd233b2fcea9e7d24d647984bc
       with:
         aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
