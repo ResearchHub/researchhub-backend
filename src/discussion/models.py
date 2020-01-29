@@ -145,14 +145,21 @@ class BaseComment(models.Model):
         return None
 
     @property
+    def children(self):
+        return BaseComment.objects.none()
+
+    @property
     def score_indexing(self):
         return self.calculate_score()
 
     def calculate_score(self):
-        upvotes = self.votes.filter(vote_type=Vote.UPVOTE)
-        downvotes = self.votes.filter(vote_type=Vote.DOWNVOTE)
-        score = len(upvotes) - len(downvotes)
-        return score
+        if hasattr(self, 'score'):
+            return self.score
+        else:
+            upvotes = self.votes.filter(vote_type=Vote.UPVOTE).count()
+            downvotes = self.votes.filter(vote_type=Vote.DOWNVOTE).count()
+            score = upvotes - downvotes
+            return score
 
 
 class Thread(BaseComment):
@@ -171,6 +178,10 @@ class Thread(BaseComment):
     @property
     def parent(self):
         return self.paper
+
+    @property
+    def children(self):
+        return self.comments.all()
 
     @property
     def comment_count_indexing(self):
@@ -196,6 +207,7 @@ class Reply(BaseComment):
     )
     object_id = models.PositiveIntegerField()
     parent = GenericForeignKey('content_type', 'object_id')
+    replies = GenericRelation('Reply')
 
     @property
     def paper(self):
@@ -203,6 +215,10 @@ class Reply(BaseComment):
         thread = comment.parent
         paper = thread.parent
         return paper
+
+    @property
+    def children(self):
+        return self.replies.all()
 
     def get_comment_of_reply(self):
         obj = self
@@ -232,3 +248,7 @@ class Comment(BaseComment):
         thread = self.parent
         paper = thread.parent
         return paper
+
+    @property
+    def children(self):
+        return self.replies.all()
