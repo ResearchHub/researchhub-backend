@@ -1,4 +1,6 @@
 from django.contrib.admin.options import get_content_type_for_model
+from django.db.models import Count, Q
+
 import rest_framework.serializers as serializers
 
 from researchhub.settings import PAGINATION_PAGE_SIZE
@@ -10,23 +12,17 @@ from utils.http import get_user_from_request
 # TODO: Make is_public editable for creator as a delete mechanism
 
 class VoteMixin:
+
     def get_score(self, obj):
-        score = self.calculate_score(obj)
-        return score
+        return obj.calculate_score()
 
-    def calculate_score(self, obj):
-        try:
-            upvotes = obj.thread_upvotes
-        except AttributeError:
-            upvotes = obj.votes.filter(vote_type=Vote.UPVOTE)
-
-        try:
-            downvotes = obj.thread_upvotes
-        except AttributeError:
-            downvotes = obj.votes.filter(vote_type=Vote.DOWNVOTE)
-
-        score = len(upvotes) - len(downvotes)
-        return score
+    def get_children_annotated(self, obj):
+        if self.context.get('needs_score', False):
+            upvotes = Count('votes__vote_type', filter=Q(votes__vote_type=Vote.UPVOTE))
+            downvotes = Count('votes__vote_type', filter=Q(votes__vote_type=Vote.DOWNVOTE))
+            return obj.children.annotate(score=upvotes - downvotes)
+        else:
+            return obj.children
 
     def get_user_vote(self, obj):
         vote = None
@@ -92,10 +88,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
         model = Comment
 
     def _replies_query(self, obj):
-        return Reply.objects.filter(
-            content_type=get_content_type_for_model(obj),
-            object_id=obj.id
-        ).order_by(*self.context.get('ordering', ['-created_date']))
+        return self.get_children_annotated(obj).order_by(*self.context.get('ordering', ['-created_date']))
 
     def get_replies(self, obj):
         reply_queryset = self._replies_query(obj)[:PAGINATION_PAGE_SIZE]
@@ -103,6 +96,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
         replies = ReplySerializer(
             reply_queryset,
             many=True,
+            context=self.context,
         )
 
         return replies.data
@@ -152,7 +146,7 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
         model = Thread
 
     def get_comments(self, obj):
-        comments_queryset = obj.comments.order_by(*self.context.get('ordering', ['-created_date']))[:PAGINATION_PAGE_SIZE]
+        comments_queryset = self.get_children_annotated(obj).order_by(*self.context.get('ordering', ['-created_date']))[:PAGINATION_PAGE_SIZE]
         comment_serializer = CommentSerializer(
             comments_queryset,
             many=True,
@@ -176,6 +170,8 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
     score = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
     thread_id = serializers.SerializerMethodField()
+    reply_count = serializers.SerializerMethodField()
+    replies = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -185,6 +181,8 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
             'is_public',
             'is_removed',
             'parent',
+            'reply_count',
+            'replies',
             'score',
             'text',
             'updated_date',
@@ -196,6 +194,8 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
         read_only_fields = [
             'is_public',
             'is_removed',
+            'reply_count',
+            'replies',
             'score',
             'user_vote'
         ]
@@ -206,6 +206,24 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
         if comment and isinstance(comment.parent, Thread):
             return comment.parent.id
         return None
+
+    def _replies_query(self, obj):
+        return self.get_children_annotated(obj).order_by(*self.context.get('ordering', ['-created_date']))
+
+    def get_replies(self, obj):
+        reply_queryset = self._replies_query(obj)[:PAGINATION_PAGE_SIZE]
+
+        replies = ReplySerializer(
+            reply_queryset,
+            many=True,
+            context=self.context,
+        )
+
+        return replies.data
+
+    def get_reply_count(self, obj):
+        replies = self._replies_query(obj)
+        return replies.count()
 
 class EndorsementSerializer(serializers.ModelSerializer):
     item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)

@@ -171,11 +171,15 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         return threads
 
     def get_serializer_context(self):
+        needs_score = False
         ordering = self.request.query_params.get('ordering', self.ordering)
+        if ordering == 'score':
+            needs_score = True
         if isinstance(ordering, str):
-            ordering = [ordering]
+            ordering = [ordering, '-created_date']
         return {
             'ordering': ordering,
+            'needs_score': needs_score,
         }
 
     @action(
