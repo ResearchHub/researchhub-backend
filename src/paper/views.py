@@ -86,26 +86,6 @@ class PaperViewSet(viewsets.ModelViewSet):
                 ),
                 to_attr="vote_created_by",
             ),
-            Prefetch(
-                "threads",
-                queryset=Thread.objects.prefetch_related(
-                    Prefetch(
-                        'votes',
-                        queryset=DiscussionVote.objects.filter(
-                            vote_type=DiscussionVote.DOWNVOTE
-                        ),
-                        to_attr="thread_downvotes"
-                    ),
-                    Prefetch(
-                        'votes',
-                        queryset=DiscussionVote.objects.filter(
-                            vote_type=DiscussionVote.UPVOTE
-                        ),
-                        to_attr="thread_upvotes"
-                    )
-                ),
-                to_attr="thread_obj"
-            ),
         )
 
     @action(
