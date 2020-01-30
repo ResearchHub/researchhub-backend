@@ -469,24 +469,19 @@ def pay_withdrawal(sender, instance, created, **kwargs):
         return
 
     withdrawal_instance = instance
-    withdrawal_for_update = Withdrawal.objects.filter(
-        pk=instance.id
-    ).select_for_update(of=('self',))
     try:
-        with transaction.atomic():
-            withdrawal = withdrawal_for_update.get()
-            # only getting distributions with paid status None
-            # TODO: None or failed?
-            unpaid_distributions = get_unpaid_distributions(
-                withdrawal.user
-            ).select_for_update(of=('self',))
-            raise ReputationSignalError(None, unpaid_distributions)
+        withdrawal = withdrawal_instance
+        # only getting distributions with paid status None
+        # TODO: None or failed?
+        unpaid_distributions = get_unpaid_distributions(
+            withdrawal.user
+        )
 
-            pending_withdrawal = PendingWithdrawal(
-                withdrawal,
-                unpaid_distributions
-            )
-            pending_withdrawal.complete_token_transfer()
+        pending_withdrawal = PendingWithdrawal(
+            withdrawal,
+            unpaid_distributions
+        )
+        pending_withdrawal.complete_token_transfer()
     except Exception as e:
         withdrawal_instance.set_paid_failed()
         sentry.log_error(e)
