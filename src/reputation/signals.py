@@ -1,5 +1,6 @@
 from datetime import timedelta
 import json
+import logging
 from time import time
 
 from django.db import transaction
@@ -30,7 +31,7 @@ from reputation.models import Distribution, Withdrawal
 from reputation.utils import get_total_reputation_from_distributions
 from summary.models import Summary
 from utils.http import http_request, RequestMethods
-import utils.sentry as sentry
+from utils import sentry
 
 # TODO: "Suspend" user if their reputation becomes negative
 # This could mean setting `is_active` to false
@@ -471,26 +472,25 @@ def pay_withdrawal(sender, instance, created, **kwargs):
     withdrawal_instance = instance
     try:
         withdrawal = withdrawal_instance
-        # only getting distributions with paid status None
-        # TODO: None or failed?
         unpaid_distributions = get_unpaid_distributions(
             withdrawal.user
         )
-
         pending_withdrawal = PendingWithdrawal(
             withdrawal,
             unpaid_distributions
         )
         pending_withdrawal.complete_token_transfer()
     except Exception as e:
+        logging.error(e)
+
         withdrawal_instance.set_paid_failed()
-        sentry.log_error(e)
+
         error = ReputationSignalError(
             e,
             f'Failed to pay withdrawal {withdrawal.id}'
         )
+        logging.error(error)
         sentry.log_error(error, error.message)
-        print('here is the error', error)
         return
 
 
@@ -512,7 +512,7 @@ class PendingWithdrawal:
                     distribution.set_withdrawal(self.withdrawal)
                     pending_distributions.append(distribution)
             except Exception as e:
-                sentry.log_error(e)
+                logging.error(e)
         return pending_distributions
 
     def calculate_reputation_payout(self):
@@ -538,20 +538,19 @@ class PendingWithdrawal:
     def complete_token_transfer(self):
         try:
             self.withdrawal.set_paid_pending()
-
             token_contract = ethereum.contracts.research_coin_contract
             transaction_hash = ethereum.utils.execute_erc20_transfer(
                 token_contract,
                 self.withdrawal.to_address,
                 self.token_payout
             )
-
-            self.withdrawal.transaction_hash = transaction_hash
-            self.withdrawal.save()
-            self.track_withdrawal_paid_status()
         except Exception as e:
             self.fail_distributions()
             raise e
+        else:
+            self.withdrawal.transaction_hash = transaction_hash
+            self.withdrawal.save()
+            self.track_withdrawal_paid_status()
 
     def track_withdrawal_paid_status(self):
         url = ASYNC_SERVICE_HOST + f'/ethereum/track_withdrawal'
@@ -565,7 +564,8 @@ class PendingWithdrawal:
             data=json.dumps(data),
             timeout=3
         )
-        response.raise_for_status()
+        logging.error(response.content)
+        return response
 
     def fail_distributions(self):
         for distribution in self.distributions:
