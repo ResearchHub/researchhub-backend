@@ -1,7 +1,10 @@
+import json
+
 from allauth.socialaccount.helpers import render_authentication_error
 from allauth.socialaccount.models import SocialLogin, SocialAccount
 from allauth.socialaccount.providers.base import ProviderException
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.providers.orcid.views import OrcidOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import (
     OAuth2Error,
     OAuth2Client
@@ -9,7 +12,6 @@ from allauth.socialaccount.providers.oauth2.client import (
 from allauth.socialaccount.providers.oauth2.views import (
     AuthError,
     OAuth2CallbackView,
-    OAuth2LoginView,
     PermissionDenied,
     RequestException
 )
@@ -20,15 +22,23 @@ from allauth.account import app_settings
 from rest_auth.registration.views import SocialLoginView
 from rest_framework import serializers
 from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from django.dispatch import receiver
 from django.http import HttpRequest
+from django.utils.datastructures import MultiValueDictKeyError
 from django.utils.translation import ugettext_lazy as _
 
 from .helpers import complete_social_login
 from .exceptions import LoginError
-from researchhub.settings import GOOGLE_REDIRECT_URL
+from researchhub.settings import (
+    GOOGLE_REDIRECT_URL,
+    ORCID_REDIRECT_URL,
+    SOCIALACCOUNT_PROVIDERS
+)
 from utils import sentry
+from utils.http import http_request, POST
 
 
 class SocialLoginSerializer(serializers.Serializer):
@@ -171,6 +181,52 @@ class GoogleLogin(SocialLoginView):
     serializer_class = SocialLoginSerializer
 
 
+# class OrcidLogin(SocialLoginView):
+#     adapter_class = OrcidOAuth2Adapter
+#     callback_url = ORCID_REDIRECT_URL
+#     client_class = OAuth2Client
+#     serializer_class = SocialLoginSerializer
+
+class OrcidLogin(APIView):
+    permission_classes = (AllowAny,)
+
+    def get(self, request, format='json'):
+        self.auth_code = self._parse_code(request.query_params)
+        if not self.auth_code:
+            return Response('Did not find code', status=400)
+        else:
+            response = self._request_access_token()
+
+        return Response(f'response: {response}')
+
+    def _parse_code(self, query_params):
+        try:
+            return query_params['code']
+        except MultiValueDictKeyError as e:
+            error = LoginError(e, 'Did not find code in query params')
+            sentry.log_error(error)
+            return None
+
+    def _request_access_token(self):
+        url = self._get_access_token_url()
+        data = self._build_access_token_request_data()
+        headers = {'accept': 'application/json'}
+        return http_request(POST, url, data=data, headers=headers)
+
+    def _get_access_token_url(self):
+        return f'https://orcid.org/oauth/token'
+
+    def _build_access_token_request_data(self):
+        data = {
+            'client_id': SOCIALACCOUNT_PROVIDERS['orcid']['APP']['client_id'],
+            'client_secret': SOCIALACCOUNT_PROVIDERS['orcid']['APP']['secret'],
+            'grant_type': 'authorization_code',
+            'code': self.auth_code,
+            'redirect_uri': ORCID_REDIRECT_URL,
+        }
+        return json.dumps(data)
+
+
 class CallbackView(OAuth2CallbackView):
     """
     This class is copied from allauth/socialaccount/providers/oauth2/views.py
@@ -219,8 +275,8 @@ class CallbackView(OAuth2CallbackView):
                 exception=e)
 
 
-google_login = OAuth2LoginView.adapter_view(GoogleOAuth2Adapter)
 google_callback = CallbackView.adapter_view(GoogleOAuth2Adapter)
+orcid_callback = CallbackView.adapter_view(OrcidOAuth2Adapter)
 
 
 @receiver(user_signed_up)
