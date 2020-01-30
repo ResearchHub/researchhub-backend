@@ -40,25 +40,23 @@ def actions_notifications(action_ids, notif_interval=NotificationFrequencies.IMM
     user_to_action = {}
     for action in actions:
         for user in set(action.item.users_to_notify):
-            if user_to_action.get(user):
-                user_to_action[user].append(action)
-            else:
-                user_to_action[user] = [action]
+            r = user.emailrecipient
+            if r.receives_notifications and notif_interval == r.notification_frequency:
+                if user_to_action.get(r):
+                    user_to_action[r].append(action)
+                else:
+                    user_to_action[r] = [action]
 
-    for user in user_to_action:
-        r = user.emailrecipient
-
-        if r.receives_notifications and notif_interval == r.notification_frequency:
-            subject = build_subject(r.notification_frequency)
-            context = build_notification_context(user_to_action[user])
-
-            send_email_message(
-                r.email,
-                'notification_email.txt',
-                subject,
-                context,
-                html_template='notification_email.html'
-            )
+    for r in user_to_action:
+        subject = build_subject(r.notification_frequency)
+        context = build_notification_context(user_to_action[r])
+        send_email_message(
+            r.email,
+            'notification_email.txt',
+            subject,
+            context,
+            html_template='notification_email.html'
+        )
 
 def build_subject(notification_frequency):
     # TODO: Change subject based on frequency and include action info

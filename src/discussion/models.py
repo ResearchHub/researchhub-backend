@@ -135,17 +135,16 @@ class BaseComment(models.Model):
     # TODO make this a mixin Actionable or Notifiable
     @property
     def owners(self):
-        if hasattr(self, parent) and self.parent.created_by:
-            return [self.parent.created_by]
+        if self.created_by:
+            return [self.created_by]
         else:
             return []
 
     # TODO make this a mixin Actionable or Notifiable
     @property
     def users_to_notify(self):
-        sibling_comment_users = [c.created_by for c in self.parent.children.prefetch_related('created_by')]
         parent_owners = self.parent.owners
-        return parent_owners + sibling_comment_users
+        return parent_owners
 
     @property
     def created_by_author_profile_indexing(self):
@@ -208,6 +207,17 @@ class Thread(BaseComment):
         if self.paper is not None:
             return self.paper.title
 
+    @property
+    def owners(self):
+        if self.created_by and self.created_by.emailrecipient.thread_subscription and not self.created_by.emailrecipient.thread_subscription.none:
+            return [self.created_by]
+        else:
+            return []
+
+    @property
+    def users_to_notify(self):
+        parent_owners = self.parent.owners
+        return parent_owners
 
 class Reply(BaseComment):
     content_type = models.ForeignKey(
@@ -240,6 +250,21 @@ class Reply(BaseComment):
             return obj
         return None
 
+    @property
+    def owners(self):
+        if self.created_by and self.created_by.emailrecipient.comment_subscription and not self.created_by.emailrecipient.comment_subscription.none:
+            return [self.created_by]
+        else:
+            return []
+
+    @property
+    def users_to_notify(self):
+        sibling_comment_users = []
+        for c in self.parent.children.prefetch_related('created_by', 'created_by__emailrecipient', 'created_by__emailrecipient__thread_subscription', 'created_by__emailrecipient__comment_subscription'):
+            if c != self and c.created_by not in sibling_comment_users and c.created_by.emailrecipient.thread_subscription and c.created_by.emailrecipient.thread_subscription.replies and c.created_by.emailrecipient.comment_subscription and c.created_by.emailrecipient.comment_subscription.replies:
+                sibling_comment_users.append(c.created_by)
+        parent_owners = self.parent.owners
+        return parent_owners + sibling_comment_users
 
 class Comment(BaseComment):
     parent = models.ForeignKey(
@@ -263,3 +288,20 @@ class Comment(BaseComment):
     @property
     def children(self):
         return self.replies.all()
+
+    @property
+    def owners(self):
+        if self.created_by and self.created_by.emailrecipient.comment_subscription and not self.created_by.emailrecipient.comment_subscription.none:
+            return [self.created_by]
+        else:
+            return []
+
+    @property
+    def users_to_notify(self):
+        sibling_comment_users = []
+        for c in self.parent.children.prefetch_related('created_by', 'created_by__emailrecipient', 'created_by__emailrecipient__thread_subscription'):
+            if c != self and c.created_by not in sibling_comment_users and c.created_by.emailrecipient.thread_subscription and c.created_by.emailrecipient.thread_subscription.comments:
+                sibling_comment_users.append(c.created_by)
+        parent_owners = self.parent.owners
+        return parent_owners + sibling_comment_users
+

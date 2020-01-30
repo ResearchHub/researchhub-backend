@@ -44,3 +44,4 @@ def send_immediate_action_notification(sender, instance, created, **kwargs):
     if created:
         if instance:
             notify_immediate.apply_async((instance.id,), priority=5)
+            #notify_immediate(instance.id)

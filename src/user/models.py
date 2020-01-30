@@ -47,15 +47,15 @@ class User(AbstractUser):
         self.username = self.email
 
         # Keep Email Recipient up to date with email
-        if hasattr(self, 'emailrecipient'):
+        if self.emailrecipient is not None:
             if self.emailrecipient.email != self.email:
                 er = self.emailrecipient
                 er.email = self.email
                 er.save()
         else:
-            EmailRecipient.objects.create(user=self)
+            EmailRecipient.objects.create(user=self, email=self.email)
 
-        super().save(*args, **kwargs)
+        return super().save(*args, **kwargs)
 
     def set_has_seen_first_coin_modal(self, has_seen):
         self.has_seen_first_coin_modal = has_seen
@@ -212,7 +212,7 @@ class Action(DefaultModel):
     def frontend_view_link(self):
         link = BASE_FRONTEND_URL
         if isinstance(self.item, Summary):
-            pass
+            link += '/paper/{}/'.format(self.item.paper.id)
         elif isinstance(self.item, Paper):
             link += '/paper/{}/'.format(self.item.id)
         elif isinstance(self.item, Thread):
@@ -220,9 +220,7 @@ class Action(DefaultModel):
         elif isinstance(self.item, Comment):
             link += '/paper/{}/discussion/{}'.format(self.item.paper.id, self.item.parent.id)
         elif isinstance(self.item, Reply):
-            pass
-        elif isinstance(self.item, PaperVote) or isinstance(self.item, PaperVote):
-            pass
+            link += '/paper/{}/discussion/{}'.format(self.item.paper.id, self.item.get_comment_of_reply().id)
         else:
             raise Exception('frontend_view_link not implemented')
         return link

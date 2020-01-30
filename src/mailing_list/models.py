@@ -47,6 +47,15 @@ class EmailRecipient(models.Model):
     def __str__(self):
         return f'{self.email}'
 
+    def save(self, *args, **kwargs):
+        if self.comment_subscription is None:
+            self.comment_subscription = CommentSubscription.objects.create()
+
+        if self.thread_subscription is None:
+            self.thread_subscription = ThreadSubscription.objects.create()
+
+        return super().save(*args, **kwargs)
+
     def bounced(self):
         self.bounced_date = timezone.now()
         self.do_not_email = True
@@ -78,7 +87,6 @@ class ThreadSubscription(BaseSubscription):
     none = models.BooleanField(default=False)
     comments = models.BooleanField(default=True)
     replies = models.BooleanField(default=True)
-
 
 class CommentSubscription(BaseSubscription):
     none = models.BooleanField(default=False)
