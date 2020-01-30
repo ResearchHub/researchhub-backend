@@ -480,12 +480,13 @@ def pay_withdrawal(sender, instance, created, **kwargs):
             unpaid_distributions = get_unpaid_distributions(
                 withdrawal.user
             ).select_for_update(of=('self',))
+            sentry.log_error(TypeError, message=unpaid_distributions)
 
-            PendingWithdrawal(
+            pending_withdrawal = PendingWithdrawal(
                 withdrawal,
                 unpaid_distributions
             )
-            # pending_withdrawal.complete_token_transfer()
+            pending_withdrawal.complete_token_transfer()
     except Exception as e:
         withdrawal_instance.set_paid_failed()
         sentry.log_error(e)
@@ -515,8 +516,8 @@ class PendingWithdrawal:
                     distribution.set_paid_pending()
                     distribution.set_withdrawal(self.withdrawal)
                     pending_distributions.append(distribution)
-            except Exception:
-                pass
+            except Exception as e:
+                sentry.log_error(e)
         return pending_distributions
 
     def calculate_reputation_payout(self):
@@ -540,25 +541,22 @@ class PendingWithdrawal:
         return token_payout
 
     def complete_token_transfer(self):
-        self.withdrawal.set_paid_pending()
+        try:
+            self.withdrawal.set_paid_pending()
 
-        sentry.log_error(
-            f'Latest withdrawal: {self.withdrawal}'
-            f'{self.withdrawal.paid_status}'
-        )
+            token_contract = ethereum.contracts.research_coin_contract
+            transaction_hash = ethereum.utils.execute_erc20_transfer(
+                token_contract,
+                self.withdrawal.to_address,
+                self.token_payout
+            )
 
-        token_contract = ethereum.contracts.research_coin_contract
-        transaction_hash = ethereum.utils.execute_erc20_transfer(
-            token_contract,
-            self.withdrawal.to_address,
-            self.token_payout
-        )
-
-        sentry.log_error(f'Latest tx hash {transaction_hash}')
-
-        self.withdrawal.transaction_hash = transaction_hash
-        self.withdrawal.save()
-        self.track_withdrawal_paid_status()
+            self.withdrawal.transaction_hash = transaction_hash
+            self.withdrawal.save()
+            self.track_withdrawal_paid_status()
+        except Exception as e:
+            self.fail_distributions()
+            raise e
 
     def track_withdrawal_paid_status(self):
         url = ASYNC_SERVICE_HOST + f'/ethereum/track_withdrawal'
@@ -573,3 +571,10 @@ class PendingWithdrawal:
             timeout=3
         )
         response.raise_for_status()
+
+    def fail_distributions(self):
+        for distribution in self.distributions:
+            try:
+                distribution.set_paid_failed()
+            except Exception:
+                pass
