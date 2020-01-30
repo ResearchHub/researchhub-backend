@@ -289,19 +289,13 @@ SOCIALACCOUNT_QUERY_EMAIL = True
 
 SOCIALACCOUNT_PROVIDERS = {
     'orcid': {
-        'APP': {
-            'name': 'Orcid',
-            'client_id': keys.ORCID_CLIENT_ID,
-            'secret': keys.ORCID_CLIENT_SECRET,
-            'sites': 1,
-        },
         # Defaults to 'orcid.org' for the production API
         'BASE_DOMAIN': 'orcid.org',  # for the sandbox API
         'MEMBER_API': False,  # Defaults to False for the Public API
     }
 }
 
-ORCID_REDIRECT_URL = 'http://localhost:8000/auth/orcid/login/callback/'
+ORCID_REDIRECT_URL = 'http://localhost:8000/api/auth/orcid/login/'
 if PRODUCTION:
     ORCID_REDIRECT_URL = (
         'https://backend.researchhub.com/auth/orcid/login/callback/'

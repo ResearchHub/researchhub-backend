@@ -180,12 +180,13 @@ class GoogleLogin(SocialLoginView):
     client_class = OAuth2Client
     serializer_class = SocialLoginSerializer
 
-
+# TODO: Use this one instead?
 # class OrcidLogin(SocialLoginView):
 #     adapter_class = OrcidOAuth2Adapter
 #     callback_url = ORCID_REDIRECT_URL
 #     client_class = OAuth2Client
 #     serializer_class = SocialLoginSerializer
+
 
 class OrcidLogin(APIView):
     permission_classes = (AllowAny,)
