@@ -488,12 +488,13 @@ def pay_withdrawal(sender, instance, created, **kwargs):
             pending_withdrawal.complete_token_transfer()
     except Exception as e:
         withdrawal_instance.set_paid_failed()
+        sentry.log_error(e)
         error = ReputationSignalError(
             e,
             f'Failed to pay withdrawal {withdrawal.id}'
         )
         sentry.log_error(error, error.message)
-        print(error)
+        print('here is the error', error)
         return
 
 
@@ -541,12 +542,18 @@ class PendingWithdrawal:
     def complete_token_transfer(self):
         self.withdrawal.set_paid_pending()
 
+        sentry.log_info(
+            f'Latest withdrawal: {self.withdrawal} {self.withdrawal.status}'
+        )
+
         token_contract = ethereum.contracts.research_coin_contract
         transaction_hash = ethereum.utils.execute_erc20_transfer(
             token_contract,
             self.withdrawal.to_address,
             self.token_payout
         )
+
+        sentry.log_info(f'Latest tx hash {transaction_hash}')
 
         self.withdrawal.transaction_hash = transaction_hash
         self.withdrawal.save()

@@ -12,11 +12,12 @@ from researchhub.settings import (
     WEB3_KEYSTORE_FILE,
     WEB3_KEYSTORE_PASSWORD
 )
-from utils.aws import http_to_s3
+from utils.aws import get_s3_url
 
 
 class EthereumConfig(AppConfig):
     name = 'ethereum'
+
 
 class ConfigureWeb3:
     def __init__(self):
@@ -41,8 +42,7 @@ class ConfigureWeb3:
             return local_path
         # assume keystore is hosted on AWS
         bucket = 'keystore-researchcoin'
-        url = f"https://{bucket}.s3-us-west-2.amazonaws.com/{WEB3_KEYSTORE_FILE}"  # noqa E501
-        return http_to_s3(url, with_credentials=True)
+        return get_s3_url(bucket, WEB3_KEYSTORE_FILE, with_credentials=True)
 
     def get_default_private_key(self):
         path = self.get_keystore_path()
