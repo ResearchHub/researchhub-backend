@@ -147,6 +147,7 @@ INSTALLED_APPS = [
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
+    'allauth.socialaccount.providers.orcid',
     'rest_framework.authtoken',
     'rest_auth',
     'rest_auth.registration',
@@ -245,6 +246,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'researchhub.wsgi.application'
 
+
 # Authentication
 
 AUTH_USER_MODEL = 'user.User'
@@ -285,6 +287,29 @@ SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
 
+SOCIALACCOUNT_PROVIDERS = {
+    'orcid': {
+        'APP': {
+            'name': 'Orcid',
+            'client_id': keys.ORCID_CLIENT_ID,
+            'secret': keys.ORCID_CLIENT_SECRET,
+            'sites': 1,
+        },
+        # Defaults to 'orcid.org' for the production API
+        'BASE_DOMAIN': 'orcid.org',  # for the sandbox API
+        'MEMBER_API': False,  # Defaults to False for the Public API
+    }
+}
+
+ORCID_REDIRECT_URL = 'http://localhost:8000/auth/orcid/login/callback/'
+if PRODUCTION:
+    ORCID_REDIRECT_URL = (
+        'https://backend.researchhub.com/auth/orcid/login/callback/'
+    )
+if STAGING:
+    ORCID_REDIRECT_URL = (
+        'https://staging-backend.researchhub.com/auth/orcid/login/callback/'
+    )
 
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases

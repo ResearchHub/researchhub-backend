@@ -96,14 +96,25 @@ urlpatterns = [
     ),
     path('api/search/', include(search.urls)),
     path(
+        'api/auth/google/login/',
+        oauth.views.GoogleLogin.as_view(),
+        name='google_login'
+    ),
+    path(
+        'api/auth/orcid/login/',
+        oauth.views.OrcidLogin.as_view(),
+        name='orcid_login'
+    ),
+    path(r'api/auth/', include('rest_auth.urls')),
+    path(
         'auth/google/login/callback/',
         oauth.views.google_callback,
         name='google_callback'
     ),
     path(
-        'api/auth/google/login/',
-        oauth.views.GoogleLogin.as_view(),
-        name='google_login'
+        'auth/orcid/login/callback/',
+        oauth.views.orcid_callback,
+        name='orcid_callback'
     ),
     re_path(r'^auth/signup/', include(oauth.urls.registration_urls)),
     re_path(r'^auth/', include(oauth.urls.default_urls)),
