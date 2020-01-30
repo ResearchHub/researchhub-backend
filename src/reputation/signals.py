@@ -542,8 +542,9 @@ class PendingWithdrawal:
     def complete_token_transfer(self):
         self.withdrawal.set_paid_pending()
 
-        sentry.log_info(
-            f'Latest withdrawal: {self.withdrawal} {self.withdrawal.status}'
+        sentry.log_error(
+            f'Latest withdrawal: {self.withdrawal}'
+            f'{self.withdrawal.paid_status}'
         )
 
         token_contract = ethereum.contracts.research_coin_contract
@@ -553,7 +554,7 @@ class PendingWithdrawal:
             self.token_payout
         )
 
-        sentry.log_info(f'Latest tx hash {transaction_hash}')
+        sentry.log_error(f'Latest tx hash {transaction_hash}')
 
         self.withdrawal.transaction_hash = transaction_hash
         self.withdrawal.save()
