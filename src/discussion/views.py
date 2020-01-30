@@ -151,6 +151,21 @@ class ActionMixin:
         except Exception as e:
             return Response(f'Failed to delete vote: {e}', status=400)
 
+    def get_serializer_context(self):
+        default_ordering = ('-created_date',)
+        if self.ordering:
+            default_ordering = self.ordering
+        needs_score = False
+        ordering = self.request.query_params.get('ordering', default_ordering)
+        if ordering == 'score':
+            needs_score = True
+        if isinstance(ordering, str):
+            ordering = [ordering, '-created_date']
+        return {
+            'ordering': ordering,
+            'needs_score': needs_score,
+        }
+
 
 class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     serializer_class = ThreadSerializer
@@ -169,18 +184,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         paper_id = get_paper_id_from_path(self.request)
         threads = Thread.objects.filter(paper=paper_id)
         return threads
-
-    def get_serializer_context(self):
-        needs_score = False
-        ordering = self.request.query_params.get('ordering', self.ordering)
-        if ordering == 'score':
-            needs_score = True
-        if isinstance(ordering, str):
-            ordering = [ordering, '-created_date']
-        return {
-            'ordering': ordering,
-            'needs_score': needs_score,
-        }
 
     @action(
         detail=True,
@@ -219,6 +222,10 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
         & CreateDiscussionComment
         & UpdateDiscussionComment
     ]
+
+    filter_backends = (OrderingFilter,)
+    order_fields = '__all__'
+    ordering = ('-created_date',)
 
     def get_queryset(self):
         thread_id = get_thread_id_from_path(self.request)
@@ -264,6 +271,10 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
         & CreateDiscussionReply
         & UpdateDiscussionReply
     ]
+
+    filter_backends = (OrderingFilter,)
+    order_fields = '__all__'
+    ordering = ('-created_date',)
 
     def get_queryset(self):
         comment_id = get_comment_id_from_path(self.request)
