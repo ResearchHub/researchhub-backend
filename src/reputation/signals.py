@@ -480,7 +480,7 @@ def pay_withdrawal(sender, instance, created, **kwargs):
             unpaid_distributions = get_unpaid_distributions(
                 withdrawal.user
             ).select_for_update(of=('self',))
-            sentry.log_error(TypeError, message=unpaid_distributions)
+            raise ReputationSignalError(None, unpaid_distributions)
 
             pending_withdrawal = PendingWithdrawal(
                 withdrawal,
