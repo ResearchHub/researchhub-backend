@@ -68,12 +68,9 @@ class Paper(models.Model):
 
     @property
     def owners(self):
-        uploader = []
         mods = list(self.moderators.all())
         authors = list(self.authors.all())
-        if self.uploaded_by:
-            uploader = [self.uploaded_by]
-        return uploader + mods + authors
+        return mods + authors
 
     @property
     def children(self):
