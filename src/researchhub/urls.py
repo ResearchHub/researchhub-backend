@@ -86,7 +86,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('email_notifications/', mailing_list.views.email_notifications),
     path('health/', researchhub.views.healthcheck),
-    path('celery_test/', researchhub.views.celery_test),
 
     re_path(r'^api/', include(router.urls)),
     path('api/ethereum/', include(ethereum.urls)),

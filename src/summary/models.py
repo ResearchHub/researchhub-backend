@@ -2,14 +2,12 @@ from django.db import models
 from django.contrib.postgres.fields import JSONField
 from django.utils import timezone
 
-from user.models import User
-
 
 class Summary(models.Model):
     summary = JSONField(default=None, null=True)
     summary_plain_text = models.TextField()
     proposed_by = models.ForeignKey(
-        User,
+        'user.User',
         related_name='edits',
         on_delete='SET NULL'
     )
@@ -28,7 +26,7 @@ class Summary(models.Model):
     )
     approved = models.BooleanField(default=False)
     approved_by = models.ForeignKey(
-        User,
+        'user.User',
         default=None,
         null=True,
         blank=True,

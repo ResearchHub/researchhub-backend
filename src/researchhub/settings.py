@@ -37,6 +37,13 @@ else:
     CONFIG_BASE_DIR = 'config_local'
     from config_local import db, keys, wallet
 
+if DEVELOPMENT:
+    BASE_FRONTEND_URL = 'http://localhost:3000'
+elif PRODUCTION:
+    BASE_FRONTEND_URL = 'https://researchhub.com'
+elif CLOUD:
+    BASE_FRONTEND_URL = 'https://staging-web.researchhub.com'
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
 

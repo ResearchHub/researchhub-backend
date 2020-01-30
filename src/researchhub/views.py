@@ -8,7 +8,6 @@ from rest_framework.decorators import (
 from rest_framework.response import Response
 
 from researchhub.settings import BASE_DIR
-from researchhub.tasks import test_task
 from utils.http import RequestMethods
 
 
@@ -39,10 +38,3 @@ def healthcheck(request):
 
     return Response({'PONG'})
 
-
-@api_view([RequestMethods.GET])
-@permission_classes(())
-@csrf_exempt
-def celery_test(request):
-    total = test_task.delay(1, 2)
-    return Response(f'Celery test success: {total}')
