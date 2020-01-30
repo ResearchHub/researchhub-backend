@@ -60,6 +60,10 @@ class EmailRecipient(models.Model):
         self.is_subscribed = subscribed
         self.save()
 
+    # TODO check this logic
+    @property
+    def receives_notifications(self):
+        return not self.do_not_email and not self.is_opted_out and self.is_subscribed
 
 class BaseSubscription(models.Model):
     class Meta:

@@ -5,7 +5,6 @@ from django.contrib.postgres.fields import JSONField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
 from hub.models import Hub
-from user.models import Author, User
 from summary.models import Summary
 from utils.voting import calculate_score
 
@@ -13,7 +12,7 @@ from utils.voting import calculate_score
 class Paper(models.Model):
     title = models.CharField(max_length=1024)
     uploaded_by = models.ForeignKey(
-        User,
+        'user.User',
         on_delete=models.SET_NULL,
         blank=True,
         null=True
@@ -22,12 +21,12 @@ class Paper(models.Model):
     updated_date = models.DateTimeField(auto_now=True)
     paper_publish_date = models.DateField(null=True)
     authors = models.ManyToManyField(
-        Author,
+        'user.Author',
         related_name='authored_papers',
         blank=True
     )
     moderators = models.ManyToManyField(
-        User,
+        'user.User',
         related_name='moderated_papers',
         blank=True
     )
@@ -66,6 +65,19 @@ class Paper(models.Model):
         help_text='information on PDF availability '
                   'in the Unpaywall OA Location data format.'
     )
+
+    @property
+    def owners(self):
+        uploader = []
+        mods = list(self.moderators.all())
+        authors = list(self.authors.all())
+        if self.uploaded_by:
+            uploader = [self.uploaded_by]
+        return uploader + mods + authors
+
+    @property
+    def children(self):
+        return self.threads.all()
 
     @classmethod
     def create_from_csl_item(cls, csl_item):
@@ -160,7 +172,7 @@ class Vote(models.Model):
         related_query_name='vote'
     )
     created_by = models.ForeignKey(
-        User,
+        'user.User',
         on_delete=models.CASCADE,
         related_name='paper_votes',
         related_query_name='paper_vote'
@@ -189,7 +201,7 @@ class Flag(models.Model):
         related_query_name='flag'
     )
     created_by = models.ForeignKey(
-        User,
+        'user.User',
         on_delete=models.CASCADE,
         related_name='paper_flags',
         related_query_name='paper_flag'
