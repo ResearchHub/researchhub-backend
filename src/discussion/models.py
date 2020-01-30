@@ -6,10 +6,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.db import models
 
-from paper.models import Paper
-from reputation.models import Distribution
-from user.models import User
-
 HELP_TEXT_WAS_EDITED = (
     'True if the comment text was edited after first being created.'
 )
@@ -35,11 +31,11 @@ class Vote(models.Model):
     object_id = models.PositiveIntegerField()
     item = GenericForeignKey('content_type', 'object_id')
     distributions = GenericRelation(
-        Distribution,
+        'reputation.Distribution',
         object_id_field='proof_item_object_id',
         content_type_field='proof_item_content_type'
     )
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_by = models.ForeignKey('user.User', on_delete=models.CASCADE)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     vote_type = models.IntegerField(choices=VOTE_TYPE_CHOICES)
@@ -67,7 +63,7 @@ class Flag(models.Model):
     )
     object_id = models.PositiveIntegerField()
     item = GenericForeignKey('content_type', 'object_id')
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_by = models.ForeignKey('user.User', on_delete=models.CASCADE)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     reason = models.CharField(max_length=255, blank=True)
@@ -88,7 +84,7 @@ class Endorsement(models.Model):
     )
     object_id = models.PositiveIntegerField()
     item = GenericForeignKey('content_type', 'object_id')
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_by = models.ForeignKey('user.User', on_delete=models.CASCADE)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
@@ -103,7 +99,7 @@ class Endorsement(models.Model):
 
 class BaseComment(models.Model):
     created_by = models.ForeignKey(
-        User,
+        'user.User',
         on_delete=models.SET_NULL,
         blank=True,
         null=True
@@ -136,6 +132,21 @@ class BaseComment(models.Model):
     class Meta:
         abstract = True
 
+    # TODO make this a mixin Actionable or Notifiable
+    @property
+    def owners(self):
+        if hasattr(self, parent) and self.parent.created_by:
+            return [self.parent.created_by]
+        else:
+            return []
+
+    # TODO make this a mixin Actionable or Notifiable
+    @property
+    def users_to_notify(self):
+        sibling_comment_users = [c.created_by for c in self.parent.children.prefetch_related('created_by')]
+        parent_owners = self.parent.owners
+        return parent_owners + sibling_comment_users
+
     @property
     def created_by_author_profile_indexing(self):
         if self.created_by:
@@ -165,7 +176,7 @@ class BaseComment(models.Model):
 class Thread(BaseComment):
     title = models.CharField(max_length=255)
     paper = models.ForeignKey(
-        Paper,
+        'paper.Paper',
         on_delete=models.SET_NULL,
         related_name='threads',
         blank=True,

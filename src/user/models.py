@@ -6,9 +6,13 @@ from django.dispatch import receiver
 from django.utils import timezone
 from storages.backends.s3boto3 import S3Boto3Storage
 
+from researchhub.settings import BASE_FRONTEND_URL
 from utils.models import DefaultModel
 from hub.models import Hub
-
+from mailing_list.models import EmailRecipient
+from summary.models import Summary
+from discussion.models import Thread, Comment, Reply
+from paper.models import Paper
 
 class User(AbstractUser):
     """
@@ -41,6 +45,16 @@ class User(AbstractUser):
         # set username line.
 
         self.username = self.email
+
+        # Keep Email Recipient up to date with email
+        if hasattr(self, 'emailrecipient'):
+            if self.emailrecipient.email != self.email:
+                er = self.emailrecipient
+                er.email = self.email
+                er.save()
+        else:
+            EmailRecipient.objects.create(user=self)
+
         super().save(*args, **kwargs)
 
     def set_has_seen_first_coin_modal(self, has_seen):
@@ -192,3 +206,23 @@ class Action(DefaultModel):
     def set_read(self):
         self.read_date = timezone.now()
         self.save()
+
+    # TODO finish up correct links
+    @property
+    def frontend_view_link(self):
+        link = BASE_FRONTEND_URL
+        if isinstance(self.item, Summary):
+            pass
+        elif isinstance(self.item, Paper):
+            link += '/paper/{}/'.format(self.item.id)
+        elif isinstance(self.item, Thread):
+            link += '/paper/{}/discussion/{}'.format(self.item.paper.id, self.item.id)
+        elif isinstance(self.item, Comment):
+            link += '/paper/{}/discussion/{}'.format(self.item.paper.id, self.item.parent.id)
+        elif isinstance(self.item, Reply):
+            pass
+        elif isinstance(self.item, PaperVote) or isinstance(self.item, PaperVote):
+            pass
+        else:
+            raise Exception('frontend_view_link not implemented')
+        return link
