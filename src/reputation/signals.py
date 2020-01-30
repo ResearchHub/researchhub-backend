@@ -481,11 +481,11 @@ def pay_withdrawal(sender, instance, created, **kwargs):
                 withdrawal.user
             ).select_for_update(of=('self',))
 
-            pending_withdrawal = PendingWithdrawal(
+            PendingWithdrawal(
                 withdrawal,
                 unpaid_distributions
             )
-            pending_withdrawal.complete_token_transfer()
+            # pending_withdrawal.complete_token_transfer()
     except Exception as e:
         withdrawal_instance.set_paid_failed()
         sentry.log_error(e)
