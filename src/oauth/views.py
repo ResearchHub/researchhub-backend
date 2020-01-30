@@ -1,10 +1,10 @@
-import json
-
 from allauth.socialaccount.helpers import render_authentication_error
 from allauth.socialaccount.models import SocialLogin, SocialAccount
 from allauth.socialaccount.providers.base import ProviderException
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.orcid.views import OrcidOAuth2Adapter
+from allauth.socialaccount.providers.orcid.provider import OrcidProvider
+
 from allauth.socialaccount.providers.oauth2.client import (
     OAuth2Error,
     OAuth2Client
@@ -22,23 +22,18 @@ from allauth.account import app_settings
 from rest_auth.registration.views import SocialLoginView
 from rest_framework import serializers
 from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from django.dispatch import receiver
 from django.http import HttpRequest
-from django.utils.datastructures import MultiValueDictKeyError
 from django.utils.translation import ugettext_lazy as _
 
 from .helpers import complete_social_login
 from .exceptions import LoginError
 from researchhub.settings import (
     GOOGLE_REDIRECT_URL,
-    ORCID_REDIRECT_URL,
-    SOCIALACCOUNT_PROVIDERS
+    ORCID_REDIRECT_URL
 )
 from utils import sentry
-from utils.http import http_request, POST
 
 
 class SocialLoginSerializer(serializers.Serializer):
@@ -180,12 +175,13 @@ class GoogleLogin(SocialLoginView):
     client_class = OAuth2Client
     serializer_class = SocialLoginSerializer
 
-# TODO: Use this one instead?
+
 class OrcidLogin(SocialLoginView):
     adapter_class = OrcidOAuth2Adapter
     callback_url = ORCID_REDIRECT_URL
     client_class = OAuth2Client
     serializer_class = SocialLoginSerializer
+
 
 class CallbackView(OAuth2CallbackView):
     """
@@ -217,6 +213,14 @@ class CallbackView(OAuth2CallbackView):
                                                 token,
                                                 response=access_token)
             login.token = token
+            if self.adapter.provider_id != OrcidProvider.id:
+                if self.adapter.supports_state:
+                    login.state = SocialLogin \
+                        .verify_and_unstash_state(
+                            request,
+                            get_request_param(request, 'state'))
+                else:
+                    login.state = SocialLogin.unstash_state(request)
             return complete_social_login(request, login)
         except (PermissionDenied,
                 OAuth2Error,
