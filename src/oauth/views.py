@@ -181,52 +181,11 @@ class GoogleLogin(SocialLoginView):
     serializer_class = SocialLoginSerializer
 
 # TODO: Use this one instead?
-# class OrcidLogin(SocialLoginView):
-#     adapter_class = OrcidOAuth2Adapter
-#     callback_url = ORCID_REDIRECT_URL
-#     client_class = OAuth2Client
-#     serializer_class = SocialLoginSerializer
-
-
-class OrcidLogin(APIView):
-    permission_classes = (AllowAny,)
-
-    def get(self, request, format='json'):
-        self.auth_code = self._parse_code(request.query_params)
-        if not self.auth_code:
-            return Response('Did not find code', status=400)
-        else:
-            response = self._request_access_token()
-
-        return Response(f'response: {response}')
-
-    def _parse_code(self, query_params):
-        try:
-            return query_params['code']
-        except MultiValueDictKeyError as e:
-            error = LoginError(e, 'Did not find code in query params')
-            sentry.log_error(error)
-            return None
-
-    def _request_access_token(self):
-        url = self._get_access_token_url()
-        data = self._build_access_token_request_data()
-        headers = {'accept': 'application/json'}
-        return http_request(POST, url, data=data, headers=headers)
-
-    def _get_access_token_url(self):
-        return f'https://orcid.org/oauth/token'
-
-    def _build_access_token_request_data(self):
-        data = {
-            'client_id': SOCIALACCOUNT_PROVIDERS['orcid']['APP']['client_id'],
-            'client_secret': SOCIALACCOUNT_PROVIDERS['orcid']['APP']['secret'],
-            'grant_type': 'authorization_code',
-            'code': self.auth_code,
-            'redirect_uri': ORCID_REDIRECT_URL,
-        }
-        return json.dumps(data)
-
+class OrcidLogin(SocialLoginView):
+    adapter_class = OrcidOAuth2Adapter
+    callback_url = ORCID_REDIRECT_URL
+    client_class = OAuth2Client
+    serializer_class = SocialLoginSerializer
 
 class CallbackView(OAuth2CallbackView):
     """
@@ -258,13 +217,6 @@ class CallbackView(OAuth2CallbackView):
                                                 token,
                                                 response=access_token)
             login.token = token
-            if self.adapter.supports_state:
-                login.state = SocialLogin \
-                    .verify_and_unstash_state(
-                        request,
-                        get_request_param(request, 'state'))
-            else:
-                login.state = SocialLogin.unstash_state(request)
             return complete_social_login(request, login)
         except (PermissionDenied,
                 OAuth2Error,
