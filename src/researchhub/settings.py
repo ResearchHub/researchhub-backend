@@ -283,6 +283,7 @@ ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USERNAME_REQUIRED = False
 LOGIN_REDIRECT_URL = '/api'
+SOCIALACCOUNT_ADAPTER = 'oauth.adapters.SocialAccountAdapter'
 SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
@@ -290,7 +291,7 @@ SOCIALACCOUNT_QUERY_EMAIL = True
 SOCIALACCOUNT_PROVIDERS = {
     'orcid': {
         # Defaults to 'orcid.org' for the production API
-        'BASE_DOMAIN': 'orcid.org',  # for the sandbox API
+        'BASE_DOMAIN': 'orcid.org',
         'MEMBER_API': False,  # Defaults to False for the Public API
     }
 }
@@ -298,11 +299,11 @@ SOCIALACCOUNT_PROVIDERS = {
 ORCID_REDIRECT_URL = 'http://localhost:8000/api/auth/orcid/login/'
 if PRODUCTION:
     ORCID_REDIRECT_URL = (
-        'https://backend.researchhub.com/auth/orcid/login/callback/'
+        'https://backend.researchhub.com/api/auth/orcid/login/'
     )
 if STAGING:
     ORCID_REDIRECT_URL = (
-        'https://staging-backend.researchhub.com/auth/orcid/login/callback/'
+        'https://staging-backend.researchhub.com/api/auth/orcid/login/'
     )
 
 # Database
