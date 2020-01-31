@@ -58,6 +58,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
     score = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
     thread_id = serializers.SerializerMethodField()
+    paper_id = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -76,12 +77,14 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
             'was_edited',
             'plain_text',
             'thread_id',
+            'paper_id',
         ]
         read_only_fields = [
             'is_public',
             'is_removed',
             'reply_count',
             'replies',
+            'paper_id',
             'score',
             'user_vote',
         ]
@@ -109,6 +112,12 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
         if isinstance(obj.parent, Thread):
             return obj.parent.id
         return None
+
+    def get_paper_id(self, obj):
+        if obj.paper:
+            return obj.paper.id
+        else:
+            return None
 
 class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
@@ -170,6 +179,7 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
     score = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
     thread_id = serializers.SerializerMethodField()
+    paper_id = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
 
@@ -190,6 +200,7 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
             'was_edited',
             'plain_text',
             'thread_id',
+            'paper_id'
         ]
         read_only_fields = [
             'is_public',
@@ -197,9 +208,17 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
             'reply_count',
             'replies',
             'score',
-            'user_vote'
+            'user_vote',
+            'thread_id',
+            'paper_id'
         ]
         model = Reply
+
+    def get_paper_id(self, obj):
+        if obj.paper:
+            return obj.paper.id
+        else:
+            return None
 
     def get_thread_id(self, obj):
         comment = obj.get_comment_of_reply()

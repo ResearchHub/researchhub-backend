@@ -148,7 +148,7 @@ class UserActions:
                 self.threads.append(item)
                 data = self.ThreadSerializer(item).data
                 data['paper'] = self.PaperSerializer(
-                    Paper.objects.get(id=data['paper'])
+                    item.paper
                 ).data
                 data['content_type'] = str(action.content_type)
 
@@ -164,7 +164,7 @@ class UserActions:
                     data['paper'] = self.PaperSerializer(
                         discussion_item.paper
                     ).data
-                    data['content_type'] = f'{action.content_type}_comment'
+                    data['content_type'] = str(action.content_type) + '_comment'
                     data['comment'] = discussion_data
 
                 elif isinstance(discussion_item, Reply):
@@ -184,7 +184,7 @@ class UserActions:
                     data['paper'] = self.PaperSerializer(
                         discussion_item.paper
                     ).data
-                    data['content_type'] = str(action.content_type) + '_reply'
+                    data['content_type'] = str(action.content_type) + '_thread'
                     data['thread'] = discussion_data
 
             elif isinstance(item, PaperVote):
