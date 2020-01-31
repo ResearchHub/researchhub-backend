@@ -29,12 +29,14 @@ class PaperSerializer(serializers.ModelSerializer):
     summary = serializers.SerializerMethodField()
     uploaded_by = UserSerializer(read_only=True)
     user_vote = serializers.SerializerMethodField()
+    user_flag = serializers.SerializerMethodField()
 
     class Meta:
         fields = '__all__'
         read_only_fields = [
             'score',
-            'user_vote'
+            'user_vote',
+            'user_flag',
         ]
         model = Paper
 
@@ -216,6 +218,23 @@ class PaperSerializer(serializers.ModelSerializer):
                     pass
         return vote
 
+    def get_user_flag(self, paper):
+        flag = None
+        user = get_user_from_request(self.context)
+        if user:
+            try:
+                flag_created_by = paper.flag_created_by
+                if len(flag_created_by) == 0:
+                    return None
+                flag = FlagSerializer(flag_created_by).data
+            except AttributeError:
+                try:
+                    flag = paper.flags.get(created_by=user.id)
+                    flag = FlagSerializer(flag).data
+                except Flag.DoesNotExist:
+                    pass
+        return flag
+
     def _add_file(self, paper, file):
         if (type(file) is str):
             self._check_url_contains_pdf(file)
@@ -267,7 +286,7 @@ class FlagSerializer(serializers.ModelSerializer):
 
 class VoteSerializer(serializers.ModelSerializer):
     paper = PaperSerializer()
-    
+
     class Meta:
         fields = [
             'created_by',

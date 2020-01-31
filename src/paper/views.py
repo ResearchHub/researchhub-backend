@@ -61,6 +61,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             'hubs',
             'hubs__subscribers',
             'votes',
+            'flags',
             'threads',
             'threads__created_by',
             'threads__created_by__author_profile',
@@ -85,6 +86,13 @@ class PaperViewSet(viewsets.ModelViewSet):
                     created_by=self.request.user.id,
                 ),
                 to_attr="vote_created_by",
+            ),
+            Prefetch(
+                'flags',
+                queryset=Flag.objects.filter(
+                    created_by=self.request.user.id,
+                ),
+                to_attr="flag_created_by",
             ),
             Prefetch(
                 "threads",
