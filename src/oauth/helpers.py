@@ -119,6 +119,8 @@ def _complete_social_login(request, sociallogin):
             pass
         ret = _process_signup(request, sociallogin)
 
+    if sociallogin.account.provider == OrcidProvider.id:
+        return _send_orcid_response(request, ret)
     return _send_response(request, ret)
 
 
@@ -150,11 +152,22 @@ def _parse_email_from_orcid_response(response):
     return emails[0]
 
 
+def _send_orcid_response(original_request, default_response):
+    if oauth_method == OAuthMethods.TOKEN:
+        from researchhub.settings import LOGIN_REDIRECT_URL
+        user = original_request.user
+        token = get_or_create_user_token(user)
+        redirect_url = LOGIN_REDIRECT_URL + f'?token={token}'
+        if user.email and (user.email != ''):
+            redirect_url += '&hasEmail=true'
+        return HttpResponseRedirect(redirect_url)
+    return default_response
+
+
 def _send_response(original_request, default_response):
     if oauth_method == OAuthMethods.TOKEN:
         return _respond_with_token(original_request.user)
-    else:
-        return default_response
+    return default_response
 
 
 def _respond_with_token(user):
