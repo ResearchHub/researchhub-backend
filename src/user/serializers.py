@@ -111,7 +111,7 @@ class UserActions:
                 'content_type': str(action.content_type),
                 'created_date': action.created_date,
             }
-            if isinstance(item, Comment) or isinstance(item, Thread) or isinstance(item, Reply):
+            if isinstance(item, Comment) or isinstance(item, Thread) or isinstance(item, Reply) or isinstance(item, Summary):
                 pass
             elif isinstance(item, DiscussionVote):
                 item = item.item
