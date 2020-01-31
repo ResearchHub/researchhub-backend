@@ -139,7 +139,7 @@ class UserActions:
                 data['thread_id'] = thread.id
                 data['thread_title'] = thread.title
 
-            elif not isinstance(item, Summary):
+            elif not isinstance(item, Summary) and not isinstance(item, PaperVote):
                 thread = item.thread
 
                 data['thread_id'] = thread.id
