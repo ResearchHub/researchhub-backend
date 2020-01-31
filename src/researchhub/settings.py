@@ -264,15 +264,6 @@ REST_AUTH_REGISTER_SERIALIZERS = {
     'REGISTER_SERIALIZER': 'user.serializers.RegisterSerializer',
 }
 
-GOOGLE_REDIRECT_URL = 'http://localhost:8000/auth/google/login/callback/'
-if PRODUCTION:
-    GOOGLE_REDIRECT_URL = (
-        'https://backend.researchhub.com/auth/google/login/callback/'
-    )
-if STAGING:
-    GOOGLE_REDIRECT_URL = (
-        'https://staging-backend.researchhub.com/auth/google/login/callback/'
-    )
 
 # Django AllAuth setup
 # https://django-allauth.readthedocs.io/en/latest/configuration.html
@@ -282,7 +273,9 @@ ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USERNAME_REQUIRED = False
-LOGIN_REDIRECT_URL = '/api'
+LOGIN_REDIRECT_URL = 'http://localhost:3000/orcid'
+if PRODUCTION:
+    LOGIN_REDIRECT_URL = 'https://researchhub.com/orcid'
 SOCIALACCOUNT_ADAPTER = 'oauth.adapters.SocialAccountAdapter'
 SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
 SOCIALACCOUNT_EMAIL_REQUIRED = False
@@ -295,6 +288,16 @@ SOCIALACCOUNT_PROVIDERS = {
         'MEMBER_API': False,  # Defaults to False for the Public API
     }
 }
+
+GOOGLE_REDIRECT_URL = 'http://localhost:8000/auth/google/login/callback/'
+if PRODUCTION:
+    GOOGLE_REDIRECT_URL = (
+        'https://backend.researchhub.com/auth/google/login/callback/'
+    )
+if STAGING:
+    GOOGLE_REDIRECT_URL = (
+        'https://staging-backend.researchhub.com/auth/google/login/callback/'
+    )
 
 ORCID_REDIRECT_URL = 'http://localhost:8000/api/auth/orcid/login/'
 if PRODUCTION:
