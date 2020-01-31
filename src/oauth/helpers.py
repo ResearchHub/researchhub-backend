@@ -98,6 +98,8 @@ def _add_social_account(request, sociallogin):
 
 
 def _complete_social_login(request, sociallogin):
+    from allauth.socialaccount.providers.orcid.provider import OrcidProvider
+
     if request.user.is_authenticated:
         get_account_adapter(request).logout(request)
     if sociallogin.is_existing:
@@ -109,6 +111,12 @@ def _complete_social_login(request, sociallogin):
             sociallogin=sociallogin)
     else:
         # New social user
+        if sociallogin.account.provider == OrcidProvider.id:
+            # TODO: Need orcid membership to get email
+            # Then use the email for their username
+            # email = _get_orcid_email(sociallogin)
+            # sociallogin.user.email = email
+            pass
         ret = _process_signup(request, sociallogin)
 
     return _send_response(request, ret)
@@ -117,6 +125,29 @@ def _complete_social_login(request, sociallogin):
 '''
 Custom helper methods not copied from allauth
 '''
+
+
+def _get_orcid_email(sociallogin):
+    from utils.http import http_request, GET
+    from oauth.exceptions import LoginError
+
+    url = f'https://pub.orcid.org/v3.0/{sociallogin.account.uid}/email'
+    headers = {
+        'authorization': f'Bearer {sociallogin.token.token}',
+        'accept': f'application/json'
+    }
+
+    response = http_request(GET, url, headers=headers)
+
+    email = _parse_email_from_orcid_response(response)
+    if email is None:
+        raise LoginError(None, 'Failed to retrieve orcid email')
+    return email
+
+
+def _parse_email_from_orcid_response(response):
+    emails = response.content.get('email')
+    return emails[0]
 
 
 def _send_response(original_request, default_response):
