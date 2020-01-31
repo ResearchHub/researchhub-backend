@@ -131,8 +131,9 @@ class UserActions:
                 )
 
             paper = item.paper
-            data['paper_id'] = paper.id
-            data['paper_title'] = paper.title
+            if paper:
+                data['paper_id'] = paper.id
+                data['paper_title'] = paper.title
 
             if isinstance(item, Thread):
                 thread = item
