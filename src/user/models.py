@@ -47,9 +47,10 @@ class User(AbstractUser):
 
         if (self.email is not None) and (self.email != ''):
             self.username = self.email
-
             # Keep Email Recipient up to date with email
-            if self.emailrecipient is not None:
+            if hasattr(self, 'emailrecipient') and (
+                self.emailrecipient is not None
+            ):
                 if self.emailrecipient.email != self.email:
                     er = self.emailrecipient
                     er.email = self.email
