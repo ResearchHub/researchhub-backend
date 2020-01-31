@@ -139,12 +139,14 @@ class UserActions:
                 data['thread_id'] = thread.id
                 data['thread_title'] = thread.title
 
+                data['tip'] = item.plain_text
+
             elif not isinstance(item, Summary) and not isinstance(item, PaperVote):
                 thread = item.thread
 
                 data['thread_id'] = thread.id
                 data['thread_title'] = thread.title
 
-            data['tip'] = item.plain_text
+                data['tip'] = item.plain_text
 
             self.serialized.append(data)
