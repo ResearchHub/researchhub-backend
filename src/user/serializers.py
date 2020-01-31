@@ -161,8 +161,8 @@ class UserActions:
                     discussion_data = self.CommentSerializer(
                         discussion_item
                     ).data
-                    data['paper'] = self.PaperSerializer(Paper.objects.get(
-                        id=discussion_data['thread']['paper'])
+                    data['paper'] = self.PaperSerializer(
+                        discussion_item.paper
                     ).data
                     data['content_type'] = f'{action.content_type}_comment'
                     data['comment'] = discussion_data
@@ -172,9 +172,7 @@ class UserActions:
                         discussion_item
                     ).data
                     data['paper'] = self.PaperSerializer(
-                        Paper.objects.get(
-                            id=discussion_data['thread']['paper']
-                        )
+                        discussion_item.paper
                     ).data
                     data['content_type'] = str(action.content_type) + '_reply'
                     data['reply'] = discussion_data
@@ -184,7 +182,7 @@ class UserActions:
                         discussion_item
                     ).data
                     data['paper'] = self.PaperSerializer(
-                        Paper.objects.get(id=discussion_data['paper'])
+                        discussion_item.paper
                     ).data
                     data['content_type'] = str(action.content_type) + '_reply'
                     data['thread'] = discussion_data
