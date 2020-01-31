@@ -14,6 +14,7 @@ from summary.models import Summary
 from discussion.models import Thread, Comment, Reply
 from paper.models import Paper
 
+
 class User(AbstractUser):
     """
     User objects have the following fields by default:
@@ -44,16 +45,17 @@ class User(AbstractUser):
         # If we want to allow client specified usernames, simply remove the
         # set username line.
 
-        self.username = self.email
+        if (self.email is not None) and (self.email != ''):
+            self.username = self.email
 
-        # Keep Email Recipient up to date with email
-        if self.emailrecipient is not None:
-            if self.emailrecipient.email != self.email:
-                er = self.emailrecipient
-                er.email = self.email
-                er.save()
-        else:
-            EmailRecipient.objects.create(user=self, email=self.email)
+            # Keep Email Recipient up to date with email
+            if self.emailrecipient is not None:
+                if self.emailrecipient.email != self.email:
+                    er = self.emailrecipient
+                    er.email = self.email
+                    er.save()
+            else:
+                EmailRecipient.objects.create(user=self, email=self.email)
 
         return super().save(*args, **kwargs)
 
@@ -201,7 +203,11 @@ class Action(DefaultModel):
     )
 
     def __str__(self):
-        return 'Action: {}-{}, '.format(self.content_type.app_label, self.content_type.model, self.object_id)
+        return 'Action: {}-{}, '.format(
+            self.content_type.app_label,
+            self.content_type.model,
+            self.object_id
+        )
 
     def set_read(self):
         self.read_date = timezone.now()
@@ -216,11 +222,20 @@ class Action(DefaultModel):
         elif isinstance(self.item, Paper):
             link += '/paper/{}/'.format(self.item.id)
         elif isinstance(self.item, Thread):
-            link += '/paper/{}/discussion/{}'.format(self.item.paper.id, self.item.id)
+            link += '/paper/{}/discussion/{}'.format(
+                self.item.paper.id,
+                self.item.id
+            )
         elif isinstance(self.item, Comment):
-            link += '/paper/{}/discussion/{}'.format(self.item.paper.id, self.item.parent.id)
+            link += '/paper/{}/discussion/{}'.format(
+                self.item.paper.id,
+                self.item.parent.id
+            )
         elif isinstance(self.item, Reply):
-            link += '/paper/{}/discussion/{}'.format(self.item.paper.id, self.item.get_comment_of_reply().id)
+            link += '/paper/{}/discussion/{}'.format(
+                self.item.paper.id,
+                self.item.get_comment_of_reply().id
+            )
         else:
             raise Exception('frontend_view_link not implemented')
         return link

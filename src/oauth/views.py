@@ -2,8 +2,8 @@ from allauth.socialaccount.helpers import render_authentication_error
 from allauth.socialaccount.models import SocialLogin, SocialAccount
 from allauth.socialaccount.providers.base import ProviderException
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
-from allauth.socialaccount.providers.orcid.views import OrcidOAuth2Adapter
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
+from allauth.socialaccount.providers.orcid.views import OrcidOAuth2Adapter
 
 from allauth.socialaccount.providers.oauth2.client import (
     OAuth2Error,
@@ -27,8 +27,8 @@ from django.dispatch import receiver
 from django.http import HttpRequest
 from django.utils.translation import ugettext_lazy as _
 
-from .helpers import complete_social_login
-from .exceptions import LoginError
+from oauth.helpers import complete_social_login
+from oauth.exceptions import LoginError
 from researchhub.settings import (
     GOOGLE_REDIRECT_URL,
     ORCID_REDIRECT_URL
