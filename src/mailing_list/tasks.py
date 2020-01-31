@@ -39,13 +39,16 @@ def actions_notifications(action_ids, notif_interval=NotificationFrequencies.IMM
     actions = Action.objects.filter(id__in=action_ids)
     user_to_action = {}
     for action in actions:
-        for user in set(action.item.users_to_notify):
-            r = user.emailrecipient
-            if r.receives_notifications and notif_interval == r.notification_frequency:
-                if user_to_action.get(r):
-                    user_to_action[r].append(action)
-                else:
-                    user_to_action[r] = [action]
+        if hasattr(action.item, 'users_to_notify'):
+            for user in set(action.item.users_to_notify):
+                r = user.emailrecipient
+                if r.receives_notifications and notif_interval == r.notification_frequency:
+                    if user_to_action.get(r):
+                        user_to_action[r].append(action)
+                    else:
+                        user_to_action[r] = [action]
+        else:
+            print('action: ({}) is missing users_to_notify field')
 
     for r in user_to_action:
         subject = build_subject(r.notification_frequency)
