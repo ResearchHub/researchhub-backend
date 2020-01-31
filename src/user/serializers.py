@@ -7,7 +7,7 @@ from hub.serializers import HubSerializer
 from paper.models import Paper, Vote as PaperVote
 from user.models import Author, University, User
 from summary.models import Summary
-
+from discussion.models import ContentType
 
 class UniversitySerializer(rest_framework_serializers.ModelSerializer):
     class Meta:
@@ -76,19 +76,6 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
 
 class UserActions:
-    # Using local imports to avoid circular dependency error
-    from discussion.serializers import (
-        CommentSerializer,
-        ReplySerializer,
-        ThreadSerializer,
-        VoteSerializer as DiscussionVoteSerializer
-    )
-    from paper.serializers import (
-        PaperSerializer,
-        VoteSerializer as PaperVoteSerializer
-    )
-    from summary.serializers import SummarySerializer
-
     def __init__(self, data=None, user_id=None, **kwargs):
         assert (data is not None) or (user_id is not None), f'Arguments data'
         f' and user_id can not both be None'
@@ -98,23 +85,7 @@ class UserActions:
             self.all = self.get_actions(user_id)
 
         self.serialized = []
-        self.comments = []
-        self.replies = []
-        self.threads = []
-        self.discussion_votes = []
-        self.paper_votes = []
-        self.summaries = []
         self._group_and_serialize_actions()
-
-    @property
-    def actions_by_type(self):
-        return {
-            'comments': self.comments,
-            'replies': self.replies,
-            'threads': self.threads,
-            'discussion_votes': self.discussion_votes,
-            'paper_votes': self.paper_votes,
-        }
 
     def get_actions(self, user_id):
         user = User.objects.get(pk=user_id)
@@ -129,77 +100,51 @@ class UserActions:
             item = action.item
             if not item:
                 continue
+
             if isinstance(item, Summary):
                 created_by = UserSerializer(item.proposed_by).data
             elif item:
                 created_by = UserSerializer(item.created_by).data
 
-            if isinstance(item, Comment):
-                self.comments.append(item)
-                data = self.CommentSerializer(item).data
-                data['content_type'] = str(action.content_type)
-
-            elif isinstance(item, Reply):
-                self.replies.append(item)
-                data = self.ReplySerializer(item).data
-                data['content_type'] = str(action.content_type)
-
-            elif isinstance(item, Thread):
-                self.threads.append(item)
-                data = self.ThreadSerializer(item).data
-                data['paper'] = self.PaperSerializer(
-                    item.paper
-                ).data
-                data['content_type'] = str(action.content_type)
-
+            data = {
+                'created_by': created_by,
+                'content_type': str(action.content_type),
+                'created_date': action.created_date,
+            }
+            if isinstance(item, Comment) or isinstance(item, Thread) or isinstance(item, Reply):
+                pass
             elif isinstance(item, DiscussionVote):
-                self.discussion_votes.append(item)
-                data = self.DiscussionVoteSerializer(item).data
+                item = item.item
+                if isinstance(item, Comment):
+                    data['content_type'] += '_comment'
 
-                discussion_item = item.item
-                if isinstance(discussion_item, Comment):
-                    discussion_data = self.CommentSerializer(
-                        discussion_item
-                    ).data
-                    data['paper'] = self.PaperSerializer(
-                        discussion_item.paper
-                    ).data
-                    data['content_type'] = str(action.content_type) + '_comment'
-                    data['comment'] = discussion_data
+                elif isinstance(item, Reply):
+                    data['content_type'] += '_reply'
 
-                elif isinstance(discussion_item, Reply):
-                    discussion_data = self.ReplySerializer(
-                        discussion_item
-                    ).data
-                    data['paper'] = self.PaperSerializer(
-                        discussion_item.paper
-                    ).data
-                    data['content_type'] = str(action.content_type) + '_reply'
-                    data['reply'] = discussion_data
-
-                elif isinstance(discussion_item, Thread):
-                    discussion_data = self.ThreadSerializer(
-                        discussion_item
-                    ).data
-                    data['paper'] = self.PaperSerializer(
-                        discussion_item.paper
-                    ).data
-                    data['content_type'] = str(action.content_type) + '_thread'
-                    data['thread'] = discussion_data
-
+                elif isinstance(item, Thread):
+                    data['content_type'] += '_thread'
             elif isinstance(item, PaperVote):
-                self.paper_votes.append(item)
-                data = self.PaperVoteSerializer(item).data
-                data['content_type'] = str(action.content_type) + '_paper'
-
-            elif isinstance(item, Summary):
-                self.summaries.append(item)
-                data = self.SummarySerializer(item).data
-                data['content_type'] = str(action.content_type)
+                data['content_type'] += '_paper'
             else:
                 raise TypeError(
                     f'Instance of type {type(item)} is not supported'
                 )
 
-            data['created_by'] = created_by
+            paper = item.paper
+            data['paper_id'] = paper.id
+            data['paper_title'] = paper.title
+
+            if isinstance(item, Thread):
+                thread = item
+                data['thread_id'] = thread.id
+                data['thread_title'] = thread.title
+
+            elif not isinstance(item, Summary):
+                thread = item.thread
+
+                data['thread_id'] = thread.id
+                data['thread_title'] = thread.title
+
+            data['tip'] = item.plain_text
+
             self.serialized.append(data)

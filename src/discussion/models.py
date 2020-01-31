@@ -238,6 +238,12 @@ class Reply(BaseComment):
         return paper
 
     @property
+    def thread(self):
+        comment = self.get_comment_of_reply()
+        thread = comment.parent
+        return thread
+
+    @property
     def children(self):
         return self.replies.all()
 
@@ -284,6 +290,11 @@ class Comment(BaseComment):
         thread = self.parent
         paper = thread.parent
         return paper
+
+    @property
+    def thread(self):
+        thread = self.parent
+        return thread
 
     @property
     def children(self):
