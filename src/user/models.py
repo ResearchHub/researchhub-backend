@@ -47,7 +47,11 @@ class User(AbstractUser):
 
         if (self.email is not None) and (self.email != ''):
             self.username = self.email
-            # Keep Email Recipient up to date with email
+
+        user_to_save = super().save(*args, **kwargs)
+
+        # Keep Email Recipient up to date with email
+        if (self.email is not None) and (self.email != ''):
             if hasattr(self, 'emailrecipient') and (
                 self.emailrecipient is not None
             ):
@@ -58,7 +62,7 @@ class User(AbstractUser):
             else:
                 EmailRecipient.objects.create(user=self, email=self.email)
 
-        return super().save(*args, **kwargs)
+        return user_to_save
 
     def set_has_seen_first_coin_modal(self, has_seen):
         self.has_seen_first_coin_modal = has_seen

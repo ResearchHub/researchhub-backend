@@ -54,7 +54,7 @@ class EmailRecipient(models.Model):
         if self.thread_subscription is None:
             self.thread_subscription = ThreadSubscription.objects.create()
 
-        return super().save(*args, **kwargs)
+        return super(EmailRecipient, self).save(*args, **kwargs)
 
     def bounced(self):
         self.bounced_date = timezone.now()
@@ -72,7 +72,12 @@ class EmailRecipient(models.Model):
     # TODO check this logic
     @property
     def receives_notifications(self):
-        return not self.do_not_email and not self.is_opted_out and self.is_subscribed
+        return (
+            not self.do_not_email
+            and not self.is_opted_out
+            and self.is_subscribed
+        )
+
 
 class BaseSubscription(models.Model):
     class Meta:
@@ -87,6 +92,7 @@ class ThreadSubscription(BaseSubscription):
     none = models.BooleanField(default=False)
     comments = models.BooleanField(default=True)
     replies = models.BooleanField(default=True)
+
 
 class CommentSubscription(BaseSubscription):
     none = models.BooleanField(default=False)
