@@ -48,7 +48,7 @@ class User(AbstractUser):
         if (self.email is not None) and (self.email != ''):
             self.username = self.email
 
-        user_to_save = super().save(*args, **kwargs)
+        user_to_save = super(User, self).save(*args, **kwargs)
 
         # Keep Email Recipient up to date with email
         if (self.email is not None) and (self.email != ''):
