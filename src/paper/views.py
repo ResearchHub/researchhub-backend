@@ -417,7 +417,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
             if filtered_papers:
                 order_papers = filtered_papers.order_by('-discussed')
-                order_papers = all_time_papers.order_by('-discussed').exclude(
+                order_papers = order_papers | all_time_papers.order_by('-discussed').exclude(
                     id__in=filtered_papers
                 )
             else:
