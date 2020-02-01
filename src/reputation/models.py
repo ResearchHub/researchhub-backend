@@ -157,3 +157,4 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
                 name='user_paid_status_pending'
             )
         ]
+        ordering = ['-created_date']

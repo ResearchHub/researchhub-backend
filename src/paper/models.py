@@ -65,6 +65,8 @@ class Paper(models.Model):
         help_text='information on PDF availability '
                   'in the Unpaywall OA Location data format.'
     )
+    class Meta:
+        ordering = ['-paper_publish_date']
 
     @property
     def owners(self):
