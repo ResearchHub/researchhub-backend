@@ -10,5 +10,8 @@ pipenv lock --requirements > requirements.txt
 echo "Deploying to production"
 eb deploy production
 
+echo "Deploying to production"
+eb deploy production-worker
+
 done="Finished executing production deployment"
 echo $done
