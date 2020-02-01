@@ -36,6 +36,9 @@ class User(AbstractUser):
             self.first_name + ' ' + self.last_name
         )
 
+    class Meta:
+        ordering = ['-created_date']
+
     def save(self, *args, **kwargs):
         # A unique constraint is enforced on the username on the database
         # level. This line is used to ensure usernames are not empty without
@@ -95,6 +98,9 @@ class University(models.Model):
 
     def __str__(self):
         return f'{self.name}_{self.city}'
+
+    class Meta:
+        ordering = ['name']
 
 
 class ProfileImageStorage(S3Boto3Storage):
