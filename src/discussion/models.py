@@ -233,8 +233,7 @@ class Reply(BaseComment):
     @property
     def paper(self):
         comment = self.get_comment_of_reply()
-        thread = comment.parent
-        paper = thread.parent
+        paper = comment.paper
         return paper
 
     @property
@@ -288,7 +287,7 @@ class Comment(BaseComment):
     @property
     def paper(self):
         thread = self.parent
-        paper = thread.parent
+        paper = thread.paper
         return paper
 
     @property
