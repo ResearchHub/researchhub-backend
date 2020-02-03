@@ -148,3 +148,7 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
         choices=PaidStatusModelMixin.PAID_STATUS_CHOICES,
         default=PaidStatusModelMixin.PENDING,
     )
+
+    class Meta:
+        ordering = ['-updated_date']
+
