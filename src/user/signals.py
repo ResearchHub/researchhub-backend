@@ -2,12 +2,12 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
-from mailing_list.models import NotificationFrequencies
-from mailing_list.tasks import *
+from mailing_list.tasks import notify_immediate
 from paper.models import Vote as PaperVote
 from researchhub.settings import TESTING
 from summary.models import Summary
 from user.models import Action
+
 
 @receiver(post_save, sender=Summary, dispatch_uid='create_summary_action')
 @receiver(post_save, sender=Comment, dispatch_uid='create_comment_action')
@@ -35,13 +35,17 @@ def create_action(sender, instance, created, **kwargs):
         action.hubs.add(*hubs)
         return action
 
+
 def get_related_hubs(instance):
     paper = instance.paper
     return paper.hubs.all()
+
 
 @receiver(post_save, sender=Action, dispatch_uid='send_action_notification')
 def send_immediate_action_notification(sender, instance, created, **kwargs):
     if created:
         if instance:
-            notify_immediate.apply_async((instance.id,), priority=5)
-            #notify_immediate(instance.id)
+            if not TESTING:
+                notify_immediate.apply_async((instance.id,), priority=5)
+            else:
+                notify_immediate(instance.id)
