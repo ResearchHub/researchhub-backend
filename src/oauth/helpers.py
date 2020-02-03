@@ -1,3 +1,4 @@
+import logging
 from django.conf import settings
 from django.http import HttpResponseRedirect, JsonResponse
 from allauth.socialaccount.helpers import (
@@ -118,9 +119,10 @@ def _complete_social_login(request, sociallogin):
             # sociallogin.user.email = email
             pass
         ret = _process_signup(request, sociallogin)
-
     if sociallogin.account.provider == OrcidProvider.id:
+        logging.info('Attempting to send orcid response')
         return _send_orcid_response(request, ret)
+    logging.warning('Bypassed orcid response')
     return _send_response(request, ret)
 
 
