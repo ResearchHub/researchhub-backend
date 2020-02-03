@@ -54,6 +54,8 @@ SECRET_KEY = os.environ.get('SECRET_KEY', keys.SECRET_KEY)
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
 
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 if not (PRODUCTION or STAGING):
