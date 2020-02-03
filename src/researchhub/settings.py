@@ -276,6 +276,8 @@ ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USERNAME_REQUIRED = False
 LOGIN_REDIRECT_URL = 'http://localhost:3000/orcid'
+if STAGING:
+    LOGIN_REDIRECT_URL = 'https://staging-web.reserachhub.com/orcid'
 if PRODUCTION:
     LOGIN_REDIRECT_URL = 'https://researchhub.com/orcid'
 SOCIALACCOUNT_ADAPTER = 'oauth.adapters.SocialAccountAdapter'
