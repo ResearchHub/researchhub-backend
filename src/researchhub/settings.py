@@ -121,6 +121,7 @@ CORS_ORIGIN_WHITELIST = [
 ]
 
 
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -266,6 +267,7 @@ OAUTH_METHOD = 'token'
 REST_AUTH_REGISTER_SERIALIZERS = {
     'REGISTER_SERIALIZER': 'user.serializers.RegisterSerializer',
 }
+
 
 
 
