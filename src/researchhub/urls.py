@@ -116,6 +116,7 @@ urlpatterns = [
         name='google_login'
     ),
     path(r'api/auth/', include('rest_auth.urls')),
+    re_path(r'^accounts/', include('allauth.urls')),
     re_path(r'^auth/signup/', include(oauth.urls.registration_urls)),
     re_path(r'^auth/', include(oauth.urls.default_urls)),
     path('', researchhub.views.index, name='index'),
