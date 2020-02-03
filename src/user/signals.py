@@ -4,9 +4,9 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
-# from mailing_list.tasks import notify_immediate
+from mailing_list.tasks import notify_immediate
 from paper.models import Vote as PaperVote
-# from researchhub.settings import TESTING
+from researchhub.settings import TESTING
 from summary.models import Summary
 from user.models import Action
 
@@ -47,8 +47,7 @@ def get_related_hubs(instance):
 def send_immediate_action_notification(sender, instance, created, **kwargs):
     if created:
         if instance:
-            # if not TESTING:
-            #     notify_immediate.apply_async((instance.id,), priority=5)
-            # else:
-            #     notify_immediate(instance.id)
-            pass
+            if not TESTING:
+                notify_immediate.apply_async((instance.id,), priority=5)
+            else:
+                notify_immediate(instance.id)
