@@ -1,3 +1,4 @@
+import logging
 from allauth.socialaccount.helpers import render_authentication_error
 from allauth.socialaccount.models import SocialLogin, SocialAccount
 from allauth.socialaccount.providers.base import ProviderException
@@ -204,8 +205,10 @@ class CallbackView(OAuth2CallbackView):
                 error=error)
         app = self.adapter.get_provider().get_app(self.request)
         client = self.get_client(request, app)
+        logging.error(request.headers)
         try:
             access_token = client.get_access_token(request.GET['code'])
+            logging.error(access_token)
             token = self.adapter.parse_token(access_token)
             token.app = app
             login = self.adapter.complete_login(request,
