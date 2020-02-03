@@ -121,7 +121,6 @@ CORS_ORIGIN_WHITELIST = [
 ]
 
 
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -267,8 +266,6 @@ OAUTH_METHOD = 'token'
 REST_AUTH_REGISTER_SERIALIZERS = {
     'REGISTER_SERIALIZER': 'user.serializers.RegisterSerializer',
 }
-
-
 
 
 # Django AllAuth setup
@@ -518,6 +515,8 @@ REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
 CELERY_BROKER_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
+CELERY_TASK_ROUTES = {'*.tasks.*': {'queue': APP_ENV}}
+CELERY_TASK_DEFAULT_QUEUE = APP_ENV
 
 
 # Async service
