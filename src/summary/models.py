@@ -67,6 +67,10 @@ class Summary(models.Model):
         return self.paper.title
 
     @property
+    def users_to_notify(self):
+        return self.paper.owners
+
+    @property
     def proposed_by_indexing(self):
         return (
             f'{self.proposed_by.author_profile.first_name}'
