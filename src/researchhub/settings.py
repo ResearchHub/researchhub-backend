@@ -54,7 +54,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', keys.SECRET_KEY)
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
 
-# TODO: Do we need to set this?
+# TODO: Think about setting this so drf uses https
 # SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -276,6 +276,8 @@ ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USERNAME_REQUIRED = False
+if STAGING or PRODUCTION:
+    ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https'
 LOGIN_REDIRECT_URL = 'http://localhost:3000/orcid'
 if STAGING:
     LOGIN_REDIRECT_URL = 'https://staging-web.reserachhub.com/orcid'
@@ -304,15 +306,6 @@ if STAGING:
         'https://staging-backend.researchhub.com/auth/google/login/callback/'
     )
 
-ORCID_REDIRECT_URL = 'http://localhost:8000/api/auth/orcid/login/'
-if PRODUCTION:
-    ORCID_REDIRECT_URL = (
-        'https://backend.researchhub.com/api/auth/orcid/login/'
-    )
-if STAGING:
-    ORCID_REDIRECT_URL = (
-        'https://staging-backend.researchhub.com/api/auth/orcid/login/'
-    )
 
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
