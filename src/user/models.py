@@ -224,7 +224,6 @@ class Action(DefaultModel):
         self.read_date = timezone.now()
         self.save()
 
-    # TODO finish up correct links
     @property
     def frontend_view_link(self):
         link = BASE_FRONTEND_URL
@@ -243,8 +242,9 @@ class Action(DefaultModel):
                 self.item.parent.id
             )
         elif isinstance(self.item, Reply):
-            link += '/paper/{}/discussion/{}'.format(
+            link += '/paper/{}/discussion/{}/comment/{}'.format(
                 self.item.paper.id,
+                self.item.get_comment_of_reply().parent.id,
                 self.item.get_comment_of_reply().id
             )
         else:

@@ -12,11 +12,17 @@ from researchhub.celery import app
 from utils.message import send_email_message
 from user.models import Action
 
+import time
 
 @app.task
 def notify_immediate(action_id):
+    # TODO switch signals to save method
+    # TODO @val I think this is why I think signals are unreliable
+    i = 0
+    while not Action.objects.filter(id=action_id).exists() and i < 10:
+        time.sleep(.1)
+        i += 1
     actions_notifications([action_id], NotificationFrequencies.IMMEDIATE)
-
 
 @periodic_task(run_every=crontab(minute='30', hour='1'), priority=7)
 def notify_daily():
@@ -29,7 +35,6 @@ def notify_daily():
 
     actions_notifications(action_ids, NotificationFrequencies.DAILY)
 
-
 @periodic_task(run_every=crontab(minute='0', hour='*/3'), priority=7)
 def notify_three_hours():
     interval = timezone.now() - timedelta(hours=3)
@@ -40,7 +45,6 @@ def notify_three_hours():
     )
 
     actions_notifications(action_ids, NotificationFrequencies.THREE_HOUR)
-
 
 def actions_notifications(
     action_ids,
@@ -76,19 +80,16 @@ def actions_notifications(
             html_template='notification_email.html'
         )
 
-
 def build_subject(notification_frequency):
-    # TODO: Change subject based on frequency and include action info
     prefix = 'Research Hub | '
     if notification_frequency == NotificationFrequencies.IMMEDIATE:
-        return f'{prefix}Updates'
+        return f'{prefix}Update'
     elif notification_frequency == NotificationFrequencies.DAILY:
-        return f'{prefix}Updates'
+        return f'{prefix}Daily Updates'
     elif notification_frequency == NotificationFrequencies.THREE_HOUR:
-        return f'{prefix}Updates'
+        return f'{prefix}Periodic Updates'
     else:
         return f'{prefix}Updates'
-
 
 def build_notification_context(actions):
     return {**base_email_context, 'actions': list(actions)}
