@@ -1,4 +1,3 @@
-import logging
 from allauth.socialaccount.helpers import render_authentication_error
 from allauth.socialaccount.models import SocialLogin, SocialAccount
 from allauth.socialaccount.providers.base import ProviderException
@@ -30,10 +29,7 @@ from django.utils.translation import ugettext_lazy as _
 
 from oauth.helpers import complete_social_login
 from oauth.exceptions import LoginError
-from researchhub.settings import (
-    GOOGLE_REDIRECT_URL,
-    ORCID_REDIRECT_URL
-)
+from researchhub.settings import GOOGLE_REDIRECT_URL
 from utils import sentry
 
 
@@ -177,13 +173,6 @@ class GoogleLogin(SocialLoginView):
     serializer_class = SocialLoginSerializer
 
 
-class OrcidLogin(SocialLoginView):
-    adapter_class = OrcidOAuth2Adapter
-    callback_url = ORCID_REDIRECT_URL
-    client_class = OAuth2Client
-    serializer_class = SocialLoginSerializer
-
-
 class CallbackView(OAuth2CallbackView):
     """
     This class is copied from allauth/socialaccount/providers/oauth2/views.py
@@ -205,10 +194,8 @@ class CallbackView(OAuth2CallbackView):
                 error=error)
         app = self.adapter.get_provider().get_app(self.request)
         client = self.get_client(request, app)
-        logging.error(request.headers)
         try:
             access_token = client.get_access_token(request.GET['code'])
-            logging.error(access_token)
             token = self.adapter.parse_token(access_token)
             token.app = app
             login = self.adapter.complete_login(request,
