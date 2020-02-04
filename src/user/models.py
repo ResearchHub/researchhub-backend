@@ -239,13 +239,12 @@ class Action(DefaultModel):
         elif isinstance(self.item, Comment):
             link += '/paper/{}/discussion/{}'.format(
                 self.item.paper.id,
-                self.item.parent.id
+                self.item.thread.id
             )
         elif isinstance(self.item, Reply):
-            link += '/paper/{}/discussion/{}/comment/{}'.format(
+            link += '/paper/{}/discussion/{}'.format(
                 self.item.paper.id,
-                self.item.get_comment_of_reply().parent.id,
-                self.item.get_comment_of_reply().id
+                self.item.thread.id,
             )
         else:
             raise Exception('frontend_view_link not implemented')
