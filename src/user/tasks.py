@@ -1,5 +1,6 @@
-from user.models import Action
+from allauth.socialaccount.models import SocialAccount
 
+from researchhub.celery import app
 from discussion.lib import (
     check_thread_in_papers,
     check_comment_in_threads,
@@ -9,6 +10,35 @@ from discussion.lib import (
 from discussion.models import (
     Comment, Reply, Thread, Vote as DiscussionVote
 )
+from paper.models import Paper
+from user.models import Action, Author
+
+
+@app.task
+def link_author_to_papers(author_id, orcid_account_id):
+    author = Author.objects.get(pk=author_id)
+    orcid_account = SocialAccount.objects.get(pk=orcid_account_id)
+    works = get_orcid_works(orcid_account.extra_data)
+    for work in works:
+        paper = get_orcid_paper(work)
+        if paper is not None:
+            paper.authors.add(author)
+
+
+def get_orcid_works(data):
+    return data['activities-summary']['works']['group']
+
+
+def get_orcid_paper(work):
+    eids = work['external_ids']['external_id']
+    for eid in eids:
+        if eid['external-id-type'] == 'doi':
+            doi = eid['external-id-value']
+            try:
+                return Paper.objects.get(doi=doi)
+            except Paper.DoesNotExist:
+                pass
+    return None
 
 
 def get_latest_actions(cursor):

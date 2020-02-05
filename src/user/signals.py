@@ -2,13 +2,34 @@
 
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from allauth.socialaccount.models import SocialAccount
+from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from mailing_list.tasks import notify_immediate
 from paper.models import Vote as PaperVote
 from researchhub.settings import TESTING
 from summary.models import Summary
-from user.models import Action
+from user.models import Action, Author
+from user.tasks import link_author_to_papers
+
+
+@receiver(post_save, sender=Author, dispatch_uid='link_author_to_papers')
+def queue_link_author_to_papers(sender, instance, created, **kwargs):
+    if created:
+        try:
+            orcid_account = SocialAccount.objects.get(
+                user=instance.user,
+                provider=OrcidProvider.id
+            )
+            if not TESTING:
+                link_author_to_papers.apply_async(
+                    (instance.id, orcid_account.id)
+                )
+            else:
+                link_author_to_papers(instance.id, orcid_account.id)
+        except SocialAccount.DoesNotExist:
+            pass
 
 
 @receiver(post_save, sender=Summary, dispatch_uid='create_summary_action')
