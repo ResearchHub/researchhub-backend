@@ -4,15 +4,16 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.dispatch import receiver
 from django.utils import timezone
+from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from storages.backends.s3boto3 import S3Boto3Storage
 
-from researchhub.settings import BASE_FRONTEND_URL
-from utils.models import DefaultModel
+from discussion.models import Thread, Comment, Reply
 from hub.models import Hub
 from mailing_list.models import EmailRecipient
-from summary.models import Summary
-from discussion.models import Thread, Comment, Reply
 from paper.models import Paper
+from researchhub.settings import BASE_FRONTEND_URL
+from summary.models import Summary
+from utils.models import DefaultModel
 
 
 class User(AbstractUser):
@@ -176,6 +177,15 @@ class Author(models.Model):
             university_city = university.city
         return (f'{self.first_name}_{self.last_name}_{university_name}_'
                 f'{university_city}')
+
+    @property
+    def orcid_id(self):
+        try:
+            return (
+                self.user.socialaccount_set.get(provider=OrcidProvider.id).uid
+            )
+        except Exception:
+            return None
 
     @property
     def profile_image_indexing(self):
