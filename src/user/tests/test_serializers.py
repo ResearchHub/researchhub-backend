@@ -1,3 +1,5 @@
+import json
+
 from django.test import TestCase
 
 from user.serializers import AuthorSerializer
@@ -17,3 +19,8 @@ class UserSerializersTests(TestCase):
         }
         serializer = AuthorSerializer(data=data)
         self.assertTrue(serializer.is_valid())
+
+    def test_author_serializer_without_orcid_sends_null(self):
+        serializer = AuthorSerializer(self.user.author_profile)
+        json_data = json.dumps(serializer.data)
+        self.assertIn('"orcid_id": null', json_data)

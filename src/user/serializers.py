@@ -4,10 +4,10 @@ import rest_auth.registration.serializers as rest_auth_serializers
 import reputation.lib
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from hub.serializers import HubSerializer
-from paper.models import Paper, Vote as PaperVote
+from paper.models import Vote as PaperVote
 from user.models import Author, University, User
 from summary.models import Summary
-from discussion.models import ContentType
+
 
 class UniversitySerializer(rest_framework_serializers.ModelSerializer):
     class Meta:
@@ -18,18 +18,23 @@ class UniversitySerializer(rest_framework_serializers.ModelSerializer):
 class AuthorSerializer(rest_framework_serializers.ModelSerializer):
     university = UniversitySerializer(required=False)
     reputation = rest_framework_serializers.SerializerMethodField()
+    orcid_id = rest_framework_serializers.SerializerMethodField()
 
     class Meta:
         model = Author
         fields = [field.name for field in Author._meta.fields] + [
             'university',
             'reputation',
+            'orcid_id',
         ]
 
     def get_reputation(self, obj):
         if obj.user is None:
             return 0
         return obj.user.reputation
+
+    def get_orcid_id(self, author):
+        return author.orcid_id
 
 
 class UserSerializer(rest_framework_serializers.ModelSerializer):
@@ -111,7 +116,12 @@ class UserActions:
                 'content_type': str(action.content_type),
                 'created_date': action.created_date,
             }
-            if isinstance(item, Comment) or isinstance(item, Thread) or isinstance(item, Reply) or isinstance(item, Summary):
+            if (
+                isinstance(item, Comment)
+                or isinstance(item, Thread)
+                or isinstance(item, Reply)
+                or isinstance(item, Summary)
+            ):
                 pass
             elif isinstance(item, DiscussionVote):
                 item = item.item
@@ -142,7 +152,10 @@ class UserActions:
 
                 data['tip'] = item.plain_text
 
-            elif not isinstance(item, Summary) and not isinstance(item, PaperVote):
+            elif (
+                not isinstance(item, Summary)
+                and not isinstance(item, PaperVote)
+            ):
                 thread = item.thread
 
                 data['thread_id'] = thread.id
