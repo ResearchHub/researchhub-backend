@@ -41,7 +41,7 @@ class ConfigureWeb3:
         if os.path.exists(local_path):
             return local_path
         # assume keystore is hosted on AWS
-        bucket = 'keystore-researchcoin'
+        bucket = 'keystore-researchcoin/'
         return get_s3_url(bucket, WEB3_KEYSTORE_FILE, with_credentials=True)
 
     def get_default_private_key(self):
