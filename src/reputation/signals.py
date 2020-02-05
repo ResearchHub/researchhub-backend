@@ -42,7 +42,7 @@ ELIGIBLE_PAPER_FLAG_COUNT = 3
 @receiver(post_save, sender=Paper, dispatch_uid='create_paper')
 def distribute_for_create_paper(sender, instance, created, **kwargs):
     timestamp = time()
-    if created and is_eligible(instance.uploaded_by):
+    if created and is_eligible_user(instance.uploaded_by):
         distributor = Distributor(
             distributions.CreatePaper,
             instance.uploaded_by,
@@ -68,10 +68,7 @@ def distribute_for_create_authored_paper(
 ):
     timestamp = time()
     if (action == "post_add") and pk_set is not None:
-        if (
-            is_eligible(instance.uploaded_by)
-            and check_uploaded_by_author(instance, pk_set)
-        ):
+        if check_uploaded_by_author(instance, pk_set):
             distributor = Distributor(
                 distributions.CreateAuthoredPaper,
                 instance.uploaded_by,
@@ -82,7 +79,10 @@ def distribute_for_create_authored_paper(
 
 
 def check_uploaded_by_author(paper, pk_set):
-    return paper.uploaded_by.author_profile.id in pk_set
+    return (
+        is_eligible_author(paper.uploaded_by)
+        and (paper.uploaded_by.author_profile.id in pk_set)
+    )
 
 
 @receiver(post_save, sender=PaperVote, dispatch_uid='vote_on_paper')
@@ -108,7 +108,7 @@ def distribute_for_vote_on_paper(
 
 
 def is_eligible_for_vote_on_paper(user):
-    return is_eligible(user) and (
+    return is_eligible_user(user) and (
         (user.date_joined > seven_days_ago())
         and (user.reputation < 200)
     )
@@ -126,7 +126,7 @@ def distribute_for_flag_paper(
         recipients = get_eligible_paper_flaggers(instance.paper)
         if len(recipients) == ELIGIBLE_PAPER_FLAG_COUNT:
             for recipient in recipients:
-                if is_eligible(recipient):
+                if is_eligible_user(recipient):
                     distributor = Distributor(
                         distributions.FlagPaper,
                         recipient,
@@ -178,7 +178,7 @@ def distribute_for_create_summary(
 
 
 def is_eligible_for_create_summary(user):
-    return is_eligible(user) and (
+    return is_eligible_user(user) and (
         (user.date_joined > seven_days_ago())
         and (user.reputation < 200)
     )
@@ -217,7 +217,7 @@ def distribute_for_create_discussion(sender, instance, created, **kwargs):
 
 
 def is_eligible_for_create_discussion(user):
-    return is_eligible(user) and (
+    return is_eligible_user(user) and (
         (user.date_joined > seven_days_ago())
         and (user.reputation < 200)
     )
@@ -250,7 +250,7 @@ def distribute_for_discussion_action(
     distributor = None
     recipient = instance.item.created_by
 
-    if created and is_eligible(recipient):
+    if created and is_eligible_user(recipient):
         try:
             if isinstance(instance, DiscussionFlag):
                 distribution = get_discussion_flag_item_distribution(instance)
@@ -291,7 +291,7 @@ def distribute_for_discussion_vote(
     distributor = None
     recipient = instance.item.created_by
 
-    if (created or vote_type_updated(update_fields)) and is_eligible(
+    if (created or vote_type_updated(update_fields)) and is_eligible_user(
         recipient
     ):
         # TODO: This needs to be altered so that if the vote changes the
@@ -351,10 +351,16 @@ def distribute_for_vote_on_discussion(
 
 
 def is_eligible_for_vote_on_discussion(user):
-    return is_eligible(user) and user.date_joined > seven_days_ago()
+    return is_eligible_user(user) and user.date_joined > seven_days_ago()
 
 
-def is_eligible(user):
+def is_eligible_author(user):
+    if user is not None:
+        return user.is_active and (user.author_profile.orcid_id is not None)
+    return False
+
+
+def is_eligible_user(user):
     if user is not None:
         return user.is_active
     return False
@@ -433,11 +439,17 @@ def get_discussion_vote_item_distribution(instance):
 
 
 def check_comment_created_by_comment_paper_author(comment):
-    return comment.created_by.author_profile in comment.paper.authors.all()
+    return (
+        is_eligible_author(comment.created_by)
+        and (comment.created_by.author_profile in comment.paper.authors.all())
+    )
 
 
 def check_reply_created_by_reply_paper_author(reply):
-    return reply.created_by.author_profile in reply.paper.authors.all()
+    return (
+        is_eligible_author(reply.created_by)
+        and (reply.created_by.author_profile in reply.paper.authors.all())
+    )
 
 
 def get_vote_on_discussion_item_distribution(instance):
