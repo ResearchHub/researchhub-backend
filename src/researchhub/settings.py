@@ -280,7 +280,7 @@ if STAGING or PRODUCTION:
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https'
 LOGIN_REDIRECT_URL = 'http://localhost:3000/orcid'
 if STAGING:
-    LOGIN_REDIRECT_URL = 'https://staging-web.reserachhub.com/orcid'
+    LOGIN_REDIRECT_URL = 'https://staging-web.researchhub.com/orcid'
 if PRODUCTION:
     LOGIN_REDIRECT_URL = 'https://researchhub.com/orcid'
 SOCIALACCOUNT_ADAPTER = 'oauth.adapters.SocialAccountAdapter'
