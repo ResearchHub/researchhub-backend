@@ -1,7 +1,9 @@
 from datetime import timedelta
 import random
+
 from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
+from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from rest_framework.test import APIClient
 
 from discussion.tests.helpers import (
@@ -15,6 +17,7 @@ from discussion.tests.helpers import (
     update_to_upvote,
     update_to_downvote
 )
+from oauth.tests.helpers import create_social_account
 from paper.tests.helpers import create_flag, create_paper, upvote_paper
 from reputation import distributions
 from summary.tests.helpers import create_summary
@@ -54,13 +57,22 @@ class SignalTests(TestCase):
         user.refresh_from_db()
         self.assertEqual(user.reputation, self.start_rep + 1)
 
-    def test_create_paper_increases_rep_by_10_if_uploaded_by_author(self):
-        user = create_random_default_user('Ronald the Author')
+    def test_create_paper_uploaded_by_orcid_author_increases_rep_10(self):
+        user = create_random_default_user('Ronald the ORCID Author')
+        create_social_account(OrcidProvider.id, user)
         paper = create_paper(uploaded_by=user)
         paper.authors.add(user.author_profile)
 
         user.refresh_from_db()
         self.assertEqual(user.reputation, self.start_rep + 10)
+
+    def test_create_paper_uploaded_by_non_orcid_author_increases_rep_1(self):
+        user = create_random_default_user('Ronald the Author')
+        paper = create_paper(uploaded_by=user)
+        paper.authors.add(user.author_profile)
+
+        user.refresh_from_db()
+        self.assertEqual(user.reputation, self.start_rep + 1)
 
     def test_vote_on_paper_increases_rep_by_1(self):
         recipient = create_random_default_user('Luna')
@@ -150,8 +162,9 @@ class SignalTests(TestCase):
         user.refresh_from_db()
         self.assertEqual(user.reputation, 200)
 
-    def test_comment_by_paper_author_upvoted_increases_rep_by_5(self):
-        recipient = create_random_default_user('Winky the Author')
+    def test_comment_by_paper_orcid_author_upvoted_increases_rep_5(self):
+        recipient = create_random_default_user('Winky the ORCID Author')
+        create_social_account(OrcidProvider.id, recipient)
 
         paper = create_paper()
         paper.authors.add(recipient.author_profile)
@@ -165,6 +178,23 @@ class SignalTests(TestCase):
         self.assertEqual(
             recipient.reputation,
             self.start_rep + self.first_week_create_rep + 5
+        )
+
+    def test_comment_by_paper_non_orcid_author_upvoted_increases_rep_1(self):
+        recipient = create_random_default_user('Winky the Author')
+
+        paper = create_paper()
+        paper.authors.add(recipient.author_profile)
+
+        thread = create_thread(paper=paper)
+        comment = create_comment(thread=thread, created_by=recipient)
+
+        upvote_discussion(comment, self.user)
+
+        recipient.refresh_from_db()
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + self.first_week_create_rep + 1
         )
 
     def test_comment_downvoted_decreases_rep_by_1(self):
@@ -193,8 +223,9 @@ class SignalTests(TestCase):
         old_user.refresh_from_db()
         self.assertEqual(old_user.reputation, self.start_rep)
 
-    def test_create_reply_increases_rep_by_5_if_author(self):
-        author = create_random_default_user('Viktor')
+    def test_create_reply_increases_rep_by_5_if_orcid_author(self):
+        author = create_random_default_user('Viktor ORCID')
+        create_social_account(OrcidProvider.id, author)
         paper = create_paper()
         paper.authors.add(author.author_profile)
 
@@ -207,6 +238,22 @@ class SignalTests(TestCase):
         self.assertEqual(
             author.reputation,
             self.start_rep + distributions.CreateReplyAsAuthor.amount
+        )
+
+    def test_create_reply_increases_rep_by_1_if_non_orcid_author(self):
+        author = create_random_default_user('Viktor')
+        paper = create_paper()
+        paper.authors.add(author.author_profile)
+
+        user = create_random_default_user('Cedric')
+        thread = create_thread(paper=paper)
+        comment = create_comment(thread=thread, created_by=user)
+        create_reply(parent=comment, created_by=author)
+
+        author.refresh_from_db()
+        self.assertEqual(
+            author.reputation,
+            self.start_rep + distributions.CreateReply.amount
         )
 
     def test_create_reply_does_NOT_increase_author_rep_on_own_comment(self):
@@ -241,8 +288,9 @@ class SignalTests(TestCase):
             self.start_rep + self.first_week_create_rep + earned_rep
         )
 
-    def test_reply_upvoted_increases_rep_by_5_if_created_by_paper_author(self):
+    def test_reply_upvoted_increases_rep_5_created_by_paper_orcid_author(self):
         recipient = create_random_default_user('George the Author')
+        create_social_account(OrcidProvider.id, recipient)
 
         paper = create_paper()
         paper.authors.add(recipient.author_profile)
@@ -256,6 +304,29 @@ class SignalTests(TestCase):
         earned_rep = (
             distributions.CreateReplyAsAuthor.amount
             + distributions.AuthorReplyUpvoted.amount
+        )
+
+        recipient.refresh_from_db()
+        self.assertEqual(
+            recipient.reputation,
+            self.start_rep + earned_rep
+        )
+
+    def test_reply_upvoted_increases_rep_1_created_by_non_orcid_author(self):
+        recipient = create_random_default_user('George the Author')
+
+        paper = create_paper()
+        paper.authors.add(recipient.author_profile)
+
+        thread = create_thread(paper=paper)
+        comment = create_comment(thread=thread)
+        reply = create_reply(parent=comment, created_by=recipient)
+
+        upvote_discussion(reply, self.user)
+
+        earned_rep = (
+            distributions.CreateReply.amount
+            + distributions.ReplyUpvoted.amount
         )
 
         recipient.refresh_from_db()
