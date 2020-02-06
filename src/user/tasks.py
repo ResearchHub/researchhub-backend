@@ -1,4 +1,5 @@
 from allauth.socialaccount.models import SocialAccount
+from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 
 from researchhub.celery import app
 from discussion.lib import (
@@ -31,19 +32,49 @@ def link_author_to_papers(author_id, orcid_account_id):
             )
 
 
+@app.task
+def link_paper_to_authors(paper_id):
+    paper = Paper.objects.get(pk=paper_id)
+    orcid_accounts = SocialAccount.objects.filter(provider=OrcidProvider.id)
+    for orcid_account in orcid_accounts:
+        works = get_orcid_works(orcid_account.extra_data)
+        if check_doi_in_works(paper.doi, works):
+            paper.authors.add(orcid_account.user.author_profile)
+            paper.save()
+            print(
+                f'Added author {orcid_account.user.author_profile.id}'
+                f' to paper {paper.id}'
+                f' on doi {paper.doi}'
+            )
+
+
 def get_orcid_works(data):
     return data['activities-summary']['works']['group']
 
 
 def get_orcid_paper(work):
+    doi = get_work_doi(work)
+    if doi is not None:
+        try:
+            return Paper.objects.get(doi=doi)
+        except Paper.DoesNotExist:
+            return None
+    return None
+
+
+def check_doi_in_works(doi, works):
+    for work in works:
+        work_doi = get_work_doi(work)
+        if doi == work_doi:
+            return True
+    return False
+
+
+def get_work_doi(work):
     eids = work['external-ids']['external-id']
     for eid in eids:
         if eid['external-id-type'] == 'doi':
-            doi = eid['external-id-value']
-            try:
-                return Paper.objects.get(doi=doi)
-            except Paper.DoesNotExist:
-                pass
+            return eid['external-id-value']
     return None
 
 
