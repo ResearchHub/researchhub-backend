@@ -14,7 +14,10 @@ from utils.http import get_user_from_request
 class VoteMixin:
 
     def get_score(self, obj):
-        return obj.calculate_score()
+        if self.context.get('needs_score', False):
+            return obj.calculate_score()
+        else:
+            return None
 
     def get_children_annotated(self, obj):
         if self.context.get('needs_score', False):
@@ -165,6 +168,13 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
 
     def get_comment_count(self, obj):
         return obj.comments.count()
+
+class SimpleThreadSerializer(ThreadSerializer):
+    class Meta:
+        fields = [
+            'id',
+        ]
+        model = Thread
 
 class ReplySerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
