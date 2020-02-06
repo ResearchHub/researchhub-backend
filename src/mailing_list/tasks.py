@@ -92,4 +92,4 @@ def build_subject(notification_frequency):
         return f'{prefix}Updates'
 
 def build_notification_context(actions):
-    return {**base_email_context, 'actions': list(actions)}
+    return {**base_email_context, 'actions': [act.email_context() for act in actions]}

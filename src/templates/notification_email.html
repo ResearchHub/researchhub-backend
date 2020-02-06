@@ -16,53 +16,53 @@
           </div>
         </div>
         {% for action in actions %}
-        <div class="content">
-          <div class="meta">
-            <div class="avatar-wrapper">
-              {% if action.item.created_by.author_profile.profile_image %}
-                <img
-                  class="author-avatar"
-                  src="{{ action.item.created_by.author_profile.profile_image|default:"https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg" }}"
-                  alt="{{ action.item.created_by.author_profile.profile_image }}"
-                />
-              {% else %}
-                <div class="initials">
-                  {{ action.initials }}
-                </div>
-              {% endif %}
-            </div>
-            <div class="notification-wrapper">
-              <div class="notification-title">
-                <span class="first-line">
-                  <b>
-                    {{ action.item.created_by.author_profile.first_name }}
-                     {{ action.item.created_by.author_profile.last_name }}
-                  </b> {{ action.label }}:
-                  <span class="thread"> {{ action.thread }} </span>
-                </span>
-                <div class="timestamp">
-                  <!-- <span class="timestamp-icon">•</span> -->
-                  {{ action.created_date|localize }}
-                </div>
-                <div class="paper">
-                  {{ action.paper }}
+          <div class="content">
+            <div class="meta">
+              <div class="avatar-wrapper">
+                {% if action.item.created_by.author_profile.profile_image %}
+                  <img
+                    class="author-avatar"
+                    src="{{ action.item.created_by.author_profile.profile_image|default:"https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg" }}"
+                    alt="{{ action.item.created_by.author_profile.profile_image }}"
+                  />
+                {% else %}
+                  <div class="initials">
+                    {{ action.initials }}
+                  </div>
+                {% endif %}
+              </div>
+              <div class="notification-wrapper">
+                <div class="notification-title">
+                  <span class="first-line">
+                    <b>
+                      {{ action.item.created_by.author_profile.first_name }}
+                       {{ action.item.created_by.author_profile.last_name }}
+                    </b> {{ action.label }}:
+                    <span class="thread"> {{ action.item.thread.title }} </span>
+                  </span>
+                  <div class="paper">
+                    {{ action.item.paper.title }}
+                  </div>
+                  <div class="timestamp">
+                    <!-- <span class="timestamp-icon">•</span> -->
+                    {{ action.created_date|localize }}
+                  </div>
                 </div>
               </div>
             </div>
+            <div class="body">
+              {{ action.item.plain_text }}
+            </div>
+            <div class="hubtags-list">
+              <a class="button-label" href="{{ action.frontend_view_link }}">
+                View {{ action.content_type_name }}
+              </a>
+            </div>
+            <div class="divider">
+              <div class="line"></div>
+            </div>
           </div>
-          <div class="body">
-            {{ action.item.plain_text }}
-          </div>
-          <div class="hubtags-list">
-            <a class="button-label" href="{{ action.frontend_view_link }}">
-              View Thread / Reply
-            </a>
-          </div>
-          <div class="divider">
-            <div class="line"></div>
-          </div>
-        </div>
-      {% endfor %}
+        {% endfor %}
       <div class="footer">
         <a href="{{opt_out}}">Unsubscribe or change how frequently I get updated</a>
       </div>
