@@ -234,6 +234,41 @@ class Action(DefaultModel):
         self.read_date = timezone.now()
         self.save()
 
+    def email_context(self):
+        act = self
+        if not hasattr(act.item, 'created_by') and hasattr(act.item, 'proposed_by'):
+            act.item.created_by = act.item.proposed_by
+
+        if hasattr(act, 'content_type') and act.content_type and act.content_type.name:
+            act.content_type_name = act.content_type.name
+        else:
+            act.content_type_name = 'paper'
+
+        verb = 'done a noteworthy action on'
+        if act.content_type_name == 'reply':
+            verb = 'replied to'
+        elif act.content_type_name == 'comment':
+            verb = 'commented on'
+        elif act.content_type_name == 'summary':
+            verb = 'edited'
+        elif act.content_type_name == 'thread':
+            verb = 'created a new discussion on'
+
+        noun = 'paper'
+        if act.content_type_name == 'comment':
+            noun = 'thread'
+        elif act.content_type_name == 'reply':
+            noun = 'comment on'
+        elif act.content_type_name == 'thread':
+            noun = 'paper'
+
+        act.label = 'has {} the {}'.format(verb, noun)
+
+        if act.content_type_name == 'summary':
+            act.label += ' summary'
+
+        return act
+
     @property
     def frontend_view_link(self):
         link = BASE_FRONTEND_URL

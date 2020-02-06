@@ -37,11 +37,9 @@ def create_action(sender, instance, created, **kwargs):
         action.hubs.add(*hubs)
         return action
 
-
 def get_related_hubs(instance):
     paper = instance.paper
     return paper.hubs.all()
-
 
 @receiver(post_save, sender=Action, dispatch_uid='send_action_notification')
 def send_immediate_action_notification(sender, instance, created, **kwargs):
@@ -51,3 +49,4 @@ def send_immediate_action_notification(sender, instance, created, **kwargs):
                 notify_immediate.apply_async((instance.id,), priority=5)
             else:
                 notify_immediate(instance.id)
+

@@ -20,9 +20,9 @@ from sentry_sdk.integrations.django import DjangoIntegration
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 APP_ENV = os.environ.get('APP_ENV') or 'development'
-DEVELOPMENT = APP_ENV == 'development'
-PRODUCTION = APP_ENV == 'production'
-STAGING = APP_ENV == 'staging'
+DEVELOPMENT = 'development' in APP_ENV
+PRODUCTION = 'production' in APP_ENV
+STAGING = 'staging' in APP_ENV
 CI = "GITHUB_ACTIONS" in os.environ
 CLOUD = PRODUCTION or STAGING or CI
 TESTING = ('test' in APP_ENV) or ('test' in sys.argv)
@@ -393,7 +393,6 @@ DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 AWS_STORAGE_BUCKET_NAME = 'researchhub-paper-dev1'
 AWS_S3_REGION_NAME = 'us-west-2'
 
-
 # Email
 
 AWS_SES_REGION_NAME = 'us-west-2'
@@ -406,8 +405,8 @@ if TESTING:
 EMAIL_WHITELIST = [
     'craig@quantfive.org',
     'val@quantfive.org',
+    'joey@quantfive.org',
 ]
-
 
 # Sentry
 
