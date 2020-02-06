@@ -20,13 +20,14 @@ from utils.http import (
 import utils.sentry as sentry
 from utils.voting import calculate_score
 
+from researchhub.settings import PAGINATION_PAGE_SIZE
 
 class PaperSerializer(serializers.ModelSerializer):
     authors = AuthorSerializer(many=True, read_only=False, required=False)
     discussion = serializers.SerializerMethodField()
-    hubs = serializers.SerializerMethodField()
+    hubs = HubSerializer(many=True, required=False)
     score = serializers.SerializerMethodField()
-    summary = serializers.SerializerMethodField()
+    summary = SummarySerializer(required=False)
     uploaded_by = UserSerializer(read_only=True)
     user_vote = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
@@ -37,6 +38,7 @@ class PaperSerializer(serializers.ModelSerializer):
             'score',
             'user_vote',
             'user_flag',
+            'users_who_bookmarked',
         ]
         model = Paper
 
@@ -163,43 +165,21 @@ class PaperSerializer(serializers.ModelSerializer):
                 base_error=error.trigger
             )
 
-    def get_authors(self, obj):
-        authors_queryset = obj.authors.all()
-        authors = []
-        if authors_queryset:
-            authors = AuthorSerializer(authors_queryset, many=True).data
-        return authors
-
     def get_discussion(self, obj):
-        count = 0
-        threads = []
         request = self.context.get('request')
+        serializer = self.context.get('thread_serializer', ThreadSerializer)
 
-        try:
-            threads_queryset = obj.thread_obj
-        except AttributeError:
-            threads_queryset = obj.threads.all().order_by('-created_date')
-        if threads_queryset:
-            AMOUNT = 20
-            count = len(threads_queryset)
-            threads_queryset = threads_queryset[:AMOUNT]
-            threads = ThreadSerializer(
-                threads_queryset,
-                many=True,
-                context={'request': request}
-            ).data
+        threads_queryset = obj.threads.all()
+        threads = serializer(
+            threads_queryset.order_by('-created_date')[:PAGINATION_PAGE_SIZE],
+            many=True,
+            context={'request': request}
+        )
 
-        return {'count': count, 'threads': threads}
-
-    def get_summary(self, obj):
-        return SummarySerializer(obj.summary).data
-
-    def get_hubs(self, obj):
-        return HubSerializer(obj.hubs, many=True).data
+        return {'count': threads_queryset.count(), 'threads': threads.data}
 
     def get_score(self, obj):
-        score = calculate_score(obj, Vote.UPVOTE, Vote.DOWNVOTE)
-        return score
+        return obj.calculate_score()
 
     def get_user_vote(self, obj):
         vote = None
@@ -209,11 +189,11 @@ class PaperSerializer(serializers.ModelSerializer):
                 vote_created_by = obj.vote_created_by
                 if len(vote_created_by) == 0:
                     return None
-                vote = VoteSerializer(vote_created_by).data
+                vote = PaperVoteSerializer(vote_created_by).data
             except AttributeError:
                 try:
                     vote = obj.votes.get(created_by=user.id)
-                    vote = VoteSerializer(vote).data
+                    vote = PaperVoteSerializer(vote).data
                 except Vote.DoesNotExist:
                     pass
         return vote
@@ -284,9 +264,7 @@ class FlagSerializer(serializers.ModelSerializer):
         model = Flag
 
 
-class VoteSerializer(serializers.ModelSerializer):
-    paper = PaperSerializer()
-
+class PaperVoteSerializer(serializers.ModelSerializer):
     class Meta:
         fields = [
             'created_by',
@@ -295,3 +273,4 @@ class VoteSerializer(serializers.ModelSerializer):
             'paper',
         ]
         model = Vote
+

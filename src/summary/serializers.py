@@ -9,7 +9,6 @@ class PreviousSummarySerializer(serializers.ModelSerializer):
         fields = '__all__'
         model = Summary
 
-
 class SummarySerializer(serializers.ModelSerializer):
     proposed_by = UserSerializer(
         read_only=False,
