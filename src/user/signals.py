@@ -7,15 +7,16 @@ from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from mailing_list.tasks import notify_immediate
-from paper.models import Vote as PaperVote
+from paper.models import Paper, Vote as PaperVote
 from researchhub.settings import TESTING
 from summary.models import Summary
 from user.models import Action, Author
-from user.tasks import link_author_to_papers
+from user.tasks import link_author_to_papers, link_paper_to_authors
 
 
 @receiver(post_save, sender=Author, dispatch_uid='link_author_to_papers')
 def queue_link_author_to_papers(sender, instance, created, **kwargs):
+    """Runs a queued task to link the new ORCID author to existing papers."""
     if created:
         try:
             orcid_account = SocialAccount.objects.get(
@@ -30,6 +31,34 @@ def queue_link_author_to_papers(sender, instance, created, **kwargs):
                 link_author_to_papers(instance.id, orcid_account.id)
         except SocialAccount.DoesNotExist:
             pass
+
+
+@receiver(post_save, sender=Paper, dispatch_uid='link_paper_to_authors')
+def queue_link_paper_to_authors(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
+    """Runs a queued task linking ORCID authors to papers with updated dois."""
+    if created or doi_updated(update_fields):
+        if instance.doi is not None:
+            try:
+                if not TESTING:
+                    link_paper_to_authors.apply_async(
+                        (instance.id,)
+                    )
+                else:
+                    link_paper_to_authors(instance.id)
+            except SocialAccount.DoesNotExist:
+                pass
+
+
+def doi_updated(update_fields):
+    if update_fields is not None:
+        return 'doi' in update_fields
+    return False
 
 
 @receiver(post_save, sender=Summary, dispatch_uid='create_summary_action')
