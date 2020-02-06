@@ -118,7 +118,7 @@ class Paper(models.Model):
     @property
     def score_indexing(self):
         '''Score for Elasticsearch indexing.'''
-        return self.get_score()
+        return self.calculate_score()
 
     @property
     def summary_indexing(self):
@@ -139,10 +139,14 @@ class Paper(models.Model):
     def get_discussion_count(self):
         return self.threads.count()
 
-    def get_score(self):
-        if self.votes:
-            return calculate_score(self, Vote.UPVOTE, Vote.DOWNVOTE)
-        return 0
+    def calculate_score(self):
+        if hasattr(self, 'score'):
+            return self.score
+        else:
+            upvotes = self.votes.filter(vote_type=Vote.UPVOTE).count()
+            downvotes = self.votes.filter(vote_type=Vote.DOWNVOTE).count()
+            score = upvotes - downvotes
+            return score
 
     def get_vote_for_index(self, vote):
         wrapper = dict_to_obj({

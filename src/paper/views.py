@@ -1,7 +1,7 @@
 import datetime
 
 from elasticsearch.exceptions import ConnectionError
-from django.db.models import Count, Q, Prefetch
+from django.db.models import Count, Q, Prefetch, prefetch_related_objects
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -14,6 +14,7 @@ from requests.exceptions import (
 from .filters import PaperFilter
 from .models import Flag, Paper, Vote
 from discussion.models import Vote as DiscussionVote, Thread
+from discussion.serializers import SimpleThreadSerializer
 from .utils import get_csl_item, get_pdf_location_for_csl_item
 from .permissions import (
     CreatePaper,
@@ -27,9 +28,10 @@ from .serializers import (
     BookmarkSerializer,
     FlagSerializer,
     PaperSerializer,
-    VoteSerializer
+    PaperVoteSerializer
 )
 from utils.http import RequestMethods, check_url_contains_pdf
+from utils.serializers import EmptySerializer
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -46,40 +48,28 @@ class PaperViewSet(viewsets.ModelViewSet):
         & UpdatePaper
     ]
 
-    def get_queryset(self):
-        return self.queryset.prefetch_related(
+    def prefetch_lookups(self):
+        return (
+            #'users_who_bookmarked',
             'uploaded_by',
             'uploaded_by__bookmarks',
             'uploaded_by__author_profile',
+            'uploaded_by__author_profile__user',
+            'uploaded_by__hubs',
             'authors',
+            'authors__user',
             'summary',
             'summary__previous',
             'summary__proposed_by__bookmarks',
             'summary__proposed_by__subscribed_hubs',
             'summary__proposed_by__author_profile',
+            'summary__paper',
             'moderators',
             'hubs',
             'hubs__subscribers',
             'votes',
             'flags',
             'threads',
-            'threads__created_by',
-            'threads__created_by__author_profile',
-            'threads__created_by__bookmarks',
-            Prefetch(
-                "votes",
-                queryset=Vote.objects.filter(
-                    vote_type=Vote.UPVOTE
-                ),
-                to_attr="upvotes"
-            ),
-            Prefetch(
-                "votes",
-                queryset=Vote.objects.filter(
-                    vote_type=Vote.DOWNVOTE
-                ),
-                to_attr="downvotes"
-            ),
             Prefetch(
                 'votes',
                 queryset=Vote.objects.filter(
@@ -314,31 +304,16 @@ class PaperViewSet(viewsets.ModelViewSet):
         ordering = request.GET['ordering']
         hub_id = request.GET['hub_id']
 
+        threads_count = Count('threads')
+
         # hub_id = 0 is the homepage
         # we aren't on a specific hub so don't filter by that hub_id
         if int(hub_id) == 0:
-            papers = self.get_queryset()
+            papers = self.get_queryset().annotate(threads_count=threads_count).prefetch_related(*self.prefetch_lookups())
         else:
-            papers = self.get_queryset().filter(hubs=hub_id)
+            papers = self.get_queryset().annotate(threads_count=threads_count).filter(hubs=hub_id).prefetch_related(*self.prefetch_lookups())
 
-        order_papers = papers
-        no_results = False
-
-        if ordering == 'newest':  # Recently added
-            filtered_papers = papers.filter(
-                uploaded_date__gte=start_date,
-                uploaded_date__lte=end_date
-            )
-            if filtered_papers:
-                order_papers = filtered_papers.order_by('-uploaded_date')
-                order_papers = order_papers | papers.order_by(
-                    '-uploaded_date'
-                ).exclude(id__in=order_papers)
-            else:
-                order_papers = papers.order_by('-uploaded_date')
-                no_results = True
-
-        elif ordering == 'top_rated':
+        if 'score' in ordering:
             upvotes = Count(
                 'vote',
                 filter=Q(
@@ -356,13 +331,6 @@ class PaperViewSet(viewsets.ModelViewSet):
                 )
             )
 
-            papers = papers.annotate(
-                score=upvotes - downvotes,
-                total_votes=upvotes + downvotes
-            )
-            filtered_papers = papers.filter(total_votes__gte=1)
-            order_papers = []
-
             all_time_upvotes = Count(
                 'vote',
                 filter=Q(
@@ -375,21 +343,16 @@ class PaperViewSet(viewsets.ModelViewSet):
                     vote__vote_type=Vote.DOWNVOTE,
                 )
             )
-            all_time_papers = papers.annotate(
-                score=all_time_upvotes + all_time_downvotes
+
+            papers = papers.annotate(
+                score=upvotes - downvotes,
+                score_secondary=all_time_upvotes + all_time_downvotes,
             )
 
-            if filtered_papers:
-                order_papers = filtered_papers.order_by('-score')
-                order_papers = order_papers | all_time_papers.order_by(
-                    '-score'
-                ).exclude(id__in=filtered_papers)
-            else:
-                order_papers = all_time_papers.order_by('-score')
-                no_results = True
+            order_papers = papers.order_by(ordering, ordering + '_secondary')
 
-        elif ordering == 'most_discussed':
-            threads = Count(
+        elif 'discussed' in ordering:
+            threads_c = Count(
                 'threads',
                 filter=Q(
                     threads__created_date__gte=start_date,
@@ -403,34 +366,22 @@ class PaperViewSet(viewsets.ModelViewSet):
                     threads__comments__created_date__lte=end_date
                 )
             )
-            papers = papers.annotate(discussed=threads + comments)
-            filtered_papers = papers.filter(discussed__gte=1)
-
-            all_time_threads = Count(
-                'threads',
-            )
             all_time_comments = Count(
                 'threads__comments',
             )
             all_time_papers = papers.annotate(
-                discussed=all_time_threads + all_time_comments
+                discussed=threads_c + comments,
+                discussed_secondary=threads_count + all_time_comments
             )
-            if filtered_papers:
-                order_papers = filtered_papers.order_by('-discussed')
-                order_papers = order_papers | all_time_papers.order_by('-discussed').exclude(
-                    id__in=filtered_papers
-                )
-            else:
-                order_papers = all_time_papers.order_by('-discussed')
-                no_results = True
+
+            order_papers = papers.order_by(ordering, ordering + '_secondary')
+        else:
+            order_papers = papers.order_by(ordering)
 
         page = self.paginate_queryset(order_papers)
-        serializer = self.get_serializer(page, many=True)
-        return self.get_paginated_response({
-            'data': serializer.data,
-            'no_results': no_results
-        })
-
+        #prefetch_related_objects(page, *self.prefetch_lookups())
+        serializer = PaperSerializer(page, many=True, context={'request': self.request, 'thread_serializer': EmptySerializer})
+        return self.get_paginated_response(serializer.data)
 
 def find_vote(user, paper, vote_type):
     vote = Vote.objects.filter(
@@ -456,7 +407,7 @@ def update_or_create_vote(user, paper, vote_type):
 
 def get_vote_response(vote, status_code):
     """Returns Response with serialized `vote` data and `status_code`."""
-    serializer = VoteSerializer(vote)
+    serializer = PaperVoteSerializer(vote)
     return Response(serializer.data, status=status_code)
 
 
