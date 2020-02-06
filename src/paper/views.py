@@ -302,6 +302,15 @@ class PaperViewSet(viewsets.ModelViewSet):
             datetime.timezone.utc
         )
         ordering = request.GET['ordering']
+
+        # TODO send correct ordering from frontend
+        if ordering == 'top_rated':
+            ordering = '-score'
+        elif ordering == 'most_discussed':
+            ordering = '-discussed'
+        elif ordering == 'newest':
+            ordering = '-uploaded_date'
+
         hub_id = request.GET['hub_id']
 
         threads_count = Count('threads')
@@ -381,7 +390,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         page = self.paginate_queryset(order_papers)
         #prefetch_related_objects(page, *self.prefetch_lookups())
         serializer = PaperSerializer(page, many=True, context={'request': self.request, 'thread_serializer': EmptySerializer})
-        return self.get_paginated_response(serializer.data)
+        return self.get_paginated_response({'data': serializer.data, 'no_results': False})
 
 def find_vote(user, paper, vote_type):
     vote = Vote.objects.filter(
