@@ -49,7 +49,11 @@ def link_paper_to_authors(paper_id):
 
 
 def get_orcid_works(data):
-    return data['activities-summary']['works']['group']
+    try:
+        return data['activities-summary']['works']['group']
+    except Exception as e:
+        print(e)
+    return []
 
 
 def get_orcid_paper(work):
