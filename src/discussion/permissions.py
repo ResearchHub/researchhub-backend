@@ -1,7 +1,11 @@
 from .utils import get_paper_id_from_path
 from paper.models import Paper
 from user.models import Author
-from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission
+from utils.permissions import (
+    AuthorizationBasedPermission,
+    RuleBasedPermission,
+    PermissionDenied
+)
 
 
 class CreateDiscussionComment(RuleBasedPermission):
@@ -65,6 +69,15 @@ class FlagDiscussionThread(RuleBasedPermission):
 
     def satisfies_rule(self, request):
         return request.user.reputation >= 1
+
+
+class Vote(AuthorizationBasedPermission):
+    message = 'Can not vote on own content'
+
+    def is_authorized(self, request, view, obj):
+        if request.user == obj.created_by:
+            raise PermissionDenied(detail=self.message)
+        return True
 
 
 class UpvoteDiscussionComment(RuleBasedPermission):
