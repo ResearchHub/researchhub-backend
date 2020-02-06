@@ -23,6 +23,12 @@ def link_author_to_papers(author_id, orcid_account_id):
         paper = get_orcid_paper(work)
         if paper is not None:
             paper.authors.add(author)
+            paper.save()
+            print(
+                f'Added author {author.id}'
+                f' to paper {paper.id}'
+                f' on doi {paper.doi}'
+            )
 
 
 def get_orcid_works(data):
@@ -30,7 +36,7 @@ def get_orcid_works(data):
 
 
 def get_orcid_paper(work):
-    eids = work['external_ids']['external_id']
+    eids = work['external-ids']['external-id']
     for eid in eids:
         if eid['external-id-type'] == 'doi':
             doi = eid['external-id-value']
