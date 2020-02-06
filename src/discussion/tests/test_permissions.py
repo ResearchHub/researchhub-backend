@@ -1,6 +1,7 @@
 import random
 
-from .helpers import (
+from discussion.permissions import Vote as VotePermission
+from discussion.tests.helpers import (
     build_comment_data,
     build_discussion_default_url,
     build_discussion_detail_url,
@@ -10,12 +11,12 @@ from .helpers import (
     create_reply,
     create_thread
 )
-from .tests import (
+from discussion.tests.tests import (
     BaseIntegrationTestCase as DiscussionIntegrationTestCase
 )
+from paper.tests.helpers import create_paper
 from user.models import Author
 from user.tests.helpers import create_random_authenticated_user
-from paper.tests.helpers import create_paper
 from utils.test_helpers import (
     get_authenticated_get_response,
     get_authenticated_post_response
@@ -260,6 +261,27 @@ class DiscussionThreadPermissionsIntegrationTests(
         user = self.create_user_with_reputation(24)
         response = self.get_reply_downvote_post_response(user)
         self.assertEqual(response.status_code, 403)
+
+    def test_can_NOT_vote_on_created_content(self):
+        text = VotePermission.message
+
+        response = self.get_thread_upvote_post_response(self.user)
+        self.assertContains(response, text, status_code=403)
+
+        response = self.get_thread_downvote_post_response(self.user)
+        self.assertContains(response, text, status_code=403)
+
+        response = self.get_comment_upvote_post_response(self.user)
+        self.assertContains(response, text, status_code=403)
+
+        response = self.get_comment_downvote_post_response(self.user)
+        self.assertContains(response, text, status_code=403)
+
+        response = self.get_reply_upvote_post_response(self.user)
+        self.assertContains(response, text, status_code=403)
+
+        response = self.get_reply_downvote_post_response(self.user)
+        self.assertContains(response, text, status_code=403)
 
     def add_paper_author(self, author):
         self.paper.authors.add(author)
