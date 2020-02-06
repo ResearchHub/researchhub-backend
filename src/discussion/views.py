@@ -5,7 +5,7 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
-from .models import Comment, Endorsement, Flag, Thread, Reply, Vote
+from discussion.models import Comment, Endorsement, Flag, Thread, Reply, Vote
 from .serializers import (
     CommentSerializer,
     EndorsementSerializer,
@@ -14,7 +14,7 @@ from .serializers import (
     ReplySerializer,
     VoteSerializer
 )
-from .permissions import (
+from discussion.permissions import (
     CreateDiscussionComment,
     CreateDiscussionReply,
     CreateDiscussionThread,
@@ -30,7 +30,8 @@ from .permissions import (
     UpvoteDiscussionThread,
     DownvoteDiscussionComment,
     DownvoteDiscussionReply,
-    DownvoteDiscussionThread
+    DownvoteDiscussionThread,
+    Vote as VotePermission
 )
 from .utils import (
     get_comment_id_from_path,
@@ -200,7 +201,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
-        permission_classes=[UpvoteDiscussionThread]
+        permission_classes=[UpvoteDiscussionThread & VotePermission]
     )
     def upvote(self, *args, **kwargs):
         return super().upvote(*args, **kwargs)
@@ -208,7 +209,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
-        permission_classes=[DownvoteDiscussionThread]
+        permission_classes=[DownvoteDiscussionThread & VotePermission]
     )
     def downvote(self, *args, **kwargs):
         return super().downvote(*args, **kwargs)
@@ -249,7 +250,7 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
-        permission_classes=[UpvoteDiscussionComment]
+        permission_classes=[UpvoteDiscussionComment & VotePermission]
     )
     def upvote(self, *args, **kwargs):
         return super().upvote(*args, **kwargs)
@@ -257,7 +258,7 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
-        permission_classes=[DownvoteDiscussionComment]
+        permission_classes=[DownvoteDiscussionComment & VotePermission]
     )
     def downvote(self, *args, **kwargs):
         return super().downvote(*args, **kwargs)
@@ -300,7 +301,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
-        permission_classes=[UpvoteDiscussionReply]
+        permission_classes=[UpvoteDiscussionReply & VotePermission]
     )
     def upvote(self, *args, **kwargs):
         return super().upvote(*args, **kwargs)
@@ -308,7 +309,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
-        permission_classes=[DownvoteDiscussionReply]
+        permission_classes=[DownvoteDiscussionReply & VotePermission]
     )
     def downvote(self, *args, **kwargs):
         return super().downvote(*args, **kwargs)
