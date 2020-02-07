@@ -9,17 +9,20 @@ from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 class SocialAccountAdapter(DefaultSocialAccountAdapter):
     def pre_social_login(self, request, sociallogin):
         email = sociallogin.user.email
-
         if email:
             other_provider = OrcidProvider.id
             if sociallogin.account.provider == OrcidProvider.id:
                 other_provider = GoogleProvider.id
+            try:
+                if SocialAccount.objects.get(
+                    user__email=email,
+                    provider=other_provider
+                ).exists():
+                    sociallogin.state['process'] = 'connect'
+            except Exception as e:
+                print(e)
 
-            if SocialAccount.objects.get(
-                user__email=email,
-                provider=other_provider
-            ).exists():
-                sociallogin.state['process'] = 'connect'
+        return super().pre_social_login(request, sociallogin)
 
     def save_user(self, request, sociallogin, form=None):
         if sociallogin.account.provider == OrcidProvider.id:
