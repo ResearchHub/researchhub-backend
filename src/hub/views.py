@@ -27,7 +27,6 @@ class HubViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticatedOrReadOnly & CreateHub]
     filter_class = HubFilter
     search_fields = ('name')
-    ordering = ('name',)
 
     def get_queryset(self):
         if 'score' in self.request.query_params.get('ordering', ''):

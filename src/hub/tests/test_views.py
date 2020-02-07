@@ -5,7 +5,8 @@ from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
 from user.tests.helpers import (
     create_random_default_user,
-    create_random_authenticated_user
+    create_random_authenticated_user,
+    create_actions
 )
 from utils.test_helpers import (
     get_authenticated_post_response,
@@ -18,7 +19,43 @@ class HubViewsTests(TestCase):
     def setUp(self):
         self.base_url = '/api/hub/'
         self.hub = create_hub(name='View Test Hub')
+        self.hub2 = create_hub(name='View Test Hub 2')
         self.user = create_random_authenticated_user('hub_user')
+
+    def test_hub_order_by_score(self):
+        hub = create_hub('High Score Hub')
+        hub2 = create_hub('Low Score Hub')
+
+        actions = create_actions(10, hub=hub)
+        actions = create_actions(5, hub=hub2)
+
+        url = self.base_url + '?ordering=-score'
+        response = get_get_response(url)
+        response_data = response.data['results']
+
+        h1_first = False
+        h2_second = False
+        for h in response_data:
+            if h['id'] == hub.id:
+                h1_first = True
+            elif h1_first and h['id'] == hub2.id:
+                h2_second = True
+
+        self.assertTrue(h1_first and h2_second)
+
+        url = self.base_url + '?ordering=score'
+        response = get_get_response(url)
+        response_data = response.data['results']
+
+        h2_first = False
+        h1_second = False
+        for h in response_data:
+            if h['id'] == hub2.id:
+                h2_first = True
+            elif h2_first and h['id'] == hub.id:
+                h1_second = True
+
+        self.assertTrue(h2_first and h1_second)
 
     def test_can_subscribe_to_hub(self):
         start_state = self.is_subscribed(self.user, self.hub)
