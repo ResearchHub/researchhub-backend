@@ -48,12 +48,6 @@ class PaperViewSet(viewsets.ModelViewSet):
         & UpdatePaper
     ]
 
-    def get_queryset(self, prefetch=True):
-        if prefetch:
-            return self.queryset.prefetch_related(*self.prefetch_lookups())
-        else:
-            return self.queryset
-
     def prefetch_lookups(self):
         return (
             #'users_who_bookmarked',
@@ -61,7 +55,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             'uploaded_by__bookmarks',
             'uploaded_by__author_profile',
             'uploaded_by__author_profile__user',
-            'uploaded_by__hubs',
+            'uploaded_by__subscribed_hubs',
             'authors',
             'authors__user',
             'summary',
@@ -91,6 +85,12 @@ class PaperViewSet(viewsets.ModelViewSet):
                 to_attr="flag_created_by",
             ),
         )
+
+    def get_queryset(self, prefetch=True):
+        if prefetch:
+            return self.queryset.prefetch_related(*self.prefetch_lookups())
+        else:
+            return self.queryset
 
     @action(
         detail=True,
@@ -390,7 +390,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             order_papers = papers.order_by(ordering)
 
         page = self.paginate_queryset(order_papers)
-        #prefetch_related_objects(page, *self.prefetch_lookups())
         serializer = PaperSerializer(page, many=True, context={'request': self.request, 'thread_serializer': EmptySerializer})
         return self.get_paginated_response({'data': serializer.data, 'no_results': False})
 
