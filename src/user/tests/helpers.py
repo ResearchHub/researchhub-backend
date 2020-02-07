@@ -111,15 +111,19 @@ def create_university(
     )
 
 
-def create_actions(count, item=None):
-    return [create_action(item=item) for idx in range(count)]
+def create_actions(count, item=None, hub=None):
+    return [create_action(item=item, hub=hub) for idx in range(count)]
 
 
-def create_action(user=None, item=None):
+def create_action(user=None, item=None, hub=None):
     if item is None:
         item = create_university()
 
-    return Action.objects.create(
+    action = Action.objects.create(
         user=user,
         item=item
     )
+    if hub:
+        action.hubs.add(hub)
+
+    return action
