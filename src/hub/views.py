@@ -1,4 +1,4 @@
-from django.db.models import prefetch_related_objects
+from django.db.models import prefetch_related_objects, Count
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -23,11 +23,17 @@ from utils.message import send_email_message
 class HubViewSet(viewsets.ModelViewSet):
     queryset = Hub.objects.all()
     serializer_class = HubSerializer
-    filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
+    filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter,)
     permission_classes = [IsAuthenticatedOrReadOnly & CreateHub]
     filter_class = HubFilter
     search_fields = ('name')
-    ordering = ['name']
+    ordering = ('name',)
+
+    def get_queryset(self):
+        if 'score' in self.request.query_params.get('ordering', ''):
+            return self.queryset.annotate(score=Count('actions'))
+        else:
+            return self.queryset
 
     @action(
         detail=True,
