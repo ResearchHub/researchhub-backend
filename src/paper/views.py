@@ -48,6 +48,12 @@ class PaperViewSet(viewsets.ModelViewSet):
         & UpdatePaper
     ]
 
+    def get_queryset(self, prefetch=True):
+        if prefetch:
+            return self.queryset.prefetch_related(*self.prefetch_lookups())
+        else:
+            return self.queryset
+
     def prefetch_lookups(self):
         return (
             #'users_who_bookmarked',
@@ -318,9 +324,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         # hub_id = 0 is the homepage
         # we aren't on a specific hub so don't filter by that hub_id
         if int(hub_id) == 0:
-            papers = self.get_queryset().annotate(threads_count=threads_count).prefetch_related(*self.prefetch_lookups())
+            papers = self.get_queryset(prefetch=False).annotate(threads_count=threads_count).prefetch_related(*self.prefetch_lookups())
         else:
-            papers = self.get_queryset().annotate(threads_count=threads_count).filter(hubs=hub_id).prefetch_related(*self.prefetch_lookups())
+            papers = self.get_queryset(prefetch=False).annotate(threads_count=threads_count).filter(hubs=hub_id).prefetch_related(*self.prefetch_lookups())
 
         if 'score' in ordering:
             upvotes = Count(
