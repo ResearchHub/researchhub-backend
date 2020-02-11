@@ -103,7 +103,6 @@ urlpatterns = [
     path(
         'api/auth/orcid/connect/',
         oauth.views.orcid_connect,
-        # oauth.views.orcid_oauth2_login,
         name='orcid_login'
     ),
     path(
