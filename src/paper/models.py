@@ -38,7 +38,7 @@ class Paper(models.Model):
         blank=True
     )
     # currently this is the url entered by users during upload (seed URL)
-    url = models.URLField(default='', blank=True)
+    url = models.URLField(default='', blank=True, max_length=500)
     summary = models.ForeignKey(
         Summary,
         blank=True,
@@ -48,8 +48,8 @@ class Paper(models.Model):
     )
     file = models.FileField(upload_to='uploads/papers/%Y/%m/%d')
     pdf_file_license = models.TextField(default='', blank=True)
-    pdf_url = models.URLField(default='', blank=True)
-    pdf_url_for_landing_page = models.URLField(default='', blank=True)
+    pdf_url = models.URLField(default='', blank=True, max_length=500)
+    pdf_url_for_landing_page = models.URLField(default='', blank=True, max_length=500)
     tagline = models.TextField(
         null=True,
         blank=True
