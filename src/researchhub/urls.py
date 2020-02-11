@@ -101,6 +101,12 @@ urlpatterns = [
         name='orcid_callback'
     ),
     path(
+        'api/auth/orcid/connect/',
+        oauth.views.orcid_connect,
+        # oauth.views.orcid_oauth2_login,
+        name='orcid_login'
+    ),
+    path(
         'auth/google/login/callback/',
         oauth.views.google_callback,
         name='google_callback'

@@ -4,6 +4,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.dispatch import receiver
 from django.utils import timezone
+from allauth.socialaccount.models import SocialAccount
 from storages.backends.s3boto3 import S3Boto3Storage
 
 from discussion.models import Thread, Comment, Reply
@@ -154,6 +155,12 @@ class Author(models.Model):
         null=True,
         blank=True,
         unique=True
+    )
+    orcid_account = models.ForeignKey(
+        SocialAccount,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
     )
     facebook = models.CharField(
         max_length=255,

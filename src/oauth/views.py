@@ -3,7 +3,10 @@ from allauth.socialaccount.models import SocialLogin, SocialAccount
 from allauth.socialaccount.providers.base import ProviderException
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
-from allauth.socialaccount.providers.orcid.views import OrcidOAuth2Adapter
+from allauth.socialaccount.providers.orcid.views import (
+    OrcidOAuth2Adapter,
+    oauth2_login as orcid_oauth2_login
+)
 
 from allauth.socialaccount.providers.oauth2.client import (
     OAuth2Error,
@@ -21,7 +24,9 @@ from allauth.account import app_settings
 
 from rest_auth.registration.views import SocialLoginView
 from rest_framework import serializers
-from rest_framework.permissions import AllowAny
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
 
 from django.dispatch import receiver
 from django.http import HttpRequest
@@ -31,6 +36,7 @@ from oauth.helpers import complete_social_login
 from oauth.exceptions import LoginError
 from researchhub.settings import GOOGLE_REDIRECT_URL
 from utils import sentry
+from utils.http import http_request, RequestMethods
 
 
 class SocialLoginSerializer(serializers.Serializer):
@@ -224,6 +230,44 @@ class CallbackView(OAuth2CallbackView):
 
 google_callback = CallbackView.adapter_view(GoogleOAuth2Adapter)
 orcid_callback = CallbackView.adapter_view(OrcidOAuth2Adapter)
+orcid_login = orcid_oauth2_login
+
+
+@api_view([RequestMethods.POST])
+@permission_classes([IsAuthenticated])
+def orcid_connect(request):
+    success = False
+    status = 400
+
+    try:
+        orcid = request.data.get('orcid')
+        access_token = request.data.get('access_token')
+        url = f'https://pub.orcid.org/v3.0/{orcid}/record'
+        headers = {
+            'Accept': 'application/json',
+            'Authorization': f'Bearer {access_token}'
+        }
+        # Raise for status because we need to make sure we can authenticate
+        # correctly with orcid. Without this check, anyone could make a post
+        # request to connect any other orcid account to their own.
+        response = http_request(RequestMethods.GET, url=url, headers=headers)
+        response.raise_for_status()
+        SocialAccount.objects.create(
+            user=request.user,
+            uid=orcid,
+            provider=OrcidProvider.id,
+            extra_data=response.json()
+        )
+        success = True
+        status = 201
+        data = {
+            'success': success,
+            'orcid_profile': f'https://orcid.org/{orcid}'
+        }
+    except Exception as e:
+        data = str(e)
+
+    return Response(data, status=status)
 
 
 @receiver(user_signed_up)
