@@ -6,6 +6,7 @@ from django.apps import AppConfig
 from web3 import Web3
 
 from researchhub.settings import (
+    DEVELOPMENT,
     BASE_DIR,
     CONFIG_BASE_DIR,
     WEB3_PROVIDER_URL,
@@ -33,13 +34,14 @@ class ConfigureWeb3:
         logging.warning(f'web3 could not connect to {WEB3_PROVIDER_URL}')
 
     def get_keystore_path(self):
-        local_path = os.path.join(
-            BASE_DIR,
-            CONFIG_BASE_DIR,
-            WEB3_KEYSTORE_FILE
-        )
-        if os.path.exists(local_path):
-            return local_path
+        if DEVELOPMENT:
+            local_path = os.path.join(
+                BASE_DIR,
+                CONFIG_BASE_DIR,
+                WEB3_KEYSTORE_FILE
+            )
+            if os.path.exists(local_path):
+                return local_path
         # assume keystore is hosted on AWS
         bucket = 'keystore-researchcoin/'
         return get_s3_url(bucket, WEB3_KEYSTORE_FILE, with_credentials=True)
