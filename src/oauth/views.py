@@ -3,10 +3,7 @@ from allauth.socialaccount.models import SocialLogin, SocialAccount
 from allauth.socialaccount.providers.base import ProviderException
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
-from allauth.socialaccount.providers.orcid.views import (
-    OrcidOAuth2Adapter,
-    oauth2_login as orcid_oauth2_login
-)
+from allauth.socialaccount.providers.orcid.views import OrcidOAuth2Adapter
 
 from allauth.socialaccount.providers.oauth2.client import (
     OAuth2Error,
@@ -230,7 +227,6 @@ class CallbackView(OAuth2CallbackView):
 
 google_callback = CallbackView.adapter_view(GoogleOAuth2Adapter)
 orcid_callback = CallbackView.adapter_view(OrcidOAuth2Adapter)
-orcid_login = orcid_oauth2_login
 
 
 @api_view([RequestMethods.POST])
