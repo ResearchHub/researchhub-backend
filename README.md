@@ -92,6 +92,12 @@ Back in the python virtual environment, build the indices
 python manage.py search_index --rebuild
 ```
 
+### DEPLOY
+
+1. pipenv install
+2. pipenv lock --requirements > requirements.txt
+3. git commit -m "[deploy <env>] The rest of the commit message"
+
 
 ### ETHEREUM
 
