@@ -9,6 +9,7 @@ from hub.models import Hub
 from hub.serializers import HubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.models import Flag, Paper, Vote
+from paper.tasks import download_pdf, check_url_contains_pdf
 from summary.serializers import SummarySerializer
 from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
@@ -119,7 +120,7 @@ class PaperSerializer(serializers.ModelSerializer):
 
                 self._add_file(paper, file)
 
-                paper.save(update_fields=['file'])  # m2m fields not allowed
+                download_pdf.apply_async((paper.id,), priority=3)
                 return paper
         except Exception as e:
             error = PaperSerializerError(e, 'Failed to created paper')
@@ -132,8 +133,6 @@ class PaperSerializer(serializers.ModelSerializer):
         authors = validated_data.pop('authors', [None])
         hubs = validated_data.pop('hubs', [None])
         file = validated_data.pop('file', None)
-
-        update_fields = [field for field in validated_data]
 
         try:
             with transaction.atomic():
@@ -152,11 +151,10 @@ class PaperSerializer(serializers.ModelSerializer):
                 paper.hubs.add(*hubs)
 
                 if file:
-                    update_fields.append('file')
                     self._add_file(paper, file)
 
-                # m2m fields not allowed in update_fields
-                paper.save(update_fields=update_fields)
+                download_pdf.apply_async((paper.id,), priority=3)
+
                 return paper
         except Exception as e:
             error = PaperSerializerError(e, 'Failed to created paper')
@@ -221,31 +219,11 @@ class PaperSerializer(serializers.ModelSerializer):
 
             paper.url = file
 
-            pdf = self._get_pdf_from_url(file)
-            filename = file.split('/').pop()
-            paper.file.save(filename, pdf)
         else:
             paper.file = file
 
     def _check_url_contains_pdf(self, url):
-        try:
-            r = http_request(methods.HEAD, url, timeout=3)
-            content_type = r.headers.get('content-type')
-        except Exception as e:
-            raise ValidationError(f'Request to {url} failed: {e}')
-
-        if 'application/pdf' not in content_type:
-            raise ValueError(
-                f'Did not find content type application/pdf at {url}'
-            )
-        else:
-            return True
-
-    def _get_pdf_from_url(self, url):
-        response = http_request(methods.GET, url, timeout=3)
-        pdf = ContentFile(response.content)
-        return pdf
-
+        return check_url_contains_pdf(url)
 
 class BookmarkSerializer(serializers.Serializer):
     user = serializers.IntegerField()
