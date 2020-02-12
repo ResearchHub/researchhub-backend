@@ -9,7 +9,8 @@ from hub.models import Hub
 from hub.serializers import HubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.models import Flag, Paper, Vote
-from paper.tasks import download_pdf, check_url_contains_pdf
+from paper.tasks import download_pdf
+from paper.utils import check_url_contains_pdf
 from summary.serializers import SummarySerializer
 from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
