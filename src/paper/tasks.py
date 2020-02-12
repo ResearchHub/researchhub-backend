@@ -14,7 +14,6 @@ from paper.utils import check_url_contains_pdf, get_pdf_from_url
 
 @app.task
 def download_pdf(paper_id):
-    print(paper_id)
     paper = Paper.objects.get(id=paper_id)
 
     if paper.url and check_url_contains_pdf(paper.url):
