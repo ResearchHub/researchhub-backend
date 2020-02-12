@@ -22,7 +22,7 @@ from utils.http import (
 import utils.sentry as sentry
 from utils.voting import calculate_score
 
-from researchhub.settings import PAGINATION_PAGE_SIZE
+from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 
 class PaperSerializer(serializers.ModelSerializer):
     authors = AuthorSerializer(many=True, read_only=False, required=False)
@@ -128,6 +128,7 @@ class PaperSerializer(serializers.ModelSerializer):
                 error,
                 base_error=error.trigger
             )
+            print(error)
 
     def update(self, instance, validated_data):
         authors = validated_data.pop('authors', [None])
@@ -160,6 +161,7 @@ class PaperSerializer(serializers.ModelSerializer):
                 error,
                 base_error=error.trigger
             )
+            print(error)
 
     def get_discussion(self, obj):
         request = self.context.get('request')
@@ -215,15 +217,18 @@ class PaperSerializer(serializers.ModelSerializer):
         if (type(file) is str):
             if self._check_url_contains_pdf(file):
                 paper.url = file
-                paper.save('url')
+                paper.save()
 
         else:
             if file is not None:
                 paper.file = file
-                paper.save('file')
+                paper.save()
 
         if paper.url:
-            download_pdf.apply_async((paper.id,), priority=3)
+            if not TESTING:
+                download_pdf.apply_async((paper.id,), priority=3)
+            else:
+                download_pdf(paper.id)
 
     def _check_url_contains_pdf(self, url):
         return check_url_contains_pdf(url)
