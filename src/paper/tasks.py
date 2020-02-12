@@ -10,30 +10,7 @@ from datetime import timedelta
 
 from researchhub.celery import app
 from paper.models import Paper
-
-from utils.http import (
-    http_request,
-    RequestMethods as methods
-)
-
-def check_url_contains_pdf(url):
-    try:
-        r = http_request(methods.HEAD, url, timeout=3)
-        content_type = r.headers.get('content-type')
-    except Exception as e:
-        raise ValidationError(f'Request to {url} failed: {e}')
-
-    if 'application/pdf' not in content_type:
-        raise ValueError(
-            f'Did not find content type application/pdf at {url}'
-        )
-    else:
-        return True
-
-def get_pdf_from_url(url):
-    response = http_request(methods.GET, url, timeout=3)
-    pdf = ContentFile(response.content)
-    return pdf
+from paper.utils import check_url_contains_pdf, get_pdf_from_url
 
 @app.task
 def download_pdf(paper_id):
