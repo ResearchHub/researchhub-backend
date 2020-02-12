@@ -120,7 +120,6 @@ class PaperSerializer(serializers.ModelSerializer):
 
                 self._add_file(paper, file)
 
-                download_pdf.apply_async((paper.id,), priority=3)
                 return paper
         except Exception as e:
             error = PaperSerializerError(e, 'Failed to created paper')
@@ -152,8 +151,6 @@ class PaperSerializer(serializers.ModelSerializer):
 
                 if file:
                     self._add_file(paper, file)
-
-                download_pdf.apply_async((paper.id,), priority=3)
 
                 return paper
         except Exception as e:
@@ -215,12 +212,17 @@ class PaperSerializer(serializers.ModelSerializer):
 
     def _add_file(self, paper, file):
         if (type(file) is str):
-            self._check_url_contains_pdf(file)
-
-            paper.url = file
+            if self._check_url_contains_pdf(file):
+                paper.url = file
+                paper.save('url')
 
         else:
-            paper.file = file
+            if file is not None:
+                paper.file = file
+                paper.save('file')
+
+        if paper.url:
+            download_pdf.apply_async((paper.id,), priority=3)
 
     def _check_url_contains_pdf(self, url):
         return check_url_contains_pdf(url)
