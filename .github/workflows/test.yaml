@@ -90,7 +90,7 @@ jobs:
         version_label: ${{ github.sha }}
         region: us-west-2
     - name: deploy to production
-      if: github.event_name == 'push' && (github.ref == 'master' || github.base_ref == 'master' || github.head_ref == 'master') && contains(github.event.head_commit.message, '[deploy production]')
+      if: (github.ref == 'master' || github.base_ref == 'master' || github.head_ref == 'master') && contains(github.event.head_commit.message, '[deploy production]')
       # pinned to specific version by hash for security (only include vetted codebases)
       uses: einaregilsson/beanstalk-deploy@778ea5ec7c1fedbd233b2fcea9e7d24d647984bc
       with:
@@ -103,7 +103,7 @@ jobs:
         region: us-west-2
         deployment_package: src/deploy.zip
     - name: deploy worker to production
-      if: github.event_name == 'push' && (github.ref == 'master' || github.base_ref == 'master' || github.head_ref == 'master') && contains(github.event.head_commit.message, '[deploy production]')
+      if: github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy production]')
       # pinned to specific version by hash for security (only include vetted codebases)
       uses: einaregilsson/beanstalk-deploy@778ea5ec7c1fedbd233b2fcea9e7d24d647984bc
       with:
