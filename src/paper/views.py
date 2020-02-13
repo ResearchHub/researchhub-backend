@@ -360,9 +360,9 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
 
             order_papers = papers.annotate(
-                score=upvotes - downvotes,
-                score_secondary=all_time_upvotes + all_time_downvotes,
-            ).order_by(ordering, ordering + '_secondary')
+                score_in_time=upvotes - downvotes,
+                score_all_time=all_time_upvotes + all_time_downvotes,
+            ).order_by(ordering + '_in_time', ordering + '_all_time')
 
         elif 'discussed' in ordering:
             threads_c = Count(
