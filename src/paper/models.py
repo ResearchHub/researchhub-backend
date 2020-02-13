@@ -25,6 +25,8 @@ class Paper(models.Model):
         related_name='authored_papers',
         blank=True
     )
+
+    # Moderators are obsolete, in favor of super mods on the user
     moderators = models.ManyToManyField(
         'user.User',
         related_name='moderated_papers',

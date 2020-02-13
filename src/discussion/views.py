@@ -2,7 +2,7 @@ from django.contrib.admin.options import get_content_type_for_model
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
 from rest_framework.response import Response
 
 from discussion.models import Comment, Endorsement, Flag, Thread, Reply, Vote
@@ -15,6 +15,7 @@ from .serializers import (
     VoteSerializer
 )
 from discussion.permissions import (
+    CensorDiscussion,
     CreateDiscussionComment,
     CreateDiscussionReply,
     CreateDiscussionThread,
@@ -104,6 +105,29 @@ class ActionMixin:
                 f'Failed to delete flag: {e}',
                 status=400
             )
+
+    @action(
+        detail=True,
+        methods=['post', 'delete'],
+        permission_classes=[IsAuthenticated, CensorDiscussion]
+    )
+    def censor(self, request, pk=None):
+        item = self.get_object()
+
+        if type(item) == Thread:
+            item.title = ''
+
+        username = 'A moderator'
+        if item.created_by == request.user:
+            username = 'The owner'
+        item.plain_text = '[{} removed this {}]'.format(username, item._meta.model_name)
+        item.text = None
+        item.is_removed = True
+        item.save()
+        return Response(
+            self.get_serializer(instance=item).data,
+            status=200
+        )
 
     def upvote(self, request, pk=None):
         item = self.get_object()
