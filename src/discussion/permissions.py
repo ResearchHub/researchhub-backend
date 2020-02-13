@@ -7,6 +7,11 @@ from utils.permissions import (
     PermissionDenied
 )
 
+class CensorDiscussion(AuthorizationBasedPermission):
+    message = 'Need to be a moderator to delete discussions.'
+
+    def is_authorized(self, request, view, obj):
+        return obj.created_by == request.user or request.user.moderator
 
 class CreateDiscussionComment(RuleBasedPermission):
     message = 'Not enough reputation to create comment.'

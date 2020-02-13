@@ -49,7 +49,10 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
             'groups',
             'is_superuser',
             'is_staff',
-            'user_permissions'
+            'user_permissions',
+        ]
+        read_only_fields = [
+            'moderator',
         ]
 
     def get_balance(self, obj):
