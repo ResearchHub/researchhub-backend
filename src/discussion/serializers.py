@@ -26,7 +26,10 @@ class CensorMixin:
         if not obj.is_removed or self.requester_is_moderator():
             return value
         else:
-            return ''
+            if type(value) == str:
+                return "[{} has been removed]".format(obj._meta.model_name)
+            else:
+                return None
 
     def requester_is_moderator(self):
         request = self.context.get('request')
