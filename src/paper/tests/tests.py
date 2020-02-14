@@ -7,15 +7,6 @@ from utils.test_helpers import (
     get_user_from_response
 )
 
-
-class PaperTests(TestCase, TestHelper):
-
-    def test_string_representation(self):
-        paper = self.create_paper_without_authors()
-        expected = f'{self.test_data.paper_title} - {paper.uploaded_by}'
-        self.assertEqual(str(paper), expected)
-
-
 class PaperIntegrationTests(
     TestCase,
     TestHelper,
