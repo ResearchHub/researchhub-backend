@@ -11,6 +11,27 @@ from utils.http import get_user_from_request
 
 # TODO: Make is_public editable for creator as a delete mechanism
 
+class CensorMixin:
+
+    def get_plain_text(self, obj):
+        return self.censor_unless_moderator(obj, obj.plain_text)
+
+    def get_title(self, obj):
+        return self.censor_unless_moderator(obj, obj.title)
+
+    def get_text(self, obj):
+        return self.censor_unless_moderator(obj, obj.text)
+
+    def censor_unless_moderator(self, obj, value):
+        if not obj.is_removed or self.requester_is_moderator():
+            return value
+        else:
+            return ''
+
+    def requester_is_moderator(self):
+        request = self.context.get('request')
+        return request and request.user and request.user.is_authenticated and request.user.moderator
+
 class VoteMixin:
 
     def get_score(self, obj):
@@ -51,7 +72,7 @@ class VoteSerializer(serializers.ModelSerializer):
         ]
         model = Vote
 
-class CommentSerializer(serializers.ModelSerializer, VoteMixin):
+class CommentSerializer(serializers.ModelSerializer, VoteMixin, CensorMixin):
     created_by = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
@@ -62,6 +83,9 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
     user_vote = serializers.SerializerMethodField()
     thread_id = serializers.SerializerMethodField()
     paper_id = serializers.SerializerMethodField()
+    plain_text = serializers.SerializerMethodField()
+    text = serializers.SerializerMethodField()
+
 
     class Meta:
         fields = [
@@ -122,7 +146,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
         else:
             return None
 
-class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
+class ThreadSerializer(serializers.ModelSerializer, VoteMixin, CensorMixin):
     created_by = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
@@ -131,6 +155,9 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     score = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
+    plain_text = serializers.SerializerMethodField()
+    text = serializers.SerializerMethodField()
+    title = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -176,7 +203,7 @@ class SimpleThreadSerializer(ThreadSerializer):
         ]
         model = Thread
 
-class ReplySerializer(serializers.ModelSerializer, VoteMixin):
+class ReplySerializer(serializers.ModelSerializer, VoteMixin, CensorMixin):
     created_by = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
@@ -192,6 +219,8 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
     paper_id = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
+    plain_text = serializers.SerializerMethodField()
+    text = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
