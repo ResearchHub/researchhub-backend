@@ -10,7 +10,7 @@ from utils.voting import calculate_score
 
 
 class Paper(models.Model):
-    title = models.CharField(max_length=1024)
+    title = models.CharField(max_length=1024)  # User generated title
     uploaded_by = models.ForeignKey(
         'user.User',
         on_delete=models.SET_NULL,
@@ -32,15 +32,20 @@ class Paper(models.Model):
         related_name='moderated_papers',
         blank=True
     )
-    paper_title = models.CharField(max_length=1024, default='', blank=True)
-    doi = models.CharField(max_length=255, default='', blank=True)
+    paper_title = models.CharField(  # Official paper title
+        max_length=1024,
+        default=None,
+        null=True,
+        blank=True
+    )
+    doi = models.CharField(max_length=255, default=None, null=True, blank=True)
     hubs = models.ManyToManyField(
         'hub.Hub',
         related_name='papers',
         blank=True
     )
     # currently this is the url entered by users during upload (seed URL)
-    url = models.URLField(default='', blank=True, max_length=500)
+    url = models.URLField(default=None, null=True, blank=True)
     summary = models.ForeignKey(
         Summary,
         blank=True,
@@ -48,25 +53,30 @@ class Paper(models.Model):
         related_name='papers',
         on_delete=models.SET_NULL
     )
-    file = models.FileField(upload_to='uploads/papers/%Y/%m/%d')
-    pdf_file_license = models.TextField(default='', blank=True)
-    pdf_url = models.URLField(default='', blank=True, max_length=500)
-    pdf_url_for_landing_page = models.URLField(default='', blank=True, max_length=500)
+    file = models.FileField(upload_to='uploads/papers/%Y/%m/%d', default=None, null=True, blank=True)
+    pdf_file_license = models.TextField(default=None, null=True, blank=True)
+    pdf_url = models.URLField(default=None, null=True, blank=True)
+    pdf_url_for_landing_page = models.URLField(default=None, null=True, blank=True)
     tagline = models.TextField(
         null=True,
         blank=True
     )
-    publication_type = models.CharField(max_length=255, default='', blank=True)
+    publication_type = models.CharField(max_length=255, default=None, null=True, blank=True)
     csl_item = JSONField(
-        default=dict,
+        default=None,
+        null=True,
+        blank=True,
         help_text='bibliographic metadata as a single '
                   'Citation Styles Language JSON item.'
     )
     pdf_location = JSONField(
-        default=dict,
+        default=None,
+        null=True,
+        blank=True,
         help_text='information on PDF availability '
                   'in the Unpaywall OA Location data format.'
     )
+
     class Meta:
         ordering = ['-paper_publish_date']
 
