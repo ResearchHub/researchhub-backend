@@ -113,15 +113,6 @@ class ActionMixin:
     )
     def censor(self, request, pk=None):
         item = self.get_object()
-
-        if type(item) == Thread:
-            item.title = ''
-
-        username = 'A moderator'
-        if item.created_by == request.user:
-            username = 'The owner'
-        item.plain_text = '[{} removed this {}]'.format(username, item._meta.model_name)
-        item.text = None
         item.is_removed = True
         item.save()
         return Response(
@@ -190,7 +181,6 @@ class ActionMixin:
             'ordering': ordering,
             'needs_score': needs_score,
         }
-
 
 class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     serializer_class = ThreadSerializer
