@@ -11,6 +11,7 @@ from utils.http import get_user_from_request
 
 # TODO: Make is_public editable for creator as a delete mechanism
 
+# TODO: undo
 class CensorMixin:
 
     def get_plain_text(self, obj):
@@ -75,7 +76,7 @@ class VoteSerializer(serializers.ModelSerializer):
         ]
         model = Vote
 
-class CommentSerializer(serializers.ModelSerializer, VoteMixin, CensorMixin):
+class CommentSerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
@@ -149,7 +150,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin, CensorMixin):
         else:
             return None
 
-class ThreadSerializer(serializers.ModelSerializer, VoteMixin, CensorMixin):
+class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
@@ -206,7 +207,7 @@ class SimpleThreadSerializer(ThreadSerializer):
         ]
         model = Thread
 
-class ReplySerializer(serializers.ModelSerializer, VoteMixin, CensorMixin):
+class ReplySerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
