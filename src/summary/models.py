@@ -8,8 +8,10 @@ class Summary(models.Model):
     summary_plain_text = models.TextField()
     proposed_by = models.ForeignKey(
         'user.User',
+        null=True,
+        blank=True,
         related_name='edits',
-        on_delete='SET NULL'
+        on_delete=models.SET_NULL
     )
     previous = models.ForeignKey(
         'self',
@@ -17,12 +19,12 @@ class Summary(models.Model):
         null=True,
         blank=True,
         related_name='next',
-        on_delete='SET NULL'
+        on_delete=models.SET_NULL
     )
     paper = models.ForeignKey(
         'paper.Paper',
         related_name='summaries',
-        on_delete='CASCADE'
+        on_delete=models.CASCADE
     )
     approved = models.BooleanField(default=False)
     approved_by = models.ForeignKey(
@@ -31,7 +33,7 @@ class Summary(models.Model):
         null=True,
         blank=True,
         related_name='approved',
-        on_delete='SET NULL'
+        on_delete=models.SET_NULL
     )
     approved_date = models.DateTimeField(default=None, null=True, blank=True)
 

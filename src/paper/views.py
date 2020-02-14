@@ -6,7 +6,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter, OrderingFilter
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
 from rest_framework.response import Response
 from requests.exceptions import (
     RequestException, MissingSchema, InvalidSchema, InvalidURL)
@@ -20,6 +20,7 @@ from .permissions import (
     CreatePaper,
     FlagPaper,
     IsAuthor,
+    IsModeratorOrVerifiedAuthor,
     UpdatePaper,
     UpvotePaper,
     DownvotePaper
@@ -91,6 +92,31 @@ class PaperViewSet(viewsets.ModelViewSet):
             return self.queryset.prefetch_related(*self.prefetch_lookups())
         else:
             return self.queryset
+
+    @action(
+        detail=True,
+        methods=['put', 'patch', 'delete'],
+        permission_classes=[IsAuthenticated, IsModeratorOrVerifiedAuthor]
+    )
+    def censor(self, request, pk=None):
+        paper = self.get_object()
+        paper.delete()
+        return Response('Paper was deleted.', status=200)
+
+    @action(
+        detail=True,
+        methods=['put', 'patch', 'delete'],
+        permission_classes=[IsAuthenticated, IsModeratorOrVerifiedAuthor]
+    )
+    def censor_pdf(self, request, pk=None):
+        paper = self.get_object()
+        paper.file = None
+        paper.url = ''
+        paper.save()
+        return Response(
+            self.get_serializer(instance=paper).data,
+            status=200
+        )
 
     @action(
         detail=True,

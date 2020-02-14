@@ -46,7 +46,7 @@ class Paper(models.Model):
         blank=True,
         null=True,
         related_name='papers',
-        on_delete='SET NULL'
+        on_delete=models.SET_NULL
     )
     file = models.FileField(upload_to='uploads/papers/%Y/%m/%d')
     pdf_file_license = models.TextField(default='', blank=True)
@@ -101,7 +101,10 @@ class Paper(models.Model):
         return paper
 
     def __str__(self):
-        return '{} - {}'.format(self.title, self.uploaded_by)
+        if self.title and self.uploaded_by:
+            return '{} - {}'.format(self.title, self.uploaded_by)
+        else:
+            return 'titleless paper'
 
     @property
     def authors_indexing(self):
