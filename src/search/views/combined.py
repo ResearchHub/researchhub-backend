@@ -6,10 +6,11 @@ from rest_framework.decorators import api_view, permission_classes as perms
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
-from paper.serializers import PaperSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE
 from search.filters import ElasticsearchFuzzyFilter
 from search.serializers.combined import CombinedSerializer
+from search.serializers.paper import CrossrefPaperSerializer
+from search.tasks import queue_create_crossref_papers
 from search.utils import get_crossref_doi
 from search.lib import create_paper_from_crossref
 from utils.permissions import ReadOnly
@@ -57,6 +58,18 @@ class CombinedView(ListAPIView):
         return queryset
 
     def list(self, request, *args, **kwargs):
+        # queryset = self.filter_queryset(self.get_queryset())
+
+        # # TODO: Combine queryset here with crossref results
+
+        # page = self.paginate_queryset(queryset)
+        # if page is not None:
+        #     serializer = self.get_serializer(page, many=True)
+        #     return self.get_paginated_response(serializer.data)
+
+        # serializer = self.get_serializer(queryset, many=True)
+        # return Response(serializer.data)
+
         response = super().list(request, *args, **kwargs)
 
         result_space_available = PAGINATION_PAGE_SIZE - response.data['count']
@@ -96,13 +109,15 @@ class CombinedView(ListAPIView):
         )[:spaces_to_fill]
 
         # TODO: Queue this
-        crossref_papers = [
-            create_paper_from_crossref(item) for item in unique_crossref_items
-        ]
+        queue_create_crossref_papers(unique_crossref_items)
 
-        print(crossref_papers)
+        # crossref_papers = [
+        #     queue_create_paper_from_crossref(item) for item in unique_crossref_items
+        # ]
+        # return PaperSerializer(crossref_papers, many=True).data
 
-        return PaperSerializer(crossref_papers, many=True).data
+        data = self._serialize_crossref_items(unique_crossref_items)
+        return CrossrefPaperSerializer(data, many=True).data
 
     def _strain_duplicates(self, es_dois, crossref_items):
         results = []
@@ -111,6 +126,17 @@ class CombinedView(ListAPIView):
             if doi not in es_dois:
                 results.append(item)
         return results
+
+    def _serialize_crossref_items(self, items):
+        data = []
+        for item in items:
+            data.append({
+                'title': item['title'],
+                'paper_title': item['title'],
+                'doi': item['DOI'],
+                'url': item['URL'],
+            })
+        return data
 
 
 @api_view([RequestMethods.GET])
