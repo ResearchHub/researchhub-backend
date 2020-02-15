@@ -10,7 +10,8 @@ from mailing_list.lib import base_email_context
 from mailing_list.models import NotificationFrequencies
 from researchhub.celery import app
 from utils.message import send_email_message
-from user.models import Action
+from user.models import Action, User
+from hub.models import Hub
 
 import time
 
@@ -47,18 +48,33 @@ def notify_three_hours():
     actions_notifications(action_ids, NotificationFrequencies.THREE_HOUR)
 
 @periodic_task(run_every=crontab(minute=0, hour=0, day_of_week='monday'), priority=9)
-def notify_three_hours():
-    interval = timezone.now() - timedelta(days=7)
+def notify_weekly():
+    end_date = timezone.now()
+    start_date = timezone.now() - timedelta(days=7)
+
     users = Hub.objects.filter(subscribers__isnull=False).values_list('subscribers', flat=True)
-    for user in users:
-        subject = build_subject(NotificationFrequencies.THREE_HOUR)
-        context = build_notification_context(user_to_action[r])
-        send_email_message(
-            r.email,
-            'notification_email.txt',
+    for user in User.objects.filter(id__in=users):
+        hubs_to_papers = {}
+        for hub in user.subscribed_hubs.all():
+            papers = hub.email_context(start_date, end_date)
+            if len(papers) > 0:
+                hubs_to_papers[hub.name] = papers
+
+        email_context = {
+            **base_email_context,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'hubs': hubs_to_papers,
+        }
+
+        recipient = [user.email]
+        subject = 'Research Hub | Your Weekly Digest'
+        email_sent = send_email_message(
+            recipient,
+            'weekly_digest_email.txt',
             subject,
-            context,
-            html_template='notification_email.html'
+            email_context,
+            'weekly_digest_email.html'
         )
 
 def actions_notifications(
