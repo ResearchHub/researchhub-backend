@@ -60,6 +60,10 @@ def notify_weekly():
             if len(papers) > 0:
                 hubs_to_papers[hub.name] = papers
 
+        # TODO consolidate papers on mutiple hubs?
+
+        import ipdb; ipdb.set_trace()
+
         email_context = {
             **base_email_context,
             'first_name': user.first_name,
