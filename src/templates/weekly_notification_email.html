@@ -5,32 +5,18 @@
         <meta charset="UTF-8">
         <title></title>
         <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://pro.fontawesome.com/releases/v5.12.1/css/all.css" integrity="sha384-TxKWSXbsweFt0o2WqfkfJRRNVaPdzXJ/YLqgStggBVRREXkwU7OKz+xXtqOU4u8+" crossorigin="anonymous">
+
     </head>
     {% inlinecss "notification_email.css" %}
     <body>
       <div class="email-container">
         <div class="email-header">
           <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
-          <div class="header">
-            Your Notifications
-          </div>
         </div>
-        {% for action in actions %}
+        {% for paper in papers %}
           <div class="content">
             <div class="meta">
-              <div class="avatar-wrapper">
-                {% if action.item.created_by.author_profile.profile_image %}
-                  <img
-                    class="author-avatar"
-                    src="{{ action.item.created_by.author_profile.profile_image|default:"https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg" }}"
-                    alt="{{ action.item.created_by.author_profile.profile_image }}"
-                  />
-                {% else %}
-                  <div class="initials">
-                    {{ action.initials }}
-                  </div>
-                {% endif %}
-              </div>
               <div class="notification-wrapper">
                 <div class="notification-title">
                   <span class="first-line">
@@ -41,11 +27,11 @@
                     <span class="thread"> {{ action.item.thread.title }} </span>
                   </span>
                   <div class="paper">
-                    {{ action.item.paper.title }}
+                    {{ paper.calculate_score }}
                   </div>
                   <div class="timestamp">
                     <!-- <span class="timestamp-icon">•</span> -->
-                    {{ action.created_date|localize }}
+                    {{ paper.discussion_count }}
                   </div>
                 </div>
               </div>

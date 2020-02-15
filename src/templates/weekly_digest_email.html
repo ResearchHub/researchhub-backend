@@ -1,46 +1,50 @@
 {% load inlinecss %}
+{% load static %}
 
 <html>
     <head>
         <meta charset="UTF-8">
         <title></title>
-        <link href="https://fonts.googleapis.com/css?family=K2D:400,700" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
     </head>
-    {% inlinecss "stylesheets/subscription_email.css" %}
+    {% inlinecss "weekly_digest_email.css" %}
     <body>
         <div class="email-container">
             <div class="email-header">
                 <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
-                <div class="user-name">{{first_name}} {{last_name}}'s Digest</div>
-                <div class="header">
-                    top activity on subscribed hubs
-                </div>
             </div>
             {% for hub_name, papers in hubs.items %}
-              {{ hub_name }}
               {% for paper in papers %}
-                  <div class="content">
-                      <div class="title">{{paper.title}}</div>
-                      <div class="meta">
-                          <div class="avatar-wrapper">
-                              <img
-                                  class="author-avatar"
-                                  src=""
-                                  alt=""
-                              />
+                <a class="content-container" href="https://www.researchhub.com/paper/{{paper.id}}/summary">
+                    <div class="content">
+                        <div class="points">
+                            {{ paper.calculate_score }}
+                        </div>
+                        <div class="right">
+                          <div class="title">{{paper.title}}</div>
+                          <div class="body">
+                              {{paper.tagline}}
                           </div>
-                          <div class="column">
-                          <div class="author-name">{{paper.author.first_name}} {{paper.author.last_name}}</div>
-                          <div class="publish-date">{{paper.publish_date}}</div>
-                          </div>
+                          <div class="meta">
+                            <div class="author-name">
+                                {{paper.author.first_name}} {{paper.author.last_name}}
+                            </div>
+                            <div class="row">
+                                <div>
+                                    <img src="{% static 'comments.png' %}" /> {{ paper.discussion_count }} comments
+                                </div>
+                                <div class="hubs">
+                                  {% for hub in paper.hubs.all %}
+                                      <div class="hub">
+                                          {{ hub.name }}
+                                      </div>
+                                  {% endfor %}
+                                </div>
+                            </div>
+                        </div>
                       </div>
-                      <div class="body">
-                          {{paper.tagline}}
-                      </div>
-                      <div class="divider">
-                          <div class="line"></div>
-                      </div>
-                  </div>
+                    </div>  
+                </a>
               {% endfor %}
             {% endfor %}
         <div class="footer">

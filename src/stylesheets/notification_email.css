@@ -1,5 +1,5 @@
 body {
-  font-family: "K2D", sans-serif;
+  font-family: 'Roboto', sans-serif;
   background-color: #FAFAFA;
   padding: 50px 0;
 }
@@ -7,7 +7,6 @@ body {
 .email-container {
   width: 600px;
   border: none;
-  font-family: "K2D", sans-serif;
   margin: 0px auto;
   background-color: #FFFFFF;
   box-sizing: border-box;
@@ -31,7 +30,6 @@ body {
 .email-header {
   padding: 16px;
   padding-bottom: 0;
-  font-family: "K2D", sans-serif;
   text-align: center;
 }
 
@@ -201,14 +199,12 @@ body {
 }
 
 .button-label {
-  font-family: Roboto;
   font-size: 10px;
   color: rgb(78, 83, 255);
   text-transform: uppercase;
   font-weight: 500;
   letter-spacing: 1px;
   padding: 10px 10px 10px 10px;
-  font-family: "K2D", sans-serif;
   background-color: #edeefe;
   cursor: pointer;
   border: none;
