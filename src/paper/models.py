@@ -4,7 +4,6 @@ from django.db import models
 from django.contrib.postgres.fields import JSONField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
-from hub.models import Hub
 from summary.models import Summary
 from utils.voting import calculate_score
 
@@ -35,7 +34,7 @@ class Paper(models.Model):
     paper_title = models.CharField(max_length=1024, default='', blank=True)
     doi = models.CharField(max_length=255, default='', blank=True)
     hubs = models.ManyToManyField(
-        Hub,
+        'hub.Hub',
         related_name='papers',
         blank=True
     )
@@ -142,7 +141,10 @@ class Paper(models.Model):
         return f'{author_or_user.first_name} {author_or_user.last_name}'
 
     def get_discussion_count(self):
-        return self.threads.count()
+        if hasattr(self, 'discussion_count'):
+            return self.discussion_count
+        else:
+            return self.threads.count()
 
     def calculate_score(self):
         if hasattr(self, 'score'):

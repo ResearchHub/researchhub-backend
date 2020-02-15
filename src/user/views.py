@@ -77,64 +77,6 @@ class UserViewSet(viewsets.ModelViewSet):
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
 
-    def weekly_digest(self, request):
-        user = request.user
-        end_date = datetime.datetime.now()
-        start_date = end_date - datetime.timedelta(days=7)
-
-        base_url = request.META['HTTP_ORIGIN']
-
-        hubs = user.subscribed_hub.all()
-        all_papers = None
-        for hub in hubs:
-            papers = Paper.objects.filter(hubs=hub.id)
-            if not all_papers:
-                all_papers = papers
-            else:
-                all_papers = all_papers | papers
-
-        upvotes = Count(
-            'vote',
-            filter=Q(
-                vote__vote_type=PaperVote.UPVOTE,
-                vote__updated_date__gte=start_date,
-                vote__updated_date__lte=end_date
-            )
-        )
-        downvotes = Count(
-            'vote',
-            filter=Q(
-                vote__vote_type=PaperVote.DOWNVOTE,
-                vote__created_date__gte=start_date,
-                vote__created_date__lte=end_date
-            )
-        )
-        all_papers = all_papers.annotate(score=upvotes - downvotes)
-        ordered_papers = all_papers.order_by('-score')[0:3]
-
-        email_context = {
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'paper_list': ordered_papers,
-            'opt_out': base_url + '/email/opt-out/'
-        }
-
-        recipient = [user.email]
-        subject = 'ResearchHub: Your Weekly Digest'
-        email_sent = send_email_message(
-            recipient,
-            'weekly_digest_email.txt',
-            subject,
-            email_context,
-            'weekly_digest_email.html'
-        )
-
-        response = {'email_sent': False}
-        if email_sent == 1:
-            response['email_sent'] = True
-        return Response(response, status=200)
-
-
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = University.objects.all()
     serializer_class = UniversitySerializer
