@@ -62,8 +62,6 @@ def notify_weekly():
 
         # TODO consolidate papers on mutiple hubs?
 
-        import ipdb; ipdb.set_trace()
-
         email_context = {
             **base_email_context,
             'first_name': user.first_name,
