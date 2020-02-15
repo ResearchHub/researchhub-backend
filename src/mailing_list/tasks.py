@@ -46,6 +46,21 @@ def notify_three_hours():
 
     actions_notifications(action_ids, NotificationFrequencies.THREE_HOUR)
 
+@periodic_task(run_every=crontab(minute=0, hour=0, day_of_week='monday'), priority=9)
+def notify_three_hours():
+    interval = timezone.now() - timedelta(days=7)
+    users = Hub.objects.filter(subscribers__isnull=False).values_list('subscribers', flat=True)
+    for user in users:
+        subject = build_subject(NotificationFrequencies.THREE_HOUR)
+        context = build_notification_context(user_to_action[r])
+        send_email_message(
+            r.email,
+            'notification_email.txt',
+            subject,
+            context,
+            html_template='notification_email.html'
+        )
+
 def actions_notifications(
     action_ids,
     notif_interval=NotificationFrequencies.IMMEDIATE
