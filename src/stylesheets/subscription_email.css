@@ -1,16 +1,14 @@
 body {
-  font-family: "K2D", sans-serif;
+  font-family: 'Roboto', sans-serif;
 }
 .email-container {
   width: 600px;
   /* border: 1px solid #ddd; */
   border: none;
-  font-family: "K2D", sans-serif;
   margin: 0px auto;
 }
 
 .user-name {
-  font-family: "K2D", sans-serif;
   font-size: 15px;
   font-weight: 500;
   padding-bottom: 30px;
@@ -23,7 +21,6 @@ body {
   justify-content: center;
   padding: 16px;
   padding-bottom: 0;
-  font-family: "K2D", sans-serif;
 }
 
 .img-logo {
@@ -172,7 +169,6 @@ body {
 }
 
 .hubtag-label {
-  font-family: Roboto;
   font-size: 10px;
   color: rgb(78, 83, 255);
   height: 12px;
@@ -180,5 +176,5 @@ body {
   font-weight: bold;
   letter-spacing: 1px;
   padding: 3px 10px 3px 10px;
-  font-family: "K2D", sans-serif;
+  background-color: rgb(237, 238, 254);
 }
