@@ -4,12 +4,20 @@
 <html>
     <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <title></title>
         <link href="https://fonts.googleapis.com/css?family=Roboto:400,500&display=swap" rel="stylesheet">
         <link href="https://fonts.googleapis.com/css?family=Raleway&display=swap" rel="stylesheet">
     </head>
     {% inlinecss "weekly_digest_email.css" %}
     <body>
+        <style type="text/css">
+            @media only screen and (max-width:767px) {
+                .hubs-desktop {display: none!important;}
+
+                .hubs-mobile {display: block!important;}
+            }
+        </style>
         <div style="display: none; max-height: 0px; overflow: hidden;">
             {{ preview_text }}
         </div>
@@ -47,16 +55,21 @@
                                 <div class="comments-row">
                                     <img class="comments-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/comments.png" /> {{ paper.get_discussion_count }} comments
                                 </div>
-                                <div class="hubs">
-                                  {% for hub in paper.hubs.all %}
-                                      <div class="hub">
-                                          <span class="flex-text">
+                                <div class="hubs hubs-desktop">
+                                    {% for hub in paper.hubs.all %}
+                                        <button class="hub">
                                             {{ hub.name }}
-                                          </span>
-                                      </div>
+                                        </button>
                                   {% endfor %}
                                 </div>
                             </div>
+                        </div>
+                        <div class="hubs-mobile">
+                            {% for hub in paper.hubs.all %}
+                                <button class="hub mobile-hub">
+                                    {{ hub.name }}
+                                </button>
+                          {% endfor %}
                         </div>
                       </div>
                     </div>  

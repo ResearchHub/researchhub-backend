@@ -12,6 +12,7 @@ from researchhub.celery import app
 from utils.message import send_email_message
 from user.models import Action, User
 from hub.models import Hub
+from researchhub.settings import TESTING
 
 import time
 
@@ -53,6 +54,11 @@ def notify_weekly():
     start_date = timezone.now() - timedelta(days=7)
 
     users = Hub.objects.filter(subscribers__isnull=False).values_list('subscribers', flat=True)
+    if TESTING:
+        # end_date = os.environ.get('email_end_date')
+        start_date = timezone.now() - timedelta(days=14)
+        users = [7]
+
     first_paper_title = None
     preview_text = None
     for user in User.objects.filter(id__in=users):
@@ -67,7 +73,6 @@ def notify_weekly():
                 hubs_to_papers[hub.name] = papers
 
         # TODO consolidate papers on mutiple hubs?
-
         email_context = {
             **base_email_context,
             'first_name': user.first_name,
