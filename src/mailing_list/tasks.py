@@ -53,10 +53,16 @@ def notify_weekly():
     start_date = timezone.now() - timedelta(days=7)
 
     users = Hub.objects.filter(subscribers__isnull=False).values_list('subscribers', flat=True)
+    first_paper_title = None
+    preview_text = None
     for user in User.objects.filter(id__in=users):
         hubs_to_papers = {}
         for hub in user.subscribed_hubs.all():
             papers = hub.email_context(start_date, end_date)
+            if not first_paper_title:
+                first_paper_title = papers[0].title
+            if not preview_text:
+                preview_text = papers[0].tagline
             if len(papers) > 0:
                 hubs_to_papers[hub.name] = papers
 
@@ -67,16 +73,20 @@ def notify_weekly():
             'first_name': user.first_name,
             'last_name': user.last_name,
             'hubs': hubs_to_papers,
+            'first_paper_title': first_paper_title,
+            'preview_text': preview_text
         }
 
         recipient = [user.email]
-        subject = 'Research Hub | Your Weekly Digest'
+        # subject = 'Research Hub | Your Weekly Digest'
+        subject = first_paper_title[0:86] + '...'
         email_sent = send_email_message(
             recipient,
             'weekly_digest_email.txt',
             subject,
             email_context,
-            'weekly_digest_email.html'
+            'weekly_digest_email.html',
+            'ResearchHub Digest <digest@researchhub.com>'
         )
 
 def actions_notifications(

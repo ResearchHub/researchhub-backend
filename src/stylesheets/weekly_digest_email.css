@@ -3,7 +3,7 @@ body {
     background-color: rgb(252, 252, 252);
 }
   .email-container {
-    max-width: 800px;
+    max-width: 700px;
     width: 100%;
     border: none;
     font-family: 'Roboto', sans-serif;
@@ -28,6 +28,25 @@ body {
       margin-left: auto;
   }
 
+  .read-more-button {
+      padding: 16px;
+      background: rgb(78, 83, 255);
+      color: #fff;
+      display: block;
+      text-decoration: none;
+      text-align: center;
+      width: 50%;
+      max-width: 180px;
+      border-radius: 4px;
+      margin: 0 auto;
+  }
+
+  .read-more-container {
+    text-align: center;
+    width: 100%;
+    margin-bottom: 16px;
+  }
+
   .content {
     font-size: 16px;
     padding: 0px 16px;
@@ -35,7 +54,7 @@ body {
     background: #fff;
     border: 1px solid #ddd;
     border-radius: 4px;
-    width: 100%;
+    margin-bottom: 16px;
   }
   
   .right {
@@ -72,10 +91,36 @@ body {
     justify-content: center;
     text-align: center;
     padding: 16px;
+    margin: auto;
   }
   
   .img-logo {
     height: 40px;
+    object-fit: contain;
+  }
+
+  .first-name {
+      font-size: 20px;
+      margin: 8px 0px;
+      font-family: 'Raleway', sans-serif;
+  }
+
+  .tagline {
+      /* border-bottom: 1px solid #ddd; */
+      margin-bottom: 16px;
+      margin-top: 16px;
+      font-variant: small-caps;
+      font-size: 16px;
+      font-family: 'Raleway', sans-serif;
+  }
+
+  .comments-row {
+      margin: auto 0;
+  }
+
+  .comments-logo {
+      height: 16px;
+      vertical-align: middle;
   }
   
   .header {
@@ -100,6 +145,7 @@ body {
   
   .content-container {
     text-decoration: none;
+    margin-bottom: 16px;
   }
   
   .column {
@@ -160,6 +206,10 @@ body {
   .instructions {
     padding: 16px;
   }
+
+  .flex-text {
+      margin: auto;
+  }
   
   .reset-text {
     padding: 16px;
@@ -168,10 +218,11 @@ body {
   }
   
   .title {
-    font-weight: bold;
-    font-size: 22px;
+    font-weight: 500;
+    font-size: 16px;
     margin-top: 20px;
     margin-bottom: 10px;
+    letter-spacing: .7px;
   }
     
   .body {
@@ -182,7 +233,6 @@ body {
   }
   
   .divider {
-    width: 600px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -191,6 +241,7 @@ body {
   .line {
     width: 150px;
     border-bottom: 1px solid #ddd;
+    margin: 0 auto;
   }
   
   .product-name {
