@@ -1,5 +1,7 @@
 import requests
 
+from django.core.files.base import ContentFile
+
 from utils.http import (
     http_request,
     RequestMethods as methods
