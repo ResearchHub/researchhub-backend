@@ -1,6 +1,7 @@
 import datetime
 
 from django.db import models
+from django.db.models import Count, Q
 from django.contrib.postgres.fields import JSONField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
@@ -144,7 +145,10 @@ class Paper(models.Model):
         if hasattr(self, 'discussion_count'):
             return self.discussion_count
         else:
-            return self.threads.count()
+            thread_count = self.threads.aggregate(discussion_count=Count(1, filter=Q(is_removed=False)))['discussion_count']
+            comment_count = self.threads.aggregate(discussion_count=Count('comments', filter=Q(comments__is_removed=False)))['discussion_count']
+            reply_count = self.threads.aggregate(discussion_count=Count('comments__replies', filter=Q(comments__replies__is_removed=False)))['discussion_count']
+            return thread_count + comment_count + reply_count
 
     def calculate_score(self):
         if hasattr(self, 'score'):
