@@ -4,6 +4,7 @@ from search.serializers import (
     AuthorDocumentSerializer,
     HubDocumentSerializer,
     PaperDocumentSerializer,
+    CrossrefPaperSerializer,
     SummaryDocumentSerializer,
     ThreadDocumentSerializer,
     UniversityDocumentSerializer
@@ -16,6 +17,7 @@ class CombinedSerializer(serializers.BaseSerializer):
         'discussion_thread': ThreadDocumentSerializer,
         'hub': HubDocumentSerializer,
         'paper': PaperDocumentSerializer,
+        'crossref_paper': CrossrefPaperSerializer,
         'summary': SummaryDocumentSerializer,
         'university': UniversityDocumentSerializer,
     }
