@@ -13,15 +13,17 @@ body {
   .hub {
     font-size: 10px;
     color: rgb(78, 83, 255);
-    height: 21px;
     text-transform: uppercase;
     font-weight: bold;
     letter-spacing: 1px;
     padding: 3px 10px;
     background-color: #edeefe;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    margin-right: 8px;
+    border: none;
+  }
+
+  .mobile-hub {
+    margin-bottom: 8px;
   }
 
   .hubs {
@@ -116,6 +118,7 @@ body {
 
   .comments-row {
       margin: auto 0;
+      min-width: 120px;
   }
 
   .comments-logo {
@@ -141,6 +144,11 @@ body {
     align-items: center;
     margin-bottom: 15px;
     color: #aaa;
+  }
+
+  .hubs-mobile {
+    display: none;
+    padding-bottom: 16px;
   }
   
   .content-container {

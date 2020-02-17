@@ -38,7 +38,7 @@ else:
     CONFIG_BASE_DIR = 'config_local'
     from config_local import db, keys, wallet
 
-if DEVELOPMENT:
+if DEVELOPMENT or TESTING:
     BASE_FRONTEND_URL = 'http://localhost:3000'
 elif PRODUCTION:
     BASE_FRONTEND_URL = 'https://researchhub.com'
@@ -400,8 +400,8 @@ AWS_SES_REGION_NAME = 'us-west-2'
 AWS_SES_REGION_ENDPOINT = 'email.us-west-2.amazonaws.com'
 
 EMAIL_BACKEND = 'django_ses.SESBackend'
-if TESTING:
-    EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+# if TESTING:
+#     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 EMAIL_WHITELIST = [
     'craig@quantfive.org',
