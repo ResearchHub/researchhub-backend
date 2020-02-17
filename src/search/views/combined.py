@@ -1,6 +1,5 @@
-from crossref.restful import Works, Prefixes
-from crossref_commons.iteration import iterate_publications_as_json
 from elasticsearch_dsl import Search
+from elasticsearch_dsl.utils import AttrDict
 from habanero import Crossref
 from rest_framework.decorators import api_view, permission_classes as perms
 from rest_framework.generics import ListAPIView
@@ -8,11 +7,10 @@ from rest_framework.response import Response
 
 from researchhub.settings import PAGINATION_PAGE_SIZE
 from search.filters import ElasticsearchFuzzyFilter
+# from search.lib import create_paper_from_crossref
 from search.serializers.combined import CombinedSerializer
-from search.serializers.paper import CrossrefPaperSerializer
-from search.tasks import queue_create_crossref_papers
+# from search.tasks import queue_create_crossref_papers
 from search.utils import get_crossref_doi
-from search.lib import create_paper_from_crossref
 from utils.permissions import ReadOnly
 from utils.http import RequestMethods
 
@@ -54,72 +52,61 @@ class CombinedView(ListAPIView):
         super(CombinedView, self).__init__(*args, **kwargs)
 
     def get_queryset(self):
-        queryset = self.search.query()
-        return queryset
+        es_search = self.search.query()
+        return es_search
 
     def list(self, request, *args, **kwargs):
-        # queryset = self.filter_queryset(self.get_queryset())
+        es_response_queryset = self.filter_queryset(self.get_queryset())
+        es_response_queryset = self._add_crossref_results(
+            request,
+            es_response_queryset
+        )
 
-        # # TODO: Combine queryset here with crossref results
+        page = self.paginate_queryset(es_response_queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
 
-        # page = self.paginate_queryset(queryset)
-        # if page is not None:
-        #     serializer = self.get_serializer(page, many=True)
-        #     return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(es_response_queryset, many=True)
+        return Response(serializer.data)
 
-        # serializer = self.get_serializer(queryset, many=True)
-        # return Response(serializer.data)
-
-        response = super().list(request, *args, **kwargs)
-
-        result_space_available = PAGINATION_PAGE_SIZE - response.data['count']
+    def _add_crossref_results(self, request, es_response):
+        result_space_available = PAGINATION_PAGE_SIZE - len(es_response.hits)
 
         if result_space_available > 0:
             query = request.query_params.get('search')
             crossref_search_result = search_crossref(query)
-            es_dois = self._get_es_dois(response)
-            serialized_crossref_papers = self._create_crossref_papers_for_response(  # noqa: E501
+            es_dois = self._get_es_dois(es_response.hits)
+            crossref_hits = self._create_crossref_hits(
                 es_dois,
                 crossref_search_result,
                 result_space_available
             )
-            response.data['results'].append(serialized_crossref_papers)
+            es_response.hits.extend(crossref_hits)
 
-        return response
+        return es_response
 
-    def _get_es_dois(self, response):
-        es_papers = filter(
-            lambda x: (x['meta']['index'] == 'paper'),
-            response.data['results']
-        )
+    def _get_es_dois(self, hits):
+        es_papers = filter(lambda hit: (hit.meta['index'] == 'paper'), hits)
         es_dois = [paper['doi'] for paper in es_papers]
         return es_dois
 
-    def _create_crossref_papers_for_response(
+    def _create_crossref_hits(
         self,
-        es_dois,
+        existing_dois,
         crossref_result,
-        spaces_to_fill
+        amount
     ):
-        crossref_items = crossref_result['message']['items']
+        items = crossref_result['message']['items']
+        items = self._remove_duplicate_papers(existing_dois, items)[:amount]
+        hits = self._build_crossref_hits(items)
 
-        unique_crossref_items = self._strain_duplicates(
-            es_dois,
-            crossref_items
-        )[:spaces_to_fill]
+        # TODO: Queue creating the paper
+        # queue_create_crossref_papers(unique_crossref_items)
 
-        # TODO: Queue this
-        queue_create_crossref_papers(unique_crossref_items)
+        return hits
 
-        # crossref_papers = [
-        #     queue_create_paper_from_crossref(item) for item in unique_crossref_items
-        # ]
-        # return PaperSerializer(crossref_papers, many=True).data
-
-        data = self._serialize_crossref_items(unique_crossref_items)
-        return CrossrefPaperSerializer(data, many=True).data
-
-    def _strain_duplicates(self, es_dois, crossref_items):
+    def _remove_duplicate_papers(self, es_dois, crossref_items):
         results = []
         for item in crossref_items:
             doi = get_crossref_doi(item)
@@ -127,16 +114,28 @@ class CombinedView(ListAPIView):
                 results.append(item)
         return results
 
-    def _serialize_crossref_items(self, items):
-        data = []
+    def _build_crossref_hits(self, items):
+        hits = []
         for item in items:
-            data.append({
-                'title': item['title'],
+            meta = self._build_crossref_meta(item)
+            hit = AttrDict({
+                'meta': AttrDict(meta),
+                'title': item['title'][0],
                 'paper_title': item['title'],
                 'doi': item['DOI'],
                 'url': item['URL'],
             })
-        return data
+            hits.append(hit)
+        return hits
+
+    def _build_crossref_meta(self, item):
+        # TODO: Add highlight
+        return {
+            'index': 'crossref_paper',
+            'id': None,
+            'score': -1,
+            'highlight': None,
+        }
 
 
 @api_view([RequestMethods.GET])
@@ -162,7 +161,8 @@ def search_crossref(query):
     # crossrefapi
     #
     # works = Works()
-    # res = works.query(bibliographic=term).filter(type='journal-article').facet('orcid', 5)
+    # res = works.query(bibliographic=term).filter(type='journal-article')
+    # .facet('orcid', 5)
 
     # commons
     #
