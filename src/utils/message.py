@@ -32,7 +32,8 @@ def send_email_message(
     template,
     subject,
     email_context,
-    html_template=None
+    html_template=None,
+    sender='ResearchHub <noreply@researchhub.com>'
 ):
     """Emails `message` to `recipients` and returns a dict with results in the
     following form:
@@ -78,7 +79,7 @@ def send_email_message(
             send_mail(
                 subject,
                 message,
-                'noreply@researchhub.com',
+                sender,
                 send_to,
                 html_message=html_message,
                 fail_silently=False,
