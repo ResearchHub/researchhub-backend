@@ -25,6 +25,7 @@ class PaperDocumentSerializer(DocumentSerializer):
 
 
 class CrossrefPaperSerializer(serializers.Serializer):
+    meta = serializers.JSONField()
     title = serializers.CharField()
     paper_title = serializers.CharField()
     doi = serializers.CharField()
