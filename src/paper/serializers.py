@@ -217,12 +217,12 @@ class PaperSerializer(serializers.ModelSerializer):
         if (type(file) is str):
             if self._check_url_contains_pdf(file):
                 paper.url = file
-                paper.save()
+                paper.save(update_fields=['url'])
 
         else:
             if file is not None:
                 paper.file = file
-                paper.save()
+                paper.save(update_fields=['file'])
 
         if paper.url:
             if not TESTING:
