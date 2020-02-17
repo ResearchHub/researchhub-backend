@@ -3,6 +3,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.permissions import (
     IsAuthenticated,
@@ -19,12 +20,16 @@ from user.serializers import UserActions
 from utils.http import PATCH, POST, PUT, GET
 from utils.message import send_email_message
 
+class CustomPageLimitPagination(PageNumberPagination):
+    page_size_query_param = 'page_limit'
+    max_page_size = 10000
 
 class HubViewSet(viewsets.ModelViewSet):
     queryset = Hub.objects.all()
     serializer_class = HubSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter,)
     permission_classes = [IsAuthenticatedOrReadOnly & CreateHub]
+    pagination_class = CustomPageLimitPagination
     filter_class = HubFilter
     search_fields = ('name')
 
