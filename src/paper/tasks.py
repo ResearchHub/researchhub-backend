@@ -5,7 +5,6 @@ from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 
 from django.utils import timezone
-from django.core.files.base import ContentFile
 from datetime import timedelta
 
 from researchhub.celery import app
@@ -20,4 +19,5 @@ def download_pdf(paper_id):
         pdf = get_pdf_from_url(paper.url)
         filename = paper.url.split('/').pop()
         paper.file.save(filename, pdf)
+        paper.save(update_fields=['file'])
 
