@@ -48,11 +48,13 @@ class Hub(models.Model):
             )
         )
 
+        # TODO don't include censored threads?
         thread_counts = Count(
             'threads',
             filter=Q(
                 threads__created_date__gte=start_date,
                 threads__created_date__lte=end_date,
+                #threads__is_removed=False,
             )
         )
 
@@ -61,6 +63,7 @@ class Hub(models.Model):
             filter=Q(
                 threads__comments__created_date__gte=start_date,
                 threads__comments__created_date__lte=end_date,
+                #threads__comments__is_removed=False,
             )
         )
 
@@ -69,6 +72,7 @@ class Hub(models.Model):
             filter=Q(
                 threads__comments__replies__created_date__gte=start_date,
                 threads__comments__replies__created_date__lte=end_date,
+                #threads__comments__replies__is_removed=False,
             )
         )
 
@@ -80,7 +84,7 @@ class Hub(models.Model):
 
         # Most Discussed
         # TODO grab second if neccesary?
-        paper = self.papers.annotate(discussion_count=thread_counts + comment_counts + reply_counts).order_by('-discussion_count').first()
+        paper = self.papers.annotate(discussions=thread_counts + comment_counts + reply_counts).order_by('-discussions').first()
         if paper and paper not in papers:
             papers.append(paper)
 
