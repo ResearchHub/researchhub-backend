@@ -1,3 +1,5 @@
+from django.db import IntegrityError
+from celery import group
 from elasticsearch_dsl import Search
 from elasticsearch_dsl.utils import AttrDict
 from habanero import Crossref
@@ -5,12 +7,16 @@ from rest_framework.decorators import api_view, permission_classes as perms
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
+from paper.models import Paper
 from researchhub.settings import PAGINATION_PAGE_SIZE
 from search.filters import ElasticsearchFuzzyFilter
-# from search.lib import create_paper_from_crossref
 from search.serializers.combined import CombinedSerializer
-# from search.tasks import queue_create_crossref_papers
-from search.utils import get_crossref_doi
+from search.tasks import download_pdf_by_license
+from search.utils import (
+    get_crossref_doi,
+    get_unique_crossref_items,
+    get_crossref_issued_date
+)
 from utils.permissions import ReadOnly
 from utils.http import RequestMethods
 
@@ -77,11 +83,11 @@ class CombinedView(ListAPIView):
             query = request.query_params.get('search')
             crossref_search_result = search_crossref(query)
             es_dois = self._get_es_dois(es_response.hits)
-            crossref_hits = self._create_crossref_hits(
-                es_dois,
+            crossref_hits = CrossrefHits(
                 crossref_search_result,
+                es_dois,
                 result_space_available
-            )
+            ).hits
             es_response.hits.extend(crossref_hits)
 
         return es_response
@@ -91,44 +97,42 @@ class CombinedView(ListAPIView):
         es_dois = [paper['doi'] for paper in es_papers]
         return es_dois
 
-    def _create_crossref_hits(
-        self,
-        existing_dois,
-        crossref_result,
-        amount
-    ):
-        items = crossref_result['message']['items']
-        items = self._remove_duplicate_papers(existing_dois, items)[:amount]
-        hits = self._build_crossref_hits(items)
 
-        # TODO: Queue creating the paper
-        # queue_create_crossref_papers(unique_crossref_items)
+class CrossrefHits:
+    def __init__(self, search_result, existing_dois, amount):
+        self.items = search_result['message']['items']
+        self.existing_dois = existing_dois
+        self.amount = amount
 
-        return hits
+        self.remove_duplicate_papers()
+        self.hits = self.build_hits()
 
-    def _remove_duplicate_papers(self, es_dois, crossref_items):
+    def remove_duplicate_papers(self):
         results = []
-        for item in crossref_items:
+        for item in self.items:
             doi = get_crossref_doi(item)
-            if doi not in es_dois:
+            if doi not in self.existing_dois:
                 results.append(item)
-        return results
+        self.items = results[:self.amount]
 
-    def _build_crossref_hits(self, items):
+    def build_hits(self):
         hits = []
-        for item in items:
-            meta = self._build_crossref_meta(item)
-            hit = AttrDict({
-                'meta': AttrDict(meta),
-                'title': item['title'][0],
-                'paper_title': item['title'],
-                'doi': item['DOI'],
-                'url': item['URL'],
-            })
-            hits.append(hit)
+        for item in self.items:
+            meta = self.build_crossref_meta(item)
+            paper = self.create_crossref_paper(item)
+            if paper:
+                hit = AttrDict({
+                    'meta': AttrDict(meta),
+                    'title': paper.title,
+                    'paper_title': paper.paper_title,
+                    'doi': paper.doi,
+                    'url': paper.url,
+                    'id': paper.id,
+                })
+                hits.append(hit)
         return hits
 
-    def _build_crossref_meta(self, item):
+    def build_crossref_meta(self, item):
         # TODO: Add highlight
         return {
             'index': 'crossref_paper',
@@ -136,6 +140,24 @@ class CombinedView(ListAPIView):
             'score': -1,
             'highlight': None,
         }
+
+    def create_crossref_paper(self, item):
+        try:
+            paper = Paper.objects.create(
+                title=item['title'][0],
+                paper_title=item['title'][0],
+                doi=item['DOI'],
+                url=item['URL'],
+                paper_publish_date=get_crossref_issued_date(item)
+            )
+            job = group([
+                download_pdf_by_license.signature((item, paper.id)),
+                # get_authors_from_doi(item['author'])
+            ])
+            job.apply_async()
+            return paper
+        except IntegrityError:
+            pass
 
 
 @api_view([RequestMethods.GET])
@@ -150,28 +172,35 @@ def search_crossref(query):
     results = []
     cr = Crossref()
     filters = {'type': 'journal-article'}
-    results = cr.works(
-        query_bibliographic=query,
-        limit=10,
-        filter=filters
-    )
+    limit = 10
+    offset = 0
+    count = 0
+    trial_limit = 2
+    trials = 0
 
-    # TODO: Compare response times
-
-    # crossrefapi
-    #
-    # works = Works()
-    # res = works.query(bibliographic=term).filter(type='journal-article')
-    # .facet('orcid', 5)
-
-    # commons
-    #
-    # filters = {'type': 'journal-article'}
-    # queries = {'query.bibliographic': term}
-    # results = iterate_publications_as_json(
-    #     max_results=5,
-    #     filter=filters,
-    #     queries=queries
-    # )
+    # Try to get `limit` unique results
+    while (count < limit) and (trials < trial_limit):
+        trials += 1
+        results = cr.works(
+            query_bibliographic=query,
+            limit=limit,
+            offset=offset,
+            filter=filters,
+            select=[
+                'DOI',
+                'title',
+                'issued',
+                'author',
+                'score',
+                'URL',
+            ],
+            sort='score',  # relevance
+            order='desc'
+        )
+        results['message']['items'] = get_unique_crossref_items(
+            results['message']['items']
+        )
+        offset += limit
+        count += len(results['message']['items'])
 
     return results

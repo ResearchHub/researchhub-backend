@@ -6,7 +6,6 @@ from django.contrib.postgres.fields import JSONField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
 from summary.models import Summary
-from utils.voting import calculate_score
 
 
 class Paper(models.Model):
@@ -34,6 +33,7 @@ class Paper(models.Model):
     )
     paper_title = models.CharField(  # Official paper title
         max_length=1024,
+        unique=True,
         default=None,
         null=True,
         blank=True
@@ -53,15 +53,30 @@ class Paper(models.Model):
         related_name='papers',
         on_delete=models.SET_NULL
     )
-    file = models.FileField(upload_to='uploads/papers/%Y/%m/%d', default=None, null=True, blank=True)
-    pdf_file_license = models.TextField(default=None, null=True, blank=True)
-    pdf_url = models.URLField(default=None, null=True, blank=True)
-    pdf_url_for_landing_page = models.URLField(default=None, null=True, blank=True)
-    tagline = models.TextField(
+    file = models.FileField(
+        upload_to='uploads/papers/%Y/%m/%d',
+        default=None,
         null=True,
         blank=True
     )
-    publication_type = models.CharField(max_length=255, default=None, null=True, blank=True)
+    pdf_file_license = models.TextField(default=None, null=True, blank=True)
+    pdf_url = models.URLField(default=None, null=True, blank=True)
+    pdf_url_for_landing_page = models.URLField(
+        default=None,
+        null=True,
+        blank=True
+    )
+    tagline = models.TextField(
+        default=None,
+        null=True,
+        blank=True
+    )
+    publication_type = models.CharField(
+        max_length=255,
+        default=None,
+        null=True,
+        blank=True
+    )
     csl_item = JSONField(
         default=None,
         null=True,
