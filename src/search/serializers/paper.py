@@ -25,6 +25,8 @@ class PaperDocumentSerializer(DocumentSerializer):
 
 
 class CrossrefPaperSerializer(serializers.Serializer):
+    # TODO: Add description
+    id = serializers.IntegerField()
     meta = serializers.JSONField()
     title = serializers.CharField()
     paper_title = serializers.CharField()

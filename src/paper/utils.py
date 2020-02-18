@@ -1,3 +1,5 @@
+from django.core.files.base import ContentFile
+from rest_framework.exceptions import ValidationError
 import requests
 
 from django.core.files.base import ContentFile
@@ -6,6 +8,7 @@ from utils.http import (
     http_request,
     RequestMethods as methods
 )
+
 
 def get_csl_item(url) -> dict:
     """
@@ -71,6 +74,14 @@ def get_location_for_unsupported_pdf(csl_item):
         "version": None,
     })
 
+
+def download_pdf(url):
+    if check_url_contains_pdf(url):
+        pdf = get_pdf_from_url(url)
+        filename = url.split('/').pop()
+        return pdf, filename
+
+
 def check_url_contains_pdf(url):
     try:
         r = http_request(methods.HEAD, url, timeout=3)
@@ -85,8 +96,8 @@ def check_url_contains_pdf(url):
     else:
         return True
 
+
 def get_pdf_from_url(url):
     response = http_request(methods.GET, url, timeout=3)
     pdf = ContentFile(response.content)
     return pdf
-
