@@ -108,8 +108,9 @@ def notify_weekly():
 
     users = Hub.objects.filter(subscribers__isnull=False).values_list('subscribers', flat=True)
 
+    # TODO find best by hub and then in mem sort for each user? is more efficient?
     for user in User.objects.filter(id__in=users):
-        users_papers = Paper.objects.filter(hubs__in=User.objects.all()[2].subscribed_hubs.all())
+        users_papers = Paper.objects.filter(hubs__in=user.subscribed_hubs.all())
         most_voted_and_uploaded_in_interval = users_papers.filter(uploaded_date__gte=start_date, uploaded_date__lte=end_date).annotate(score=upvotes - downvotes).filter(score__gt=0).order_by('-score')[:3]
         most_discussed_in_interval = users_papers.annotate(discussions=thread_counts + comment_counts + reply_counts).order_by('-discussions')[:3]
         most_voted_in_interval = users_papers.annotate(score=upvotes - downvotes).filter(score__gt=0).order_by('-score')[:2]
