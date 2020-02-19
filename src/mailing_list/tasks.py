@@ -56,10 +56,6 @@ def notify_weekly():
     end_date = timezone.now()
     start_date = timezone.now() - timedelta(days=7)
 
-    if TESTING:
-        start_date = timezone.now() - timedelta(days=14)
-        users = [7]
-
     upvotes = Count(
         'vote',
         filter=Q(
