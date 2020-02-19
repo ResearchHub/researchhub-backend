@@ -1,3 +1,4 @@
+from oauth.utils import get_orcid_works, check_doi_in_works
 from paper.models import Paper
 from paper.utils import download_pdf
 from researchhub.celery import app
@@ -40,3 +41,40 @@ def get_pdf_and_filename(links):
         if link['content-type'] == 'application/pdf':
             return download_pdf(link['URL'])
     return None, None
+
+
+@app.task
+def create_authors_from_crossref(crossref_authors, paper_doi):
+    for crossref_author in crossref_authors:
+        first_name = crossref_author['given']
+        last_name = crossref_author['family']
+
+        affiliation = None
+        if len(crossref_author['affiliation']) > 0:
+            FIRST = 0
+            affiliation = crossref_author['affiliation'][FIRST]['name']
+
+        orcid_authors = search_orcid_author(first_name, last_name, affiliation)
+        for orcid_author in orcid_authors:
+            works = get_orcid_works(orcid_author)
+            if check_doi_in_works(paper_doi, works):
+                create_orcid_author(orcid_author)
+
+
+def search_orcid_author(given_names, family_name, affiliation):
+    results = []
+    # https://pub.orcid.org/v3.0/search/?q="{given_names}%20{family_name}"
+    return results
+
+
+def create_orcid_author(orcid_author):
+    # Author.models.create(
+    #     first_name=,
+    #     last_name=,
+    # )
+    # SocialAccount.objects.create(
+    #     provider=OrcidProvider.id,
+    #     uid=orcid_uid,
+    #     extra_data=,
+    # )
+    pass
