@@ -4,6 +4,8 @@ from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 
 from django.utils import timezone
+from django.db.models import Q, Count
+
 from datetime import timedelta
 
 from mailing_list.lib import base_email_context
@@ -12,6 +14,7 @@ from researchhub.celery import app
 from utils.message import send_email_message
 from user.models import Action, User
 from hub.models import Hub
+from paper.models import Paper, Vote as PaperVote
 from researchhub.settings import TESTING
 
 import time
@@ -48,43 +51,83 @@ def notify_three_hours():
 
     actions_notifications(action_ids, NotificationFrequencies.THREE_HOUR)
 
-@periodic_task(run_every=crontab(minute=0, hour=0, day_of_week='monday'), priority=9)
+@periodic_task(run_every=crontab(minute=0, hour=11, day_of_week='friday'), priority=9)
 def notify_weekly():
     end_date = timezone.now()
     start_date = timezone.now() - timedelta(days=7)
 
-    users = Hub.objects.filter(subscribers__isnull=False).values_list('subscribers', flat=True)
     if TESTING:
-        # end_date = os.environ.get('email_end_date')
         start_date = timezone.now() - timedelta(days=14)
         users = [7]
 
-    first_paper_title = None
-    preview_text = None
-    for user in User.objects.filter(id__in=users):
-        hubs_to_papers = {}
-        for hub in user.subscribed_hubs.all():
-            papers = hub.email_context(start_date, end_date)
-            if not first_paper_title:
-                first_paper_title = papers[0].title
-            if not preview_text:
-                preview_text = papers[0].tagline
-            if len(papers) > 0:
-                hubs_to_papers[hub.name] = papers
+    upvotes = Count(
+        'vote',
+        filter=Q(
+            vote__vote_type=PaperVote.UPVOTE,
+            vote__updated_date__gte=start_date,
+            vote__updated_date__lte=end_date
+        )
+    )
 
-        # TODO consolidate papers on mutiple hubs?
+    downvotes = Count(
+        'vote',
+        filter=Q(
+            vote__vote_type=PaperVote.DOWNVOTE,
+            vote__created_date__gte=start_date,
+            vote__created_date__lte=end_date
+        )
+    )
+
+    # TODO don't include censored threads?
+    thread_counts = Count(
+        'threads',
+        filter=Q(
+            threads__created_date__gte=start_date,
+            threads__created_date__lte=end_date,
+            #threads__is_removed=False,
+        )
+    )
+
+    comment_counts = Count(
+        'threads__comments',
+        filter=Q(
+            threads__comments__created_date__gte=start_date,
+            threads__comments__created_date__lte=end_date,
+            #threads__comments__is_removed=False,
+        )
+    )
+
+    reply_counts = Count(
+        'threads__comments__replies',
+        filter=Q(
+            threads__comments__replies__created_date__gte=start_date,
+            threads__comments__replies__created_date__lte=end_date,
+            #threads__comments__replies__is_removed=False,
+        )
+    )
+
+    users = Hub.objects.filter(subscribers__isnull=False).values_list('subscribers', flat=True)
+
+    for user in User.objects.filter(id__in=users):
+        users_papers = Paper.objects.filter(hubs__in=User.objects.all()[2].subscribed_hubs.all())
+        most_voted_and_uploaded_in_interval = users_papers.filter(uploaded_date__gte=start_date, uploaded_date__lte=end_date).annotate(score=upvotes - downvotes).filter(score__gt=0).order_by('-score')[:3]
+        most_discussed_in_interval = users_papers.annotate(discussions=thread_counts + comment_counts + reply_counts).order_by('-discussions')[:3]
+        most_voted_in_interval = users_papers.annotate(score=upvotes - downvotes).filter(score__gt=0).order_by('-score')[:2]
+        papers = (most_voted_and_uploaded_in_interval and most_discussed_in_interval and most_voted_in_interval)
+        if len(papers) == 0:
+            continue
+
         email_context = {
             **base_email_context,
             'first_name': user.first_name,
             'last_name': user.last_name,
-            'hubs': hubs_to_papers,
-            'first_paper_title': first_paper_title,
-            'preview_text': preview_text
+            'papers': papers,
+            'preview_text': papers[0].tagline
         }
 
         recipient = [user.email]
         # subject = 'Research Hub | Your Weekly Digest'
-        subject = first_paper_title[0:86] + '...'
+        subject = papers[0].title[0:86] + '...'
         email_sent = send_email_message(
             recipient,
             'weekly_digest_email.txt',
