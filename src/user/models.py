@@ -4,7 +4,6 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.dispatch import receiver
 from django.utils import timezone
-from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from storages.backends.s3boto3 import S3Boto3Storage
 
 from discussion.models import Thread, Comment, Reply
@@ -149,6 +148,13 @@ class Author(models.Model):
         null=True,
         blank=True
     )
+    orcid_id = models.CharField(
+        max_length=1024,
+        default=None,
+        null=True,
+        blank=True,
+        unique=True
+    )
     facebook = models.CharField(
         max_length=255,
         default=None,
@@ -178,15 +184,6 @@ class Author(models.Model):
             university_city = university.city
         return (f'{self.first_name}_{self.last_name}_{university_name}_'
                 f'{university_city}')
-
-    @property
-    def orcid_id(self):
-        try:
-            return (
-                self.user.socialaccount_set.get(provider=OrcidProvider.id).uid
-            )
-        except Exception:
-            return None
 
     @property
     def profile_image_indexing(self):
@@ -237,10 +234,17 @@ class Action(DefaultModel):
 
     def email_context(self):
         act = self
-        if not hasattr(act.item, 'created_by') and hasattr(act.item, 'proposed_by'):
+        if (
+            not hasattr(act.item, 'created_by')
+            and hasattr(act.item, 'proposed_by')
+        ):
             act.item.created_by = act.item.proposed_by
 
-        if hasattr(act, 'content_type') and act.content_type and act.content_type.name:
+        if (
+            hasattr(act, 'content_type')
+            and act.content_type
+            and act.content_type.name
+        ):
             act.content_type_name = act.content_type.name
         else:
             act.content_type_name = 'paper'
