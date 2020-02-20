@@ -19,13 +19,11 @@ class CreateDiscussionComment(RuleBasedPermission):
     def satisfies_rule(self, request):
         return request.user.reputation >= 1
 
-
 class CreateDiscussionReply(RuleBasedPermission):
     message = 'Not enough reputation to create reply.'
 
     def satisfies_rule(self, request):
         return request.user.reputation >= 1
-
 
 class CreateDiscussionThread(RuleBasedPermission):
     message = 'Not enough reputation to create thread.'
@@ -33,27 +31,23 @@ class CreateDiscussionThread(RuleBasedPermission):
     def satisfies_rule(self, request):
         return request.user.reputation >= 1
 
-
 class UpdateDiscussionComment(AuthorizationBasedPermission):
     message = 'Action not permitted.'
 
     def is_authorized(self, request, view, obj):
-        return obj.created_by == request.user
-
+        return obj.created_by == request.user and obj.is_removed == False
 
 class UpdateDiscussionReply(AuthorizationBasedPermission):
     message = 'Action not permitted.'
 
     def is_authorized(self, request, view, obj):
-        return obj.created_by == request.user
-
+        return obj.created_by == request.user and obj.is_removed == False
 
 class UpdateDiscussionThread(AuthorizationBasedPermission):
     message = 'Action not permitted.'
 
     def is_authorized(self, request, view, obj):
-        return obj.created_by == request.user
-
+        return obj.created_by == request.user and obj.is_removed == False
 
 class FlagDiscussionComment(RuleBasedPermission):
     message = 'Not enough reputation to flag comment.'
@@ -61,20 +55,17 @@ class FlagDiscussionComment(RuleBasedPermission):
     def satisfies_rule(self, request):
         return request.user.reputation >= 1
 
-
 class FlagDiscussionReply(RuleBasedPermission):
     message = 'Not enough reputation to flag reply.'
 
     def satisfies_rule(self, request):
         return request.user.reputation >= 1
 
-
 class FlagDiscussionThread(RuleBasedPermission):
     message = 'Not enough reputation to flag thread.'
 
     def satisfies_rule(self, request):
         return request.user.reputation >= 1
-
 
 class Vote(AuthorizationBasedPermission):
     message = 'Can not vote on own content'
@@ -84,13 +75,11 @@ class Vote(AuthorizationBasedPermission):
             raise PermissionDenied(detail=self.message)
         return True
 
-
 class UpvoteDiscussionComment(RuleBasedPermission):
     message = 'Not enough reputation to upvote comment.'
 
     def satisfies_rule(self, request):
         return request.user.reputation >= 1
-
 
 class UpvoteDiscussionReply(RuleBasedPermission):
     message = 'Not enough reputation to upvote reply.'
@@ -98,13 +87,11 @@ class UpvoteDiscussionReply(RuleBasedPermission):
     def satisfies_rule(self, request):
         return request.user.reputation >= 1
 
-
 class UpvoteDiscussionThread(RuleBasedPermission):
     message = 'Not enough reputation to upvote thread.'
 
     def satisfies_rule(self, request):
         return request.user.reputation >= 1
-
 
 class DownvoteDiscussionComment(RuleBasedPermission):
     message = 'Not enough reputation to upvote comment.'
@@ -112,20 +99,17 @@ class DownvoteDiscussionComment(RuleBasedPermission):
     def satisfies_rule(self, request):
         return request.user.reputation >= 25
 
-
 class DownvoteDiscussionReply(RuleBasedPermission):
     message = 'Not enough reputation to upvote reply.'
 
     def satisfies_rule(self, request):
         return request.user.reputation >= 25
 
-
 class DownvoteDiscussionThread(RuleBasedPermission):
     message = 'Not enough reputation to upvote thread.'
 
     def satisfies_rule(self, request):
         return request.user.reputation >= 25
-
 
 class Endorse(AuthorizationBasedPermission):
 
