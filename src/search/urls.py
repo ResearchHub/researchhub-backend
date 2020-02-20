@@ -7,8 +7,8 @@ from search.views import (
     CombinedView,
     PaperDocumentView,
     ThreadDocumentView,
-    crossref,
-    orcid
+    # crossref,
+    # orcid
 )
 
 router = DefaultRouter()
@@ -31,6 +31,6 @@ thread = router.register(
 urlpatterns = [
     url(r'^', include(router.urls)),
     path('all/', CombinedView.as_view(), name='combined_search'),
-    path('crossref/', crossref, name='crossref'),
-    path('orcid/', orcid, name='orcid'),
+    # path('crossref/', crossref, name='crossref'),
+    # path('orcid/', orcid, name='orcid'),
 ]
