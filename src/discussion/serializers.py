@@ -63,6 +63,23 @@ class VoteMixin:
                 pass
         return vote
 
+    def get_user_flag(self, obj):
+        flag = None
+        user = get_user_from_request(self.context)
+        if user:
+            try:
+                flag_created_by = obj.flag_created_by
+                if len(flag_created_by) == 0:
+                    return None
+                flag = FlagSerializer(flag_created_by).data
+            except AttributeError:
+                try:
+                    flag = obj.flags.get(created_by=user.id)
+                    flag = FlagSerializer(flag).data
+                except Flag.DoesNotExist:
+                    pass
+        return flag
+
 class VoteSerializer(serializers.ModelSerializer):
     item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
 
@@ -85,6 +102,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
     replies = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
+    user_flag = serializers.SerializerMethodField()
     thread_id = serializers.SerializerMethodField()
     paper_id = serializers.SerializerMethodField()
     #plain_text = serializers.SerializerMethodField()
@@ -105,6 +123,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
             'text',
             'updated_date',
             'user_vote',
+            'user_flag',
             'was_edited',
             'plain_text',
             'thread_id',
@@ -118,6 +137,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
             'paper_id',
             'score',
             'user_vote',
+            'user_flag',
         ]
         model = Comment
 
@@ -158,6 +178,7 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     comment_count = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
+    user_flag = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     #plain_text = serializers.SerializerMethodField()
     #text = serializers.SerializerMethodField()
@@ -177,6 +198,7 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
             'is_removed',
             'score',
             'user_vote',
+            'user_flag',
             'was_edited',
             'plain_text',
         ]
@@ -184,7 +206,8 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
             'is_public',
             'is_removed',
             'score',
-            'user_vote'
+            'user_vote',
+            'user_flag',
         ]
         model = Thread
 
@@ -219,6 +242,7 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
     )
     score = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
+    user_flag = serializers.SerializerMethodField()
     thread_id = serializers.SerializerMethodField()
     paper_id = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
@@ -240,6 +264,7 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
             'text',
             'updated_date',
             'user_vote',
+            'user_flag',
             'was_edited',
             'plain_text',
             'thread_id',
@@ -252,6 +277,7 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
             'replies',
             'score',
             'user_vote',
+            'user_flag',
             'thread_id',
             'paper_id'
         ]
