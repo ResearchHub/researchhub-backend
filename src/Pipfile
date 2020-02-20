@@ -34,8 +34,6 @@ celery = {extras = ["redis"],version = "*"}
 django-celery-beat = "*"
 ipdb = "*"
 habanero = "*"
-crossrefapi = "*"
-crossref-commons = "*"
 
 [requires]
 python_version = "3.7"
