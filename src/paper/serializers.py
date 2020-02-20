@@ -27,6 +27,7 @@ from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 class PaperSerializer(serializers.ModelSerializer):
     authors = AuthorSerializer(many=True, read_only=False, required=False)
     discussion = serializers.SerializerMethodField()
+    discussion_count = serializers.SerializerMethodField()
     hubs = HubSerializer(many=True, required=False)
     score = serializers.SerializerMethodField()
     summary = SummarySerializer(required=False)
@@ -175,6 +176,9 @@ class PaperSerializer(serializers.ModelSerializer):
         )
 
         return {'count': threads_queryset.count(), 'threads': threads.data}
+
+    def get_discussion_count(self, obj):
+        return obj.get_discussion_count()
 
     def get_score(self, obj):
         return obj.calculate_score()
