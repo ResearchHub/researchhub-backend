@@ -3,7 +3,7 @@ from celery import group
 from elasticsearch_dsl import Search
 from elasticsearch_dsl.utils import AttrDict
 from habanero import Crossref
-from rest_framework.decorators import api_view, permission_classes as perms
+# from rest_framework.decorators import api_view, permission_classes as perms
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
@@ -11,14 +11,18 @@ from paper.models import Paper
 from researchhub.settings import PAGINATION_PAGE_SIZE
 from search.filters import ElasticsearchFuzzyFilter
 from search.serializers.combined import CombinedSerializer
-from search.tasks import download_pdf_by_license
+from search.tasks import (
+    create_authors_from_crossref,
+    download_pdf_by_license,
+    # search_orcid_author
+)
 from search.utils import (
     get_crossref_doi,
     get_unique_crossref_items,
     get_crossref_issued_date
 )
 from utils.permissions import ReadOnly
-from utils.http import RequestMethods
+# from utils.http import RequestMethods
 
 
 class CombinedView(ListAPIView):
@@ -150,22 +154,31 @@ class CrossrefHits:
                 url=item['URL'],
                 paper_publish_date=get_crossref_issued_date(item)
             )
-            job = group([
-                download_pdf_by_license.signature((item, paper.id)),
-                # get_authors_from_doi(item['author'])
-            ])
+            tasks = [download_pdf_by_license.signature((item, paper.id))]
+            try:
+                authors = item['author']
+                if len(authors) > 0:
+                    tasks.append(
+                        create_authors_from_crossref.signature(
+                            (authors, paper.id, paper.doi)
+                        )
+                    )
+            except KeyError:
+                pass
+            job = group(tasks)
             job.apply_async()
             return paper
         except IntegrityError:
             pass
 
 
-@api_view([RequestMethods.GET])
-@perms([ReadOnly])
-def crossref(request):
-    query = request.query_params.get('query')
-    results = search_crossref(query)
-    return Response(results)
+# Debugging
+# @api_view([RequestMethods.GET])
+# @perms([ReadOnly])
+# def crossref(request):
+#     query = request.query_params.get('query')
+#     results = search_crossref(query)
+#     return Response(results)
 
 
 def search_crossref(query):
@@ -204,3 +217,10 @@ def search_crossref(query):
         count += len(results['message']['items'])
 
     return results
+
+# Debugging
+# @api_view([RequestMethods.GET])
+# @perms([ReadOnly])
+# def orcid(request):
+#     results = search_orcid_author('Rodney', 'Garratt')
+#     return Response(results)
