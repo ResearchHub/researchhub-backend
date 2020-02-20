@@ -293,6 +293,11 @@ SOCIALACCOUNT_PROVIDERS = {
         # Defaults to 'orcid.org' for the production API
         'BASE_DOMAIN': 'orcid.org',
         'MEMBER_API': False,  # Defaults to False for the Public API
+        'CLIENT_ID': 'APP-28GINQJPUWS3ZTW1',
+        'CLIENT_SECRET': '3da83990-1df1-4d22-b86c-31d2fa13892a',
+        # not expiring for approximately 20 years
+        'ACCESS_TOKEN': '24876622-a9c6-42b0-b831-4b397b0bce4b',
+        'REFRESH_TOKEN': '',
     }
 }
 

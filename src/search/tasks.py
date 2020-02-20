@@ -2,6 +2,8 @@ from oauth.utils import get_orcid_works, check_doi_in_works
 from paper.models import Paper
 from paper.utils import download_pdf
 from researchhub.celery import app
+from researchhub.orcid import orcid_api
+from user.models import Author
 
 VALID_LICENSES = []
 
@@ -44,37 +46,73 @@ def get_pdf_and_filename(links):
 
 
 @app.task
-def create_authors_from_crossref(crossref_authors, paper_doi):
+def create_authors_from_crossref(crossref_authors, paper_id, paper_doi):
+    paper = None
+    try:
+        paper = Paper.objects.get(pk=paper_id)
+    except Paper.DoesNotExist:
+        pass
+
     for crossref_author in crossref_authors:
-        first_name = crossref_author['given']
-        last_name = crossref_author['family']
+        try:
+            first_name = crossref_author['given']
+            last_name = crossref_author['family']
+        except KeyError:
+            break
 
         affiliation = None
         if len(crossref_author['affiliation']) > 0:
             FIRST = 0
             affiliation = crossref_author['affiliation'][FIRST]['name']
 
-        orcid_authors = search_orcid_author(first_name, last_name, affiliation)
-        for orcid_author in orcid_authors:
-            works = get_orcid_works(orcid_author)
-            if check_doi_in_works(paper_doi, works):
-                create_orcid_author(orcid_author)
+        try:
+            orcid_id = crossref_author['ORCID'].split('/')[-1]
+            get_or_create_orcid_author(orcid_id, first_name, last_name, paper)
+        except KeyError:
+            orcid_authors = search_orcid_author(
+                first_name,
+                last_name,
+                affiliation
+            )
+            for orcid_author in orcid_authors:
+                works = get_orcid_works(orcid_author)
+                if (len(works) > 0) and check_doi_in_works(paper_doi, works):
+                    create_orcid_author(orcid_author, paper)
 
 
-def search_orcid_author(given_names, family_name, affiliation):
-    results = []
-    # https://pub.orcid.org/v3.0/search/?q="{given_names}%20{family_name}"
-    return results
+def search_orcid_author(given_names, family_name, affiliation=None):
+    matches = []
+    try:
+        author_name_results = orcid_api.search_by_name(
+            given_names,
+            family_name
+        )
+        authors = author_name_results.json()['result']
+        if authors is not None:
+            for author in authors:
+                uid = author['orcid-identifier']['path']
+                author_id_results = orcid_api.search_by_id(uid)
+                matches.append(author_id_results.json())
+    except Exception as e:
+        print(e)
+    return matches
 
 
-def create_orcid_author(orcid_author):
-    # Author.models.create(
-    #     first_name=,
-    #     last_name=,
-    # )
-    # SocialAccount.objects.create(
-    #     provider=OrcidProvider.id,
-    #     uid=orcid_uid,
-    #     extra_data=,
-    # )
-    pass
+def create_orcid_author(orcid_author, paper):
+    name = orcid_author['person']['name']
+    first_name = name['given-names']['value']
+    last_name = name['family-name']['value']
+    orcid_id = orcid_author['orcid-identifier']['path']
+    get_or_create_orcid_author(orcid_id, first_name, last_name, paper)
+
+
+def get_or_create_orcid_author(orcid_id, first_name, last_name, paper):
+    author, created = Author.models.get_or_create(
+        orcid_id=orcid_id,
+        defaults={
+            'first_name': first_name,
+            'last_name': last_name,
+        }
+    )
+    if paper is not None:
+        paper.authors.add(author)
