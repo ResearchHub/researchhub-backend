@@ -12,19 +12,13 @@ class SubscriptionField(models.OneToOneField):
 
 
 class EmailRecipient(models.Model):
-    NOTIFICATION_FREQUENCY_CHOICES = (
-        ('IMMEDIATE', NotificationFrequencies.IMMEDIATE),
-        ('DAILY', NotificationFrequencies.DAILY),
-        ('THREE_HOUR', NotificationFrequencies.THREE_HOUR)
-    )
+    """Subscriptions define what category of content a user is notified about
+    and how often they are notified, but not what they are subscribed to.
+    """
     email = models.EmailField(unique=True)
     do_not_email = models.BooleanField(default=False)
     is_opted_out = models.BooleanField(default=False)
-    is_subscribed = models.BooleanField(default=False)
-    notification_frequency = models.IntegerField(
-        default=NotificationFrequencies.IMMEDIATE,
-        choices=NOTIFICATION_FREQUENCY_CHOICES
-    )
+    is_subscribed = models.BooleanField(default=True)
     next_cursor = models.IntegerField(default=0)
     user = models.OneToOneField(
         'user.User',
@@ -32,12 +26,24 @@ class EmailRecipient(models.Model):
         default=None,
         null=True
     )
+    digest_subscription = SubscriptionField(
+        'mailing_list.DigestSubscription',
+        related_name='email_recipient'
+    )
+    paper_subscription = SubscriptionField(
+        'mailing_list.PaperSubscription',
+        related_name='email_recipient'
+    )
     comment_subscription = SubscriptionField(
         'mailing_list.CommentSubscription',
         related_name='email_recipient'
     )
     thread_subscription = SubscriptionField(
         'mailing_list.ThreadSubscription',
+        related_name='email_recipient'
+    )
+    reply_subscription = SubscriptionField(
+        'mailing_list.ReplySubscription',
         related_name='email_recipient'
     )
     bounced_date = models.DateTimeField(default=None, null=True)
@@ -48,11 +54,8 @@ class EmailRecipient(models.Model):
         return f'{self.email}'
 
     def save(self, *args, **kwargs):
-        if self.comment_subscription is None:
-            self.comment_subscription = CommentSubscription.objects.create()
-
-        if self.thread_subscription is None:
-            self.thread_subscription = ThreadSubscription.objects.create()
+        # TODO: Replace this with a mgmt command. Does not need to be in
+        # application logic.
 
         return super(EmailRecipient, self).save(*args, **kwargs)
 
@@ -80,6 +83,16 @@ class EmailRecipient(models.Model):
 
 
 class BaseSubscription(models.Model):
+    NOTIFICATION_FREQUENCY_CHOICES = (
+        ('IMMEDIATE', NotificationFrequencies.IMMEDIATE),
+        ('DAILY', NotificationFrequencies.DAILY),
+        ('WEEKLY', NotificationFrequencies.WEEKLY),
+    )
+    notification_frequency = models.IntegerField(
+        default=NotificationFrequencies.IMMEDIATE,
+        choices=NOTIFICATION_FREQUENCY_CHOICES
+    )
+
     class Meta:
         abstract = True
 
@@ -88,12 +101,29 @@ class BaseSubscription(models.Model):
         return str(self.__dict__.items())
 
 
+class DigestSubscription(BaseSubscription):
+    notification_frequency = models.IntegerField(
+        default=NotificationFrequencies.DAILY,
+        choices=BaseSubscription.NOTIFICATION_FREQUENCY_CHOICES
+    )
+    none = models.BooleanField(default=False)
+
+
+class PaperSubscription(BaseSubscription):
+    none = models.BooleanField(default=False)
+    threads = models.BooleanField(default=True)
+
+
 class ThreadSubscription(BaseSubscription):
     none = models.BooleanField(default=False)
     comments = models.BooleanField(default=True)
-    replies = models.BooleanField(default=True)
 
 
 class CommentSubscription(BaseSubscription):
+    none = models.BooleanField(default=False)
+    replies = models.BooleanField(default=True)
+
+
+class ReplySubscription(BaseSubscription):
     none = models.BooleanField(default=False)
     replies = models.BooleanField(default=True)
