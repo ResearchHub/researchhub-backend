@@ -5,6 +5,7 @@
 celery_worker=`grep -o "CELERY_WORKER=\".*\"" /opt/python/current/env`
 if ! [ $celery_worker = "CELERY_WORKER=\"True\"" ]; then
         /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf stop celeryd-worker
+        /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf stop celerybeat
         echo "Exiting worker script"
     exit 0
 else
@@ -43,8 +44,7 @@ environment=$celery_env"
 
 celerybeatconf="[program:celerybeat]
 ; Set full path to celery program if using virtualenv
-command=/opt/python/run/venv/bin/celery beat –A researchhub -S redbeat.RedBeatScheduler --loglevel=INFO -Q ${app}
-
+command=/opt/python/run/venv/bin/celery beat –A researchhub -S redbeat.RedBeatScheduler --loglevel=INFO --pidfile /tmp/celerybeat.pid
 directory=/opt/python/current/app
 user=ec2-user
 numprocs=1
@@ -66,7 +66,7 @@ killasgroup=true
 
 ; if rabbitmq is supervised, set its priority higher
 ; so it starts first
-priority=997
+priority=998
 
 environment=$celeryenv"
 
@@ -78,7 +78,7 @@ echo "$celerybeatconff" | tee /opt/python/etc/celerybeat.conf
 if ! grep -Fxq "[include]" /opt/python/etc/supervisord.conf
   then
   echo "[include]" | tee -a /opt/python/etc/supervisord.conf
-  echo "files=/opt/python/etc/celery.conf /opt/python/etc/celerybeat.conf" | tee -a /opt/python/etc/supervisord.conf
+  echo "files= /opt/python/etc/celerybeat.conf /opt/python/etc/celery.conf" | tee -a /opt/python/etc/supervisord.conf
 fi
 
 # Reread the conf
