@@ -15,9 +15,9 @@ from utils.message import send_email_message
 from user.models import Action, User
 from hub.models import Hub
 from paper.models import Paper, Vote as PaperVote
-from researchhub.settings import TESTING
 
 import time
+
 
 @app.task
 def notify_immediate(action_id):
@@ -28,6 +28,7 @@ def notify_immediate(action_id):
         time.sleep(.1)
         i += 1
     actions_notifications([action_id], NotificationFrequencies.IMMEDIATE)
+
 
 @periodic_task(run_every=crontab(minute='30', hour='1'), priority=7)
 def notify_daily():
@@ -40,6 +41,7 @@ def notify_daily():
 
     actions_notifications(action_ids, NotificationFrequencies.DAILY)
 
+
 @periodic_task(run_every=crontab(minute='0', hour='*/3'), priority=7)
 def notify_three_hours():
     interval = timezone.now() - timedelta(hours=3)
@@ -51,7 +53,11 @@ def notify_three_hours():
 
     actions_notifications(action_ids, NotificationFrequencies.THREE_HOUR)
 
-@periodic_task(run_every=crontab(minute=55, hour=23, day_of_week='friday'), priority=9)
+
+@periodic_task(
+    run_every=crontab(minute=0, hour=11, day_of_week='friday'),
+    priority=9
+)
 def notify_weekly():
 
     end_date = timezone.now()
@@ -81,7 +87,7 @@ def notify_weekly():
         filter=Q(
             threads__created_date__gte=start_date,
             threads__created_date__lte=end_date,
-            #threads__is_removed=False,
+            # threads__is_removed=False,
         )
     )
 
@@ -90,7 +96,7 @@ def notify_weekly():
         filter=Q(
             threads__comments__created_date__gte=start_date,
             threads__comments__created_date__lte=end_date,
-            #threads__comments__is_removed=False,
+            # threads__comments__is_removed=False,
         )
     )
 
@@ -99,19 +105,38 @@ def notify_weekly():
         filter=Q(
             threads__comments__replies__created_date__gte=start_date,
             threads__comments__replies__created_date__lte=end_date,
-            #threads__comments__replies__is_removed=False,
+            # threads__comments__replies__is_removed=False,
         )
     )
 
-    users = Hub.objects.filter(subscribers__isnull=False).values_list('subscribers', flat=True)
+    users = Hub.objects.filter(
+        subscribers__isnull=False
+    ).values_list('subscribers', flat=True)
 
-    # TODO find best by hub and then in mem sort for each user? is more efficient?
+    # TODO find best by hub and then in mem sort for each user? more efficient?
     for user in User.objects.filter(id__in=users):
-        users_papers = Paper.objects.filter(hubs__in=user.subscribed_hubs.all())
-        most_voted_and_uploaded_in_interval = users_papers.filter(uploaded_date__gte=start_date, uploaded_date__lte=end_date).annotate(score=upvotes - downvotes).filter(score__gt=0).order_by('-score')[:3]
-        most_discussed_in_interval = users_papers.annotate(discussions=thread_counts + comment_counts + reply_counts).order_by('-discussions')[:3]
-        most_voted_in_interval = users_papers.annotate(score=upvotes - downvotes).filter(score__gt=0).order_by('-score')[:2]
-        papers = (most_voted_and_uploaded_in_interval and most_discussed_in_interval and most_voted_in_interval)
+        if not check_can_receive_digest(user):
+            continue
+        users_papers = Paper.objects.filter(
+            hubs__in=user.subscribed_hubs.all()
+        )
+        most_voted_and_uploaded_in_interval = users_papers.filter(
+            uploaded_date__gte=start_date,
+            uploaded_date__lte=end_date
+        ).annotate(
+            score=upvotes - downvotes
+        ).filter(score__gt=0).order_by('-score')[:3]
+        most_discussed_in_interval = users_papers.annotate(
+            discussions=thread_counts + comment_counts + reply_counts
+        ).order_by('-discussions')[:3]
+        most_voted_in_interval = users_papers.annotate(
+            score=upvotes - downvotes
+        ).filter(score__gt=0).order_by('-score')[:2]
+        papers = (
+            most_voted_and_uploaded_in_interval
+            and most_discussed_in_interval
+            and most_voted_in_interval
+        )
         if len(papers) == 0:
             continue
 
@@ -126,7 +151,7 @@ def notify_weekly():
         recipient = [user.email]
         # subject = 'Research Hub | Your Weekly Digest'
         subject = papers[0].title[0:86] + '...'
-        email_sent = send_email_message(
+        send_email_message(
             recipient,
             'weekly_digest_email.txt',
             subject,
@@ -134,6 +159,7 @@ def notify_weekly():
             'weekly_digest_email.html',
             'ResearchHub Digest <digest@researchhub.com>'
         )
+
 
 def actions_notifications(
     action_ids,
@@ -146,9 +172,12 @@ def actions_notifications(
             for user in set(action.item.users_to_notify):
                 try:
                     r = user.emailrecipient
-                    if r.receives_notifications and (
-                        notif_interval == r.notification_frequency
-                    ):
+                    # TODO: Frequency is now set on the subscription instead
+                    # of the email recipient so need to update this
+                    # if r.receives_notifications and (
+                    #     notif_interval == r.notification_frequency
+                    # ):
+                    if r.receives_notifications:
                         if user_to_action.get(r):
                             user_to_action[r].append(action)
                         else:
@@ -159,7 +188,10 @@ def actions_notifications(
             logging.info('action: ({action}) is missing users_to_notify field')
 
     for r in user_to_action:
-        subject = build_subject(r.notification_frequency)
+        # TODO: Frequency is now set on the subscription instead
+        # of the email recipient so need to update this
+        # subject = build_subject(r.notification_frequency)
+        subject = build_subject(NotificationFrequencies.IMMEDIATE)
         context = build_notification_context(user_to_action[r])
         send_email_message(
             r.email,
@@ -169,8 +201,9 @@ def actions_notifications(
             html_template='notification_email.html'
         )
 
+
 def build_subject(notification_frequency):
-    prefix = 'Research Hub | '
+    prefix = 'ResearchHub | '
     if notification_frequency == NotificationFrequencies.IMMEDIATE:
         return f'{prefix}Update'
     elif notification_frequency == NotificationFrequencies.DAILY:
@@ -180,5 +213,22 @@ def build_subject(notification_frequency):
     else:
         return f'{prefix}Updates'
 
+
 def build_notification_context(actions):
-    return {**base_email_context, 'actions': [act.email_context() for act in actions]}
+    return {
+        **base_email_context,
+        'actions': [act.email_context() for act in actions]
+    }
+
+
+def check_can_receive_digest(user):
+    try:
+        email_recipient = user.emailrecipient
+        if (email_recipient.digest_subscription is not None):
+            return (
+                email_recipient.receives_notifications
+                and not email_recipient.digest_subscription.none
+            )
+        return False
+    except Exception:
+        return False

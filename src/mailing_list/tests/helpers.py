@@ -29,7 +29,6 @@ def create_comment_subscription(none=False, replies=True):
 def create_email_recipient(
     user=None,
     thread_subscription=None,
-    notification_frequency=TestData.notification_frequency
 ):
     if not user:
         email = TestData.valid_email
@@ -39,6 +38,5 @@ def create_email_recipient(
     return EmailRecipient.objects.create(
         email=email,
         user=user,
-        notification_frequency=notification_frequency,
         thread_subscription=thread_subscription
     )
