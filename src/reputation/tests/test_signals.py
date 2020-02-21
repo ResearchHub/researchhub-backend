@@ -59,7 +59,10 @@ class SignalTests(TestCase):
 
     def test_create_paper_uploaded_by_orcid_author_increases_rep_10(self):
         user = create_random_default_user('Ronald the ORCID Author')
-        create_social_account(OrcidProvider.id, user)
+        social = create_social_account(OrcidProvider.id, user)
+        user.author_profile.orcid_id = social.uid
+        user.author_profile.save()
+
         paper = create_paper(uploaded_by=user)
         paper.authors.add(user.author_profile)
 
@@ -164,7 +167,9 @@ class SignalTests(TestCase):
 
     def test_comment_by_paper_orcid_author_upvoted_increases_rep_5(self):
         recipient = create_random_default_user('Winky the ORCID Author')
-        create_social_account(OrcidProvider.id, recipient)
+        social = create_social_account(OrcidProvider.id, recipient)
+        recipient.author_profile.orcid_id = social.uid
+        recipient.author_profile.save()
 
         paper = create_paper()
         paper.authors.add(recipient.author_profile)
@@ -225,7 +230,10 @@ class SignalTests(TestCase):
 
     def test_create_reply_increases_rep_by_5_if_orcid_author(self):
         author = create_random_default_user('Viktor ORCID')
-        create_social_account(OrcidProvider.id, author)
+        social = create_social_account(OrcidProvider.id, author)
+        author.author_profile.orcid_id = social.uid
+        author.author_profile.save()
+
         paper = create_paper()
         paper.authors.add(author.author_profile)
 
@@ -290,7 +298,9 @@ class SignalTests(TestCase):
 
     def test_reply_upvoted_increases_rep_5_created_by_paper_orcid_author(self):
         recipient = create_random_default_user('George the Author')
-        create_social_account(OrcidProvider.id, recipient)
+        social = create_social_account(OrcidProvider.id, recipient)
+        recipient.author_profile.orcid_id = social.uid
+        recipient.author_profile.save()
 
         paper = create_paper()
         paper.authors.add(recipient.author_profile)
