@@ -51,8 +51,9 @@ def notify_three_hours():
 
     actions_notifications(action_ids, NotificationFrequencies.THREE_HOUR)
 
-@periodic_task(run_every=crontab(minute=0, hour=11, day_of_week='friday'), priority=9)
+@periodic_task(run_every=crontab(minute=55, hour=23, day_of_week='friday'), priority=9)
 def notify_weekly():
+
     end_date = timezone.now()
     start_date = timezone.now() - timedelta(days=7)
 

@@ -34,6 +34,7 @@ celery = {extras = ["redis"],version = "*"}
 django-celery-beat = "*"
 ipdb = "*"
 habanero = "*"
+celery-redbeat = "*"
 
 [requires]
 python_version = "3.7"
