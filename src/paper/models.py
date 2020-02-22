@@ -33,7 +33,6 @@ class Paper(models.Model):
     )
     paper_title = models.CharField(  # Official paper title
         max_length=1024,
-        unique=True,
         default=None,
         null=True,
         blank=True
@@ -170,9 +169,21 @@ class Paper(models.Model):
         if hasattr(self, 'discussion_count'):
             return self.discussion_count
         else:
-            thread_count = self.threads.aggregate(discussion_count=Count(1, filter=Q(is_removed=False)))['discussion_count']
-            comment_count = self.threads.aggregate(discussion_count=Count('comments', filter=Q(comments__is_removed=False)))['discussion_count']
-            reply_count = self.threads.aggregate(discussion_count=Count('comments__replies', filter=Q(comments__replies__is_removed=False)))['discussion_count']
+            thread_count = self.threads.aggregate(
+                discussion_count=Count(1, filter=Q(is_removed=False))
+            )['discussion_count']
+            comment_count = self.threads.aggregate(
+                discussion_count=Count(
+                    'comments',
+                    filter=Q(comments__is_removed=False)
+                )
+            )['discussion_count']
+            reply_count = self.threads.aggregate(
+                discussion_count=Count(
+                    'comments__replies',
+                    filter=Q(comments__replies__is_removed=False)
+                )
+            )['discussion_count']
             return thread_count + comment_count + reply_count
 
     def calculate_score(self):
