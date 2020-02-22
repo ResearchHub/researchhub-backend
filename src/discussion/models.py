@@ -209,7 +209,11 @@ class Thread(BaseComment):
 
     @property
     def owners(self):
-        if self.created_by and self.created_by.emailrecipient.thread_subscription and not self.created_by.emailrecipient.thread_subscription.none:
+        if (
+            self.created_by
+            and self.created_by.emailrecipient.thread_subscription
+            and not self.created_by.emailrecipient.thread_subscription.none
+        ):
             return [self.created_by]
         else:
             return []
@@ -218,6 +222,7 @@ class Thread(BaseComment):
     def users_to_notify(self):
         parent_owners = self.parent.owners
         return parent_owners
+
 
 class Reply(BaseComment):
     content_type = models.ForeignKey(
@@ -257,7 +262,11 @@ class Reply(BaseComment):
 
     @property
     def owners(self):
-        if self.created_by and self.created_by.emailrecipient.comment_subscription and not self.created_by.emailrecipient.comment_subscription.none:
+        if (
+            self.created_by
+            and self.created_by.emailrecipient.comment_subscription
+            and not self.created_by.emailrecipient.comment_subscription.none
+        ):
             return [self.created_by]
         else:
             return []
@@ -265,11 +274,24 @@ class Reply(BaseComment):
     @property
     def users_to_notify(self):
         sibling_comment_users = []
-        for c in self.parent.children.prefetch_related('created_by', 'created_by__emailrecipient', 'created_by__emailrecipient__thread_subscription', 'created_by__emailrecipient__comment_subscription'):
-            if c != self and c.created_by not in sibling_comment_users and c.created_by.emailrecipient.thread_subscription and c.created_by.emailrecipient.thread_subscription.replies and c.created_by.emailrecipient.comment_subscription and c.created_by.emailrecipient.comment_subscription.replies:
+        for c in self.parent.children.prefetch_related(
+            'created_by',
+            'created_by__emailrecipient',
+            'created_by__emailrecipient__thread_subscription',
+            'created_by__emailrecipient__comment_subscription'
+        ):
+            if (
+                c != self
+                and c.created_by not in sibling_comment_users
+                and c.created_by.emailrecipient.thread_subscription
+                and c.created_by.emailrecipient.thread_subscription.replies
+                and c.created_by.emailrecipient.comment_subscription
+                and c.created_by.emailrecipient.comment_subscription.replies
+            ):
                 sibling_comment_users.append(c.created_by)
         parent_owners = self.parent.owners
         return parent_owners + sibling_comment_users
+
 
 class Comment(BaseComment):
     parent = models.ForeignKey(
@@ -301,7 +323,11 @@ class Comment(BaseComment):
 
     @property
     def owners(self):
-        if self.created_by and self.created_by.emailrecipient.comment_subscription and not self.created_by.emailrecipient.comment_subscription.none:
+        if (
+            self.created_by
+            and self.created_by.emailrecipient.comment_subscription
+            and not self.created_by.emailrecipient.comment_subscription.none
+        ):
             return [self.created_by]
         else:
             return []
@@ -309,9 +335,17 @@ class Comment(BaseComment):
     @property
     def users_to_notify(self):
         sibling_comment_users = []
-        for c in self.parent.children.prefetch_related('created_by', 'created_by__emailrecipient', 'created_by__emailrecipient__thread_subscription'):
-            if c != self and c.created_by not in sibling_comment_users and c.created_by.emailrecipient.thread_subscription and c.created_by.emailrecipient.thread_subscription.comments:
+        for c in self.parent.children.prefetch_related(
+            'created_by',
+            'created_by__emailrecipient',
+            'created_by__emailrecipient__thread_subscription'
+        ):
+            if (
+                c != self
+                and c.created_by not in sibling_comment_users
+                and c.created_by.emailrecipient.thread_subscription
+                and c.created_by.emailrecipient.thread_subscription.comments
+            ):
                 sibling_comment_users.append(c.created_by)
         parent_owners = self.parent.owners
         return parent_owners + sibling_comment_users
-
