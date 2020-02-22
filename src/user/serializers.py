@@ -124,26 +124,30 @@ class UserActions:
                 or isinstance(item, Thread)
                 or isinstance(item, Reply)
                 or isinstance(item, Summary)
+                or isinstance(item, Paper)
             ):
                 pass
-            elif isinstance(item, DiscussionVote):
-                item = item.item
-                if isinstance(item, Comment):
-                    data['content_type'] += '_comment'
-
-                elif isinstance(item, Reply):
-                    data['content_type'] += '_reply'
-
-                elif isinstance(item, Thread):
-                    data['content_type'] += '_thread'
-            elif isinstance(item, PaperVote):
-                data['content_type'] += '_paper'
+            # elif isinstance(item, DiscussionVote):
+                # item = item.item
+                # if isinstance(item, Comment):
+                    # data['content_type'] += '_comment'
+                # elif isinstance(item, Reply):
+                    # data['content_type'] += '_reply'
+                # elif isinstance(item, Thread):
+                    # data['content_type'] += '_thread'
+            # elif isinstance(item, PaperVote):
+                # data['content_type'] += '_paper'
             else:
                 raise TypeError(
                     f'Instance of type {type(item)} is not supported'
                 )
 
-            paper = item.paper
+            paper = None
+            if isinstance(item, Paper):
+                paper = item
+            else:
+                paper = item.paper
+
             if paper:
                 data['paper_id'] = paper.id
                 data['paper_title'] = paper.title
@@ -154,10 +158,11 @@ class UserActions:
                 data['thread_title'] = thread.title
 
                 data['tip'] = item.plain_text
-
+            elif isinstance(item, Paper):
+                data['tip'] = item.tagline
             elif (
                 not isinstance(item, Summary)
-                and not isinstance(item, PaperVote)
+                and not isinstance(item, Paper)
             ):
                 thread = item.thread
 
