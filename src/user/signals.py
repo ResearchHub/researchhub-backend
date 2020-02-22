@@ -65,16 +65,13 @@ def doi_updated(update_fields):
 @receiver(post_save, sender=Comment, dispatch_uid='create_comment_action')
 @receiver(post_save, sender=Reply, dispatch_uid='create_reply_action')
 @receiver(post_save, sender=Thread, dispatch_uid='create_thread_action')
-@receiver(
-    post_save,
-    sender=DiscussionVote,
-    dispatch_uid='create_discussion_vote_action'
-)
-@receiver(post_save, sender=PaperVote, dispatch_uid='create_paper_vote_action')
+@receiver(post_save, sender=Paper, dispatch_uid='paper_upload_action')
 def create_action(sender, instance, created, **kwargs):
     if created:
         if sender == Summary:
             user = instance.proposed_by
+        elif sender == Paper:
+            user = instance.uploaded_by
         else:
             user = instance.created_by
 
@@ -83,7 +80,10 @@ def create_action(sender, instance, created, **kwargs):
             user=user
         )
 
-        hubs = get_related_hubs(instance)
+        if sender == Paper:
+            hubs = instance.hubs.all()
+        else:
+            hubs = get_related_hubs(instance)
         action.hubs.add(*hubs)
         return action
 
