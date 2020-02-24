@@ -173,7 +173,7 @@ class BaseComment(models.Model):
 
 
 class Thread(BaseComment):
-    title = models.CharField(max_length=255)
+    title = models.CharField(max_length=255, null=True, blank=True)
     paper = models.ForeignKey(
         'paper.Paper',
         on_delete=models.SET_NULL,
