@@ -97,7 +97,7 @@ jobs:
         aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         application_name: researchhub-backend
-        environment_name: production
+        environment_name: production-2
         version_label: ${{ github.sha }}
         use_existing_version_if_available: true
         region: us-west-2
@@ -110,6 +110,6 @@ jobs:
         aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         application_name: researchhub-backend
-        environment_name: production-worker
+        environment_name: production-worker-2
         version_label: ${{ github.sha }}
         region: us-west-2
