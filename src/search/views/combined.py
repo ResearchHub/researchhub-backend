@@ -67,10 +67,11 @@ class CombinedView(ListAPIView):
 
     def list(self, request, *args, **kwargs):
         es_response_queryset = self.filter_queryset(self.get_queryset())
-        es_response_queryset = self._add_crossref_results(
-            request,
-            es_response_queryset
-        )
+        if request.query_params.get('upload') != 'true':
+            es_response_queryset = self._add_crossref_results(
+                request,
+                es_response_queryset
+            )
 
         page = self.paginate_queryset(es_response_queryset)
         if page is not None:
