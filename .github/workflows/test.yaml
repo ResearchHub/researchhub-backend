@@ -73,7 +73,7 @@ jobs:
         aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         application_name: researchhub-backend
-        environment_name: staging-backend
+        environment_name: staging-backend-2
         version_label: ${{ github.sha }}
         use_existing_version_if_available: true
         region: us-west-2
@@ -86,7 +86,7 @@ jobs:
         aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         application_name: researchhub-backend
-        environment_name: staging-backend-worker
+        environment_name: staging-backend-worker-2
         version_label: ${{ github.sha }}
         region: us-west-2
     - name: deploy to production
