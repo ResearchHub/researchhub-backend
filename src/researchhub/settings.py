@@ -448,14 +448,14 @@ ELASTICSEARCH_DSL = {
 if PRODUCTION:
     ELASTICSEARCH_DSL = {
         'default': {
-            'hosts': 'https://search-researchhub-es-dev-gk44gqpe2rvt4e4qmx4y6vl2qq.us-west-2.es.amazonaws.com',  # noqa: E501
+            'hosts': 'https://vpc-researchhub-es-production-2-fsmclpkmgiepjd3xtdmeluj5va.us-west-2.es.amazonaws.com',  # noqa: E501
         },
     }
 
 if STAGING:
     ELASTICSEARCH_DSL = {
         'default': {
-            'hosts': 'https://search-researchhub-es-dev-gk44gqpe2rvt4e4qmx4y6vl2qq.us-west-2.es.amazonaws.com',  # noqa: E501
+            'hosts': 'https://vpc-test-nqd7dr6dm45lwlug7zfgksfh3y.us-west-2.es.amazonaws.com',  # noqa: E501
         },
     }
 
