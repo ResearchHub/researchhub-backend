@@ -6,7 +6,6 @@ from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
-from mailing_list.tasks import notify_immediate
 from paper.models import Paper, Vote as PaperVote
 from researchhub.settings import TESTING
 from summary.models import Summary
@@ -85,16 +84,7 @@ def create_action(sender, instance, created, **kwargs):
         action.hubs.add(*hubs)
         return action
 
+
 def get_related_hubs(instance):
     paper = instance.paper
     return paper.hubs.all()
-
-@receiver(post_save, sender=Action, dispatch_uid='send_action_notification')
-def send_immediate_action_notification(sender, instance, created, **kwargs):
-    if created:
-        if instance:
-            if not TESTING:
-                notify_immediate.apply_async((instance.id,), priority=5)
-            else:
-                notify_immediate(instance.id)
-
