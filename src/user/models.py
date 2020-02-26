@@ -10,7 +10,7 @@ from discussion.models import Thread, Comment, Reply
 from hub.models import Hub
 from mailing_list.models import EmailRecipient
 from paper.models import Paper
-from researchhub.settings import BASE_FRONTEND_URL
+from researchhub.settings import BASE_FRONTEND_URL, TESTING
 from summary.models import Summary
 from utils.models import DefaultModel
 
@@ -227,6 +227,17 @@ class Action(DefaultModel):
             self.content_type.model,
             self.object_id
         )
+
+    def save(self, *args, **kwargs):
+        if self.id is None:
+            from mailing_list.tasks import notify_immediate
+            super().save(*args, **kwargs)
+            if not TESTING:
+                notify_immediate.apply_async((self.id,), priority=5)
+            else:
+                notify_immediate(self.id)
+        else:
+            super().save(*args, **kwargs)
 
     def set_read(self):
         self.read_date = timezone.now()
