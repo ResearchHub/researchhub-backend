@@ -220,8 +220,16 @@ class Thread(BaseComment):
 
     @property
     def users_to_notify(self):
-        parent_owners = self.parent.owners
-        return parent_owners
+        users = list(self.parent.moderators.all())
+        paper_authors = list(self.parent.authors.all())
+        for author in paper_authors:
+            if (
+                author.user
+                and author.user.emailrecipient.paper_subscription
+                and not author.user.emailrecipient.paper_subscription.none
+            ):
+                users.append(author.user)
+        return users
 
 
 class Reply(BaseComment):
@@ -262,35 +270,55 @@ class Reply(BaseComment):
 
     @property
     def owners(self):
-        if (
-            self.created_by
-            and self.created_by.emailrecipient.comment_subscription
-            and not self.created_by.emailrecipient.comment_subscription.none
-        ):
-            return [self.created_by]
-        else:
-            return []
+        # TODO: Rework this logic
+        # This is not exactly right because a reply sub should also get replies
+        # if (
+        #     self.created_by
+        #     and self.created_by.emailrecipient.comment_subscription
+        #     and not self.created_by.emailrecipient.comment_subscription.none
+        # ):
+        #     return [self.created_by]
+        # else:
+        #     return []
+        return []
 
     @property
     def users_to_notify(self):
-        sibling_comment_users = []
-        for c in self.parent.children.prefetch_related(
-            'created_by',
-            'created_by__emailrecipient',
-            'created_by__emailrecipient__thread_subscription',
-            'created_by__emailrecipient__comment_subscription'
-        ):
+        # TODO: No siblings for now. Do we need this?
+        # sibling_comment_users = []
+        # for c in self.parent.children.prefetch_related(
+        #     'created_by',
+        #     'created_by__emailrecipient',
+        #     'created_by__emailrecipient__thread_subscription',
+        #     'created_by__emailrecipient__comment_subscription'
+        # ):
+        #     if (
+        #         c != self
+        #         and c.created_by not in sibling_comment_users
+        #         and c.created_by.emailrecipient.thread_subscription
+        #         and c.created_by.emailrecipient.thread_subscription.replies
+        #         and c.created_by.emailrecipient.comment_subscription
+        #         and c.created_by.emailrecipient.comment_subscription.replies
+        #     ):
+        #         sibling_comment_users.append(c.created_by)
+        # return parent_owners + sibling_comment_users
+        users = []
+        p = self.parent
+        if isinstance(p, Reply):
             if (
-                c != self
-                and c.created_by not in sibling_comment_users
-                and c.created_by.emailrecipient.thread_subscription
-                and c.created_by.emailrecipient.thread_subscription.replies
-                and c.created_by.emailrecipient.comment_subscription
-                and c.created_by.emailrecipient.comment_subscription.replies
+                p.created_by
+                and p.created_by.emailrecipient.reply_subscription
+                and not p.created_by.emailrecipient.reply_subscription.none
             ):
-                sibling_comment_users.append(c.created_by)
-        parent_owners = self.parent.owners
-        return parent_owners + sibling_comment_users
+                users.append(p.created_by)
+        else:
+            if (
+                p.created_by
+                and p.created_by.emailrecipient.comment_subscription
+                and not p.created_by.emailrecipient.comment_subscription.none
+            ):
+                users.append(p.created_by)
+        return users
 
 
 class Comment(BaseComment):
@@ -334,18 +362,19 @@ class Comment(BaseComment):
 
     @property
     def users_to_notify(self):
-        sibling_comment_users = []
-        for c in self.parent.children.prefetch_related(
-            'created_by',
-            'created_by__emailrecipient',
-            'created_by__emailrecipient__thread_subscription'
-        ):
-            if (
-                c != self
-                and c.created_by not in sibling_comment_users
-                and c.created_by.emailrecipient.thread_subscription
-                and c.created_by.emailrecipient.thread_subscription.comments
-            ):
-                sibling_comment_users.append(c.created_by)
+        # TODO: No siblings for now. Do we need this?
+        # sibling_comment_users = []
+        # for c in self.parent.children.prefetch_related(
+        #     'created_by',
+        #     'created_by__emailrecipient',
+        #     'created_by__emailrecipient__thread_subscription'
+        # ):
+        #    if (
+        #         c != self
+        #         and c.created_by not in sibling_comment_users
+        #         and c.created_by.emailrecipient.thread_subscription
+        #         and c.created_by.emailrecipient.thread_subscription.comments
+        #     ):
+        #         sibling_comment_users.append(c.created_by)
         parent_owners = self.parent.owners
-        return parent_owners + sibling_comment_users
+        return parent_owners  # + sibling_comment_users

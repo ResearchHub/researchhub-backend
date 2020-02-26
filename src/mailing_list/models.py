@@ -54,9 +54,16 @@ class EmailRecipient(models.Model):
         return f'{self.email}'
 
     def save(self, *args, **kwargs):
-        # TODO: Replace this with a mgmt command. Does not need to be in
-        # application logic.
-
+        if self.digest_subscription is None:
+            self.digest_subscription = DigestSubscription.objects.create()
+        if self.paper_subscription is None:
+            self.paper_subscription = PaperSubscription.objects.create()
+        if self.thread_subscription is None:
+            self.thread_subscription = ThreadSubscription.objects.create()
+        if self.comment_subscription is None:
+            self.comment_subscription = CommentSubscription.objects.create()
+        if self.reply_subscription is None:
+            self.reply_subscription = ReplySubscription.objects.create()
         return super(EmailRecipient, self).save(*args, **kwargs)
 
     def bounced(self):
@@ -85,6 +92,7 @@ class EmailRecipient(models.Model):
 class BaseSubscription(models.Model):
     NOTIFICATION_FREQUENCY_CHOICES = (
         ('IMMEDIATE', NotificationFrequencies.IMMEDIATE),
+        ('THREE_HOUR', NotificationFrequencies.THREE_HOUR),
         ('DAILY', NotificationFrequencies.DAILY),
         ('WEEKLY', NotificationFrequencies.WEEKLY),
     )
