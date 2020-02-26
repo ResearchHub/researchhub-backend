@@ -32,7 +32,6 @@ def queue_link_author_to_papers(sender, instance, created, **kwargs):
         except SocialAccount.DoesNotExist:
             pass
 
-
 @receiver(post_save, sender=Paper, dispatch_uid='link_paper_to_authors')
 def queue_link_paper_to_authors(
     sender,
@@ -59,7 +58,6 @@ def doi_updated(update_fields):
     if update_fields is not None:
         return 'doi' in update_fields
     return False
-
 
 @receiver(post_save, sender=Summary, dispatch_uid='create_summary_action')
 @receiver(post_save, sender=Comment, dispatch_uid='create_comment_action')

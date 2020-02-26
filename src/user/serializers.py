@@ -4,7 +4,7 @@ import rest_auth.registration.serializers as rest_auth_serializers
 import reputation.lib
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from hub.serializers import HubSerializer
-from paper.models import Vote as PaperVote
+from paper.models import Vote as PaperVote, Paper
 from user.models import Author, University, User
 from summary.models import Summary
 
@@ -111,6 +111,8 @@ class UserActions:
 
             if isinstance(item, Summary):
                 created_by = UserSerializer(item.proposed_by).data
+            elif isinstance(item, Paper):
+                created_by = UserSerializer(item.uploaded_by).data
             elif item:
                 created_by = UserSerializer(item.created_by).data
 
@@ -138,6 +140,7 @@ class UserActions:
             # elif isinstance(item, PaperVote):
                 # data['content_type'] += '_paper'
             else:
+                continue
                 raise TypeError(
                     f'Instance of type {type(item)} is not supported'
                 )
