@@ -86,6 +86,11 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
     def subscriptions(self, request, pk=None):
         email_recipient = self.get_object()
 
+        is_opted_out = request.data.get('is_opted_out', None)
+        if is_opted_out is not None:
+            email_recipient.is_opted_out = is_opted_out
+            email_recipient.save()
+
         self._update_subscription(request, 'digest_subscription')
         self._update_subscription(request, 'paper_subscription')
         self._update_subscription(request, 'thread_subscription')
