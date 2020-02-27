@@ -105,9 +105,6 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
     user_flag = serializers.SerializerMethodField()
     thread_id = serializers.SerializerMethodField()
     paper_id = serializers.SerializerMethodField()
-    #plain_text = serializers.SerializerMethodField()
-    #text = serializers.SerializerMethodField()
-
 
     class Meta:
         fields = [
@@ -180,9 +177,6 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     user_vote = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
-    #plain_text = serializers.SerializerMethodField()
-    #text = serializers.SerializerMethodField()
-    #title = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -247,8 +241,6 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
     paper_id = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
-    #plain_text = serializers.SerializerMethodField()
-    #text = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
