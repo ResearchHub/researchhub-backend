@@ -173,6 +173,7 @@ def actions_notifications(
     action_ids,
     notif_interval=NotificationFrequencies.IMMEDIATE
 ):
+    # NOTE: This only supports immediate updates for now.
     actions = Action.objects.filter(id__in=action_ids)
     user_to_action = {}
     for action in actions:
@@ -191,10 +192,7 @@ def actions_notifications(
             logging.info('action: ({action}) is missing users_to_notify field')
 
     for r in user_to_action:
-        # TODO: Frequency is now set on the subscription instead
-        # of the email recipient so need to update this
-        # subject = build_subject(r.notification_frequency)
-        subject = build_subject(NotificationFrequencies.IMMEDIATE)
+        subject = build_subject(notif_interval)
         context = build_notification_context(user_to_action[r])
         send_email_message(
             r.email,
