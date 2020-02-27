@@ -159,12 +159,9 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         )
 
         is_opted_out = request.data.get('opt_out')
-        is_subscribed = request.data.get('subscribe')
 
         if email_recipient.is_opted_out != is_opted_out:
             email_recipient.set_opted_out(is_opted_out)
-        if email_recipient.is_subscribed != is_subscribed:
-            email_recipient.set_subscribed(is_subscribed)
 
         status = 200
         if created:

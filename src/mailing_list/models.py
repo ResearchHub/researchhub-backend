@@ -18,7 +18,6 @@ class EmailRecipient(models.Model):
     email = models.EmailField(unique=True)
     do_not_email = models.BooleanField(default=False)
     is_opted_out = models.BooleanField(default=False)
-    is_subscribed = models.BooleanField(default=True)
     next_cursor = models.IntegerField(default=0)
     user = models.OneToOneField(
         'user.User',
@@ -75,18 +74,9 @@ class EmailRecipient(models.Model):
         self.is_opted_out = opt_out
         self.save()
 
-    def set_subscribed(self, subscribed):
-        self.is_subscribed = subscribed
-        self.save()
-
-    # TODO check this logic
     @property
     def receives_notifications(self):
-        return (
-            not self.do_not_email
-            and not self.is_opted_out
-            and self.is_subscribed
-        )
+        return not self.do_not_email and not self.is_opted_out
 
 
 class BaseSubscription(models.Model):
@@ -100,6 +90,8 @@ class BaseSubscription(models.Model):
         default=NotificationFrequencies.IMMEDIATE,
         choices=NOTIFICATION_FREQUENCY_CHOICES
     )
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
 
     class Meta:
         abstract = True
@@ -107,6 +99,10 @@ class BaseSubscription(models.Model):
     def __str__(self):
         # TODO: Strip hidden functions
         return str(self.__dict__.items())
+
+    def unsubscribe(self):
+        self.none = True
+        self.save()
 
 
 class DigestSubscription(BaseSubscription):
