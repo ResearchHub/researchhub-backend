@@ -198,6 +198,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     def get_serializer_context(self):
         return {
             'needs_score': True,
+            'request': self.request,
         }
 
     def get_queryset(self):
