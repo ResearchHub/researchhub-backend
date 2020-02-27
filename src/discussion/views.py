@@ -195,6 +195,11 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     order_fields = '__all__'
     ordering = ('-created_date',)
 
+    def get_serializer_context(self):
+        return {
+            'needs_score': True,
+        }
+
     def get_queryset(self):
         paper_id = get_paper_id_from_path(self.request)
         threads = Thread.objects.filter(paper=paper_id)
