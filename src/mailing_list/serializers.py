@@ -24,7 +24,6 @@ class EmailRecipientSerializer(serializers.ModelSerializer):
             'id',
             'email',
             'is_opted_out',
-            'is_subscribed',
             'digest_subscription',
             'paper_subscription',
             'thread_subscription',
