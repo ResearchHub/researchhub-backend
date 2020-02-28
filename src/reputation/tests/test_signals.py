@@ -20,6 +20,7 @@ from discussion.tests.helpers import (
 from oauth.tests.helpers import create_social_account
 from paper.tests.helpers import create_flag, create_paper, upvote_paper
 from reputation import distributions
+from reputation.signals import NEW_USER_BONUS_DAYS_LIMIT
 from summary.tests.helpers import create_summary
 from user.models import Author
 from user.tests.helpers import (
@@ -44,9 +45,9 @@ class SignalTests(TestCase):
         self.paper.save()
 
         self.start_rep = 100
-        self.first_week_create_rep = 1
+        self.new_user_create_rep = 1
         self.author_create_rep = (
-            self.first_week_create_rep
+            self.new_user_create_rep
             + distributions.CreateAuthoredPaper.amount
         )
 
@@ -84,12 +85,14 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(recipient.reputation, self.start_rep + 1)
 
-    def test_vote_on_paper_ONLY_increases_rep_in_first_week(self):
+    def test_vote_on_paper_ONLY_increases_rep_in_new_user(self):
         recipient = create_random_default_user('Xenophilius')
         upvote_paper(self.paper, recipient)
         recipient.refresh_from_db()
 
-        recipient.date_joined = timezone.now() - timedelta(days=7)
+        recipient.date_joined = timezone.now() - timedelta(
+            days=NEW_USER_BONUS_DAYS_LIMIT
+        )
         recipient.save()
         paper = create_paper(title='Rep increase first week paper')
         upvote_paper(paper, recipient)
@@ -97,12 +100,14 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(recipient.reputation, self.start_rep + 1)
 
-    def test_vote_on_paper_ONLY_increases_rep_below_200_first_week(self):
+    def test_vote_on_paper_ONLY_increases_rep_below_200_new_user(self):
         recipient = create_random_default_user('Xenophilius')
         upvote_paper(self.paper, recipient)
         recipient.refresh_from_db()
 
-        recipient.date_joined = timezone.now() - timedelta(days=7)
+        recipient.date_joined = timezone.now() - timedelta(
+            days=NEW_USER_BONUS_DAYS_LIMIT
+        )
         recipient.save()
         paper = create_paper(title='Rep increase once paper')
         upvote_paper(paper, recipient)
@@ -136,7 +141,7 @@ class SignalTests(TestCase):
         late_user.refresh_from_db()
         self.assertEqual(late_user.reputation, self.start_rep)
 
-    def test_create_comment_increases_rep_by_1_in_first_week(self):
+    def test_create_comment_increases_rep_by_1_in_new_user(self):
         user = create_random_default_user('Ludo')
         create_comment(created_by=user)
 
@@ -144,14 +149,16 @@ class SignalTests(TestCase):
         self.assertEqual(user.reputation, self.start_rep + 1)
 
         old_user = create_random_default_user('Bagman')
-        old_user.date_joined = timezone.now() - timedelta(days=7)
+        old_user.date_joined = timezone.now() - timedelta(
+            days=NEW_USER_BONUS_DAYS_LIMIT
+        )
         old_user.save()
         create_comment(created_by=old_user)
 
         old_user.refresh_from_db()
         self.assertEqual(old_user.reputation, self.start_rep)
 
-    def test_create_comment_ONLY_increases_rep_under_200_first_week(self):
+    def test_create_comment_ONLY_increases_rep_under_200_new_user(self):
         user = create_random_default_user('Winky')
         create_comment(created_by=user)
 
@@ -182,7 +189,7 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep + 5
+            self.start_rep + self.new_user_create_rep + 5
         )
 
     def test_comment_by_paper_non_orcid_author_upvoted_increases_rep_1(self):
@@ -199,7 +206,7 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep + 1
+            self.start_rep + self.new_user_create_rep + 1
         )
 
     def test_comment_downvoted_decreases_rep_by_1(self):
@@ -210,10 +217,10 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep - 1
+            self.start_rep + self.new_user_create_rep - 1
         )
 
-    def test_create_reply_increases_rep_by_1_in_first_week(self):
+    def test_create_reply_increases_rep_by_1_in_new_user(self):
         user = create_random_default_user('Bathilda')
         create_reply(created_by=user)
 
@@ -221,7 +228,9 @@ class SignalTests(TestCase):
         self.assertEqual(user.reputation, self.start_rep + 1)
 
         old_user = create_random_default_user('Bagshot')
-        old_user.date_joined = timezone.now() - timedelta(days=7)
+        old_user.date_joined = timezone.now() - timedelta(
+            days=NEW_USER_BONUS_DAYS_LIMIT
+        )
         old_user.save()
         create_reply(created_by=old_user)
 
@@ -273,8 +282,8 @@ class SignalTests(TestCase):
         create_reply(created_by=author)
 
         earned_rep = (
-            self.first_week_create_rep  # for comment
-            + self.first_week_create_rep  # for reply
+            self.new_user_create_rep  # for comment
+            + self.new_user_create_rep  # for reply
         )
 
         author.refresh_from_db()
@@ -293,7 +302,7 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep + earned_rep
+            self.start_rep + self.new_user_create_rep + earned_rep
         )
 
     def test_reply_upvoted_increases_rep_5_created_by_paper_orcid_author(self):
@@ -353,10 +362,10 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep - 1
+            self.start_rep + self.new_user_create_rep - 1
         )
 
-    def test_create_thread_increases_rep_by_1_in_first_week(self):
+    def test_create_thread_increases_rep_by_1_in_new_user(self):
         user = create_random_default_user('Bellatrix')
         create_thread(created_by=user)
 
@@ -364,7 +373,9 @@ class SignalTests(TestCase):
         self.assertEqual(user.reputation, self.start_rep + 1)
 
         old_user = create_random_default_user('Lestrange')
-        old_user.date_joined = timezone.now() - timedelta(days=7)
+        old_user.date_joined = timezone.now() - timedelta(
+            days=NEW_USER_BONUS_DAYS_LIMIT
+        )
         old_user.save()
         create_reply(created_by=old_user)
 
@@ -379,7 +390,7 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep + 5
+            self.start_rep + self.new_user_create_rep + 5
         )
 
     def test_thread_downvoted_decreases_rep_by_1(self):
@@ -390,7 +401,7 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep - 1
+            self.start_rep + self.new_user_create_rep - 1
         )
 
     def test_delete_upvote_decreases_rep_by_5(self):
@@ -401,7 +412,7 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep + 5
+            self.start_rep + self.new_user_create_rep + 5
         )
 
         vote.delete()
@@ -409,7 +420,7 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep
+            self.start_rep + self.new_user_create_rep
         )
 
     def test_delete_downvote_increases_rep_by_1(self):
@@ -420,7 +431,7 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep - 1
+            self.start_rep + self.new_user_create_rep - 1
         )
 
         vote.delete()
@@ -428,7 +439,7 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep
+            self.start_rep + self.new_user_create_rep
         )
 
     def test_comment_flagged_decreases_rep_by_2(self):
@@ -439,7 +450,7 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep - 2
+            self.start_rep + self.new_user_create_rep - 2
         )
 
     def test_reply_flagged_decreases_rep_by_2(self):
@@ -450,7 +461,7 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep - 2
+            self.start_rep + self.new_user_create_rep - 2
         )
 
     def test_thread_flagged_decreases_rep_by_2(self):
@@ -461,7 +472,7 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep - 2
+            self.start_rep + self.new_user_create_rep - 2
         )
 
     def test_comment_endorsed_increases_rep_by_15(self):
@@ -472,7 +483,7 @@ class SignalTests(TestCase):
         recipient.refresh_from_db()
         self.assertEqual(
             recipient.reputation,
-            self.start_rep + self.first_week_create_rep + 15
+            self.start_rep + self.new_user_create_rep + 15
         )
 
     def test_create_first_summary_increases_rep_by_5(self):
@@ -480,8 +491,8 @@ class SignalTests(TestCase):
         paper = create_paper(uploaded_by=user)
         self.get_first_summary_post_response(user, paper.id)
         earned_rep = (
-            self.first_week_create_rep  # paper
-            + self.first_week_create_rep  # summary
+            self.new_user_create_rep  # paper
+            + self.new_user_create_rep  # summary
             + 5  # first summary
         )
 
@@ -494,10 +505,10 @@ class SignalTests(TestCase):
         next_user.refresh_from_db()
         self.assertEqual(
             next_user.reputation,
-            self.start_rep + self.first_week_create_rep
+            self.start_rep + self.new_user_create_rep
         )
 
-    def test_create_summary_increases_rep_below_200_by_1_in_first_week(self):
+    def test_create_summary_increases_rep_below_200_by_1_in_new_user(self):
         user = create_random_default_user('Lavender')
         create_summary('', user, self.paper.id)
 
@@ -505,7 +516,9 @@ class SignalTests(TestCase):
         self.assertEqual(user.reputation, self.start_rep + 1)
 
         old_user = create_random_default_user('Brown')
-        old_user.date_joined = timezone.now() - timedelta(days=7)
+        old_user.date_joined = timezone.now() - timedelta(
+            days=NEW_USER_BONUS_DAYS_LIMIT
+        )
         old_user.save()
         create_summary('', old_user, self.paper.id)
 
@@ -539,14 +552,14 @@ class SignalTests(TestCase):
 
     def test_multiple_reputation_distributions(self):
         thread = create_thread(created_by=self.recipient)
-        current_rep = self.start_rep + self.first_week_create_rep
+        current_rep = self.start_rep + self.new_user_create_rep
 
         self.recipient.refresh_from_db()
         self.assertEqual(self.recipient.reputation, current_rep)
 
         comment = create_comment(thread=thread, created_by=self.recipient)
         comment_vote = upvote_discussion(comment, self.user)
-        current_rep = current_rep + 1 + self.first_week_create_rep
+        current_rep = current_rep + 1 + self.new_user_create_rep
 
         self.recipient.refresh_from_db()
         self.assertEqual(self.recipient.reputation, current_rep)
@@ -559,7 +572,7 @@ class SignalTests(TestCase):
 
         reply = create_reply(parent=comment, created_by=self.recipient)
         reply_vote = downvote_discussion(reply, self.user)
-        current_rep = current_rep - 1 + self.first_week_create_rep
+        current_rep = current_rep - 1 + self.new_user_create_rep
 
         self.recipient.refresh_from_db()
         self.assertEqual(self.recipient.reputation, current_rep)
