@@ -135,9 +135,9 @@ class HubViewSet(viewsets.ModelViewSet):
     def latest_actions(self, request, pk=None):
         # PK == 0 indicates for now that we're on the homepage
         if pk == '0':
-            actions = Action.objects.all().order_by('-created_date').prefetch_related('item')
+            actions = Action.objects.filter(content_type__model__in=['thread', 'paper', 'comment', 'reply', 'summary']).order_by('-created_date').prefetch_related('item')
         else:
-            actions = Action.objects.filter(hubs=pk).order_by('-created_date').prefetch_related('item')
+            actions = Action.objects.filter(hubs=pk).filter(content_type__model__in=['thread', 'paper', 'comment', 'reply', 'summary']).order_by('-created_date').prefetch_related('item')
 
         page = self.paginate_queryset(actions)
         if page is not None:
