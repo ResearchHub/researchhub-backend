@@ -76,7 +76,7 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         if user.is_staff:
             return EmailRecipient.objects.all()
         else:
-            return EmailRecipient.objects.filter(email=user.email)
+            return EmailRecipient.objects.filter(user=user)
 
     @action(
         detail=True,
