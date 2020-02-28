@@ -37,6 +37,8 @@ from utils import sentry
 # This could mean setting `is_active` to false
 
 ELIGIBLE_PAPER_FLAG_COUNT = 3
+NEW_USER_BONUS_REPUTATION_LIMIT = 200
+NEW_USER_BONUS_DAYS_LIMIT = 30
 
 
 @receiver(post_save, sender=Paper, dispatch_uid='create_paper')
@@ -108,10 +110,7 @@ def distribute_for_vote_on_paper(
 
 
 def is_eligible_for_vote_on_paper(user):
-    return is_eligible_user(user) and (
-        (user.date_joined > seven_days_ago())
-        and (user.reputation < 200)
-    )
+    return is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
 
 
 @receiver(post_save, sender=PaperFlag, dispatch_uid='flag_paper')
@@ -178,10 +177,7 @@ def distribute_for_create_summary(
 
 
 def is_eligible_for_create_summary(user):
-    return is_eligible_user(user) and (
-        (user.date_joined > seven_days_ago())
-        and (user.reputation < 200)
-    )
+    return is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
 
 
 def check_approved_updated(update_fields):
@@ -217,10 +213,7 @@ def distribute_for_create_discussion(sender, instance, created, **kwargs):
 
 
 def is_eligible_for_create_discussion(user):
-    return is_eligible_user(user) and (
-        (user.date_joined > seven_days_ago())
-        and (user.reputation < 200)
-    )
+    return is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
 
 
 def check_author_replied_to_user_comment(reply):
@@ -351,7 +344,7 @@ def distribute_for_vote_on_discussion(
 
 
 def is_eligible_for_vote_on_discussion(user):
-    return is_eligible_user(user) and user.date_joined > seven_days_ago()
+    return is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
 
 
 def is_eligible_author(user):
@@ -364,10 +357,6 @@ def is_eligible_user(user):
     if user is not None:
         return user.is_active
     return False
-
-
-def seven_days_ago():
-    return timezone.now() - timedelta(days=7)
 
 
 def vote_type_updated(update_fields):
@@ -504,6 +493,17 @@ def pay_withdrawal(sender, instance, created, **kwargs):
         logging.error(error)
         sentry.log_error(error, error.message)
         return
+
+
+def is_eligible_for_new_user_bonus(user):
+    return (
+        (user.date_joined > new_user_cutoff_date())
+        and (user.reputation < NEW_USER_BONUS_REPUTATION_LIMIT)
+    )
+
+
+def new_user_cutoff_date():
+    return timezone.now() - timedelta(days=NEW_USER_BONUS_DAYS_LIMIT)
 
 
 class PendingWithdrawal:
