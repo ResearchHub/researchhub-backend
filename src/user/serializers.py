@@ -129,16 +129,16 @@ class UserActions:
                 or isinstance(item, Paper)
             ):
                 pass
-            # elif isinstance(item, DiscussionVote):
-                # item = item.item
-                # if isinstance(item, Comment):
-                    # data['content_type'] += '_comment'
-                # elif isinstance(item, Reply):
-                    # data['content_type'] += '_reply'
-                # elif isinstance(item, Thread):
-                    # data['content_type'] += '_thread'
-            # elif isinstance(item, PaperVote):
-                # data['content_type'] += '_paper'
+            elif isinstance(item, DiscussionVote):
+                item = item.item
+                if isinstance(item, Comment):
+                    data['content_type'] += '_comment'
+                elif isinstance(item, Reply):
+                    data['content_type'] += '_reply'
+                elif isinstance(item, Thread):
+                    data['content_type'] += '_thread'
+            elif isinstance(item, PaperVote):
+                data['content_type'] += '_paper'
             else:
                 continue
                 raise TypeError(
