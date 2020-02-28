@@ -142,12 +142,17 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
         return self.get_children_annotated(obj).order_by(*self.context.get('ordering', ['-created_date']))
 
     def get_replies(self, obj):
+        if self.context.get('depth', 3) <= 0:
+            return []
         reply_queryset = self._replies_query(obj)[:PAGINATION_PAGE_SIZE]
 
         replies = ReplySerializer(
             reply_queryset,
             many=True,
-            context=self.context,
+            context={
+                **self.context,
+                'depth': self.context.get('depth', 3) - 1,
+            },
         )
 
         return replies.data
@@ -206,11 +211,16 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
         model = Thread
 
     def get_comments(self, obj):
+        if self.context.get('depth', 3) <= 0:
+            return []
         comments_queryset = self.get_children_annotated(obj).order_by(*self.context.get('ordering', ['-created_date']))[:PAGINATION_PAGE_SIZE]
         comment_serializer = CommentSerializer(
             comments_queryset,
             many=True,
-            context=self.context,
+            context={
+                **self.context,
+                'depth': self.context.get('depth', 3) - 1,
+            },
         )
         return comment_serializer.data
 
@@ -291,12 +301,17 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
         return self.get_children_annotated(obj).order_by(*self.context.get('ordering', ['-created_date']))
 
     def get_replies(self, obj):
+        if self.context.get('depth', 3) <= 0:
+            return []
         reply_queryset = self._replies_query(obj)[:PAGINATION_PAGE_SIZE]
 
         replies = ReplySerializer(
             reply_queryset,
             many=True,
-            context=self.context,
+            context={
+                **self.context,
+                'depth': self.context.get('depth', 3) - 1,
+            },
         )
 
         return replies.data
