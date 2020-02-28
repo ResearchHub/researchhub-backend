@@ -360,7 +360,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         if 'hot_score' in ordering:
             INT_DIVISION = 142730 # (hours in a month) ** 1.8
-            DISCUSSION_WEIGHT = 10 # num votes a comment is worth
+            DISCUSSION_WEIGHT = 5 # num votes a comment is worth
 
             gravity = 1.8
             threads_c = Count('threads')
