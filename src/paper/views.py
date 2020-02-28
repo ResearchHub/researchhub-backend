@@ -1,7 +1,9 @@
 import datetime
 
 from elasticsearch.exceptions import ConnectionError
-from django.db.models import Count, Q, Prefetch, prefetch_related_objects
+from django.db.models import Count, Q, Prefetch, prefetch_related_objects, Avg, Max, IntegerField, F
+from django.db.models.functions import Cast, Extract, Now
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -326,11 +328,11 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def get_hub_papers(self, request):
         start_date = datetime.datetime.fromtimestamp(
-            int(request.GET['start_date__gte']),
+            int(request.GET.get('start_date__gte', 0)),
             datetime.timezone.utc
         )
         end_date = datetime.datetime.fromtimestamp(
-            int(request.GET['end_date__lte']),
+            int(request.GET.get('end_date__lte', 0)),
             datetime.timezone.utc
         )
         ordering = request.GET['ordering']
@@ -342,8 +344,10 @@ class PaperViewSet(viewsets.ModelViewSet):
             ordering = '-discussed'
         elif ordering == 'newest':
             ordering = '-uploaded_date'
+        elif ordering == 'hot':
+            ordering = '-hot_score'
 
-        hub_id = request.GET['hub_id']
+        hub_id = request.GET.get('hub_id', 0)
 
         threads_count = Count('threads')
 
@@ -354,7 +358,30 @@ class PaperViewSet(viewsets.ModelViewSet):
         else:
             papers = self.get_queryset(prefetch=False).annotate(threads_count=threads_count).filter(hubs=hub_id).prefetch_related(*self.prefetch_lookups())
 
-        if 'score' in ordering:
+        if 'hot_score' in ordering:
+            INT_DIVISION = 142730 # (hours in a month) ** 1.8
+            DISCUSSION_WEIGHT = 5 # num votes a comment is worth
+
+            gravity = 1.8
+            threads_c = Count('threads')
+            comments_c = Count('threads__comments')
+            replies_c = Count('threads__comments__replies')
+            upvotes = Count( 'vote', filter=Q( vote__vote_type=Vote.UPVOTE,))
+            downvotes = Count( 'vote', filter=Q( vote__vote_type=Vote.DOWNVOTE,))
+            time_since_calc = (Extract(Now(), 'epoch') - Extract(Max('threads__created_date'), 'epoch')) / 3600
+
+            numerator = (threads_c + comments_c + replies_c) * DISCUSSION_WEIGHT + (upvotes - downvotes)
+            inverse_divisor = (INT_DIVISION / ((time_since_calc + 1) ** gravity))
+            order_papers = papers.annotate(
+                numerator=numerator,
+                hot_score=numerator * inverse_divisor
+            )
+            if ordering[0] == '-':
+                order_papers = order_papers.order_by(F('hot_score').desc(nulls_last=True), '-numerator')
+            else:
+                order_papers = order_papers.order_by(F('hot_score').asc(nulls_last=True), 'numerator')
+
+        elif 'score' in ordering:
             upvotes = Count(
                 'vote',
                 filter=Q(
