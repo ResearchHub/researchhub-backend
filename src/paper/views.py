@@ -359,10 +359,10 @@ class PaperViewSet(viewsets.ModelViewSet):
             papers = self.get_queryset(prefetch=False).annotate(threads_count=threads_count).filter(hubs=hub_id).prefetch_related(*self.prefetch_lookups())
 
         if 'hot_score' in ordering:
-            INT_DIVISION = 142730 # (hours in a month) ** 1.8
-            DISCUSSION_WEIGHT = 5 # num votes a comment is worth
+            INT_DIVISION = 90000000 # constant > (hours in a month) ** gravity * (discussion_weight + 2)
+            DISCUSSION_WEIGHT = 4 # num votes a comment is worth
 
-            gravity = 1.8
+            gravity = 2.5
             threads_c = Count('threads')
             comments_c = Count('threads__comments')
             replies_c = Count('threads__comments__replies')
