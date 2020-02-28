@@ -90,6 +90,7 @@ class Paper(models.Model):
         help_text='information on PDF availability '
                   'in the Unpaywall OA Location data format.'
     )
+    retrieved_from_external_source = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['-paper_publish_date']
