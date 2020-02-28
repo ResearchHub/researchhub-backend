@@ -8,10 +8,10 @@ echo "Creating requirements.txt"
 pipenv lock --requirements > requirements.txt
 
 echo "Deploying to staging-backend"
-eb deploy staging-backend
+eb deploy staging-backend-2
 
 echo "Deploying to staging-backend-worker"
-eb deploy staging-backend-worker
+eb deploy staging-backend-worker-2
 
 done="Finished executing staging deployment"
 echo $done
