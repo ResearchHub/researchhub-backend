@@ -2,7 +2,10 @@ from django.contrib.admin.options import get_content_type_for_model
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
-from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
+from rest_framework.permissions import (
+    IsAuthenticatedOrReadOnly,
+    IsAuthenticated
+)
 from rest_framework.response import Response
 
 from discussion.models import Comment, Endorsement, Flag, Thread, Reply, Vote
@@ -182,6 +185,7 @@ class ActionMixin:
             'needs_score': needs_score,
         }
 
+
 class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     serializer_class = ThreadSerializer
 
@@ -196,10 +200,9 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     ordering = ('-created_date',)
 
     def get_serializer_context(self):
-        return {
-            'needs_score': True,
-            'request': self.request,
-        }
+        ctx = super().get_serializer_context()
+        ctx['needs_score'] = True
+        return ctx
 
     def get_queryset(self):
         paper_id = get_paper_id_from_path(self.request)
