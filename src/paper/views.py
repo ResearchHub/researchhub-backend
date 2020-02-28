@@ -370,7 +370,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             downvotes = Count( 'vote', filter=Q( vote__vote_type=Vote.DOWNVOTE,))
             time_since_calc = (Extract(Now(), 'epoch') - Extract(Max('threads__created_date'), 'epoch')) / 3600
 
-            numerator = ((threads_c + comments_c + replies_c) * DISCUSSION_WEIGHT + upvotes - downvotes)
+            numerator = (threads_c + comments_c + replies_c) * DISCUSSION_WEIGHT + (upvotes - downvotes)
             inverse_divisor = (INT_DIVISION / ((time_since_calc + 1) ** gravity))
             order_papers = papers.annotate(
                 numerator=numerator,
