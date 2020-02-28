@@ -153,7 +153,8 @@ class CrossrefHits:
                 paper_title=item['title'][0],
                 doi=item['DOI'],
                 url=item['URL'],
-                paper_publish_date=get_crossref_issued_date(item)
+                paper_publish_date=get_crossref_issued_date(item),
+                retrieved_from_external_source=True
             )
             tasks = [download_pdf_by_license.signature((item, paper.id))]
             try:
