@@ -44,7 +44,7 @@ environment=$celery_env"
 
 celerybeatconf="[program:celerybeat]
 ; Set full path to celery program if using virtualenv
-command=/opt/python/run/venv/bin/celery beat –A researchhub -S redbeat.RedBeatScheduler --loglevel=INFO --pidfile /tmp/celerybeat.pid
+command=/opt/python/run/venv/bin/celery beat -A researchhub -S redbeat.RedBeatScheduler --loglevel=INFO --pidfile /tmp/celerybeat.pid
 directory=/opt/python/current/app
 user=ec2-user
 numprocs=1
@@ -72,7 +72,7 @@ environment=$celeryenv"
 
 # Copy the above script into celery.conf file
 echo "$celery_conf" | tee /opt/python/etc/celery.conf
-echo "$celerybeatconff" | tee /opt/python/etc/celerybeat.conf
+echo "$celerybeatconf" | tee /opt/python/etc/celerybeat.conf
 
 # Add the conf to supervisord (if not already there)
 if ! grep -Fxq "[include]" /opt/python/etc/supervisord.conf
