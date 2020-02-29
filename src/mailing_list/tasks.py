@@ -134,8 +134,8 @@ def send_hub_digest(frequency):
         ).filter(score__gt=0).order_by('-score')[:2]
         papers = (
             most_voted_and_uploaded_in_interval
-            and most_discussed_in_interval
-            and most_voted_in_interval
+            or most_discussed_in_interval
+            or most_voted_in_interval
         )
         if len(papers) == 0:
             continue
