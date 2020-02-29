@@ -50,8 +50,9 @@ def notify_three_hours():
     # actions_notifications(action_ids, NotificationFrequencies.THREE_HOUR)
 
 
+# Noon PST
 @periodic_task(
-    run_every=crontab(minute=0, hour=11, day_of_week='friday'),
+    run_every=crontab(minute=0, hour=20, day_of_week='friday'),
     priority=9
 )
 def notify_weekly():
