@@ -107,7 +107,7 @@ class BaseSubscription(models.Model):
 
 class DigestSubscription(BaseSubscription):
     notification_frequency = models.IntegerField(
-        default=NotificationFrequencies.DAILY,
+        default=NotificationFrequencies.WEEKLY,
         choices=BaseSubscription.NOTIFICATION_FREQUENCY_CHOICES
     )
     none = models.BooleanField(default=False)
