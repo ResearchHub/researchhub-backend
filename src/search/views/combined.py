@@ -67,11 +67,12 @@ class CombinedView(ListAPIView):
 
     def list(self, request, *args, **kwargs):
         es_response_queryset = self.filter_queryset(self.get_queryset())
-        if request.query_params.get('external_search') != 'false':
-            es_response_queryset = self._add_crossref_results(
-                request,
-                es_response_queryset
-            )
+        # NOTE: Not using crossref for now, pending some refinement
+        # if request.query_params.get('external_search') != 'false':
+        #     es_response_queryset = self._add_crossref_results(
+        #         request,
+        #         es_response_queryset
+        #     )
 
         page = self.paginate_queryset(es_response_queryset)
         if page is not None:
