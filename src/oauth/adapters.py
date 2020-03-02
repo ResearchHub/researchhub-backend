@@ -10,7 +10,15 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             sociallogin.user.username = self._generate_temporary_username(
                 sociallogin
             )
-        return super().save_user(request, sociallogin, form)
+            saved_user = super().save_user(request, sociallogin, form)
+            self._add_orcid_to_author(
+                saved_user.author_profile,
+                sociallogin.account
+            )
+        else:  # It's google
+            saved_user = super().save_user(request, sociallogin, form)
+
+        return saved_user
 
     def _generate_temporary_username(self, sociallogin):
         return (
@@ -18,3 +26,8 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             f'_{sociallogin.user.last_name}'
             f'_{time()}'
         )
+
+    def _add_orcid_to_author(self, author_profile, social_account):
+        author_profile.orcid_id = social_account.uid
+        author_profile.orcid_account = social_account
+        author_profile.save()
