@@ -16,3 +16,7 @@ deploy.zip
 
 # local postgress database docker volume
 database/
+
+# Celery local files
+celerybeat-schedule
+django
