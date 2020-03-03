@@ -180,17 +180,17 @@ python manage.py test paper --exclude-tag=aws
 Run in the background for async tasks:
 
 ```shell
-celery -A researchhub worker -l info -S django
+celery -A researchhub worker -l info
 ```
 
 Run in the background for periodic tasks (needs celery running)
 
 ```shell
-celery -A researchhub beat -l info -S django
+celery -A researchhub beat -l info
 ```
 
 Both celery commands in one (for development only)
 
 ```shell
-celery -A researchhub worker -l info -S django -B
+celery -A researchhub worker -l info -B
 ```
