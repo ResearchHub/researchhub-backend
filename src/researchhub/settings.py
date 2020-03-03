@@ -412,6 +412,8 @@ EMAIL_WHITELIST = [
     'craig@quantfive.org',
     'val@quantfive.org',
     'joey@quantfive.org',
+    'patrick@quantfive.org',
+    'barmstrong@gmail.com',
 ]
 
 # Sentry

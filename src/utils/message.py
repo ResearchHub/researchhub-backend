@@ -4,27 +4,27 @@ from django.template.loader import render_to_string
 from sentry_sdk import capture_exception
 
 from researchhub.settings import EMAIL_WHITELIST
-# from researchhub.settings import PRODUCTION
+from researchhub.settings import PRODUCTION, DEVELOPMENT
 from mailing_list.models import EmailRecipient
 
 
 def is_valid_email(email):
     # Comment out production conditional for testing
-    # if not PRODUCTION:
-    #     return email in EMAIL_WHITELIST
+    if not PRODUCTION:
+        return email in EMAIL_WHITELIST
 
-    # TODO: Add regex validation
-    try:
-        recipient, created = EmailRecipient.objects.get_or_create(
-            email=email
-        )
-    except Exception as e:
-        print(e)
+    # # TODO: Add regex validation
+    # try:
+        # recipient, created = EmailRecipient.objects.get_or_create(
+            # email=email
+        # )
+    # except Exception as e:
+        # print(e)
 
-    return (email in EMAIL_WHITELIST) or (
-        (not recipient.do_not_email)
-        and (not recipient.is_opted_out)
-    )
+    # return (email in EMAIL_WHITELIST) or (
+        # (not recipient.do_not_email)
+        # and (not recipient.is_opted_out)
+    # )
 
 
 def send_email_message(
@@ -58,10 +58,11 @@ def send_email_message(
     result = {'success': [], 'failure': [], 'exclude': []}
 
     # Exclude invalid recipients
-    # for recipient in recipients:
-    #     if not is_valid_email(recipient):
-    #         result['exclude'].append(recipient)
-    #         recipients.remove(recipient)
+    for recipient in recipients:
+        if not is_valid_email(recipient):
+            result['exclude'].append(recipient)
+            recipients.remove(recipient)
+            print('email not on whitelist')
 
     print(recipients)
 
