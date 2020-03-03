@@ -122,7 +122,6 @@ def _complete_social_login(request, sociallogin):
     if sociallogin.account.provider == OrcidProvider.id:
         logging.info('Attempting to send orcid response')
         return _send_orcid_response(request, ret)
-    logging.warning('Bypassed orcid response')
     return _send_response(request, ret)
 
 
@@ -180,7 +179,7 @@ def _respond_with_token(user):
 
 def get_or_create_user_token(user):
     try:
-        token = Token.objects.get(user_id=user.id)
+        token = Token.objects.get(user=user)
     except Exception as e:
         print(e)
         token = Token.objects.create(user=user)

@@ -14,6 +14,13 @@ def check_doi_in_works(doi, works):
     return False
 
 
+def get_orcid_names(data):
+    name = data['person']['name']
+    first_name = name['given-names']['value']
+    last_name = name['family-name']['value']
+    return first_name, last_name
+
+
 def get_work_doi(work):
     eids = work['external-ids']['external-id']
     for eid in eids:
