@@ -31,7 +31,10 @@ from django.utils.translation import ugettext_lazy as _
 
 from oauth.helpers import complete_social_login
 from oauth.exceptions import LoginError
+from oauth.utils import get_orcid_names
 from researchhub.settings import GOOGLE_REDIRECT_URL
+from user.models import Author
+from user.utils import merge_author_profiles
 from utils import sentry
 from utils.http import http_request, RequestMethods
 
@@ -248,12 +251,10 @@ def orcid_connect(request):
         # request to connect any other orcid account to their own.
         response = http_request(RequestMethods.GET, url=url, headers=headers)
         response.raise_for_status()
-        SocialAccount.objects.create(
-            user=request.user,
-            uid=orcid,
-            provider=OrcidProvider.id,
-            extra_data=response.json()
-        )
+        user = request.user
+
+        save_orcid_author(user, orcid, response.json())
+
         success = True
         status = 201
         data = {
@@ -264,6 +265,36 @@ def orcid_connect(request):
         data = str(e)
 
     return Response(data, status=status)
+
+
+def save_orcid_author(user, orcid_id, orcid_data):
+    orcid_account = SocialAccount.objects.create(
+        user=user,
+        uid=orcid_id,
+        provider=OrcidProvider.id,
+        extra_data=orcid_data
+    )
+    update_author_profile(user, orcid_id, orcid_data, orcid_account)
+
+
+def update_author_profile(user, orcid_id, orcid_data, orcid_account):
+    first_name, last_name = get_orcid_names(orcid_data)
+
+    try:
+        author = Author.objects.get(orcid_id=orcid_id)
+    except Author.DoesNotExist:
+        user.author_profile.orcid_id = orcid_id
+    else:
+        user.author_profile = merge_author_profiles(
+            user.author_profile,
+            author
+        )
+
+    user.author_profile.orcid_account = orcid_account
+    user.author_profile.first_name = first_name
+    user.author_profile.last_name = last_name
+    user.author_profile.save()
+    user.save()
 
 
 @receiver(user_signed_up)
