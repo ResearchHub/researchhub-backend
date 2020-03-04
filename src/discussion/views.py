@@ -1,4 +1,5 @@
 from django.contrib.admin.options import get_content_type_for_model
+from django.db.models import Count, Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
@@ -170,16 +171,25 @@ class ActionMixin:
         except Exception as e:
             return Response(f'Failed to delete vote: {e}', status=400)
 
-    def get_serializer_context(self):
-        default_ordering = ('-created_date',)
+    def get_ordering(self):
+        default_ordering = ['-created_date',]
         if self.ordering:
             default_ordering = self.ordering
-        needs_score = False
         ordering = self.request.query_params.get('ordering', default_ordering)
-        if ordering == 'score':
-            needs_score = True
         if isinstance(ordering, str):
-            ordering = [ordering, '-created_date']
+            if ordering and 'created_date' not in ordering:
+                ordering = [ordering, '-created_date']
+            elif 'created_date' not in ordering:
+                ordering = ['-created_date']
+            else:
+                ordering = [ordering]
+        return ordering
+
+    def get_action_context(self):
+        ordering = self.get_ordering()
+        needs_score = False
+        if 'score' in ordering or '-score' in ordering:
+            needs_score = True
         return {
             'ordering': ordering,
             'needs_score': needs_score,
@@ -200,13 +210,16 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     ordering = ('-created_date',)
 
     def get_serializer_context(self):
-        ctx = super().get_serializer_context()
-        ctx['needs_score'] = True
-        return ctx
+        return {**super().get_serializer_context(), **self.get_action_context(), 'needs_score': True}
+
+    def filter_queryset(self, *args, **kwargs):
+        return super().filter_queryset(*args, **kwargs).order_by(*self.get_ordering())
 
     def get_queryset(self):
+        upvotes = Count('votes', filter=Q( votes__vote_type=Vote.UPVOTE,))
+        downvotes = Count('votes', filter=Q( votes__vote_type=Vote.DOWNVOTE,))
         paper_id = get_paper_id_from_path(self.request)
-        threads = Thread.objects.filter(paper=paper_id)
+        threads = Thread.objects.filter(paper=paper_id).annotate(score=upvotes-downvotes)
         return threads
 
     @action(
