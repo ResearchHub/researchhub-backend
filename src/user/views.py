@@ -1,5 +1,3 @@
-from django.db.models import Q, Count
-
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.permissions import (
@@ -18,7 +16,7 @@ from discussion.serializers import (
     ThreadSerializer
 )
 
-from paper.models import Paper, Vote as PaperVote
+from paper.models import Paper
 from paper.serializers import PaperSerializer
 from user.filters import AuthorFilter
 from user.models import User, University, Author
@@ -30,10 +28,7 @@ from user.serializers import (
     UserActions
 )
 
-from utils.message import send_email_message
 from utils.http import RequestMethods
-
-import datetime
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -76,6 +71,18 @@ class UserViewSet(viewsets.ModelViewSet):
         user.set_has_seen_first_coin_modal(True)
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
+
+    @action(
+        detail=False,
+        methods=[RequestMethods.PATCH],
+    )
+    def has_seen_orcid_connect_modal(self, request):
+        user = request.user
+        user = User.objects.get(pk=user.id)
+        user.set_has_seen_orcid_connect_modal(True)
+        serialized = UserSerializer(user)
+        return Response(serialized.data, status=200)
+
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = University.objects.all()
