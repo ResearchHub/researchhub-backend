@@ -7,6 +7,7 @@ from django.contrib import admin
 from django.urls import include, path, re_path
 from rest_framework import routers
 
+import bullet_point.views
 import discussion.views
 import ethereum.urls
 import hub.views
@@ -43,6 +44,12 @@ router.register(
 )
 
 router.register(
+    r'paper/([0-9]+)/bullet_point',
+    bullet_point.views.BulletPointViewSet,
+    basename='bullet_points'
+)
+
+router.register(
     r'paper',
     paper.views.PaperViewSet,
     basename='paper'
@@ -52,6 +59,12 @@ router.register(
     r'author',
     user.views.AuthorViewSet,
     basename='author'
+)
+
+router.register(
+    r'bullet_point',
+    bullet_point.views.BulletPointViewSet,
+    basename='bullet_point'
 )
 
 router.register(

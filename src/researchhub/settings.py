@@ -167,6 +167,7 @@ INSTALLED_APPS = [
     'django_inlinecss',
 
     # Custom apps
+    'bullet_point',
     'discussion',
     'ethereum',
     'hub',
