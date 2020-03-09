@@ -117,7 +117,8 @@ CORS_ORIGIN_WHITELIST = [
     'https://researchnow.researchhub.com',
     'https://www.researchhub.com',
     'https://staging-web.researchhub.com',
-    'https://researchhub.com'
+    'https://researchhub.com',
+    'http://10.0.2.2:3000',
 ]
 
 
