@@ -1,4 +1,3 @@
-from django.core.files.base import ContentFile
 from django.db import transaction
 from django.http import QueryDict
 from rest_framework.exceptions import ValidationError
@@ -14,15 +13,11 @@ from paper.utils import check_url_contains_pdf
 from summary.serializers import SummarySerializer
 from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
-from utils.http import (
-    get_user_from_request,
-    http_request,
-    RequestMethods as methods
-)
+from utils.http import get_user_from_request
 import utils.sentry as sentry
-from utils.voting import calculate_score
 
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
+
 
 class PaperSerializer(serializers.ModelSerializer):
     authors = AuthorSerializer(many=True, read_only=False, required=False)
@@ -106,7 +101,8 @@ class PaperSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        validated_data['uploaded_by'] = self.context['request'].user
+        user = self.context['request'].user
+        validated_data['uploaded_by'] = user
 
         # Prepare validated_data by removing m2m and file for now
         authors = validated_data.pop('authors')
@@ -116,16 +112,23 @@ class PaperSerializer(serializers.ModelSerializer):
             with transaction.atomic():
                 paper = super(PaperSerializer, self).create(validated_data)
 
+                Vote.objects.create(
+                    paper=paper,
+                    created_by=user,
+                    vote_type=Vote.UPVOTE
+                )
+
                 # Now add m2m values properly
                 paper.authors.add(*authors)
                 paper.hubs.add(*hubs)
 
                 try:
                     self._add_file(paper, file)
+                except (ValueError, ValidationError):
+                    pass
                 except Exception as e:
-                    sentry.log_error(
-                        e,
-                    )
+                    sentry.log_error(e)
+
                 return paper
         except Exception as e:
             error = PaperSerializerError(e, 'Failed to created paper')
@@ -241,6 +244,7 @@ class PaperSerializer(serializers.ModelSerializer):
     def _check_url_contains_pdf(self, url):
         return check_url_contains_pdf(url)
 
+
 class BookmarkSerializer(serializers.Serializer):
     user = serializers.IntegerField()
     bookmarks = PaperSerializer(many=True)
@@ -267,4 +271,3 @@ class PaperVoteSerializer(serializers.ModelSerializer):
             'paper',
         ]
         model = Vote
-
