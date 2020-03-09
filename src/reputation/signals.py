@@ -98,8 +98,9 @@ def distribute_for_vote_on_paper(
     """Distributes reputation to the voter."""
     timestamp = time()
     recipient = instance.created_by
+    paper_uploader = instance.paper.uploaded_by
 
-    if created and is_eligible_for_vote_on_paper(recipient):
+    if created and is_eligible_for_vote_on_paper(recipient, paper_uploader):
         distributor = Distributor(
             distributions.VoteOnPaper,
             recipient,
@@ -109,8 +110,12 @@ def distribute_for_vote_on_paper(
         distributor.distribute()
 
 
-def is_eligible_for_vote_on_paper(user):
-    return is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
+def is_eligible_for_vote_on_paper(user, paper_uploader):
+    return (
+        is_eligible_user(user)
+        and (user != paper_uploader)
+        and is_eligible_for_new_user_bonus(user)
+    )
 
 
 @receiver(post_save, sender=PaperFlag, dispatch_uid='flag_paper')
