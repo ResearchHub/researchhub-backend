@@ -141,8 +141,8 @@ class HubViewSet(viewsets.ModelViewSet):
 
         page = self.paginate_queryset(actions)
         if page is not None:
-            data = UserActions(data=page).serialized
+            data = UserActions(data=page, user=request.user).serialized
             return self.get_paginated_response(data)
 
-        data = UserActions(data=actions).serialized
+        data = UserActions(data=actions, user=request.user).serialized
         return Response(data)
