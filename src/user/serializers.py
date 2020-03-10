@@ -84,12 +84,13 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
 
 class UserActions:
-    def __init__(self, data=None, user_id=None, **kwargs):
-        assert (data is not None) or (user_id is not None), f'Arguments data'
+    def __init__(self, data=None, user=None, **kwargs):
+        assert (data is not None) or (user is not None), f'Arguments data'
         f' and user_id can not both be None'
 
-        user = User.objects.filter(pk=user_id).first()
-        self.user = user
+        self.user = None
+        if user and user.is_authenticated:
+            self.user = user
 
         self.all = data
         if data is None:
