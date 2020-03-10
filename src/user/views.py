@@ -54,10 +54,7 @@ class UserViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated]
     )
     def actions(self, request, pk=None):
-        user = request.user
-        if not user.is_staff:
-            pk = user.id
-        user_actions = UserActions(user_id=pk)
+        user_actions = UserActions(user=request.user)
         page = self.paginate_queryset(user_actions.serialized)
         return self.get_paginated_response(page)
 
