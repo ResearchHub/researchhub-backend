@@ -88,6 +88,13 @@ class UserActions:
         assert (data is not None) or (user is not None), f'Arguments data'
         f' and user_id can not both be None'
 
+        if not hasattr(UserActions, 'flag_serializer'):
+            from discussion.serializers import FlagSerializer
+            UserActions.flag_serializer = FlagSerializer
+
+            from paper.serializers import FlagSerializer as PaperFlagSerializer
+            UserActions.paper_flag_serializer = PaperFlagSerializer
+
         self.user = None
         if user and user.is_authenticated:
             self.user = user
@@ -98,6 +105,7 @@ class UserActions:
 
         self.serialized = []
         self._group_and_serialize_actions()
+
 
     def get_actions(self):
         if self.user:
@@ -185,7 +193,10 @@ class UserActions:
                 if self.user:
                     user_flag = item.flags.filter(created_by=self.user).first()
                     if user_flag:
-                        data['user_flag'] = user_flag
+                        if isinstance(item, Paper):
+                            data['user_flag'] = UserActions.paper_flag_serializer(user_flag).data
+                        else:
+                            data['user_flag'] = UserActions.flag_serializer(user_flag).data
 
             if isinstance(item, Thread) or isinstance(item, Comment) or isinstance(item, Reply):
                 data['is_removed'] = item.is_removed
