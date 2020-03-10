@@ -88,16 +88,21 @@ class UserActions:
         assert (data is not None) or (user_id is not None), f'Arguments data'
         f' and user_id can not both be None'
 
+        user = User.objects.filter(pk=user_id).first()
+        self.user = user
+
         self.all = data
         if data is None:
-            self.all = self.get_actions(user_id)
+            self.all = self.get_actions()
 
         self.serialized = []
         self._group_and_serialize_actions()
 
-    def get_actions(self, user_id):
-        user = User.objects.get(pk=user_id)
-        return user.actions.all()
+    def get_actions(self):
+        if self.user:
+            return self.user.actions.all()
+        else:
+            return Action.objects.all()
 
     def _group_and_serialize_actions(self):
         # TODO: Refactor this to only get the data we need instead of
@@ -173,5 +178,22 @@ class UserActions:
                 data['thread_title'] = thread.title
 
                 data['tip'] = item.plain_text
+
+            if not isinstance(item, Summary):
+                data['user_flag'] = None
+                if self.user:
+                    user_flag = item.flags.filter(created_by=self.user).first()
+                    if user_flag:
+                        data['user_flag'] = user_flag
+
+            if isinstance(item, Thread) or isinstance(item, Comment) or isinstance(item, Reply):
+                data['is_removed'] = item.is_removed
+
+            if isinstance(item, Comment):
+                data['comment_id'] = item.id
+
+            elif isinstance(item, Reply):
+                data['comment_id'] = item.get_comment_of_reply().id
+                data['reply_id'] = item.id
 
             self.serialized.append(data)
