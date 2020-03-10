@@ -168,6 +168,7 @@ class UserActions:
             if paper:
                 data['paper_id'] = paper.id
                 data['paper_title'] = paper.title
+                data['paper_official_title'] = paper.paper_title
 
             if isinstance(item, Thread):
                 thread = item
