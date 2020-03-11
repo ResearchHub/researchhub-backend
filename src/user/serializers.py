@@ -38,6 +38,40 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
 
 
 class UserSerializer(rest_framework_serializers.ModelSerializer):
+    author_profile = AuthorSerializer(read_only=True)
+    balance = rest_framework_serializers.SerializerMethodField(read_only=True)
+    subscribed = rest_framework_serializers.SerializerMethodField(
+        read_only=True
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            'id',
+            'author_profile',
+            'balance',
+            'bookmarks',
+            'created_date',
+            'has_seen_first_coin_modal',
+            'has_seen_orcid_connect_modal',
+            'moderator',
+            'reputation',
+            'subscribed',
+            'updated_date',
+            'upload_tutorial_complete',
+        ]
+        read_only_fields = fields
+
+    def get_balance(self, obj):
+        return reputation.lib.get_user_balance(obj)
+
+    def get_subscribed(self, obj):
+        if self.context.get('get_subscribed'):
+            subscribed_query = obj.subscribed_hubs.all()
+            return HubSerializer(subscribed_query, many=True).data
+
+
+class UserEditableSerializer(rest_framework_serializers.ModelSerializer):
     author_profile = AuthorSerializer()
     balance = rest_framework_serializers.SerializerMethodField()
     subscribed = rest_framework_serializers.SerializerMethodField()
