@@ -14,8 +14,8 @@ from utils.test_helpers import (
 class BulletPointViewsTests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user('BP')
-        self.base_url = '/api/bullet_point/'
         self.paper = create_paper()
+        self.base_url = f'/api/paper/{self.paper.id}/bullet_point/'
         self.bullet_point = create_bullet_point(
             paper=self.paper,
             created_by=self.user
@@ -30,10 +30,35 @@ class BulletPointViewsTests(TestCase):
         )
         self.assertContains(response, 'ordinal":1', status_code=200)
 
+    def test_edit_creates_new_bullet_point(self):
+        data = {'text': 'hello', 'plain_text': 'hello'}
+        response = self.get_edit_response(
+            self.user,
+            self.bullet_point.id,
+            data
+        )
+        self.bullet_point.refresh_from_db()
+        self.assertTrue(self.bullet_point.is_tail)
+        self.assertFalse(self.bullet_point.is_head)
+        self.assertEqual(len(self.bullet_point.editors), 1)
+        response_json = response.json()
+        self.assertContains(response, 'is_tail":false', status_code=201)
+        self.assertTrue(response_json['is_head'])
+        self.assertEqual(response_json['tail'], self.bullet_point.id)
+
     def get_delete_response(self, user, bullet_point_id):
         url = self.base_url + str(bullet_point_id) + '/'
         data = None
         return get_authenticated_delete_response(
+            user,
+            url,
+            data,
+            content_type='application/json'
+        )
+
+    def get_edit_response(self, user, bullet_point_id, data):
+        url = self.base_url + str(bullet_point_id) + '/edit/'
+        return get_authenticated_post_response(
             user,
             url,
             data,
