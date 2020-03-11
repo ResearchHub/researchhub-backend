@@ -8,15 +8,20 @@ from django.db.models.signals import m2m_changed, post_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 
-import ethereum.lib
+from bullet_point.models import (
+    BulletPoint,
+    Endorsement as BulletPointEndorsement,
+    Flag as BulletPointFlag
+)
 from discussion.models import (
     Comment,
-    Endorsement,
+    Endorsement as DiscussionEndorsement,
     Flag as DiscussionFlag,
     Reply,
     Thread,
     Vote as DiscussionVote
 )
+import ethereum.lib
 from paper.models import (
     Flag as PaperFlag,
     Paper,
@@ -191,6 +196,7 @@ def check_approved_updated(update_fields):
     return False
 
 
+@receiver(post_save, sender=BulletPoint, dispatch_uid='create_bullet_point')
 @receiver(post_save, sender=Comment, dispatch_uid='create_comment')
 @receiver(post_save, sender=Reply, dispatch_uid='create_reply')
 @receiver(post_save, sender=Thread, dispatch_uid='create_thread')
@@ -198,7 +204,9 @@ def distribute_for_create_discussion(sender, instance, created, **kwargs):
     timestamp = time()
     recipient = instance.created_by
     if created and is_eligible_for_create_discussion(recipient):
-        if isinstance(instance, Comment):
+        if isinstance(instance, BulletPoint):
+            distribution = distributions.CreateBulletPoint
+        elif isinstance(instance, Comment):
             distribution = distributions.CreateComment
         elif isinstance(instance, Reply):
             distribution = distributions.CreateReply
@@ -235,9 +243,19 @@ def check_reply_to_other_creator(reply):
     return reply.parent.created_by is not reply.created_by
 
 
+@receiver(post_save, sender=BulletPointFlag, dispatch_uid='bullet_point_flag')
+@receiver(
+    post_save,
+    sender=BulletPointEndorsement,
+    dispatch_uid='bullet_point_endorsement'
+)
 @receiver(post_save, sender=DiscussionFlag, dispatch_uid='discussion_flag')
-@receiver(post_save, sender=Endorsement, dispatch_uid='discussion_endorsement')
-def distribute_for_discussion_action(
+@receiver(
+    post_save,
+    sender=DiscussionEndorsement,
+    dispatch_uid='discussion_endorsement'
+)
+def distribute_for_action(
     sender,
     instance,
     created,
@@ -246,25 +264,38 @@ def distribute_for_discussion_action(
 ):
     timestamp = time()
     distributor = None
-    recipient = instance.item.created_by
 
-    if created and is_eligible_user(recipient):
+    if created:
         try:
+            if isinstance(instance, BulletPointFlag):
+                distribution = distributions.BulletPointFlagged
+                recipient = instance.bullet_point.created_by
+
+            elif isinstance(instance, BulletPointEndorsement):
+                distribution = distributions.BulletPointEndorsed
+                recipient = instance.bullet_point.created_by
+
             if isinstance(instance, DiscussionFlag):
                 distribution = get_discussion_flag_item_distribution(instance)
-            elif isinstance(instance, Endorsement):
+                recipient = instance.item.created_by
+
+            elif isinstance(instance, DiscussionEndorsement):
                 distribution = get_discussion_endorsement_item_distribution(
                     instance
                 )
+                recipient = instance.item.created_by
+
             else:
                 raise TypeError
 
-            distributor = Distributor(
-                distribution,
-                recipient,
-                instance,
-                timestamp
-            )
+            if is_eligible_user(recipient):
+                distributor = Distributor(
+                    distribution,
+                    recipient,
+                    instance,
+                    timestamp
+                )
+
         except TypeError as e:
             error = ReputationSignalError(
                 e,
