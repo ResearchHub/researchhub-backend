@@ -24,6 +24,7 @@ from user.permissions import UpdateAuthor
 from user.serializers import (
     AuthorSerializer,
     UniversitySerializer,
+    UserEditableSerializer,
     UserSerializer,
     UserActions
 )
@@ -33,7 +34,7 @@ from utils.http import RequestMethods
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
-    serializer_class = UserSerializer
+    serializer_class = UserEditableSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_serializer_context(self):
