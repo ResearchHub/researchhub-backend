@@ -5,15 +5,35 @@ from user.serializers import UserSerializer
 
 
 class BulletPointSerializer(serializers.ModelSerializer):
+    tail_created_by = serializers.SerializerMethodField()
+    tail_editors = serializers.SerializerMethodField()
     created_by = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
+    editors = serializers.SerializerMethodField()
 
     class Meta:
         model = BulletPoint
         exclude = []
-        read_only_fields = []
+        read_only_fields = ['is_head', 'is_tail', 'previous', 'tail']
+
+    def get_tail_created_by(self, obj):
+        if obj.is_tail:
+            tail = obj
+        else:
+            tail = obj.tail
+        return UserSerializer(tail.created_by).data
+
+    def get_tail_editors(self, obj):
+        if obj.is_tail:
+            tail = obj
+        else:
+            tail = obj.tail
+        return self.get_editors(tail)
+
+    def get_editors(self, obj):
+        return UserSerializer(obj.editors, many=True).data
 
     def get_endorsements(self, obj):
         pass
