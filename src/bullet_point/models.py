@@ -136,3 +136,32 @@ class Flag(models.Model):
                 name='unique_bullet_point_flag'
             )
         ]
+
+
+def create_endorsement(user, bullet_point):
+    return Endorsement.objects.create(
+        bullet_point=bullet_point,
+        created_by=user
+    )
+
+
+def create_flag(user, bullet_point, reason):
+    return Flag.objects.create(
+        bullet_point=bullet_point,
+        created_by=user,
+        reason=reason
+    )
+
+
+def retrieve_endorsement(user, bullet_point):
+    return Endorsement.objects.get(
+        bullet_point=bullet_point,
+        created_by=user
+    )
+
+
+def retrieve_flag(user, bullet_point):
+    return Flag.objects.get(
+        bullet_point=bullet_point,
+        created_by=user
+    )
