@@ -174,6 +174,7 @@ class UserActions:
                 thread = item
                 data['thread_id'] = thread.id
                 data['thread_title'] = thread.title
+                data['thread_plain_text'] = thread.plain_text
 
                 data['tip'] = item.plain_text
             elif isinstance(item, Paper):
@@ -186,6 +187,7 @@ class UserActions:
 
                 data['thread_id'] = thread.id
                 data['thread_title'] = thread.title
+                data['thread_plain_text'] = thread.plain_text
 
                 data['tip'] = item.plain_text
 
