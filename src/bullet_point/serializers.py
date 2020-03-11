@@ -4,6 +4,45 @@ from bullet_point.models import BulletPoint, Endorsement, Flag
 from user.serializers import UserSerializer
 
 
+class EndorsementSerializer(serializers.ModelSerializer):
+    bullet_point = serializers.PrimaryKeyRelatedField(
+        many=False,
+        read_only=True
+    )
+    created_by = UserSerializer(
+        read_only=False,
+        default=serializers.CurrentUserDefault()
+    )
+
+    class Meta:
+        fields = [
+            'bullet_point',
+            'created_by',
+            'created_date',
+        ]
+        model = Endorsement
+
+
+class FlagSerializer(serializers.ModelSerializer):
+    bullet_point = serializers.PrimaryKeyRelatedField(
+        many=False,
+        read_only=True
+    )
+    created_by = UserSerializer(
+        read_only=False,
+        default=serializers.CurrentUserDefault()
+    )
+
+    class Meta:
+        fields = [
+            'bullet_point',
+            'created_by',
+            'created_date',
+            'reason',
+        ]
+        model = Flag
+
+
 class BulletPointSerializer(serializers.ModelSerializer):
     tail_created_by = serializers.SerializerMethodField()
     tail_editors = serializers.SerializerMethodField()
@@ -12,6 +51,8 @@ class BulletPointSerializer(serializers.ModelSerializer):
         default=serializers.CurrentUserDefault()
     )
     editors = serializers.SerializerMethodField()
+    endorsements = EndorsementSerializer(many=True)
+    flags = FlagSerializer(many=True)
 
     class Meta:
         model = BulletPoint
@@ -34,40 +75,3 @@ class BulletPointSerializer(serializers.ModelSerializer):
 
     def get_editors(self, obj):
         return UserSerializer(obj.editors, many=True).data
-
-    def get_endorsements(self, obj):
-        pass
-
-    def get_flags(self, obj):
-        pass
-
-
-class EndorsementSerializer(serializers.ModelSerializer):
-    bullet_point = serializers.PrimaryKeyRelatedField(
-        many=False,
-        read_only=True
-    )
-
-    class Meta:
-        fields = [
-            'bullet_point',
-            'created_by',
-            'created_date',
-        ]
-        model = Endorsement
-
-
-class FlagSerializer(serializers.ModelSerializer):
-    bullet_point = serializers.PrimaryKeyRelatedField(
-        many=False,
-        read_only=True
-    )
-
-    class Meta:
-        fields = [
-            'bullet_point',
-            'created_by',
-            'created_date',
-            'reason',
-        ]
-        model = Flag
