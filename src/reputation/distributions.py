@@ -25,6 +25,16 @@ FlagPaper = Distribution(
     'FLAG_PAPER', 1
 )
 
+CreateBulletPoint = Distribution(
+    'CREATE_BULLET_POINT', 1
+)
+BulletPointEndorsed = Distribution(
+    'BULLET_POINT_ENDORSED', 15
+)
+BulletPointFlagged = Distribution(
+    'BULLET_POINT_FLAGGED', -2
+)
+
 CreateComment = Distribution(
     'CREATE_COMMENT', 1
 )
@@ -115,6 +125,18 @@ DISTRIBUTION_TYPE_CHOICES = [
     (
         VoteOnPaper.name,
         VoteOnPaper.name
+    ),
+    (
+        CreateBulletPoint.name,
+        CreateBulletPoint.name
+    ),
+    (
+        BulletPointEndorsed.name,
+        BulletPointEndorsed.name
+    ),
+    (
+        BulletPointFlagged.name,
+        BulletPointFlagged.name
     ),
     (
         CreateComment.name,
