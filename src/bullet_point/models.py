@@ -27,6 +27,24 @@ class BulletPoint(models.Model):
         related_name='bullet_points',
         null=True
     )
+    is_head = models.BooleanField(default=True)
+    is_tail = models.BooleanField(default=True)
+    tail = models.ForeignKey(
+        'self',
+        default=None,
+        null=True,
+        blank=True,
+        related_name='is_tail_for',
+        on_delete=models.SET_NULL
+    )
+    previous = models.OneToOneField(
+        'self',
+        default=None,
+        null=True,
+        blank=True,
+        related_name='next',
+        on_delete=models.SET_NULL
+    )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     was_edited = models.BooleanField(
@@ -55,15 +73,31 @@ class BulletPoint(models.Model):
         return '%s: %s' % (self.created_by, self.plain_text)
 
     @property
+    def editors(self):
+        if self.is_tail:
+            return [
+                bullet_point.created_by
+                for bullet_point
+                in self.is_tail_for.all()
+            ]
+        return []
+
+    @property
     def owners(self):
         if self.created_by:
-            return [self.created_by]
+            return [self.created_by] + self.editors
         else:
             return []
 
     @property
     def users_to_notify(self):
         return self.paper.owners
+
+    def remove_from_head(self):
+        self.is_head = False
+        self.set_ordinal_is_locked(False)
+        self.set_ordinal(None)
+        self.save()
 
     def set_ordinal(self, ordinal):
         if self.ordinal_is_locked:
@@ -82,8 +116,8 @@ class BulletPoint(models.Model):
         self.ordinal = ordinal
         self.save()
 
-    def set_ordinal_is_locked(self, lock):
-        self.ordinal_is_locked = lock
+    def set_ordinal_is_locked(self, locked):
+        self.ordinal_is_locked = locked
         self.save()
 
 

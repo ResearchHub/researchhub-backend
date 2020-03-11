@@ -1,5 +1,8 @@
+from django.db import transaction
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import (
     IsAuthenticated,
     IsAuthenticatedOrReadOnly
@@ -33,6 +36,10 @@ from utils.http import DELETE, POST, PATCH, PUT
 class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
     queryset = BulletPoint.objects.all()
     serializer_class = BulletPointSerializer
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ['is_head']
+    ordering = ['ordinal', '-created_date']
+    ordering_fields = ['ordinal', 'created_date']
 
     permission_classes = [
         IsAuthenticatedOrReadOnly
@@ -41,11 +48,20 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
     ]
 
     def get_queryset(self):
+        filters = {}
+
         paper_id = get_paper_id_from_path(self.request)
+        if paper_id is not None:
+            filters['paper'] = paper_id
+
+        only_heads = not self.request.query_params.get('all', False)
+        if only_heads:
+            filters['is_head'] = True
+
         if paper_id is None:
             bullet_points = BulletPoint.objects.all()
         else:
-            bullet_points = BulletPoint.objects.filter(paper=paper_id)
+            bullet_points = BulletPoint.objects.filter(**filters)
         return bullet_points
 
     def create(self, request, *args, **kwargs):
@@ -100,6 +116,48 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
             self.get_serializer(instance=bullet_point).data,
             status=200
         )
+
+    @action(
+        detail=True,
+        methods=[POST],
+        permission_classes=[IsAuthenticated, CreateBulletPoint]
+    )
+    def edit(self, request, pk=None):
+        bullet_point = self.get_object()
+        user = request.user
+        paper_id = request.data.get('paper', None)
+        if paper_id is None:
+            paper_id = get_paper_id_from_path(request)
+            if paper_id is None:
+                return Response(
+                    'Missing required field `paper`',
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        text = request.data.get('text')
+        plain_text = request.data.get('plain_text')
+
+        tail = bullet_point.tail
+        if tail is None:
+            tail = bullet_point
+
+        with transaction.atomic():
+            head_bullet_point = BulletPoint.objects.create(
+                paper_id=paper_id,
+                tail=tail,
+                previous=bullet_point,
+                created_by=user,
+                text=text,
+                plain_text=plain_text,
+                ordinal=bullet_point.ordinal,
+                ordinal_is_locked=bullet_point.ordinal_is_locked,
+                is_head=True,
+                is_tail=False
+            )
+            bullet_point.remove_from_head()
+            bullet_point.save()
+
+        serialized = self.get_serializer(instance=head_bullet_point)
+        return Response(serialized.data, status=status.HTTP_201_CREATED)
 
     @action(
         detail=True,
