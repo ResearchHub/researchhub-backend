@@ -1,3 +1,5 @@
+import logging
+
 from django_elasticsearch_dsl import Document, fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 
@@ -43,3 +45,9 @@ class PaperDocument(Document):
         auto_refresh = (TESTING is False) or (
             ELASTICSEARCH_AUTO_REINDEX is True
         )
+
+    def update(self, *args, **kwargs):
+        try:
+            super().update(*args, **kwargs)
+        except ConnectionError as e:
+            logging.warning(str(e))
