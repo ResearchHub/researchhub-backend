@@ -160,7 +160,12 @@ class PaperSerializer(serializers.ModelSerializer):
                 paper.hubs.add(*hubs)
 
                 if file:
-                    self._add_file(paper, file)
+                    try:
+                        self._add_file(paper, file)
+                    except (ValueError, ValidationError):
+                        pass
+                    except Exception as e:
+                        sentry.log_error(e)
 
                 return paper
         except Exception as e:
