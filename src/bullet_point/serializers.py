@@ -57,7 +57,12 @@ class BulletPointSerializer(serializers.ModelSerializer):
     class Meta:
         model = BulletPoint
         exclude = []
-        read_only_fields = ['is_head', 'is_tail', 'previous', 'tail']
+        read_only_fields = [
+            'is_head',
+            'is_tail',
+            'previous',
+            'tail',
+        ]
 
     def get_tail_created_by(self, obj):
         if obj.is_tail:
