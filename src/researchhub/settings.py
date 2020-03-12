@@ -458,7 +458,7 @@ if PRODUCTION:
 if STAGING:
     ELASTICSEARCH_DSL = {
         'default': {
-            'hosts': 'https://vpc-test-nqd7dr6dm45lwlug7zfgksfh3y.us-west-2.es.amazonaws.com',  # noqa: E501
+            'hosts': 'https://vpc-researchhub-es-staging-gss6whmowsn26eqzovms5jpdou.us-west-2.es.amazonaws.com',  # noqa: E501
         },
     }
 
