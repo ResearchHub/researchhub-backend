@@ -93,27 +93,57 @@ class BulletPoint(models.Model):
     def users_to_notify(self):
         return self.paper.owners
 
+    def save(self, *args, **kwargs):
+        if self.id is None:
+            super().save(*args, **kwargs)
+            self.set_ordinal(self.ordinal)
+
     def remove_from_head(self):
         self.is_head = False
         self.set_ordinal_is_locked(False)
         self.set_ordinal(None)
         self.save()
 
-    def set_ordinal(self, ordinal):
+    def set_ordinal(self, next_ordinal):
         if self.ordinal_is_locked:
             raise BulletPointModelError(None, 'Can not set locked ordinal')
 
-        offset = 1
-        if ordinal is None:
-            if self.ordinal is not None:
-                offset = -1
+        current_ordinal = self.ordinal
+
+        if next_ordinal is None:
+            # Moving out
+            if current_ordinal is not None:
+                BulletPoint.objects.filter(ordinal__gt=current_ordinal).update(
+                    ordinal=models.F('ordinal') - 1
+                )
             else:
                 return  # No need to replace None with None
-
-        BulletPoint.objects.filter(ordinal__gt=ordinal).update(
-            ordinal=models.F('ordinal') + offset
-        )
-        self.ordinal = ordinal
+        elif current_ordinal is None:
+            # Moving in
+            BulletPoint.objects.filter(ordinal__gte=next_ordinal).update(
+                ordinal=models.F('ordinal') + 1
+            )
+        elif current_ordinal < next_ordinal:
+            # Moving down
+            BulletPoint.objects.filter(
+                models.Q(
+                    ordinal__gt=current_ordinal,
+                    ordinal__lte=next_ordinal
+                )
+            ).update(
+                ordinal=models.F('ordinal') - 1
+            )
+        else:
+            # Moving up
+            BulletPoint.objects.filter(
+                models.Q(
+                    ordinal__gte=next_ordinal,
+                    ordinal__lt=current_ordinal
+                )
+            ).update(
+                ordinal=models.F('ordinal') + 1
+            )
+        self.ordinal = next_ordinal
         self.save()
 
     def set_ordinal_is_locked(self, locked):

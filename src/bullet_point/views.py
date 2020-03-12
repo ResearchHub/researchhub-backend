@@ -226,6 +226,14 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+    @action(detail=True, methods=[PATCH], permission_classes=[IsAuthenticated])
+    def reorder(self, request, pk=None):
+        bullet_point = self.get_object()
+        ordinal = request.data.get('ordinal')
+        bullet_point.set_ordinal(ordinal)
+        serialized = self.get_serializer(instance=bullet_point)
+        return Response(serialized.data, status=status.HTTP_200_OK)
+
     def upvote(self, *args, **kwargs):
         pass
 
