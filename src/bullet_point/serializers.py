@@ -51,8 +51,8 @@ class BulletPointSerializer(serializers.ModelSerializer):
         default=serializers.CurrentUserDefault()
     )
     editors = serializers.SerializerMethodField()
-    endorsements = EndorsementSerializer(many=True)
-    flags = FlagSerializer(many=True)
+    endorsements = EndorsementSerializer(read_only=True, many=True)
+    flags = FlagSerializer(read_only=True, many=True)
 
     class Meta:
         model = BulletPoint
