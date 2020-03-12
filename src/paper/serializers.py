@@ -1,6 +1,5 @@
-from django.db import transaction
+import logging
 from django.http import QueryDict
-from rest_framework.exceptions import ValidationError
 import rest_framework.serializers as serializers
 
 from discussion.serializers import ThreadSerializer
@@ -109,27 +108,21 @@ class PaperSerializer(serializers.ModelSerializer):
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
         try:
-            with transaction.atomic():
-                paper = super(PaperSerializer, self).create(validated_data)
+            paper = super(PaperSerializer, self).create(validated_data)
 
-                Vote.objects.create(
-                    paper=paper,
-                    created_by=user,
-                    vote_type=Vote.UPVOTE
-                )
+            Vote.objects.create(
+                paper=paper,
+                created_by=user,
+                vote_type=Vote.UPVOTE
+            )
 
-                # Now add m2m values properly
-                paper.authors.add(*authors)
-                paper.hubs.add(*hubs)
+            # Now add m2m values properly
+            paper.authors.add(*authors)
+            paper.hubs.add(*hubs)
 
-                try:
-                    self._add_file(paper, file)
-                except (ValueError, ValidationError):
-                    pass
-                except Exception as e:
-                    sentry.log_error(e)
+            self._add_file(paper, file)
 
-                return paper
+            return paper
         except Exception as e:
             error = PaperSerializerError(e, 'Failed to created paper')
             sentry.log_error(
@@ -144,30 +137,24 @@ class PaperSerializer(serializers.ModelSerializer):
         file = validated_data.pop('file', None)
 
         try:
-            with transaction.atomic():
-                paper = super(PaperSerializer, self).update(
-                    instance,
-                    validated_data
-                )
+            paper = super(PaperSerializer, self).update(
+                instance,
+                validated_data
+            )
 
-                current_hubs = paper.hubs.all()
-                remove_hubs = []
-                for current_hub in current_hubs:
-                    if current_hub not in hubs:
-                        remove_hubs.append(current_hub)
-                paper.hubs.remove(*remove_hubs)
-                paper.authors.add(*authors)
-                paper.hubs.add(*hubs)
+            current_hubs = paper.hubs.all()
+            remove_hubs = []
+            for current_hub in current_hubs:
+                if current_hub not in hubs:
+                    remove_hubs.append(current_hub)
+            paper.hubs.remove(*remove_hubs)
+            paper.authors.add(*authors)
+            paper.hubs.add(*hubs)
 
-                if file:
-                    try:
-                        self._add_file(paper, file)
-                    except (ValueError, ValidationError):
-                        pass
-                    except Exception as e:
-                        sentry.log_error(e)
+            if file:
+                self._add_file(paper, file)
 
-                return paper
+            return paper
         except Exception as e:
             error = PaperSerializerError(e, 'Failed to created paper')
             sentry.log_error(
@@ -231,23 +218,23 @@ class PaperSerializer(serializers.ModelSerializer):
 
     def _add_file(self, paper, file):
         if (type(file) is str):
-            if self._check_url_contains_pdf(file):
-                paper.url = file
-                paper.save(update_fields=['url'])
+            try:
+                if check_url_contains_pdf(file):
+                    paper.url = file
+                    paper.file = None
+                    paper.save(update_fields=['url', 'file'])
+            except Exception as e:
+                logging.info(str(e))
 
+        if file is not None:  # Assuming it is a file object
+            paper.file = file
+            paper.save(update_fields=['file'])
         else:
-            if file is not None:
-                paper.file = file
-                paper.save(update_fields=['file'])
-
-        if paper.url:
-            if not TESTING:
-                download_pdf.apply_async((paper.id,), priority=3)
-            else:
-                download_pdf(paper.id)
-
-    def _check_url_contains_pdf(self, url):
-        return check_url_contains_pdf(url)
+            if paper.url is not None:
+                if not TESTING:
+                    download_pdf.apply_async((paper.id,), priority=3)
+                else:
+                    download_pdf(paper.id)
 
 
 class BookmarkSerializer(serializers.Serializer):
