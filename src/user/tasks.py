@@ -1,3 +1,5 @@
+import logging
+
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 
@@ -17,35 +19,45 @@ from user.models import Action, Author
 
 @app.task
 def link_author_to_papers(author_id, orcid_account_id):
-    author = Author.objects.get(pk=author_id)
-    orcid_account = SocialAccount.objects.get(pk=orcid_account_id)
-    works = get_orcid_works(orcid_account.extra_data)
-    for work in works:
-        paper = get_orcid_paper(work)
-        if paper is not None:
-            paper.authors.add(author)
-            paper.save()
-            print(
-                f'Added author {author.id}'
-                f' to paper {paper.id}'
-                f' on doi {paper.doi}'
-            )
+    try:
+        author = Author.objects.get(pk=author_id)
+        orcid_account = SocialAccount.objects.get(pk=orcid_account_id)
+        works = get_orcid_works(orcid_account.extra_data)
+        for work in works:
+            paper = get_orcid_paper(work)
+            if paper is not None:
+                paper.authors.add(author)
+                paper.save()
+                print(
+                    f'Added author {author.id}'
+                    f' to paper {paper.id}'
+                    f' on doi {paper.doi}'
+                )
+    except (Author.DoesNotExist, SocialAccount.DoesNotExist) as e:
+        logging.warning(
+            f'{e} for author {author_id} orcid account {orcid_account_id}'
+        )
 
 
 @app.task
 def link_paper_to_authors(paper_id):
-    paper = Paper.objects.get(pk=paper_id)
-    orcid_accounts = SocialAccount.objects.filter(provider=OrcidProvider.id)
-    for orcid_account in orcid_accounts:
-        works = get_orcid_works(orcid_account.extra_data)
-        if check_doi_in_works(paper.doi, works):
-            paper.authors.add(orcid_account.user.author_profile)
-            paper.save()
-            print(
-                f'Added author {orcid_account.user.author_profile.id}'
-                f' to paper {paper.id}'
-                f' on doi {paper.doi}'
-            )
+    try:
+        paper = Paper.objects.get(pk=paper_id)
+        orcid_accounts = SocialAccount.objects.filter(
+            provider=OrcidProvider.id
+        )
+        for orcid_account in orcid_accounts:
+            works = get_orcid_works(orcid_account.extra_data)
+            if check_doi_in_works(paper.doi, works):
+                paper.authors.add(orcid_account.user.author_profile)
+                paper.save()
+                print(
+                    f'Added author {orcid_account.user.author_profile.id}'
+                    f' to paper {paper.id}'
+                    f' on doi {paper.doi}'
+                )
+    except (Paper.DoesNotExist, SocialAccount.DoesNotExist) as e:
+        logging.warning(f'{e} for paper {paper_id}')
 
 
 def get_orcid_works(data):
