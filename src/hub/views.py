@@ -1,4 +1,4 @@
-from django.db.models import prefetch_related_objects, Count
+from django.db.models import Count
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -20,9 +20,11 @@ from user.serializers import UserActions
 from utils.http import PATCH, POST, PUT, GET
 from utils.message import send_email_message
 
+
 class CustomPageLimitPagination(PageNumberPagination):
     page_size_query_param = 'page_limit'
     max_page_size = 10000
+
 
 class HubViewSet(viewsets.ModelViewSet):
     queryset = Hub.objects.all()
@@ -133,11 +135,24 @@ class HubViewSet(viewsets.ModelViewSet):
         methods=[GET]
     )
     def latest_actions(self, request, pk=None):
+        models = [
+            'bullet_point',
+            'thread',
+            'paper',
+            'comment',
+            'reply',
+            'summary'
+        ]
+
         # PK == 0 indicates for now that we're on the homepage
         if pk == '0':
-            actions = Action.objects.filter(content_type__model__in=['thread', 'paper', 'comment', 'reply', 'summary']).order_by('-created_date').prefetch_related('item')
+            actions = Action.objects
         else:
-            actions = Action.objects.filter(hubs=pk).filter(content_type__model__in=['thread', 'paper', 'comment', 'reply', 'summary']).order_by('-created_date').prefetch_related('item')
+            actions = Action.objects.filter(hubs=pk)
+
+        actions.filter(content_type__model__in=models).order_by(
+            '-created_date'
+        ).prefetch_related('item')
 
         page = self.paginate_queryset(actions)
         if page is not None:

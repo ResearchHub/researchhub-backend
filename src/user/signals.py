@@ -5,8 +5,9 @@ from django.dispatch import receiver
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 
-from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
-from paper.models import Paper, Vote as PaperVote
+from bullet_point.models import BulletPoint
+from discussion.models import Comment, Reply, Thread
+from paper.models import Paper
 from researchhub.settings import TESTING
 from summary.models import Summary
 from user.models import Action, Author
@@ -30,6 +31,7 @@ def queue_link_author_to_papers(sender, instance, created, **kwargs):
                 link_author_to_papers(instance.id, orcid_account.id)
         except SocialAccount.DoesNotExist:
             pass
+
 
 @receiver(post_save, sender=Paper, dispatch_uid='link_paper_to_authors')
 def queue_link_paper_to_authors(
@@ -58,6 +60,12 @@ def doi_updated(update_fields):
         return 'doi' in update_fields
     return False
 
+
+@receiver(
+    post_save,
+    sender=BulletPoint,
+    dispatch_uid='create_bullet_point_action'
+)
 @receiver(post_save, sender=Summary, dispatch_uid='create_summary_action')
 @receiver(post_save, sender=Comment, dispatch_uid='create_comment_action')
 @receiver(post_save, sender=Reply, dispatch_uid='create_reply_action')
