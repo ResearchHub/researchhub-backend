@@ -33,12 +33,15 @@ from bullet_point.serializers import (
 from researchhub.lib import ActionableViewSet, get_paper_id_from_path
 from utils.http import DELETE, POST, PATCH, PUT
 
+from .filters import BulletPointFilter
+
 
 class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
     queryset = BulletPoint.objects.all()
     serializer_class = BulletPointSerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ['is_head', 'ordinal']
+    filter_class = BulletPointFilter
     ordering = ['ordinal', '-created_date']
     ordering_fields = ['ordinal', 'created_date']
 
