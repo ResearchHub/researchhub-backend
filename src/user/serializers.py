@@ -1,11 +1,14 @@
+import logging
 import rest_framework.serializers as rest_framework_serializers
 import rest_auth.registration.serializers as rest_auth_serializers
 
+from bullet_point.models import BulletPoint
 import reputation.lib
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
+from discussion.lib import check_is_discussion_item
 from hub.serializers import HubSerializer
 from paper.models import Vote as PaperVote, Paper
-from user.models import Author, University, User
+from user.models import Action, Author, University, User
 from summary.models import Summary
 
 
@@ -140,7 +143,6 @@ class UserActions:
         self.serialized = []
         self._group_and_serialize_actions()
 
-
     def get_actions(self):
         if self.user:
             return self.user.actions.all()
@@ -148,29 +150,23 @@ class UserActions:
             return Action.objects.all()
 
     def _group_and_serialize_actions(self):
-        # TODO: Refactor this to only get the data we need instead of
-        # serializing everything
-        #
-        # user object, thread id, paper id, action timestamp
+        # TODO: Refactor to clean this up
         for action in self.all:
             item = action.item
             if not item:
                 continue
 
-            if isinstance(item, Summary):
-                created_by = UserSerializer(item.proposed_by).data
-            elif isinstance(item, Paper):
-                created_by = UserSerializer(item.uploaded_by).data
-            elif item:
-                created_by = UserSerializer(item.created_by).data
+            creator = self._get_serialized_creator(item)
 
             data = {
-                'created_by': created_by,
+                'created_by': creator,
                 'content_type': str(action.content_type),
                 'created_date': action.created_date,
             }
+
             if (
-                isinstance(item, Comment)
+                isinstance(item, BulletPoint)
+                or isinstance(item, Comment)
                 or isinstance(item, Thread)
                 or isinstance(item, Reply)
                 or isinstance(item, Summary)
@@ -197,7 +193,10 @@ class UserActions:
             if isinstance(item, Paper):
                 paper = item
             else:
-                paper = item.paper
+                try:
+                    paper = item.paper
+                except Exception as e:
+                    logging.warning(str(e))
 
             if paper:
                 data['paper_id'] = paper.id
@@ -213,16 +212,15 @@ class UserActions:
                 data['tip'] = item.plain_text
             elif isinstance(item, Paper):
                 data['tip'] = item.tagline
-            elif (
-                not isinstance(item, Summary)
-                and not isinstance(item, Paper)
-            ):
+            elif check_is_discussion_item(item):
                 thread = item.thread
 
                 data['thread_id'] = thread.id
                 data['thread_title'] = thread.title
                 data['thread_plain_text'] = thread.plain_text
 
+                data['tip'] = item.plain_text
+            elif isinstance(item, BulletPoint):
                 data['tip'] = item.plain_text
 
             if not isinstance(item, Summary):
@@ -231,11 +229,11 @@ class UserActions:
                     user_flag = item.flags.filter(created_by=self.user).first()
                     if user_flag:
                         if isinstance(item, Paper):
-                            data['user_flag'] = UserActions.paper_flag_serializer(user_flag).data
+                            data['user_flag'] = UserActions.paper_flag_serializer(user_flag).data  # noqa: E501
                         else:
-                            data['user_flag'] = UserActions.flag_serializer(user_flag).data
+                            data['user_flag'] = UserActions.flag_serializer(user_flag).data  # noqa: E501
 
-            if isinstance(item, Thread) or isinstance(item, Comment) or isinstance(item, Reply):
+            if isinstance(item, BulletPoint) or check_is_discussion_item(item):
                 data['is_removed'] = item.is_removed
 
             if isinstance(item, Comment):
@@ -246,3 +244,14 @@ class UserActions:
                 data['reply_id'] = item.id
 
             self.serialized.append(data)
+
+    def _get_serialized_creator(self, item):
+        if isinstance(item, Summary):
+            creator = item.proposed_by
+        elif isinstance(item, Paper):
+            creator = item.uploaded_by
+        else:
+            creator = item.created_by
+        if creator is not None:
+            return UserSerializer(creator).data
+        return None
