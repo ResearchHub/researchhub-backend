@@ -97,6 +97,8 @@ class BulletPoint(models.Model):
         if self.id is None:
             super().save(*args, **kwargs)
             self.set_ordinal(self.ordinal)
+        else:
+            super().save(*args, **kwargs)
 
     def remove_from_head(self):
         self.is_head = False
