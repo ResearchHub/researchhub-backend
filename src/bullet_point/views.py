@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -32,12 +33,15 @@ from bullet_point.serializers import (
 from researchhub.lib import ActionableViewSet, get_paper_id_from_path
 from utils.http import DELETE, POST, PATCH, PUT
 
+from .filters import BulletPointFilter
+
 
 class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
     queryset = BulletPoint.objects.all()
     serializer_class = BulletPointSerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter]
-    filterset_fields = ['is_head']
+    filterset_fields = ['is_head', 'ordinal']
+    filter_class = BulletPointFilter
     ordering = ['ordinal', '-created_date']
     ordering_fields = ['ordinal', 'created_date']
 
@@ -225,6 +229,42 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
                 f'Failed to delete flag: {e}',
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+    @action(detail=True, methods=[PATCH], permission_classes=[IsAuthenticated])
+    def reorder(self, request, pk=None):
+        bullet_point = self.get_object()
+        ordinal = request.data.get('ordinal')
+        bullet_point.set_ordinal(ordinal)
+        serialized = self.get_serializer(instance=bullet_point)
+        return Response(serialized.data, status=status.HTTP_200_OK)
+
+    @action(
+        detail=False,
+        methods=[PATCH],
+        permission_classes=[IsAuthenticated]
+    )
+    def reorder_all(self, request):
+        order = request.data.get('order', None)
+        if (order is None) or (type(order) is not list):
+            return Response(
+                'Request body `order` must be a list of integers',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        BulletPoint.objects.filter(
+            Q(ordinal__isnull=False, is_head=True)
+        ).update(ordinal=None)
+
+        try:
+            with transaction.atomic():
+                ordinal = 0
+                for pk in order:
+                    ordinal += 1
+                    BulletPoint.objects.filter(pk=pk).update(ordinal=ordinal)
+        except Exception as e:
+            return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+
+        return Response('Success', status=status.HTTP_200_OK)
 
     def upvote(self, *args, **kwargs):
         pass
