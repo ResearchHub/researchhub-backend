@@ -1,7 +1,11 @@
 {
     "_meta": {
         "hash": {
+<<<<<<< HEAD
             "sha256": "67f49852225a0a9410c241746325f3cd0c4193e30e3a4a293756f551b2503b63"
+=======
+            "sha256": "e09ec6a52896a5dd6e5d84630377cb7980a7f8af22160e93ec6b6bde4f746f57"
+>>>>>>> f2276cc... added in script/jar for figure extraction. created figure model for papers
         },
         "pipfile-spec": 6,
         "requires": {
@@ -45,6 +49,7 @@
             "markers": "sys_platform == 'darwin'",
             "version": "==0.1.0"
         },
+<<<<<<< HEAD
         "asgiref": {
             "hashes": [
                 "sha256:3e4192eaec0758b99722f0b0666d5fbfaa713054d92e8de5b58ba84ec5ce696f",
@@ -59,6 +64,8 @@
             ],
             "version": "==3.0.1"
         },
+=======
+>>>>>>> f2276cc... added in script/jar for figure extraction. created figure model for papers
         "attrdict": {
             "hashes": [
                 "sha256:35c90698b55c683946091177177a9e9c0713a0860f0e049febd72649ccd77b70",
@@ -132,6 +139,7 @@
         },
         "boto3": {
             "hashes": [
+<<<<<<< HEAD
                 "sha256:934057d57331d1f9c969f186533e87f460e97d2127ca2fde0505a234ec9ad286",
                 "sha256:c998a5a8c6ec6ebb4f3fc6884faa0250e511dbc27fee555e422fe6023e0e73ac"
             ],
@@ -151,17 +159,39 @@
                 "sha256:b304586d357c43221856be51d73387f93e2a961598a9b6b6670664746f3b6c6c"
             ],
             "version": "==4.0.0"
+=======
+                "sha256:50105a25e301e20b361b2b8fafee196a425a4758e51f400a0f381d42e4bd909e",
+                "sha256:5fe70e656f92e4e649dc4cf05786f57d180e5d491bcb22c80411512ec2b27c15"
+            ],
+            "index": "pypi",
+            "version": "==1.12.21"
+        },
+        "botocore": {
+            "hashes": [
+                "sha256:4aaf6c94bcaace260138d32eae144be1b5d2ddce9ef0f395da32c68e106ff20f",
+                "sha256:86f7f1c489887f9e3c2ede598e2a30f8bd259c11e8ebe25e897e40231b3f4bc8"
+            ],
+            "version": "==1.15.21"
+>>>>>>> f2276cc... added in script/jar for figure extraction. created figure model for papers
         },
         "celery": {
             "extras": [
                 "redis"
             ],
             "hashes": [
+<<<<<<< HEAD
                 "sha256:108a0bf9018a871620936c33a3ee9f6336a89f8ef0a0f567a9001f4aa361415f",
                 "sha256:5b4b37e276033fe47575107a2775469f0b721646a08c96ec2c61531e4fe45f2a"
             ],
             "index": "pypi",
             "version": "==4.4.2"
+=======
+                "sha256:3c5fcd6bfcf9a6323cb742cfc121d1790d50cfeddf300ba723cfa0b356413f07",
+                "sha256:a650525303ee866fb0c62c82f68681fcc2183eebbfafae552c27d30125fe518b"
+            ],
+            "index": "pypi",
+            "version": "==4.4.1"
+>>>>>>> f2276cc... added in script/jar for figure extraction. created figure model for papers
         },
         "celery-redbeat": {
             "hashes": [
@@ -216,6 +246,7 @@
                 "sha256:c8e8f552ffcc6194f4e18dd4f68d9aef0c0d58ae7e7be8c82bee3c5e9edfa513"
             ],
             "version": "==3.1.0"
+<<<<<<< HEAD
         },
         "channels": {
             "hashes": [
@@ -232,6 +263,8 @@
             ],
             "index": "pypi",
             "version": "==2.4.2"
+=======
+>>>>>>> f2276cc... added in script/jar for figure extraction. created figure model for papers
         },
         "chardet": {
             "hashes": [
@@ -246,6 +279,7 @@
                 "sha256:e345d143d80bf5ee7534056164e5e112ea5e22716bbb1ce727941f4c8b471b9a"
             ],
             "version": "==7.1.1"
+<<<<<<< HEAD
         },
         "constantly": {
             "hashes": [
@@ -279,6 +313,8 @@
                 "sha256:fb81c17e0ebe3358486cd8cc3ad78adbae58af12fc2bf2bc0bb84e8090fa5ce8"
             ],
             "version": "==2.8"
+=======
+>>>>>>> f2276cc... added in script/jar for figure extraction. created figure model for papers
         },
         "cssutils": {
             "hashes": [
@@ -1172,6 +1208,7 @@
             "hashes": [
                 "sha256:647344a061c249a3b74e230c739f434d7ea4d8b1d5f3721bc0f3558049b38f44",
                 "sha256:ff7a40b4860b727ab48fad6360eb351cc1b33cbf9b15a0f689ca5353e9463324"
+<<<<<<< HEAD
             ],
             "version": "==2.6.1"
         },
@@ -1181,6 +1218,38 @@
                 "sha256:7ead136e03655af85069b6f47b23eb7c3e5c221aa9f022a4fbb499f5b7308f29"
             ],
             "version": "==2.0.2"
+=======
+            ],
+            "version": "==2.6.1"
+        },
+        "pymupdf": {
+            "hashes": [
+                "sha256:07687e9f12668601b4a32bcb7afa62930c478acb82e6a4bb550b56f4c1cae8f5",
+                "sha256:0824a3c17108fbdcc64f90a5275e7be6c9bade843462b392e845c27633acf8a9",
+                "sha256:127609d9551310b096b1b210cb7faf0dc5d7652d920f508220bd37d90576d94f",
+                "sha256:154935d70341da7c7740ee434fa5c3832c87a23e960ea347c937b660fa8f8671",
+                "sha256:353b22c5e3a91afc0a397fd11102cbc31665f9538c1582a4d9d2bdf3a71ec7fd",
+                "sha256:364cbf7a95a088cab55796c890094353fa9a9f9470b3a347e35ddbad080e0060",
+                "sha256:38ae986166b133dec47f81856969a447cba1c8673a4728adba478e8d3ecc5cc0",
+                "sha256:658bd6e4af2603aaca3f56c4fa78eb98464312131c135986da2fec0fe610b964",
+                "sha256:6997bb069412c322d49c9cefe5987c2e6a8b214a8066fcc30bb7753ce4856cc5",
+                "sha256:6fd642704eb46a90b43223319977d8f05eb0566d9c620fa2a33c11a93b62be4b",
+                "sha256:780581ba9a5179010970184148b88b4c11c41b61fe9b6cb7e064fdf82d000426",
+                "sha256:8c1a7550be07838a1239da214013eaf96691f986a75891a6868aaadd4b08c525",
+                "sha256:8fe70fdb7aba46c3efa981ae6307ce614e4570ecf6393f84efa9528f2cb4dc57",
+                "sha256:903493e2436eb67ba07ac56de2f7baafce1a8a41e2b0eaf5ea587003e27ac037",
+                "sha256:975a3d18312efa79ccb16df4aad18ba557e79db969d3c139720ed1ffe387c5ac",
+                "sha256:9861d990e89a64cbab70d6fc175f317a07013746342ab2986c0d10400312b820",
+                "sha256:9bfc670a0f3a2d2e34a1018baf7e2d90ffcf90436a26336735ec2cf9d0f01ee1",
+                "sha256:ae9d90c075f67c9767f0d869dfb0d54f718ea91f8ef976e60e9c9aaefbbbb440",
+                "sha256:cd907c84b43478771d23d7dc4017403e2452ef741bb2f56fea89c3827cca30df",
+                "sha256:d5252778c7cd498a663ee704ee774c864aee47dd7f15998ef4b0ba465ddd4978",
+                "sha256:dc9018079c36a6d1a1661b0cd456c45c2dd7d932e909c5b6b6c328832ad80ed2",
+                "sha256:f24b38dc1551299c10ecbc5099919c056ad02e6212af336a3c51817902fa4d0f"
+            ],
+            "index": "pypi",
+            "version": "==1.16.12"
+>>>>>>> f2276cc... added in script/jar for figure extraction. created figure model for papers
         },
         "pynliner": {
             "hashes": [
@@ -1317,6 +1386,7 @@
         },
         "sentry-sdk": {
             "hashes": [
+<<<<<<< HEAD
                 "sha256:23808d571d2461a4ce3784ec12bbee5bdb8c026c143fe79d36cef8a6d653e71f",
                 "sha256:bb90a4e19c7233a580715fc986cc44be2c48fc10b31e71580a2037e1c94b6950"
             ],
@@ -1329,6 +1399,13 @@
                 "sha256:0858a54aabc5b459d1aafa8a518ed2081a285087f349fe3e55197989232e2e2d"
             ],
             "version": "==18.1.0"
+=======
+                "sha256:480eee754e60bcae983787a9a13bc8f155a111aef199afaa4f289d6a76aa622a",
+                "sha256:a920387dc3ee252a66679d0afecd34479fb6fc52c2bc20763793ed69e5b0dcc0"
+            ],
+            "index": "pypi",
+            "version": "==0.14.2"
+>>>>>>> f2276cc... added in script/jar for figure extraction. created figure model for papers
         },
         "six": {
             "hashes": [
@@ -1362,6 +1439,7 @@
             "hashes": [
                 "sha256:f7bcbf5bb53875cfc38f61f596a88b1c994af32420f120c4409542a683ad613b",
                 "sha256:fb01d8ef2474eed422d8314a566c9e391cccb6e50cf4585022add6cb5cda66c8"
+<<<<<<< HEAD
             ],
             "version": "==6.1.0"
         },
@@ -1371,6 +1449,10 @@
                 "sha256:bad6603bb14d279193107714b288be206cac565dfa49aa5b105294dd5c4aab93"
             ],
             "version": "==1.3"
+=======
+            ],
+            "version": "==6.1.0"
+>>>>>>> f2276cc... added in script/jar for figure extraction. created figure model for papers
         },
         "toml": {
             "hashes": [
@@ -1477,10 +1559,17 @@
         },
         "virtualenv": {
             "hashes": [
+<<<<<<< HEAD
                 "sha256:87831f1070534b636fea2241dd66f3afe37ac9041bcca6d0af3215cdcfbf7d82",
                 "sha256:f3128d882383c503003130389bf892856341c1da12c881ae24d6358c82561b55"
             ],
             "version": "==20.0.13"
+=======
+                "sha256:10750cac3b5a9e6eed54d0f1f8222c550dc47f84609c95cbc504d44a58a048b8",
+                "sha256:8512e83f1d90f8e481024d58512ac9c053bf16f54d9138520a0929396820dd78"
+            ],
+            "version": "==20.0.10"
+>>>>>>> f2276cc... added in script/jar for figure extraction. created figure model for papers
         },
         "wcwidth": {
             "hashes": [
@@ -1491,11 +1580,19 @@
         },
         "web3": {
             "hashes": [
+<<<<<<< HEAD
                 "sha256:005acdbb5eedf847870b5ee533a68cb748a10088bdf45ba611045530a9058d58",
                 "sha256:6c8f622544e446c14ab8a8c71f466b936c4adab0374de1e1ba0f8375c56d396d"
             ],
             "index": "pypi",
             "version": "==5.7.0"
+=======
+                "sha256:16f34e3af466fbdf6c3c41b05e1d7d74d71083d9189f181cc8fd352711b4c6da",
+                "sha256:59df0e25ca45cf03933c551811413e43975f36c6c2a7e5eb2fe8da11c2bfbb59"
+            ],
+            "index": "pypi",
+            "version": "==5.6.0"
+>>>>>>> f2276cc... added in script/jar for figure extraction. created figure model for papers
         },
         "websockets": {
             "hashes": [
@@ -1530,6 +1627,7 @@
                 "sha256:c599e4d75c98f6798c509911d08a22e6c021d074469042177c8c86fb92eefd96"
             ],
             "version": "==3.1.0"
+<<<<<<< HEAD
         },
         "zope.interface": {
             "hashes": [
@@ -1576,6 +1674,8 @@
                 "sha256:fd7ae02bff18495787948447cfbe1a0cb72f92de8d74ef6c446214f09712631b"
             ],
             "version": "==5.0.0"
+=======
+>>>>>>> f2276cc... added in script/jar for figure extraction. created figure model for papers
         }
     },
     "develop": {}

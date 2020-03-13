@@ -8,9 +8,27 @@ from utils.http import check_url_contains_pdf
 from utils.semantic_scholar import SemanticScholar
 from utils.crossref import Crossref
 
+import logging
+import os
+import requests
+import shutil
+import time
+from subprocess import call
+
+from celery.decorators import periodic_task
+from celery.task.schedules import crontab
+
+from django.apps import apps
+from django.core.files import File
+from django.utils import timezone
+from datetime import timedelta
+
+from researchhub.celery import app
+from paper.utils import check_url_contains_pdf, get_pdf_from_url, fitz_extract_figures
 
 @app.task
 def download_pdf(paper_id):
+    Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
     if paper.url and check_url_contains_pdf(paper.url):
         pdf = get_pdf_from_url(paper.url)
@@ -106,3 +124,41 @@ def create_manubot_paper(doi):
 
 def create_crossref_paper(doi):
     return Crossref(doi=doi).create_paper()
+
+
+@app.task
+def celery_extract_figures(paper_id):
+    Paper = apps.get_model('paper.Paper')
+    Figure = apps.get_model('paper.Figure')
+    paper = Paper.objects.get(id=paper_id)
+
+    file = paper.file
+    if not file:
+        return
+
+    path = f'paper/figures/{paper_id}/'
+    filename = f'{paper.id}.pdf'
+    file_path = f'{path}{filename}'
+    file_url = file.url
+
+    if not os.path.isdir(path):
+        os.mkdir(path)
+
+    res = requests.get(file_url)
+    with open(file_path, 'wb+') as f:
+        f.write(res.content)
+
+    fitz_extract_figures(file_path, path)
+
+    figures = os.listdir(path)
+    if len(figures) == 1: # Only the pdf exists
+        args = ['java', '-jar', 'pdffigures2-assembly-0.1.0.jar', file_path, '-m', path, '-d', path, '-e']
+        call(args)
+        figures = os.listdir(path)
+
+    for extracted_figure in figures:
+        extracted_figure_path = f'{path}{extracted_figure}'
+        if '.png' in extracted_figure:
+            with open(extracted_figure_path, 'rb') as f:
+                Figure.objects.create(file=File(f), paper=paper)
+    shutil.rmtree(path)
