@@ -1,6 +1,12 @@
 from django.core.files.base import ContentFile
 import requests
 
+import fitz
+import requests
+
+from django.core.files.base import ContentFile
+from rest_framework.exceptions import ValidationError
+
 from utils.http import (
     check_url_contains_pdf,
     http_request,
@@ -89,3 +95,17 @@ def get_pdf_from_url(url):
     response = http_request(methods.GET, url, timeout=3)
     pdf = ContentFile(response.content)
     return pdf
+
+def fitz_extract_figures(file_path, path):
+    doc = fitz.open(file_path)
+    for i in range(len(doc)):
+        for img in doc.getPageImageList(i):
+            xref = img[0]  # check if this xref was handled already?
+            pix = fitz.Pixmap(doc, xref)
+            if pix.colorspace is None:
+                continue
+            else:  # CMYK needs to be converted to RGB first
+                pix1 = fitz.Pixmap(fitz.csRGB, pix)  # make RGB pixmap copy
+                pix1.writePNG(f'{file_path}p{i}-{xref}.png')
+                pix1 = None  # release storage early (optional)
+            pix = None  # release storage early (optional)

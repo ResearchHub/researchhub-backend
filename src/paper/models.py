@@ -4,6 +4,9 @@ from django.contrib.postgres.fields import JSONField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
 from paper.utils import MANUBOT_PAPER_TYPES
+from .tasks import celery_extract_figures
+from researchhub.celery import app
+from researchhub.settings import TESTING
 from summary.models import Summary
 
 HELP_TEXT_IS_PUBLIC = (
@@ -281,6 +284,13 @@ class Paper(models.Model):
             )['discussion_count']
             return thread_count + comment_count + reply_count
 
+
+    def extract_figures(self):
+        if not TESTING:
+            celery_extract_figures.apply_async((self.id,), priority=3)
+        else:
+            celery_extract_figures(self.id)
+
     def calculate_score(self):
         if hasattr(self, 'score'):
             return self.score
@@ -301,6 +311,22 @@ class Paper(models.Model):
     def update_summary(self, summary):
         self.summary = summary
         self.save()
+
+
+class Figure(models.Model):
+    file = models.FileField(
+        upload_to='uploads/figures/%Y/%m/%d',
+        default=None,
+        null=True,
+        blank=True
+    )
+    paper = models.ForeignKey(
+        Paper,
+        on_delete=models.CASCADE,
+        related_name='paper'
+    )
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
 
 
 class Vote(models.Model):
