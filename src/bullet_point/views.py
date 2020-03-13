@@ -38,7 +38,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
     queryset = BulletPoint.objects.all()
     serializer_class = BulletPointSerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter]
-    filterset_fields = ['is_head']
+    filterset_fields = ['is_head', 'ordinal']
     ordering = ['ordinal', '-created_date']
     ordering_fields = ['ordinal', 'created_date']
 
