@@ -148,7 +148,7 @@ def celery_extract_figures(paper_id):
     with open(file_path, 'wb+') as f:
         f.write(res.content)
 
-    fitz_extract_figures(file_path, path)
+    fitz_extract_figures(file_path)
 
     figures = os.listdir(path)
     if len(figures) == 1: # Only the pdf exists
