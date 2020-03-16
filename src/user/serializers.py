@@ -165,14 +165,15 @@ class UserActions:
             }
 
             if (
-                isinstance(item, BulletPoint)
-                or isinstance(item, Comment)
+                isinstance(item, Comment)
                 or isinstance(item, Thread)
                 or isinstance(item, Reply)
                 or isinstance(item, Summary)
                 or isinstance(item, Paper)
             ):
                 pass
+            elif isinstance(item, BulletPoint):
+                data['content_type'] = 'bullet_point'
             elif isinstance(item, DiscussionVote):
                 item = item.item
                 if isinstance(item, Comment):
@@ -208,17 +209,18 @@ class UserActions:
                 data['thread_id'] = thread.id
                 data['thread_title'] = thread.title
                 data['thread_plain_text'] = thread.plain_text
-
                 data['tip'] = item.plain_text
             elif isinstance(item, Paper):
                 data['tip'] = item.tagline
             elif check_is_discussion_item(item):
-                thread = item.thread
-
-                data['thread_id'] = thread.id
-                data['thread_title'] = thread.title
-                data['thread_plain_text'] = thread.plain_text
-
+                try:
+                    thread = item.thread
+                    data['thread_id'] = thread.id
+                    data['thread_title'] = thread.title
+                    data['thread_plain_text'] = thread.plain_text
+                except Exception as e:
+                    print(e)
+                    pass
                 data['tip'] = item.plain_text
             elif isinstance(item, BulletPoint):
                 data['tip'] = item.plain_text
@@ -238,9 +240,10 @@ class UserActions:
 
             if isinstance(item, Comment):
                 data['comment_id'] = item.id
-
             elif isinstance(item, Reply):
-                data['comment_id'] = item.get_comment_of_reply().id
+                comment = item.get_comment_of_reply()
+                if comment is not None:
+                    data['comment_id'] = comment.id
                 data['reply_id'] = item.id
 
             self.serialized.append(data)

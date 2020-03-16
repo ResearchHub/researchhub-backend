@@ -136,7 +136,7 @@ class HubViewSet(viewsets.ModelViewSet):
     )
     def latest_actions(self, request, pk=None):
         models = [
-            'bullet_point',
+            'bulletpoint',
             'thread',
             'paper',
             'comment',
