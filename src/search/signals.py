@@ -16,8 +16,9 @@ def attach_file_to_document(
 ):
     if not created and check_file_updated(update_fields):
         try:
-            response = pdf_pipeline.attach_paper_pdf(instance)
-            return response.ok
+            if instance.file is not None:
+                response = pdf_pipeline.attach_paper_pdf(instance)
+                return response.ok
         except Exception as e:
             sentry.log_error(
                 e,
