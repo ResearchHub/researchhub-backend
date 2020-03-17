@@ -40,11 +40,11 @@ class HubViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         if 'score' in self.request.query_params.get('ordering', ''):
-            num_upvotes = Count('papers__vote__vote_type', filter=Q(papers__vote__vote_type=Vote.UPVOTE))
-            num_downvotes = Count('papers__vote__vote_type', filter=Q(papers__vote__vote_type=Vote.DOWNVOTE))
             two_weeks_ago = timezone.now().date() - timedelta(days=14)
+            num_upvotes = Count('papers__vote__vote_type', filter=Q(papers__vote__vote_type=Vote.UPVOTE, created_date__gte=two_weeks_ago))
+            num_downvotes = Count('papers__vote__vote_type', filter=Q(papers__vote__vote_type=Vote.DOWNVOTE, created_date__gte=two_weeks_ago))
             actions_past_two_weeks = Count('actions', filter=Q(actions__created_date__gte=two_weeks_ago))
-            return self.queryset.annotate(score=num_upvotes - num_downvotes)
+            return self.queryset.annotate(score=num_upvotes - num_downvotes + actions_past_two_weeks)
         else:
             return self.queryset
 

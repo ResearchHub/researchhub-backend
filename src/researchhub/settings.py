@@ -30,6 +30,7 @@ TESTING = ('test' in APP_ENV) or ('test' in sys.argv)
 PYTHONPATH = '/opt/python/current/app:$PYTHONPATH'
 DJANGO_SETTINGS_MODULE = 'researchhub.settings'
 ELASTIC_BEANSTALK = (APP_ENV in ['production', 'staging', 'development'])
+NO_SILK = os.environ.get('NO_SILK', False)
 
 if CLOUD:
     CONFIG_BASE_DIR = 'config'
@@ -195,7 +196,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-if not CLOUD:
+if not CLOUD and not NO_SILK == 'True':
     INSTALLED_APPS += [
         'silk',
         'dbbackup'
