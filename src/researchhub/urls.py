@@ -21,7 +21,7 @@ import search.urls
 import summary.views
 import user.views
 
-from researchhub.settings import CLOUD
+from researchhub.settings import CLOUD, NO_SILK
 
 router = routers.DefaultRouter()
 
@@ -134,5 +134,5 @@ urlpatterns = [
     path('', researchhub.views.index, name='index'),
 ]
 
-if not CLOUD:
+if not CLOUD and not NO_SILK:
     urlpatterns += [path('silk/', include('silk.urls', namespace='silk'))]
