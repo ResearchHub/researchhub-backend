@@ -1,4 +1,4 @@
-from django.db.models import Count
+from django.db.models import Count, Sum, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -19,6 +19,7 @@ from user.models import Action
 from user.serializers import UserActions
 from utils.http import PATCH, POST, PUT, GET
 from utils.message import send_email_message
+from paper.models import Vote
 
 
 class CustomPageLimitPagination(PageNumberPagination):
@@ -37,7 +38,9 @@ class HubViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         if 'score' in self.request.query_params.get('ordering', ''):
-            return self.queryset.annotate(score=Count('actions'))
+            num_upvotes = Count('papers__vote__vote_type', filter=Q(papers__vote__vote_type=Vote.UPVOTE))
+            num_downvotes = Count('papers__vote__vote_type', filter=Q(papers__vote__vote_type=Vote.DOWNVOTE))
+            return self.queryset.annotate(score=num_upvotes - num_downvotes)
         else:
             return self.queryset
 
