@@ -1,5 +1,7 @@
 from django.db.models import Count, Sum, Q
 from django_filters.rest_framework import DjangoFilterBackend
+from datetime import timedelta
+from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -40,6 +42,8 @@ class HubViewSet(viewsets.ModelViewSet):
         if 'score' in self.request.query_params.get('ordering', ''):
             num_upvotes = Count('papers__vote__vote_type', filter=Q(papers__vote__vote_type=Vote.UPVOTE))
             num_downvotes = Count('papers__vote__vote_type', filter=Q(papers__vote__vote_type=Vote.DOWNVOTE))
+            two_weeks_ago = timezone.now().date() - timedelta(days=14)
+            actions_past_two_weeks = Count('actions', filter=Q(actions__created_date__gte=two_weeks_ago))
             return self.queryset.annotate(score=num_upvotes - num_downvotes)
         else:
             return self.queryset
