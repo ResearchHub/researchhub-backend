@@ -9,7 +9,7 @@ from hub.models import Hub
 from hub.serializers import HubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.models import Flag, Paper, Vote
-from paper.tasks import download_pdf
+from paper.tasks import download_pdf, add_references
 from summary.serializers import SummarySerializer
 from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
@@ -121,13 +121,16 @@ class PaperSerializer(serializers.ModelSerializer):
                 # Now add m2m values properly
                 paper.authors.add(*authors)
                 paper.hubs.add(*hubs)
-                
+
                 try:
                     self._add_file(paper, file)
                 except Exception as e:
                     sentry.log_error(
                         e,
                     )
+
+                self._add_citations(paper)
+
                 return paper
         except Exception as e:
             error = PaperSerializerError(e, 'Failed to created paper')
@@ -222,6 +225,12 @@ class PaperSerializer(serializers.ModelSerializer):
                 except Flag.DoesNotExist:
                     pass
         return flag
+
+    def _add_references(self, paper):
+        try:
+            add_references(paper.id)
+        except Exception as e:
+            print(e)
 
     def _add_file(self, paper, file):
         if (type(file) is str):
