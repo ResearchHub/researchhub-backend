@@ -10,14 +10,22 @@ from datetime import timedelta
 from researchhub.celery import app
 from paper.models import Paper
 from paper.utils import check_url_contains_pdf, get_pdf_from_url
+from utils.semantic_scholar import semantic_scholar_api
+
 
 @app.task
 def download_pdf(paper_id):
     paper = Paper.objects.get(id=paper_id)
-
     if paper.url and check_url_contains_pdf(paper.url):
         pdf = get_pdf_from_url(paper.url)
         filename = paper.url.split('/').pop()
         paper.file.save(filename, pdf)
         paper.save(update_fields=['file'])
 
+
+@app.task
+def add_references(paper_id):
+    paper = Paper.objects.get(id=paper_id)
+    if paper.doi:
+        semantic_scholar_api.execute(paper.doi)
+        pass
