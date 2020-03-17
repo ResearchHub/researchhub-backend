@@ -8,6 +8,7 @@ from utils.http import check_url_contains_pdf
 from utils.semantic_scholar import SemanticScholar
 from utils.crossref import Crossref
 
+import fitz
 import logging
 import os
 import requests
@@ -160,5 +161,41 @@ def celery_extract_figures(paper_id):
         extracted_figure_path = f'{path}{extracted_figure}'
         if '.png' in extracted_figure:
             with open(extracted_figure_path, 'rb') as f:
-                Figure.objects.create(file=File(f), paper=paper)
+                extracted_figures = Figure.objects.filter(paper=paper)
+                if not extracted_figures.filter(file__contains=f.name, figure_type=Figure.FIGURE):
+                    Figure.objects.create(file=File(f), paper=paper, figure_type=Figure.FIGURE)
+    shutil.rmtree(path)
+
+@app.task
+def celery_extract_pdf_preview(paper_id):
+    Paper = apps.get_model('paper.Paper')
+    Figure = apps.get_model('paper.Figure')
+    paper = Paper.objects.get(id=paper_id)
+
+    file = paper.file
+    if not file:
+        return
+
+    path = f'paper/figures/preview-{paper_id}/'
+    filename = f'{paper.id}.pdf'
+    file_path = f'{path}{filename}'
+    file_url = file.url
+
+    if not os.path.isdir(path):
+        os.mkdir(path)
+
+    res = requests.get(file_url)
+    with open(file_path, 'wb+') as f:
+        f.write(res.content)
+
+    doc = fitz.open(file_path)
+    extracted_figures = Figure.objects.filter(paper=paper)
+    for page in doc:
+        pix = page.getPixmap(alpha=False)
+        output_filename = f'{file_path}-{page.number}.png'
+        pix.writePNG(output_filename)
+        if not extracted_figures.filter(file__contains=output_filename, figure_type=Figure.PREVIEW):
+            with open(output_filename, 'rb') as f:
+                Figure.objects.create(file=File(f), paper=paper, figure_type=Figure.PREVIEW)
+
     shutil.rmtree(path)

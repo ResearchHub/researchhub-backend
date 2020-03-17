@@ -4,7 +4,7 @@ from django.contrib.postgres.fields import JSONField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
 from paper.utils import MANUBOT_PAPER_TYPES
-from .tasks import celery_extract_figures
+from .tasks import celery_extract_figures, celery_extract_pdf_preview
 from researchhub.celery import app
 from researchhub.settings import TESTING
 from summary.models import Summary
@@ -291,6 +291,12 @@ class Paper(models.Model):
         else:
             celery_extract_figures(self.id)
 
+    def extract_pdf_preview(self):
+        if not TESTING:
+            celery_extract_pdf_preview.apply_async((self.id,), priority=3)
+        else:
+            celery_extract_pdf_preview(self.id)
+
     def calculate_score(self):
         if hasattr(self, 'score'):
             return self.score
@@ -314,6 +320,13 @@ class Paper(models.Model):
 
 
 class Figure(models.Model):
+    FIGURE = 'FIGURE'
+    PREVIEW = 'PREVIEW'
+    FIGURE_TYPE_CHOICES = [
+        (FIGURE, 'Figure'),
+        (PREVIEW, 'Preview')
+    ]
+
     file = models.FileField(
         upload_to='uploads/figures/%Y/%m/%d',
         default=None,
@@ -325,6 +338,7 @@ class Figure(models.Model):
         on_delete=models.CASCADE,
         related_name='figures'
     )
+    figure_type = models.CharField(choices=FIGURE_TYPE_CHOICES, max_length=16)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
