@@ -1,3 +1,5 @@
+from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 from django.db import transaction
 from django.http import QueryDict
 import rest_framework.serializers as serializers
@@ -223,9 +225,14 @@ class PaperSerializer(serializers.ModelSerializer):
 
     def _add_file(self, paper, file):
         if (type(file) is str):
-            paper.url = file
-            paper.file = None
-            paper.save(update_fields=['url', 'file'])
+            try:
+                URLValidator()(file)
+            except (ValidationError, Exception) as e:
+                print(e)
+            else:
+                paper.url = file
+                paper.file = None
+                paper.save()
         elif file is not None:
             paper.file = file
             paper.save(update_fields=['file'])
