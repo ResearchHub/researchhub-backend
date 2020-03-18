@@ -9,7 +9,7 @@ class Hub(models.Model):
     UNLOCK_AFTER = 14
 
     name = models.CharField(max_length=1024, unique=True)
-    slug = models.CharField(max_length=256, unique=True, blank=True)
+    slug = models.CharField(max_length=256, unique=True, blank=True, null=True)
     slug_index = models.IntegerField(blank=True, null=True)
     acronym = models.CharField(max_length=255, default='', blank=True)
     is_locked = models.BooleanField(default=False)
