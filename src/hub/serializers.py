@@ -14,7 +14,8 @@ class HubSerializer(serializers.ModelSerializer):
             'name',
             'is_locked',
             'subscriber_count',
-            'user_is_subscribed'
+            'user_is_subscribed',
+            'slug',
         ]
         read_only_fields = [
             'subscriber_count',
