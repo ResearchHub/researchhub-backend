@@ -25,16 +25,20 @@ class Hub(models.Model):
 
     def save(self, *args, **kwargs):
         self.name = self.name.lower()
+        self.slugify()
+        return super(Hub, self).save(*args, **kwargs)
+    
+    def slugify(self):
         if not self.slug:
             self.slug = slugify(self.name)
-            hub_slugs = Hub.objects.filter(slug=self.slug)
+            hub_slugs = Hub.objects.filter(slug__startswith=self.slug).order_by('slug_index')
             if hub_slugs.exists():
                 if not hub_slugs.first().slug_index:
                     self.slug_index = 1
                 else:
                     self.slug_index = hub_slugs.first().slug_index + 1
-                self.slug = self.slug + '-' + self.slug_index
-        return super(Hub, self).save(*args, **kwargs)
+                self.slug = self.slug + '-' + str(self.slug_index)
+        return self.slug
 
     @property
     def subscriber_count_indexing(self):
