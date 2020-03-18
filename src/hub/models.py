@@ -2,12 +2,15 @@ from django.db import models
 from django.db.models import Q, Count
 
 from paper.models import Vote as PaperVote
+from slugify import slugify
 
 
 class Hub(models.Model):
     UNLOCK_AFTER = 14
 
     name = models.CharField(max_length=1024, unique=True)
+    slug = models.CharField(max_length=256, unique=True)
+    slug_index = models.IntegerField()
     acronym = models.CharField(max_length=255, default='', blank=True)
     is_locked = models.BooleanField(default=False)
     subscribers = models.ManyToManyField(
@@ -22,6 +25,15 @@ class Hub(models.Model):
 
     def save(self, *args, **kwargs):
         self.name = self.name.lower()
+        if not self.slug:
+            self.slug = slugify(self.name)
+            hub_slugs = Hub.objects.filter(slug=self.slug)
+            if hub_slugs.exists():
+                if not hub_slugs.first().slug_index:
+                    self.slug_index = 1
+                else:
+                    self.slug_index = hub_slugs.first().slug_index + 1
+                self.slug = self.slug + '-' + self.slug_index
         return super(Hub, self).save(*args, **kwargs)
 
     @property
