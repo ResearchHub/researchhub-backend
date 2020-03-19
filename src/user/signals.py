@@ -7,7 +7,7 @@ from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 
 from bullet_point.models import BulletPoint
 from discussion.models import Comment, Reply, Thread
-from notifications.models import Notification
+from notification.models import Notification
 from paper.models import Paper
 from researchhub.settings import TESTING
 from summary.models import Summary

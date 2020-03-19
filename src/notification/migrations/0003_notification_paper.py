@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('paper', '0030_paper_retrieved_from_external_source'),
-        ('notifications', '0002_auto_20200319_0112'),
+        ('notification', '0002_auto_20200319_0112'),
     ]
 
     operations = [

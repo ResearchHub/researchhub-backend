@@ -20,7 +20,7 @@ import researchhub.views
 import search.urls
 import summary.views
 import user.views
-import notifications.views
+import notification.views
 
 from researchhub.settings import CLOUD, NO_SILK
 
@@ -135,7 +135,7 @@ urlpatterns = [
     path('', researchhub.views.index, name='index'),
 
     # For websocket testing
-    path('websocket_test', notifications.views.test, name='websocket')
+    path('websocket_test', notification.views.test, name='websocket')
 ]
 
 if not CLOUD and not NO_SILK:
