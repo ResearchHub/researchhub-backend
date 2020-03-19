@@ -168,12 +168,16 @@ INSTALLED_APPS = [
     'django_ses',
     'django_inlinecss',
 
+    # Channels
+    'channels',
+
     # Custom apps
     'bullet_point',
     'discussion',
     'ethereum',
     'hub',
     'mailing_list',
+    'notifications',
     'oauth',
     'paper',
     'reputation',
@@ -521,6 +525,16 @@ CELERY_TASK_DEFAULT_QUEUE = APP_ENV
 
 REDBEAT_REDIS_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
 
+# Django Channels
+ASGI_APPLICATION = 'researchhub.routing.application'
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
 
 # Async service
 

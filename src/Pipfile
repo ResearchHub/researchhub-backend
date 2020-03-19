@@ -35,7 +35,8 @@ django-celery-beat = "*"
 ipdb = "*"
 habanero = "*"
 celery-redbeat = "*"
-python-slugify = "*"
+channels = "*"
+channels-redis = "*"
 
 [requires]
 python_version = "3.7"
