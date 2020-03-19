@@ -119,9 +119,13 @@ class PaperSerializer(serializers.ModelSerializer):
                 # Now add m2m values properly
                 paper.authors.add(*authors)
                 paper.hubs.add(*hubs)
-
-                self._add_file(paper, file)
-
+                
+                try:
+                    self._add_file(paper, file)
+                except Exception as e:
+                    sentry.log_error(
+                        e,
+                    )
                 return paper
         except Exception as e:
             error = PaperSerializerError(e, 'Failed to created paper')
