@@ -27,7 +27,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return Notification.objects.filter(user=user)
+        return Notification.objects.filter(recipient=user)
 
     def partial_update(self, request, *args, **kwargs):
         if request.data.get('read') is True:
