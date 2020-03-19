@@ -1,7 +1,10 @@
 from django.shortcuts import render
 from django.utils import timezone
-from rest_framework import viewsets
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from utils.http import PATCH
 
 from notification.models import Notification
 from notification.serializers import NotificationSerializer
@@ -19,7 +22,11 @@ class NotificationViewSet(viewsets.ModelViewSet):
         """Instantiates and returns the list of permissions that this view
         requires.
         """
-        if self.action == 'list' or self.action == 'partial_update':
+        if (
+            (self.action == 'list')
+            or (self.action == 'partial_update')
+            or (self.action == 'mark_read')
+        ):
             permission_classes = [IsAuthenticated]
         else:
             permission_classes = [IsAdminUser]
@@ -34,3 +41,17 @@ class NotificationViewSet(viewsets.ModelViewSet):
             request.data['read_date'] = timezone.now()
         response = super().partial_update(request, *args, **kwargs)
         return response
+
+    @action(
+        detail=False,
+        methods=[PATCH],
+        permission_classes=[IsAuthenticated]
+    )
+    def mark_read(self, request, pk=None):
+        ids = request.data.get('ids', [])
+        user = request.user
+        Notification.objects.filter(
+            recipient=user,
+            id__in=ids
+        ).update(read=True, read_date=timezone.now())
+        return Response('Success', status=status.HTTP_200_OK)
