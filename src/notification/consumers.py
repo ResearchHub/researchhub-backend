@@ -11,9 +11,9 @@ from user.models import User
 class NotificationConsumer(WebsocketConsumer):
     def connect(self):
         kwargs = self.scope['url_route']['kwargs']
-        if 'user' in kwargs:
+        if 'user' in self.scope:
             print('--------- user in scope ---------')
-            user = kwargs['user']
+            user = self.scope['user']
         else:
             user_id = kwargs['user_id']
             user = User.objects.get(id=user_id)
