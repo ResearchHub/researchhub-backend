@@ -11,6 +11,7 @@ class NotificationConsumer(WebsocketConsumer):
     def connect(self):
         kwargs = self.scope['url_route']['kwargs']
         if 'user' in kwargs:
+            print('--------- user in scope ---------')
             user = kwargs['user']
         else:
             user_id = kwargs['user_id']
@@ -55,7 +56,7 @@ class NotificationConsumer(WebsocketConsumer):
     def send_notification(self, event):
         notification_type = event['notification_type']
         notification_id = event['id']
-        notification = Notification.objects.get(notification_id)
+        notification = Notification.objects.get(id=notification_id)
         serialized_data = NotificationSerializer(notification).data
         # Send message to WebSocket (Frontend)
         data = {
