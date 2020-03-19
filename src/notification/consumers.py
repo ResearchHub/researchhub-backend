@@ -18,8 +18,8 @@ class NotificationConsumer(WebsocketConsumer):
             user_id = kwargs['user_id']
             user = User.objects.get(id=user_id)
         self.user = user
-        room_group_name = f'notification_{user.id}_{user.first_name}_{user.last_name}'
-        self.room_group_name = room_group_name
+        room = f'notification_{user.id}_{user.first_name}_{user.last_name}'
+        self.room_group_name = room
         print(self.room_group_name)
         print(self.channel_name)
 

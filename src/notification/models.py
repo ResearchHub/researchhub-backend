@@ -42,7 +42,7 @@ class Notification(models.Model):
     updated_date = models.DateTimeField(auto_now=True)
 
     def send_notification(self):
-        user = self.receiver
+        user = self.recipient
         room = f'notification_{user.id}_{user.first_name}_{user.last_name}'
         print(room)
         notification_type = self.action.content_type.app_label
