@@ -94,6 +94,7 @@ def create_action(sender, instance, created, **kwargs):
         create_notification(sender, instance, created, action, **kwargs)
         return action
 
+
 def create_notification(sender, instance, created, action, **kwargs):
     if created:
         if sender == Summary:
@@ -111,34 +112,13 @@ def create_notification(sender, instance, created, action, **kwargs):
 
         notification = Notification.objects.create(
             paper=paper,
-            receiver=receiver,
-            creator=creator,
+            recipient=receiver,
+            action_user=creator,
             action=action
         )
         notification.send_notification()
 
         return notification
-
-def create_notification(sender, instance, created, action, **kwargs):
-    if created:
-        for recipient in action.item.users_to_notify:
-            if sender == Summary:
-                creator = instance.proposed_by
-                paper = instance.paper
-            elif sender == Paper:
-                creator = instance.uploaded_by
-                paper = instance
-            else:
-                creator = instance.created_by
-                paper = instance.paper
-
-            notification = Notification.objects.create(
-                paper=paper,
-                recipient=recipient,
-                action_user=creator,
-                action=action
-            )
-            notification.send_notification()
 
 
 def get_related_hubs(instance):

@@ -4,16 +4,18 @@ from .models import Notification
 from paper.serializers import PaperSerializer
 from user.serializers import UserSerializer
 
+
 class NotificationSerializer(serializers.ModelSerializer):
     paper = PaperSerializer()
-    receiver = UserSerializer(
+    recipient = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
-    creator = UserSerializer(
+    action_user = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
+
     class Meta:
         fields = '__all__'
         model = Notification
