@@ -44,7 +44,12 @@ class Paper(models.Model):
         blank=True
     )
     # currently this is the url entered by users during upload (seed URL)
-    url = models.URLField(default=None, null=True, blank=True)
+    url = models.URLField(
+        max_length=1024,
+        default=None,
+        null=True,
+        blank=True
+    )
     summary = models.ForeignKey(
         Summary,
         blank=True,
@@ -53,14 +58,21 @@ class Paper(models.Model):
         on_delete=models.SET_NULL
     )
     file = models.FileField(
+        max_length=1024,
         upload_to='uploads/papers/%Y/%m/%d',
         default=None,
         null=True,
         blank=True
     )
     pdf_file_license = models.TextField(default=None, null=True, blank=True)
-    pdf_url = models.URLField(default=None, null=True, blank=True)
+    pdf_url = models.URLField(
+        max_length=1024,
+        default=None,
+        null=True,
+        blank=True
+    )
     pdf_url_for_landing_page = models.URLField(
+        max_length=1024,
         default=None,
         null=True,
         blank=True
