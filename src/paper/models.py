@@ -7,6 +7,13 @@ from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
 from summary.models import Summary
 
+HELP_TEXT_IS_PUBLIC = (
+    'Hides the paper from the public.'
+)
+HELP_TEXT_IS_REMOVED = (
+    'Hides the paper because it is not allowed.'
+)
+
 
 class Paper(models.Model):
     title = models.CharField(max_length=1024)  # User generated title
@@ -32,11 +39,6 @@ class Paper(models.Model):
     )
     references = models.ManyToManyField(
         'self',
-        related_name='referenced_by',
-        blank=True
-    )
-    external_references = models.ManyToManyField(
-        'paper.ExteranlReference',
         related_name='referenced_by',
         blank=True
     )
@@ -112,9 +114,21 @@ class Paper(models.Model):
                   'in the Unpaywall OA Location data format.'
     )
     retrieved_from_external_source = models.BooleanField(default=False)
+    is_public = models.BooleanField(
+        default=True,
+        help_text=HELP_TEXT_IS_PUBLIC
+    )
+    is_removed = models.BooleanField(
+        default=False,
+        help_text=HELP_TEXT_IS_REMOVED
+    )
 
     class Meta:
         ordering = ['-paper_publish_date']
+
+    @property
+    def is_hidden(self):
+        return (not self.is_public) or self.is_removed
 
     @property
     def owners(self):
@@ -140,22 +154,42 @@ class Paper(models.Model):
         return self.threads.all()
 
     @classmethod
-    def create_from_csl_item(cls, csl_item):
+    def create_from_csl_item(
+        cls,
+        csl_item,
+        doi=None,
+        externally_sourced=False,
+        is_public=None
+    ):
         """
         Create a paper object from a CSL_Item.
         This may be useful if we want to auto-populate the paper
         database at some point.
         """
         from manubot.cite.csl_item import CSL_Item
+
         if not isinstance(csl_item, CSL_Item):
             csl_item = CSL_Item(csl_item)
+
         paper = cls(title=csl_item['title'], paper_title=csl_item['title'])
+
         date = csl_item.get_date("issued", fill=True)
         if date:
             paper.paper_publish_date = datetime.date.fromisoformat(date)
+
+        if doi is not None:
+            paper.doi = doi
         if 'DOI' in csl_item:
             paper.doi = csl_item['DOI'].lower()
+
         paper.csl_item = csl_item
+
+        paper.retrieved_from_external_source = externally_sourced
+
+        paper.is_public = True
+        if externally_sourced is True:
+            paper.is_public = False
+
         paper.save()
         return paper
 
@@ -243,25 +277,6 @@ class Paper(models.Model):
     def update_summary(self, summary):
         self.summary = summary
         self.save()
-
-
-class ExternalCitation(models.Model):
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
-    doi = models.CharField(max_length=255, default=None, null=True, blank=True)
-    paper_title = models.CharField(
-        max_length=1024,
-        default=None,
-        null=True,
-        blank=True
-    )
-    paper_publish_date = models.DateField(null=True)
-    tagline = models.TextField(
-        default=None,
-        null=True,
-        blank=True
-    )
-    url = models.URLField(default=None, null=True, blank=True)
 
 
 class Vote(models.Model):
