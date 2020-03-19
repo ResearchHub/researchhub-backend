@@ -177,7 +177,7 @@ INSTALLED_APPS = [
     'ethereum',
     'hub',
     'mailing_list',
-    'notification',
+    'notifications',
     'oauth',
     'paper',
     'reputation',
@@ -531,7 +531,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [(REDIS_HOST, REDIS_PORT)],
+            "hosts": [('127.0.0.1', 6379)],
         },
     },
 }
