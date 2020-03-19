@@ -177,7 +177,7 @@ INSTALLED_APPS = [
     'ethereum',
     'hub',
     'mailing_list',
-    'notifications',
+    'notification',
     'oauth',
     'paper',
     'reputation',

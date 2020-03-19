@@ -7,6 +7,7 @@ from .models import Notification
 from .serializers import NotificationSerializer
 from user.models import User
 
+
 class NotificationConsumer(WebsocketConsumer):
     def connect(self):
         kwargs = self.scope['url_route']['kwargs']
@@ -17,7 +18,8 @@ class NotificationConsumer(WebsocketConsumer):
             user_id = kwargs['user_id']
             user = User.objects.get(id=user_id)
         self.user = user
-        self.room_group_name = f'notification_{user.id}_{user.first_name}_{user.last_name}'
+        room_group_name = f'notification_{user.id}_{user.first_name}_{user.last_name}'
+        self.room_group_name = room_group_name
         print(self.room_group_name)
         print(self.channel_name)
 
@@ -46,6 +48,7 @@ class NotificationConsumer(WebsocketConsumer):
                 'message': message
             }
         )
+
     # Can Ignore - Backend testing
     def chat_message(self, event):
         message = event['message']
