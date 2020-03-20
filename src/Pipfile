@@ -37,6 +37,7 @@ habanero = "*"
 celery-redbeat = "*"
 channels = "*"
 channels-redis = "*"
+unidecode = "*"
 
 [requires]
 python_version = "3.7"
