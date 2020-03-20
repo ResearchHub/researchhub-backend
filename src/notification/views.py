@@ -34,7 +34,9 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return Notification.objects.filter(recipient=user)
+        return Notification.objects.filter(recipient=user).order_by(
+            '-created_date'
+        )
 
     def partial_update(self, request, *args, **kwargs):
         if request.data.get('read') is True:
