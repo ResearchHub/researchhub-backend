@@ -25,7 +25,7 @@ class PaperSerializer(serializers.ModelSerializer):
     discussion_count = serializers.SerializerMethodField()
     hubs = HubSerializer(many=True, required=False)
     referenced_by = serializers.SerializerMethodField()
-    references = serializers.SerializerMethodField()
+    references = serializers.PrimaryKeyRelatedField(read_only=True, many=True)
     score = serializers.SerializerMethodField()
     summary = SummarySerializer(required=False)
     uploaded_by = UserSerializer(read_only=True)
@@ -196,14 +196,6 @@ class PaperSerializer(serializers.ModelSerializer):
     def get_referenced_by(self, obj):
         serialized = PaperSerializer(
             obj.referenced_by,
-            many=True,
-            context=self.context
-        )
-        return serialized.data
-
-    def get_references(self, obj):
-        serialized = PaperSerializer(
-            obj.references,
             many=True,
             context=self.context
         )
