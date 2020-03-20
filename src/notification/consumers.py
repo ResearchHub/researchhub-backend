@@ -21,7 +21,7 @@ class NotificationConsumer(WebsocketConsumer):
             self.close(code=401)
         else:
             self.user = user
-            room = f'notification_${user.id}'
+            room = f'notification_{user.id}'
             self.room_group_name = room
 
             async_to_sync(self.channel_layer.group_add)(
