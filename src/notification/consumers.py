@@ -30,7 +30,7 @@ class NotificationConsumer(WebsocketConsumer):
                 self.room_group_name,
                 self.channel_name
             )
-            self.accept()
+            self.accept(subprotocol='Token')
 
     def disconnect(self, close_code):
         print(close_code)
