@@ -17,7 +17,7 @@ class TokenAuthMiddleware:
         close_old_connections()
         headers = dict(scope['headers'])
         try:
-            if 'sec-websocket-protocol' in headers:
+            if b'sec-websocket-protocol' in headers:
                 token = headers[b'sec-websocket-protocol'].decode().split(', ')
                 token_name, token_key = token
                 if token_name == 'Token':
