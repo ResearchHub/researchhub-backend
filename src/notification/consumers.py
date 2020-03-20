@@ -19,25 +19,29 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             user = await database_sync_to_async(User.objects.get)(id=user_id)
 
         if user.is_anonymous:
-            await self.close()
+            await self.close(code=401)
+        else:
+            self.user = user
+            room = f'notification_{user.id}_{user.first_name}_{user.last_name}'
+            self.room_group_name = room
+            print(self.room_group_name)
+            print(self.channel_name)
 
-        self.user = user
-        room = f'notification_{user.id}_{user.first_name}_{user.last_name}'
-        self.room_group_name = room
-        print(self.room_group_name)
-        print(self.channel_name)
-
-        await self.channel_layer.group_add(
-            self.room_group_name,
-            self.channel_name
-        )
-        await self.accept()
+            await self.channel_layer.group_add(
+                self.room_group_name,
+                self.channel_name
+            )
+            await self.accept()
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(
-            self.room_group_name,
-            self.channel_name
-        )
+        print(close_code)
+        if close_code == 401 or not hasattr(self, 'room_group_name'):
+            return
+        else:
+            await self.channel_layer.group_discard(
+                self.room_group_name,
+                self.channel_name
+            )
 
     # Can Ignore - Backend testing
     async def receive(self, text_data, **kwargs):
