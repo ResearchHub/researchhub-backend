@@ -98,6 +98,7 @@ def create_action(sender, instance, created, **kwargs):
 def create_notification(sender, instance, created, action, **kwargs):
     if created:
         for recipient in action.item.users_to_notify:
+            recipient_exists = True
             if sender == Summary:
                 creator = instance.proposed_by
                 paper = instance.paper
@@ -108,7 +109,12 @@ def create_notification(sender, instance, created, action, **kwargs):
                 creator = instance.created_by
                 paper = instance.paper
 
-            if recipient != creator:
+            if type(recipient) is Author and recipient.user:
+                recipient = recipient.user
+            else:
+                recipient_exists = False
+
+            if recipient != creator and recipient_exists:
                 notification = Notification.objects.create(
                     paper=paper,
                     recipient=recipient,
