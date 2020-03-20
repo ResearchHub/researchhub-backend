@@ -111,7 +111,7 @@ def create_notification(sender, instance, created, action, **kwargs):
 
             if type(recipient) is Author and recipient.user:
                 recipient = recipient.user
-            else:
+            elif type(recipient) is Author and not recipient.user:
                 recipient_exists = False
 
             if recipient != creator and recipient_exists:
