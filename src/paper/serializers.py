@@ -24,6 +24,8 @@ class PaperSerializer(serializers.ModelSerializer):
     discussion = serializers.SerializerMethodField()
     discussion_count = serializers.SerializerMethodField()
     hubs = HubSerializer(many=True, required=False)
+    referenced_by = serializers.SerializerMethodField()
+    references = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
     summary = SummarySerializer(required=False)
     uploaded_by = UserSerializer(read_only=True)
@@ -33,6 +35,8 @@ class PaperSerializer(serializers.ModelSerializer):
     class Meta:
         fields = '__all__'
         read_only_fields = [
+            'referenced_by'
+            'references',
             'score',
             'user_vote',
             'user_flag',
@@ -129,7 +133,7 @@ class PaperSerializer(serializers.ModelSerializer):
                         e,
                     )
 
-                self._add_citations(paper)
+                self._add_references(paper)
 
                 return paper
         except Exception as e:
@@ -188,6 +192,22 @@ class PaperSerializer(serializers.ModelSerializer):
 
     def get_discussion_count(self, obj):
         return obj.get_discussion_count()
+
+    def get_referenced_by(self, obj):
+        serialized = PaperSerializer(
+            obj.referenced_by,
+            many=True,
+            context=self.context
+        )
+        return serialized.data
+
+    def get_references(self, obj):
+        serialized = PaperSerializer(
+            obj.references,
+            many=True,
+            context=self.context
+        )
+        return serialized.data
 
     def get_score(self, obj):
         return obj.calculate_score()
