@@ -43,7 +43,7 @@ class Notification(models.Model):
 
     def send_notification(self):
         user = self.recipient
-        room = f'notification_{user.id}_{user.first_name}_{user.last_name}'
+        room = f'notification_{user.id}'
         notification_type = self.action.content_type.app_label
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
