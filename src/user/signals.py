@@ -115,7 +115,8 @@ def create_notification(sender, instance, created, action, **kwargs):
                     action_user=creator,
                     action=action
                 )
-                notification.send_notification()
+                if not TESTING:
+                    notification.send_notification()
 
 
 def get_related_hubs(instance):
