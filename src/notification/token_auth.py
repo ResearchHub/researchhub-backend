@@ -1,4 +1,5 @@
 from django.contrib.auth.models import AnonymousUser
+from django.db import close_old_connections
 
 from channels.auth import AuthMiddlewareStack
 from rest_framework.authtoken.models import Token
@@ -21,6 +22,7 @@ class TokenAuthMiddleware:
                 if token_name == 'Token':
                     token = Token.objects.get(key=token_key)
                     scope['user'] = token.user
+                    close_old_connections()
             except Token.DoesNotExist:
                 scope['user'] = AnonymousUser()
         return self.inner(scope)
