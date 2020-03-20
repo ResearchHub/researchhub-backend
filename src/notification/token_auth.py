@@ -14,17 +14,16 @@ class TokenAuthMiddleware:
         self.inner = inner
 
     def __call__(self, scope):
+        close_old_connections()
         headers = dict(scope['headers'])
-        if b'authorization' in headers:
-            try:
-                token = headers[b'authorization'].decode().split()
-                token_name, token_key = token
-                if token_name == 'Token':
-                    token = Token.objects.get(key=token_key)
-                    scope['user'] = token.user
-                    close_old_connections()
-            except Token.DoesNotExist:
-                scope['user'] = AnonymousUser()
+        try:
+            token = headers[b'sec-websocket-protocol'].decode().split(', ')
+            token_name, token_key = token
+            if token_name == 'Token':
+                token = Token.objects.get(key=token_key)
+                scope['user'] = token.user
+        except Token.DoesNotExist:
+            scope['user'] = AnonymousUser()
         return self.inner(scope)
 
 
