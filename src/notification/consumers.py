@@ -12,7 +12,6 @@ class NotificationConsumer(WebsocketConsumer):
     def connect(self):
         kwargs = self.scope['url_route']['kwargs']
         if 'user' in self.scope:
-            print('--------- user in scope ---------')
             user = self.scope['user']
         else:
             user_id = kwargs['user_id']
@@ -22,10 +21,9 @@ class NotificationConsumer(WebsocketConsumer):
             self.close(code=401)
         else:
             self.user = user
-            room = f'notification_{user.id}_{user.first_name}_{user.last_name}'
+            room = f'notification_${user.id}'
             self.room_group_name = room
-            print(self.room_group_name)
-            print(self.channel_name)
+
             async_to_sync(self.channel_layer.group_add)(
                 self.room_group_name,
                 self.channel_name
@@ -33,7 +31,6 @@ class NotificationConsumer(WebsocketConsumer):
             self.accept(subprotocol='Token')
 
     def disconnect(self, close_code):
-        print(close_code)
         if close_code == 401 or not hasattr(self, 'room_group_name'):
             return
         else:
@@ -43,11 +40,11 @@ class NotificationConsumer(WebsocketConsumer):
             )
 
     def send_notification(self, event):
+        # Send message to webSocket (Frontend)
         notification_type = event['notification_type']
         notification_id = event['id']
         notification = Notification.objects.get(id=notification_id)
         serialized_data = NotificationSerializer(notification).data
-        # Send message to WebSocket (Frontend)
         data = {
             'notification_type': notification_type,
             'data': serialized_data
