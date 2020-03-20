@@ -39,6 +39,7 @@ class Paper(models.Model):
     )
     references = models.ManyToManyField(
         'self',
+        symmetrical=False,
         related_name='referenced_by',
         blank=True
     )
