@@ -1,4 +1,3 @@
-from django.shortcuts import render
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -8,11 +7,6 @@ from utils.http import PATCH
 
 from notification.models import Notification
 from notification.serializers import NotificationSerializer
-
-
-# TODO: Remove before merge
-def test(request):
-    return render(request, 'websocket_test.html')
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
