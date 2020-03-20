@@ -7,10 +7,10 @@ from notification.token_auth import TokenAuthMiddlewareStack
 application = ProtocolTypeRouter({
     # (http->django views is added by default)
     'websocket': AllowedHostsOriginValidator(
-        
+        TokenAuthMiddlewareStack(
             URLRouter(
                 notification.routing.websocket_urlpatterns
             )
-        
+        )
     ),
 })
