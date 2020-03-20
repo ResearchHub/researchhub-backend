@@ -38,7 +38,7 @@ celery-redbeat = "*"
 channels = "*"
 channels-redis = "*"
 unidecode = "*"
-slugify = "*"
+python-slugify = "*"
 
 [requires]
 python_version = "3.7"
