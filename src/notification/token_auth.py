@@ -17,11 +17,12 @@ class TokenAuthMiddleware:
         close_old_connections()
         headers = dict(scope['headers'])
         try:
-            token = headers[b'sec-websocket-protocol'].decode().split(', ')
-            token_name, token_key = token
-            if token_name == 'Token':
-                token = Token.objects.get(key=token_key)
-                scope['user'] = token.user
+            if 'sec-websocket-protocol' in headers:
+                token = headers[b'sec-websocket-protocol'].decode().split(', ')
+                token_name, token_key = token
+                if token_name == 'Token':
+                    token = Token.objects.get(key=token_key)
+                    scope['user'] = token.user
         except Token.DoesNotExist:
             scope['user'] = AnonymousUser()
         return self.inner(scope)

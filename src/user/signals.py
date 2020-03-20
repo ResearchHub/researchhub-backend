@@ -108,13 +108,14 @@ def create_notification(sender, instance, created, action, **kwargs):
                 creator = instance.created_by
                 paper = instance.paper
 
-            notification = Notification.objects.create(
-                paper=paper,
-                recipient=recipient,
-                action_user=creator,
-                action=action
-            )
-            notification.send_notification()
+            if recipient != creator:
+                notification = Notification.objects.create(
+                    paper=paper,
+                    recipient=recipient,
+                    action_user=creator,
+                    action=action
+                )
+                notification.send_notification()
 
 
 def get_related_hubs(instance):
