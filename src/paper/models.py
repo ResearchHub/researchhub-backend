@@ -114,6 +114,19 @@ class Paper(models.Model):
         return mods + authors
 
     @property
+    def users_to_notify(self):
+        users = list(self.moderators.all())
+        paper_authors = self.authors.all()
+        for author in paper_authors:
+            if (
+                author.user
+                and author.user.emailrecipient.paper_subscription.threads
+                and not author.user.emailrecipient.paper_subscription.none
+            ):
+                users.append(author.user)
+        return users
+
+    @property
     def children(self):
         return self.threads.all()
 
