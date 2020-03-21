@@ -35,6 +35,9 @@ django-celery-beat = "*"
 ipdb = "*"
 habanero = "*"
 celery-redbeat = "*"
+channels = "*"
+channels-redis = "*"
+unidecode = "*"
 python-slugify = "*"
 
 [requires]

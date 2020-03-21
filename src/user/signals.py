@@ -7,6 +7,7 @@ from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 
 from bullet_point.models import BulletPoint
 from discussion.models import Comment, Reply, Thread
+from notification.models import Notification
 from paper.models import Paper
 from researchhub.settings import TESTING
 from summary.models import Summary
@@ -90,7 +91,38 @@ def create_action(sender, instance, created, **kwargs):
         else:
             hubs = get_related_hubs(instance)
         action.hubs.add(*hubs)
+        create_notification(sender, instance, created, action, **kwargs)
         return action
+
+
+def create_notification(sender, instance, created, action, **kwargs):
+    if created:
+        for recipient in action.item.users_to_notify:
+            recipient_exists = True
+            if sender == Summary:
+                creator = instance.proposed_by
+                paper = instance.paper
+            elif sender == Paper:
+                creator = instance.uploaded_by
+                paper = instance
+            else:
+                creator = instance.created_by
+                paper = instance.paper
+
+            if type(recipient) is Author and recipient.user:
+                recipient = recipient.user
+            elif type(recipient) is Author and not recipient.user:
+                recipient_exists = False
+
+            if recipient != creator and recipient_exists:
+                notification = Notification.objects.create(
+                    paper=paper,
+                    recipient=recipient,
+                    action_user=creator,
+                    action=action
+                )
+                if not TESTING:
+                    notification.send_notification()
 
 
 def get_related_hubs(instance):

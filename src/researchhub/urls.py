@@ -20,6 +20,7 @@ import researchhub.views
 import search.urls
 import summary.views
 import user.views
+import notification.views
 
 from researchhub.settings import CLOUD, NO_SILK
 
@@ -91,9 +92,16 @@ router.register(
     basename='email_recipient'
 )
 
+router.register(
+    r'notification',
+    notification.views.NotificationViewSet,
+    basename='notification'
+)
+
 router.register(r'user', user.views.UserViewSet)
 
 router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),

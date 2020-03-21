@@ -161,7 +161,7 @@ class UserActions:
             data = {
                 'created_by': creator,
                 'content_type': str(action.content_type),
-                'created_date': action.created_date,
+                'created_date': str(action.created_date),
             }
 
             if (
