@@ -46,8 +46,10 @@ def get_url_headers(url: str) -> requests.structures.CaseInsensitiveDict:
     for `url`. If `url` is invalid or returns a bad status code,
     a subclass of `requests.exceptions.RequestException` will be raised.
     """
-    response = http_request(RequestMethods.HEAD, url, timeout=2)
-    response.raise_for_status()
+    response = http_request(HEAD, url, timeout=2)
+    if (response.status_code == 404) or (response.status_code == 403):
+        response = http_request(GET, url, timeout=2)
+        response.raise_for_status()
     return response.headers
 
 
