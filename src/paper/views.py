@@ -10,6 +10,9 @@ from django.db.models import (
     F
 )
 from django.db.models.functions import Extract, Now
+from elasticsearch.exceptions import ConnectionError
+from django.db.models import Count, Q, Prefetch, prefetch_related_objects, Avg, Max, IntegerField, F
+from django.db.models.functions import Cast, Extract, Now
 from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
@@ -22,7 +25,9 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 
 from .filters import PaperFilter
-from .models import Flag, Paper, Vote
+from .models import Figure, Flag, Paper, Vote
+from discussion.models import Vote as DiscussionVote, Thread
+from discussion.serializers import SimpleThreadSerializer
 from .utils import get_csl_item, get_pdf_location_for_csl_item
 from .permissions import (
     CreatePaper,
@@ -36,6 +41,7 @@ from .permissions import (
 from .serializers import (
     BookmarkSerializer,
     FlagSerializer,
+    FigureSerializer,
     PaperSerializer,
     PaperVoteSerializer
 )
@@ -516,6 +522,56 @@ class PaperViewSet(viewsets.ModelViewSet):
         return self.get_paginated_response(
             {'data': serializer.data, 'no_results': False}
         )
+
+
+
+class FigureViewSet(viewsets.ModelViewSet):
+    queryset = Figure.objects.all()
+    serializer_class = FigureSerializer
+
+    def get_queryset(self):
+        return self.queryset
+
+    def get_figures(self, paper_id, figure_type=None):
+        # Returns all figures
+        paper = Paper.objects.get(id=paper_id)
+        figures = self.get_queryset().filter(paper=paper)
+
+        if figure_type:
+            figures = figures.filter(figure_type=figure_type)
+
+        figure_serializer = self.serializer_class(figures, many=True)
+        return Response(
+            {'data': figure_serializer.data},
+            status=status.HTTP_200_OK
+        )
+
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[IsAuthenticated]
+    )
+    def get_all_figures(self, request, pk=None):
+        # Returns all figures
+        return self.get_figures(pk)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[IsAuthenticated]
+    )
+    def get_preview_figures(self, request, pk=None):
+        # Returns pdf preview figures
+        return self.get_figures(pk, figure_type=Figure.PREVIEW)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[IsAuthenticated]
+    )
+    def get_regular_figures(self, request, pk=None):
+        # Returns regular figures
+        return self.get_figures(pk, figure_type=Figure.FIGURE)
 
 
 def find_vote(user, paper, vote_type):
