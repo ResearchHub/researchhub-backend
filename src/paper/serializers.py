@@ -8,7 +8,7 @@ from discussion.serializers import ThreadSerializer
 from hub.models import Hub
 from hub.serializers import HubSerializer
 from paper.exceptions import PaperSerializerError
-from paper.models import Flag, Paper, Vote
+from paper.models import Flag, Paper, Vote, Figure
 from paper.tasks import download_pdf, add_references
 from summary.serializers import SummarySerializer
 from user.models import Author
@@ -295,3 +295,10 @@ class PaperVoteSerializer(serializers.ModelSerializer):
             'paper',
         ]
         model = Vote
+
+
+class FigureSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        fields = '__all__'
+        model = Figure

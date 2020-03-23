@@ -5,7 +5,6 @@ from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
 from paper.utils import MANUBOT_PAPER_TYPES
 from .tasks import celery_extract_figures, celery_extract_pdf_preview
-from researchhub.celery import app
 from researchhub.settings import TESTING
 from summary.models import Summary
 
@@ -283,7 +282,6 @@ class Paper(models.Model):
                 )
             )['discussion_count']
             return thread_count + comment_count + reply_count
-
 
     def extract_figures(self):
         if not TESTING:
