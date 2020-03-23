@@ -46,6 +46,12 @@ class PaperDocument(Document):
             ELASTICSEARCH_AUTO_REINDEX is True
         )
 
+    def get_queryset(self):
+        """
+        Return the queryset that should be indexed by this doc type.
+        """
+        return Paper.objects.filter(is_public=True)
+
     def update(self, *args, **kwargs):
         try:
             super().update(*args, **kwargs)
