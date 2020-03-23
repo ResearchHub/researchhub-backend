@@ -96,6 +96,7 @@ def get_pdf_from_url(url):
     pdf = ContentFile(response.content)
     return pdf
 
+
 def fitz_extract_xobj(file_path):
     src = fitz.open(file_path)  # open input
     doc = fitz.open()  # output file
@@ -116,7 +117,7 @@ def fitz_extract_xobj(file_path):
             # ----------------------------------------------------------------------
             # We want this XObject, so:
             # (1) copy its page to the output PDF (enforcing zero rotation)
-            # (2) from that page remove everything except the XObject invocation
+            # (2) from that page remove everything except the XObject
             # (3) modify page size to match the XObject bbox
             # ----------------------------------------------------------------------
             doc.insertPDF(src, from_page=pno, to_page=pno, rotate=0)
@@ -126,7 +127,7 @@ def fitz_extract_xobj(file_path):
             page.setMediaBox(bbox)  # set its page size to XObject bbox
             page.cleanContents()  # consolidate contents of copied page
             xref = page.getContents()[0]  # and read resulting singular xref
-            doc.updateStream(xref, ref_cmd)  # replace it by our one-line command
+            doc.updateStream(xref, ref_cmd)  # replace it by our one-line cmd
             xobj_count += 1  # increase counter
 
         xobj_total += xobj_count  # increase total xobject count
@@ -137,6 +138,7 @@ def fitz_extract_xobj(file_path):
             pix.writePNG(f'{file_path}-{page.number}.png')
     else:
         print(f'No XObjects detected in {file_path}, no output generated.')
+
 
 def fitz_extract_figures(file_path):
     doc = fitz.open(file_path)

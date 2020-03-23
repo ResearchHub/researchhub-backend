@@ -35,14 +35,11 @@ django-celery-beat = "*"
 ipdb = "*"
 habanero = "*"
 celery-redbeat = "*"
-<<<<<<< HEAD
 channels = "*"
 channels-redis = "*"
 unidecode = "*"
 python-slugify = "*"
-=======
 pymupdf = "*"
->>>>>>> f2276cc... added in script/jar for figure extraction. created figure model for papers
 
 [requires]
 python_version = "3.7"
