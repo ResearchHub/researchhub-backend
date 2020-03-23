@@ -115,6 +115,12 @@ class Paper(models.Model):
                   'in the Unpaywall OA Location data format.'
     )
     retrieved_from_external_source = models.BooleanField(default=False)
+    external_source = models.CharField(
+        max_length=255,
+        default=None,
+        null=True,
+        blank=True
+    )
     is_public = models.BooleanField(
         default=True,
         help_text=HELP_TEXT_IS_PUBLIC
@@ -184,12 +190,12 @@ class Paper(models.Model):
             paper.doi = csl_item['DOI'].lower()
 
         paper.csl_item = csl_item
-
+        paper.is_public = True
         paper.retrieved_from_external_source = externally_sourced
 
-        paper.is_public = True
         if externally_sourced is True:
             paper.is_public = False
+            paper.external_source = 'manubot'
 
         paper.save()
         return paper
