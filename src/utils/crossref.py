@@ -32,6 +32,7 @@ class Crossref:
             doi=item['DOI'],
             url=item['URL'],
             paper_publish_date=get_crossref_issued_date(item),
+            external_source='crossref',
             retrieved_from_external_source=True,
             is_public=False
         )
