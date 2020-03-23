@@ -1,22 +1,28 @@
 import datetime
 
 from elasticsearch.exceptions import ConnectionError
-from django.db.models import Count, Q, Prefetch, prefetch_related_objects, Avg, Max, IntegerField, F
-from django.db.models.functions import Cast, Extract, Now
-from django.utils import timezone
+from django.db.models import (
+    Count,
+    Q,
+    Prefetch,
+    Max,
+    F
+)
+from django.db.models.functions import Extract, Now
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter, OrderingFilter
-from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
+from rest_framework.permissions import (
+    IsAuthenticatedOrReadOnly,
+    IsAuthenticated
+)
 from rest_framework.response import Response
 from requests.exceptions import (
     RequestException, MissingSchema, InvalidSchema, InvalidURL)
 
 from .filters import PaperFilter
 from .models import Flag, Paper, Vote
-from discussion.models import Vote as DiscussionVote, Thread
-from discussion.serializers import SimpleThreadSerializer
 from .utils import get_csl_item, get_pdf_location_for_csl_item
 from .permissions import (
     CreatePaper,
@@ -53,7 +59,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def prefetch_lookups(self):
         return (
-            #'users_who_bookmarked',
+            # 'users_who_bookmarked',
             'uploaded_by',
             'uploaded_by__bookmarks',
             'uploaded_by__author_profile',
@@ -90,10 +96,15 @@ class PaperViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self, prefetch=True):
-        if prefetch:
-            return self.queryset.prefetch_related(*self.prefetch_lookups())
-        else:
+        user = self.request.user
+        if user.is_staff:
             return self.queryset
+        if prefetch:
+            return self.queryset.filter(is_public=True).prefetch_related(
+                *self.prefetch_lookups()
+            )
+        else:
+            return self.queryset.filter(is_public=True)
 
     @action(
         detail=True,
@@ -354,32 +365,53 @@ class PaperViewSet(viewsets.ModelViewSet):
         # hub_id = 0 is the homepage
         # we aren't on a specific hub so don't filter by that hub_id
         if int(hub_id) == 0:
-            papers = self.get_queryset(prefetch=False).annotate(threads_count=threads_count).prefetch_related(*self.prefetch_lookups())
+            papers = self.get_queryset(prefetch=False).annotate(
+                threads_count=threads_count
+            ).prefetch_related(*self.prefetch_lookups())
         else:
-            papers = self.get_queryset(prefetch=False).annotate(threads_count=threads_count).filter(hubs=hub_id).prefetch_related(*self.prefetch_lookups())
+            papers = self.get_queryset(prefetch=False).annotate(
+                threads_count=threads_count
+            ).filter(hubs=hub_id).prefetch_related(*self.prefetch_lookups())
 
         if 'hot_score' in ordering:
-            INT_DIVISION = 90000000 # constant > (hours in a month) ** gravity * (discussion_weight + 2)
-            DISCUSSION_WEIGHT = 4 # num votes a comment is worth
+            # constant > (hours in month) ** gravity * (discussion_weight + 2)
+            INT_DIVISION = 90000000
+            # num votes a comment is worth
+            DISCUSSION_WEIGHT = 4
 
             gravity = 2.5
             threads_c = Count('threads')
             comments_c = Count('threads__comments')
             replies_c = Count('threads__comments__replies')
-            upvotes = Count( 'vote', filter=Q( vote__vote_type=Vote.UPVOTE,))
-            downvotes = Count( 'vote', filter=Q( vote__vote_type=Vote.DOWNVOTE,))
-            time_since_calc = (Extract(Now(), 'epoch') - Extract(Max('threads__created_date'), 'epoch')) / 3600
+            upvotes = Count('vote', filter=Q(vote__vote_type=Vote.UPVOTE,))
+            downvotes = Count('vote', filter=Q(vote__vote_type=Vote.DOWNVOTE,))
+            now_epoch = Extract(Now(), 'epoch')
+            created_epoch = Extract(Max('threads__created_date'), 'epoch')
+            time_since_calc = (now_epoch - created_epoch) / 3600
 
-            numerator = (threads_c + comments_c + replies_c) * DISCUSSION_WEIGHT + (upvotes - downvotes)
-            inverse_divisor = (INT_DIVISION / ((time_since_calc + 1) ** gravity))
+            numerator = (
+                (threads_c + comments_c + replies_c)
+                * DISCUSSION_WEIGHT
+                + (upvotes - downvotes)
+            )
+            inverse_divisor = (
+                INT_DIVISION
+                / ((time_since_calc + 1) ** gravity)
+            )
             order_papers = papers.annotate(
                 numerator=numerator,
                 hot_score=numerator * inverse_divisor
             )
             if ordering[0] == '-':
-                order_papers = order_papers.order_by(F('hot_score').desc(nulls_last=True), '-numerator')
+                order_papers = order_papers.order_by(
+                    F('hot_score').desc(nulls_last=True),
+                    '-numerator'
+                )
             else:
-                order_papers = order_papers.order_by(F('hot_score').asc(nulls_last=True), 'numerator')
+                order_papers = order_papers.order_by(
+                    F('hot_score').asc(nulls_last=True),
+                    'numerator'
+                )
 
         elif 'score' in ordering:
             upvotes = Count(
@@ -443,8 +475,18 @@ class PaperViewSet(viewsets.ModelViewSet):
             order_papers = papers.order_by(ordering)
 
         page = self.paginate_queryset(order_papers)
-        serializer = PaperSerializer(page, many=True, context={'request': self.request, 'thread_serializer': EmptySerializer})
-        return self.get_paginated_response({'data': serializer.data, 'no_results': False})
+        serializer = PaperSerializer(
+            page,
+            many=True,
+            context={
+                'request': self.request,
+                'thread_serializer': EmptySerializer
+            }
+        )
+        return self.get_paginated_response(
+            {'data': serializer.data, 'no_results': False}
+        )
+
 
 def find_vote(user, paper, vote_type):
     vote = Vote.objects.filter(
