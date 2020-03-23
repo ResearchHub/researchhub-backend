@@ -50,7 +50,12 @@ def add_or_create_reference_papers(paper, reference_list, reference_field):
     for doi in doi_misses:
         try:
             csl_item = get_doi_csl_item(doi)
-            manubot_paper = Paper.create_from_csl_item(csl_item)
+            manubot_paper = Paper.create_from_csl_item(
+                csl_item,
+                doi=doi,
+                externally_sourced=True,
+                is_public=False
+            )
             new_papers.append(manubot_paper)
         except Exception as e:
             print(e)
@@ -61,3 +66,4 @@ def add_or_create_reference_papers(paper, reference_list, reference_field):
                 print(e)
 
     getattr(paper, reference_field).add(*new_papers)
+    paper.save()
