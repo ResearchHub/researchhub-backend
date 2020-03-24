@@ -7,6 +7,11 @@ from utils.http import (
     RequestMethods as methods
 )
 
+MANUBOT_PAPER_TYPES = [
+    'paper-conference',
+    'article-journal',
+]
+
 
 def get_csl_item(url) -> dict:
     """
