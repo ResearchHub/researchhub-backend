@@ -1,4 +1,4 @@
-from django.db.models import Count, Sum, Q
+from django.db.models import Count, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from datetime import timedelta
 from django.utils import timezone
@@ -155,10 +155,12 @@ class HubViewSet(viewsets.ModelViewSet):
         # PK == 0 indicates for now that we're on the homepage
         if pk == '0':
             actions = Action.objects.filter(
+                user__isnull=False,
                 content_type__model__in=models
             ).order_by('-created_date').prefetch_related('item')
         else:
             actions = Action.objects.filter(hubs=pk).filter(
+                user__isnull=False,
                 content_type__model__in=models
             ).order_by('-created_date').prefetch_related('item')
 
