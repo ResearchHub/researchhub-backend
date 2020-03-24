@@ -178,25 +178,32 @@ class Paper(models.Model):
         if not isinstance(csl_item, CSL_Item):
             csl_item = CSL_Item(csl_item)
 
-        paper = cls(title=csl_item['title'], paper_title=csl_item['title'])
-
-        date = csl_item.get_date("issued", fill=True)
-        if date:
-            paper.paper_publish_date = datetime.date.fromisoformat(date)
-
-        if doi is not None:
-            paper.doi = doi
-        if 'DOI' in csl_item:
-            paper.doi = csl_item['DOI'].lower()
-
-        paper.csl_item = csl_item
-        paper.is_public = True
-        paper.retrieved_from_external_source = externally_sourced
-
+        is_public = True
+        external_source = None
         if externally_sourced is True:
-            paper.is_public = False
-            paper.external_source = 'manubot'
+            is_public = False
+            external_source = 'manubot'
 
+        if 'DOI' in csl_item:
+            doi = csl_item['DOI'].lower()
+
+        date = csl_item.get_date('issued', fill=True)
+        if date:
+            date = datetime.date.fromisoformat(date)
+        else:
+            date = None
+
+        paper = cls(
+            doi=doi,
+            is_public=is_public,
+            title=csl_item['title'],
+            paper_title=csl_item['title'],
+            url=csl_item['URL'],
+            csl_item=csl_item,
+            external_source=external_source,
+            retrieved_from_external_source=externally_sourced,
+            paper_publish_date=date
+        )
         paper.save()
         return paper
 
