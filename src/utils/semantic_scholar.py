@@ -11,14 +11,26 @@ class SemanticScholar:
 
     def __init__(self, doi):
         assert doi is not None, '`doi` must not be `None`'
-        self.execute(doi)
+        self.doi = doi
+        self.response = None
+        self.data = None
+        self.references = []
+        self.referenced_by = []
+        self.hub_candidates = []
+        self.abstract = None
+        self.execute(self.doi)
 
-    def execute(self, doi=None):
+    def execute(self, doi):
         url = self.base_url
         if doi is not None:
             url += doi
-        response = http_request(GET, url)
-        self.response = response
-        self.data = self.response.json()
-        self.references = self.data['references']
-        self.referenced_by = self.data['citations']
+        try:
+            response = http_request(GET, url)
+            self.response = response
+            self.data = self.response.json()
+            self.references = self.data.get('references', [])
+            self.referenced_by = self.data.get('citations', [])
+            self.hub_candidates = self.data.get('fieldsOfStudy', [])
+            self.abstract = self.data.get('abstract', None)
+        except Exception as e:
+            print(e)
