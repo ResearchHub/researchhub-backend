@@ -96,15 +96,28 @@ class PaperViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self, prefetch=True):
+        query = Q(is_public=True)
+        query_params = self.request.query_params
+        if query_params.get('make_public') or query_params.get('all'):
+            query = Q()
+
         user = self.request.user
         if user.is_staff:
             return self.queryset
         if prefetch:
-            return self.queryset.filter(is_public=True).prefetch_related(
+            return self.queryset.filter(query).prefetch_related(
                 *self.prefetch_lookups()
             )
         else:
-            return self.queryset.filter(is_public=True)
+            return self.queryset.filter(query)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if request.query_params.get('make_public'):
+            instance.is_public = True
+            instance.save()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
 
     @action(
         detail=True,
