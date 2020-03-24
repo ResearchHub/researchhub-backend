@@ -26,18 +26,25 @@ class Crossref:
 
     def create_paper(self):
         item = self.data['message']
-        paper = Paper.objects.create(
-            title=item['title'][0],
-            paper_title=item['title'][0],
-            doi=item['DOI'],
-            url=item['URL'],
-            paper_publish_date=get_crossref_issued_date(item),
-            external_source='crossref',
-            retrieved_from_external_source=True,
-            is_public=False
-        )
-        # download_pdf_by_license.signature((item, paper.id))
-        return paper
+        item_type = item.get('type', None)
+
+        if item_type == 'journal-article':
+            doi = item.get('DOI', None)
+            if doi is not None:
+                title = item.get('title', [])[0]
+                url = item.get('URL', None)
+                paper = Paper.objects.create(
+                    title=title,
+                    paper_title=title,
+                    doi=doi,
+                    url=url,
+                    paper_publish_date=get_crossref_issued_date(item),
+                    external_source='crossref',
+                    retrieved_from_external_source=True,
+                    is_public=False
+                )
+                return paper
+        return None
 
 
 def get_crossref_issued_date(item):
