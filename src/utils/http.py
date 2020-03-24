@@ -54,6 +54,11 @@ def get_url_headers(url: str) -> requests.structures.CaseInsensitiveDict:
 
 
 def check_url_contains_pdf(url) -> bool:
-    headers = get_url_headers(url)
-    content_type = headers.get('content-type', '')
-    return 'application/pdf' in content_type
+    if url is None:
+        return False
+    try:
+        headers = get_url_headers(url)
+        content_type = headers.get('content-type', '')
+        return 'application/pdf' in content_type
+    except Exception:
+        return False
