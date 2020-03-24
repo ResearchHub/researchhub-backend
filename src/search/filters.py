@@ -13,7 +13,7 @@ class ElasticsearchFuzzyFilter(filters.SearchFilter):
             query=terms,
             fields=fields,
             fuzziness='AUTO'
-        ) & ~Q("match", is_public=False)
+        )
         es = search.query(query)
 
         response = es.execute()
