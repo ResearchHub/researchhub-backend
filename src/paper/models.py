@@ -5,6 +5,7 @@ from django.db.models import Count, Q
 from django.contrib.postgres.fields import JSONField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
+from paper.utils import MANUBOT_PAPER_TYPES
 from summary.models import Summary
 
 HELP_TEXT_IS_PUBLIC = (
@@ -177,6 +178,9 @@ class Paper(models.Model):
 
         if not isinstance(csl_item, CSL_Item):
             csl_item = CSL_Item(csl_item)
+
+        if csl_item['type'] not in MANUBOT_PAPER_TYPES:
+            return None
 
         is_public = True
         external_source = None
