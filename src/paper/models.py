@@ -200,13 +200,14 @@ class Paper(models.Model):
         paper = cls(
             doi=doi,
             is_public=is_public,
-            title=csl_item['title'],
-            paper_title=csl_item['title'],
-            url=csl_item['URL'],
+            title=csl_item.get('title', None),
+            paper_title=csl_item.get('title', None),
+            url=csl_item.get('URL', None),
             csl_item=csl_item,
             external_source=external_source,
             retrieved_from_external_source=externally_sourced,
-            paper_publish_date=date
+            paper_publish_date=date,
+            tagline=csl_item.get('abstract', None)
         )
         paper.save()
         return paper
