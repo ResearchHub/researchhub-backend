@@ -283,15 +283,23 @@ class Paper(models.Model):
             )['discussion_count']
             return thread_count + comment_count + reply_count
 
-    def extract_figures(self):
-        if not TESTING:
-            celery_extract_figures.apply_async((self.id,), priority=3)
+    def extract_figures(self, use_celery=True):
+        if not TESTING and use_celery:
+            celery_extract_figures.apply_async(
+                (self.id,),
+                priority=3,
+                countdown=10,
+            )
         else:
             celery_extract_figures(self.id)
 
-    def extract_pdf_preview(self):
-        if not TESTING:
-            celery_extract_pdf_preview.apply_async((self.id,), priority=3)
+    def extract_pdf_preview(self, use_celery=True):
+        if not TESTING and use_celery:
+            celery_extract_pdf_preview.apply_async(
+                (self.id,),
+                priority=3,
+                countdown=10,
+            )
         else:
             celery_extract_pdf_preview(self.id)
 
