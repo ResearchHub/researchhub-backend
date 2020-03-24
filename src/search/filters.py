@@ -8,7 +8,12 @@ class ElasticsearchFuzzyFilter(filters.SearchFilter):
         search = getattr(view, 'search')
         fields = getattr(view, 'search_fields')
         terms = ' '.join(self.get_search_terms(request))
-        query = Q('multi_match', query=terms, fields=fields, fuzziness='AUTO')
+        query = Q(
+            'multi_match',
+            query=terms,
+            fields=fields,
+            fuzziness='AUTO'
+        ) & ~Q("match", is_public=False)
         es = search.query(query)
 
         response = es.execute()

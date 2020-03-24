@@ -1,10 +1,8 @@
 from django.core.files.base import ContentFile
-from rest_framework.exceptions import ValidationError
 import requests
 
-from django.core.files.base import ContentFile
-
 from utils.http import (
+    check_url_contains_pdf,
     http_request,
     RequestMethods as methods
 )
@@ -80,21 +78,6 @@ def download_pdf(url):
         pdf = get_pdf_from_url(url)
         filename = url.split('/').pop()
         return pdf, filename
-
-
-def check_url_contains_pdf(url):
-    try:
-        r = http_request(methods.HEAD, url, timeout=3)
-        content_type = r.headers.get('content-type')
-    except Exception as e:
-        raise ValidationError(f'Request to {url} failed: {e}')
-
-    if 'application/pdf' not in content_type:
-        raise ValueError(
-            f'Did not find content type application/pdf at {url}'
-        )
-    else:
-        return True
 
 
 def get_pdf_from_url(url):
