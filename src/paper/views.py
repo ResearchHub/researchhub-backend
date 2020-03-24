@@ -1,6 +1,7 @@
 import datetime
 
-from elasticsearch.exceptions import ConnectionError
+from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 from django.db.models import (
     Count,
     Q,
@@ -10,6 +11,7 @@ from django.db.models import (
 )
 from django.db.models.functions import Extract, Now
 from django_filters.rest_framework import DjangoFilterBackend
+from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -18,8 +20,6 @@ from rest_framework.permissions import (
     IsAuthenticated
 )
 from rest_framework.response import Response
-from requests.exceptions import (
-    RequestException, MissingSchema, InvalidSchema, InvalidURL)
 
 from .filters import PaperFilter
 from .models import Flag, Paper, Vote
@@ -39,7 +39,7 @@ from .serializers import (
     PaperSerializer,
     PaperVoteSerializer
 )
-from utils.http import RequestMethods, check_url_contains_pdf
+from utils.http import POST, check_url_contains_pdf
 from utils.serializers import EmptySerializer
 
 
@@ -267,15 +267,10 @@ class PaperViewSet(viewsets.ModelViewSet):
         response = update_or_create_vote(user, paper, Vote.DOWNVOTE)
         return response
 
-    @action(detail=False, methods=[RequestMethods.POST])
+    @action(detail=False, methods=[POST])
     def check_url(self, request):
         url = request.data.get('url', None)
-
-        try:
-            url_is_pdf = check_url_contains_pdf(url)
-        except (MissingSchema, InvalidSchema, InvalidURL) as e:
-            return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
-
+        url_is_pdf = check_url_contains_pdf(url)
         data = {'found_file': url_is_pdf}
         return Response(data, status=status.HTTP_200_OK)
 
@@ -302,22 +297,30 @@ class PaperViewSet(viewsets.ModelViewSet):
         """
         url = request.data.get('url')
         data = {'url': url}
+
         if not url:
             return Response(
                 "search_by_url requests must specify 'url'",
-                status=status.HTTP_400_BAD_REQUEST)
+                status=status.HTTP_400_BAD_REQUEST
+            )
         try:
-            url_is_pdf = check_url_contains_pdf(url)
-            data['url_is_pdf'] = url_is_pdf
-        except RequestException as error:
+            URLValidator()(url)
+        except (ValidationError, Exception) as e:
+            print(e)
             return Response(
-                f"Double check that URL is valid: {url}\n:{error}",
-                status=status.HTTP_400_BAD_REQUEST)
+                f"Double check that URL is valid: {url}",
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        url_is_pdf = check_url_contains_pdf(url)
+        data['url_is_pdf'] = url_is_pdf
+
         try:
             csl_item = get_csl_item(url)
         except Exception as error:
             data['warning'] = f"Generating csl_item failed with:\n{error}"
             csl_item = None
+
         if csl_item:
             url_is_unsupported_pdf = url_is_pdf and csl_item.get("URL") == url
             data['url_is_unsupported_pdf'] = url_is_unsupported_pdf
