@@ -70,13 +70,17 @@ def add_or_create_reference_papers(paper, reference_list, reference_field):
         new_paper = None
         try:
             new_paper = create_manubot_paper(doi)
-        except Exception:
+        except Exception as e:
+            print(f'Error creating manubot paper: {e}')
             try:
                 new_paper = create_crossref_paper(doi)
-            except Exception:
+            except Exception as e:
+                print(f'Error creating crossref paper: {e}')
                 pass
 
         if new_paper:
+            if not new_paper.tagline:
+                new_paper.tagline = tagline
             new_paper.hubs.add(*hubs)
             if reference_field == 'referenced_by':
                 new_paper.references.add(paper)
