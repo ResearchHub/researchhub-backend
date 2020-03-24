@@ -9,23 +9,21 @@ from utils.semantic_scholar import SemanticScholar
 from utils.crossref import Crossref
 
 import fitz
-import logging
 import os
 import requests
 import shutil
-import time
 from subprocess import call
-
-from celery.decorators import periodic_task
-from celery.task.schedules import crontab
 
 from django.apps import apps
 from django.core.files import File
-from django.utils import timezone
-from datetime import timedelta
 
 from researchhub.celery import app
-from paper.utils import check_url_contains_pdf, get_pdf_from_url, fitz_extract_figures
+from paper.utils import (
+    check_url_contains_pdf,
+    get_pdf_from_url,
+    fitz_extract_figures
+)
+
 
 @app.task
 def download_pdf(paper_id):
@@ -152,7 +150,7 @@ def celery_extract_figures(paper_id):
     fitz_extract_figures(file_path)
 
     figures = os.listdir(path)
-    if len(figures) == 1: # Only the pdf exists
+    if len(figures) == 1:  # Only the pdf exists
         args = ['java', '-jar', 'pdffigures2-assembly-0.1.0.jar', file_path, '-m', path, '-d', path, '-e']
         call(args)
         figures = os.listdir(path)
@@ -165,6 +163,7 @@ def celery_extract_figures(paper_id):
                 if not extracted_figures.filter(file__contains=f.name, figure_type=Figure.FIGURE):
                     Figure.objects.create(file=File(f), paper=paper, figure_type=Figure.FIGURE)
     shutil.rmtree(path)
+
 
 @app.task
 def celery_extract_pdf_preview(paper_id):

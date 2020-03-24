@@ -548,6 +548,32 @@ class FigureViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
+        methods=['post'],
+        permission_classes=[IsAuthor]
+    )
+    def add_figure(self, request, pk=None):
+        paper = Paper.objects.get(id=pk)
+        figure = request.files.get('figure')
+        figure_type = request.data.get('figure_type')
+        Figure.objects.create(
+            paper=paper,
+            file=figure,
+            figure_type=figure_type
+        )
+        return Response(status=200)
+
+    @action(
+        detail=True,
+        methods=['delete'],
+        permission_classes=[IsAuthor]
+    )
+    def delete_figure(self, request, pk=None):
+        figure = self.get_queryset().get(id=pk)
+        figure.delete()
+        return Response(status=200)
+
+    @action(
+        detail=True,
         methods=['get'],
         permission_classes=[IsAuthenticated]
     )
