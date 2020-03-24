@@ -1,5 +1,6 @@
 from manubot.cite.doi import get_doi_csl_item
 
+from hub.models import Hub
 from paper.models import Paper
 from paper.utils import get_pdf_from_url
 from researchhub.celery import app
@@ -39,13 +40,10 @@ def add_references(paper_id):
 
 def add_or_create_reference_papers(paper, reference_list, reference_field):
     dois = [ref['doi'] for ref in reference_list]
-    print(dois)
     doi_set = set(dois)
-    print(doi_set)
 
     existing_papers = Paper.objects.filter(doi__in=doi_set)
     for existing_paper in existing_papers:
-        # existing_paper.hubs.add(*paper.hubs.all())
         if reference_field == 'referenced_by':
             existing_paper.references.add(paper)
         else:
@@ -55,6 +53,20 @@ def add_or_create_reference_papers(paper, reference_list, reference_field):
     doi_misses = doi_set.difference(doi_hits)
 
     for doi in doi_misses:
+        if not doi:
+            continue
+        hubs = []
+        tagline = None
+        semantic_paper = SemanticScholar(doi)
+        if semantic_paper:
+            HUB_INSTANCE = 0
+            hubs = [
+                Hub.objects.get_or_create(name=hub_name.lower())[HUB_INSTANCE]
+                for hub_name
+                in semantic_paper.hub_candidates
+            ]
+            tagline = semantic_paper.abstract
+
         new_paper = None
         try:
             new_paper = create_manubot_paper(doi)
@@ -65,11 +77,12 @@ def add_or_create_reference_papers(paper, reference_list, reference_field):
                 pass
 
         if new_paper:
-            # new_paper.hubs.add(*paper.hubs.all())
+            new_paper.hubs.add(*hubs)
             if reference_field == 'referenced_by':
                 new_paper.references.add(paper)
             else:
                 paper.references.add(new_paper)
+            new_paper.save()
 
     paper.save()
 
