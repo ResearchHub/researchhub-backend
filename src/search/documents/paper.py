@@ -29,6 +29,7 @@ class PaperDocument(Document):
         fields = [
             'id',
             'doi',
+            'is_public',
             'paper_publish_date',
             'publication_type',
             'url',
