@@ -14,7 +14,6 @@ class PaperDocumentSerializer(DocumentSerializer):
             'discussion_count',
             'doi',
             'hubs',
-            'is_public',
             'paper_publish_date',
             'publication_type',
             'score',

@@ -29,7 +29,6 @@ class PaperDocument(Document):
         fields = [
             'id',
             'doi',
-            'is_public',
             'paper_publish_date',
             'publication_type',
             'url',
@@ -46,12 +45,6 @@ class PaperDocument(Document):
         auto_refresh = (TESTING is False) or (
             ELASTICSEARCH_AUTO_REINDEX is True
         )
-
-    def get_queryset(self):
-        """
-        Return the queryset that should be indexed by this doc type.
-        """
-        return Paper.objects.filter(is_public=True)
 
     def update(self, *args, **kwargs):
         try:
