@@ -44,7 +44,8 @@ class HubViewSet(viewsets.ModelViewSet):
             num_upvotes = Count('papers__vote__vote_type', filter=Q(papers__vote__vote_type=Vote.UPVOTE, created_date__gte=two_weeks_ago))
             num_downvotes = Count('papers__vote__vote_type', filter=Q(papers__vote__vote_type=Vote.DOWNVOTE, created_date__gte=two_weeks_ago))
             actions_past_two_weeks = Count('actions', filter=Q(actions__created_date__gte=two_weeks_ago))
-            return self.queryset.annotate(score=num_upvotes - num_downvotes + actions_past_two_weeks)
+            paper_count = Count('papers')
+            return self.queryset.annotate(score=num_upvotes - num_downvotes + actions_past_two_weeks + paper_count)
         else:
             return self.queryset
 
