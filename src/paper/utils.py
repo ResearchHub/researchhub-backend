@@ -2,6 +2,7 @@ from django.core.files.base import ContentFile
 import requests
 
 import fitz
+import jellyfish
 import requests
 
 from django.core.files.base import ContentFile
@@ -154,3 +155,15 @@ def fitz_extract_figures(file_path):
                 pix1 = None  # release storage early (optional)
             pix = None  # release storage early (optional)
     fitz_extract_xobj(file_path)
+
+
+def check_user_pdf_title(user_input_title, file_path):
+    doc = fitz.open(file_path)
+    doc_metadata = doc.metadata
+    doc_title = doc_metadata['title']
+
+    normalized_user_title = user_input_title.lower()
+    normalized_pdf_title = doc_title.lower()
+
+    # Checks if the title matches the pdf's metadata first
+
