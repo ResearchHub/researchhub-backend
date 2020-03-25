@@ -10,22 +10,33 @@ class Crossref:
         if doi:
             self.handle_doi(doi)
         # TODO: Handle query case
+        self.data = None
+        self.data_message = None
+        self.reference_count = None
+        self.referenced_by_count = None
+        self.referenced_by = []
+        self.references = []
 
     def handle_doi(self, doi):
         self.doi = doi
         self.data = self.cr.works(ids=[doi])
-        self.reference_count = self.data['message']['reference-count']
-        self.referenced_by_count = (
-            self.data['message']['is-referenced-by-count']
+        self.data_message = self.data.get('message', None)
+        if self.data_message is None:
+            return
+        self.reference_count = self.data_message.get('reference-count', None)
+        self.referenced_by_count = self.data_message.get(
+            'is-referenced-by-count',
+            None
         )
-        # TODO: Check if keys exist when count is 0
         if self.reference_count > 0:
-            self.references = self.data['message']['reference']
+            self.references = self.data_message.get('reference', [])
         if self.referenced_by_count > 0:
-            self.referenced_by = self.data['message']['relation']['cites']
+            relation = self.data_message.get('relation', None)
+            if relation:
+                self.referenced_by = relation.get('cites', [])
 
     def create_paper(self):
-        item = self.data['message']
+        item = self.data_message
         item_type = item.get('type', None)
 
         if item_type == 'journal-article':
