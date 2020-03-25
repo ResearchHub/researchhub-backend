@@ -70,7 +70,9 @@ class Summary(models.Model):
 
     @property
     def users_to_notify(self):
-        return self.paper.owners
+        if self.paper:
+            return self.paper.users_to_notify
+        return []
 
     @property
     def proposed_by_indexing(self):
