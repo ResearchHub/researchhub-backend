@@ -39,6 +39,7 @@ from .serializers import (
     PaperSerializer,
     PaperVoteSerializer
 )
+from paper.exceptions import PaperSerializerError
 from utils.http import POST, check_url_contains_pdf
 from utils.serializers import EmptySerializer
 
@@ -110,6 +111,12 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         else:
             return self.queryset.filter(query)
+
+    def create(self, *args, **kwargs):
+        try:
+            super().create(*args, **kwargs)
+        except PaperSerializerError as e:
+            return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
