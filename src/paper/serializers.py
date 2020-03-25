@@ -142,7 +142,7 @@ class PaperSerializer(serializers.ModelSerializer):
                 error,
                 base_error=error.trigger
             )
-            print(error)
+            raise error
 
     def update(self, instance, validated_data):
         authors = validated_data.pop('authors', [None])
@@ -175,7 +175,7 @@ class PaperSerializer(serializers.ModelSerializer):
                 error,
                 base_error=error.trigger
             )
-            print(error)
+            raise error
 
     def get_discussion(self, obj):
         request = self.context.get('request')
