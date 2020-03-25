@@ -40,6 +40,7 @@ channels-redis = "*"
 unidecode = "*"
 python-slugify = "*"
 pymupdf = "*"
+jellyfish = "*"
 
 [requires]
 python_version = "3.7"

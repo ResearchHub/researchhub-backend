@@ -4,7 +4,11 @@ from django.contrib.postgres.fields import JSONField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
 from paper.utils import MANUBOT_PAPER_TYPES
-from .tasks import celery_extract_figures, celery_extract_pdf_preview
+from .tasks import (
+    celery_extract_figures,
+    celery_extract_pdf_preview,
+    celery_extract_meta_data
+)
 from researchhub.settings import TESTING
 from summary.models import Summary
 
@@ -302,6 +306,15 @@ class Paper(models.Model):
             )
         else:
             celery_extract_pdf_preview(self.id)
+
+    def extract_meta_data(self, use_celery=True):
+        if not TESTING and use_celery:
+            celery_extract_meta_data.apply_async(
+                (self.id,),
+                priority=3
+            )
+        else:
+            celery_extract_meta_data(self.id)
 
     def calculate_score(self):
         if hasattr(self, 'score'):

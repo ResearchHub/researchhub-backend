@@ -193,8 +193,27 @@ def celery_extract_pdf_preview(paper_id):
         pix = page.getPixmap(alpha=False)
         output_filename = f'{file_path}-{page.number}.png'
         pix.writePNG(output_filename)
-        if not extracted_figures.filter(file__contains=output_filename, figure_type=Figure.PREVIEW):
+
+        if not extracted_figures.filter(
+            file__contains=output_filename,
+            figure_type=Figure.PREVIEW
+        ):
             with open(output_filename, 'rb') as f:
-                Figure.objects.create(file=File(f), paper=paper, figure_type=Figure.PREVIEW)
+                Figure.objects.create(
+                    file=File(f),
+                    paper=paper,
+                    figure_type=Figure.PREVIEW
+                )
 
     shutil.rmtree(path)
+
+
+@app.task
+def celery_extract_meta_data(paper_id):
+    Paper = apps.get_model('paper.Paper')
+    paper = Paper.objects.get(id=paper_id)
+    user_input_title = paper.title
+
+    path = f'paper/figures/preview-{paper_id}/'
+    filename = f'{paper.id}.pdf'
+    file_path = f'{path}{filename}'
