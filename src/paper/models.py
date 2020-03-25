@@ -1,6 +1,6 @@
 import datetime
 
-from django.db import models
+from django.db import models, IntegrityError
 from django.db.models import Count, Q
 from django.contrib.postgres.fields import JSONField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
@@ -134,6 +134,14 @@ class Paper(models.Model):
     class Meta:
         ordering = ['-paper_publish_date']
 
+    def __str__(self):
+        if self.title and self.uploaded_by:
+            return '{} - {}'.format(self.title, self.uploaded_by)
+        elif self.title:
+            return self.title
+        else:
+            return 'titleless paper'
+
     @property
     def is_hidden(self):
         return (not self.is_public) or self.is_removed
@@ -212,14 +220,6 @@ class Paper(models.Model):
         paper.save()
         return paper
 
-    def __str__(self):
-        if self.title and self.uploaded_by:
-            return '{} - {}'.format(self.title, self.uploaded_by)
-        elif self.title:
-            return self.title
-        else:
-            return 'titleless paper'
-
     @property
     def authors_indexing(self):
         '''Authors for Elasticsearch indexing.'''
@@ -251,6 +251,14 @@ class Paper(models.Model):
         if len(all_votes) > 0:
             return [self.get_vote_for_index(vote) for vote in all_votes]
         return {}
+
+    def save(self, *args, **kwargs):
+        doi = self.doi
+        if doi is not None:
+            existing_dois = Paper.objects.filter(doi=doi)
+            if len(existing_dois) > 0:
+                raise IntegrityError(f'Paper with DOI {doi} already exists')
+        return super().save(*args, **kwargs)
 
     def get_full_name(self, author_or_user):
         return f'{author_or_user.first_name} {author_or_user.last_name}'
