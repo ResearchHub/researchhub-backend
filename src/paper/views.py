@@ -114,7 +114,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def create(self, *args, **kwargs):
         try:
-            super().create(*args, **kwargs)
+            return super().create(*args, **kwargs)
         except PaperSerializerError as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
