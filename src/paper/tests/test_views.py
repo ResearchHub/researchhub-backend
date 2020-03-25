@@ -68,15 +68,15 @@ class PaperViewsTests(TestCase):
         response = get_authenticated_post_response(self.user, url, data)
         self.assertContains(response, 'false', status_code=200)
 
-    def test_check_url_responds_400_for_malformed_url(self):
+    def test_check_url_is_false_for_malformed_url(self):
         url = self.base_url + 'check_url/'
         data = {'url': 'bitcoin.org/bitcoin.pdf/'}
         response = get_authenticated_post_response(self.user, url, data)
-        self.assertContains(response, 'No schema', status_code=400)
+        self.assertContains(response, 'false', status_code=200)
 
         data = {'url': 'bitcoin'}
         response = get_authenticated_post_response(self.user, url, data)
-        self.assertContains(response, 'Invalid', status_code=400)
+        self.assertContains(response, 'false', status_code=200)
 
     def test_search_by_url_arxiv(self):
         url = self.base_url + 'search_by_url/'
@@ -179,7 +179,7 @@ class PaperViewsTests(TestCase):
 
     def test_search_by_url_bad(self):
         url = self.base_url + 'search_by_url/'
-        data = {'url': 'https://doi.org/this-is-a-bad-url'}
+        data = {'url': 'org/this-is-a-bad-url'}
         response = get_authenticated_post_response(self.user, url, data)
         self.assertContains(response, 'Double check that URL', status_code=400)
 
