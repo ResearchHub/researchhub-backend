@@ -153,6 +153,8 @@ class Paper(models.Model):
     def __str__(self):
         if self.title and self.uploaded_by:
             return '{} - {}'.format(self.title, self.uploaded_by)
+        elif self.title:
+            return self.title
         else:
             return 'titleless paper'
 
