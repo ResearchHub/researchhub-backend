@@ -1,5 +1,3 @@
-import datetime
-
 from django.db import models, IntegrityError
 from django.db.models import Count, Q
 from django.contrib.postgres.fields import JSONField
@@ -199,11 +197,7 @@ class Paper(models.Model):
         if 'DOI' in csl_item:
             doi = csl_item['DOI'].lower()
 
-        date = csl_item.get_date('issued', fill=True)
-        if date:
-            date = datetime.date.fromisoformat(date)
-        else:
-            date = None
+        paper_publish_date = csl_item.get_date('issued', fill=True)
 
         paper = cls(
             doi=doi,
@@ -214,7 +208,7 @@ class Paper(models.Model):
             csl_item=csl_item,
             external_source=external_source,
             retrieved_from_external_source=externally_sourced,
-            paper_publish_date=date,
+            paper_publish_date=paper_publish_date,
             tagline=csl_item.get('abstract', None)
         )
         paper.save()
