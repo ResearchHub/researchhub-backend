@@ -2,9 +2,6 @@ from manubot.cite.doi import get_doi_csl_item
 
 from hub.models import Hub
 from paper.models import Paper
-from paper.utils import get_pdf_from_url
-from researchhub.celery import app
-from utils.http import check_url_contains_pdf
 from utils.semantic_scholar import SemanticScholar
 from utils.crossref import Crossref
 
