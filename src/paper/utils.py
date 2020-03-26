@@ -1,13 +1,11 @@
-from django.core.files.base import ContentFile
 import requests
 
 import fitz
 import jellyfish
 import nltk
-import requests
 
 from django.core.files.base import ContentFile
-from rest_framework.exceptions import ValidationError
+from habanero import Crossref
 
 from utils.http import (
     check_url_contains_pdf,
@@ -196,3 +194,20 @@ def check_similarity(str1, str2, threshold=SIMILARITY_THRESHOLD):
     if r >= threshold:
         return True
     return False
+
+
+def get_crossref_results(query):
+    cr = Crossref()
+    filters = {'type': 'journal-article'}
+    limit = 10
+    sort = 'score'
+    order = 'desc'
+    results = cr.works(
+        query_bibliographic=query,
+        filters=filters,
+        limit=limit,
+        sort=sort,
+        order=order,
+    )
+    results = results['message']['items']
+    return results
