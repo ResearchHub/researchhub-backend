@@ -86,7 +86,10 @@ def add_or_create_reference_papers(paper, reference_list, reference_field):
                 new_paper.references.add(paper)
             else:
                 paper.references.add(new_paper)
-            new_paper.save()
+            try:
+                new_paper.save()
+            except Exception as e:
+                print(f'Error saving reference paper: {e}')
 
     paper.save()
 
