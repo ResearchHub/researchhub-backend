@@ -81,7 +81,6 @@ def add_or_create_reference_papers(paper, reference_list, reference_field):
         if new_paper:
             if not new_paper.tagline:
                 new_paper.tagline = tagline
-                new_paper.save()
             new_paper.hubs.add(*hubs)
             if reference_field == 'referenced_by':
                 new_paper.references.add(paper)
