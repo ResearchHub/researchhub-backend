@@ -11,7 +11,6 @@ from django.db.models import (
 )
 from django.db.models.functions import Extract, Now
 from elasticsearch.exceptions import ConnectionError
-from django.db.models import Count, Q, Prefetch, prefetch_related_objects, Avg, Max, IntegerField, F
 from django.db.models.functions import Cast, Extract, Now
 from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
