@@ -3,6 +3,7 @@ import requests
 
 import fitz
 import jellyfish
+import nltk
 import requests
 
 from django.core.files.base import ContentFile
@@ -18,6 +19,7 @@ MANUBOT_PAPER_TYPES = [
     'paper-conference',
     'article-journal',
 ]
+SIMILARITY_THRESHOLD = 0.9
 
 
 def get_csl_item(url) -> dict:
@@ -157,13 +159,40 @@ def fitz_extract_figures(file_path):
     fitz_extract_xobj(file_path)
 
 
-def check_user_pdf_title(user_input_title, file_path):
-    doc = fitz.open(file_path)
+def check_user_pdf_title(user_input_title, file):
+    if not user_input_title:
+        return False
+
+    doc = fitz.open(stream=file.read(), filetype='pdf')
     doc_metadata = doc.metadata
     doc_title = doc_metadata['title']
 
+    # Lowercasing titles for simple normalization
     normalized_user_title = user_input_title.lower()
     normalized_pdf_title = doc_title.lower()
 
     # Checks if the title matches the pdf's metadata first
+    similar = check_similarity(normalized_pdf_title, normalized_user_title)
 
+    if similar:
+        return True
+    else:
+        n_length = len(normalized_user_title.split())
+        for page in doc:
+            page_text = page.getText().lower()
+            if normalized_user_title in page_text:
+                return True
+            ngrams = nltk.ngrams(page_text, n_length)
+            for ngram in ngrams:
+                ngram_string = ' '.join(ngram)
+                similar = check_similarity(ngram_string, normalized_user_title)
+                if similar:
+                    return True
+    return False
+
+
+def check_similarity(str1, str2, threshold=SIMILARITY_THRESHOLD):
+    r = jellyfish.jaro_distance(str1, str2)
+    if r >= threshold:
+        return True
+    return False

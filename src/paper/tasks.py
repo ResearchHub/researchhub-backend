@@ -20,6 +20,7 @@ from django.core.files import File
 from researchhub.celery import app
 from paper.utils import (
     check_url_contains_pdf,
+    check_user_pdf_title,
     get_pdf_from_url,
     fitz_extract_figures
 )
@@ -151,7 +152,17 @@ def celery_extract_figures(paper_id):
 
     figures = os.listdir(path)
     if len(figures) == 1:  # Only the pdf exists
-        args = ['java', '-jar', 'pdffigures2-assembly-0.1.0.jar', file_path, '-m', path, '-d', path, '-e']
+        args = [
+            'java',
+            '-jar',
+            'pdffigures2-assembly-0.1.0.jar',
+            file_path,
+            '-m',
+            path,
+            '-d',
+            path,
+            '-e'
+        ]
         call(args)
         figures = os.listdir(path)
 
@@ -160,8 +171,15 @@ def celery_extract_figures(paper_id):
         if '.png' in extracted_figure:
             with open(extracted_figure_path, 'rb') as f:
                 extracted_figures = Figure.objects.filter(paper=paper)
-                if not extracted_figures.filter(file__contains=f.name, figure_type=Figure.FIGURE):
-                    Figure.objects.create(file=File(f), paper=paper, figure_type=Figure.FIGURE)
+                if not extracted_figures.filter(
+                    file__contains=f.name,
+                    figure_type=Figure.FIGURE
+                ):
+                    Figure.objects.create(
+                        file=File(f),
+                        paper=paper,
+                        figure_type=Figure.FIGURE
+                    )
     shutil.rmtree(path)
 
 
@@ -212,8 +230,11 @@ def celery_extract_pdf_preview(paper_id):
 def celery_extract_meta_data(paper_id):
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
+    file = paper.file
     user_input_title = paper.title
 
-    path = f'paper/figures/preview-{paper_id}/'
-    filename = f'{paper.id}.pdf'
-    file_path = f'{path}{filename}'
+    title_in_pdf = check_user_pdf_title(user_input_title, file)
+    if title_in_pdf:
+        pass
+    else:
+        return
