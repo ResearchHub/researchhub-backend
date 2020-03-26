@@ -320,7 +320,6 @@ class PaperViewSet(viewsets.ModelViewSet):
         Retrieve bibliographic metadata and potential paper matches
         from the database for `url` (specified via request post data).
         """
-        import pdb; pdb.set_trace()
         url = request.data.get('url')
         data = {'url': url}
 
@@ -522,7 +521,6 @@ class PaperViewSet(viewsets.ModelViewSet):
         return self.get_paginated_response(
             {'data': serializer.data, 'no_results': False}
         )
-
 
 
 class FigureViewSet(viewsets.ModelViewSet):
