@@ -342,11 +342,17 @@ class PaperViewSet(viewsets.ModelViewSet):
             csl_item = None
 
         if csl_item:
-            url_is_unsupported_pdf = url_is_pdf and csl_item.get("URL") == url
+            url_is_unsupported_pdf = url_is_pdf and csl_item.get('URL') == url
             data['url_is_unsupported_pdf'] = url_is_unsupported_pdf
             csl_item.url_is_unsupported_pdf = url_is_unsupported_pdf
             data['csl_item'] = csl_item
             data['pdf_location'] = get_pdf_location_for_csl_item(csl_item)
+            doi = csl_item.get('DOI', None)
+            data['doi_already_in_db'] = (
+                (doi is not None)
+                and (len(Paper.objects.filter(doi=doi)) > 0)
+            )
+
         if csl_item and request.data.get('search', False):
             # search existing papers
             search = self.search_by_csl_item(csl_item)
@@ -357,6 +363,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                     "Search failed due to an elasticsearch ConnectionError.",
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             data['search'] = [hit.to_dict() for hit in search.hits]
+
         return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'])
