@@ -1,7 +1,7 @@
-from django.utils import timezone
 import habanero
 
-from paper.models import Paper
+from django.apps import apps
+from django.utils import timezone
 
 
 class Crossref:
@@ -36,6 +36,8 @@ class Crossref:
                 self.referenced_by = relation.get('cites', [])
 
     def create_paper(self):
+        Paper = apps.get_model('paper.Paper')
+
         item = self.data_message
         item_type = item.get('type', None)
 

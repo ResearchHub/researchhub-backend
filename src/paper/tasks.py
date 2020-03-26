@@ -1,7 +1,5 @@
 from manubot.cite.doi import get_doi_csl_item
 
-from hub.models import Hub
-from paper.models import Paper
 from utils.semantic_scholar import SemanticScholar
 from utils.crossref import Crossref
 
@@ -17,8 +15,8 @@ from django.core.files import File
 from researchhub.celery import app
 from paper.utils import (
     check_url_contains_pdf,
-    check_user_pdf_title,
     get_pdf_from_url,
+    get_crossref_results,
     fitz_extract_figures
 )
 
@@ -36,6 +34,7 @@ def download_pdf(paper_id):
 
 @app.task
 def add_references(paper_id):
+    Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
     if paper.doi:
         semantic_paper = SemanticScholar(paper.doi)
@@ -54,6 +53,8 @@ def add_references(paper_id):
 
 
 def add_or_create_reference_papers(paper, reference_list, reference_field):
+    Paper = apps.get_model('paper.Paper')
+    Hub = apps.get_model('hub.Hub')
     dois = [ref['doi'] for ref in reference_list]
     doi_set = set(dois)
 
@@ -110,6 +111,8 @@ def add_or_create_reference_papers(paper, reference_list, reference_field):
 
 
 def create_manubot_paper(doi):
+    Paper = apps.get_model('paper.Paper')
+
     csl_item = get_doi_csl_item(doi)
     return Paper.create_from_csl_item(
         csl_item,
@@ -224,14 +227,5 @@ def celery_extract_pdf_preview(paper_id):
 
 
 @app.task
-def celery_extract_meta_data(paper_id):
-    Paper = apps.get_model('paper.Paper')
-    paper = Paper.objects.get(id=paper_id)
-    file = paper.file
-    user_input_title = paper.title
-
-    title_in_pdf = check_user_pdf_title(user_input_title, file)
-    if title_in_pdf:
-        pass
-    else:
-        return
+def celery_extract_meta_data(title):
+    results = get_crossref_results(title)

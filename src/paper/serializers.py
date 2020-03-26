@@ -117,13 +117,8 @@ class PaperSerializer(serializers.ModelSerializer):
         try:
             with transaction.atomic():
                 paper = super(PaperSerializer, self).create(validated_data)
-                # import pdb; pdb.set_trace()
 
-                title_in_pdf = check_user_pdf_title(user_title, file)
-                if not title_in_pdf:
-                    e = Exception('User entered title not in pdf')
-                    sentry.log_error(e)
-                    raise e
+                # self._check_pdf_title(user_title, file)
 
                 Vote.objects.create(
                     paper=paper,
@@ -276,6 +271,27 @@ class PaperSerializer(serializers.ModelSerializer):
                 download_pdf.apply_async((paper.id,), priority=3)
             else:
                 download_pdf(paper.id)
+
+    def _check_pdf_title(self, user_title, file):
+        if type(file) is str:
+            try:
+                URLValidator()(file)
+            except (ValidationError, Exception) as e:
+                print(e)
+                raise e
+
+            # Download the file and check the title
+            pdf, _ = download_pdf(file)
+            self._check_title_in_pdf(user_title, pdf)
+        else:
+            self._check_title_in_pdf(user_title, file)
+
+    def _check_title_in_pdf(self, user_title, file):
+        title_in_pdf = check_user_pdf_title(user_title, file)
+        if not title_in_pdf:
+            e = Exception('User entered title not in pdf')
+            sentry.log_error(e)
+            raise e
 
 
 class BookmarkSerializer(serializers.Serializer):
