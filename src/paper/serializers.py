@@ -245,7 +245,7 @@ class PaperSerializer(serializers.ModelSerializer):
     def _add_references(self, paper):
         try:
             if not TESTING:
-                add_references.apply_async((paper.id,), priority=5)
+                add_references.apply_async((paper.id,), priority=5, countdown=10)
             else:
                 add_references(paper.id)
         except Exception as e:
