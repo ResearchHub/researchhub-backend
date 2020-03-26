@@ -250,7 +250,10 @@ class Paper(models.Model):
         doi = self.doi
         if doi is not None:
             existing_dois = Paper.objects.filter(doi=doi)
-            if len(existing_dois) > 0:
+            matching_dois_allowed = 1  # this one is allowed to exist
+            if self.id is None:
+                matching_dois_allowed = 0  # none should exist yet
+            if len(existing_dois) > matching_dois_allowed:
                 raise IntegrityError(f'Paper with DOI {doi} already exists')
         return super().save(*args, **kwargs)
 
