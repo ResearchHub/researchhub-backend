@@ -19,11 +19,11 @@ class Command(BaseCommand):
                 paper.extract_figures()
                 paper.extract_pdf_preview()
                 self.stdout.write(self.style.SUCCESS(
-                    f'Queued task to add references for paper {paper.id}'
+                    f'Queued task to add figures for paper {paper.id}'
                 ))
             except Exception as e:
                 self.stdout.write(self.style.ERROR(
                     f'Failed to queue task for paper {paper.id}: {e}'
                 ))
 
-        self.stdout.write(self.style.SUCCESS(f'Done adding reference papers'))
+        self.stdout.write(self.style.SUCCESS(f'Done adding figures papers'))
