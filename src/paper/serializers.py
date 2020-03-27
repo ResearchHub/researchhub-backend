@@ -114,9 +114,9 @@ class PaperSerializer(serializers.ModelSerializer):
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
         if 'user_title' in validated_data:
-            user_title = validated_data.pop('paper_title')
+            user_title = validated_data.get('paper_title')
         else:
-            user_title = validated_data.pop('title')
+            user_title = validated_data.get('title', '')
 
         try:
             with transaction.atomic():
