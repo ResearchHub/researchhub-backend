@@ -14,11 +14,11 @@ from django.core.files import File
 
 from researchhub.celery import app
 from paper.utils import (
-    check_url_contains_pdf,
     get_pdf_from_url,
     get_crossref_results,
     fitz_extract_figures
 )
+from utils.http import check_url_contains_pdf
 
 
 @app.task
