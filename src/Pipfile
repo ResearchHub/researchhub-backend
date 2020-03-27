@@ -39,6 +39,9 @@ channels = "*"
 channels-redis = "*"
 unidecode = "*"
 python-slugify = "*"
+pymupdf = "*"
+jellyfish = "*"
+nltk = "*"
 
 [requires]
 python_version = "3.7"
