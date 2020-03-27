@@ -39,6 +39,7 @@ class DownvotePaper(RuleBasedPermission):
     def satisfies_rule(self, request):
         return request.user.reputation >= 25
 
+
 class IsModeratorOrVerifiedAuthor(AuthorizationBasedPermission):
     message = 'User is not authorized.'
 
@@ -48,6 +49,7 @@ class IsModeratorOrVerifiedAuthor(AuthorizationBasedPermission):
         else:
             author = Author.objects.get(user=request.user)
             return author in obj.authors.all()
+
 
 class IsAuthor(AuthorizationBasedPermission):
     message = 'User is not authorized.'

@@ -1,7 +1,5 @@
 from django.db import models
-from django.db.models import Q, Count
 
-from paper.models import Vote as PaperVote
 from slugify import slugify
 
 
@@ -27,7 +25,7 @@ class Hub(models.Model):
         self.name = self.name.lower()
         self.slugify()
         return super(Hub, self).save(*args, **kwargs)
-    
+ 
     def slugify(self):
         if not self.slug:
             self.slug = slugify(self.name)

@@ -4,11 +4,12 @@ from django.db import transaction
 from django.http import QueryDict
 import rest_framework.serializers as serializers
 
+from .utils import check_user_pdf_title
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
 from hub.serializers import HubSerializer
 from paper.exceptions import PaperSerializerError
-from paper.models import Flag, Paper, Vote
+from paper.models import Flag, Paper, Vote, Figure
 from paper.tasks import download_pdf, add_references
 from summary.serializers import SummarySerializer
 from user.models import Author
@@ -112,9 +113,16 @@ class PaperSerializer(serializers.ModelSerializer):
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
+        if 'user_title' in validated_data:
+            user_title = validated_data.get('paper_title')
+        else:
+            user_title = validated_data.get('title', '')
+
         try:
             with transaction.atomic():
                 paper = super(PaperSerializer, self).create(validated_data)
+
+                # self._check_pdf_title(user_title, file)
 
                 Vote.objects.create(
                     paper=paper,
@@ -241,7 +249,7 @@ class PaperSerializer(serializers.ModelSerializer):
     def _add_references(self, paper):
         try:
             if not TESTING:
-                add_references.apply_async((paper.id,), priority=5)
+                add_references.apply_async((paper.id,), priority=5, countdown=10)
             else:
                 add_references(paper.id)
         except Exception as e:
@@ -267,6 +275,27 @@ class PaperSerializer(serializers.ModelSerializer):
                 download_pdf.apply_async((paper.id,), priority=3)
             else:
                 download_pdf(paper.id)
+
+    def _check_pdf_title(self, user_title, file):
+        if type(file) is str:
+            try:
+                URLValidator()(file)
+            except (ValidationError, Exception) as e:
+                print(e)
+                raise e
+
+            # Download the file and check the title
+            pdf, _ = download_pdf(file)
+            self._check_title_in_pdf(user_title, pdf)
+        else:
+            self._check_title_in_pdf(user_title, file)
+
+    def _check_title_in_pdf(self, user_title, file):
+        title_in_pdf = check_user_pdf_title(user_title, file)
+        if not title_in_pdf:
+            e = Exception('User entered title not in pdf')
+            sentry.log_error(e)
+            raise e
 
 
 class BookmarkSerializer(serializers.Serializer):
@@ -295,3 +324,10 @@ class PaperVoteSerializer(serializers.ModelSerializer):
             'paper',
         ]
         model = Vote
+
+
+class FigureSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        fields = '__all__'
+        model = Figure

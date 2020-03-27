@@ -4,6 +4,12 @@ from django.contrib.postgres.fields import JSONField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
 from paper.utils import MANUBOT_PAPER_TYPES
+from .tasks import (
+    celery_extract_figures,
+    celery_extract_pdf_preview,
+    celery_extract_meta_data
+)
+from researchhub.settings import TESTING
 from summary.models import Summary
 
 HELP_TEXT_IS_PUBLIC = (
@@ -281,6 +287,41 @@ class Paper(models.Model):
             )['discussion_count']
             return thread_count + comment_count + reply_count
 
+    def extract_figures(self, use_celery=True):
+        if not TESTING and use_celery:
+            celery_extract_figures.apply_async(
+                (self.id,),
+                priority=3,
+                countdown=10,
+            )
+        elif TESTING:
+            return
+        else:
+            celery_extract_figures(self.id)
+
+    def extract_pdf_preview(self, use_celery=True):
+        if not TESTING and use_celery:
+            celery_extract_pdf_preview.apply_async(
+                (self.id,),
+                priority=3,
+                countdown=10,
+            )
+        elif TESTING:
+            return
+        else:
+            celery_extract_pdf_preview(self.id)
+
+    def extract_meta_data(self, use_celery=True):
+        if not TESTING and use_celery:
+            celery_extract_meta_data.apply_async(
+                (self.id,),
+                priority=3
+            )
+        elif TESTING:
+            return
+        else:
+            celery_extract_meta_data(self.id)
+
     def calculate_score(self):
         if hasattr(self, 'score'):
             return self.score
@@ -301,6 +342,30 @@ class Paper(models.Model):
     def update_summary(self, summary):
         self.summary = summary
         self.save()
+
+
+class Figure(models.Model):
+    FIGURE = 'FIGURE'
+    PREVIEW = 'PREVIEW'
+    FIGURE_TYPE_CHOICES = [
+        (FIGURE, 'Figure'),
+        (PREVIEW, 'Preview')
+    ]
+
+    file = models.FileField(
+        upload_to='uploads/figures/%Y/%m/%d',
+        default=None,
+        null=True,
+        blank=True
+    )
+    paper = models.ForeignKey(
+        Paper,
+        on_delete=models.CASCADE,
+        related_name='figures'
+    )
+    figure_type = models.CharField(choices=FIGURE_TYPE_CHOICES, max_length=16)
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
 
 
 class Vote(models.Model):

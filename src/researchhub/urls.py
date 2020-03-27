@@ -98,6 +98,12 @@ router.register(
     basename='notification'
 )
 
+router.register(
+    r'figure',
+    paper.views.FigureViewSet,
+    basename='figure'
+)
+
 router.register(r'user', user.views.UserViewSet)
 
 router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
