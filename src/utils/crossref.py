@@ -1,7 +1,7 @@
-import habanero
-
+import logging
 from django.apps import apps
 from django.utils import timezone
+import habanero
 
 
 class Crossref:
@@ -18,45 +18,60 @@ class Crossref:
         self.references = []
 
     def handle_doi(self, doi):
-        self.doi = doi
-        self.data = self.cr.works(ids=[doi])
-        self.data_message = self.data.get('message', None)
-        if self.data_message is None:
-            return
-        self.reference_count = self.data_message.get('reference-count', None)
-        self.referenced_by_count = self.data_message.get(
-            'is-referenced-by-count',
-            None
-        )
-        if self.reference_count > 0:
-            self.references = self.data_message.get('reference', [])
-        if self.referenced_by_count > 0:
-            relation = self.data_message.get('relation', None)
-            if relation:
-                self.referenced_by = relation.get('cites', [])
+        try:
+            self.doi = doi
+            self.data = self.cr.works(ids=[doi])
+            self.data_message = self.data['message']
+        except Exception as e:
+            self.data_message = None
+            logging.warning(e)
+        else:
+            self.reference_count = self.data_message.get(
+                'reference-count',
+                None
+            )
+            self.referenced_by_count = self.data_message.get(
+                'is-referenced-by-count',
+                None
+            )
+            if self.reference_count > 0:
+                try:
+                    self.references = self.data_message.get('reference', [])
+                except Exception as e:
+                    logging.warning(
+                        f'Reference count > 0 but found error: {e}'
+                    )
+            if self.referenced_by_count > 0:
+                try:
+                    relation = self.data_message.get('relation', None)
+                    if relation is not None:
+                        self.referenced_by = relation.get('cites', [])
+                except Exception as e:
+                    logging.warning(
+                        f'Referenced by count > 0 but found error: {e}'
+                    )
 
     def create_paper(self):
         Paper = apps.get_model('paper.Paper')
-
-        item = self.data_message
-        item_type = item.get('type', None)
-
-        if item_type == 'journal-article':
-            doi = item.get('DOI', None)
-            if doi is not None:
-                title = item.get('title', [])[0]
-                url = item.get('URL', None)
-                paper = Paper.objects.create(
-                    title=title,
-                    paper_title=title,
-                    doi=doi,
-                    url=url,
-                    paper_publish_date=get_crossref_issued_date(item),
-                    external_source='crossref',
-                    retrieved_from_external_source=True,
-                    is_public=False
-                )
-                return paper
+        if self.data_message is not None:
+            item = self.data_message
+            item_type = item.get('type', None)
+            if item_type == 'journal-article':
+                doi = item.get('DOI', None)
+                if doi is not None:
+                    title = item.get('title', [])[0]
+                    url = item.get('URL', None)
+                    paper = Paper.objects.create(
+                        title=title,
+                        paper_title=title,
+                        doi=doi,
+                        url=url,
+                        paper_publish_date=get_crossref_issued_date(item),
+                        external_source='crossref',
+                        retrieved_from_external_source=True,
+                        is_public=False
+                    )
+                    return paper
         return None
 
 
