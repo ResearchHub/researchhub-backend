@@ -7,6 +7,7 @@ import fitz
 import os
 import requests
 import shutil
+
 from subprocess import call
 
 from django.apps import apps
@@ -18,6 +19,7 @@ from paper.utils import (
     get_crossref_results,
     fitz_extract_figures
 )
+from utils import sentry
 from utils.http import check_url_contains_pdf
 
 
@@ -147,43 +149,47 @@ def celery_extract_figures(paper_id):
     if not os.path.isdir(path):
         os.mkdir(path)
 
-    res = requests.get(file_url)
-    with open(file_path, 'wb+') as f:
-        f.write(res.content)
+    try:
+        res = requests.get(file_url)
+        with open(file_path, 'wb+') as f:
+            f.write(res.content)
 
-    fitz_extract_figures(file_path)
+        fitz_extract_figures(file_path)
 
-    figures = os.listdir(path)
-    if len(figures) == 1:  # Only the pdf exists
-        args = [
-            'java',
-            '-jar',
-            'pdffigures2-assembly-0.1.0.jar',
-            file_path,
-            '-m',
-            path,
-            '-d',
-            path,
-            '-e'
-        ]
-        call(args)
         figures = os.listdir(path)
+        if len(figures) == 1:  # Only the pdf exists
+            args = [
+                'java',
+                '-jar',
+                'pdffigures2-assembly-0.1.0.jar',
+                file_path,
+                '-m',
+                path,
+                '-d',
+                path,
+                '-e'
+            ]
+            call(args)
+            figures = os.listdir(path)
 
-    for extracted_figure in figures:
-        extracted_figure_path = f'{path}{extracted_figure}'
-        if '.png' in extracted_figure:
-            with open(extracted_figure_path, 'rb') as f:
-                extracted_figures = Figure.objects.filter(paper=paper)
-                if not extracted_figures.filter(
-                    file__contains=f.name,
-                    figure_type=Figure.FIGURE
-                ):
-                    Figure.objects.create(
-                        file=File(f),
-                        paper=paper,
+        for extracted_figure in figures:
+            extracted_figure_path = f'{path}{extracted_figure}'
+            if '.png' in extracted_figure:
+                with open(extracted_figure_path, 'rb') as f:
+                    extracted_figures = Figure.objects.filter(paper=paper)
+                    if not extracted_figures.filter(
+                        file__contains=f.name,
                         figure_type=Figure.FIGURE
-                    )
-    shutil.rmtree(path)
+                    ):
+                        Figure.objects.create(
+                            file=File(f),
+                            paper=paper,
+                            figure_type=Figure.FIGURE
+                        )
+    except Exception as e:
+        sentry.log_error(e)
+    finally:
+        shutil.rmtree(path)
 
 
 @app.task
@@ -204,29 +210,32 @@ def celery_extract_pdf_preview(paper_id):
     if not os.path.isdir(path):
         os.mkdir(path)
 
-    res = requests.get(file_url)
-    with open(file_path, 'wb+') as f:
-        f.write(res.content)
+    try:
+        res = requests.get(file_url)
+        with open(file_path, 'wb+') as f:
+            f.write(res.content)
 
-    doc = fitz.open(file_path)
-    extracted_figures = Figure.objects.filter(paper=paper)
-    for page in doc:
-        pix = page.getPixmap(alpha=False)
-        output_filename = f'{file_path}-{page.number}.png'
-        pix.writePNG(output_filename)
+        doc = fitz.open(file_path)
+        extracted_figures = Figure.objects.filter(paper=paper)
+        for page in doc:
+            pix = page.getPixmap(alpha=False)
+            output_filename = f'{file_path}-{page.number}.png'
+            pix.writePNG(output_filename)
 
-        if not extracted_figures.filter(
-            file__contains=output_filename,
-            figure_type=Figure.PREVIEW
-        ):
-            with open(output_filename, 'rb') as f:
-                Figure.objects.create(
-                    file=File(f),
-                    paper=paper,
-                    figure_type=Figure.PREVIEW
-                )
-
-    shutil.rmtree(path)
+            if not extracted_figures.filter(
+                file__contains=output_filename,
+                figure_type=Figure.PREVIEW
+            ):
+                with open(output_filename, 'rb') as f:
+                    Figure.objects.create(
+                        file=File(f),
+                        paper=paper,
+                        figure_type=Figure.PREVIEW
+                    )
+    except Exception as e:
+        sentry.log_error(e)
+    finally:
+        shutil.rmtree(path)
 
 
 @app.task
