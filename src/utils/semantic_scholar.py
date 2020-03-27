@@ -1,3 +1,4 @@
+import time
 from utils.http import GET, http_request
 
 
@@ -26,6 +27,9 @@ class SemanticScholar:
             url += doi
         try:
             response = http_request(GET, url)
+            if response.status_code == 429:
+                time.sleep(10.0)
+                response = http_request(GET, url)
             self.response = response
             self.data = self.response.json()
             self.references = self.data.get('references', [])
