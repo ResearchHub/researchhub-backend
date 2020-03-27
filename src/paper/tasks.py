@@ -136,7 +136,7 @@ def celery_extract_figures(paper_id):
     if not file:
         return
 
-    path = f'paper/figures/{paper_id}/'
+    path = f'/tmp/figures/{paper_id}/'
     filename = f'{paper.id}.pdf'
     file_path = f'{path}{filename}'
     file_url = file.url
@@ -193,7 +193,7 @@ def celery_extract_pdf_preview(paper_id):
     if not file:
         return
 
-    path = f'paper/figures/preview-{paper_id}/'
+    path = f'/tmp/figures/preview-{paper_id}/'
     filename = f'{paper.id}.pdf'
     file_path = f'{path}{filename}'
     file_url = file.url

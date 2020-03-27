@@ -9,5 +9,5 @@ class PaperConfig(AppConfig):
     def ready(self):
         import paper.signals
 
-        if not os.path.isdir('paper/figures'):
-            os.mkdir('paper/figures')
+        if not os.path.isdir('/tmp/figures'):
+            os.mkdir('/tmp/figures')
