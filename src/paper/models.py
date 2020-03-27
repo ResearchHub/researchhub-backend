@@ -294,6 +294,8 @@ class Paper(models.Model):
                 priority=3,
                 countdown=10,
             )
+        elif TESTING:
+            return
         else:
             celery_extract_figures(self.id)
 
