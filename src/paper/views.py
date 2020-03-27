@@ -542,6 +542,7 @@ class FigureViewSet(viewsets.ModelViewSet):
         if figure_type:
             figures = figures.filter(figure_type=figure_type)
 
+        figures = figures.order_by('-figure_type', 'created_date')
         figure_serializer = self.serializer_class(figures, many=True)
         return Response(
             {'data': figure_serializer.data},
