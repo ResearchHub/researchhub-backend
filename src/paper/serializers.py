@@ -113,7 +113,10 @@ class PaperSerializer(serializers.ModelSerializer):
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
-        user_title = validated_data.pop('paper_title')
+        if 'user_title' in validated_data:
+            user_title = validated_data.pop('paper_title')
+        else:
+            user_title = validated_data.pop('title')
         try:
             with transaction.atomic():
                 paper = super(PaperSerializer, self).create(validated_data)
