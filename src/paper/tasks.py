@@ -58,7 +58,7 @@ def add_or_create_reference_papers(paper, reference_list, reference_field):
     dois = [ref['doi'] for ref in reference_list]
     doi_set = set(dois)
 
-    existing_papers = Paper.objects.filter(doi__in=doi_set)
+    existing_papers = Paper.objects.filter(doi__in=dois)
     for existing_paper in existing_papers:
         if reference_field == 'referenced_by':
             existing_paper.references.add(paper)
@@ -74,13 +74,16 @@ def add_or_create_reference_papers(paper, reference_list, reference_field):
         hubs = []
         tagline = None
         semantic_paper = SemanticScholar(doi)
-        if semantic_paper:
-            HUB_INSTANCE = 0
-            hubs = [
-                Hub.objects.get_or_create(name=hub_name.lower())[HUB_INSTANCE]
-                for hub_name
-                in semantic_paper.hub_candidates
-            ]
+        if semantic_paper is not None:
+            if semantic_paper.hub_candidates is not None:
+                HUB_INSTANCE = 0
+                hubs = [
+                    Hub.objects.get_or_create(
+                        name=hub_name.lower()
+                    )[HUB_INSTANCE]
+                    for hub_name
+                    in semantic_paper.hub_candidates
+                ]
             tagline = semantic_paper.abstract
 
         new_paper = None
@@ -94,7 +97,7 @@ def add_or_create_reference_papers(paper, reference_list, reference_field):
                 print(f'Error creating crossref paper: {e}')
                 pass
 
-        if new_paper:
+        if new_paper is not None:
             if not new_paper.tagline:
                 new_paper.tagline = tagline
             new_paper.hubs.add(*hubs)
