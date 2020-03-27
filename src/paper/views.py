@@ -527,6 +527,10 @@ class FigureViewSet(viewsets.ModelViewSet):
     queryset = Figure.objects.all()
     serializer_class = FigureSerializer
 
+    permission_classes = [
+        IsModeratorOrVerifiedAuthor
+    ]
+
     def get_queryset(self):
         return self.queryset
 
@@ -573,7 +577,7 @@ class FigureViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['get'],
-        permission_classes=[IsAuthenticated]
+        permission_classes=[IsAuthenticatedOrReadOnly]
     )
     def get_all_figures(self, request, pk=None):
         # Returns all figures
@@ -582,7 +586,7 @@ class FigureViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['get'],
-        permission_classes=[IsAuthenticated]
+        permission_classes=[IsAuthenticatedOrReadOnly]
     )
     def get_preview_figures(self, request, pk=None):
         # Returns pdf preview figures
@@ -591,7 +595,7 @@ class FigureViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['get'],
-        permission_classes=[IsAuthenticated]
+        permission_classes=[IsAuthenticatedOrReadOnly]
     )
     def get_regular_figures(self, request, pk=None):
         # Returns regular figures

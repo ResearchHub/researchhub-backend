@@ -117,6 +117,7 @@ class PaperSerializer(serializers.ModelSerializer):
             user_title = validated_data.pop('paper_title')
         else:
             user_title = validated_data.pop('title')
+
         try:
             with transaction.atomic():
                 paper = super(PaperSerializer, self).create(validated_data)

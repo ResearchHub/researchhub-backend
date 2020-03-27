@@ -304,6 +304,8 @@ class Paper(models.Model):
                 priority=3,
                 countdown=10,
             )
+        elif TESTING:
+            return
         else:
             celery_extract_pdf_preview(self.id)
 
@@ -313,6 +315,8 @@ class Paper(models.Model):
                 (self.id,),
                 priority=3
             )
+        elif TESTING:
+            return
         else:
             celery_extract_meta_data(self.id)
 
