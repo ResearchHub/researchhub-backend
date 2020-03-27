@@ -1,5 +1,5 @@
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated,
@@ -23,6 +23,7 @@ from user.models import User, University, Author
 from user.permissions import UpdateAuthor
 from user.serializers import (
     AuthorSerializer,
+    AuthorEditableSerializer,
     UniversitySerializer,
     UserEditableSerializer,
     UserSerializer,
@@ -97,6 +98,37 @@ class AuthorViewSet(viewsets.ModelViewSet):
     filter_class = AuthorFilter
     search_fields = ('first_name', 'last_name')
     permission_classes = [IsAuthenticatedOrReadOnly & UpdateAuthor]
+
+    def create(self, request, *args, **kwargs):
+        '''Override to use an editable serializer.'''
+        serializer = AuthorEditableSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED,
+            headers=headers
+        )
+
+    def update(self, request, *args, **kwargs):
+        '''Override to use an editable serializer.'''
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = AuthorEditableSerializer(
+            instance,
+            data=request.data,
+            partial=partial
+        )
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if getattr(instance, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied to a queryset, we need to
+            # forcibly invalidate the prefetch cache on the instance.
+            instance._prefetched_objects_cache = {}
+
+        return Response(serializer.data)
 
     @action(
         detail=True,

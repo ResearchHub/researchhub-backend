@@ -40,6 +40,18 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
         return author.orcid_id
 
 
+class AuthorEditableSerializer(rest_framework_serializers.ModelSerializer):
+    university = rest_framework_serializers.PrimaryKeyRelatedField(
+        queryset=University.objects.all(),
+        required=False,
+        allow_null=True
+    )
+
+    class Meta:
+        model = Author
+        fields = [field.name for field in Author._meta.fields] + ['university']
+
+
 class UserSerializer(rest_framework_serializers.ModelSerializer):
     author_profile = AuthorSerializer(read_only=True)
     balance = rest_framework_serializers.SerializerMethodField(read_only=True)
