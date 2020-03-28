@@ -8,6 +8,7 @@ import os
 import requests
 import shutil
 
+from datetime import datetime
 from subprocess import call
 
 from django.apps import apps
@@ -239,5 +240,19 @@ def celery_extract_pdf_preview(paper_id):
 
 
 @app.task
-def celery_extract_meta_data(title):
-    results = get_crossref_results(title)
+def celery_extract_meta_data(paper_id, title):
+    Paper = apps.get_model('paper.Paper')
+    paper = Paper.objects.get(id=paper_id)
+    best_matching_result = get_crossref_results(title, index=1)
+
+    doi = best_matching_result['DOI']
+    url = best_matching_result['URL']
+    publish_date = best_matching_result['created']['date-time']
+    publish_date = datetime.strptime(publish_date, '%Y-%m-%dT%H:%M:%SZ').date()
+    tagline = best_matching_result['abstract']
+
+    paper.doi = doi
+    paper.url = url
+    paper.paper_publish_date = publish_date
+    paper.tagline = tagline
+    paper.save()
