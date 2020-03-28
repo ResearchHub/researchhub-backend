@@ -196,7 +196,7 @@ def check_similarity(str1, str2, threshold=SIMILARITY_THRESHOLD):
     return False
 
 
-def get_crossref_results(query):
+def get_crossref_results(query, index=10):
     cr = Crossref()
     filters = {'type': 'journal-article'}
     limit = 10
@@ -210,4 +210,4 @@ def get_crossref_results(query):
         order=order,
     )
     results = results['message']['items']
-    return results
+    return results[:index]
