@@ -17,6 +17,7 @@ from discussion.serializers import (
 )
 
 from paper.models import Paper
+from paper.views import PaperViewSet
 from paper.serializers import PaperSerializer
 from user.filters import AuthorFilter
 from user.models import User, University, Author
@@ -179,7 +180,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
             user_comments = Comment.objects.filter(created_by=user)
             user_replies = Reply.objects.filter(created_by=user)
-            user_paper_uploads = Paper.objects.filter(uploaded_by=user)
+            prefetch_lookups = PaperViewSet.prefetch_lookups(self)
+            user_paper_uploads = Paper.objects.filter(uploaded_by=user).prefetch_related(*prefetch_lookups)
 
             user_comments_count = len(user_comments)
             user_replies_count = len(user_replies)
