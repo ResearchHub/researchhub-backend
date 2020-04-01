@@ -3,6 +3,10 @@ from django.db.models import Count, Q
 from django.contrib.postgres.fields import JSONField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
+from utils.semantic_scholar import SemanticScholar
+from utils.crossref import Crossref
+from manubot.cite.doi import get_doi_csl_item
+
 from paper.utils import MANUBOT_PAPER_TYPES
 from .tasks import (
     celery_extract_figures,
@@ -11,6 +15,7 @@ from .tasks import (
 )
 from researchhub.settings import TESTING
 from summary.models import Summary
+from hub.models import Hub
 
 HELP_TEXT_IS_PUBLIC = (
     'Hides the paper from the public.'
@@ -172,6 +177,20 @@ class Paper(models.Model):
     @property
     def children(self):
         return self.threads.all()
+    
+    @classmethod
+    def create_manubot_paper(cls, doi):
+        csl_item = get_doi_csl_item(doi)
+        return Paper.create_from_csl_item(
+            csl_item,
+            doi=doi,
+            externally_sourced=True,
+            is_public=False
+        )
+
+    @classmethod
+    def create_crossref_paper(cls, doi):
+        return Crossref(doi=doi).create_paper()
 
     @classmethod
     def create_from_csl_item(
@@ -341,6 +360,79 @@ class Paper(models.Model):
 
     def update_summary(self, summary):
         self.summary = summary
+        self.save()
+    
+    def add_references(self):
+        if self.doi:
+            semantic_paper = SemanticScholar(self.doi)
+            references = semantic_paper.references
+            referenced_by = semantic_paper.referenced_by
+
+            if self.references.count() < 1:
+                self.add_or_create_reference_papers(references, 'references')
+
+            if self.referenced_by.count() < 1:
+                self.add_or_create_reference_papers(
+                    referenced_by,
+                    'referenced_by'
+                )
+    
+    def add_or_create_reference_papers(self, reference_list, reference_field):
+        dois = [ref['doi'] for ref in reference_list]
+        doi_set = set(dois)
+
+        existing_papers = Paper.objects.filter(doi__in=dois)
+        for existing_paper in existing_papers:
+            if reference_field == 'referenced_by':
+                existing_paper.references.add(self)
+            else:
+                self.references.add(existing_paper)
+
+        doi_hits = set(existing_papers.values_list('doi', flat=True))
+        doi_misses = doi_set.difference(doi_hits)
+
+        for doi in doi_misses:
+            if not doi:
+                continue
+            hubs = []
+            tagline = None
+            semantic_paper = SemanticScholar(doi)
+            if semantic_paper is not None:
+                if semantic_paper.hub_candidates is not None:
+                    HUB_INSTANCE = 0
+                    hubs = [
+                        Hub.objects.get_or_create(
+                            name=hub_name.lower()
+                        )[HUB_INSTANCE]
+                        for hub_name
+                        in semantic_paper.hub_candidates
+                    ]
+                tagline = semantic_paper.abstract
+
+            new_paper = None
+            try:
+                new_paper = Paper.create_manubot_paper(doi)
+            except Exception as e:
+                print(f'Error creating manubot paper: {e}')
+                try:
+                    new_paper = Paper.create_crossref_paper(doi)
+                except Exception as e:
+                    print(f'Error creating crossref paper: {e}')
+                    pass
+
+            if new_paper is not None:
+                if not new_paper.tagline:
+                    new_paper.tagline = tagline
+                new_paper.hubs.add(*hubs)
+                if reference_field == 'referenced_by':
+                    new_paper.references.add(self)
+                else:
+                    self.references.add(new_paper)
+                try:
+                    new_paper.save()
+                except Exception as e:
+                    print(f'Error saving reference paper: {e}')
+
         self.save()
 
 

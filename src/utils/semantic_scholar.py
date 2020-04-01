@@ -27,8 +27,10 @@ class SemanticScholar:
             url += doi
         try:
             response = http_request(GET, url)
+            time.sleep(.1)
             if response.status_code == 429:
-                time.sleep(10.0)
+                print(429)
+                time.sleep(1)
                 response = http_request(GET, url)
             self.response = response
             self.data = self.response.json()
