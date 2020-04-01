@@ -252,11 +252,11 @@ def celery_extract_meta_data(paper_id, title):
     best_matching_result = get_crossref_results(title, index=1)[0]
 
     try:
-        doi = best_matching_result['DOI']
-        url = best_matching_result['URL']
+        doi = best_matching_result.get('DOI', '')
+        url = best_matching_result.get('URL', '')
         publish_date = best_matching_result['created']['date-time']
         publish_date = datetime.strptime(publish_date, date_format).date()
-        tagline = best_matching_result['abstract']
+        tagline = best_matching_result.get('abstract', '')
         tagline = re.sub('<[^<]+>', '', tagline)  # Removing any jat xml tags
 
         paper.doi = doi
@@ -267,6 +267,8 @@ def celery_extract_meta_data(paper_id, title):
     except IntegrityError as e:
         sentry.log_info(e)
         handle_duplicate_doi(paper, doi)
+    except Exception as e:
+        sentry.log_info(e)
 
 
 @app.task
