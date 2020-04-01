@@ -163,7 +163,7 @@ def check_user_pdf_title(user_input_title, file):
 
     doc = fitz.open(stream=file.read(), filetype='pdf')
     doc_metadata = doc.metadata
-    doc_title = doc_metadata['title']
+    doc_title = doc_metadata.get('title') or ''
 
     # Lowercasing titles for simple normalization
     normalized_user_title = user_input_title.lower()

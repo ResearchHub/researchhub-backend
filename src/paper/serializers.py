@@ -304,7 +304,7 @@ class PaperSerializer(serializers.ModelSerializer):
             sentry.log_info(e)
             return
         else:
-            paper.extract_meta_data(user_title, use_celery=False)
+            paper.extract_meta_data(user_title, use_celery=True)
 
 
 class BookmarkSerializer(serializers.Serializer):
