@@ -12,6 +12,8 @@ from utils.http import (
     http_request,
     RequestMethods as methods
 )
+from utils import sentry
+
 
 MANUBOT_PAPER_TYPES = [
     'paper-conference',
@@ -161,32 +163,38 @@ def check_user_pdf_title(user_input_title, file):
     if not user_input_title:
         return False
 
-    doc = fitz.open(stream=file.read(), filetype='pdf')
-    doc_metadata = doc.metadata
-    doc_title = doc_metadata.get('title') or ''
+    try:
+        doc = fitz.open(stream=file.read(), filetype='pdf')
+        doc_metadata = doc.metadata
+        doc_title = doc_metadata.get('title') or ''
 
-    # Lowercasing titles for simple normalization
-    normalized_user_title = user_input_title.lower()
-    normalized_pdf_title = doc_title.lower()
+        # Lowercasing titles for simple normalization
+        normalized_user_title = user_input_title.lower()
+        normalized_pdf_title = doc_title.lower()
 
-    # Checks if the title matches the pdf's metadata first
-    similar = check_similarity(normalized_pdf_title, normalized_user_title)
+        # Checks if the title matches the pdf's metadata first
+        similar = check_similarity(normalized_pdf_title, normalized_user_title)
 
-    if similar:
-        return True
-    else:
-        n_length = len(normalized_user_title.split())
-        for page in doc:
-            page_text = page.getText().lower()
-            if normalized_user_title in page_text:
-                return True
-            ngrams = nltk.ngrams(page_text.split(), n_length)
-            for ngram in ngrams:
-                ngram_string = ' '.join(ngram)
-                similar = check_similarity(ngram_string, normalized_user_title)
-                if similar:
+        if similar:
+            return True
+        else:
+            n_length = len(normalized_user_title.split())
+            for page in doc:
+                page_text = page.getText().lower()
+                if normalized_user_title in page_text:
                     return True
-    return False
+                ngrams = nltk.ngrams(page_text.split(), n_length)
+                for ngram in ngrams:
+                    ngram_string = ' '.join(ngram)
+                    similar = check_similarity(
+                        ngram_string,
+                        normalized_user_title
+                    )
+                    if similar:
+                        return True
+        return False
+    except Exception as e:
+        sentry.log_error(e)
 
 
 def check_similarity(str1, str2, threshold=SIMILARITY_THRESHOLD):
