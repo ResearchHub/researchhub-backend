@@ -313,7 +313,7 @@ class Paper(models.Model):
         if not TESTING and use_celery:
             celery_extract_meta_data.apply_async(
                 (self.id, user_title,),
-                priority=3,
+                priority=1,
                 countdown=10,
             )
         elif TESTING:
