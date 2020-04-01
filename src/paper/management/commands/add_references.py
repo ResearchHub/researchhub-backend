@@ -17,7 +17,7 @@ class Command(BaseCommand):
         )
         count = papers.count()
         for i, paper in enumerate(papers):
-            print('{} / {}').format(i, count)
+            print('{} / {}'.format(i, count))
             # If the paper has no references we are assuming it also has
             # no papers referencing it in the db yet.
             try:
