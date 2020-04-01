@@ -178,8 +178,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
             reply_offset = int(request.GET['replyOffset'])
             paper_upload_offset = int(request.GET['paperUploadOffset'])
 
-            user_comments = Comment.objects.filter(created_by=user)
-            user_replies = Reply.objects.filter(created_by=user)
+            # user_comments = Comment.objects.filter(created_by=user)
+            # user_replies = Reply.objects.filter(created_by=user)
             prefetch_lookups = PaperViewSet.prefetch_lookups(self)
             user_paper_uploads = Paper.objects.filter(uploaded_by=user).prefetch_related(*prefetch_lookups)
 
