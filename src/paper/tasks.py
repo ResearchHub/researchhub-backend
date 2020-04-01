@@ -42,6 +42,9 @@ def download_pdf(paper_id):
 
 @app.task
 def add_references(paper_id):
+    if paper_id is None:
+        return
+
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
     if paper.doi:
@@ -139,6 +142,9 @@ def create_crossref_paper(doi):
 
 @app.task
 def celery_extract_figures(paper_id):
+    if paper_id is None:
+        return
+
     Paper = apps.get_model('paper.Paper')
     Figure = apps.get_model('paper.Figure')
     paper = Paper.objects.get(id=paper_id)
@@ -200,6 +206,9 @@ def celery_extract_figures(paper_id):
 
 @app.task
 def celery_extract_pdf_preview(paper_id):
+    if paper_id is None:
+        return
+
     Paper = apps.get_model('paper.Paper')
     Figure = apps.get_model('paper.Figure')
     paper = Paper.objects.get(id=paper_id)
@@ -246,6 +255,9 @@ def celery_extract_pdf_preview(paper_id):
 
 @app.task
 def celery_extract_meta_data(paper_id, title):
+    if paper_id is None:
+        return
+
     Paper = apps.get_model('paper.Paper')
     date_format = '%Y-%m-%dT%H:%M:%SZ'
     paper = Paper.objects.get(id=paper_id)
