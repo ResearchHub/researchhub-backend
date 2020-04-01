@@ -5,6 +5,7 @@ from utils.crossref import Crossref
 
 import fitz
 import os
+import re
 import requests
 import shutil
 
@@ -256,6 +257,7 @@ def celery_extract_meta_data(paper_id, title):
         publish_date = best_matching_result['created']['date-time']
         publish_date = datetime.strptime(publish_date, date_format).date()
         tagline = best_matching_result['abstract']
+        tagline = re.sub('<[^<]+>', '', tagline)  # Removing any jat xml tags
 
         paper.doi = doi
         paper.url = url
