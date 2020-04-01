@@ -61,6 +61,12 @@ class PaperIntegrationTests(
         }
         return form
 
+
+class DuplicatePaperIntegrationTest(
+    TestCase,
+    TestHelper,
+    IntegrationTestHelper
+):
     def create_original_paper(self, doi='1'):
         original_paper = self.create_paper_without_authors()
         original_paper.doi = doi
