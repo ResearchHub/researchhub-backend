@@ -241,11 +241,6 @@ def merge_paper_threads(original_paper, new_paper):
     new_paper.threads.update(paper=original_paper)
 
 
-def merge_paper_references(original_paper, new_paper):
-    # TODO: Merge references?
-    pass
-
-
 def merge_paper_bulletpoints(original_paper, new_paper):
     original_bullet_points = original_paper.bullet_points.all()
     new_bullet_points = new_paper.bullet_points.all()
