@@ -285,15 +285,6 @@ class PaperSerializer(serializers.ModelSerializer):
         if type(file) is str:
             # For now, don't do anything if file is a url
             return
-            # try:
-            #     URLValidator()(file)
-            # except (ValidationError, Exception) as e:
-            #     print(e)
-            #     raise e
-
-            # Download the file and check the title
-            # pdf, _ = download_pdf(file)
-            # self._check_title_in_pdf(paper, user_title, pdf)
         else:
             self._check_title_in_pdf(paper, user_title, file)
 
