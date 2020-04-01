@@ -21,7 +21,7 @@ class Command(BaseCommand):
             # If the paper has no references we are assuming it also has
             # no papers referencing it in the db yet.
             try:
-                add_references.apply(paper.id)
+                paper.add_references()
             except Exception as e:
                 self.stdout.write(self.style.ERROR(
                     f'Failed to queue task for paper {paper.id}: {e}'
