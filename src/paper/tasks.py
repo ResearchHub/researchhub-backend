@@ -13,12 +13,16 @@ from subprocess import call
 
 from django.apps import apps
 from django.core.files import File
+from django.db import IntegrityError
 
 from researchhub.celery import app
 from paper.utils import (
     get_pdf_from_url,
     get_crossref_results,
-    fitz_extract_figures
+    fitz_extract_figures,
+    merge_paper_bulletpoints,
+    merge_paper_threads,
+    merge_paper_votes,
 )
 from utils import sentry
 from utils.http import check_url_contains_pdf
@@ -242,17 +246,32 @@ def celery_extract_pdf_preview(paper_id):
 @app.task
 def celery_extract_meta_data(paper_id, title):
     Paper = apps.get_model('paper.Paper')
+    date_format = '%Y-%m-%dT%H:%M:%SZ'
     paper = Paper.objects.get(id=paper_id)
-    best_matching_result = get_crossref_results(title, index=1)
+    best_matching_result = get_crossref_results(title, index=1)[0]
 
-    doi = best_matching_result['DOI']
-    url = best_matching_result['URL']
-    publish_date = best_matching_result['created']['date-time']
-    publish_date = datetime.strptime(publish_date, '%Y-%m-%dT%H:%M:%SZ').date()
-    tagline = best_matching_result['abstract']
+    try:
+        doi = best_matching_result['DOI']
+        url = best_matching_result['URL']
+        publish_date = best_matching_result['created']['date-time']
+        publish_date = datetime.strptime(publish_date, date_format).date()
+        tagline = best_matching_result['abstract']
 
-    paper.doi = doi
-    paper.url = url
-    paper.paper_publish_date = publish_date
-    paper.tagline = tagline
-    paper.save()
+        paper.doi = doi
+        paper.url = url
+        paper.paper_publish_date = publish_date
+        paper.tagline = tagline
+        paper.save()
+    except IntegrityError as e:
+        sentry.log_info(e)
+        handle_duplicate_doi(paper, doi)
+
+
+@app.task
+def handle_duplicate_doi(new_paper, doi):
+    Paper = apps.get_model('paper.Paper')
+    original_paper = Paper.objects.filter(doi=doi).order_by('uploaded_date')[0]
+    merge_paper_votes(original_paper, new_paper)
+    merge_paper_threads(original_paper, new_paper)
+    merge_paper_bulletpoints(original_paper, new_paper)
+    new_paper.delete()

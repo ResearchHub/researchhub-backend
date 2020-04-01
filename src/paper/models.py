@@ -256,9 +256,7 @@ class Paper(models.Model):
         doi = self.doi
         if doi is not None:
             existing_dois = Paper.objects.filter(doi=doi)
-            matching_dois_allowed = 1  # this one is allowed to exist
-            if self.id is None:
-                matching_dois_allowed = 0  # none should exist yet
+            matching_dois_allowed = 0
             if len(existing_dois) > matching_dois_allowed:
                 raise IntegrityError(f'Paper with DOI {doi} already exists')
         return super().save(*args, **kwargs)
@@ -311,16 +309,17 @@ class Paper(models.Model):
         else:
             celery_extract_pdf_preview(self.id)
 
-    def extract_meta_data(self, use_celery=True):
+    def extract_meta_data(self, user_title, use_celery=True):
         if not TESTING and use_celery:
             celery_extract_meta_data.apply_async(
-                (self.id,),
-                priority=3
+                (self.id, user_title,),
+                priority=3,
+                countdown=10,
             )
         elif TESTING:
             return
         else:
-            celery_extract_meta_data(self.id)
+            celery_extract_meta_data(self.id, user_title)
 
     def calculate_score(self):
         if hasattr(self, 'score'):

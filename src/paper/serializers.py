@@ -123,7 +123,7 @@ class PaperSerializer(serializers.ModelSerializer):
             with transaction.atomic():
                 paper = super(PaperSerializer, self).create(validated_data)
 
-                self._check_pdf_title(paper.id, user_title, file)
+                self._check_pdf_title(paper, user_title, file)
 
                 Vote.objects.create(
                     paper=paper,
@@ -281,36 +281,30 @@ class PaperSerializer(serializers.ModelSerializer):
             else:
                 download_pdf(paper.id)
 
-    def _check_pdf_title(self, paper_id, user_title, file):
+    def _check_pdf_title(self, paper, user_title, file):
         if type(file) is str:
             # For now, don't do anything if file is a url
             return
-            try:
-                URLValidator()(file)
-            except (ValidationError, Exception) as e:
-                print(e)
-                raise e
+            # try:
+            #     URLValidator()(file)
+            # except (ValidationError, Exception) as e:
+            #     print(e)
+            #     raise e
 
             # Download the file and check the title
-            pdf, _ = download_pdf(file)
-            self._check_title_in_pdf(paper_id, user_title, pdf)
+            # pdf, _ = download_pdf(file)
+            # self._check_title_in_pdf(paper, user_title, pdf)
         else:
-            self._check_title_in_pdf(paper_id, user_title, file)
+            self._check_title_in_pdf(paper, user_title, file)
 
-    def _check_title_in_pdf(self, paper_id, user_title, file):
+    def _check_title_in_pdf(self, paper, user_title, file):
         title_in_pdf = check_user_pdf_title(user_title, file)
         if not title_in_pdf:
             e = Exception('User entered title not in pdf')
-            sentry.log_error(e)
-            raise e
+            sentry.log_info(e)
+            return
         else:
-            if not TESTING:
-                celery_extract_meta_data.apply_async(
-                    (paper_id, user_title),
-                    priority=3
-                )
-            else:
-                celery_extract_meta_data(paper_id, user_title)
+            paper.extract_meta_data(user_title, use_celery=False)
 
 
 class BookmarkSerializer(serializers.Serializer):
