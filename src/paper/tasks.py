@@ -18,6 +18,8 @@ from django.db import IntegrityError
 
 from researchhub.celery import app
 from paper.utils import (
+    check_crossref_title,
+    check_user_pdf_title,
     get_pdf_from_url,
     get_crossref_results,
     fitz_extract_figures,
@@ -254,22 +256,39 @@ def celery_extract_pdf_preview(paper_id):
 
 
 @app.task
-def celery_extract_meta_data(paper_id, title):
+def celery_extract_meta_data(paper_id, title, check_title):
     if paper_id is None:
         return
 
     Paper = apps.get_model('paper.Paper')
     date_format = '%Y-%m-%dT%H:%M:%SZ'
     paper = Paper.objects.get(id=paper_id)
+
+    if check_title:
+        has_title = check_user_pdf_title(title, paper.file)
+        if not has_title:
+            return
+
     best_matching_result = get_crossref_results(title, index=1)[0]
 
     try:
+        if 'title' in best_matching_result:
+            crossref_title = best_matching_result.get('title', [''])[0]
+        else:
+            crossref_title = best_matching_result.get('container-title', [''])
+            crossref_title = crossref_title[0]
+
+        similar_title = check_crossref_title(title, crossref_title)
+
+        if not similar_title:
+            return
+
         doi = best_matching_result.get('DOI', None)
         url = best_matching_result.get('URL', None)
         publish_date = best_matching_result['created']['date-time']
         publish_date = datetime.strptime(publish_date, date_format).date()
         tagline = best_matching_result.get('abstract', '')
-        tagline = re.sub('<[^<]+>', '', tagline)  # Removing any jat xml tags
+        tagline = re.sub(r'<[^<]+>', '', tagline)  # Removing any jat xml tags
 
         paper.doi = doi
         paper.url = url

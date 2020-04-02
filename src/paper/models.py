@@ -311,7 +311,12 @@ class Paper(models.Model):
         else:
             celery_extract_pdf_preview(self.id)
 
-    def extract_meta_data(self, user_title=None, use_celery=True):
+    def extract_meta_data(
+        self,
+        user_title=None,
+        check_title=False,
+        use_celery=True
+    ):
         if TESTING:
             return
 
@@ -324,12 +329,12 @@ class Paper(models.Model):
 
         if not TESTING and use_celery:
             celery_extract_meta_data.apply_async(
-                (self.id, user_title,),
+                (self.id, user_title, check_title),
                 priority=1,
                 countdown=10,
             )
         else:
-            celery_extract_meta_data(self.id, user_title)
+            celery_extract_meta_data(self.id, user_title, check_title)
 
     def calculate_score(self):
         if hasattr(self, 'score'):
