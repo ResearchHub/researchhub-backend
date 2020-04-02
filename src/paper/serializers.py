@@ -4,7 +4,6 @@ from django.db import transaction
 from django.http import QueryDict
 import rest_framework.serializers as serializers
 
-from .tasks import celery_extract_meta_data
 from .utils import check_user_pdf_title
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
