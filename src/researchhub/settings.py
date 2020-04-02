@@ -426,7 +426,6 @@ EMAIL_WHITELIST = [
 
 SENTRY_ENVIRONMENT = 'production' if PRODUCTION else 'dev'
 
-# TODO: PUT THIS BACK!!!!!
 if PRODUCTION:
     AWS_STORAGE_BUCKET_NAME = 'researchhub-paper-prod'
 

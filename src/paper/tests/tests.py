@@ -1,5 +1,7 @@
+from psycopg2.errors import UniqueViolation
+
 from django.db import IntegrityError
-from django.test import TestCase, tag
+from django.test import TestCase, TransactionTestCase, tag
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from paper.tasks import handle_duplicate_doi
@@ -63,7 +65,7 @@ class PaperIntegrationTests(
 
 
 class DuplicatePaperIntegrationTest(
-    TestCase,
+    TransactionTestCase,
     TestHelper,
     IntegrationTestHelper
 ):
@@ -96,7 +98,7 @@ class DuplicatePaperIntegrationTest(
         try:
             new_paper.doi = doi
             new_paper.save()
-        except IntegrityError:
+        except (UniqueViolation, IntegrityError):
             handle_duplicate_doi(new_paper, doi)
 
         # Checking merging results

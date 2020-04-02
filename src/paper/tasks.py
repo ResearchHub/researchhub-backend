@@ -1,4 +1,5 @@
 from manubot.cite.doi import get_doi_csl_item
+from psycopg2.errors import UniqueViolation
 
 from utils.semantic_scholar import SemanticScholar
 from utils.crossref import Crossref
@@ -204,7 +205,7 @@ def celery_extract_meta_data(paper_id, title, check_title):
         paper.paper_publish_date = publish_date
         paper.tagline = tagline
         paper.save()
-    except IntegrityError as e:
+    except (UniqueViolation, IntegrityError) as e:
         sentry.log_info(e)
         handle_duplicate_doi(paper, doi)
     except Exception as e:
