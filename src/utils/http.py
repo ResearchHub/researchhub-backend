@@ -27,7 +27,7 @@ def get_user_from_request(ctx):
 
 
 def http_request(
-        method, *args, timeout=1, **kwargs) -> requests.models.Response:
+        method, *args, timeout=300, **kwargs) -> requests.models.Response:
     if method == RequestMethods.DELETE:
         return requests.delete(*args, timeout=timeout, **kwargs)
     if method == RequestMethods.HEAD:
