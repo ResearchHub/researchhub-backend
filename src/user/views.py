@@ -183,13 +183,13 @@ class AuthorViewSet(viewsets.ModelViewSet):
             prefetch_lookups = PaperViewSet.prefetch_lookups(self)
             user_paper_uploads = Paper.objects.filter(uploaded_by=user).prefetch_related(*prefetch_lookups)
 
-            user_comments_count = len(user_comments)
-            user_replies_count = len(user_replies)
+            # user_comments_count = len(user_comments)
+            # user_replies_count = len(user_replies)
             user_paper_uploads_count = len(user_paper_uploads)
             count = (
-                user_comments_count
-                + user_replies_count
-                + user_paper_uploads_count
+                # user_comments_count
+                # + user_replies_count
+                user_paper_uploads_count
             )
 
             user_comments = list(
