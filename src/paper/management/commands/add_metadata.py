@@ -14,7 +14,7 @@ class Command(BaseCommand):
         print('Adding metadata to papers')
         for i, paper in enumerate(papers):
             try:
-                print(f'{i + 1}/{count}')
+                print(f'Paper: {paper.id} - {i + 1}/{count}')
                 paper.extract_meta_data()
             except Exception as e:
                 self.stdout.write(self.style.ERROR(
