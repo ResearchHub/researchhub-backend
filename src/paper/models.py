@@ -391,7 +391,9 @@ class Paper(models.Model):
         doi_hits = set(existing_papers.values_list('doi', flat=True))
         doi_misses = doi_set.difference(doi_hits)
 
-        for doi in doi_misses:
+        doi_count = doi_misses.count()
+        for i, doi in enumerate(doi_misses):
+            print('{} / {}'.format(i, doi_count))
             if not doi:
                 continue
             hubs = []
