@@ -286,38 +286,48 @@ class Paper(models.Model):
             return thread_count + comment_count + reply_count
 
     def extract_figures(self, use_celery=True):
+        if TESTING:
+            return
+
         if not TESTING and use_celery:
             celery_extract_figures.apply_async(
                 (self.id,),
                 priority=3,
                 countdown=10,
             )
-        elif TESTING:
-            return
         else:
             celery_extract_figures(self.id)
 
     def extract_pdf_preview(self, use_celery=True):
+        if TESTING:
+            return
+
         if not TESTING and use_celery:
             celery_extract_pdf_preview.apply_async(
                 (self.id,),
                 priority=3,
                 countdown=10,
             )
-        elif TESTING:
-            return
         else:
             celery_extract_pdf_preview(self.id)
 
-    def extract_meta_data(self, user_title, use_celery=True):
+    def extract_meta_data(self, user_title=None, use_celery=True):
+        if TESTING:
+            return
+
+        if user_title is None and self.paper_title:
+            user_title = self.paper_title
+        elif user_title is None and self.title:
+            user_title = self.title
+        elif user_title is None:
+            return
+
         if not TESTING and use_celery:
             celery_extract_meta_data.apply_async(
                 (self.id, user_title,),
                 priority=1,
                 countdown=10,
             )
-        elif TESTING:
-            return
         else:
             celery_extract_meta_data(self.id, user_title)
 
