@@ -20,9 +20,4 @@ class Command(BaseCommand):
             print('{} / {}'.format(i, count))
             # If the paper has no references we are assuming it also has
             # no papers referencing it in the db yet.
-            try:
-                paper.add_references()
-            except Exception as e:
-                self.stdout.write(self.style.ERROR(
-                    f'Failed to queue task for paper {paper.id}: {e}'
-                ))
+            paper.add_references()
