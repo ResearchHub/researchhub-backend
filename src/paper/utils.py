@@ -20,6 +20,7 @@ MANUBOT_PAPER_TYPES = [
     'article-journal',
 ]
 SIMILARITY_THRESHOLD = 0.9
+MAX_TITLE_PAGES = 5
 
 
 def get_csl_item(url) -> dict:
@@ -179,7 +180,10 @@ def check_user_pdf_title(user_input_title, file):
             return True
         else:
             n_length = len(normalized_user_title.split())
-            for page in doc:
+            for i, page in enumerate(doc):
+                if i > MAX_TITLE_PAGES:
+                    return False
+
                 page_text = page.getText().lower()
                 if normalized_user_title in page_text:
                     return True
@@ -195,6 +199,21 @@ def check_user_pdf_title(user_input_title, file):
         return False
     except Exception as e:
         sentry.log_error(e)
+
+
+def check_crossref_title(original_title, crossref_title):
+    # Lowercasing titles for simple normalization
+    normalized_original_title = original_title.lower()
+    normalized_crossref_title = crossref_title.lower()
+
+    similar = check_similarity(
+        normalized_original_title,
+        normalized_crossref_title
+    )
+
+    if similar:
+        return True
+    return False
 
 
 def check_similarity(str1, str2, threshold=SIMILARITY_THRESHOLD):
