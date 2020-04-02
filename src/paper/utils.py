@@ -12,12 +12,15 @@ from utils.http import (
     http_request,
     RequestMethods as methods
 )
+from utils import sentry
+
 
 MANUBOT_PAPER_TYPES = [
     'paper-conference',
     'article-journal',
 ]
 SIMILARITY_THRESHOLD = 0.9
+MAX_TITLE_PAGES = 5
 
 
 def get_csl_item(url) -> dict:
@@ -161,31 +164,55 @@ def check_user_pdf_title(user_input_title, file):
     if not user_input_title:
         return False
 
-    doc = fitz.open(stream=file.read(), filetype='pdf')
-    doc_metadata = doc.metadata
-    doc_title = doc_metadata['title']
+    try:
+        doc = fitz.open(stream=file.read(), filetype='pdf')
+        doc_metadata = doc.metadata
+        doc_title = doc_metadata.get('title') or ''
 
+        # Lowercasing titles for simple normalization
+        normalized_user_title = user_input_title.lower()
+        normalized_pdf_title = doc_title.lower()
+
+        # Checks if the title matches the pdf's metadata first
+        similar = check_similarity(normalized_pdf_title, normalized_user_title)
+
+        if similar:
+            return True
+        else:
+            n_length = len(normalized_user_title.split())
+            for i, page in enumerate(doc):
+                if i > MAX_TITLE_PAGES:
+                    return False
+
+                page_text = page.getText().lower()
+                if normalized_user_title in page_text:
+                    return True
+                ngrams = nltk.ngrams(page_text.split(), n_length)
+                for ngram in ngrams:
+                    ngram_string = ' '.join(ngram)
+                    similar = check_similarity(
+                        ngram_string,
+                        normalized_user_title
+                    )
+                    if similar:
+                        return True
+        return False
+    except Exception as e:
+        sentry.log_error(e)
+
+
+def check_crossref_title(original_title, crossref_title):
     # Lowercasing titles for simple normalization
-    normalized_user_title = user_input_title.lower()
-    normalized_pdf_title = doc_title.lower()
+    normalized_original_title = original_title.lower()
+    normalized_crossref_title = crossref_title.lower()
 
-    # Checks if the title matches the pdf's metadata first
-    similar = check_similarity(normalized_pdf_title, normalized_user_title)
+    similar = check_similarity(
+        normalized_original_title,
+        normalized_crossref_title
+    )
 
     if similar:
         return True
-    else:
-        n_length = len(normalized_user_title.split())
-        for page in doc:
-            page_text = page.getText().lower()
-            if normalized_user_title in page_text:
-                return True
-            ngrams = nltk.ngrams(page_text, n_length)
-            for ngram in ngrams:
-                ngram_string = ' '.join(ngram)
-                similar = check_similarity(ngram_string, normalized_user_title)
-                if similar:
-                    return True
     return False
 
 
@@ -196,7 +223,7 @@ def check_similarity(str1, str2, threshold=SIMILARITY_THRESHOLD):
     return False
 
 
-def get_crossref_results(query):
+def get_crossref_results(query, index=10):
     cr = Crossref()
     filters = {'type': 'journal-article'}
     limit = 10
@@ -210,4 +237,47 @@ def get_crossref_results(query):
         order=order,
     )
     results = results['message']['items']
-    return results
+    return results[:index]
+
+
+def merge_paper_votes(original_paper, new_paper):
+    old_votes = original_paper.votes.all()
+    old_votes_user = old_votes.values_list(
+        'created_by_id',
+        flat=True
+    )
+    conflicting_votes = new_paper.votes.filter(
+        created_by__in=old_votes_user
+    )
+    conflicting_votes_user = conflicting_votes.values_list(
+        'created_by_id',
+        flat=True
+    )
+    new_votes = new_paper.votes.exclude(
+        created_by_id__in=conflicting_votes_user
+    )
+
+    # Delete conflicting votes from the new paper
+    conflicting_votes.delete()
+
+    # Transfer new votes to original paper
+    new_votes.update(paper=original_paper)
+
+
+def merge_paper_threads(original_paper, new_paper):
+    new_paper.threads.update(paper=original_paper)
+
+
+def merge_paper_bulletpoints(original_paper, new_paper):
+    original_bullet_points = original_paper.bullet_points.all()
+    new_bullet_points = new_paper.bullet_points.all()
+    for new_bullet_point in new_bullet_points:
+        new_point_text = new_bullet_point.plain_text
+        for original_bullet_point in original_bullet_points:
+            original_point_text = original_bullet_point.plain_text
+            is_similar = check_similarity(original_point_text, new_point_text)
+            if not is_similar:
+                new_bullet_point.paper = original_paper
+                new_bullet_point.save()
+            else:
+                new_bullet_point.delete()

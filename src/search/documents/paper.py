@@ -1,5 +1,3 @@
-import logging
-
 from django_elasticsearch_dsl import Document, fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 
@@ -9,6 +7,7 @@ from researchhub.settings import (
     TESTING
 )
 from search.analyzers import title_analyzer
+import utils.sentry as sentry
 
 
 @registry.register_document
@@ -50,4 +49,6 @@ class PaperDocument(Document):
         try:
             super().update(*args, **kwargs)
         except ConnectionError as e:
-            logging.warning(str(e))
+            sentry.log_info(e)
+        except Exception as e:
+            sentry.log_info(e)
