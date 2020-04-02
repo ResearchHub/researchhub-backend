@@ -393,7 +393,7 @@ class Paper(models.Model):
 
         doi_count = len(doi_misses)
         for i, doi in enumerate(doi_misses):
-            print('{} / {}'.format(i, doi_count))
+            print('DOI MISS: {} / {}'.format(i, doi_count))
             if not doi:
                 continue
             hubs = []
