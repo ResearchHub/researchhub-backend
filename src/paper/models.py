@@ -54,7 +54,13 @@ class Paper(models.Model):
         null=True,
         blank=True
     )
-    doi = models.CharField(max_length=255, default=None, null=True, blank=True)
+    doi = models.CharField(
+        max_length=255,
+        default=None,
+        null=True,
+        blank=True,
+        unique=True
+    )
     hubs = models.ManyToManyField(
         'hub.Hub',
         related_name='papers',
@@ -251,15 +257,6 @@ class Paper(models.Model):
         if len(all_votes) > 0:
             return [self.get_vote_for_index(vote) for vote in all_votes]
         return {}
-
-    def save(self, *args, **kwargs):
-        doi = self.doi
-        if doi is not None:
-            existing_dois = Paper.objects.filter(doi=doi)
-            matching_dois_allowed = 0
-            if len(existing_dois) > matching_dois_allowed:
-                raise IntegrityError(f'Paper with DOI {doi} already exists')
-        return super().save(*args, **kwargs)
 
     def get_full_name(self, author_or_user):
         return f'{author_or_user.first_name} {author_or_user.last_name}'
