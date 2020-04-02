@@ -15,7 +15,7 @@ class Command(BaseCommand):
         for i, paper in enumerate(papers):
             try:
                 print(f'Paper: {paper.id} - {i + 1}/{count}')
-                paper.extract_meta_data()
+                paper.extract_meta_data(use_celery=False)
             except Exception as e:
                 self.stdout.write(self.style.ERROR(
                     f'Failed to queue task for paper {paper.id}: {e}'
