@@ -163,6 +163,7 @@ class PaperSerializer(serializers.ModelSerializer):
                     instance,
                     validated_data
                 )
+                self._check_pdf_title(paper, paper.paper_title, file)
 
                 current_hubs = paper.hubs.all()
                 remove_hubs = []
