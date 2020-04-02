@@ -178,33 +178,21 @@ class AuthorViewSet(viewsets.ModelViewSet):
             reply_offset = int(request.GET['replyOffset'])
             paper_upload_offset = int(request.GET['paperUploadOffset'])
 
-            # user_comments = Comment.objects.filter(created_by=user)
-            # user_replies = Reply.objects.filter(created_by=user)
             prefetch_lookups = PaperViewSet.prefetch_lookups(self)
             user_paper_uploads = Paper.objects.filter(uploaded_by=user).prefetch_related(*prefetch_lookups)
 
-            # user_comments_count = len(user_comments)
-            # user_replies_count = len(user_replies)
             user_paper_uploads_count = len(user_paper_uploads)
             count = (
-                # user_comments_count
-                # + user_replies_count
                 user_paper_uploads_count
             )
 
-            user_comments = list(
-                user_comments[comment_offset:(comment_offset + PAGE_SIZE)]
-            )
-            user_replies = list(
-                user_replies[reply_offset:(reply_offset + PAGE_SIZE)]
-            )
             user_paper_uploads = list(
                 user_paper_uploads[
                     paper_upload_offset:(paper_upload_offset + PAGE_SIZE)
                 ]
             )
 
-            contributions = user_comments + user_replies + user_paper_uploads
+            contributions = user_paper_uploads
             contributions.sort(reverse=True, key=sort)
             contributions = contributions[0:PAGE_SIZE]
             offsets = {
