@@ -1,4 +1,4 @@
-from django.db import models, IntegrityError
+from django.db import models
 from django.db.models import Count, Q
 from django.contrib.postgres.fields import JSONField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
