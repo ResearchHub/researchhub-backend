@@ -245,10 +245,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     serialized_contributions.append(serialized_data)
 
             has_next = False
-            if offsets['comment_offset'] < user_comments_count:
-                has_next = True
-            if offsets['reply_offset'] < user_replies_count:
-                has_next = True
             if offsets['paper_upload_offset'] < user_paper_uploads_count:
                 has_next = True
 
