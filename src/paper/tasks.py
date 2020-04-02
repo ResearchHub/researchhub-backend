@@ -264,8 +264,8 @@ def celery_extract_meta_data(paper_id, title):
     best_matching_result = get_crossref_results(title, index=1)[0]
 
     try:
-        doi = best_matching_result.get('DOI', '')
-        url = best_matching_result.get('URL', '')
+        doi = best_matching_result.get('DOI', None)
+        url = best_matching_result.get('URL', None)
         publish_date = best_matching_result['created']['date-time']
         publish_date = datetime.strptime(publish_date, date_format).date()
         tagline = best_matching_result.get('abstract', '')
