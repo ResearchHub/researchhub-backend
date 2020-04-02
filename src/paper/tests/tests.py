@@ -1,11 +1,14 @@
+from django.db import IntegrityError
 from django.test import TestCase, tag
 from django.core.files.uploadedfile import SimpleUploadedFile
 
+from paper.tasks import handle_duplicate_doi
 from utils.test_helpers import (
     IntegrationTestHelper,
     TestHelper,
     get_user_from_response
 )
+
 
 class PaperIntegrationTests(
     TestCase,
@@ -57,3 +60,73 @@ class PaperIntegrationTests(
             'authors': [author.id],
         }
         return form
+
+
+class DuplicatePaperIntegrationTest(
+    TestCase,
+    TestHelper,
+    IntegrationTestHelper
+):
+    def create_original_paper(self, doi='1'):
+        original_paper = self.create_paper_without_authors()
+        original_paper.doi = doi
+        original_paper.save()
+        return original_paper
+
+    def test_duplicate_papers(self):
+        doi = '1.1.1'
+        user1 = self.create_random_authenticated_user('user_1')
+        user2 = self.create_random_authenticated_user('user_2')
+        original_paper = self.create_original_paper(doi=doi)
+        new_paper = self.create_paper_without_authors()
+
+        # Adding upvote to papers
+        self.create_upvote(user1, original_paper)
+        self.create_upvote(user1, new_paper)
+        self.create_upvote(user2, new_paper)
+
+        # Adding threads to papers
+        self.create_thread(user1, original_paper, text='thread_1')
+        self.create_thread(user2, new_paper, text='thread_2')
+
+        # Adding bullet point to papers
+        self.create_bulletpoint(user1, original_paper, text='original_point')
+        self.create_bulletpoint(user2, new_paper, text='new_point')
+
+        try:
+            new_paper.doi = doi
+            new_paper.save()
+        except IntegrityError:
+            handle_duplicate_doi(new_paper, doi)
+
+        # Checking merging results
+        original_results, new_results = 2, 0
+        original_paper_votes = original_paper.votes.count()
+        new_paper_votes = new_paper.votes.count()
+        self.assertEqual(original_paper_votes, original_results)
+        self.assertEqual(new_paper_votes, new_results)
+
+        original_thread_results = set(['thread_1', 'thread_2'])
+        original_paper_threads = original_paper.threads.count()
+        original_paper_threads_text = set(original_paper.threads.values_list(
+            'plain_text',
+            flat=True
+        ))
+        new_paper_threads = new_paper.threads.count()
+        self.assertEqual(original_paper_threads, original_results)
+        self.assertEqual(new_paper_threads, new_results)
+        self.assertEqual(original_paper_threads_text, original_thread_results)
+
+        original_bulletpoint_results = set(['original_point', 'new_point'])
+        original_paper_bulletpoints = original_paper.bullet_points.count()
+        original_points_text = set(original_paper.bullet_points.values_list(
+            'plain_text',
+            flat=True
+        ))
+        new_paper_bulletpoints = new_paper.bullet_points.count()
+        self.assertEqual(original_paper_bulletpoints, original_results)
+        self.assertEqual(new_paper_bulletpoints, new_results)
+        self.assertEqual(original_points_text, original_bulletpoint_results)
+
+        new_paper_id = None
+        self.assertEqual(new_paper.id, new_paper_id)

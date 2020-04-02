@@ -7,8 +7,10 @@ from django.test import Client
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
+from bullet_point.models import BulletPoint
+from discussion.models import Thread
 from hub.models import Hub
-from paper.models import Paper
+from paper.models import Paper, Vote
 from user.models import Author, University, User
 
 
@@ -139,6 +141,53 @@ class TestHelper:
     ):
         return Hub.objects.create(
             name=name
+        )
+
+    def create_upvote(
+        self,
+        user,
+        paper
+    ):
+        return Vote.objects.create(
+            paper=paper,
+            created_by=user,
+            vote_type=Vote.UPVOTE
+        )
+
+    def create_downvote(
+        self,
+        user,
+        paper
+    ):
+        return Vote.objects.create(
+            paper=paper,
+            created_by=user,
+            vote_type=Vote.DOWNVOTE
+        )
+
+    def create_thread(
+        self,
+        user,
+        paper,
+        text='thread'
+    ):
+        return Thread.objects.create(
+            created_by=user,
+            paper=paper,
+            text={'text': text},
+            plain_text=text
+        )
+
+    def create_bulletpoint(
+        self,
+        user,
+        paper,
+        text='bulletpoint'
+    ):
+        return BulletPoint.objects.create(
+            created_by=user,
+            paper=paper,
+            plain_text=text
         )
 
 

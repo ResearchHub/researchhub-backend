@@ -59,7 +59,13 @@ class Paper(models.Model):
         null=True,
         blank=True
     )
-    doi = models.CharField(max_length=255, default=None, null=True, blank=True)
+    doi = models.CharField(
+        max_length=255,
+        default=None,
+        null=True,
+        blank=True,
+        unique=True
+    )
     hubs = models.ManyToManyField(
         'hub.Hub',
         related_name='papers',
@@ -271,17 +277,6 @@ class Paper(models.Model):
             return [self.get_vote_for_index(vote) for vote in all_votes]
         return {}
 
-    def save(self, *args, **kwargs):
-        doi = self.doi
-        if doi is not None:
-            existing_dois = Paper.objects.filter(doi=doi)
-            matching_dois_allowed = 1  # this one is allowed to exist
-            if self.id is None:
-                matching_dois_allowed = 0  # none should exist yet
-            if len(existing_dois) > matching_dois_allowed:
-                raise IntegrityError(f'Paper with DOI {doi} already exists')
-        return super().save(*args, **kwargs)
-
     def get_full_name(self, author_or_user):
         return f'{author_or_user.first_name} {author_or_user.last_name}'
 
@@ -307,39 +302,55 @@ class Paper(models.Model):
             return thread_count + comment_count + reply_count
 
     def extract_figures(self, use_celery=True):
+        if TESTING:
+            return
+
         if not TESTING and use_celery:
             celery_extract_figures.apply_async(
                 (self.id,),
                 priority=3,
                 countdown=10,
             )
-        elif TESTING:
-            return
         else:
             celery_extract_figures(self.id)
 
     def extract_pdf_preview(self, use_celery=True):
+        if TESTING:
+            return
+
         if not TESTING and use_celery:
             celery_extract_pdf_preview.apply_async(
                 (self.id,),
                 priority=3,
                 countdown=10,
             )
-        elif TESTING:
-            return
         else:
             celery_extract_pdf_preview(self.id)
 
-    def extract_meta_data(self, use_celery=True):
+    def extract_meta_data(
+        self,
+        user_title=None,
+        check_title=False,
+        use_celery=True
+    ):
+        if TESTING:
+            return
+
+        if user_title is None and self.paper_title:
+            user_title = self.paper_title
+        elif user_title is None and self.title:
+            user_title = self.title
+        elif user_title is None:
+            return
+
         if not TESTING and use_celery:
             celery_extract_meta_data.apply_async(
-                (self.id,),
-                priority=3
+                (self.id, user_title, check_title),
+                priority=1,
+                countdown=10,
             )
-        elif TESTING:
-            return
         else:
-            celery_extract_meta_data(self.id)
+            celery_extract_meta_data(self.id, user_title, check_title)
 
     def calculate_score(self):
         if hasattr(self, 'score'):
