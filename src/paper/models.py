@@ -183,7 +183,7 @@ class Paper(models.Model):
     @property
     def children(self):
         return self.threads.all()
-    
+
     @classmethod
     def create_manubot_paper(cls, doi):
         csl_item = get_doi_csl_item(doi)
@@ -372,7 +372,7 @@ class Paper(models.Model):
     def update_summary(self, summary):
         self.summary = summary
         self.save()
-    
+
     def add_references(self):
         if self.doi:
             semantic_paper = SemanticScholar(self.doi)
@@ -387,7 +387,7 @@ class Paper(models.Model):
                     referenced_by,
                     'referenced_by'
                 )
-    
+
     def add_or_create_reference_papers(self, reference_list, reference_field):
         dois = [ref['doi'] for ref in reference_list]
         doi_set = set(dois)
