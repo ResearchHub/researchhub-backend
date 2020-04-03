@@ -4,7 +4,7 @@ from django.db import transaction
 from django.http import QueryDict
 import rest_framework.serializers as serializers
 
-from .utils import check_user_pdf_title
+from .utils import check_pdf_title
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
 from hub.serializers import HubSerializer
@@ -113,16 +113,12 @@ class PaperSerializer(serializers.ModelSerializer):
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
-        if 'user_title' in validated_data:
-            user_title = validated_data.get('paper_title')
-        else:
-            user_title = validated_data.get('title', '')
 
         try:
             with transaction.atomic():
                 paper = super(PaperSerializer, self).create(validated_data)
-
-                self._check_pdf_title(paper, user_title, file)
+                paper_title = paper.paper_title or ''
+                self._check_pdf_title(paper, paper_title, file)
 
                 Vote.objects.create(
                     paper=paper,
@@ -163,7 +159,8 @@ class PaperSerializer(serializers.ModelSerializer):
                     instance,
                     validated_data
                 )
-                self._check_pdf_title(paper, paper.paper_title, file)
+                paper_title = paper.paper_title or ''
+                self._check_pdf_title(paper, paper_title, file)
 
                 current_hubs = paper.hubs.all()
                 remove_hubs = []
@@ -289,7 +286,7 @@ class PaperSerializer(serializers.ModelSerializer):
             self._check_title_in_pdf(paper, user_title, file)
 
     def _check_title_in_pdf(self, paper, user_title, file):
-        title_in_pdf = check_user_pdf_title(user_title, file)
+        title_in_pdf = check_pdf_title(user_title, file)
         if not title_in_pdf:
             e = Exception('User entered title not in pdf')
             sentry.log_info(e)
