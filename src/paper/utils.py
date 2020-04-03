@@ -160,8 +160,8 @@ def fitz_extract_figures(file_path):
     fitz_extract_xobj(file_path)
 
 
-def check_user_pdf_title(user_input_title, file):
-    if not user_input_title:
+def check_pdf_title(input_title, file):
+    if not input_title:
         return False
 
     try:
@@ -170,29 +170,29 @@ def check_user_pdf_title(user_input_title, file):
         doc_title = doc_metadata.get('title') or ''
 
         # Lowercasing titles for simple normalization
-        normalized_user_title = user_input_title.lower()
+        normalized_input_title = input_title.lower()
         normalized_pdf_title = doc_title.lower()
 
         # Checks if the title matches the pdf's metadata first
-        similar = check_similarity(normalized_pdf_title, normalized_user_title)
+        similar = check_similarity(normalized_pdf_title, normalized_input_title)
 
         if similar:
             return True
         else:
-            n_length = len(normalized_user_title.split())
+            n_length = len(normalized_input_title.split())
             for i, page in enumerate(doc):
                 if i > MAX_TITLE_PAGES:
                     return False
 
                 page_text = page.getText().lower()
-                if normalized_user_title in page_text:
+                if normalized_input_title in page_text:
                     return True
                 ngrams = nltk.ngrams(page_text.split(), n_length)
                 for ngram in ngrams:
                     ngram_string = ' '.join(ngram)
                     similar = check_similarity(
                         ngram_string,
-                        normalized_user_title
+                        normalized_input_title
                     )
                     if similar:
                         return True

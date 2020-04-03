@@ -20,7 +20,7 @@ from django.db import IntegrityError
 from researchhub.celery import app
 from paper.utils import (
     check_crossref_title,
-    check_user_pdf_title,
+    check_pdf_title,
     get_pdf_from_url,
     get_crossref_results,
     fitz_extract_figures,
@@ -175,7 +175,7 @@ def celery_extract_meta_data(paper_id, title, check_title):
     paper = Paper.objects.get(id=paper_id)
 
     if check_title:
-        has_title = check_user_pdf_title(title, paper.file)
+        has_title = check_pdf_title(title, paper.file)
         if not has_title:
             return
 
