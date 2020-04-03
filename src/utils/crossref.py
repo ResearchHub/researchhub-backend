@@ -6,16 +6,16 @@ import habanero
 
 class Crossref:
     def __init__(self, doi=None, query=None):
-        self.cr = habanero.Crossref()
-        if doi:
-            self.handle_doi(doi)
         # TODO: Handle query case
+        self.cr = habanero.Crossref()
         self.data = None
         self.data_message = None
         self.reference_count = None
         self.referenced_by_count = None
         self.referenced_by = []
         self.references = []
+        if doi:
+            self.handle_doi(doi)
 
     def handle_doi(self, doi):
         try:
