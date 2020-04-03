@@ -203,7 +203,10 @@ def celery_extract_meta_data(paper_id, title, check_title):
         paper.doi = doi
         paper.url = url
         paper.paper_publish_date = publish_date
-        paper.tagline = tagline
+
+        if not paper.tagline:
+            paper.tagline = tagline
+
         paper.save()
     except (UniqueViolation, IntegrityError) as e:
         sentry.log_info(e)
