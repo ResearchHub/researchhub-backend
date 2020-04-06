@@ -10,8 +10,6 @@ from django.db.models import (
     F
 )
 from django.db.models.functions import Extract, Now
-from elasticsearch.exceptions import ConnectionError
-from django.db.models.functions import Cast, Extract, Now
 from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
@@ -23,12 +21,10 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
-from .filters import PaperFilter
-from .models import Figure, Flag, Paper, Vote
-from discussion.models import Vote as DiscussionVote, Thread
-from discussion.serializers import SimpleThreadSerializer
-from .utils import get_csl_item, get_pdf_location_for_csl_item
-from .permissions import (
+from paper.exceptions import PaperSerializerError
+from paper.filters import PaperFilter
+from paper.models import Figure, Flag, Paper, Vote
+from paper.permissions import (
     CreatePaper,
     FlagPaper,
     IsAuthor,
@@ -37,14 +33,14 @@ from .permissions import (
     UpvotePaper,
     DownvotePaper
 )
-from .serializers import (
+from paper.serializers import (
     BookmarkSerializer,
     FlagSerializer,
     FigureSerializer,
     PaperSerializer,
     PaperVoteSerializer
 )
-from paper.exceptions import PaperSerializerError
+from paper.utils import get_csl_item, get_pdf_location_for_csl_item
 from utils.http import POST, check_url_contains_pdf
 from utils.serializers import EmptySerializer
 
@@ -83,6 +79,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             'hubs',
             'hubs__subscribers',
             'votes',
+            'figures',
             'flags',
             'threads',
             Prefetch(
