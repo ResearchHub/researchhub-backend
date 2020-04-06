@@ -24,6 +24,8 @@ class PaperSerializer(serializers.ModelSerializer):
     authors = AuthorSerializer(many=True, read_only=False, required=False)
     discussion = serializers.SerializerMethodField()
     discussion_count = serializers.SerializerMethodField()
+    first_figure = serializers.SerializerMethodField()
+    first_preview = serializers.SerializerMethodField()
     hubs = HubSerializer(many=True, required=False)
     referenced_by = serializers.SerializerMethodField()
     references = serializers.PrimaryKeyRelatedField(read_only=True, many=True)
@@ -243,6 +245,18 @@ class PaperSerializer(serializers.ModelSerializer):
                 except Flag.DoesNotExist:
                     pass
         return flag
+
+    def get_first_figure(self, paper):
+        figure = paper.figures.filter(figure_type=Figure.FIGURE).first()
+        if figure is not None:
+            return FigureSerializer(figure).data
+        return None
+
+    def get_first_preview(self, paper):
+        figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
+        if figure is not None:
+            return FigureSerializer(figure).data
+        return None
 
     def _add_references(self, paper):
         try:
