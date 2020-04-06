@@ -105,7 +105,13 @@ class Paper(models.Model):
         null=True,
         blank=True
     )
-    tagline = models.TextField(
+    tagline = models.CharField(
+        max_length=255,
+        default=None,
+        null=True,
+        blank=True
+    )
+    abstract = models.TextField(
         default=None,
         null=True,
         blank=True
