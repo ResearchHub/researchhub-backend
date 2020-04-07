@@ -16,5 +16,5 @@ class Command(BaseCommand):
             print('{} / {}'.format(i, count))
             # If the paper has no references we are assuming it also has
             # no papers referencing it in the db yet.
-            paper.tagline = paper.abstract[0:255] + '...'
+            paper.tagline = paper.abstract[0:250] + '...'
             paper.save()
