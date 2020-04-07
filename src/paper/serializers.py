@@ -38,7 +38,7 @@ class PaperSerializer(serializers.ModelSerializer):
     class Meta:
         fields = '__all__'
         read_only_fields = [
-            'referenced_by'
+            'referenced_by',
             'references',
             'score',
             'user_vote',
