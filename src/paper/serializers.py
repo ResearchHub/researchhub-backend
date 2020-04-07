@@ -135,7 +135,10 @@ class BasePaperSerializer(serializers.ModelSerializer):
                 figure = paper.figure_list[0]
                 return FigureSerializer(figure).data
         except AttributeError:
-            pass
+            figure = paper.figures.filter(
+                figure_type=Figure.FIGURE
+            ).first()
+            return FigureSerializer(figure).data
         return None
 
     def get_first_preview(self, paper):
@@ -144,7 +147,10 @@ class BasePaperSerializer(serializers.ModelSerializer):
                 figure = paper.preview_list[0]
                 return FigureSerializer(figure).data
         except AttributeError:
-            pass
+            figure = paper.figures.filter(
+                figure_type=Figure.PREVIEW
+            ).first()
+            return FigureSerializer(figure).data
         return None
 
     def get_referenced_by(self, paper):
