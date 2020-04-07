@@ -21,6 +21,7 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
+from bullet_point.models import BulletPoint
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import Figure, Flag, Paper, Vote
@@ -39,11 +40,11 @@ from paper.serializers import (
     FlagSerializer,
     FigureSerializer,
     PaperSerializer,
-    PaperVoteSerializer
+    PaperReferenceSerializer,
+    PaperVoteSerializer,
 )
 from paper.utils import get_csl_item, get_pdf_location_for_csl_item
-from utils.http import POST, check_url_contains_pdf
-from utils.serializers import EmptySerializer
+from utils.http import GET, POST, check_url_contains_pdf
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -69,6 +70,12 @@ class PaperViewSet(viewsets.ModelViewSet):
             'uploaded_by__subscribed_hubs',
             'authors',
             'authors__user',
+            Prefetch(
+                'bullet_points',
+                queryset=BulletPoint.objects.filter(
+                    is_head=True
+                )
+            ),
             'summary',
             'summary__previous',
             'summary__proposed_by__bookmarks',
@@ -83,6 +90,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             'threads',
             'referenced_by',
             'referenced_by__hubs__subscribers',
+            'references',
             'threads__comments',
             Prefetch(
                 'figures',
@@ -247,6 +255,24 @@ class PaperViewSet(viewsets.ModelViewSet):
             return Response(flag_id, status=200)
         except Exception as e:
             return Response(f'Failed to delete flag: {e}', status=400)
+
+    @action(detail=True, methods=[GET])
+    def referenced_by(self, request, pk=None):
+        paper = self.get_object()
+        serialized = PaperReferenceSerializer(
+            paper.referenced_by.all(),
+            many=True
+        )
+        return Response(serialized.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=[GET])
+    def references(self, request, pk=None):
+        paper = self.get_object()
+        serialized = PaperReferenceSerializer(
+            paper.references.all(),
+            many=True
+        )
+        return Response(serialized.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
     def user_vote(self, request, pk=None):
@@ -505,7 +531,6 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         page = self.paginate_queryset(order_papers)
         context = self.get_serializer_context()
-        context['thread_serializer'] = EmptySerializer
         serializer = HubPaperSerializer(page, many=True, context=context)
         return self.get_paginated_response(
             {'data': serializer.data, 'no_results': False}
