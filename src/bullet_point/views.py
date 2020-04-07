@@ -250,9 +250,12 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
                 'Request body `order` must be a list of integers',
                 status=status.HTTP_400_BAD_REQUEST
             )
+        # TODO: This is a quick fix but we should get the paper from params
+        bp = BulletPoint.objects.get(pk=order[0])
+        paper = bp.paper
 
         BulletPoint.objects.filter(
-            Q(ordinal__isnull=False, is_head=True)
+            Q(paper=paper, ordinal__isnull=False, is_head=True)
         ).update(ordinal=None)
 
         try:
