@@ -1,4 +1,6 @@
 import logging
+import re
+
 from django.apps import apps
 from django.utils import timezone
 import habanero
@@ -8,24 +10,41 @@ class Crossref:
     def __init__(self, doi=None, query=None):
         # TODO: Handle query case
         self.cr = habanero.Crossref()
+
         self.data = None
         self.data_message = None
+
+        self.abstract = None
+        self.doi = doi
         self.reference_count = None
         self.referenced_by_count = None
         self.referenced_by = []
         self.references = []
-        if doi:
-            self.handle_doi(doi)
+        self.title = None
+        if self.doi is not None:
+            self.handle_doi()
 
-    def handle_doi(self, doi):
+    def handle_doi(self):
         try:
-            self.doi = doi
-            self.data = self.cr.works(ids=[doi])
+            self.data = self.cr.works(ids=[self.doi])
             self.data_message = self.data['message']
         except Exception as e:
             self.data_message = None
             logging.warning(e)
         else:
+            self.abstract = self.data_message.get('abstract', None)
+            # Remove any jat xml tags
+            if self.abstract is not None:
+                self.abstract = re.sub(r'<[^<]+>', '', self.abstract)
+
+            self.doi = self.data_message.get('DOI', self.doi)
+
+            self.paper_publish_date = get_crossref_issued_date(
+                self.data_message
+            )
+
+            self.publication_type = self.data_message.get('type', None)
+
             self.reference_count = self.data_message.get(
                 'reference-count',
                 None
@@ -51,22 +70,22 @@ class Crossref:
                         f'Referenced by count > 0 but found error: {e}'
                     )
 
+            self.title = self.data_message.get('title', [None])[0]
+
+            self.url = self.data_message.get('URL', None)
+
     def create_paper(self):
         Paper = apps.get_model('paper.Paper')
         if self.data_message is not None:
-            item = self.data_message
-            item_type = item.get('type', None)
-            if item_type == 'journal-article':
-                doi = item.get('DOI', None)
-                if doi is not None:
-                    title = item.get('title', [])[0]
-                    url = item.get('URL', None)
+            if self.publication_type == 'journal-article':
+                if self.doi is not None:
                     paper = Paper.objects.create(
-                        title=title,
-                        paper_title=title,
-                        doi=doi,
-                        url=url,
-                        paper_publish_date=get_crossref_issued_date(item),
+                        title=self.title,
+                        paper_title=self.title,
+                        doi=self.doi,
+                        url=self.url,
+                        paper_publish_date=self.paper_publish_date,
+                        publication_type=self.publication_type,
                         external_source='crossref',
                         retrieved_from_external_source=True,
                         is_public=False
