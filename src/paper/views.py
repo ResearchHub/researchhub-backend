@@ -82,6 +82,23 @@ class PaperViewSet(viewsets.ModelViewSet):
             'figures',
             'flags',
             'threads',
+            'referenced_by',
+            'referenced_by__hubs__subscribers',
+            'threads__comments',
+            Prefetch(
+                'figures',
+                queryset=Figure.objects.filter(
+                    figure_type=Figure.FIGURE
+                ),
+                to_attr="figure_list",
+            ),
+            Prefetch(
+                'figures',
+                queryset=Figure.objects.filter(
+                    figure_type=Figure.PREVIEW
+                ),
+                to_attr="preview_list",
+            ),
             Prefetch(
                 'votes',
                 queryset=Vote.objects.filter(
