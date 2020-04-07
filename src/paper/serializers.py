@@ -338,7 +338,9 @@ class PaperSerializer(BasePaperSerializer):
 
 class HubPaperSerializer(BasePaperSerializer):
     def get_bullet_points(self, paper):
-        bullet_points = paper.bullet_points.all().order_by('-ordinal')[:2]
+        bullet_points = paper.bullet_points.filter(
+            ordinal__isnull=False
+        ).order_by('ordinal')[:3]
         return BulletPointTextOnlySerializer(bullet_points, many=True).data
 
     def get_csl_item(self, paper):
