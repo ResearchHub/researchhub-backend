@@ -80,3 +80,19 @@ class BulletPointSerializer(serializers.ModelSerializer):
 
     def get_editors(self, obj):
         return UserSerializer(obj.editors, many=True).data
+
+
+class BulletPointTextOnlySerializer(serializers.ModelSerializer):
+    paper = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
+
+    class Meta:
+        model = BulletPoint
+        fields = [
+            'is_head',
+            'is_public',
+            'ordinal',
+            'paper',
+            'plain_text',
+            'text',
+        ]
+        read_only_fields = fields
