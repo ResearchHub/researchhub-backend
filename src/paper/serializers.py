@@ -138,7 +138,8 @@ class BasePaperSerializer(serializers.ModelSerializer):
             figure = paper.figures.filter(
                 figure_type=Figure.FIGURE
             ).first()
-            return FigureSerializer(figure).data
+            if figure:
+                return FigureSerializer(figure).data
         return None
 
     def get_first_preview(self, paper):
@@ -150,7 +151,8 @@ class BasePaperSerializer(serializers.ModelSerializer):
             figure = paper.figures.filter(
                 figure_type=Figure.PREVIEW
             ).first()
-            return FigureSerializer(figure).data
+            if figure:
+                return FigureSerializer(figure).data
         return None
 
     def get_referenced_by(self, paper):
