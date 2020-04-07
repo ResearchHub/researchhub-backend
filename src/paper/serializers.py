@@ -186,6 +186,8 @@ class PaperSerializer(serializers.ModelSerializer):
             raise error
 
     def get_discussion(self, obj):
+        if self.context.get('referenced_by'):
+            return {'count': 0, 'threads': 0}
         request = self.context.get('request')
         serializer = self.context.get('thread_serializer', ThreadSerializer)
 
@@ -199,20 +201,30 @@ class PaperSerializer(serializers.ModelSerializer):
         return {'count': threads_queryset.count(), 'threads': threads.data}
 
     def get_discussion_count(self, obj):
+        if self.context.get('referenced_by'):
+            return 0
         return obj.get_discussion_count()
 
     def get_referenced_by(self, obj):
+        if self.context.get('referenced_by'):
+            return None
+        context = self.context
+        context['referenced_by'] = True
         serialized = PaperSerializer(
             obj.referenced_by,
             many=True,
-            context=self.context
+            context=context
         )
         return serialized.data
 
     def get_score(self, obj):
+        if self.context.get('referenced_by'):
+            return 0
         return obj.calculate_score()
 
     def get_user_vote(self, obj):
+        if self.context.get('referenced_by'):
+            return None
         vote = None
         user = get_user_from_request(self.context)
         if user:
@@ -230,6 +242,8 @@ class PaperSerializer(serializers.ModelSerializer):
         return vote
 
     def get_user_flag(self, paper):
+        if self.context.get('referenced_by'):
+            return None
         flag = None
         user = get_user_from_request(self.context)
         if user:
@@ -247,14 +261,22 @@ class PaperSerializer(serializers.ModelSerializer):
         return flag
 
     def get_first_figure(self, paper):
-        figure = paper.figures.filter(figure_type=Figure.FIGURE).first()
-        if figure is not None:
+        try:
+            paper.figure_list
+        except Exception as e:
+            return None
+        if len(paper.figure_list) > 0:
+            figure = paper.figure_list[0]
             return FigureSerializer(figure).data
         return None
 
     def get_first_preview(self, paper):
-        figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
-        if figure is not None:
+        try:
+            paper.figure_list
+        except Exception as e:
+            return None
+        if len(paper.preview_list) > 0:
+            figure = paper.preview_list[0]
             return FigureSerializer(figure).data
         return None
 
