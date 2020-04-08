@@ -4,13 +4,14 @@ from django.db import transaction
 from django.http import QueryDict
 import rest_framework.serializers as serializers
 
-from .utils import check_pdf_title
+from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
 from hub.serializers import HubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.models import Flag, Paper, Vote, Figure
 from paper.tasks import download_pdf, add_references
+from paper.utils import check_pdf_title
 from summary.serializers import SummarySerializer
 from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
@@ -20,8 +21,10 @@ import utils.sentry as sentry
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 
 
-class PaperSerializer(serializers.ModelSerializer):
+class BasePaperSerializer(serializers.ModelSerializer):
     authors = AuthorSerializer(many=True, read_only=False, required=False)
+    bullet_points = serializers.SerializerMethodField()
+    csl_item = serializers.SerializerMethodField()
     discussion = serializers.SerializerMethodField()
     discussion_count = serializers.SerializerMethodField()
     first_figure = serializers.SerializerMethodField()
@@ -36,9 +39,10 @@ class PaperSerializer(serializers.ModelSerializer):
     user_flag = serializers.SerializerMethodField()
 
     class Meta:
+        abstract = True
         fields = '__all__'
         read_only_fields = [
-            'referenced_by'
+            'referenced_by',
             'references',
             'score',
             'user_vote',
@@ -106,6 +110,107 @@ class PaperSerializer(serializers.ModelSerializer):
         data = data.copy()
         data['file'] = file
         return data
+
+    def get_bullet_points(self, paper):
+        return None
+
+    def get_csl_item(self, paper):
+        return paper.csl_item
+
+    def get_discussion(self, paper):
+        threads_queryset = paper.threads.all()
+        threads = ThreadSerializer(
+            threads_queryset.order_by('-created_date')[:PAGINATION_PAGE_SIZE],
+            many=True,
+            context=self.context
+        )
+        return {'count': threads_queryset.count(), 'threads': threads.data}
+
+    def get_discussion_count(self, paper):
+        return paper.get_discussion_count()
+
+    def get_first_figure(self, paper):
+        try:
+            if len(paper.figure_list) > 0:
+                figure = paper.figure_list[0]
+                return FigureSerializer(figure).data
+        except AttributeError:
+            figure = paper.figures.filter(
+                figure_type=Figure.FIGURE
+            ).first()
+            if figure:
+                return FigureSerializer(figure).data
+        return None
+
+    def get_first_preview(self, paper):
+        try:
+            if len(paper.preview_list) > 0:
+                figure = paper.preview_list[0]
+                return FigureSerializer(figure).data
+        except AttributeError:
+            figure = paper.figures.filter(
+                figure_type=Figure.PREVIEW
+            ).first()
+            if figure:
+                return FigureSerializer(figure).data
+        return None
+
+    def get_referenced_by(self, paper):
+        context = self.context
+        context['referenced_by'] = True
+        serialized = PaperReferenceSerializer(
+            paper.referenced_by,
+            many=True,
+            context=context
+        )
+        return serialized.data
+
+    def get_references(self, paper):
+        serialized = PaperReferenceSerializer(
+            paper.references,
+            many=True
+        )
+        return serialized.data
+
+    def get_score(self, paper):
+        return paper.calculate_score()
+
+    def get_user_flag(self, paper):
+        flag = None
+        user = get_user_from_request(self.context)
+        if user:
+            try:
+                flag_created_by = paper.flag_created_by
+                if len(flag_created_by) == 0:
+                    return None
+                flag = FlagSerializer(flag_created_by).data
+            except AttributeError:
+                try:
+                    flag = paper.flags.get(created_by=user.id)
+                    flag = FlagSerializer(flag).data
+                except Flag.DoesNotExist:
+                    pass
+        return flag
+
+    def get_user_vote(self, paper):
+        vote = None
+        user = get_user_from_request(self.context)
+        if user:
+            try:
+                vote_created_by = paper.vote_created_by
+                if len(vote_created_by) == 0:
+                    return None
+                vote = PaperVoteSerializer(vote_created_by).data
+            except AttributeError:
+                try:
+                    vote = paper.votes.get(created_by=user.id)
+                    vote = PaperVoteSerializer(vote).data
+                except Vote.DoesNotExist:
+                    pass
+        return vote
+
+
+class PaperSerializer(BasePaperSerializer):
 
     def create(self, validated_data):
         user = self.context['request'].user
@@ -185,79 +290,6 @@ class PaperSerializer(serializers.ModelSerializer):
             )
             raise error
 
-    def get_discussion(self, obj):
-        request = self.context.get('request')
-        serializer = self.context.get('thread_serializer', ThreadSerializer)
-
-        threads_queryset = obj.threads.all()
-        threads = serializer(
-            threads_queryset.order_by('-created_date')[:PAGINATION_PAGE_SIZE],
-            many=True,
-            context={'request': request}
-        )
-
-        return {'count': threads_queryset.count(), 'threads': threads.data}
-
-    def get_discussion_count(self, obj):
-        return obj.get_discussion_count()
-
-    def get_referenced_by(self, obj):
-        serialized = PaperSerializer(
-            obj.referenced_by,
-            many=True,
-            context=self.context
-        )
-        return serialized.data
-
-    def get_score(self, obj):
-        return obj.calculate_score()
-
-    def get_user_vote(self, obj):
-        vote = None
-        user = get_user_from_request(self.context)
-        if user:
-            try:
-                vote_created_by = obj.vote_created_by
-                if len(vote_created_by) == 0:
-                    return None
-                vote = PaperVoteSerializer(vote_created_by).data
-            except AttributeError:
-                try:
-                    vote = obj.votes.get(created_by=user.id)
-                    vote = PaperVoteSerializer(vote).data
-                except Vote.DoesNotExist:
-                    pass
-        return vote
-
-    def get_user_flag(self, paper):
-        flag = None
-        user = get_user_from_request(self.context)
-        if user:
-            try:
-                flag_created_by = paper.flag_created_by
-                if len(flag_created_by) == 0:
-                    return None
-                flag = FlagSerializer(flag_created_by).data
-            except AttributeError:
-                try:
-                    flag = paper.flags.get(created_by=user.id)
-                    flag = FlagSerializer(flag).data
-                except Flag.DoesNotExist:
-                    pass
-        return flag
-
-    def get_first_figure(self, paper):
-        figure = paper.figures.filter(figure_type=Figure.FIGURE).first()
-        if figure is not None:
-            return FigureSerializer(figure).data
-        return None
-
-    def get_first_preview(self, paper):
-        figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
-        if figure is not None:
-            return FigureSerializer(figure).data
-        return None
-
     def _add_references(self, paper):
         try:
             if not TESTING:
@@ -307,6 +339,55 @@ class PaperSerializer(serializers.ModelSerializer):
             return
         else:
             paper.extract_meta_data(user_title=user_title, use_celery=True)
+
+    def get_discussion(self, paper):
+        return None
+
+
+class HubPaperSerializer(BasePaperSerializer):
+    def get_bullet_points(self, paper):
+        bullet_points = paper.bullet_points.filter(
+            ordinal__isnull=False
+        ).order_by('ordinal')[:3]
+        return BulletPointTextOnlySerializer(bullet_points, many=True).data
+
+    def get_csl_item(self, paper):
+        return None
+
+    def get_discussion(self, paper):
+        return None
+
+    def get_referenced_by(self, paper):
+        return None
+
+    def get_references(self, paper):
+        return None
+
+
+class PaperReferenceSerializer(BasePaperSerializer):
+    def get_bullet_points(self, paper):
+        return None
+
+    def get_csl_item(self, paper):
+        return None
+
+    def get_discussion(self, paper):
+        return None
+
+    def get_discussion_count(self, paper):
+        return None
+
+    def get_referenced_by(self, paper):
+        return None
+
+    def get_references(self, paper):
+        return None
+
+    def get_user_flag(self, paper):
+        return None
+
+    def get_user_vote(self, paper):
+        return None
 
 
 class BookmarkSerializer(serializers.Serializer):
