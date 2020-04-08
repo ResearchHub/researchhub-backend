@@ -21,6 +21,7 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
+from bullet_point.models import BulletPoint
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import Figure, Flag, Paper, Vote
@@ -35,14 +36,15 @@ from paper.permissions import (
 )
 from paper.serializers import (
     BookmarkSerializer,
+    HubPaperSerializer,
     FlagSerializer,
     FigureSerializer,
     PaperSerializer,
-    PaperVoteSerializer
+    PaperReferenceSerializer,
+    PaperVoteSerializer,
 )
 from paper.utils import get_csl_item, get_pdf_location_for_csl_item
-from utils.http import POST, check_url_contains_pdf
-from utils.serializers import EmptySerializer
+from utils.http import GET, POST, check_url_contains_pdf
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -61,7 +63,6 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def prefetch_lookups(self):
         return (
-            # 'users_who_bookmarked',
             'uploaded_by',
             'uploaded_by__bookmarks',
             'uploaded_by__author_profile',
@@ -69,6 +70,12 @@ class PaperViewSet(viewsets.ModelViewSet):
             'uploaded_by__subscribed_hubs',
             'authors',
             'authors__user',
+            Prefetch(
+                'bullet_points',
+                queryset=BulletPoint.objects.filter(
+                    is_head=True
+                )
+            ),
             'summary',
             'summary__previous',
             'summary__proposed_by__bookmarks',
@@ -79,22 +86,39 @@ class PaperViewSet(viewsets.ModelViewSet):
             'hubs',
             'hubs__subscribers',
             'votes',
-            'figures',
             'flags',
             'threads',
+            'referenced_by',
+            'referenced_by__hubs__subscribers',
+            'references',
+            'threads__comments',
+            Prefetch(
+                'figures',
+                queryset=Figure.objects.filter(
+                    figure_type=Figure.FIGURE
+                ),
+                to_attr='figure_list',
+            ),
+            Prefetch(
+                'figures',
+                queryset=Figure.objects.filter(
+                    figure_type=Figure.PREVIEW
+                ),
+                to_attr='preview_list',
+            ),
             Prefetch(
                 'votes',
                 queryset=Vote.objects.filter(
                     created_by=self.request.user.id,
                 ),
-                to_attr="vote_created_by",
+                to_attr='vote_created_by',
             ),
             Prefetch(
                 'flags',
                 queryset=Flag.objects.filter(
                     created_by=self.request.user.id,
                 ),
-                to_attr="flag_created_by",
+                to_attr='flag_created_by',
             ),
         )
 
@@ -231,6 +255,24 @@ class PaperViewSet(viewsets.ModelViewSet):
             return Response(flag_id, status=200)
         except Exception as e:
             return Response(f'Failed to delete flag: {e}', status=400)
+
+    @action(detail=True, methods=[GET])
+    def referenced_by(self, request, pk=None):
+        paper = self.get_object()
+        serialized = PaperReferenceSerializer(
+            paper.referenced_by.all(),
+            many=True
+        )
+        return Response(serialized.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=[GET])
+    def references(self, request, pk=None):
+        paper = self.get_object()
+        serialized = PaperReferenceSerializer(
+            paper.references.all(),
+            many=True
+        )
+        return Response(serialized.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
     def user_vote(self, request, pk=None):
@@ -378,32 +420,12 @@ class PaperViewSet(viewsets.ModelViewSet):
             int(request.GET.get('end_date__lte', 0)),
             datetime.timezone.utc
         )
-        ordering = request.GET['ordering']
-
-        # TODO send correct ordering from frontend
-        if ordering == 'top_rated':
-            ordering = '-score'
-        elif ordering == 'most_discussed':
-            ordering = '-discussed'
-        elif ordering == 'newest':
-            ordering = '-uploaded_date'
-        elif ordering == 'hot':
-            ordering = '-hot_score'
+        ordering = self._set_hub_paper_ordering(request)
 
         hub_id = request.GET.get('hub_id', 0)
-
         threads_count = Count('threads')
 
-        # hub_id = 0 is the homepage
-        # we aren't on a specific hub so don't filter by that hub_id
-        if int(hub_id) == 0:
-            papers = self.get_queryset(prefetch=False).annotate(
-                threads_count=threads_count
-            ).prefetch_related(*self.prefetch_lookups())
-        else:
-            papers = self.get_queryset(prefetch=False).annotate(
-                threads_count=threads_count
-            ).filter(hubs=hub_id).prefetch_related(*self.prefetch_lookups())
+        papers = self._get_filtered_papers(hub_id, threads_count)
 
         if 'hot_score' in ordering:
             # constant > (hours in month) ** gravity * (discussion_weight + 2)
@@ -503,21 +525,42 @@ class PaperViewSet(viewsets.ModelViewSet):
                 discussed=threads_c + comments,
                 discussed_secondary=threads_count + all_time_comments
             ).order_by(ordering, ordering + '_secondary')
+
         else:
             order_papers = papers.order_by(ordering)
 
         page = self.paginate_queryset(order_papers)
-        serializer = PaperSerializer(
-            page,
-            many=True,
-            context={
-                'request': self.request,
-                'thread_serializer': EmptySerializer
-            }
-        )
+        context = self.get_serializer_context()
+        serializer = HubPaperSerializer(page, many=True, context=context)
         return self.get_paginated_response(
             {'data': serializer.data, 'no_results': False}
         )
+
+    def _set_hub_paper_ordering(self, request):
+        ordering = request.query_params.get('ordering', None)
+        # TODO send correct ordering from frontend
+        if ordering == 'top_rated':
+            ordering = '-score'
+        elif ordering == 'most_discussed':
+            ordering = '-discussed'
+        elif ordering == 'newest':
+            ordering = '-uploaded_date'
+        elif ordering == 'hot':
+            ordering = '-hot_score'
+        else:
+            ordering = '-score'
+        return ordering
+
+    def _get_filtered_papers(self, hub_id, threads_count):
+        # hub_id = 0 is the homepage
+        # we aren't on a specific hub so don't filter by that hub_id
+        if int(hub_id) == 0:
+            return self.get_queryset(prefetch=False).annotate(
+                threads_count=threads_count
+            ).prefetch_related(*self.prefetch_lookups())
+        return self.get_queryset(prefetch=False).annotate(
+            threads_count=threads_count
+        ).filter(hubs=hub_id).prefetch_related(*self.prefetch_lookups())
 
 
 class FigureViewSet(viewsets.ModelViewSet):
