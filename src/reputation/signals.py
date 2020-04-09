@@ -35,6 +35,7 @@ from reputation.lib import get_unpaid_distributions
 from reputation.models import Distribution, Withdrawal
 from reputation.utils import get_total_reputation_from_distributions
 from summary.models import Summary
+from user.models import User
 from utils.http import http_request, RequestMethods
 from utils import sentry
 
@@ -44,6 +45,19 @@ from utils import sentry
 ELIGIBLE_PAPER_FLAG_COUNT = 3
 NEW_USER_BONUS_REPUTATION_LIMIT = 200
 NEW_USER_BONUS_DAYS_LIMIT = 30
+
+
+@receiver(post_save, sender=User, dispatch_uid='sign_up')
+def distribute_for_sign_up(sender, instance, created, **kwargs):
+    timestamp = time()
+    if created and is_eligible_user(instance):
+        distributor = Distributor(
+            distributions.SignUp,
+            instance,
+            instance,
+            timestamp
+        )
+        distributor.distribute()
 
 
 @receiver(post_save, sender=Paper, dispatch_uid='create_paper')

@@ -12,6 +12,10 @@ class Distribution:
         return self._amount
 
 
+SignUp = Distribution(
+    'SIGN_UP', 50
+)
+
 CreatePaper = Distribution(
     'CREATE_PAPER', 1
 )
@@ -118,6 +122,10 @@ SummaryFlagged = Distribution(
 )
 
 DISTRIBUTION_TYPE_CHOICES = [
+    (
+        SignUp.name,
+        SignUp.name
+    ),
     (
         CreatePaper.name,
         CreatePaper.name
