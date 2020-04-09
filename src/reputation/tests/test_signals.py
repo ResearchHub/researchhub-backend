@@ -44,7 +44,8 @@ class SignalTests(TestCase):
         self.paper.authors.add(Author.objects.get(user=self.author))
         self.paper.save()
 
-        self.start_rep = 150
+        self.sign_up_bonus = 50
+        self.start_rep = 100 + self.sign_up_bonus
         self.new_user_create_rep = 1
         self.author_create_rep = (
             self.new_user_create_rep
@@ -156,7 +157,12 @@ class SignalTests(TestCase):
         create_comment(created_by=old_user)
 
         old_user.refresh_from_db()
-        self.assertEqual(old_user.reputation, self.start_rep)
+        # Add bonus here because this amount is added by a signal and gets
+        # wiped with refresh from db
+        self.assertEqual(
+            old_user.reputation + self.sign_up_bonus,
+            self.start_rep
+        )
 
     def test_create_comment_ONLY_increases_rep_under_200_new_user(self):
         user = create_random_default_user('Winky')
