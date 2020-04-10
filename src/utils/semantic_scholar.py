@@ -39,5 +39,4 @@ class SemanticScholar:
             self.hub_candidates = self.data.get('fieldsOfStudy', [])
             self.abstract = self.data.get('abstract', None)
         except Exception as e:
-            import pdb; pdb.set_trace()
             print(e)

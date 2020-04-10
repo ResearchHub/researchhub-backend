@@ -184,6 +184,7 @@ INSTALLED_APPS = [
     'search',
     'summary',
     'user',
+    'analytics',
 ]
 
 SITE_ID = 1
