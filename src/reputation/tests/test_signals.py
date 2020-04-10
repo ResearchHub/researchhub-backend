@@ -44,7 +44,7 @@ class SignalTests(TestCase):
         self.paper.authors.add(Author.objects.get(user=self.author))
         self.paper.save()
 
-        self.sign_up_bonus = 50
+        self.sign_up_bonus = 25
         self.start_rep = 100 + self.sign_up_bonus
         self.new_user_create_rep = 1
         self.author_create_rep = (
