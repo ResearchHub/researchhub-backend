@@ -126,7 +126,10 @@ class SignalTests(TestCase):
         self.assertEqual(recipient_1.reputation, self.start_rep)
 
         create_flag(paper=self.paper, created_by=recipient_2)
-        self.assertEqual(recipient_1.reputation, self.start_rep)
+        self.assertEqual(
+            recipient_1.reputation + self.sign_up_bonus,
+            self.start_rep
+        )
 
         earned_rep = distributions.FlagPaper.amount
 
@@ -241,7 +244,10 @@ class SignalTests(TestCase):
         create_reply(created_by=old_user)
 
         old_user.refresh_from_db()
-        self.assertEqual(old_user.reputation, self.start_rep)
+        self.assertEqual(
+            old_user.reputation + self.sign_up_bonus,
+            self.start_rep
+        )
 
     def test_create_reply_increases_rep_by_5_if_orcid_author(self):
         author = create_random_default_user('Viktor ORCID')
@@ -386,7 +392,10 @@ class SignalTests(TestCase):
         create_reply(created_by=old_user)
 
         old_user.refresh_from_db()
-        self.assertEqual(old_user.reputation, self.start_rep)
+        self.assertEqual(
+            old_user.reputation + self.sign_up_bonus,
+            self.start_rep
+        )
 
     def test_thread_upvoted_increases_rep_by_5(self):
         recipient = create_random_default_user('Percy')
@@ -529,7 +538,10 @@ class SignalTests(TestCase):
         create_summary('', old_user, self.paper.id)
 
         old_user.refresh_from_db()
-        self.assertEqual(old_user.reputation, self.start_rep)
+        self.assertEqual(
+            old_user.reputation + self.sign_up_bonus,
+            self.start_rep
+        )
 
         rich_user = create_random_default_user('Muggle')
         rich_user.reputation = 200
