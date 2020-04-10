@@ -37,11 +37,13 @@ from user.models import Author
 from user.utils import merge_author_profiles
 from utils import sentry
 from utils.http import http_request, RequestMethods
+from analytics.models import WebsiteVisits
 
 
 class SocialLoginSerializer(serializers.Serializer):
     access_token = serializers.CharField(required=False, allow_blank=True)
     code = serializers.CharField(required=False, allow_blank=True)
+    uuid = serializers.CharField(required=False, allow_blank=True)
 
     def _get_request(self):
         request = self.context.get('request')
@@ -168,6 +170,13 @@ class SocialLoginSerializer(serializers.Serializer):
             login.save(request, connect=True)
 
         attrs['user'] = login.account.user
+        try:
+            visits = WebsiteVisits.objects.get(uuid=attrs['uuid'])
+            visits.user = attrs['user']
+            visits.save()
+        except Exception as e:
+            print(e)
+            pass
 
         return attrs
 
