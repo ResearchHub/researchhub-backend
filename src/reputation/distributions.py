@@ -13,7 +13,7 @@ class Distribution:
 
 
 SignUp = Distribution(
-    'SIGN_UP', 50
+    'SIGN_UP', 25
 )
 
 CreatePaper = Distribution(
