@@ -123,7 +123,10 @@ class SignalTests(TestCase):
         late_user = create_random_default_user('late user')
 
         create_flag(paper=self.paper, created_by=recipient_1)
-        self.assertEqual(recipient_1.reputation, self.start_rep)
+        self.assertEqual(
+            recipient_1.reputation + self.sign_up_bonus,
+            self.start_rep
+        )
 
         create_flag(paper=self.paper, created_by=recipient_2)
         self.assertEqual(
