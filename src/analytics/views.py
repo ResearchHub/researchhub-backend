@@ -7,3 +7,4 @@ class WebsiteVisitsViewSet(viewsets.ModelViewSet):
     queryset = WebsiteVisits.objects.all()
     serializer_class = WebsiteVisitsSerializer
     http_method_names = ['post']
+    permission_classes = ()
