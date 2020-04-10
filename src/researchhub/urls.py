@@ -21,6 +21,7 @@ import search.urls
 import summary.views
 import user.views
 import notification.views
+import analytics.views
 
 from researchhub.settings import CLOUD, NO_SILK
 
@@ -102,6 +103,12 @@ router.register(
     r'figure',
     paper.views.FigureViewSet,
     basename='figure'
+)
+
+router.register(
+    r'analytics/websiteviews',
+    analytics.views.WebsiteVisitsViewSet,
+    basename="websiteviews"
 )
 
 router.register(r'user', user.views.UserViewSet)
