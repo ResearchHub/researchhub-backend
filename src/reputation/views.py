@@ -2,7 +2,7 @@ from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from reputation.lib import get_user_balance
+from reputation.lib import FIRST_WITHDRAWAL_MINIMUM, get_user_balance
 from reputation.models import Withdrawal
 from reputation.serializers import WithdrawalSerializer
 from user.serializers import UserSerializer
@@ -24,7 +24,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
     def create(self, request):
         user = request.user
         user_balance = get_user_balance(user)
-        if user_balance > 0:
+        if self._check_meets_withdrawal_minimum(user, user_balance):
             response = super().create(request)
             withdrawal_id = response.data['id']
             withdrawal = Withdrawal.objects.get(pk=withdrawal_id)
@@ -42,3 +42,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         resp = super().list(request)
         resp.data['user'] = UserSerializer(request.user).data
         return resp
+
+    def _check_meets_withdrawal_minimum(self, user, balance):
+        if user.withdrawals.count() < 1:
+            return balance >= FIRST_WITHDRAWAL_MINIMUM
+        return balance > 0
