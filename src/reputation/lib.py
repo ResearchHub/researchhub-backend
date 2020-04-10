@@ -1,6 +1,8 @@
 from reputation.models import Distribution
 from reputation.utils import get_total_reputation_from_distributions
 
+FIRST_WITHDRAWAL_MINIMUM = 75
+
 
 def get_unpaid_distributions(user):
     return user.reputation_records.filter(
