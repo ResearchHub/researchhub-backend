@@ -433,7 +433,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             # constant > (hours in month) ** gravity * (discussion_weight + 2)
             INT_DIVISION = 90000000
             # num votes a comment is worth
-            DISCUSSION_WEIGHT = .25
+            DISCUSSION_WEIGHT = 2
 
             gravity = 2.5
             threads_c = Count('threads')
