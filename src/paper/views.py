@@ -7,7 +7,9 @@ from django.db.models import (
     Q,
     Prefetch,
     Max,
-    F
+    F,
+    Avg,
+    IntegerField
 )
 from django.db.models.functions import Extract, Now
 from django_filters.rest_framework import DjangoFilterBackend
@@ -431,7 +433,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             # constant > (hours in month) ** gravity * (discussion_weight + 2)
             INT_DIVISION = 90000000
             # num votes a comment is worth
-            DISCUSSION_WEIGHT = 4
+            DISCUSSION_WEIGHT = .25
 
             gravity = 2.5
             threads_c = Count('threads')
@@ -440,13 +442,15 @@ class PaperViewSet(viewsets.ModelViewSet):
             upvotes = Count('vote', filter=Q(vote__vote_type=Vote.UPVOTE,))
             downvotes = Count('vote', filter=Q(vote__vote_type=Vote.DOWNVOTE,))
             now_epoch = Extract(Now(), 'epoch')
-            created_epoch = Extract(Max('threads__created_date'), 'epoch')
+            created_epoch = Avg(Extract('vote__created_date', 'epoch'), output_field=IntegerField())
+            thread_epoch = Avg(Extract('threads__created_date', 'epoch'), output_field=IntegerField())
             time_since_calc = (now_epoch - created_epoch) / 3600
+            time_since_thread = (now_epoch - thread_epoch) / 3600
 
             numerator = (
                 (threads_c + comments_c + replies_c)
-                * DISCUSSION_WEIGHT
-                + (upvotes - downvotes)
+                * DISCUSSION_WEIGHT +
+                (upvotes - downvotes)
             )
             inverse_divisor = (
                 INT_DIVISION
@@ -454,7 +458,8 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
             order_papers = papers.annotate(
                 numerator=numerator,
-                hot_score=numerator * inverse_divisor
+                hot_score=numerator * inverse_divisor,
+                divisor=inverse_divisor
             )
             if ordering[0] == '-':
                 order_papers = order_papers.order_by(
