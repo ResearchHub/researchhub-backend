@@ -198,7 +198,7 @@ def check_pdf_title(input_title, file):
                         return True
         return False
     except Exception as e:
-        sentry.log_error(e)
+        print(e)
 
 
 def check_crossref_title(original_title, crossref_title):

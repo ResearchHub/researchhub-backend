@@ -335,7 +335,7 @@ class PaperSerializer(BasePaperSerializer):
         title_in_pdf = check_pdf_title(user_title, file)
         if not title_in_pdf:
             e = Exception('User entered title not in pdf')
-            sentry.log_info(e)
+            print(e)
             return
         else:
             paper.extract_meta_data(user_title=user_title, use_celery=True)
