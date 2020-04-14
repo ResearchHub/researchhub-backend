@@ -42,6 +42,8 @@ python-slugify = "*"
 pymupdf = "*"
 jellyfish = "*"
 nltk = "*"
+django-cprofile-middleware = "*"
+django-speedinfo = "*"
 
 [requires]
 python_version = "3.7"
