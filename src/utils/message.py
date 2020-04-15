@@ -9,7 +9,6 @@ from mailing_list.models import EmailRecipient
 
 
 def is_valid_email(email):
-    # Comment out production conditional for testing
     if TESTING:
         return True
 
@@ -59,6 +58,9 @@ def send_email_message(
     """
     if not isinstance(recipients, list):
         recipients = [recipients]
+
+    if not PRODUCTION:
+        subject = '[Staging] ' + subject
 
     result = {'success': [], 'failure': [], 'exclude': []}
 

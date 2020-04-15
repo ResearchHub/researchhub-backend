@@ -21,36 +21,13 @@ from paper.models import Paper, Vote as PaperVote
 def notify_immediate(action_id):
     actions_notifications([action_id], NotificationFrequencies.IMMEDIATE)
 
-
 @periodic_task(run_every=crontab(minute='30', hour='1'), priority=7)
 def notify_daily():
-    #send_hub_digest(NotificationFrequencies.DAILY)
-    pass
-    # TODO: Do we need this still?
-    # interval = timezone.now() - timedelta(days=1)
-    # action_ids = list(
-    #     Action.objects.filter(
-    #         created_date__gte=interval
-    #     ).values_list('id', flat=True)
-    # )
-
-    # actions_notifications(action_ids, NotificationFrequencies.DAILY)
-
+    send_hub_digest(NotificationFrequencies.DAILY)
 
 @periodic_task(run_every=crontab(minute='0', hour='*/3'), priority=7)
 def notify_three_hours():
-    #send_hub_digest(NotificationFrequencies.THREE_HOUR)
-    pass
-    # TODO: Do we need this still?
-    # interval = timezone.now() - timedelta(hours=3)
-    # action_ids = list(
-    #     Action.objects.filter(
-    #         created_date__gte=interval
-    #     ).values_list('id', flat=True)
-    # )
-
-    # actions_notifications(action_ids, NotificationFrequencies.THREE_HOUR)
-
+    send_hub_digest(NotificationFrequencies.THREE_HOUR)
 
 # Noon PST
 @periodic_task(
@@ -60,9 +37,8 @@ def notify_three_hours():
 def notify_weekly():
     send_hub_digest(NotificationFrequencies.WEEKLY)
 
-
 def send_hub_digest(frequency):
-    etl = EmailTaskLog.objects.create(emails='')
+    etl = EmailTaskLog.objects.create(emails='', notification_frequency=frequency)
     end_date = timezone.now()
     start_date = calculate_hub_digest_start_date(end_date, frequency)
 
@@ -117,6 +93,7 @@ def send_hub_digest(frequency):
     ).values_list('subscribers', flat=True)
 
     # TODO find best by hub and then in mem sort for each user? more efficient?
+    emails = []
     for user in User.objects.filter(id__in=users):
         if not check_can_receive_digest(user, frequency):
             continue
@@ -152,7 +129,6 @@ def send_hub_digest(frequency):
         }
 
         recipient = [user.email]
-        etl.emails = etl.emails + ',' + user.email
         # subject = 'Research Hub | Your Weekly Digest'
         subject = papers[0].title[0:86] + '...'
         send_email_message(
@@ -163,8 +139,10 @@ def send_hub_digest(frequency):
             'weekly_digest_email.html',
             'ResearchHub Digest <digest@researchhub.com>'
         )
-    etl.save()
+        emails += recipient
 
+    etl.emails = ','.join(emails)
+    etl.save()
 
 def calculate_hub_digest_start_date(end_date, frequency):
     if frequency == NotificationFrequencies.DAILY:
