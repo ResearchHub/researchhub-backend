@@ -161,7 +161,7 @@ def fitz_extract_figures(file_path):
 
 
 def check_pdf_title(input_title, file):
-    if not input_title:
+    if not input_title or not file:
         return False
 
     try:
