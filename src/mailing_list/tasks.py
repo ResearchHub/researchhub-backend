@@ -108,7 +108,7 @@ def send_hub_digest(frequency):
         ).filter(score__gt=0).order_by('-score')[:3]
         most_discussed_in_interval = users_papers.annotate(
             discussions=thread_counts + comment_counts + reply_counts
-        ).order_by('-discussions')[:3]
+        ).filter(discussions__gt=0).order_by('-discussions')[:3]
         most_voted_in_interval = users_papers.annotate(
             score=upvotes - downvotes
         ).filter(score__gt=0).order_by('-score')[:2]
