@@ -9,6 +9,7 @@ import cProfile
 import pstats
 import time
 import traceback
+import sqlparse
 from io import StringIO
 from datetime import datetime
 from django.db import connection
@@ -90,7 +91,7 @@ class ProfileMiddleware(object):
                         *callback_args,
                         **callback_kwargs
                     )
-                    self.prof.disable()
+                self.prof.disable()
                 queries = connection.queries.copy()
                 for tb, q in zip(logger.tracebacks, queries):
                     q['traceback'] = tb
@@ -112,7 +113,7 @@ class ProfileMiddleware(object):
                     'paths': json.dumps(sys.path[1:]),
                     'queries': queries,
                 }
-                self.request_data = request_data
+                self.data = request_data
             else:
                 self.prof.enable()
                 response = self.prof.runcall(
@@ -171,10 +172,6 @@ class ProfileMiddleware(object):
 
     def process_response(self, request, response):
         if (settings.DEBUG or request.user.is_superuser) and 'prof' in request.GET:
-            text = str(self.request_data)
-            # print(text)
-            response.content = text
-            return response
             self.prof.disable()
 
             out = StringIO()
@@ -192,7 +189,29 @@ class ProfileMiddleware(object):
                 response.content = "<pre>" + stats_str + "</pre>"
 
             response.content = "\n".join(response.content.decode('utf8').split("\n")[:40])
-
             response.content += self.summary_for_files(stats_str).encode()
+
+            method = self.data['method']
+            endpoint = self.data['endpoint']
+            tottime = self.data['total_time']
+            totqueries = self.data['total_queries']
+            response.content += f'Method: {method}\n'.encode()
+            response.content += f'Endpoint: {endpoint}\n'.encode()
+            response.content += f'Total Time: {tottime}\n'.encode()
+            response.content += f'Queries: {totqueries}\n\n'.encode()
+
+            total_sql_time = 0
+            for query in self.data['queries']:
+                query_time = float(query['time'])
+                total_sql_time += query_time
+                sql = sqlparse.format(
+                    query['sql'],
+                    reindent=True,
+                    keyword_case='upper'
+                )
+                response.content += f'Time: {query_time}\n'.encode()
+                response.content += f'SQL:\n{sql}\n\n'.encode()
+            total_sql_time *= 1000
+            response.content += f'SQL Time: {total_sql_time} ms\n\n'.encode()
 
         return response

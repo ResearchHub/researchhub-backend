@@ -44,6 +44,7 @@ jellyfish = "*"
 nltk = "*"
 django-cprofile-middleware = "*"
 django-speedinfo = "*"
+sqlparse = "*"
 
 [requires]
 python_version = "3.7"
