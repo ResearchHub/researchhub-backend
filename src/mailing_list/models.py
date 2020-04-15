@@ -3,6 +3,13 @@ from django.utils import timezone
 
 from mailing_list.lib import NotificationFrequencies
 
+class EmailTaskLog(models.Model):
+    """Subscriptions define what category of content a user is notified about
+    and how often they are notified, but not what they are subscribed to.
+    """
+    emails = models.TextField()
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
 
 class SubscriptionField(models.OneToOneField):
     def __init__(self, *args, **kwargs):

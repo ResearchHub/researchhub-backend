@@ -9,7 +9,7 @@ from django.db.models import Q, Count
 from datetime import timedelta
 
 from mailing_list.lib import base_email_context
-from mailing_list.models import NotificationFrequencies
+from mailing_list.models import NotificationFrequencies, EmailTaskLog
 from researchhub.celery import app
 from utils.message import send_email_message
 from user.models import Action, User
@@ -58,11 +58,11 @@ def notify_three_hours():
     priority=9
 )
 def notify_weekly():
-    pass
-    #send_hub_digest(NotificationFrequencies.WEEKLY)
+    send_hub_digest(NotificationFrequencies.WEEKLY)
 
 
 def send_hub_digest(frequency):
+    etl = EmailTaskLog.objects.create(emails='')
     end_date = timezone.now()
     start_date = calculate_hub_digest_start_date(end_date, frequency)
 
@@ -152,6 +152,7 @@ def send_hub_digest(frequency):
         }
 
         recipient = [user.email]
+        etl.emails = etl.emails + ',' + user.email
         # subject = 'Research Hub | Your Weekly Digest'
         subject = papers[0].title[0:86] + '...'
         send_email_message(
@@ -162,6 +163,7 @@ def send_hub_digest(frequency):
             'weekly_digest_email.html',
             'ResearchHub Digest <digest@researchhub.com>'
         )
+    etl.save()
 
 
 def calculate_hub_digest_start_date(end_date, frequency):
