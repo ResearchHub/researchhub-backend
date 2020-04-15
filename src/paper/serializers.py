@@ -301,14 +301,14 @@ class PaperSerializer(BasePaperSerializer):
             else:
                 add_references(paper.id)
         except Exception as e:
-            print(e)
+            sentry.log_info(e)
 
     def _add_file(self, paper, file):
         if (type(file) is str):
             try:
                 URLValidator()(file)
             except (ValidationError, Exception) as e:
-                print(e)
+                sentry.log_info(e)
             else:
                 paper.url = file
                 paper.file = None
@@ -324,21 +324,21 @@ class PaperSerializer(BasePaperSerializer):
             else:
                 download_pdf(paper.id)
 
-    def _check_pdf_title(self, paper, user_title, file):
+    def _check_pdf_title(self, paper, title, file):
         if type(file) is str:
             # For now, don't do anything if file is a url
             return
         else:
-            self._check_title_in_pdf(paper, user_title, file)
+            self._check_title_in_pdf(paper, title, file)
 
-    def _check_title_in_pdf(self, paper, user_title, file):
-        title_in_pdf = check_pdf_title(user_title, file)
+    def _check_title_in_pdf(self, paper, title, file):
+        title_in_pdf = check_pdf_title(title, file)
         if not title_in_pdf:
-            e = Exception('User entered title not in pdf')
-            print(e)
+            e = Exception('Title not in pdf')
+            sentry.log_info(e)
             return
         else:
-            paper.extract_meta_data(user_title=user_title, use_celery=True)
+            paper.extract_meta_data(title=title, use_celery=True)
 
     def get_discussion(self, paper):
         return None
