@@ -335,28 +335,28 @@ class Paper(models.Model):
 
     def extract_meta_data(
         self,
-        user_title=None,
+        title=None,
         check_title=False,
         use_celery=True
     ):
         if TESTING:
             return
 
-        if user_title is None and self.paper_title:
-            user_title = self.paper_title
-        elif user_title is None and self.title:
-            user_title = self.title
-        elif user_title is None:
+        if title is None and self.paper_title:
+            title = self.paper_title
+        elif title is None and self.title:
+            title = self.title
+        elif title is None:
             return
 
         if not TESTING and use_celery:
             celery_extract_meta_data.apply_async(
-                (self.id, user_title, check_title),
+                (self.id, title, check_title),
                 priority=1,
                 countdown=10,
             )
         else:
-            celery_extract_meta_data(self.id, user_title, check_title)
+            celery_extract_meta_data(self.id, title, check_title)
 
     def calculate_score(self):
         if hasattr(self, 'score'):
