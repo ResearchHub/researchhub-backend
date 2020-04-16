@@ -42,7 +42,6 @@ python-slugify = "*"
 pymupdf = "*"
 jellyfish = "*"
 nltk = "*"
-django-speedinfo = "*"
 sqlparse = "*"
 
 [requires]
