@@ -2,6 +2,7 @@
 # Original author: udfalkso
 # Modified by: Shwagroo Team and Gun.io
 
+import os
 import sys
 import re
 import json
@@ -11,7 +12,9 @@ import time
 import traceback
 
 from io import StringIO
+from datetime import datetime
 from django.db import connection
+from django.core.files import File
 from profiler.models import Profile, Traceback
 from utils import sentry
 
@@ -117,24 +120,33 @@ class ProfileMiddleware(object):
                 total_sql_time=total_sql_time,
                 total_view_time=total_view_time
             )
-            Traceback.objects.create(
-                profile=profile,
-                choice_type=Traceback.VIEW_TRACE,
-                time=total_view_time,
-                trace=traceback
-            )
-            for query in queries:
+
+            filename = f'/tmp/trace_logs/{str(datetime.now())}.log'
+            with open(filename, 'wb+') as f:
+                f.write(traceback.encode())
+                Traceback.objects.create(
+                    profile=profile,
+                    choice_type=Traceback.VIEW_TRACE,
+                    time=total_view_time,
+                    trace=File(f)
+                )
+            os.remove(filename)
+            for i, query in enumerate(queries):
                 choice_type = Traceback.SQL_TRACE
                 sql = query.get('sql')
                 trace = query.get('traceback', '')
                 time = query.get('time')
-                Traceback.objects.create(
-                    profile=profile,
-                    choice_type=choice_type,
-                    time=time,
-                    trace=trace,
-                    sql=sql
-                )
+                filename = f'/tmp/trace_logs/{str(datetime.now())}.log'
+                with open(filename, 'wb+') as f:
+                    f.write(trace.encode())
+                    Traceback.objects.create(
+                        profile=profile,
+                        choice_type=choice_type,
+                        time=time,
+                        trace=File(f),
+                        sql=sql
+                    )
+                os.remove(filename)
         except Exception as e:
             sentry.log_error(e)
 
@@ -172,8 +184,8 @@ class ProfileMiddleware(object):
             out = StringIO()
             old_stdout = sys.stdout
             sys.stdout = out
-
             stats = pstats.Stats(self.prof, stream=out)
+
             stats.sort_stats('time', 'calls')
             stats.print_stats()
 

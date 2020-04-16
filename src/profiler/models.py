@@ -35,7 +35,13 @@ class Traceback(models.Model):
     choice_type = models.CharField(choices=TRACE_TYPE_CHOICES, max_length=16)
     time = models.CharField(max_length=64)
 
-    trace = models.TextField()
+    trace = models.FileField(
+        max_length=512,
+        upload_to='uploads/traceback/%Y/%m/%d',
+        default=None,
+        null=True,
+        blank=True
+    )
     sql = models.TextField(null=True, blank=True)
 
     profile = models.ForeignKey(
