@@ -10,20 +10,21 @@ import pstats
 import time
 import traceback
 import sqlparse
+
 from io import StringIO
-from datetime import datetime
 from django.db import connection
-from django.conf import settings
+from profiler.models import Profile, Traceback
+from utils import sentry
 
 words_re = re.compile(r'\s+')
 
 group_prefix_re = [
-    re.compile("^.*/django/[^/]+"),
-    re.compile("^(.*)/[^/]+$"),  # extract module path
-    re.compile(".*"),            # catch strange entries
+    re.compile(r'^.*/django/[^/]+'),
+    re.compile(r'^(.*)/[^/]+$'),  # extract module path
+    re.compile(r'.*'),            # catch strange entries
 ]
 sql_expain_re = re.compile(
-    r"\(cost=(?P<cost>[^ ]+) rows=(?P<rows>\d+) width=(?P<width>\d+)\)"
+    r'\(cost=(?P<cost>[^ ]+) rows=(?P<rows>\d+) width=(?P<width>\d+)\)'
 )
 
 
@@ -37,10 +38,12 @@ class TracebackLogger:
 
     def __call__(self, execute, sql, params, many, context):
         start = time.monotonic()
+        self.start = start
 
         try:
             result = execute(sql, params, many, context)
         except Exception as e:
+            sentry.log_error(e)
             raise
 
         self.capture_traceback()
@@ -54,8 +57,6 @@ class ProfileMiddleware(object):
 
     Add the "prof" key to query string by appending ?prof (or &prof=)
     and you'll see the profiling results in your browser.
-    It's set up to only be available in django's debug mode, is available for superuser otherwise,
-    but you really shouldn't add this middleware to any production configuration.
     """
     def __init__(self, get_response):
         self.prof = cProfile.Profile()
@@ -75,53 +76,97 @@ class ProfileMiddleware(object):
             cursor.execute(f'EXPLAIN {sql}')
             return '\n'.join(r[0] for r in cursor.fetchall())
 
+    def create_traceback(self, request, callback, tracebacks, queries):
+        view_name = str(callback.cls)
+        path = request.build_absolute_uri()
+        http_method = request.method
+
+        for tb, q in zip(tracebacks, queries):
+            q['traceback'] = tb
+            explain = self.get_sql_explaination(q['sql'])
+
+            result = sql_expain_re.search(explain.split('\n')[0])
+            q['explain'] = explain
+            q['explain_cost'] = result.group("cost")
+            q['explain_rows'] = result.group("rows")
+            q['explain_width'] = result.group("width")
+
+        total_duration = sum(float(q['time']) for q in queries) * 1000
+        request_data = {
+            'view_name': view_name,
+            'path': path,
+            'http_method': http_method,
+            'total_time': total_duration,
+            'total_queries': len(queries),
+            'paths': json.dumps(sys.path[1:]),
+            'queries': queries,
+        }
+        self.data = request_data
+
+    def log_traceback(self, total_view_time, traceback):
+        queries = self.data['queries']
+        view_name = self.data['view_name']
+        path = self.data['path']
+        http_method = self.data['http_method']
+        total_queries = str(self.data['total_queries'])
+        total_sql_time = str(self.data['total_time'])
+        total_view_time = str(total_view_time)
+
+        try:
+            profile = Profile.objects.create(
+                view_name=view_name,
+                path=path,
+                http_method=http_method,
+                total_queries=total_queries,
+                total_sql_time=total_sql_time,
+                total_view_time=total_view_time
+            )
+            Traceback.objects.create(
+                profile=profile,
+                choice_type=Traceback.VIEW_TRACE,
+                time=total_view_time,
+                trace=traceback
+            )
+            for query in queries:
+                choice_type = Traceback.SQL_TRACE
+                sql = query.get('sql')
+                trace = query.get('traceback', '')
+                time = query.get('time')
+                Traceback.objects.create(
+                    profile=profile,
+                    choice_type=choice_type,
+                    time=time,
+                    trace=trace,
+                    sql=sql
+                )
+        except Exception as e:
+            sentry.log_error(e)
+
     def process_request(self, request):
-        if (settings.DEBUG or request.user.is_superuser) and 'prof' in request.GET:
+        if 'api' in request.path:
             self.prof = cProfile.Profile()
 
     def process_view(self, request, callback, callback_args, callback_kwargs):
-        if (settings.DEBUG or request.user.is_superuser) and 'prof' in request.GET:
-            if 'sql' in request.GET:
-                logger = TracebackLogger()
-                self.prof.enable()
-                with connection.execute_wrapper(logger):
-                    response = self.prof.runcall(
-                        callback,
-                        request,
-                        *callback_args,
-                        **callback_kwargs
-                    )
-                self.prof.disable()
-                queries = connection.queries.copy()
-                for tb, q in zip(logger.tracebacks, queries):
-                    q['traceback'] = tb
-                    explain = self.get_sql_explaination(q['sql'])
+        if 'api' in request.path:
+            logger = TracebackLogger()
+            self.prof.enable()
 
-                    result = sql_expain_re.search(explain.split('\n')[0])
-                    q['explain'] = explain
-                    q['explain_cost'] = result.group("cost")
-                    q['explain_rows'] = result.group("rows")
-                    q['explain_width'] = result.group("width")
-
-                total_duration = sum(float(q['time']) for q in queries)
-                request_data = {
-                    'method': request.method,
-                    'created_at': datetime.now().isoformat(),
-                    'endpoint': request.build_absolute_uri(),
-                    'total_time': total_duration,
-                    'total_queries': len(queries),
-                    'paths': json.dumps(sys.path[1:]),
-                    'queries': queries,
-                }
-                self.data = request_data
-            else:
-                self.prof.enable()
+            with connection.execute_wrapper(logger):
                 response = self.prof.runcall(
                     callback,
                     request,
                     *callback_args,
                     **callback_kwargs
                 )
+
+            self.prof.disable()
+            queries = connection.queries.copy()
+            self.create_traceback(
+                request,
+                callback,
+                logger.tracebacks,
+                queries
+            )
             return response
 
     def get_group(self, file):
@@ -130,14 +175,16 @@ class ProfileMiddleware(object):
             if name:
                 return name[0]
 
-    def get_summary(self, results_dict, sum):
+    def get_summary(self, results_dict, _sum):
         list = [(item[1], item[0]) for item in results_dict.items()]
         list.sort(reverse=True)
         list = list[:40]
 
-        res = "      tottime\n"
+        res = '      tottime\n'
         for item in list:
-            res += "%4.1f%% %7.3f %s\n" % (100*item[0]/sum if sum else 0, item[0], item[1])
+            res += '%4.1f%% %7.3f %s\n' % (
+                100*item[0]/_sum if _sum else 0, item[0], item[1]
+            )
 
         return res
 
@@ -147,13 +194,13 @@ class ProfileMiddleware(object):
         mystats = {}
         mygroups = {}
 
-        sum = 0
+        _sum = 0
 
         for s in stats_str:
             fields = words_re.split(s)
             if len(fields) == 7:
                 time = float(fields[2])
-                sum += time
+                _sum += time
                 file = fields[6].split(":")[0]
 
                 if file not in mystats:
@@ -165,13 +212,14 @@ class ProfileMiddleware(object):
                     mygroups[group] = 0
                 mygroups[group] += time
 
-        return "<pre>" + \
-               " ---- By file ----\n\n" + self.get_summary(mystats, sum) + "\n" + \
-               " ---- By group ---\n\n" + self.get_summary(mygroups, sum) + \
-               "</pre>"
+        return '<pre>' + \
+               ' ---- By file ----\n\n' + self.get_summary(mystats, _sum) + \
+               '\n' + \
+               ' ---- By group ---\n\n' + self.get_summary(mygroups, _sum) + \
+               '</pre>'
 
     def process_response(self, request, response):
-        if (settings.DEBUG or request.user.is_superuser) and 'prof' in request.GET:
+        if 'api' in request.path:
             self.prof.disable()
 
             out = StringIO()
@@ -184,15 +232,20 @@ class ProfileMiddleware(object):
 
             sys.stdout = old_stdout
             stats_str = out.getvalue()
+            total_time = str(stats.total_tt)
+
+            self.log_traceback(total_time, stats_str)
 
             if response and response.content and stats_str:
-                response.content = "<pre>" + stats_str + "</pre>"
+                response.content = '<pre>' + stats_str + '</pre>'
 
-            response.content = "\n".join(response.content.decode('utf8').split("\n")[:40])
+            response.content = '\n'.join(
+                response.content.decode('utf8').split('\n')[:40]
+            )
             response.content += self.summary_for_files(stats_str).encode()
 
-            method = self.data['method']
-            endpoint = self.data['endpoint']
+            method = self.data['http_method']
+            endpoint = self.data['path']
             tottime = self.data['total_time']
             totqueries = self.data['total_queries']
             response.content += f'Method: {method}\n'.encode()

@@ -185,6 +185,7 @@ INSTALLED_APPS = [
     'summary',
     'user',
     'analytics',
+    'profiler',
     # 'speedinfo',
     # 'speedinfo.storage.database',
 ]
@@ -204,7 +205,7 @@ MIDDLEWARE = [
     # "speedinfo.middleware.ProfilerMiddleware",
     # "django.middleware.cache.FetchFromCacheMiddleware",
     # 'django_cprofile_middleware.middleware.ProfilerMiddleware',
-    'researchhub.middleware.profiler.ProfileMiddleware'
+    'profiler.middleware.profiler.ProfileMiddleware'
 ]
 SPEEDINFO_STORAGE = "speedinfo.storage.database.storage.DatabaseStorage"
 CACHES = {
