@@ -9,20 +9,12 @@ import cProfile
 import pstats
 import time
 import traceback
-import sqlparse
 
 from io import StringIO
 from django.db import connection
 from profiler.models import Profile, Traceback
 from utils import sentry
 
-words_re = re.compile(r'\s+')
-
-group_prefix_re = [
-    re.compile(r'^.*/django/[^/]+'),
-    re.compile(r'^(.*)/[^/]+$'),  # extract module path
-    re.compile(r'.*'),            # catch strange entries
-]
 sql_expain_re = re.compile(
     r'\(cost=(?P<cost>[^ ]+) rows=(?P<rows>\d+) width=(?P<width>\d+)\)'
 )
@@ -77,7 +69,11 @@ class ProfileMiddleware(object):
             return '\n'.join(r[0] for r in cursor.fetchall())
 
     def create_traceback(self, request, callback, tracebacks, queries):
-        view_name = str(callback.cls)
+        if hasattr(callback, 'cls'):
+            view_name = str(callback.cls)
+        else:
+            view_name = str(callback)
+
         path = request.build_absolute_uri()
         http_method = request.method
 
@@ -168,55 +164,6 @@ class ProfileMiddleware(object):
                 queries
             )
             return response
-
-    def get_group(self, file):
-        for g in group_prefix_re:
-            name = g.findall(file)
-            if name:
-                return name[0]
-
-    def get_summary(self, results_dict, _sum):
-        list = [(item[1], item[0]) for item in results_dict.items()]
-        list.sort(reverse=True)
-        list = list[:40]
-
-        res = '      tottime\n'
-        for item in list:
-            res += '%4.1f%% %7.3f %s\n' % (
-                100*item[0]/_sum if _sum else 0, item[0], item[1]
-            )
-
-        return res
-
-    def summary_for_files(self, stats_str):
-        stats_str = stats_str.split("\n")[5:]
-
-        mystats = {}
-        mygroups = {}
-
-        _sum = 0
-
-        for s in stats_str:
-            fields = words_re.split(s)
-            if len(fields) == 7:
-                time = float(fields[2])
-                _sum += time
-                file = fields[6].split(":")[0]
-
-                if file not in mystats:
-                    mystats[file] = 0
-                mystats[file] += time
-
-                group = self.get_group(file)
-                if group not in mygroups:
-                    mygroups[group] = 0
-                mygroups[group] += time
-
-        return '<pre>' + \
-               ' ---- By file ----\n\n' + self.get_summary(mystats, _sum) + \
-               '\n' + \
-               ' ---- By group ---\n\n' + self.get_summary(mygroups, _sum) + \
-               '</pre>'
 
     def process_response(self, request, response):
         if 'api' in request.path:
