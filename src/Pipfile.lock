@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "7f0f85a990c9e2af2fc5b0fe1d1df8fa4c102b2591d809ace4606d5979bc700e"
+            "sha256": "e66bbb006cce7953ac74f87e8d7d4ad9fb4467496be68a74d6215782b4dd0a30"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -287,10 +287,10 @@
         },
         "daphne": {
             "hashes": [
-                "sha256:1e41d02d78da373c1f8504835cdca6d447b5d64c2941661d4bd968d412b6c383",
-                "sha256:47d792aea2c6c957d352ad5ace3a1c4232e223ef65202b27aceb0743346d6b68"
+                "sha256:1ca46d7419103958bbc9576fb7ba3b25b053006e22058bc97084ee1a7d44f4ba",
+                "sha256:aa64840015709bbc9daa3c4464a4a4d437937d6cda10a9b51e913eb319272553"
             ],
-            "version": "==2.4.1"
+            "version": "==2.5.0"
         },
         "decorator": {
             "hashes": [
@@ -350,13 +350,6 @@
             ],
             "index": "pypi",
             "version": "==3.2.1"
-        },
-        "django-cprofile-middleware": {
-            "hashes": [
-                "sha256:b942185a38f3b582935a55c768f126ce9a6f0cefceee3b5d19e6b307ad129889"
-            ],
-            "index": "pypi",
-            "version": "==1.0.5"
         },
         "django-dbbackup": {
             "hashes": [

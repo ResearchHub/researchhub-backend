@@ -186,8 +186,6 @@ INSTALLED_APPS = [
     'user',
     'analytics',
     'profiler',
-    # 'speedinfo',
-    # 'speedinfo.storage.database',
 ]
 
 SITE_ID = 1
@@ -202,22 +200,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    # "speedinfo.middleware.ProfilerMiddleware",
-    # "django.middleware.cache.FetchFromCacheMiddleware",
-    # 'django_cprofile_middleware.middleware.ProfilerMiddleware',
     'profiler.middleware.profiler.ProfileMiddleware'
 ]
-SPEEDINFO_STORAGE = "speedinfo.storage.database.storage.DatabaseStorage"
-CACHES = {
-    "default": {
-        "BACKEND": "speedinfo.backends.proxy_cache",
-        "CACHE_BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
-        "LOCATION": "/tmp/django_cache",
-    }
-}
-
-# DJANGO_CPROFILE_MIDDLEWARE_REQUIRE_STAFF = False
-
 
 if not CLOUD and not NO_SILK == 'True':
     INSTALLED_APPS += [
