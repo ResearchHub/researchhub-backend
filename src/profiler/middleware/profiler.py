@@ -2,7 +2,6 @@
 # Original author: udfalkso
 # Modified by: Shwagroo Team and Gun.io
 
-import os
 import sys
 import re
 import json
@@ -12,10 +11,8 @@ import time
 import traceback
 
 from io import StringIO
-from datetime import datetime
 from django.db import connection
-from django.core.files import File
-from profiler.models import Profile, Traceback
+from profiler.tasks import log_traceback
 from utils import sentry
 
 sql_expain_re = re.compile(
@@ -102,54 +99,6 @@ class ProfileMiddleware(object):
         }
         self.data = request_data
 
-    def log_traceback(self, total_view_time, traceback):
-        queries = self.data['queries']
-        view_name = self.data['view_name']
-        path = self.data['path']
-        http_method = self.data['http_method']
-        total_queries = str(self.data['total_queries'])
-        total_sql_time = str(self.data['total_time'])
-        total_view_time = str(total_view_time)
-
-        try:
-            profile = Profile.objects.create(
-                view_name=view_name,
-                path=path,
-                http_method=http_method,
-                total_queries=total_queries,
-                total_sql_time=total_sql_time,
-                total_view_time=total_view_time
-            )
-
-            filename = f'/tmp/trace_logs/{str(datetime.now())}.log'
-            with open(filename, 'wb+') as f:
-                f.write(traceback.encode())
-                Traceback.objects.create(
-                    profile=profile,
-                    choice_type=Traceback.VIEW_TRACE,
-                    time=total_view_time,
-                    trace=File(f)
-                )
-            os.remove(filename)
-            for i, query in enumerate(queries):
-                choice_type = Traceback.SQL_TRACE
-                sql = query.get('sql')
-                trace = query.get('traceback', '')
-                time = query.get('time')
-                filename = f'/tmp/trace_logs/{str(datetime.now())}.log'
-                with open(filename, 'wb+') as f:
-                    f.write(trace.encode())
-                    Traceback.objects.create(
-                        profile=profile,
-                        choice_type=choice_type,
-                        time=time,
-                        trace=File(f),
-                        sql=sql
-                    )
-                os.remove(filename)
-        except Exception as e:
-            sentry.log_error(e)
-
     def process_request(self, request):
         if 'api' in request.path:
             self.prof = cProfile.Profile()
@@ -179,20 +128,26 @@ class ProfileMiddleware(object):
 
     def process_response(self, request, response):
         if 'api' in request.path:
-            self.prof.disable()
+            try:
+                self.prof.disable()
 
-            out = StringIO()
-            old_stdout = sys.stdout
-            sys.stdout = out
-            stats = pstats.Stats(self.prof, stream=out)
+                out = StringIO()
+                old_stdout = sys.stdout
+                sys.stdout = out
+                stats = pstats.Stats(self.prof, stream=out)
 
-            stats.sort_stats('time', 'calls')
-            stats.print_stats()
+                stats.print_stats()
 
-            sys.stdout = old_stdout
-            stats_str = out.getvalue()
-            total_time = str(stats.total_tt)
+                sys.stdout = old_stdout
+                stats_str = out.getvalue()
+                total_time = str(stats.total_tt)
+            except Exception as e:
+                sentry.log_error(e)
+                return response
 
-            self.log_traceback(total_time, stats_str)
+            log_traceback.apply_async(
+                (self.data, total_time, stats_str),
+                priority=1,
+            )
 
         return response
