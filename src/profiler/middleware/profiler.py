@@ -236,35 +236,4 @@ class ProfileMiddleware(object):
 
             self.log_traceback(total_time, stats_str)
 
-            if response and response.content and stats_str:
-                response.content = '<pre>' + stats_str + '</pre>'
-
-            response.content = '\n'.join(
-                response.content.decode('utf8').split('\n')[:40]
-            )
-            response.content += self.summary_for_files(stats_str).encode()
-
-            method = self.data['http_method']
-            endpoint = self.data['path']
-            tottime = self.data['total_time']
-            totqueries = self.data['total_queries']
-            response.content += f'Method: {method}\n'.encode()
-            response.content += f'Endpoint: {endpoint}\n'.encode()
-            response.content += f'Total Time: {tottime}\n'.encode()
-            response.content += f'Queries: {totqueries}\n\n'.encode()
-
-            total_sql_time = 0
-            for query in self.data['queries']:
-                query_time = float(query['time'])
-                total_sql_time += query_time
-                sql = sqlparse.format(
-                    query['sql'],
-                    reindent=True,
-                    keyword_case='upper'
-                )
-                response.content += f'Time: {query_time}\n'.encode()
-                response.content += f'SQL:\n{sql}\n\n'.encode()
-            total_sql_time *= 1000
-            response.content += f'SQL Time: {total_sql_time} ms\n\n'.encode()
-
         return response
