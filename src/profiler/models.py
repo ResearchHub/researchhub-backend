@@ -1,4 +1,5 @@
 import re
+import requests
 import sqlparse
 
 from django.db import models
@@ -101,7 +102,8 @@ class Traceback(models.Model):
 
     def get_formatted_trace(self):
         if self.choice_type == self.VIEW_TRACE:
-            return self.summary_for_files(self.trace)
+            res = requests.get(self.trace.url)
+            return self.summary_for_files(res.content.decode('utf8'))
 
     def get_formatted_sql(self):
         if not self.sql:
