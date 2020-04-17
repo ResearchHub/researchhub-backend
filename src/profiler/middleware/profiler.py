@@ -136,6 +136,8 @@ class ProfileMiddleware(object):
                 total_time = str(stats.total_tt)
             except Exception as e:
                 sentry.log_error(e)
+                sentry.log_info(self.prof.stats, error=e)
+                sentry.log_info(self.prof.getstats(), error=e)
                 return response
 
             log_traceback.apply_async(
