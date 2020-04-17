@@ -43,13 +43,6 @@ class TracebackLogger:
 
 
 class ProfileMiddleware(object):
-    """
-    Displays cProfile profiling for any view.
-    http://yoursite.com/yourview/?prof
-
-    Add the "prof" key to query string by appending ?prof (or &prof=)
-    and you'll see the profiling results in your browser.
-    """
     def __init__(self, get_response):
         self.prof = cProfile.Profile()
         self.get_response = get_response
