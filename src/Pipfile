@@ -42,6 +42,7 @@ python-slugify = "*"
 pymupdf = "*"
 jellyfish = "*"
 nltk = "*"
+sqlparse = "*"
 
 [requires]
 python_version = "3.7"
