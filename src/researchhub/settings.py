@@ -185,6 +185,7 @@ INSTALLED_APPS = [
     'summary',
     'user',
     'analytics',
+    'profiler',
 ]
 
 SITE_ID = 1
@@ -199,6 +200,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'profiler.middleware.profiler.ProfileMiddleware'
 ]
 
 if not CLOUD and not NO_SILK == 'True':
