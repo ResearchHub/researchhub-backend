@@ -261,6 +261,14 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'researchhub.wsgi.application'
 
+# Cache Settings
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'researchhub_cache',
+    }
+}
+
 
 # Authentication
 
