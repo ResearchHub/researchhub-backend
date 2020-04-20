@@ -159,7 +159,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
         context = self.context
         context['referenced_by'] = True
         serialized = PaperReferenceSerializer(
-            paper.referenced_by,
+            paper.referenced_by.all()[:20],
             many=True,
             context=context
         )
