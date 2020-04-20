@@ -20,8 +20,8 @@ class Profile(models.Model):
     path = models.CharField(max_length=256)
     http_method = models.CharField(max_length=8)
     total_queries = models.CharField(max_length=8)
-    total_sql_time = models.CharField(max_length=64)
-    total_view_time = models.CharField(max_length=64)
+    total_sql_time = models.FloatField()
+    total_view_time = models.FloatField()
 
     created_date = models.DateTimeField(auto_now_add=True)
 
@@ -34,7 +34,7 @@ class Traceback(models.Model):
         (VIEW_TRACE, 'VIEW_TRACE')
     ]
     choice_type = models.CharField(choices=TRACE_TYPE_CHOICES, max_length=16)
-    time = models.CharField(max_length=64)
+    time = models.FloatField()
 
     trace = models.FileField(
         max_length=512,
