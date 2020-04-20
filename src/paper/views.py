@@ -1,5 +1,6 @@
 import datetime
 
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.db.models import (
@@ -13,6 +14,8 @@ from django.db.models import (
 )
 from django.db.models.functions import Extract, Now
 from django_filters.rest_framework import DjangoFilterBackend
+from django.views.decorators.cache import cache_page
+from django.utils.decorators import method_decorator
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -415,8 +418,19 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         return Response(data, status=status.HTTP_200_OK)
 
+    # @method_decorator(cache_page(60 * 10))
     @action(detail=False, methods=['get'])
     def get_hub_papers(self, request):
+        cache_hit = cache.get('get_hub_papers')
+        if cache_hit is not None:
+            page = self.paginate_queryset(cache_hit)
+            context = self.get_serializer_context()
+            serializer = HubPaperSerializer(page, many=True, context=context)
+            serializer_data = serializer.data
+            return self.get_paginated_response(
+                {'data': cache_hit, 'no_results': False}
+            )
+
         start_date = datetime.datetime.fromtimestamp(
             int(request.GET.get('start_date__gte', 0)),
             datetime.timezone.utc
@@ -537,11 +551,14 @@ class PaperViewSet(viewsets.ModelViewSet):
         else:
             order_papers = papers.order_by(ordering)
 
+        # import pdb; pdb.set_trace()
+        cache.set('get_hub_papers', order_papers, timeout=60*10)
         page = self.paginate_queryset(order_papers)
         context = self.get_serializer_context()
         serializer = HubPaperSerializer(page, many=True, context=context)
+        serializer_data = serializer.data
         return self.get_paginated_response(
-            {'data': serializer.data, 'no_results': False}
+            {'data': serializer_data, 'no_results': False}
         )
 
     def _set_hub_paper_ordering(self, request):
