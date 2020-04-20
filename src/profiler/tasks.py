@@ -14,8 +14,8 @@ def log_traceback(data, total_view_time, traceback):
     path = data['path']
     http_method = data['http_method']
     total_queries = str(data['total_queries'])
-    total_sql_time = str(data['total_time'])
-    total_view_time = str(total_view_time)
+    total_sql_time = data['total_time']
+    total_view_time = total_view_time
 
     try:
         profile = Profile.objects.create(
