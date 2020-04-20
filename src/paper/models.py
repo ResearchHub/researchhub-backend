@@ -465,15 +465,24 @@ class Paper(models.Model):
 
 
 class MetadataRetrievalAttempt(models.Model):
-    CROSSREF = 'CROSSREF'
-    MANUBOT = 'MANUBOT'
+    CROSSREF_DOI = 'CROSSREF_DOI'
+    CROSSREF_QUERY = 'CROSSREF_QUERY'
+    MANUBOT_DOI = 'MANUBOT_DOI'
+    MANUBOT_PDF_URL = 'MANUBOT_PDF_URL'
+    MANUBOT_URL = 'MANUBOT_URL'
     PARSE_PDF = 'PARSE_PDF'
 
     METHOD_CHOICES = [
-        (CROSSREF, CROSSREF),
-        (MANUBOT, MANUBOT),
+        (CROSSREF_DOI, CROSSREF_DOI),
+        (CROSSREF_QUERY, CROSSREF_QUERY),
+        (MANUBOT_DOI, MANUBOT_DOI),
+        (MANUBOT_PDF_URL, MANUBOT_PDF_URL),
+        (MANUBOT_URL, MANUBOT_URL),
         (PARSE_PDF, PARSE_PDF),
     ]
+
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now_add=True)
     paper = models.ForeignKey(
         Paper,
         on_delete=models.CASCADE,
@@ -483,8 +492,6 @@ class MetadataRetrievalAttempt(models.Model):
         choices=METHOD_CHOICES,
         max_length=125
     )
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now_add=True)
 
 
 class Figure(models.Model):
