@@ -1,6 +1,6 @@
+from django.contrib.postgres.fields import JSONField
 from django.db import models
 from django.db.models import Count, Q
-from django.contrib.postgres.fields import JSONField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 
 from utils.semantic_scholar import SemanticScholar
@@ -26,20 +26,15 @@ HELP_TEXT_IS_REMOVED = (
 
 
 class Paper(models.Model):
-    title = models.CharField(max_length=1024)  # User generated title
-    uploaded_by = models.ForeignKey(
-        'user.User',
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True
-    )
     uploaded_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
-    paper_publish_date = models.DateField(null=True)
-    authors = models.ManyToManyField(
-        'user.Author',
-        related_name='authored_papers',
-        blank=True
+    is_public = models.BooleanField(
+        default=True,
+        help_text=HELP_TEXT_IS_PUBLIC
+    )
+    is_removed = models.BooleanField(
+        default=False,
+        help_text=HELP_TEXT_IS_REMOVED
     )
     # Moderators are obsolete, in favor of super mods on the user
     moderators = models.ManyToManyField(
@@ -47,35 +42,14 @@ class Paper(models.Model):
         related_name='moderated_papers',
         blank=True
     )
-    references = models.ManyToManyField(
-        'self',
-        symmetrical=False,
-        related_name='referenced_by',
+    authors = models.ManyToManyField(
+        'user.Author',
+        related_name='authored_papers',
         blank=True
-    )
-    paper_title = models.CharField(  # Official paper title
-        max_length=1024,
-        default=None,
-        null=True,
-        blank=True
-    )
-    doi = models.CharField(
-        max_length=255,
-        default=None,
-        null=True,
-        blank=True,
-        unique=True
     )
     hubs = models.ManyToManyField(
         'hub.Hub',
         related_name='papers',
-        blank=True
-    )
-    # currently this is the url entered by users during upload (seed URL)
-    url = models.URLField(
-        max_length=512,
-        default=None,
-        null=True,
         blank=True
     )
     summary = models.ForeignKey(
@@ -92,25 +66,45 @@ class Paper(models.Model):
         null=True,
         blank=True
     )
-    pdf_file_license = models.TextField(default=None, null=True, blank=True)
-    pdf_url = models.URLField(
-        max_length=512,
+    retrieved_from_external_source = models.BooleanField(default=False)
+    external_source = models.CharField(
+        max_length=255,
         default=None,
         null=True,
         blank=True
     )
-    pdf_url_for_landing_page = models.URLField(
-        max_length=512,
-        default=None,
-        null=True,
-        blank=True
-    )
+
+    # User generated
+    title = models.CharField(max_length=1024)  # User generated title
     tagline = models.CharField(
         max_length=255,
         default=None,
         null=True,
         blank=True
     )
+    uploaded_by = models.ForeignKey(
+        'user.User',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True
+    )
+
+    # Metadata
+    doi = models.CharField(
+        max_length=255,
+        default=None,
+        null=True,
+        blank=True,
+        unique=True
+    )
+    paper_title = models.CharField(  # Official paper title
+        max_length=1024,
+        default=None,
+        null=True,
+        blank=True
+    )
+    paper_publish_date = models.DateField(null=True)
+    raw_authors = JSONField(blank=True, null=True)
     abstract = models.TextField(
         default=None,
         null=True,
@@ -122,6 +116,37 @@ class Paper(models.Model):
         null=True,
         blank=True
     )
+    references = models.ManyToManyField(
+        'self',
+        symmetrical=False,
+        related_name='referenced_by',
+        blank=True
+    )
+    # Can be the url entered by users during upload (seed URL)
+    url = models.URLField(
+        max_length=1024,
+        default=None,
+        null=True,
+        blank=True
+    )
+    pdf_url = models.URLField(
+        max_length=1024,
+        default=None,
+        null=True,
+        blank=True
+    )
+    pdf_license = models.CharField(
+        max_length=255,
+        default=None,
+        null=True,
+        blank=True
+    )
+    pdf_license_url = models.URLField(
+        max_length=1024,
+        default=None,
+        null=True,
+        blank=True
+    )
     csl_item = JSONField(
         default=None,
         null=True,
@@ -129,27 +154,11 @@ class Paper(models.Model):
         help_text='bibliographic metadata as a single '
                   'Citation Styles Language JSON item.'
     )
-    pdf_location = JSONField(
+    oa_pdf_location = JSONField(
         default=None,
         null=True,
         blank=True,
-        help_text='information on PDF availability '
-                  'in the Unpaywall OA Location data format.'
-    )
-    retrieved_from_external_source = models.BooleanField(default=False)
-    external_source = models.CharField(
-        max_length=255,
-        default=None,
-        null=True,
-        blank=True
-    )
-    is_public = models.BooleanField(
-        default=True,
-        help_text=HELP_TEXT_IS_PUBLIC
-    )
-    is_removed = models.BooleanField(
-        default=False,
-        help_text=HELP_TEXT_IS_REMOVED
+        help_text='PDF availability in Unpaywall OA Location format.'
     )
 
     class Meta:
@@ -453,6 +462,29 @@ class Paper(models.Model):
                     print(f'Error saving reference paper: {e}')
 
         self.save()
+
+
+class MetadataRetrievalAttempt(models.Model):
+    CROSSREF = 'CROSSREF'
+    MANUBOT = 'MANUBOT'
+    PARSE_PDF = 'PARSE_PDF'
+
+    METHOD_CHOICES = [
+        (CROSSREF, CROSSREF),
+        (MANUBOT, MANUBOT),
+        (PARSE_PDF, PARSE_PDF),
+    ]
+    paper = models.ForeignKey(
+        Paper,
+        on_delete=models.CASCADE,
+        related_name='metadata_retrieval_attempts'
+    )
+    method = models.CharField(
+        choices=METHOD_CHOICES,
+        max_length=125
+    )
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now_add=True)
 
 
 class Figure(models.Model):

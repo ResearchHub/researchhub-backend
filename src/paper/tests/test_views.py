@@ -90,7 +90,7 @@ class PaperViewsTests(TestCase):
             result['csl_item']['title'],
             "IPFS - Content Addressed, Versioned, P2P File System")
         self.assertEqual(
-            result['pdf_location']['url_for_pdf'],
+            result['oa_pdf_location']['url_for_pdf'],
             'https://arxiv.org/pdf/1407.3561v1.pdf')
         self.assertIsInstance(result['search'], list)
 
@@ -106,7 +106,7 @@ class PaperViewsTests(TestCase):
         self.assertEquals(
             result['csl_item']['title'],
             "IPFS - Content Addressed, Versioned, P2P File System")
-        pdf_location = result['pdf_location']
+        pdf_location = result['oa_pdf_location']
         self.assertEqual(
             pdf_location['url_for_pdf'],
             'https://arxiv.org/pdf/1407.3561.pdf')
@@ -146,7 +146,7 @@ class PaperViewsTests(TestCase):
         self.assertEquals(
             result['csl_item']['DOI'], "10.1038/ng.3259")
         self.assertEquals(
-            result['pdf_location']['url_for_pdf'],
+            result['oa_pdf_location']['url_for_pdf'],
             "http://europepmc.org/articles/pmc4828725?pdf=render")
 
     def test_search_by_url_pmid(self):
@@ -164,7 +164,7 @@ class PaperViewsTests(TestCase):
         self.assertEquals(
             result['csl_item']['title'],
             "[Major achievements in the second plan year in the Soviet Union].")  # noqa E501
-        self.assertIsNone(result['pdf_location'])
+        self.assertIsNone(result['oa_pdf_location'])
 
     def test_search_by_url_unsupported_pdf(self):
         url = self.base_url + 'search_by_url/'
@@ -175,7 +175,7 @@ class PaperViewsTests(TestCase):
         self.assertTrue(result['url_is_pdf'])
         self.assertTrue(result['url_is_unsupported_pdf'])
         self.assertEqual(result['csl_item']['URL'], data['url'])
-        self.assertEqual(result['pdf_location']['url_for_pdf'], data['url'])
+        self.assertEqual(result['oa_pdf_location']['url_for_pdf'], data['url'])
 
     def test_search_by_url_bad(self):
         url = self.base_url + 'search_by_url/'

@@ -437,7 +437,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             data['url_is_unsupported_pdf'] = url_is_unsupported_pdf
             csl_item.url_is_unsupported_pdf = url_is_unsupported_pdf
             data['csl_item'] = csl_item
-            data['pdf_location'] = get_pdf_location_for_csl_item(csl_item)
+            data['oa_pdf_location'] = get_pdf_location_for_csl_item(csl_item)
             doi = csl_item.get('DOI', None)
             data['doi_already_in_db'] = (
                 (doi is not None)
