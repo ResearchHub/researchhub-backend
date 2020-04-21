@@ -364,29 +364,36 @@ class HubPaperSerializer(BasePaperSerializer):
         return None
 
 
-class PaperReferenceSerializer(BasePaperSerializer):
-    def get_bullet_points(self, paper):
+class PaperReferenceSerializer(serializers.ModelSerializer):
+    hubs = HubSerializer(many=True, required=False)
+    first_figure = serializers.SerializerMethodField()
+    first_preview = serializers.SerializerMethodField()
+
+    class Meta:
+        abstract = True
+        fields = [
+            'id',
+            'title',
+            'hubs',
+            'first_figure',
+            'first_preview',
+        ]
+        model = Paper
+
+    def get_first_figure(self, paper):
         return None
 
-    def get_csl_item(self, paper):
-        return None
-
-    def get_discussion(self, paper):
-        return None
-
-    def get_discussion_count(self, paper):
-        return None
-
-    def get_referenced_by(self, paper):
-        return None
-
-    def get_references(self, paper):
-        return None
-
-    def get_user_flag(self, paper):
-        return None
-
-    def get_user_vote(self, paper):
+    def get_first_preview(self, paper):
+        try:
+            if len(paper.preview_list) > 0:
+                figure = paper.preview_list[0]
+                return FigureSerializer(figure).data
+        except AttributeError:
+            figure = paper.figures.filter(
+                figure_type=Figure.PREVIEW
+            ).first()
+            if figure:
+                return FigureSerializer(figure).data
         return None
 
 
