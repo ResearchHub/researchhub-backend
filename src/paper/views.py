@@ -14,8 +14,6 @@ from django.db.models import (
 )
 from django.db.models.functions import Extract, Now
 from django_filters.rest_framework import DjangoFilterBackend
-from django.views.decorators.cache import cache_page
-from django.utils.decorators import method_decorator
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -48,7 +46,11 @@ from paper.serializers import (
     PaperReferenceSerializer,
     PaperVoteSerializer,
 )
-from paper.utils import get_csl_item, get_pdf_location_for_csl_item
+from paper.utils import (
+    get_csl_item,
+    get_pdf_location_for_csl_item,
+    get_cache_key
+)
 from utils.http import GET, POST, check_url_contains_pdf
 
 
@@ -147,12 +149,20 @@ class PaperViewSet(viewsets.ModelViewSet):
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
     def retrieve(self, request, *args, **kwargs):
+        cache_key = get_cache_key(request)
+        cache_hit = cache.get(cache_key)
+        if cache_hit is not None:
+            return Response(cache_hit)
+
         instance = self.get_object()
         if request.query_params.get('make_public'):
             instance.is_public = True
             instance.save()
         serializer = self.get_serializer(instance)
-        return Response(serializer.data)
+        serializer_data = serializer.data
+
+        cache.set(cache_key, serializer_data, timeout=60*10)
+        return Response(serializer_data)
 
     @action(
         detail=True,
@@ -418,15 +428,11 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         return Response(data, status=status.HTTP_200_OK)
 
-    # @method_decorator(cache_page(60 * 10))
     @action(detail=False, methods=['get'])
     def get_hub_papers(self, request):
         cache_hit = cache.get('get_hub_papers')
         if cache_hit is not None:
-            page = self.paginate_queryset(cache_hit)
-            context = self.get_serializer_context()
-            serializer = HubPaperSerializer(page, many=True, context=context)
-            serializer_data = serializer.data
+            page = self.paginate_queryset(Paper.objects.none())
             return self.get_paginated_response(
                 {'data': cache_hit, 'no_results': False}
             )
@@ -551,12 +557,11 @@ class PaperViewSet(viewsets.ModelViewSet):
         else:
             order_papers = papers.order_by(ordering)
 
-        # import pdb; pdb.set_trace()
-        cache.set('get_hub_papers', order_papers, timeout=60*10)
         page = self.paginate_queryset(order_papers)
         context = self.get_serializer_context()
         serializer = HubPaperSerializer(page, many=True, context=context)
         serializer_data = serializer.data
+        cache.set('get_hub_papers', serializer_data, timeout=60*10)
         return self.get_paginated_response(
             {'data': serializer_data, 'no_results': False}
         )
@@ -609,10 +614,7 @@ class FigureViewSet(viewsets.ModelViewSet):
 
         figures = figures.order_by('-figure_type', 'created_date')
         figure_serializer = self.serializer_class(figures, many=True)
-        return Response(
-            {'data': figure_serializer.data},
-            status=status.HTTP_200_OK
-        )
+        return figure_serializer.data
 
     @action(
         detail=True,
@@ -647,7 +649,20 @@ class FigureViewSet(viewsets.ModelViewSet):
     )
     def get_all_figures(self, request, pk=None):
         # Returns all figures
-        return self.get_figures(pk)
+        # cache_key = get_cache_key(request)
+        # cache_hit = cache.get(cache_key)
+        # if cache_hit is not None:
+        #     return Response(
+        #         {'data': cache_hit},
+        #         status=status.HTTP_200_OK
+        #     )
+
+        serializer_data = self.get_figures(pk)
+        # cache.set(cache_key, serializer_data, timeout=60*60*24)
+        return Response(
+            {'data': serializer_data},
+            status=status.HTTP_200_OK
+        )
 
     @action(
         detail=True,
@@ -656,7 +671,11 @@ class FigureViewSet(viewsets.ModelViewSet):
     )
     def get_preview_figures(self, request, pk=None):
         # Returns pdf preview figures
-        return self.get_figures(pk, figure_type=Figure.PREVIEW)
+        serializer_data = self.get_figures(pk, figure_type=Figure.PREVIEW)
+        return Response(
+            {'data': serializer_data},
+            status=status.HTTP_200_OK
+        )
 
     @action(
         detail=True,
@@ -665,7 +684,11 @@ class FigureViewSet(viewsets.ModelViewSet):
     )
     def get_regular_figures(self, request, pk=None):
         # Returns regular figures
-        return self.get_figures(pk, figure_type=Figure.FIGURE)
+        serializer_data = self.get_figures(pk, figure_type=Figure.FIGURE)
+        return Response(
+            {'data': serializer_data},
+            status=status.HTTP_200_OK
+        )
 
 
 def find_vote(user, paper, vote_type):

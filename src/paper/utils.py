@@ -216,6 +216,12 @@ def check_crossref_title(original_title, crossref_title):
     return False
 
 
+def get_cache_key(request):
+    paper_id = request.path.split('/')[3]
+    key = f'get_paper_{paper_id}'
+    return key
+
+
 def check_similarity(str1, str2, threshold=SIMILARITY_THRESHOLD):
     r = jellyfish.jaro_distance(str1, str2)
     if r >= threshold:
