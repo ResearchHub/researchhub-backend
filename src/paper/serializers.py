@@ -163,6 +163,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
             many=True,
             context=context
         )
+        print(serialized.data)
         return serialized.data
 
     def get_references(self, paper):
@@ -364,7 +365,7 @@ class HubPaperSerializer(BasePaperSerializer):
         return None
 
 
-class PaperReferenceSerializer(serializers.Serializer):
+class PaperReferenceSerializer(serializers.ModelSerializer):
     hubs = HubSerializer(many=True, required=False)
     first_figure = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
@@ -372,21 +373,15 @@ class PaperReferenceSerializer(serializers.Serializer):
     class Meta:
         abstract = True
         fields = [
+            'id',
             'title',
+            'hubs',
+            'first_figure',
+            'first_preview',
         ]
         model = Paper
 
     def get_first_figure(self, paper):
-        try:
-            if len(paper.figure_list) > 0:
-                figure = paper.figure_list[0]
-                return FigureSerializer(figure).data
-        except AttributeError:
-            figure = paper.figures.filter(
-                figure_type=Figure.FIGURE
-            ).first()
-            if figure:
-                return FigureSerializer(figure).data
         return None
 
     def get_first_preview(self, paper):
@@ -401,44 +396,6 @@ class PaperReferenceSerializer(serializers.Serializer):
             if figure:
                 return FigureSerializer(figure).data
         return None
-
-
-# class PaperReferenceSerializer(BasePaperSerializer):
-#     authors = None
-#     hubs = None
-#     summary = None
-#     user_vote = None
-
-#     class Meta:
-#         abstract = True
-#         exclude = [
-#             'moderators',
-#         ]
-#         model = Paper
-
-#     def get_bullet_points(self, paper):
-#         return None
-
-#     def get_csl_item(self, paper):
-#         return None
-
-#     def get_discussion(self, paper):
-#         return None
-
-#     def get_discussion_count(self, paper):
-#         return None
-
-#     def get_referenced_by(self, paper):
-#         return None
-
-#     def get_references(self, paper):
-#         return None
-
-#     def get_user_flag(self, paper):
-#         return None
-
-#     def get_user_vote(self, paper):
-#         return None
 
 
 class BookmarkSerializer(serializers.Serializer):
