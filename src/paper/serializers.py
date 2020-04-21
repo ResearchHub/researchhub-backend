@@ -163,7 +163,6 @@ class BasePaperSerializer(serializers.ModelSerializer):
             many=True,
             context=context
         )
-        print(serialized.data)
         return serialized.data
 
     def get_references(self, paper):
