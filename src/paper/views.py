@@ -149,7 +149,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
     def retrieve(self, request, *args, **kwargs):
-        cache_key = get_cache_key(request)
+        cache_key = get_cache_key(request, 'paper')
         cache_hit = cache.get(cache_key)
         if cache_hit is not None:
             return Response(cache_hit)
@@ -648,17 +648,16 @@ class FigureViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticatedOrReadOnly]
     )
     def get_all_figures(self, request, pk=None):
-        # Returns all figures
-        # cache_key = get_cache_key(request)
-        # cache_hit = cache.get(cache_key)
-        # if cache_hit is not None:
-        #     return Response(
-        #         {'data': cache_hit},
-        #         status=status.HTTP_200_OK
-        #     )
+        cache_key = get_cache_key(request, 'figure')
+        cache_hit = cache.get(cache_key)
+        if cache_hit is not None:
+            return Response(
+                {'data': cache_hit},
+                status=status.HTTP_200_OK
+            )
 
         serializer_data = self.get_figures(pk)
-        # cache.set(cache_key, serializer_data, timeout=60*60*24)
+        cache.set(cache_key, serializer_data, timeout=60*60*24)
         return Response(
             {'data': serializer_data},
             status=status.HTTP_200_OK

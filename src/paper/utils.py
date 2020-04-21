@@ -216,9 +216,12 @@ def check_crossref_title(original_title, crossref_title):
     return False
 
 
-def get_cache_key(request):
-    paper_id = request.path.split('/')[3]
-    key = f'get_paper_{paper_id}'
+def get_cache_key(request, subtype, pk=None):
+    if pk is None:
+        paper_id = request.path.split('/')[3]
+    else:
+        paper_id = pk
+    key = f'get_paper_{paper_id}_{subtype}'
     return key
 
 
