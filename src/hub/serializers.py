@@ -3,6 +3,15 @@ from rest_framework import serializers
 from .models import Hub
 from utils.http import get_user_from_request
 
+class SimpleHubSerializer(serializers.ModelSerializer):
+    class Meta:
+        fields = [
+            'id',
+            'name',
+            'is_locked',
+            'slug',
+        ]
+        model = Hub
 
 class HubSerializer(serializers.ModelSerializer):
     subscriber_count = serializers.SerializerMethodField()

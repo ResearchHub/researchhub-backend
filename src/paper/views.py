@@ -90,9 +90,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             'votes',
             'flags',
             'threads',
-            'referenced_by',
-            'referenced_by__hubs__subscribers',
-            'references',
             'threads__comments',
             Prefetch(
                 'figures',
@@ -261,20 +258,26 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=[GET])
     def referenced_by(self, request, pk=None):
         paper = self.get_object()
-        serialized = PaperReferenceSerializer(
-            paper.referenced_by.all(),
-            many=True
-        )
-        return Response(serialized.data, status=status.HTTP_200_OK)
+        queryset = paper.referenced_by.all()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = PaperReferenceSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=[GET])
     def references(self, request, pk=None):
         paper = self.get_object()
-        serialized = PaperReferenceSerializer(
-            paper.references.all(),
-            many=True
-        )
-        return Response(serialized.data, status=status.HTTP_200_OK)
+        queryset = paper.references.all()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = PaperReferenceSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
     def user_vote(self, request, pk=None):

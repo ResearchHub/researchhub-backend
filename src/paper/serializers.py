@@ -7,7 +7,7 @@ import rest_framework.serializers as serializers
 from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
-from hub.serializers import HubSerializer
+from hub.serializers import SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.models import Flag, Paper, Vote, Figure
 from paper.tasks import download_pdf, add_references
@@ -29,9 +29,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     discussion_count = serializers.SerializerMethodField()
     first_figure = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
-    hubs = HubSerializer(many=True, required=False)
-    referenced_by = serializers.SerializerMethodField()
-    references = serializers.PrimaryKeyRelatedField(read_only=True, many=True)
+    hubs = SimpleHubSerializer(many=True, required=False)
     score = serializers.SerializerMethodField()
     summary = SummarySerializer(required=False)
     uploaded_by = UserSerializer(read_only=True)
@@ -40,10 +38,8 @@ class BasePaperSerializer(serializers.ModelSerializer):
 
     class Meta:
         abstract = True
-        fields = '__all__'
+        exclude = ['references']
         read_only_fields = [
-            'referenced_by',
-            'references',
             'score',
             'user_vote',
             'user_flag',
@@ -154,23 +150,6 @@ class BasePaperSerializer(serializers.ModelSerializer):
             if figure:
                 return FigureSerializer(figure).data
         return None
-
-    def get_referenced_by(self, paper):
-        context = self.context
-        context['referenced_by'] = True
-        serialized = PaperReferenceSerializer(
-            paper.referenced_by.all()[:20],
-            many=True,
-            context=context
-        )
-        return serialized.data
-
-    def get_references(self, paper):
-        serialized = PaperReferenceSerializer(
-            paper.references,
-            many=True
-        )
-        return serialized.data
 
     def get_score(self, paper):
         return paper.calculate_score()
@@ -365,7 +344,7 @@ class HubPaperSerializer(BasePaperSerializer):
 
 
 class PaperReferenceSerializer(serializers.ModelSerializer):
-    hubs = HubSerializer(many=True, required=False)
+    hubs = SimpleHubSerializer(many=True, required=False, context={'no_subscriber_info': True})
     first_figure = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
 
