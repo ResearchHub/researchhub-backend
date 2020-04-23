@@ -44,6 +44,7 @@ jellyfish = "*"
 nltk = "*"
 sqlparse = "*"
 django-redis-cache = "*"
+watchdog = "*"
 
 [requires]
 python_version = "3.7"
