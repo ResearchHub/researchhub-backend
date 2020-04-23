@@ -38,11 +38,10 @@ class ArxivMetadata:
 
     def create_paper(self):
         paper = None
-        paper_results = Paper.objects.filter(
-            Q(doi=self.raw_doi)
-            | Q(url=self.arxiv_url)
-            | Q(pdf_url=self.pdf_url)
-        )
+        query = Q(url=self.arxiv_url) | Q(pdf_url=self.pdf_url)
+        if self.raw_doi is not None:
+            query = query | Q(doi=self.raw_doi)
+        paper_results = Paper.objects.filter(query)
         if len(paper_results) > 0:
             paper = paper_results[0]
         else:
@@ -66,6 +65,7 @@ class ArxivMetadata:
             paper.hubs.add(*self.hubs)
         else:
             print('No paper for arxiv id', self.raw_arxiv_id)
+        print(paper)
 
     def _build_arxiv_url(self):
         return f'https://arxiv.org/abs/{self.raw_arxiv_id}'
