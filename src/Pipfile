@@ -45,6 +45,7 @@ nltk = "*"
 sqlparse = "*"
 django-redis-cache = "*"
 watchdog = "*"
+xmltodict = "*"
 
 [requires]
 python_version = "3.7"

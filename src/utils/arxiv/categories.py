@@ -41,11 +41,51 @@ CS = {
     'cs.SY': 'Systems and Control',
 }
 
+MATH = {
+    'math.AG': 'Algebraic Geometry',
+    'math.AT': 'Algebraic Topology',
+    'math.AP': 'Analysis of PDEs',
+    'math.CT': 'Category Theory',
+    'math.CA': 'Classical Analysis and ODEs',
+    'math.CO': 'Combinatorics',
+    'math.AC': 'Commutative Algebra',
+    'math.CV': 'Complex Variables',
+    'math.DG': 'Differential Geometry',
+    'math.DS': 'Dynamical Systems',
+    'math.FA': 'Functional Analysis',
+    'math.GM': 'General Mathematics',
+    'math.GN': 'General Topology',
+    'math.GT': 'Geometric Topology',
+    'math.GR': 'Group Theory',
+    'math.HO': 'History and Overview',
+    'math.IT': 'Information Theory',
+    'math.KT': 'K-Theory and Homology',
+    'math.LO': 'Logic',
+    'math.MP': 'Mathematical Physics',
+    'math.MG': 'Metric Geometry',
+    'math.NT': 'Number Theory',
+    'math.NA': 'Numerical Analysis',
+    'math.OA': 'Operator Algebras',
+    'math.OC': 'Optimization and Control',
+    'math.PR': 'Probability',
+    'math.QA': 'Quantum Algebra',
+    'math.RT': 'Representation Theory',
+    'math.RA': 'Rings and Algebras',
+    'math.SP': 'Spectral Theory',
+    'math.ST': 'Statistics Theory',
+    'math.SG': 'Symplectic Geometry',
+
+}
+
 CATEGORIES = {
     'cs': CS,
+    'math': MATH,
 }
 
 
 def get_category_name(category):
-    prefix = category.split('.')[0]
-    return CATEGORIES[prefix][category]
+    try:
+        prefix = category.split('.')[0]
+        return CATEGORIES[prefix][category]
+    except KeyError:
+        return ''
