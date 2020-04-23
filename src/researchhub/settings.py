@@ -264,9 +264,9 @@ WSGI_APPLICATION = 'researchhub.wsgi.application'
 # Cache Settings
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
-        'LOCATION': 'researchhub_cache',
-    }
+        'BACKEND': 'redis_cache.RedisCache',
+        'LOCATION': 'localhost:6379',
+    },
 }
 
 

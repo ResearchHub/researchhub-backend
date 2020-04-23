@@ -43,6 +43,7 @@ pymupdf = "*"
 jellyfish = "*"
 nltk = "*"
 sqlparse = "*"
+django-redis-cache = "*"
 
 [requires]
 python_version = "3.7"

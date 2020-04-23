@@ -144,17 +144,36 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def create(self, *args, **kwargs):
         try:
-            return super().create(*args, **kwargs)
+            response = super().create(*args, **kwargs)
+            request = args[0]
+            hub_id = request.POST['hubs']
+            cache_key_newest = get_cache_key(
+                None,
+                'hub',
+                pk=f'{hub_id}_-uploaded_date_week'
+            )
+            cache_key_trending = get_cache_key(
+                None,
+                'hub',
+                pk=f'{hub_id}_-hot_score_week'
+            )
+            cache.delete(cache_key_newest)
+            cache.delete(cache_key_trending)
+            return response
         except PaperSerializerError as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
     def retrieve(self, request, *args, **kwargs):
         cache_key = get_cache_key(request, 'paper')
         cache_hit = cache.get(cache_key)
+        instance = self.get_object()
         if cache_hit is not None:
+            vote = self.serializer_class(
+                context={'request': request}
+            ).get_user_vote(instance)
+            cache_hit['user_vote'] = vote
             return Response(cache_hit)
 
-        instance = self.get_object()
         if request.query_params.get('make_public'):
             instance.is_public = True
             instance.save()
@@ -311,6 +330,32 @@ class PaperViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response(f'Failed to delete vote: {e}', status=400)
 
+    def _invalidate_filtering_cache(self, request, hubs):
+        hubs = [0] + list(hubs)
+        top_rated_dates = [
+            '-score_today',
+            '-score_week',
+            '-score_month',
+            '-score_year'
+        ]
+        cache_key_paper = get_cache_key(request, 'paper')
+        cache.delete(cache_key_paper)
+        for hub_id in hubs:
+            cache_key_trending = get_cache_key(
+                None,
+                'hub',
+                pk=f'{hub_id}_-hot_score_week'
+            )
+
+            cache.delete(cache_key_trending)
+            for pk in top_rated_dates:
+                cache_key_top_rated = get_cache_key(
+                    None,
+                    'hub',
+                    pk=f'{hub_id}_{pk}'
+                )
+                cache.delete(cache_key_top_rated)
+
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
@@ -318,6 +363,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     )
     def upvote(self, request, pk=None):
         paper = self.get_object()
+        hubs = paper.hubs.values_list('id', flat=True)
         user = request.user
 
         vote_exists = find_vote(user, paper, Vote.UPVOTE)
@@ -328,6 +374,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         response = update_or_create_vote(user, paper, Vote.UPVOTE)
+        self._invalidate_filtering_cache(request, hubs)
         return response
 
     @action(
@@ -337,6 +384,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     )
     def downvote(self, request, pk=None):
         paper = self.get_object()
+        hubs = paper.hubs.values_list('id', flat=True)
         user = request.user
 
         vote_exists = find_vote(user, paper, Vote.DOWNVOTE)
@@ -347,6 +395,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         response = update_or_create_vote(user, paper, Vote.DOWNVOTE)
+        self._invalidate_filtering_cache(request, hubs)
         return response
 
     @action(detail=False, methods=[POST])
@@ -430,13 +479,6 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def get_hub_papers(self, request):
-        cache_hit = cache.get('get_hub_papers')
-        if cache_hit is not None:
-            page = self.paginate_queryset(Paper.objects.none())
-            return self.get_paginated_response(
-                {'data': cache_hit, 'no_results': False}
-            )
-
         start_date = datetime.datetime.fromtimestamp(
             int(request.GET.get('start_date__gte', 0)),
             datetime.timezone.utc
@@ -446,8 +488,32 @@ class PaperViewSet(viewsets.ModelViewSet):
             datetime.timezone.utc
         )
         ordering = self._set_hub_paper_ordering(request)
-
         hub_id = request.GET.get('hub_id', 0)
+
+        time_difference = end_date - start_date
+        cache_pk = ''
+        if time_difference.days == 365:
+            cache_pk = f'{hub_id}_{ordering}_year'
+        elif time_difference.days == 30 or time_difference.days == 31:
+            cache_pk = f'{hub_id}_{ordering}_month'
+        elif time_difference.days == 7:
+            cache_pk = f'{hub_id}_{ordering}_week'
+        else:
+            cache_pk = f'{hub_id}_{ordering}_today'
+
+        cache_key = get_cache_key(None, 'hub', pk=cache_pk)
+        cache_hit = cache.get(cache_key)
+        if cache_hit is not None:
+            for item in cache_hit:
+                paper_id = item['id']
+                item['user_vote'] = self.serializer_class(
+                    context={'request': request}
+                ).get_user_vote(Paper.objects.get(id=paper_id))
+            page = self.paginate_queryset(Paper.objects.none())
+            return self.get_paginated_response(
+                {'data': cache_hit, 'no_results': False}
+            )
+
         threads_count = Count('threads')
 
         papers = self._get_filtered_papers(hub_id, threads_count)
@@ -561,7 +627,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         context = self.get_serializer_context()
         serializer = HubPaperSerializer(page, many=True, context=context)
         serializer_data = serializer.data
-        cache.set('get_hub_papers', serializer_data, timeout=60*10)
+        cache.set(cache_key, serializer_data, timeout=60*10)
         return self.get_paginated_response(
             {'data': serializer_data, 'no_results': False}
         )
@@ -657,7 +723,7 @@ class FigureViewSet(viewsets.ModelViewSet):
             )
 
         serializer_data = self.get_figures(pk)
-        cache.set(cache_key, serializer_data, timeout=60*60*24)
+        cache.set(cache_key, serializer_data, timeout=60*60*24*7)
         return Response(
             {'data': serializer_data},
             status=status.HTTP_200_OK
