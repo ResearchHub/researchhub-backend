@@ -519,12 +519,20 @@ REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
 REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
 
 # Cache Settings
-CACHES = {
-    'default': {
-        'BACKEND': 'redis_cache.RedisCache',
-        'LOCATION': f'{REDIS_HOST}:{REDIS_PORT}',
-    },
-}
+if TESTING:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+            'LOCATION': 'researchhub_cache',
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'redis_cache.RedisCache',
+            'LOCATION': f'{REDIS_HOST}:{REDIS_PORT}',
+        },
+    }
 
 # Celery
 
