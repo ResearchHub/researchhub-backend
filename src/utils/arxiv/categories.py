@@ -74,18 +74,19 @@ MATH = {
     'math.SP': 'Spectral Theory',
     'math.ST': 'Statistics Theory',
     'math.SG': 'Symplectic Geometry',
-
 }
 
 CATEGORIES = {
-    'cs': CS,
-    'math': MATH,
+    'cs': 'Computer Science',
+    'econ': 'Economics',
+    'eess': 'Electrical Engineering and Systems Science',
+    'math': 'Mathematics',
 }
 
 
 def get_category_name(category):
     try:
         prefix = category.split('.')[0]
-        return CATEGORIES[prefix][category]
+        return CATEGORIES[prefix]
     except KeyError:
         return ''
