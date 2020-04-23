@@ -19,6 +19,7 @@ class Command(BaseCommand):
         case_sensitive = True
         my_event_handler = PatternMatchingEventHandler(patterns, ignore_patterns, ignore_directories, case_sensitive)
         my_event_handler.on_created = self.on_created
+        import pdb; pdb.set_trace()
 
     def on_created(self, event):
         import pdb; pdb.set_trace()
