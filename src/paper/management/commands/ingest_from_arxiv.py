@@ -17,4 +17,5 @@ class Command(BaseCommand):
         for file in xml_files:
             records = parse_arxiv_metadata(file)
             for record in records:
+                print('Creating paper for arxiv record', record.raw_arxiv_id)
                 record.create_paper()
