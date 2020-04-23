@@ -35,6 +35,3 @@ class Command(BaseCommand):
         except KeyboardInterrupt:
             observer.stop()
         observer.join()
-
-    def on_created(self, event):
-        import pdb; pdb.set_trace()
