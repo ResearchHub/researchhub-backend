@@ -261,15 +261,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'researchhub.wsgi.application'
 
-# Cache Settings
-CACHES = {
-    'default': {
-        'BACKEND': 'redis_cache.RedisCache',
-        'LOCATION': 'localhost:6379',
-    },
-}
-
-
 # Authentication
 
 AUTH_USER_MODEL = 'user.User'
@@ -527,6 +518,13 @@ WEB3_KEYSTORE_PASSWORD = os.environ.get(
 REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
 REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
 
+# Cache Settings
+CACHES = {
+    'default': {
+        'BACKEND': 'redis_cache.RedisCache',
+        'LOCATION': f'{REDIS_HOST}:{REDIS_PORT}',
+    },
+}
 
 # Celery
 
