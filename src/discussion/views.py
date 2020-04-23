@@ -215,9 +215,11 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     def create(self, *args, **kwargs):
         response = super().create(*args, **kwargs)
         paper_id = get_paper_id_from_path(args[0])
-        hubs = list(Paper.objects.get(
-            id=paper_id
-        ).hubs.values_list('id', flat=True)) + [0]
+        hubs = list(
+            Paper.objects.get(
+                id=paper_id
+            ).hubs.values_list('id', flat=True)
+        ) + [0]
 
         for hub_id in hubs:
             cache_key = get_cache_key(
@@ -293,9 +295,11 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
     def create(self, *args, **kwargs):
         response = super().create(*args, **kwargs)
         paper_id = get_paper_id_from_path(args[0])
-        hubs = list(Paper.objects.get(
-            id=paper_id
-        ).hubs.values_list('id', flat=True)) + [0]
+        hubs = list(
+            Paper.objects.get(
+                id=paper_id
+            ).hubs.values_list('id', flat=True)
+        ) + [0]
 
         for hub_id in hubs:
             cache_key = get_cache_key(

@@ -157,8 +157,20 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'hub',
                 pk=f'{hub_id}_-hot_score_week'
             )
+            cache_key_newest_hub_0 = get_cache_key(
+                None,
+                'hub',
+                pk=f'0_-uploaded_date_week'
+            )
+            cache_key_trending_hub_0 = get_cache_key(
+                None,
+                'hub',
+                pk=f'0_-hot_score_week'
+            )
             cache.delete(cache_key_newest)
             cache.delete(cache_key_trending)
+            cache.delete(cache_key_newest_hub_0)
+            cache.delete(cache_key_trending_hub_0)
             return response
         except PaperSerializerError as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
