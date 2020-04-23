@@ -218,10 +218,10 @@ def check_crossref_title(original_title, crossref_title):
 
 def get_cache_key(request, subtype, pk=None):
     if pk is None:
-        paper_id = request.path.split('/')[3]
+        key = request.path.split('/')[3]
     else:
-        paper_id = pk
-    key = f'get_cache_{paper_id}_{subtype}'
+        key = pk
+    key = f'get_cache_{key}_{subtype}'
     return key
 
 
