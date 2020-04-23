@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.db import transaction
 from rest_framework import viewsets
 from rest_framework.permissions import (
@@ -11,6 +12,7 @@ from .models import Summary
 from .permissions import ProposeSummaryEdit, UpdateOrDeleteSummaryEdit
 from .serializers import SummarySerializer
 from paper.models import Paper
+from paper.utils import get_cache_key
 
 # TODO: Add flagging actions and permissions
 
@@ -24,6 +26,10 @@ class SummaryViewSet(viewsets.ModelViewSet):
         & ProposeSummaryEdit
         & UpdateOrDeleteSummaryEdit
     ]
+
+    def _invalidate_paper_cache(self, paper_id):
+        cache_key = get_cache_key(None, 'paper', pk=paper_id)
+        cache.delete(cache_key)
 
     @action(detail=False, methods=['get'])
     def get_edit_history(self, request):
@@ -48,7 +54,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
                 summary,
                 request.user
             )
-
+        self._invalidate_paper_cache(paper_id)
         return Response(SummarySerializer(summary).data, status=201)
 
     @action(
@@ -84,6 +90,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
                         summary,
                         approved_by
                     )
+                    self._invalidate_paper_cache(paper_id)
 
                 return Response(
                     SummarySerializer(summary).data,
@@ -128,3 +135,4 @@ class SummaryViewSet(viewsets.ModelViewSet):
         paper = Paper.objects.get(id=paper_id)
         paper.update_summary(summary)
         paper.save()
+        self._invalidate_paper_cache(paper_id)

@@ -221,7 +221,7 @@ def get_cache_key(request, subtype, pk=None):
         paper_id = request.path.split('/')[3]
     else:
         paper_id = pk
-    key = f'get_paper_{paper_id}_{subtype}'
+    key = f'get_cache_{paper_id}_{subtype}'
     return key
 
 
