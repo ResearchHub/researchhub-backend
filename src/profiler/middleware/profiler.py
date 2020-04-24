@@ -58,8 +58,13 @@ class ProfileMiddleware(object):
 
     def get_sql_explaination(self, sql):
         with connection.cursor() as cursor:
-            cursor.execute(f'EXPLAIN {sql}')
-            return '\n'.join(r[0] for r in cursor.fetchall())
+            first = sql.split(' ')[0]
+            if 'SAVEPOINT' != first and 'RELEASE' != first:
+                cursor.execute(f'EXPLAIN {sql}')
+                res = '\n'.join(r[0] for r in cursor.fetchall())
+            else:
+                res = '(cost=0 rows=0 width=0)\n'
+            return res
 
     def create_traceback(self, request, callback, tracebacks, queries):
         if hasattr(callback, 'cls'):

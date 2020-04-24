@@ -4,6 +4,7 @@ import fitz
 import jellyfish
 import nltk
 
+from django.core.cache import cache
 from django.core.files.base import ContentFile
 from habanero import Crossref
 
@@ -15,6 +16,18 @@ from utils.http import (
 from utils import sentry
 
 
+CACHE_TOP_RATED_DATES = (
+    '-score_today',
+    '-score_week',
+    '-score_month',
+    '-score_year'
+)
+CACHE_MOST_DISCUSSED_DATES = (
+    '-discussed_today',
+    '-discussed_week',
+    '-discussed_month',
+    '-discussed_year'
+)
 MANUBOT_PAPER_TYPES = [
     'paper-conference',
     'article-journal',
@@ -281,3 +294,70 @@ def merge_paper_bulletpoints(original_paper, new_paper):
                 new_bullet_point.save()
             else:
                 new_bullet_point.delete()
+
+
+def get_cache_key(request, subtype, pk=None):
+    if pk is None:
+        key = request.path.split('/')[3]
+    else:
+        key = pk
+    key = f'get_cache_{key}_{subtype}'
+    return key
+
+
+def add_default_hub(hub_ids):
+    return [0] + list(hub_ids)
+
+
+def invalidate_trending_cache(hub_ids, with_default=True):
+    if with_default:
+        hub_ids = add_default_hub(hub_ids)
+
+    for hub_id in hub_ids:
+        cache_key = get_cache_key(
+            None,
+            'hub',
+            pk=f'{hub_id}_-hot_score_week'
+        )
+        cache.delete(cache_key)
+
+
+def invalidate_top_rated_cache(hub_ids, with_default=True):
+    if with_default:
+        hub_ids = add_default_hub(hub_ids)
+
+    for hub_id in hub_ids:
+        for key in CACHE_TOP_RATED_DATES:
+            cache_key = get_cache_key(
+                None,
+                'hub',
+                pk=f'{hub_id}_{key}'
+            )
+            cache.delete(cache_key)
+
+
+def invalidate_newest_cache(hub_ids, with_default=True):
+    if with_default:
+        hub_ids = add_default_hub(hub_ids)
+
+    for hub_id in hub_ids:
+        cache_key = get_cache_key(
+            None,
+            'hub',
+            pk=f'{hub_id}_-uploaded_date_week'
+        )
+        cache.delete(cache_key)
+
+
+def invalidate_most_discussed_cache(hub_ids, with_default=True):
+    if with_default:
+        hub_ids = add_default_hub(hub_ids)
+
+    for hub_id in hub_ids:
+        for key in CACHE_MOST_DISCUSSED_DATES:
+            cache_key = get_cache_key(
+                None,
+                'hub',
+                pk=f'{hub_id}_{key}'
+            )
+            cache.delete(cache_key)

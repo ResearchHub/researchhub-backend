@@ -14,6 +14,7 @@ from datetime import datetime
 from subprocess import call
 
 from django.apps import apps
+from django.core.cache import cache
 from django.core.files import File
 from django.db import IntegrityError
 
@@ -27,6 +28,7 @@ from paper.utils import (
     merge_paper_bulletpoints,
     merge_paper_threads,
     merge_paper_votes,
+    get_cache_key,
 )
 from utils import sentry
 from utils.http import check_url_contains_pdf
@@ -114,6 +116,8 @@ def celery_extract_figures(paper_id):
         sentry.log_error(e)
     finally:
         shutil.rmtree(path)
+        cache_key = get_cache_key(None, 'figure', pk=paper_id)
+        cache.delete(cache_key)
 
 
 @app.task
@@ -163,6 +167,8 @@ def celery_extract_pdf_preview(paper_id):
         sentry.log_error(e)
     finally:
         shutil.rmtree(path)
+        cache_key = get_cache_key(None, 'figure', pk=paper_id)
+        cache.delete(cache_key)
 
 
 @app.task
@@ -207,6 +213,8 @@ def celery_extract_meta_data(paper_id, title, check_title):
         if not paper.tagline:
             paper.tagline = tagline
 
+        paper_cache_key = get_cache_key(None, 'paper', pk=paper_id)
+        cache.delete(paper_cache_key)
         paper.save()
     except (UniqueViolation, IntegrityError) as e:
         sentry.log_info(e)
