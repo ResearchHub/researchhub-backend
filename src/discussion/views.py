@@ -40,7 +40,13 @@ from discussion.permissions import (
     Vote as VotePermission
 )
 from paper.models import Paper
-from paper.utils import get_cache_key
+from paper.utils import (
+    get_cache_key,
+    invalidate_trending_cache,
+    invalidate_top_rated_cache,
+    invalidate_newest_cache,
+    invalidate_most_discussed_cache,
+)
 from .utils import (
     get_comment_id_from_path,
     get_paper_id_from_path,
@@ -175,7 +181,7 @@ class ActionMixin:
             return Response(f'Failed to delete vote: {e}', status=400)
 
     def get_ordering(self):
-        default_ordering = ['-created_date',]
+        default_ordering = ['-created_date']
         if self.ordering:
             default_ordering = self.ordering
         ordering = self.request.query_params.get('ordering', default_ordering)
@@ -215,32 +221,37 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     def create(self, *args, **kwargs):
         response = super().create(*args, **kwargs)
         paper_id = get_paper_id_from_path(args[0])
-        hubs = list(
-            Paper.objects.get(
-                id=paper_id
-            ).hubs.values_list('id', flat=True)
-        ) + [0]
+        hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
 
-        for hub_id in hubs:
-            cache_key = get_cache_key(
-                None,
-                'hub',
-                pk=f'{hub_id}_-discussed_week'
-            )
-            cache.delete(cache_key)
+        invalidate_trending_cache(hubs)
+        invalidate_top_rated_cache(hubs)
+        invalidate_newest_cache(hubs)
+        invalidate_most_discussed_cache(hubs)
         return response
 
     def get_serializer_context(self):
-        return {**super().get_serializer_context(), **self.get_action_context(), 'needs_score': True}
+        return {
+            **super().get_serializer_context(),
+            **self.get_action_context(),
+            'needs_score': True
+        }
 
     def filter_queryset(self, *args, **kwargs):
-        return super().filter_queryset(*args, **kwargs).order_by(*self.get_ordering())
+        return super().filter_queryset(
+            *args, **kwargs
+        ).order_by(
+            *self.get_ordering()
+        )
 
     def get_queryset(self):
         upvotes = Count('votes', filter=Q(votes__vote_type=Vote.UPVOTE,))
         downvotes = Count('votes', filter=Q(votes__vote_type=Vote.DOWNVOTE,))
         paper_id = get_paper_id_from_path(self.request)
-        threads = Thread.objects.filter(paper=paper_id).annotate(score=upvotes-downvotes)
+        threads = Thread.objects.filter(
+            paper=paper_id
+        ).annotate(
+            score=upvotes-downvotes
+        )
         return threads
 
     @action(
@@ -295,19 +306,12 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
     def create(self, *args, **kwargs):
         response = super().create(*args, **kwargs)
         paper_id = get_paper_id_from_path(args[0])
-        hubs = list(
-            Paper.objects.get(
-                id=paper_id
-            ).hubs.values_list('id', flat=True)
-        ) + [0]
+        hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
 
-        for hub_id in hubs:
-            cache_key = get_cache_key(
-                None,
-                'hub',
-                pk=f'{hub_id}_-discussed_week'
-            )
-            cache.delete(cache_key)
+        invalidate_trending_cache(hubs)
+        invalidate_top_rated_cache(hubs)
+        invalidate_newest_cache(hubs)
+        invalidate_most_discussed_cache(hubs)
         return response
 
     @action(
