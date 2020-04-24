@@ -81,6 +81,8 @@ CATEGORIES = {
     'econ': 'Economics',
     'eess': 'Electrical Engineering and Systems Science',
     'math': 'Mathematics',
+    'astro-ph': 'Astrophysics',
+    'cond-mat': 'Condensed Matter',
 }
 
 
@@ -89,4 +91,4 @@ def get_category_name(category):
         prefix = category.split('.')[0]
         return CATEGORIES[prefix]
     except KeyError:
-        return ''
+        return 'General'
