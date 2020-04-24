@@ -261,7 +261,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'researchhub.wsgi.application'
 
-
 # Authentication
 
 AUTH_USER_MODEL = 'user.User'
@@ -407,7 +406,7 @@ AWS_SECRET_ACCESS_KEY = os.environ.get(
 # Storage
 
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-
+AWS_QUERYSTRING_EXPIRE = 604800
 AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME', 'researchhub-paper-dev1')
 AWS_S3_REGION_NAME = 'us-west-2'
 
@@ -519,6 +518,14 @@ WEB3_KEYSTORE_PASSWORD = os.environ.get(
 REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
 REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
 
+# Cache Settings
+if not TESTING:
+    CACHES = {
+        'default': {
+            'BACKEND': 'redis_cache.RedisCache',
+            'LOCATION': f'{REDIS_HOST}:{REDIS_PORT}',
+        },
+    }
 
 # Celery
 

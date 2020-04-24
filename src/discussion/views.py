@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.contrib.admin.options import get_content_type_for_model
 from django.db.models import Count, Q
 from rest_framework import status, viewsets
@@ -37,6 +38,13 @@ from discussion.permissions import (
     DownvoteDiscussionReply,
     DownvoteDiscussionThread,
     Vote as VotePermission
+)
+from paper.models import Paper
+from paper.utils import (
+    invalidate_trending_cache,
+    invalidate_top_rated_cache,
+    invalidate_newest_cache,
+    invalidate_most_discussed_cache,
 )
 from .utils import (
     get_comment_id_from_path,
@@ -172,7 +180,7 @@ class ActionMixin:
             return Response(f'Failed to delete vote: {e}', status=400)
 
     def get_ordering(self):
-        default_ordering = ['-created_date',]
+        default_ordering = ['-created_date']
         if self.ordering:
             default_ordering = self.ordering
         ordering = self.request.query_params.get('ordering', default_ordering)
@@ -209,17 +217,40 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     order_fields = '__all__'
     ordering = ('-created_date',)
 
+    def create(self, *args, **kwargs):
+        response = super().create(*args, **kwargs)
+        paper_id = get_paper_id_from_path(args[0])
+        hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
+
+        invalidate_trending_cache(hubs)
+        invalidate_top_rated_cache(hubs)
+        invalidate_newest_cache(hubs)
+        invalidate_most_discussed_cache(hubs)
+        return response
+
     def get_serializer_context(self):
-        return {**super().get_serializer_context(), **self.get_action_context(), 'needs_score': True}
+        return {
+            **super().get_serializer_context(),
+            **self.get_action_context(),
+            'needs_score': True
+        }
 
     def filter_queryset(self, *args, **kwargs):
-        return super().filter_queryset(*args, **kwargs).order_by(*self.get_ordering())
+        return super().filter_queryset(
+            *args, **kwargs
+        ).order_by(
+            *self.get_ordering()
+        )
 
     def get_queryset(self):
-        upvotes = Count('votes', filter=Q( votes__vote_type=Vote.UPVOTE,))
-        downvotes = Count('votes', filter=Q( votes__vote_type=Vote.DOWNVOTE,))
+        upvotes = Count('votes', filter=Q(votes__vote_type=Vote.UPVOTE,))
+        downvotes = Count('votes', filter=Q(votes__vote_type=Vote.DOWNVOTE,))
         paper_id = get_paper_id_from_path(self.request)
-        threads = Thread.objects.filter(paper=paper_id).annotate(score=upvotes-downvotes)
+        threads = Thread.objects.filter(
+            paper=paper_id
+        ).annotate(
+            score=upvotes-downvotes
+        )
         return threads
 
     @action(
@@ -270,6 +301,17 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
             parent=thread_id
         ).order_by('-created_date')
         return comments
+
+    def create(self, *args, **kwargs):
+        response = super().create(*args, **kwargs)
+        paper_id = get_paper_id_from_path(args[0])
+        hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
+
+        invalidate_trending_cache(hubs)
+        invalidate_top_rated_cache(hubs)
+        invalidate_newest_cache(hubs)
+        invalidate_most_discussed_cache(hubs)
+        return response
 
     @action(
         detail=True,

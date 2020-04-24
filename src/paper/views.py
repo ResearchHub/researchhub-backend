@@ -1,5 +1,6 @@
 import datetime
 
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.db.models import (
@@ -45,7 +46,15 @@ from paper.serializers import (
     PaperReferenceSerializer,
     PaperVoteSerializer,
 )
-from paper.utils import get_csl_item, get_pdf_location_for_csl_item
+from paper.utils import (
+    get_csl_item,
+    get_pdf_location_for_csl_item,
+    get_cache_key,
+    invalidate_trending_cache,
+    invalidate_top_rated_cache,
+    invalidate_newest_cache,
+    invalidate_most_discussed_cache,
+)
 from utils.http import GET, POST, check_url_contains_pdf
 
 
@@ -139,17 +148,34 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def create(self, *args, **kwargs):
         try:
-            return super().create(*args, **kwargs)
+            response = super().create(*args, **kwargs)
+            request = args[0]
+            hub_ids = list(request.POST['hubs'])
+            invalidate_trending_cache(hub_ids)
+            invalidate_newest_cache(hub_ids)
+            return response
         except PaperSerializerError as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
     def retrieve(self, request, *args, **kwargs):
+        cache_key = get_cache_key(request, 'paper')
+        cache_hit = cache.get(cache_key)
         instance = self.get_object()
+        if cache_hit is not None:
+            vote = self.serializer_class(
+                context={'request': request}
+            ).get_user_vote(instance)
+            cache_hit['user_vote'] = vote
+            return Response(cache_hit)
+
         if request.query_params.get('make_public'):
             instance.is_public = True
             instance.save()
         serializer = self.get_serializer(instance)
-        return Response(serializer.data)
+        serializer_data = serializer.data
+
+        cache.set(cache_key, serializer_data, timeout=60*10)
+        return Response(serializer_data)
 
     @action(
         detail=True,
@@ -305,6 +331,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     )
     def upvote(self, request, pk=None):
         paper = self.get_object()
+        hub_ids = paper.hubs.values_list('id', flat=True)
         user = request.user
 
         vote_exists = find_vote(user, paper, Vote.UPVOTE)
@@ -315,6 +342,13 @@ class PaperViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         response = update_or_create_vote(user, paper, Vote.UPVOTE)
+
+        invalidate_trending_cache(hub_ids)
+        invalidate_top_rated_cache(hub_ids)
+        invalidate_newest_cache(hub_ids)
+        invalidate_most_discussed_cache(hub_ids)
+        cache_key_paper = get_cache_key(request, 'paper')
+        cache.delete(cache_key_paper)
         return response
 
     @action(
@@ -324,6 +358,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     )
     def downvote(self, request, pk=None):
         paper = self.get_object()
+        hub_ids = paper.hubs.values_list('id', flat=True)
         user = request.user
 
         vote_exists = find_vote(user, paper, Vote.DOWNVOTE)
@@ -334,6 +369,13 @@ class PaperViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         response = update_or_create_vote(user, paper, Vote.DOWNVOTE)
+
+        invalidate_trending_cache(hub_ids)
+        invalidate_top_rated_cache(hub_ids)
+        invalidate_newest_cache(hub_ids)
+        invalidate_most_discussed_cache(hub_ids)
+        cache_key_paper = get_cache_key(request, 'paper')
+        cache.delete(cache_key_paper)
         return response
 
     @action(detail=False, methods=[POST])
@@ -426,8 +468,32 @@ class PaperViewSet(viewsets.ModelViewSet):
             datetime.timezone.utc
         )
         ordering = self._set_hub_paper_ordering(request)
-
         hub_id = request.GET.get('hub_id', 0)
+
+        time_difference = end_date - start_date
+        cache_pk = ''
+        if time_difference.days == 365:
+            cache_pk = f'{hub_id}_{ordering}_year'
+        elif time_difference.days == 30 or time_difference.days == 31:
+            cache_pk = f'{hub_id}_{ordering}_month'
+        elif time_difference.days == 7:
+            cache_pk = f'{hub_id}_{ordering}_week'
+        else:
+            cache_pk = f'{hub_id}_{ordering}_today'
+
+        cache_key = get_cache_key(None, 'hub', pk=cache_pk)
+        cache_hit = cache.get(cache_key)
+        if cache_hit is not None:
+            for item in cache_hit:
+                paper_id = item['id']
+                item['user_vote'] = self.serializer_class(
+                    context={'request': request}
+                ).get_user_vote(Paper.objects.get(id=paper_id))
+            page = self.paginate_queryset(Paper.objects.none())
+            return self.get_paginated_response(
+                {'data': cache_hit, 'no_results': False}
+            )
+
         threads_count = Count('threads')
 
         papers = self._get_filtered_papers(hub_id, threads_count)
@@ -540,8 +606,10 @@ class PaperViewSet(viewsets.ModelViewSet):
         page = self.paginate_queryset(order_papers)
         context = self.get_serializer_context()
         serializer = HubPaperSerializer(page, many=True, context=context)
+        serializer_data = serializer.data
+        cache.set(cache_key, serializer_data, timeout=60*10)
         return self.get_paginated_response(
-            {'data': serializer.data, 'no_results': False}
+            {'data': serializer_data, 'no_results': False}
         )
 
     def _set_hub_paper_ordering(self, request):
@@ -592,10 +660,7 @@ class FigureViewSet(viewsets.ModelViewSet):
 
         figures = figures.order_by('-figure_type', 'created_date')
         figure_serializer = self.serializer_class(figures, many=True)
-        return Response(
-            {'data': figure_serializer.data},
-            status=status.HTTP_200_OK
-        )
+        return figure_serializer.data
 
     @action(
         detail=True,
@@ -629,8 +694,20 @@ class FigureViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticatedOrReadOnly]
     )
     def get_all_figures(self, request, pk=None):
-        # Returns all figures
-        return self.get_figures(pk)
+        cache_key = get_cache_key(request, 'figure')
+        cache_hit = cache.get(cache_key)
+        if cache_hit is not None:
+            return Response(
+                {'data': cache_hit},
+                status=status.HTTP_200_OK
+            )
+
+        serializer_data = self.get_figures(pk)
+        cache.set(cache_key, serializer_data, timeout=60*60*24*7)
+        return Response(
+            {'data': serializer_data},
+            status=status.HTTP_200_OK
+        )
 
     @action(
         detail=True,
@@ -639,7 +716,11 @@ class FigureViewSet(viewsets.ModelViewSet):
     )
     def get_preview_figures(self, request, pk=None):
         # Returns pdf preview figures
-        return self.get_figures(pk, figure_type=Figure.PREVIEW)
+        serializer_data = self.get_figures(pk, figure_type=Figure.PREVIEW)
+        return Response(
+            {'data': serializer_data},
+            status=status.HTTP_200_OK
+        )
 
     @action(
         detail=True,
@@ -648,7 +729,11 @@ class FigureViewSet(viewsets.ModelViewSet):
     )
     def get_regular_figures(self, request, pk=None):
         # Returns regular figures
-        return self.get_figures(pk, figure_type=Figure.FIGURE)
+        serializer_data = self.get_figures(pk, figure_type=Figure.FIGURE)
+        return Response(
+            {'data': serializer_data},
+            status=status.HTTP_200_OK
+        )
 
 
 def find_vote(user, paper, vote_type):
