@@ -22,6 +22,12 @@ CACHE_TOP_RATED_DATES = (
     '-score_month',
     '-score_year'
 )
+CACHE_MOST_DISCUSSED_DATES = (
+    '-discussed_today',
+    '-discussed_week',
+    '-discussed_month',
+    '-discussed_year'
+)
 MANUBOT_PAPER_TYPES = [
     'paper-conference',
     'article-journal',
@@ -348,9 +354,10 @@ def invalidate_most_discussed_cache(hub_ids, with_default=True):
         hub_ids = add_default_hub(hub_ids)
 
     for hub_id in hub_ids:
-        cache_key = get_cache_key(
-            None,
-            'hub',
-            pk=f'{hub_id}_-discussed_week'
-        )
-        cache.delete(cache_key)
+        for key in CACHE_MOST_DISCUSSED_DATES:
+            cache_key = get_cache_key(
+                None,
+                'hub',
+                pk=f'{hub_id}_{key}'
+            )
+            cache.delete(cache_key)
