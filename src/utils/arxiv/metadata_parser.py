@@ -83,18 +83,22 @@ class ArxivMetadata:
 
 def extract_from_directory(dir_name):
     xml_files = []
+    extracted_count = 0
     for root, dirs, files in os.walk(dir_name):
         for file in files:
             if file.endswith('.xml.gz'):
-                xml_path = extract_xml_gzip(root + '/' + file)
+                xml_path, did_extract = extract_xml_gzip(root + '/' + file)
                 if xml_path is not None:
                     xml_files.append(xml_path)
-    print(f'Done. Extracted files from {dir_name}: {len(xml_files)}')
+                    if did_extract:
+                        extracted_count += 1
+    print(f'Extracted {extracted_count} files. Returned {len(xml_files)}')
     return xml_files
 
 
 def extract_xml_gzip(file):
     print('Extracting file', file)
+    did_extract = False
     xml_path = '.'.join(file.split('.')[:-1])
     if os.path.exists(xml_path):
         print(
@@ -104,9 +108,10 @@ def extract_xml_gzip(file):
         try:
             with gzip.open(file, 'r') as f_in, open(xml_path, 'wb') as f_out:  # noqa
                 shutil.copyfileobj(f_in, f_out)
+            did_extract = True
         except OSError as e:
             print('Failed to open:', e)
-    return xml_path
+    return xml_path, did_extract
 
 
 def parse_arxiv_metadata(path_to_file):
