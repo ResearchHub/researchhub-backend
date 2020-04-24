@@ -353,6 +353,12 @@ class PaperViewSet(viewsets.ModelViewSet):
         cache_key_paper = get_cache_key(request, 'paper')
         cache.delete(cache_key_paper)
         for hub_id in hubs:
+            cache_key_newest = get_cache_key(
+                None,
+                'hub',
+                pk=f'{hub_id}_-uploaded_date_week'
+            )
+            cache.delete(cache_key_newest)
             cache_key_trending = get_cache_key(
                 None,
                 'hub',
@@ -469,7 +475,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             data['url_is_unsupported_pdf'] = url_is_unsupported_pdf
             csl_item.url_is_unsupported_pdf = url_is_unsupported_pdf
             data['csl_item'] = csl_item
-            data['pdf_location'] = get_pdf_location_for_csl_item(csl_item)
+            data['oa_pdf_location'] = get_pdf_location_for_csl_item(csl_item)
             doi = csl_item.get('DOI', None)
             data['doi_already_in_db'] = (
                 (doi is not None)
