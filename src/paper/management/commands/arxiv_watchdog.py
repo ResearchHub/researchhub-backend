@@ -32,12 +32,18 @@ class MyEventHandler(FileSystemEventHandler):
 
 
 class Command(BaseCommand):
+    help = 'Watches arxiv xml file changes to ingest arxiv papers'
+
+    def add_arguments(self, parser):
+        parser.add_argument('root', type=str, help='root directory name')
 
     def handle(self, *args, **options):
-        path = '/tmp/preprints/arxiv/metadata'
+        path = f'/{options["root"]}/preprints/arxiv/metadata'
         observer = Observer()
         event_handler = MyEventHandler(observer)
         observer.schedule(event_handler, path, recursive=True)
+
+        self.stdout.write(self.style.WARNING(f'Watching {path} ...'))
         observer.start()
         try:
             while observer.isAlive():
