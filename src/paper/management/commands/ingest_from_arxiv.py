@@ -12,8 +12,15 @@ from utils.arxiv.metadata_parser import (
 
 class Command(BaseCommand):
 
+    def add_arguments(self, parser):
+        parser.add_argument('root', type=str, help='root directory name')
+
     def handle(self, *args, **options):
-        xml_files = extract_from_directory('/tmp/preprints/arxiv/metadata')
+        path = f'/{options["root"]}/preprints/arxiv/metadata'
+        self.stdout.write(
+            self.style.WARNING(f'Extracting xml files from {path} ...')
+        )
+        xml_files = extract_from_directory(path)
         for file in xml_files:
             records = parse_arxiv_metadata(file)
             for record in records:
