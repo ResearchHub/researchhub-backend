@@ -14,6 +14,12 @@ class MyEventHandler(FileSystemEventHandler):
     def __init__(self, observer):
         self.observer = observer
 
+    def on_created(self, event):
+        file_path = event.src_path
+        if file_path.endswith('.xml.gz') or file_path.endswith('.xml'):
+            print('CREATED')
+            print(file_path)
+
     def on_modified(self, event):
         """
         After a file is modified, run processing on it
