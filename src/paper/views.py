@@ -459,6 +459,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def get_hub_papers(self, request):
+        page_number = int(request.GET['page'])
         start_date = datetime.datetime.fromtimestamp(
             int(request.GET.get('start_date__gte', 0)),
             datetime.timezone.utc
@@ -481,17 +482,20 @@ class PaperViewSet(viewsets.ModelViewSet):
         else:
             cache_pk = f'{hub_id}_{ordering}_today'
 
-        cache_key = get_cache_key(None, 'hub', pk=cache_pk)
-        cache_hit = cache.get(cache_key)
-        if cache_hit is not None:
-            for item in cache_hit:
+        cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
+        cache_key_papers = get_cache_key(None, 'hub', pk='papers')
+        cache_hit_hub = cache.get(cache_key_hub)
+        cache_hit_papers = cache.get(cache_key_papers)
+        cache_hit_exists = cache_hit_papers and cache_hit_hub
+        if cache_hit_exists and page_number == 1:
+            for item in cache_hit_hub:
                 paper_id = item['id']
                 item['user_vote'] = self.serializer_class(
                     context={'request': request}
                 ).get_user_vote(Paper.objects.get(id=paper_id))
-            page = self.paginate_queryset(Paper.objects.none())
+            page = self.paginate_queryset(cache_hit_papers)
             return self.get_paginated_response(
-                {'data': cache_hit, 'no_results': False}
+                {'data': cache_hit_hub, 'no_results': False}
             )
 
         threads_count = Count('threads')
@@ -607,7 +611,8 @@ class PaperViewSet(viewsets.ModelViewSet):
         context = self.get_serializer_context()
         serializer = HubPaperSerializer(page, many=True, context=context)
         serializer_data = serializer.data
-        cache.set(cache_key, serializer_data, timeout=60*10)
+        cache.set(cache_key_hub, serializer_data, timeout=60*10)
+        cache.set(cache_key_papers, order_papers[:15], timeout=60*10)
         return self.get_paginated_response(
             {'data': serializer_data, 'no_results': False}
         )
