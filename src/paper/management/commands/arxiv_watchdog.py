@@ -18,11 +18,11 @@ class MyEventHandler(FileSystemEventHandler):
         """
         After a file is modified, run processing on it
         """
-        print('MODIFIED')
         file_path = event.src_path
-        print(file_path)
         if file_path.endswith('.xml.gz'):
-            xml_path = extract_xml_gzip(file_path)
+            print('MODIFIED')
+            print(file_path)
+            xml_path, extracted = extract_xml_gzip(file_path)
             metadata_records = parse_arxiv_metadata(xml_path)
             for record in metadata_records:
                 try:
