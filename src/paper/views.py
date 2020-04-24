@@ -49,7 +49,11 @@ from paper.serializers import (
 from paper.utils import (
     get_csl_item,
     get_pdf_location_for_csl_item,
-    get_cache_key
+    get_cache_key,
+    invalidate_trending_cache,
+    invalidate_top_rated_cache,
+    invalidate_newest_cache,
+    invalidate_most_discussed_cache,
 )
 from utils.http import GET, POST, check_url_contains_pdf
 
@@ -146,31 +150,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         try:
             response = super().create(*args, **kwargs)
             request = args[0]
-            hub_id = request.POST['hubs']
-            cache_key_newest = get_cache_key(
-                None,
-                'hub',
-                pk=f'{hub_id}_-uploaded_date_week'
-            )
-            cache_key_trending = get_cache_key(
-                None,
-                'hub',
-                pk=f'{hub_id}_-hot_score_week'
-            )
-            cache_key_newest_hub_0 = get_cache_key(
-                None,
-                'hub',
-                pk=f'0_-uploaded_date_week'
-            )
-            cache_key_trending_hub_0 = get_cache_key(
-                None,
-                'hub',
-                pk=f'0_-hot_score_week'
-            )
-            cache.delete(cache_key_newest)
-            cache.delete(cache_key_trending)
-            cache.delete(cache_key_newest_hub_0)
-            cache.delete(cache_key_trending_hub_0)
+            hub_ids = list(request.POST['hubs'])
+            invalidate_trending_cache(hub_ids)
+            invalidate_newest_cache(hub_ids)
             return response
         except PaperSerializerError as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
@@ -342,38 +324,6 @@ class PaperViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response(f'Failed to delete vote: {e}', status=400)
 
-    def _invalidate_filtering_cache(self, request, hubs):
-        hubs = [0] + list(hubs)
-        top_rated_dates = [
-            '-score_today',
-            '-score_week',
-            '-score_month',
-            '-score_year'
-        ]
-        cache_key_paper = get_cache_key(request, 'paper')
-        cache.delete(cache_key_paper)
-        for hub_id in hubs:
-            cache_key_newest = get_cache_key(
-                None,
-                'hub',
-                pk=f'{hub_id}_-uploaded_date_week'
-            )
-            cache.delete(cache_key_newest)
-            cache_key_trending = get_cache_key(
-                None,
-                'hub',
-                pk=f'{hub_id}_-hot_score_week'
-            )
-
-            cache.delete(cache_key_trending)
-            for pk in top_rated_dates:
-                cache_key_top_rated = get_cache_key(
-                    None,
-                    'hub',
-                    pk=f'{hub_id}_{pk}'
-                )
-                cache.delete(cache_key_top_rated)
-
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
@@ -381,7 +331,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     )
     def upvote(self, request, pk=None):
         paper = self.get_object()
-        hubs = paper.hubs.values_list('id', flat=True)
+        hub_ids = paper.hubs.values_list('id', flat=True)
         user = request.user
 
         vote_exists = find_vote(user, paper, Vote.UPVOTE)
@@ -392,7 +342,13 @@ class PaperViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         response = update_or_create_vote(user, paper, Vote.UPVOTE)
-        self._invalidate_filtering_cache(request, hubs)
+
+        invalidate_trending_cache(hub_ids)
+        invalidate_top_rated_cache(hub_ids)
+        invalidate_newest_cache(hub_ids)
+        invalidate_most_discussed_cache(hub_ids)
+        cache_key_paper = get_cache_key(request, 'paper')
+        cache.delete(cache_key_paper)
         return response
 
     @action(
@@ -402,7 +358,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     )
     def downvote(self, request, pk=None):
         paper = self.get_object()
-        hubs = paper.hubs.values_list('id', flat=True)
+        hub_ids = paper.hubs.values_list('id', flat=True)
         user = request.user
 
         vote_exists = find_vote(user, paper, Vote.DOWNVOTE)
@@ -413,7 +369,13 @@ class PaperViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         response = update_or_create_vote(user, paper, Vote.DOWNVOTE)
-        self._invalidate_filtering_cache(request, hubs)
+
+        invalidate_trending_cache(hub_ids)
+        invalidate_top_rated_cache(hub_ids)
+        invalidate_newest_cache(hub_ids)
+        invalidate_most_discussed_cache(hub_ids)
+        cache_key_paper = get_cache_key(request, 'paper')
+        cache.delete(cache_key_paper)
         return response
 
     @action(detail=False, methods=[POST])
@@ -475,7 +437,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             data['url_is_unsupported_pdf'] = url_is_unsupported_pdf
             csl_item.url_is_unsupported_pdf = url_is_unsupported_pdf
             data['csl_item'] = csl_item
-            data['oa_pdf_location'] = get_pdf_location_for_csl_item(csl_item)
+            data['pdf_location'] = get_pdf_location_for_csl_item(csl_item)
             doi = csl_item.get('DOI', None)
             data['doi_already_in_db'] = (
                 (doi is not None)
