@@ -12,6 +12,8 @@ from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly
 )
 from rest_framework.response import Response
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 
 from .models import Hub
 from .permissions import CreateHub, IsSubscribed, IsNotSubscribed
@@ -37,6 +39,10 @@ class HubViewSet(viewsets.ModelViewSet):
     pagination_class = CustomPageLimitPagination
     filter_class = HubFilter
     search_fields = ('name')
+
+    @method_decorator(cache_page(60*60*24*7))
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
         if 'score' in self.request.query_params.get('ordering', ''):
