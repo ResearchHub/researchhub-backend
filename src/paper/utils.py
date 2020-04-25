@@ -8,13 +8,12 @@ from django.core.cache import cache
 from django.core.files.base import ContentFile
 from habanero import Crossref
 
+from researchhub.settings import CACHE_KEY_PREFIX
 from utils.http import (
     check_url_contains_pdf,
     http_request,
     RequestMethods as methods
 )
-from utils import sentry
-
 
 CACHE_TOP_RATED_DATES = (
     '-score_today',
@@ -301,7 +300,7 @@ def get_cache_key(request, subtype, pk=None):
         key = request.path.split('/')[3]
     else:
         key = pk
-    key = f'get_cache_{key}_{subtype}'
+    key = f'{CACHE_KEY_PREFIX}_get_cache_{key}_{subtype}'
     return key
 
 
