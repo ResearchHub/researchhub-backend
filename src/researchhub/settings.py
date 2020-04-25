@@ -527,6 +527,13 @@ if not TESTING:
         },
     }
 
+if PRODUCTION:
+    CACHE_KEY_PREFIX = 'prod'
+elif STAGING:
+    CACHE_KEY_PREFIX = 'staging'
+else:
+    CACHE_KEY_PREFIX = 'dev'
+
 # Celery
 
 CELERY_BROKER_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
