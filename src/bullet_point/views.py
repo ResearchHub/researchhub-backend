@@ -59,8 +59,9 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         paper_id = get_paper_id_from_path(self.request)
         if paper_id is not None:
             filters['paper'] = paper_id
-        bullet_type = self.request.query_params.get('bullet_type', None)
+        bullet_type = self.request.query_params.get('bullet__type', None)
         only_heads = not self.request.query_params.get('all', False)
+
         if only_heads:
             filters['is_head'] = True
         if bullet_type is not None:
@@ -76,7 +77,8 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         try:
             del request.data['created_by']
         except KeyError:
-            pass        
+            pass
+
         paper = request.data.get('paper', None)
         if paper is None:
             paper = get_paper_id_from_path(request)
@@ -92,7 +94,6 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         cache_hit = cache.get(cache_key)
         if cache_hit is not None:
             return Response(cache_hit, status=200)
-        import pdb; pdb.set_trace()
         response = super().list(request, *args, **kwargs)
         data = response.data
         cache.set(cache_key, data, timeout=60*60*24)
