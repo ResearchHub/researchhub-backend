@@ -12,6 +12,8 @@ import shutil
 
 from datetime import datetime
 from subprocess import call
+from celery.decorators import periodic_task
+from celery.task.schedules import crontab
 
 from django.apps import apps
 from django.core.cache import cache
@@ -53,6 +55,7 @@ def add_references(paper_id):
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
     paper.add_references()
+
 
 @app.task
 def celery_extract_figures(paper_id):
@@ -231,3 +234,13 @@ def handle_duplicate_doi(new_paper, doi):
     merge_paper_threads(original_paper, new_paper)
     merge_paper_bulletpoints(original_paper, new_paper)
     new_paper.delete()
+
+
+@periodic_task(run_every=crontab(hour='*/2'), priority=2)
+def celery_preload_hub_papers():
+    preload_hub_papers()
+
+
+@app.task
+def preload_hub_papers():
+    pass
