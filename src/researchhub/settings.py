@@ -202,8 +202,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-if not TESTING:
-    MIDDLEWARE.append('profiler.middleware.profiler.ProfileMiddleware')
+# if not TESTING:
+#     MIDDLEWARE.append('profiler.middleware.profiler.ProfileMiddleware')
 
 if not CLOUD and not NO_SILK == 'True':
     INSTALLED_APPS += [
