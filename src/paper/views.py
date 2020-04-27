@@ -572,8 +572,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         context = self.get_serializer_context()
         serializer = HubPaperSerializer(page, many=True, context=context)
         serializer_data = serializer.data
-        cache.set(cache_key_hub, serializer_data, timeout=60*60*24*7)
-        cache.set(cache_key_papers, order_papers[:15], timeout=60*60*24*7)
+        if page_number == 1:
+            cache.set(cache_key_hub, serializer_data, timeout=60*60*24*7)
+            cache.set(cache_key_papers, order_papers[:15], timeout=60*60*24*7)
         return self.get_paginated_response(
             {'data': serializer_data, 'no_results': False}
         )
