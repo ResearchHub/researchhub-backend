@@ -7,7 +7,6 @@ from django.db.models import (
     Count,
     Q,
     Prefetch,
-    Max,
     F,
     Avg,
     IntegerField
@@ -56,6 +55,7 @@ from paper.utils import (
     invalidate_most_discussed_cache,
 )
 from utils.http import GET, POST, check_url_contains_pdf
+from utils.sentry import log_error
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -459,7 +459,8 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def get_hub_papers(self, request):
-        # TODO: move this off the view and recalculate every 10 minutes through the worker
+        # TODO: move this off the view and recalculate every 10 minutes
+        # through the worker
         page_number = int(request.GET['page'])
         start_date = datetime.datetime.fromtimestamp(
             int(request.GET.get('start_date__gte', 0)),
@@ -491,9 +492,13 @@ class PaperViewSet(viewsets.ModelViewSet):
         if cache_hit_exists and page_number == 1:
             for item in cache_hit_hub:
                 paper_id = item['id']
-                item['user_vote'] = self.serializer_class(
-                    context={'request': request}
-                ).get_user_vote(Paper.objects.get(id=paper_id))
+                try:
+                    paper = Paper.objects.get(pk=paper_id)
+                    item['user_vote'] = self.serializer_class(
+                        context={'request': request}
+                    ).get_user_vote(paper)
+                except Exception as e:
+                    log_error(e)
             page = self.paginate_queryset(cache_hit_papers)
             return self.get_paginated_response(
                 {'data': cache_hit_hub, 'no_results': False}
@@ -516,10 +521,14 @@ class PaperViewSet(viewsets.ModelViewSet):
             upvotes = Count('vote', filter=Q(vote__vote_type=Vote.UPVOTE,))
             downvotes = Count('vote', filter=Q(vote__vote_type=Vote.DOWNVOTE,))
             now_epoch = Extract(Now(), 'epoch')
-            created_epoch = Avg(Extract('vote__created_date', 'epoch'), output_field=IntegerField())
-            thread_epoch = Avg(Extract('threads__created_date', 'epoch'), output_field=IntegerField())
+            created_epoch = Avg(
+                Extract('vote__created_date', 'epoch'),
+                output_field=IntegerField())
+            # thread_epoch = Avg(
+            #     Extract('threads__created_date', 'epoch'),
+            #     output_field=IntegerField())
             time_since_calc = (now_epoch - created_epoch) / 3600
-            time_since_thread = (now_epoch - thread_epoch) / 3600
+            # time_since_thread = (now_epoch - thread_epoch) / 3600
 
             numerator = (
                 (threads_c + comments_c + replies_c)
