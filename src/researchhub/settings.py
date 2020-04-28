@@ -15,9 +15,11 @@ APP_ENV = os.environ.get('APP_ENV') or 'development'
 DEVELOPMENT = 'development' in APP_ENV
 PRODUCTION = 'production' in APP_ENV
 STAGING = 'staging' in APP_ENV
+CELERY_WORKER = os.environ.get('CELERY_WORKER', False)
 
-import newrelic.agent
-newrelic.agent.initialize('researchhub/newrelic.ini', 'production')
+if not CELERY_WORKER:
+    import newrelic.agent
+    newrelic.agent.initialize('researchhub/newrelic.ini', 'production')
 
 import requests
 import sys
