@@ -16,6 +16,7 @@ from django.core.cache import cache
 from django.core.files import File
 from django.db import IntegrityError
 from django.db.models.functions import Extract, Now
+from rest_framework.pagination import PageNumberPagination
 from django.db.models import (
     Count,
     Q,
@@ -25,9 +26,9 @@ from django.db.models import (
 )
 
 from researchhub.celery import app
-from paper.serializers import HubPaperSerializer
-from paper.views import PaperViewSet
-from paper.models import Vote
+# from paper.serializers import HubPaperSerializer
+# from paper.views import PaperViewSet
+
 from paper.utils import (
     check_crossref_title,
     check_pdf_title,
@@ -243,7 +244,7 @@ def handle_duplicate_doi(new_paper, doi):
     new_paper.delete()
 
 
-@periodic_task(run_every=crontab(hour='*/2'), priority=2)
+@periodic_task(run_every=crontab(minute='*/10'), priority=2)
 def celery_preload_hub_papers():
     kwargs = {
         'page_number': 1,
@@ -259,6 +260,7 @@ def preload_hub_papers(
     ordering,
     hub_id
 ):
+    Vote = apps.get_model('paper.Vote')
     paper_view = PaperViewSet()
     threads_count = Count('threads')
     papers = paper_view._get_filtered_papers(hub_id, threads_count)
