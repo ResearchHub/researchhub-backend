@@ -18,7 +18,7 @@ class PaperDocument(Document):
     score = es_fields.IntegerField(attr='score_indexing')
     summary = es_fields.TextField(attr='summary_indexing')
     title = es_fields.TextField(analyzer=title_analyzer)
-    tagline = es_fields.TextField(analyzer=title_analyzer)
+    paper_title = es_fields.TextField(analyzer=title_analyzer)
 
     class Index:
         name = 'paper'
