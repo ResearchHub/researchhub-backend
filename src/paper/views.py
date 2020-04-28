@@ -494,6 +494,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         cache_hit_exists = cache_hit_papers and cache_hit_hub
 
         if cache_hit_exists and page_number == 1:
+            # cache.get_or_set()
             for item in cache_hit_hub:
                 paper_id = item['id']
                 try:
