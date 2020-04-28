@@ -284,6 +284,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
     )
     def reorder_all(self, request):
         order = request.data.get('order', None)
+        bullet_type = request.data.get('bullet_type')
         if (order is None) or (type(order) is not list):
             return Response(
                 'Request body `order` must be a list of integers',
@@ -294,7 +295,12 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         paper = bp.paper
 
         BulletPoint.objects.filter(
-            Q(paper=paper, ordinal__isnull=False, is_head=True)
+            Q(
+                paper=paper,
+                ordinal__isnull=False,
+                is_head=True,
+                bullet_type=bullet_type
+            )
         ).update(ordinal=None)
 
         try:
