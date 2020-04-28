@@ -15,6 +15,12 @@ HELP_TEXT_IS_REMOVED = (
 
 
 class BulletPoint(models.Model):
+    BULLETPOINT_KEYTAKEAWAY = 'KEY_TAKEAWAY'
+    BULLETPOINT_LIMITATION = 'LIMITATION'
+    BULLETPOINT_CHOICES = [
+        (BULLETPOINT_KEYTAKEAWAY, BULLETPOINT_KEYTAKEAWAY),
+        (BULLETPOINT_LIMITATION, BULLETPOINT_LIMITATION)
+    ]
     paper = models.ForeignKey(
         'paper.Paper',
         on_delete=models.SET_NULL,
@@ -68,6 +74,7 @@ class BulletPoint(models.Model):
     plain_text = models.TextField(default='', blank=True)
     ordinal = models.IntegerField(default=None, null=True)
     ordinal_is_locked = models.BooleanField(default=False)
+    bullet_type = models.CharField(choices=BULLETPOINT_CHOICES, max_length=16)
 
     def __str__(self):
         return '%s: %s' % (self.created_by, self.plain_text)
