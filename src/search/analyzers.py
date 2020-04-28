@@ -7,9 +7,26 @@ title_analyzer = analyzer(
     filter=[  # Order matters
         'word_delimiter',
         'stop',
-        'snowball',
         'apostrophe',
-        'lowercase'
+        'lowercase',
+        'trim',
+        'unique'
+    ],
+    char_filter=['html_strip']
+)
+
+shingle_stemmer_analyzer = analyzer(
+    'shingle_stemmer_analyzer',
+    tokenizer='standard',
+    filter=[
+        "word_delimiter",
+        "stop",
+        "apostrophe",
+        "lowercase",
+        "trim",
+        "unique",
+        "shingle",
+        "stemmer"
     ],
     char_filter=['html_strip']
 )
