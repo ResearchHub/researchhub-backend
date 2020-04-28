@@ -18,7 +18,6 @@ class PaperDocumentSerializer(DocumentSerializer):
             'publication_type',
             'score',
             'summary',
-            'tagline',
             'title',
             'url',
         ]

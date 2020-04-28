@@ -42,7 +42,7 @@ class CombinedView(ListAPIView):
     search_fields = [
         'doi',
         'title',
-        'tagline',
+        'paper_title',
         'first_name',
         'last_name',
         'authors',
