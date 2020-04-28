@@ -1,7 +1,23 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from .models import Paper
+from .models import Paper, Vote
+
+
+@receiver(post_save, sender=Vote, dispatch_uid='recalculate_paper_votes')
+def recalc_paper_votes(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
+    paper = instance.paper
+    new_score = paper.calculate_score()
+    paper.score = new_score
+    paper.save()
+
+
 @receiver(post_save, sender=Paper, dispatch_uid='pdf_extract_figures')
 def queue_extract_figures_from_pdf(
     sender,

@@ -36,6 +36,9 @@ class Paper(models.Model):
         default=False,
         help_text=HELP_TEXT_IS_REMOVED
     )
+    score = models.IntegerField(default=0)
+    discussion_count = models.IntegerField(default=0)
+
     # Moderators are obsolete, in favor of super mods on the user
     moderators = models.ManyToManyField(
         'user.User',
@@ -296,25 +299,22 @@ class Paper(models.Model):
         return f'{author_or_user.first_name} {author_or_user.last_name}'
 
     def get_discussion_count(self):
-        if hasattr(self, 'discussion_count'):
-            return self.discussion_count
-        else:
-            thread_count = self.threads.aggregate(
-                discussion_count=Count(1, filter=Q(is_removed=False))
-            )['discussion_count']
-            comment_count = self.threads.aggregate(
-                discussion_count=Count(
-                    'comments',
-                    filter=Q(comments__is_removed=False)
-                )
-            )['discussion_count']
-            reply_count = self.threads.aggregate(
-                discussion_count=Count(
-                    'comments__replies',
-                    filter=Q(comments__replies__is_removed=False)
-                )
-            )['discussion_count']
-            return thread_count + comment_count + reply_count
+        thread_count = self.threads.aggregate(
+            discussion_count=Count(1, filter=Q(is_removed=False))
+        )['discussion_count']
+        comment_count = self.threads.aggregate(
+            discussion_count=Count(
+                'comments',
+                filter=Q(comments__is_removed=False)
+            )
+        )['discussion_count']
+        reply_count = self.threads.aggregate(
+            discussion_count=Count(
+                'comments__replies',
+                filter=Q(comments__replies__is_removed=False)
+            )
+        )['discussion_count']
+        return thread_count + comment_count + reply_count
 
     def extract_figures(self, use_celery=True):
         if TESTING:
@@ -368,13 +368,10 @@ class Paper(models.Model):
             celery_extract_meta_data(self.id, title, check_title)
 
     def calculate_score(self):
-        if hasattr(self, 'score'):
-            return self.score
-        else:
-            upvotes = self.votes.filter(vote_type=Vote.UPVOTE).count()
-            downvotes = self.votes.filter(vote_type=Vote.DOWNVOTE).count()
-            score = upvotes - downvotes
-            return score
+        upvotes = self.votes.filter(vote_type=Vote.UPVOTE).count()
+        downvotes = self.votes.filter(vote_type=Vote.DOWNVOTE).count()
+        score = upvotes - downvotes
+        return score
 
     def get_vote_for_index(self, vote):
         wrapper = dict_to_obj({
