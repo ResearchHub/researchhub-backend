@@ -10,8 +10,17 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
-
 import os
+APP_ENV = os.environ.get('APP_ENV') or 'development'
+DEVELOPMENT = 'development' in APP_ENV
+PRODUCTION = 'production' in APP_ENV
+STAGING = 'staging' in APP_ENV
+CELERY_WORKER = os.environ.get('CELERY_WORKER', False)
+
+if not CELERY_WORKER:
+    import newrelic.agent
+    newrelic.agent.initialize('researchhub/newrelic.ini', 'production')
+
 import requests
 import sys
 import sentry_sdk
@@ -20,10 +29,6 @@ from sentry_sdk.integrations.django import DjangoIntegration
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-APP_ENV = os.environ.get('APP_ENV') or 'development'
-DEVELOPMENT = 'development' in APP_ENV
-PRODUCTION = 'production' in APP_ENV
-STAGING = 'staging' in APP_ENV
 CI = "GITHUB_ACTIONS" in os.environ
 CLOUD = PRODUCTION or STAGING or CI
 TESTING = ('test' in APP_ENV) or ('test' in sys.argv)
