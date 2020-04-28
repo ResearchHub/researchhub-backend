@@ -9,8 +9,8 @@ from paper.models import Paper
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        papers = Paper.objects.all()
-        count = papers.count()
+        papers = Paper.objects.iterator()
+        count = Paper.objects.count()
         print('Recalculating paper score')
         for i, paper in enumerate(papers):
             try:
