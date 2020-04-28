@@ -26,9 +26,11 @@ class BasePaperSerializer(serializers.ModelSerializer):
     bullet_points = serializers.SerializerMethodField()
     csl_item = serializers.SerializerMethodField()
     discussion = serializers.SerializerMethodField()
+    discussion_count = serializers.SerializerMethodField()
     first_figure = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
     hubs = SimpleHubSerializer(many=True, required=False)
+    score = serializers.SerializerMethodField()
     summary = SummarySerializer(required=False)
     uploaded_by = UserSerializer(read_only=True)
     user_vote = serializers.SerializerMethodField()
@@ -120,6 +122,9 @@ class BasePaperSerializer(serializers.ModelSerializer):
         )
         return {'count': threads_queryset.count(), 'threads': threads.data}
 
+    def get_discussion_count(self, paper):
+        return paper.get_discussion_count()
+
     def get_first_figure(self, paper):
         try:
             if len(paper.figure_list) > 0:
@@ -145,6 +150,9 @@ class BasePaperSerializer(serializers.ModelSerializer):
             if figure:
                 return FigureSerializer(figure).data
         return None
+
+    def get_score(self, paper):
+        return paper.calculate_score()
 
     def get_user_flag(self, paper):
         flag = None
