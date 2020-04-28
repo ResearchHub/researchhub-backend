@@ -9,15 +9,16 @@ https://docs.djangoproject.com/en/2.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/2.2/ref/settings/
 """
+
+import os
 APP_ENV = os.environ.get('APP_ENV') or 'development'
 DEVELOPMENT = 'development' in APP_ENV
 PRODUCTION = 'production' in APP_ENV
 STAGING = 'staging' in APP_ENV
 
 import newrelic.agent
-newrelic.agent.initialize('newrelic.ini', APP_ENV)
+newrelic.agent.initialize('researchhub/newrelic.ini', 'production')
 
-import os
 import requests
 import sys
 import sentry_sdk
