@@ -462,8 +462,6 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def get_hub_papers(self, request):
-        # TODO: move this off the view and recalculate every 10 minutes
-        # through the worker
         page_number = int(request.GET['page'])
         start_date = datetime.datetime.fromtimestamp(
             int(request.GET.get('start_date__gte', 0)),
