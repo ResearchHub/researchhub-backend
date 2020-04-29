@@ -9,6 +9,8 @@ from django.db.models import (
     Prefetch,
     F,
     Avg,
+    Max,
+    Min,
     IntegerField
 )
 from django.db.models.functions import Extract, Now
@@ -515,11 +517,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             DISCUSSION_WEIGHT = 2
 
             gravity = 2.5
-            threads_c = Count('threads')
-            comments_c = Count('threads__comments')
-            replies_c = Count('threads__comments__replies')
-            upvotes = Count('vote', filter=Q(vote__vote_type=Vote.UPVOTE,))
-            downvotes = Count('vote', filter=Q(vote__vote_type=Vote.DOWNVOTE,))
             now_epoch = Extract(Now(), 'epoch')
             created_epoch = Avg(
                 Extract('vote__created_date', 'epoch'),
@@ -530,14 +527,9 @@ class PaperViewSet(viewsets.ModelViewSet):
             time_since_calc = (now_epoch - created_epoch) / 3600
             # time_since_thread = (now_epoch - thread_epoch) / 3600
 
-            numerator = (
-                (threads_c + comments_c + replies_c)
-                * DISCUSSION_WEIGHT +
-                (upvotes - downvotes)
-            )
+            numerator = F('discussion_count') * DISCUSSION_WEIGHT + F('score')
             inverse_divisor = (
-                INT_DIVISION
-                / ((time_since_calc + 1) ** gravity)
+                INT_DIVISION / ((time_since_calc + 1) ** gravity)
             )
             order_papers = papers.annotate(
                 numerator=numerator,
@@ -573,22 +565,9 @@ class PaperViewSet(viewsets.ModelViewSet):
                 )
             )
 
-            all_time_upvotes = Count(
-                'vote',
-                filter=Q(
-                    vote__vote_type=Vote.UPVOTE,
-                )
-            )
-            all_time_downvotes = Count(
-                'vote',
-                filter=Q(
-                    vote__vote_type=Vote.DOWNVOTE,
-                )
-            )
-
             order_papers = papers.annotate(
                 score_in_time=upvotes - downvotes,
-                score_all_time=all_time_upvotes + all_time_downvotes,
+                score_all_time=score,
             ).order_by(ordering + '_in_time', ordering + '_all_time')
 
         elif 'discussed' in ordering:
@@ -606,12 +585,10 @@ class PaperViewSet(viewsets.ModelViewSet):
                     threads__comments__created_date__lte=end_date
                 )
             )
-            all_time_comments = Count(
-                'threads__comments',
-            )
+
             order_papers = papers.annotate(
                 discussed=threads_c + comments,
-                discussed_secondary=threads_count + all_time_comments
+                discussed_secondary=discussion_count
             ).order_by(ordering, ordering + '_secondary')
 
         else:
