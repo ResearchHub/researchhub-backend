@@ -534,7 +534,7 @@ class Vote(models.Model):
         related_name='paper_votes',
         related_query_name='paper_vote'
     )
-    created_date = models.DateTimeField(auto_now_add=True)
+    created_date = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_date = models.DateTimeField(auto_now=True)
     vote_type = models.IntegerField(choices=VOTE_TYPE_CHOICES)
 
