@@ -319,7 +319,6 @@ def preload_hub_papers(
     hub_id,
     cache_key,
 ):
-    import pdb; pdb.set_trace()
     from paper.serializers import HubPaperSerializer
     from paper.views import PaperViewSet
     paper_view = PaperViewSet()
@@ -444,4 +443,10 @@ def preload_hub_papers(
         )
     serializer = HubPaperSerializer(page, many=True)
     serializer_data = serializer.data
-    cache.set(cache_key, (serializer_data, order_papers[:15]), timeout=60*10)
+    if cache_key:
+        cache.set(
+            cache_key,
+            (serializer_data, order_papers[:15]),
+            timeout=60*10
+        )
+    return (serializer_data, order_papers[:15])
