@@ -35,12 +35,6 @@ SIMILARITY_THRESHOLD = 0.9
 MAX_TITLE_PAGES = 5
 
 
-class FakePaginationRequest:
-    def __init__(self):
-        self.page_query_param = 'page'
-        self.query_params = {'page': 1}
-
-
 def get_csl_item(url) -> dict:
     """
     Generate a CSL JSON item for a URL. Currently, does not work

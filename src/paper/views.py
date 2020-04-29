@@ -9,8 +9,6 @@ from django.db.models import (
     Prefetch,
     F,
     Avg,
-    Max,
-    Min,
     IntegerField
 )
 from django.db.models.functions import Extract, Now
