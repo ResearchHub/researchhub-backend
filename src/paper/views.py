@@ -520,12 +520,14 @@ class PaperViewSet(viewsets.ModelViewSet):
             time_since_calc = (now_epoch - F('vote_avg_epoch')) / 3600 + 1
 
             numerator = F('score') + F('discussion_count') * DISCUSSION_WEIGHT
+            time_avg = (F('vote_avg_epoch') - 1588199677) / 3600
             inverse_divisor = (
                 INT_DIVISION / ((time_since_calc) ** gravity)
             )
+            hot_score = numerator + time_avg
             order_papers = papers.annotate(
                 #hot_score_secondary=numerator,
-                hot_score=numerator * inverse_divisor,
+                hot_score=hot_score,
             ).order_by(ordering) #, ordering + '_secondary')
 
         elif 'score' in ordering:
