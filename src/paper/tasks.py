@@ -247,11 +247,12 @@ def handle_duplicate_doi(new_paper, doi):
 
 @periodic_task(run_every=crontab(minute='*/10'), priority=2)
 def celery_preload_hub_papers():
-    hub_ids = Hub.objects.values_list('id', flat=True)
+    # hub_ids = Hub.objects.values_list('id', flat=True)
+    hub_ids = [0]
     orderings = (
-        '-score',
-        '-discussed',
-        '-uploaded_date',
+        # '-score',
+        # '-discussed',
+        # '-uploaded_date',
         '-hot_score'
     )
     filter_types = (

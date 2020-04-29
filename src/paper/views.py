@@ -488,6 +488,17 @@ class PaperViewSet(viewsets.ModelViewSet):
                 cache_pk = f'{hub_id}_{ordering}_today'
 
             def execute_celery_hub_precalc():
+                # return preload_hub_papers.apply_async(
+                #     (
+                #         page_number,
+                #         start_date,
+                #         end_date,
+                #         ordering,
+                #         hub_id,
+                #         None
+                #     ),
+                #     priority=2
+                # )
                 return preload_hub_papers(
                     page_number,
                     start_date,
