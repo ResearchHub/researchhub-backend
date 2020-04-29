@@ -531,7 +531,13 @@ if not TESTING:
             'LOCATION': f'{REDIS_HOST}:{REDIS_PORT}',
         },
     }
-
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'researchhub.TestCache.TestCache',
+            'LOCATION': f'{REDIS_HOST}:{REDIS_PORT}',
+        },
+    }
 if PRODUCTION:
     CACHE_KEY_PREFIX = 'prod'
 elif STAGING:
