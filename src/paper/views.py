@@ -30,6 +30,7 @@ from bullet_point.models import BulletPoint
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import Figure, Flag, Paper, Vote
+from paper.tasks import preload_hub_papers
 from paper.permissions import (
     CreatePaper,
     FlagPaper,
@@ -474,37 +475,33 @@ class PaperViewSet(viewsets.ModelViewSet):
         ordering = self._set_hub_paper_ordering(request)
         hub_id = request.GET.get('hub_id', 0)
 
-        time_difference = end_date - start_date
-        cache_pk = ''
-        if time_difference.days == 365:
-            cache_pk = f'{hub_id}_{ordering}_year'
-        elif time_difference.days == 30 or time_difference.days == 31:
-            cache_pk = f'{hub_id}_{ordering}_month'
-        elif time_difference.days == 7:
-            cache_pk = f'{hub_id}_{ordering}_week'
-        else:
-            cache_pk = f'{hub_id}_{ordering}_today'
+        if page_number == 1:
+            time_difference = end_date - start_date
+            cache_pk = ''
+            if time_difference.days == 365:
+                cache_pk = f'{hub_id}_{ordering}_year'
+            elif time_difference.days == 30 or time_difference.days == 31:
+                cache_pk = f'{hub_id}_{ordering}_month'
+            elif time_difference.days == 7:
+                cache_pk = f'{hub_id}_{ordering}_week'
+            else:
+                cache_pk = f'{hub_id}_{ordering}_today'
 
-        cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
-        cache_key_papers = get_cache_key(None, 'hub', pk='papers')
-        cache_hit_hub = cache.get(cache_key_hub)
-        cache_hit_papers = cache.get(cache_key_papers)
-        cache_hit_exists = cache_hit_papers and cache_hit_hub
+            def execute_celery_hub_precalc():
+                return preload_hub_papers(
+                    page_number,
+                    start_date,
+                    end_date,
+                    ordering,
+                    hub_id,
+                    None
+                )
 
-        if cache_hit_exists and page_number == 1:
-            # cache.get_or_set()
-            for item in cache_hit_hub:
-                paper_id = item['id']
-                try:
-                    paper = Paper.objects.get(pk=paper_id)
-                    item['user_vote'] = self.serializer_class(
-                        context={'request': request}
-                    ).get_user_vote(paper)
-                except Exception as e:
-                    log_error(e)
-            page = self.paginate_queryset(cache_hit_papers)
-            return self.get_paginated_response(
-                {'data': cache_hit_hub, 'no_results': False}
+            cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
+            cache_hit = cache.get_or_set(
+                cache_key_hub,
+                execute_celery_hub_precalc,
+                timeout=60*10
             )
 
         papers = self._get_filtered_papers(hub_id)
@@ -572,9 +569,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         context = self.get_serializer_context()
         serializer = HubPaperSerializer(page, many=True, context=context)
         serializer_data = serializer.data
-        if page_number == 1:
-            cache.set(cache_key_hub, serializer_data, timeout=60*60*24*7)
-            cache.set(cache_key_papers, order_papers[:15], timeout=60*60*24*7)
+
         return self.get_paginated_response(
             {'data': serializer_data, 'no_results': False}
         )
