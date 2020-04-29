@@ -235,7 +235,7 @@ def handle_duplicate_doi(new_paper, doi):
     new_paper.delete()
 
 
-@periodic_task(run_every=crontab(minute='*/10'), priority=2)
+@periodic_task(run_every=crontab(), priority=2)
 def celery_preload_hub_papers():
     # hub_ids = Hub.objects.values_list('id', flat=True)
     hub_ids = [0]
