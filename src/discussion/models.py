@@ -104,7 +104,7 @@ class BaseComment(models.Model):
         blank=True,
         null=True
     )
-    created_date = models.DateTimeField(auto_now_add=True)
+    created_date = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_date = models.DateTimeField(auto_now=True)
     was_edited = models.BooleanField(
         default=False,
