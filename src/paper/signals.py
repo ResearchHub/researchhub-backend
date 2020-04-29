@@ -1,4 +1,6 @@
+from django.db.models import Avg, IntegerField
 from django.db.models.signals import post_save
+from django.db.models.functions import Extract
 from django.dispatch import receiver
 
 from .models import Paper, Vote
@@ -15,6 +17,8 @@ def recalc_paper_votes(
     paper = instance.paper
     new_score = paper.calculate_score()
     paper.score = new_score
+    if created or paper.vote_avg_epoch == 0:
+        paper.vote_avg_epoch = paper.votes.aggregate(avg=Avg(Extract('created_date', 'epoch'), output_field=IntegerField()))['avg']
     paper.save()
 
 
