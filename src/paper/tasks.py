@@ -15,20 +15,11 @@ from django.apps import apps
 from django.core.cache import cache
 from django.core.files import File
 from django.db import IntegrityError
-from django.db.models.functions import Extract, Now
 from django.http.request import HttpRequest
 from rest_framework.request import Request
 from rest_framework.pagination import PageNumberPagination
-from django.db.models import (
-    Count,
-    Q,
-    F,
-    Avg,
-    IntegerField
-)
-
+from django.db.models import Count
 from researchhub.celery import app
-from hub.models import Hub
 from paper.utils import (
     check_crossref_title,
     check_pdf_title,
@@ -297,14 +288,6 @@ def celery_preload_hub_papers():
                     hub_id,
                     cache_key
                 )
-                # kwargs = {
-                #     'page_number': 1,
-                #     'start_date': start_date,
-                #     'end_date': end_date,
-                #     'ordering': ordering,
-                #     'hub_id': hub_id,
-                #     'cache_key': cache_key
-                # }
                 preload_hub_papers(*args)
                 break
             break
@@ -332,11 +315,7 @@ def preload_hub_papers(
         start_date,
         end_date
     )
-    # fake_pagination_request = FakePaginationRequest()
-    # page = PageNumberPagination().paginate_queryset(
-    #     order_papers,
-    #     fake_pagination_request
-    #     )
+
     page = paper_view.paginate_queryset(order_papers)
     serializer = HubPaperSerializer(page, many=True)
     serializer_data = serializer.data
