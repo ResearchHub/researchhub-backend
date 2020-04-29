@@ -36,8 +36,9 @@ class Paper(models.Model):
         default=False,
         help_text=HELP_TEXT_IS_REMOVED
     )
-    score = models.IntegerField(default=0)
-    discussion_count = models.IntegerField(default=0)
+    score = models.IntegerField(default=0, db_index=True)
+    discussion_count = models.IntegerField(default=0, db_index=True)
+    vote_avg_epoch = models.IntegerField(default=0)
 
     # Moderators are obsolete, in favor of super mods on the user
     moderators = models.ManyToManyField(
