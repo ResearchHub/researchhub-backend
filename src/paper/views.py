@@ -567,7 +567,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 
             order_papers = papers.annotate(
                 score_in_time=upvotes - downvotes,
-                score_all_time=score,
+                score_all_time=F('score')
             ).order_by(ordering + '_in_time', ordering + '_all_time')
 
         elif 'discussed' in ordering:
@@ -588,7 +588,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 
             order_papers = papers.annotate(
                 discussed=threads_c + comments,
-                discussed_secondary=discussion_count
+                discussed_secondary=F('discussion_count')
             ).order_by(ordering, ordering + '_secondary')
 
         else:
