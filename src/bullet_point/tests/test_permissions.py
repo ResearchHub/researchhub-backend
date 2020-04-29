@@ -26,7 +26,12 @@ class BulletPointPermissionsTests(TestCase):
 
     def test_user_can_create_bullet_point_with_at_least_1_rep(self):
         user = create_random_authenticated_user('A')
-        response = self.get_post_response(user)
+        data = {
+            'paper': self.paper.id,
+            'created_by': 2,
+            'bullet_type': 'LIMITATION'
+        }
+        response = self.get_post_response(user, data=data)
         self.assertContains(response, 'id', status_code=201)
 
     def test_user_can_NOT_create_bullet_point_with_below_1_rep(self):
@@ -40,7 +45,11 @@ class BulletPointPermissionsTests(TestCase):
 
     def test_can_NOT_set_created_by(self):
         user = create_random_authenticated_user('Ba')
-        data = {'paper': self.paper.id, 'created_by': 2}
+        data = {
+            'paper': self.paper.id,
+            'created_by': 2,
+            'bullet_type': 'LIMITATION'
+        }
 
         response = self.get_post_response(user, data=data)
         self.assertContains(response, 'created_by":{', status_code=201)
