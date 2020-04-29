@@ -521,11 +521,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             created_epoch = Avg(
                 Extract('vote__created_date', 'epoch'),
                 output_field=IntegerField())
-            # thread_epoch = Avg(
-            #     Extract('threads__created_date', 'epoch'),
-            #     output_field=IntegerField())
             time_since_calc = (now_epoch - created_epoch) / 3600
-            # time_since_thread = (now_epoch - thread_epoch) / 3600
 
             numerator = F('discussion_count') * DISCUSSION_WEIGHT + F('score')
             inverse_divisor = (
@@ -534,7 +530,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             order_papers = papers.annotate(
                 numerator=numerator,
                 hot_score=numerator * inverse_divisor,
-                divisor=inverse_divisor
             )
             if ordering[0] == '-':
                 order_papers = order_papers.order_by(
@@ -552,16 +547,14 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'vote',
                 filter=Q(
                     vote__vote_type=Vote.UPVOTE,
-                    vote__updated_date__gte=start_date,
-                    vote__updated_date__lte=end_date
+                    vote__updated_date__range=[start_date,end_date]
                 )
             )
             downvotes = Count(
                 'vote',
                 filter=Q(
                     vote__vote_type=Vote.DOWNVOTE,
-                    vote__updated_date__gte=start_date,
-                    vote__updated_date__lte=end_date
+                    vote__updated_date__range=[start_date,end_date]
                 )
             )
 
@@ -574,15 +567,13 @@ class PaperViewSet(viewsets.ModelViewSet):
             threads_c = Count(
                 'threads',
                 filter=Q(
-                    threads__created_date__gte=start_date,
-                    threads__created_date__lte=end_date
+                    threads__created_date__range=[start_date,end_date]
                 )
             )
             comments = Count(
                 'threads__comments',
                 filter=Q(
-                    threads__comments__created_date__gte=start_date,
-                    threads__comments__created_date__lte=end_date
+                    threads__comments__created_date__range=[start_date,end_date]
                 )
             )
 
