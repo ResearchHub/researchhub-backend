@@ -492,7 +492,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         cache_hit_hub = cache.get(cache_key_hub)
         cache_hit_papers = cache.get(cache_key_papers)
         cache_hit_exists = cache_hit_papers and cache_hit_hub
-        if False and cache_hit_exists and page_number == 1:
+        if cache_hit_exists and page_number == 1:
             for item in cache_hit_hub:
                 paper_id = item['id']
                 try:
@@ -519,17 +519,14 @@ class PaperViewSet(viewsets.ModelViewSet):
             now_epoch = int(timezone.now().timestamp())
             time_since_calc = (now_epoch - F('vote_avg_epoch')) / 3600 + 1
 
-            numerator = F('discussion_count') * DISCUSSION_WEIGHT + F('score')
+            numerator = F('score') + F('discussion_count') * DISCUSSION_WEIGHT
             inverse_divisor = (
                 INT_DIVISION / ((time_since_calc) ** gravity)
             )
             order_papers = papers.annotate(
-                hot_score_secondary=numerator,
+                #hot_score_secondary=numerator,
                 hot_score=numerator * inverse_divisor,
-            ).order_by(ordering, ordering + '_secondary')
-
-            print(order_papers.explain())
-            print(order_papers.query)
+            ).order_by(ordering) #, ordering + '_secondary')
 
         elif 'score' in ordering:
             upvotes = Count(
@@ -574,15 +571,24 @@ class PaperViewSet(viewsets.ModelViewSet):
         else:
             order_papers = papers.order_by(ordering)
 
-        page = self.paginate_queryset(order_papers)
+        offset = (page_number - 1) * 10
+        page = order_papers[offset:offset + 10]
         context = self.get_serializer_context()
         serializer = HubPaperSerializer(page, many=True, context=context)
         serializer_data = serializer.data
-        cache.set(cache_key_hub, serializer_data, timeout=60*60*24*7)
-        cache.set(cache_key_papers, order_papers[:15], timeout=60*60*24*7)
-        return self.get_paginated_response(
-            {'data': serializer_data, 'no_results': False}
-        )
+        if page_number == 1:
+            cache.set(cache_key_hub, serializer_data, timeout=60*60*24*7)
+            cache.set(cache_key_papers, page, timeout=60*60*24*7)
+        return Response({
+          "count": 9999999,
+          "next": "",
+          "previous": "",
+          "results": {'data': serializer_data, 'no_results': False}
+        }, status=200)
+
+        # return self.get_paginated_response(
+            # {'data': serializer_data, 'no_results': False}
+        # )
 
     def _set_hub_paper_ordering(self, request):
         ordering = request.query_params.get('ordering', None)

@@ -15,10 +15,12 @@ def recalc_paper_votes(
     **kwargs
 ):
     paper = instance.paper
-    new_score = paper.calculate_score()
-    paper.score = new_score
     if created or paper.vote_avg_epoch == 0:
         paper.vote_avg_epoch = paper.votes.aggregate(avg=Avg(Extract('created_date', 'epoch'), output_field=IntegerField()))['avg']
+    new_score = paper.calculate_score()
+    if paper.score == new_score:
+        return
+    paper.score = new_score
     paper.save()
 
 

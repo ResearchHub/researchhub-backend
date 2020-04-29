@@ -26,7 +26,7 @@ HELP_TEXT_IS_REMOVED = (
 
 
 class Paper(models.Model):
-    uploaded_date = models.DateTimeField(auto_now_add=True)
+    uploaded_date = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_date = models.DateTimeField(auto_now=True)
     is_public = models.BooleanField(
         default=True,
@@ -38,7 +38,7 @@ class Paper(models.Model):
     )
     score = models.IntegerField(default=0, db_index=True)
     discussion_count = models.IntegerField(default=0, db_index=True)
-    vote_avg_epoch = models.IntegerField(default=0)
+    vote_avg_epoch = models.IntegerField(default=0, db_index=True)
 
     # Moderators are obsolete, in favor of super mods on the user
     moderators = models.ManyToManyField(
