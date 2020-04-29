@@ -30,7 +30,6 @@ from paper.utils import (
     merge_paper_threads,
     merge_paper_votes,
     get_cache_key,
-    FakePaginationRequest
 )
 from utils import sentry
 from utils.http import check_url_contains_pdf
