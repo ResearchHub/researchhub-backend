@@ -6,7 +6,7 @@ import re
 import requests
 import shutil
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from subprocess import call
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
@@ -16,6 +16,8 @@ from django.core.cache import cache
 from django.core.files import File
 from django.db import IntegrityError
 from django.db.models.functions import Extract, Now
+from django.http.request import HttpRequest
+from rest_framework.request import Request
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import (
     Count,
@@ -26,9 +28,7 @@ from django.db.models import (
 )
 
 from researchhub.celery import app
-# from paper.serializers import HubPaperSerializer
-# from paper.views import PaperViewSet
-
+from hub.models import Hub
 from paper.utils import (
     check_crossref_title,
     check_pdf_title,
@@ -39,6 +39,7 @@ from paper.utils import (
     merge_paper_threads,
     merge_paper_votes,
     get_cache_key,
+    FakePaginationRequest
 )
 from utils import sentry
 from utils.http import check_url_contains_pdf
@@ -246,10 +247,67 @@ def handle_duplicate_doi(new_paper, doi):
 
 @periodic_task(run_every=crontab(minute='*/10'), priority=2)
 def celery_preload_hub_papers():
-    kwargs = {
-        'page_number': 1,
-    }
-    preload_hub_papers(**kwargs)
+    hub_ids = Hub.objects.values_list('id', flat=True)
+    orderings = (
+        '-score',
+        '-discussed',
+        '-uploaded_date',
+        '-hot_score'
+    )
+    filter_types = (
+        'year',
+        'month',
+        'week',
+        'today'
+    )
+
+    start_date_hour = 7
+    end_date = today = datetime.now()
+    for hub_id in hub_ids:
+        for ordering in orderings:
+            for filter_type in filter_types:
+                cache_pk = f'{hub_id}_{ordering}_{filter_type}'
+                if filter_type == 'year':
+                    td = timedelta(days=365)
+                elif filter_type == 'month':
+                    td = timedelta(days=30)
+                elif filter_type == 'week':
+                    td = timedelta(days=7)
+                else:
+                    td = timedelta(days=0)
+
+                cache_key = get_cache_key(None, 'hub', pk=cache_pk)
+                datetime_diff = today - td
+                year = datetime_diff.year
+                month = datetime_diff.month
+                day = datetime_diff.day
+                start_date = datetime(
+                    year,
+                    month,
+                    day,
+                    hour=start_date_hour
+                )
+
+                args = (
+                    1,
+                    start_date,
+                    end_date,
+                    ordering,
+                    hub_id,
+                    cache_key
+                )
+                # kwargs = {
+                #     'page_number': 1,
+                #     'start_date': start_date,
+                #     'end_date': end_date,
+                #     'ordering': ordering,
+                #     'hub_id': hub_id,
+                #     'cache_key': cache_key
+                # }
+                preload_hub_papers(*args)
+                break
+            break
+        break
 
 
 @app.task
@@ -258,10 +316,15 @@ def preload_hub_papers(
     start_date,
     end_date,
     ordering,
-    hub_id
+    hub_id,
+    cache_key,
 ):
-    Vote = apps.get_model('paper.Vote')
+    import pdb; pdb.set_trace()
+    from paper.serializers import HubPaperSerializer
+    from paper.views import PaperViewSet
     paper_view = PaperViewSet()
+    paper_view.request = Request(HttpRequest())
+    Vote = apps.get_model('paper.Vote')
     threads_count = Count('threads')
     papers = paper_view._get_filtered_papers(hub_id, threads_count)
 
@@ -370,10 +433,15 @@ def preload_hub_papers(
     else:
         order_papers = papers.order_by(ordering)
 
-    page = paper_view.paginate_queryset(order_papers)
-    context = paper_view.get_serializer_context()
-    serializer = HubPaperSerializer(page, many=True, context=context)
+        # page = paper_view.paginate_queryset(order_papers)
+        # context = paper_view.get_serializer_context()
+        # serializer = HubPaperSerializer(page, many=True, context=context)
+        # serializer_data = serializer.data
+    fake_pagination_request = FakePaginationRequest()
+    page = PageNumberPagination().paginate_queryset(
+        order_papers,
+        fake_pagination_request
+        )
+    serializer = HubPaperSerializer(page, many=True)
     serializer_data = serializer.data
-    if page_number == 1:
-        cache.set(cache_key_hub, serializer_data, timeout=60*60*24*7)
-        cache.set(cache_key_papers, order_papers[:15], timeout=60*60*24*7)
+    cache.set(cache_key, (serializer_data, order_papers[:15]), timeout=60*10)
