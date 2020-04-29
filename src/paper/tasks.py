@@ -243,13 +243,13 @@ def celery_preload_hub_papers():
         # '-score',
         # '-discussed',
         # '-uploaded_date',
-        '-hot_score'
+        '-hot_score',
     )
     filter_types = (
         'year',
         'month',
         'week',
-        'today'
+        'today',
     )
 
     start_date_hour = 7
