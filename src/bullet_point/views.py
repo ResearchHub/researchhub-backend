@@ -1,10 +1,10 @@
-from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import (
     IsAuthenticated,
     IsAuthenticatedOrReadOnly
@@ -31,7 +31,6 @@ from bullet_point.serializers import (
     EndorsementSerializer,
     FlagSerializer
 )
-from paper.utils import get_cache_key
 from researchhub.lib import ActionableViewSet, get_paper_id_from_path
 from utils.http import DELETE, POST, PATCH, PUT
 
@@ -46,6 +45,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
     filter_class = BulletPointFilter
     ordering = ['ordinal', '-created_date']
     ordering_fields = ['ordinal', 'created_date']
+    pagination_class = PageNumberPagination
 
     permission_classes = [
         IsAuthenticatedOrReadOnly
@@ -86,22 +86,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
             if paper is None:
                 return Response('Missing required field `paper`', status=400)
             request.data['paper'] = paper
-            bullet_type = request.data.get('bullet_type', '')
-            cache_key = get_cache_key(request, f'bulletpoint_{bullet_type}')
-            cache.delete(cache_key)
         return super().create(request, *args, **kwargs)
-
-    def list(self, request, *args, **kwargs):
-        bullet_type = request.GET.get('bullet__type', '')
-        cache_key = get_cache_key(request, f'bulletpoint_{bullet_type}')
-        cache_hit = cache.get(cache_key)
-
-        if cache_hit is not None:
-            return Response(cache_hit, status=200)
-        response = super().list(request, *args, **kwargs)
-        data = response.data
-        cache.set(cache_key, data, timeout=60*60*24)
-        return response
 
     def update(self, request, *args, **kwargs):
         if (
@@ -110,8 +95,6 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
             or not self._permit_set_created_by(request)
         ):
             return Response('You do not have permission', status=400)
-        cache_key = get_cache_key(request, 'bulletpoint')
-        cache.delete_pattern(cache_key)
         return super().update(request, *args, **kwargs)
 
     def _permit_lock_ordinal(self, request):
@@ -138,9 +121,6 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         bullet_point = self.get_object()
         bullet_point.is_removed = True
         bullet_point.save()
-        paper = bullet_point.paper
-        cache_key = get_cache_key(None, 'bulletpoint_*', pk=paper.id)
-        cache.delete_pattern(cache_key)
         return Response(
             self.get_serializer(instance=bullet_point).data,
             status=200
@@ -186,8 +166,6 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
             bullet_point.save()
 
         serialized = self.get_serializer(instance=head_bullet_point)
-        cache_key = get_cache_key(None, 'bulletpoint_*', pk=paper_id)
-        cache.delete_pattern(cache_key)
         return Response(serialized.data, status=status.HTTP_201_CREATED)
 
     @action(
@@ -197,13 +175,10 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
     )
     def endorse(self, request, pk=None):
         bullet_point = self.get_object()
-        paper = bullet_point.paper
         user = request.user
         try:
             endorsement = create_endorsement(user, bullet_point)
             serialized = EndorsementSerializer(endorsement)
-            cache_key = get_cache_key(request, 'bulletpoint_*', pk=paper.id)
-            cache.delete_pattern(cache_key)
             return Response(serialized.data, status=201)
         except Exception as e:
             return Response(
@@ -214,14 +189,11 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
     @endorse.mapping.delete
     def delete_endorse(self, request, pk=None):
         bullet_point = self.get_object()
-        paper = bullet_point.paper
         user = request.user
         try:
             endorsement = retrieve_endorsement(user, bullet_point)
             endorsement_id = endorsement.id
             endorsement.delete()
-            cache_key = get_cache_key(None, 'bulletpoint_*', paper.id)
-            cache.delete_pattern(cache_key)
             return Response(endorsement_id, status=200)
         except Exception as e:
             return Response(
@@ -269,12 +241,6 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         ordinal = request.data.get('ordinal')
         bullet_point.set_ordinal(ordinal)
         serialized = self.get_serializer(instance=bullet_point)
-        cache_key = get_cache_key(
-            None,
-            'bulletpoint_*',
-            pk=bullet_point.paper.id
-        )
-        cache.delete_pattern(cache_key)
         return Response(serialized.data, status=status.HTTP_200_OK)
 
     @action(
@@ -312,8 +278,6 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         except Exception as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
-        cache_key = get_cache_key(None, 'bulletpoint_*', pk=paper.id)
-        cache.delete_pattern(cache_key)
         return Response('Success', status=status.HTTP_200_OK)
 
     def upvote(self, *args, **kwargs):
