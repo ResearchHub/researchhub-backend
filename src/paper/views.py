@@ -538,14 +538,14 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'vote',
                 filter=Q(
                     vote__vote_type=Vote.UPVOTE,
-                    vote__updated_date__range=[start_date,end_date]
+                    vote__updated_date__range=[start_date, end_date]
                 )
             )
             downvotes = Count(
                 'vote',
                 filter=Q(
                     vote__vote_type=Vote.DOWNVOTE,
-                    vote__updated_date__range=[start_date,end_date]
+                    vote__updated_date__range=[start_date, end_date]
                 )
             )
 
@@ -558,13 +558,16 @@ class PaperViewSet(viewsets.ModelViewSet):
             threads_count = Count(
                 'threads',
                 filter=Q(
-                    threads__created_date__range=[start_date,end_date]
+                    threads__created_date__range=[start_date, end_date]
                 )
             )
             comments_count = Count(
                 'threads__comments',
                 filter=Q(
-                    threads__comments__created_date__range=[start_date,end_date]
+                    threads__comments__created_date__range=[
+                        start_date,
+                        end_date
+                    ]
                 )
             )
 
@@ -576,6 +579,76 @@ class PaperViewSet(viewsets.ModelViewSet):
         else:
             order_papers = papers.order_by(ordering)
 
+        return order_papers
+
+    @action(detail=False, methods=['get'])
+    def get_hub_papers(self, request):
+        page_number = int(request.GET['page'])
+        start_date = datetime.datetime.fromtimestamp(
+            int(request.GET.get('start_date__gte', 0)),
+            datetime.timezone.utc
+        )
+        end_date = datetime.datetime.fromtimestamp(
+            int(request.GET.get('end_date__lte', 0)),
+            datetime.timezone.utc
+        )
+        ordering = self._set_hub_paper_ordering(request)
+        hub_id = request.GET.get('hub_id', 0)
+
+        if page_number == 1:
+            time_difference = end_date - start_date
+            cache_pk = ''
+            if time_difference.days == 365:
+                cache_pk = f'{hub_id}_{ordering}_year'
+            elif time_difference.days == 30 or time_difference.days == 31:
+                cache_pk = f'{hub_id}_{ordering}_month'
+            elif time_difference.days == 7:
+                cache_pk = f'{hub_id}_{ordering}_week'
+            else:
+                cache_pk = f'{hub_id}_{ordering}_today'
+
+            def execute_celery_hub_precalc():
+                return preload_hub_papers(
+                    page_number,
+                    start_date,
+                    end_date,
+                    ordering,
+                    hub_id,
+                    None
+                )
+
+            cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
+            cache_hit = cache.get_or_set(
+                cache_key_hub,
+                execute_celery_hub_precalc,
+                timeout=60*10
+            )
+
+            if cache_hit and page_number == 1:
+                cache_hit_hub, cache_hit_papers = cache_hit
+                for item in cache_hit_hub:
+                    paper_id = item['id']
+                    try:
+                        paper = Paper.objects.get(pk=paper_id)
+                        item['user_vote'] = self.serializer_class(
+                            context={'request': request}
+                        ).get_user_vote(paper)
+                    except Exception as e:
+                        log_error(e)
+                page = self.paginate_queryset(cache_hit_papers)
+                return self.get_paginated_response(
+                    {'data': cache_hit_hub, 'no_results': False}
+                )
+
+        threads_count = Count('threads')
+
+        papers = self._get_filtered_papers(hub_id, threads_count)
+        order_papers = self.calculate_paper_ordering(
+            papers,
+            ordering,
+            start_date,
+            end_date
+        )
         page = self.paginate_queryset(order_papers)
         context = self.get_serializer_context()
         serializer = HubPaperSerializer(page, many=True, context=context)
