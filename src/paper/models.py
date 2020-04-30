@@ -298,7 +298,7 @@ class Paper(models.Model):
         return {}
 
     def calculate_hot_score(self):
-        if self.score + self.discussion_count > 0:
+        if self.score > 0:
             ALGO_START_UNIX = 1575199677
             vote_avg_epoch = self.votes.aggregate(avg=Avg(Extract('created_date', 'epoch'), output_field=models.IntegerField()))['avg']
             avg_hours_since_algo_start = (vote_avg_epoch - ALGO_START_UNIX) / 3600
