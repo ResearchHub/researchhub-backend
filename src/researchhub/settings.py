@@ -11,6 +11,11 @@ https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
 import os
+import requests
+import sys
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+
 APP_ENV = os.environ.get('APP_ENV') or 'development'
 DEVELOPMENT = 'development' in APP_ENV
 PRODUCTION = 'production' in APP_ENV
@@ -20,11 +25,6 @@ CELERY_WORKER = os.environ.get('CELERY_WORKER', False)
 if not CELERY_WORKER:
     import newrelic.agent
     newrelic.agent.initialize('researchhub/newrelic.ini', 'production')
-
-import requests
-import sys
-import sentry_sdk
-from sentry_sdk.integrations.django import DjangoIntegration
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -531,13 +531,7 @@ if not TESTING:
             'LOCATION': f'{REDIS_HOST}:{REDIS_PORT}',
         },
     }
-else:
-    CACHES = {
-        'default': {
-            'BACKEND': 'researchhub.TestCache.TestCache',
-            'LOCATION': f'{REDIS_HOST}:{REDIS_PORT}',
-        },
-    }
+
 if PRODUCTION:
     CACHE_KEY_PREFIX = 'prod'
 elif STAGING:
@@ -547,14 +541,13 @@ else:
 
 # Celery
 
-broker_url = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
-accept_content = ['json']
-task_serializer = 'json'
-task_routes = {'*.tasks.*': {'queue': APP_ENV}}
-task_default_queue = APP_ENV
+CELERY_BROKER_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_TASK_ROUTES = {'*.tasks.*': {'queue': APP_ENV}}
+CELERY_TASK_DEFAULT_QUEUE = APP_ENV
 
 REDBEAT_REDIS_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
-REDBEAT_KEY_PREFIX = f'readbeat_{APP_ENV}'
 
 # Django Channels
 ASGI_APPLICATION = 'researchhub.routing.application'
