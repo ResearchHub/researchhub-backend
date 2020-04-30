@@ -17,9 +17,8 @@ from django.core.files import File
 from django.db import IntegrityError
 from django.http.request import HttpRequest
 from rest_framework.request import Request
-from rest_framework.pagination import PageNumberPagination
-from django.db.models import Count
 from researchhub.celery import app
+from researchhub.settings import APP_ENV
 from paper.utils import (
     check_crossref_title,
     check_pdf_title,
@@ -235,7 +234,11 @@ def handle_duplicate_doi(new_paper, doi):
     new_paper.delete()
 
 
-@periodic_task(run_every=crontab(), priority=2)
+@periodic_task(
+    run_every=crontab(),
+    priority=2,
+    options={'queue': APP_ENV}
+)
 def celery_preload_hub_papers():
     # hub_ids = Hub.objects.values_list('id', flat=True)
     hub_ids = [0]

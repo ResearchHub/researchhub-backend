@@ -550,14 +550,6 @@ CELERY_TASK_ROUTES = {
     }
 }
 CELERY_TASK_DEFAULT_QUEUE = APP_ENV
-CELERY_BEAT_SCHEDULE = {
-    'celery_preload_hub_papers': {
-        'task': 'paper.tasks.celery_preload_hub_papers',
-        'options': {
-            'queue': APP_ENV
-        }
-    }
-}
 
 REDBEAT_REDIS_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
 
