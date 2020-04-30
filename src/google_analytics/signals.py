@@ -158,15 +158,13 @@ def send_vote_event(
     if instance.vote_type == 2:
         action = 'Downvote'
 
-    paper_id = None
-    if hasattr(instance, 'paper'):
-        if instance.paper is not None:
-            paper_id = instance.paper.id
-
     label = 'Paper'
+    paper_id = None
     if hasattr(instance, 'item'):
         label = type(instance.item).__name__
-        if instance.item.paper is not None:
+        if type(instance.item) is Paper:
+            paper_id = instance.item.id
+        elif instance.item.paper is not None:
             paper_id = instance.item.paper.id
 
     get_event_hit_response(

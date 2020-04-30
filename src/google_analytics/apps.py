@@ -8,7 +8,7 @@ from utils.http import http_request, POST
 
 TRACKING_ID = 'UA-106669204-1'
 USER_ID = 'django'
-USER_AGENT = 'Opera/9.80'
+USER_AGENT = 'Opera/9.80'  # Use any valid user agent to be safe
 
 
 class GoogleAnalyticsConfig(AppConfig):
