@@ -235,7 +235,7 @@ def handle_duplicate_doi(new_paper, doi):
 
 
 @periodic_task(
-    run_every=crontab(),
+    run_every=crontab(minute='*/30'),
     priority=2,
     options={'queue': APP_ENV}
 )
