@@ -16,16 +16,16 @@ def recalc_paper_votes(
 ):
     paper = instance.paper
     new_score = paper.calculate_score()
-    if created or paper.vote_avg_epoch == 0:
+
+    if new_score > 0:
         ALGO_START_UNIX = 1588199677
         vote_avg_epoch = paper.votes.aggregate(avg=Avg(Extract('created_date', 'epoch'), output_field=IntegerField()))['avg']
         avg_hours_since_algo_start = (vote_avg_epoch - ALGO_START_UNIX) / 3600
-        if new_score > 0:
-            hot_score = avg_hours_since_algo_start + new_score + paper.discussion_count * 2
-        else:
-            hot_score = 0
+        hot_score = avg_hours_since_algo_start + new_score + paper.discussion_count * 2
 
         paper.vote_avg_epoch = hot_score
+    else:
+        paper.vote_avg_epoch = 0
 
     paper.score = new_score
     paper.save()
