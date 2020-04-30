@@ -571,24 +571,15 @@ class PaperViewSet(viewsets.ModelViewSet):
         else:
             order_papers = papers.order_by(ordering)
 
-        offset = (page_number - 1) * 10
-        page = order_papers[offset:offset + 10]
+        page = self.paginate_queryset(order_papers)
         context = self.get_serializer_context()
         serializer = HubPaperSerializer(page, many=True, context=context)
         serializer_data = serializer.data
-        if page_number == 1:
-            cache.set(cache_key_hub, serializer_data, timeout=60*60*24*7)
-            cache.set(cache_key_papers, page, timeout=60*60*24*7)
-        return Response({
-          "count": 9999999,
-          "next": "",
-          "previous": "",
-          "results": {'data': serializer_data, 'no_results': False}
-        }, status=200)
-
-        # return self.get_paginated_response(
-            # {'data': serializer_data, 'no_results': False}
-        # )
+        cache.set(cache_key_hub, serializer_data, timeout=60*60*24*7)
+        cache.set(cache_key_papers, order_papers[:15], timeout=60*60*24*7)
+        return self.get_paginated_response(
+            {'data': serializer_data, 'no_results': False}
+        )
 
     def _set_hub_paper_ordering(self, request):
         ordering = request.query_params.get('ordering', None)
