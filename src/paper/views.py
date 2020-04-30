@@ -524,7 +524,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             #    INT_DIVISION / ((time_since_calc) ** gravity)
             #)
             order_papers = papers.annotate(
-                hot_score=vote_avg_epoch,
+                hot_score=F('vote_avg_epoch'),
                 #hot_score=numerator * inverse_divisor,
             ).order_by(ordering)
 
