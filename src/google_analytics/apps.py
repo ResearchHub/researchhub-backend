@@ -1,13 +1,21 @@
+from django.apps import AppConfig
 from django.utils import timezone
 from urllib.parse import urlencode
 
+from google_analytics.exceptions import GoogleAnalyticsError
 from researchhub.settings import PRODUCTION
-from utils.exceptions import GoogleAnalyticsError
 from utils.http import http_request, POST
 
 TRACKING_ID = 'UA-106669204-1'
 USER_ID = 'django'
-USER_AGENT = 'Django'
+USER_AGENT = 'Opera/9.80'
+
+
+class GoogleAnalyticsConfig(AppConfig):
+    name = 'google_analytics'
+
+    def ready(self):
+        import google_analytics.signals  # noqa: F401
 
 
 class GoogleAnalytics:
@@ -18,7 +26,7 @@ class GoogleAnalytics:
         `hit` and sending it to Google Analytics.
         '''
         data = self.build_hit_urlencoded(hit)
-        self._send_hit_data(data)
+        return self._send_hit_data(data)
 
     def send_batch_hits(self, hits):
         '''
@@ -35,14 +43,17 @@ class GoogleAnalytics:
         for hit in hits:
             payload = self.build_hit_urlencoded(hit)
             if len(payload.encode('utf-8')) > 8000:
-                raise GoogleAnalyticsError(ValueError, 'Exceeds 8k bytes per hit')
+                raise GoogleAnalyticsError(
+                    ValueError,
+                    'Exceeds 8k bytes per hit'
+                )
             hit_data.append(self.build_hit_urlencoded(hit))
 
         data = '\n'.join(hit_data)
         if len(data.encode('utf-8')) > 16000:
             raise GoogleAnalyticsError(ValueError, 'Exceeds 16k bytes')
 
-        self._send_hit_data(data, batch=True)
+        return self._send_hit_data(data, batch=True)
 
     def build_hit_urlencoded(self, hit):
         '''
@@ -52,14 +63,14 @@ class GoogleAnalytics:
         optional_fields = {
             'npa': 1,  # Exclude from ad personalization
             'ds': 'django',  # Data source
-            'qt': self.get_queue_time(hit.hit_datetime),  # Ms since hit occurred
+            'qt': self.get_queue_time(hit.hit_datetime),  # Ms since hit occurred # noqa
             'ni': 0,  # Non-interactive
         }
         fields = {
             'v': 1,  # GA protocol version
             't': hit.hit_type,
             'tid': TRACKING_ID,
-            'uid': USER_ID,
+            'cid': USER_ID,
             'ua': USER_AGENT,
             **optional_fields,
             **hit_fields
@@ -67,16 +78,25 @@ class GoogleAnalytics:
         return urlencode(fields)
 
     def get_queue_time(self, dt):
+        '''
+        Returns milliseconds (`int`) since `dt`.
+        '''
         if dt is None:
             return 0
         delta = timezone.now() - dt
-        return delta.total_seconds() * 1000
+        return int(delta.total_seconds() * 1000)
 
     def _send_hit_data(self, data, batch=False):
-        if not PRODUCTION:
-            raise GoogleAnalyticsError('Not sending outside of production env')
 
         base_url = 'https://www.google-analytics.com/'
+        if not PRODUCTION:
+            base_url += 'debug/'
+            error = GoogleAnalyticsError(
+                UserWarning,
+                'Not sending outside of production env'
+            )
+            print(error)
+            return
 
         url = base_url + 'collect'
         if batch:
@@ -89,8 +109,8 @@ class Hit:
     '''
     Hit data for Google Analytics measurement protocol.
 
-    See https://developers.google.com/analytics/devguides/collection/protocol/v1
-    for more info.
+    For details see
+    https://developers.google.com/analytics/devguides/collection/protocol/v1
 
     Args:
         hit_type (str)

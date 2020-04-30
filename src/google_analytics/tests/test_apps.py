@@ -1,9 +1,9 @@
 from django.test import TestCase
 
-from utils.google_analytics import GoogleAnalytics, Hit
+from google_analytics.apps import GoogleAnalytics, Hit
 
 
-class AWSUtilsTests(TestCase):
+class GoogleAnalyticsAppsTests(TestCase):
 
     def setUp(self):
         self.ga = GoogleAnalytics()
@@ -17,5 +17,5 @@ class AWSUtilsTests(TestCase):
         )
         hit = Hit(Hit.EVENT, None, fields)
         result = self.ga.build_hit_urlencoded(hit)
-        expected = 'v=1&t=event&tid=UA-106669204-1&uid=django&ua=Django&npa=1&ds=django&qt=0&ni=0&ec=default_category&ea=default_action&el=default_label&ev=0'
+        expected = 'v=1&t=event&tid=UA-106669204-1&uid=django&ua=Django&npa=1&ds=django&qt=0&ni=0&ec=default_category&ea=default_action&el=default_label&ev=0'  # noqa
         self.assertEqual(result, expected)
