@@ -552,7 +552,9 @@ CELERY_TASK_ROUTES = {
 CELERY_TASK_DEFAULT_QUEUE = APP_ENV
 CELERY_BEAT_SCHEDULE = {
     '*.tasks.*': {
-        'queue': APP_ENV
+        'options': {
+            'queue': APP_ENV
+        }
     }
 }
 
