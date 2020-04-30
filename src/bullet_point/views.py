@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, F
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -261,12 +261,11 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         paper = bp.paper
 
         BulletPoint.objects.filter(
-            Q(
-                paper=paper,
-                ordinal__isnull=False,
-                is_head=True,
-                bullet_type=bullet_type
-            )
+            id__in=order,
+            paper=paper,
+            ordinal__isnull=False,
+            is_head=True,
+            bullet_type=bullet_type
         ).update(ordinal=None)
 
         try:
