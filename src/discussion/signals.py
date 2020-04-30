@@ -7,8 +7,6 @@ from .models import Thread, Reply, Comment
 def recalc_dis_count(instance):
     paper = instance.paper
     new_dis_count = paper.get_discussion_count()
-    if paper.discussion_count == new_dis_count:
-        return
     paper.discussion_count = new_dis_count
     paper.save()
 
