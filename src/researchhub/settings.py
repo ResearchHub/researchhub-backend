@@ -524,7 +524,14 @@ REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
 REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
 
 # Cache Settings
-if not TESTING:
+if TESTING:
+    CACHES = {
+        'default': {
+            'BACKEND': 'researchhub.TestCache.TestCache',
+            'LOCATION': f'{REDIS_HOST}:{REDIS_PORT}',
+        },
+    }
+else:
     CACHES = {
         'default': {
             'BACKEND': 'redis_cache.RedisCache',
