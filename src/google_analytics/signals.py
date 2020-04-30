@@ -29,7 +29,7 @@ def send_bullet_point_event(
 
     label = category
 
-    get_event_hit_response(
+    return get_event_hit_response(
         instance,
         created,
         category,
@@ -51,7 +51,7 @@ def send_discussion_event(
 
     label = type(instance).__name__
 
-    get_event_hit_response(
+    return get_event_hit_response(
         instance,
         created,
         category,
@@ -89,7 +89,7 @@ def send_paper_event(
     if not created:
         date = instance.updated_date
 
-    get_event_hit_response(
+    return get_event_hit_response(
         instance,
         created,
         category,
@@ -124,7 +124,7 @@ def send_user_event(
 
     value = instance.id
 
-    get_event_hit_response(
+    return get_event_hit_response(
         instance,
         created,
         category,
@@ -167,7 +167,7 @@ def send_vote_event(
         elif instance.item.paper is not None:
             paper_id = instance.item.paper.id
 
-    get_event_hit_response(
+    return get_event_hit_response(
         instance,
         created,
         category,
