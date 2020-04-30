@@ -23,7 +23,7 @@ class Command(BaseCommand):
                 new_score = paper.calculate_score()
 
                 if new_score > 0:
-                    ALGO_START_UNIX = 1588199677
+                    ALGO_START_UNIX = 1575199677
                     vote_avg_epoch = paper.votes.aggregate(avg=Avg(Extract('created_date', 'epoch'), output_field=IntegerField()))['avg']
                     avg_hours_since_algo_start = (vote_avg_epoch - ALGO_START_UNIX) / 3600
                     hot_score = avg_hours_since_algo_start + new_score + paper.discussion_count * 2
@@ -31,7 +31,6 @@ class Command(BaseCommand):
                     paper.vote_avg_epoch = hot_score
                 else:
                     paper.vote_avg_epoch = 0
-
                 paper.save()
             except Exception as e:
                 print(f'Error updating score for paper: {paper.id}', e)
