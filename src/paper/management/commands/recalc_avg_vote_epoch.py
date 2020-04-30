@@ -24,7 +24,7 @@ class Command(BaseCommand):
                 ALGO_START_UNIX = 1588199677
                 vote_avg_epoch = paper.votes.aggregate(avg=Avg(Extract('created_date', 'epoch'), output_field=IntegerField()))['avg']
                 avg_hours_since_algo_start = (vote_avg_epoch - ALGO_START_UNIX) / 3600
-                hot_score = avg_hours_since_algo_start + new_score + paper.discussion_count * 2
+                hot_score = avg_hours_since_algo_start + paper.score + paper.discussion_count * 2
 
                 paper.vote_avg_epoch = hot_score
                 paper.save()
