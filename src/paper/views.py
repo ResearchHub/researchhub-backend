@@ -459,76 +459,8 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         return Response(data, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['get'])
-    def get_hub_papers(self, request):
-        page_number = int(request.GET['page'])
-        start_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get('start_date__gte', 0)),
-            datetime.timezone.utc
-        )
-        end_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get('end_date__lte', 0)),
-            datetime.timezone.utc
-        )
-        ordering = self._set_hub_paper_ordering(request)
-        hub_id = request.GET.get('hub_id', 0)
-
-        if page_number == 1:
-            time_difference = end_date - start_date
-            cache_pk = ''
-            if time_difference.days == 365:
-                cache_pk = f'{hub_id}_{ordering}_year'
-            elif time_difference.days == 30 or time_difference.days == 31:
-                cache_pk = f'{hub_id}_{ordering}_month'
-            elif time_difference.days == 7:
-                cache_pk = f'{hub_id}_{ordering}_week'
-            else:
-                cache_pk = f'{hub_id}_{ordering}_today'
-
-            def execute_celery_hub_precalc():
-                # return preload_hub_papers.apply_async(
-                #     (
-                #         page_number,
-                #         start_date,
-                #         end_date,
-                #         ordering,
-                #         hub_id,
-                #         None
-                #     ),
-                #     priority=2
-                # )
-                return preload_hub_papers(
-                    page_number,
-                    start_date,
-                    end_date,
-                    ordering,
-                    hub_id,
-                    None
-                )
-
-            cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
-            cache_hit = cache.get_or_set(
-                cache_key_hub,
-                execute_celery_hub_precalc,
-                timeout=60*10
-            )
-
-        papers = self._get_filtered_papers(hub_id)
-
+    def calculate_paper_ordering(self, papers, ordering, start_date, end_date):
         if 'hot_score' in ordering:
-            # constant > (hours in month) ** gravity * (discussion_weight + 2)
-            #INT_DIVISION = 90000000
-            # num votes a comment is worth
-            #DISCUSSION_WEIGHT = 2
-
-            #gravity = 2.5
-            #now_epoch = int(timezone.now().timestamp())
-            #time_since_calc = (now_epoch - F('vote_avg_epoch')) / 3600 + 1
-
-            #numerator = F('score') + F('discussion_count') * DISCUSSION_WEIGHT
-            #inverse_divisor = (
-            #    INT_DIVISION / ((time_since_calc) ** gravity)
-            #)
             order_papers = papers.order_by(ordering)
 
         elif 'score' in ordering:
@@ -638,9 +570,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                     {'data': cache_hit_hub, 'no_results': False}
                 )
 
-        threads_count = Count('threads')
-
-        papers = self._get_filtered_papers(hub_id, threads_count)
+        papers = self._get_filtered_papers(hub_id)
         order_papers = self.calculate_paper_ordering(
             papers,
             ordering,
@@ -675,8 +605,18 @@ class PaperViewSet(viewsets.ModelViewSet):
         # hub_id = 0 is the homepage
         # we aren't on a specific hub so don't filter by that hub_id
         if int(hub_id) == 0:
-            return self.get_queryset(prefetch=False).prefetch_related(*self.prefetch_lookups())
-        return self.get_queryset(prefetch=False).filter(hubs=hub_id).prefetch_related(*self.prefetch_lookups())
+            return self.get_queryset(
+                prefetch=False
+            ).prefetch_related(
+                *self.prefetch_lookups()
+            )
+        return self.get_queryset(
+            prefetch=False
+        ).filter(
+            hubs=hub_id
+            ).prefetch_related(
+            *self.prefetch_lookups()
+        )
 
 
 class FigureViewSet(viewsets.ModelViewSet):

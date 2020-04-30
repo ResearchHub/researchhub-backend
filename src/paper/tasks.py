@@ -306,8 +306,7 @@ def preload_hub_papers(
     from paper.views import PaperViewSet
     paper_view = PaperViewSet()
     paper_view.request = Request(HttpRequest())
-    threads_count = Count('threads')
-    papers = paper_view._get_filtered_papers(hub_id, threads_count)
+    papers = paper_view._get_filtered_papers(hub_id)
     order_papers = paper_view.calculate_paper_ordering(
         papers,
         ordering,
