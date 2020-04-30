@@ -1,5 +1,4 @@
 from django.db import transaction
-from django.db.models import Q, F
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
