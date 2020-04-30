@@ -14,6 +14,7 @@ from django.db.models import (
     IntegerField
 )
 from django.db.models.functions import Extract, Now
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
@@ -506,41 +507,26 @@ class PaperViewSet(viewsets.ModelViewSet):
                 {'data': cache_hit_hub, 'no_results': False}
             )
 
-        threads_count = Count('threads')
-
-        papers = self._get_filtered_papers(hub_id, threads_count)
+        papers = self._get_filtered_papers(hub_id)
 
         if 'hot_score' in ordering:
             # constant > (hours in month) ** gravity * (discussion_weight + 2)
-            INT_DIVISION = 90000000
+            #INT_DIVISION = 90000000
             # num votes a comment is worth
-            DISCUSSION_WEIGHT = 2
+            #DISCUSSION_WEIGHT = 2
 
-            gravity = 2.5
-            now_epoch = Extract(Now(), 'epoch')
-            created_epoch = Avg(
-                Extract('vote__created_date', 'epoch'),
-                output_field=IntegerField())
-            time_since_calc = (now_epoch - created_epoch) / 3600
+            #gravity = 2.5
+            #now_epoch = int(timezone.now().timestamp())
+            #time_since_calc = (now_epoch - F('vote_avg_epoch')) / 3600 + 1
 
-            numerator = F('discussion_count') * DISCUSSION_WEIGHT + F('score')
-            inverse_divisor = (
-                INT_DIVISION / ((time_since_calc + 1) ** gravity)
-            )
+            #numerator = F('score') + F('discussion_count') * DISCUSSION_WEIGHT
+            #inverse_divisor = (
+            #    INT_DIVISION / ((time_since_calc) ** gravity)
+            #)
             order_papers = papers.annotate(
-                numerator=numerator,
-                hot_score=numerator * inverse_divisor,
-            )
-            if ordering[0] == '-':
-                order_papers = order_papers.order_by(
-                    F('hot_score').desc(nulls_last=True),
-                    '-numerator'
-                )
-            else:
-                order_papers = order_papers.order_by(
-                    F('hot_score').asc(nulls_last=True),
-                    'numerator'
-                )
+                hot_score=F('vote_avg_epoch'),
+                #hot_score=numerator * inverse_divisor,
+            ).order_by(ordering)
 
         elif 'score' in ordering:
             upvotes = Count(
@@ -564,13 +550,13 @@ class PaperViewSet(viewsets.ModelViewSet):
             ).order_by(ordering + '_in_time', ordering + '_all_time')
 
         elif 'discussed' in ordering:
-            threads_c = Count(
+            threads_count = Count(
                 'threads',
                 filter=Q(
                     threads__created_date__range=[start_date,end_date]
                 )
             )
-            comments = Count(
+            comments_count = Count(
                 'threads__comments',
                 filter=Q(
                     threads__comments__created_date__range=[start_date,end_date]
@@ -578,7 +564,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
 
             order_papers = papers.annotate(
-                discussed=threads_c + comments,
+                discussed=threads_count + comments_count,
                 discussed_secondary=F('discussion_count')
             ).order_by(ordering, ordering + '_secondary')
 
@@ -610,16 +596,12 @@ class PaperViewSet(viewsets.ModelViewSet):
             ordering = '-score'
         return ordering
 
-    def _get_filtered_papers(self, hub_id, threads_count):
+    def _get_filtered_papers(self, hub_id):
         # hub_id = 0 is the homepage
         # we aren't on a specific hub so don't filter by that hub_id
         if int(hub_id) == 0:
-            return self.get_queryset(prefetch=False).annotate(
-                threads_count=threads_count
-            ).prefetch_related(*self.prefetch_lookups())
-        return self.get_queryset(prefetch=False).annotate(
-            threads_count=threads_count
-        ).filter(hubs=hub_id).prefetch_related(*self.prefetch_lookups())
+            return self.get_queryset(prefetch=False).prefetch_related(*self.prefetch_lookups())
+        return self.get_queryset(prefetch=False).filter(hubs=hub_id).prefetch_related(*self.prefetch_lookups())
 
 
 class FigureViewSet(viewsets.ModelViewSet):
