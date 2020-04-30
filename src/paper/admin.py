@@ -1,10 +1,12 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
+
+from researchhub.admin import IdFilter, UploadedDateFilter
 from .models import Paper, Vote
 
 
 class PaperAdmin(admin.ModelAdmin):
-    search_fields = ('id', 'uploaded_date',)
+    list_filter = (IdFilter, UploadedDateFilter)
 
 
 admin.site.register(Vote)
