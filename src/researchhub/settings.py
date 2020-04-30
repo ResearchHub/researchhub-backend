@@ -547,11 +547,11 @@ else:
 
 # Celery
 
-CELERY_BROKER_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_TASK_ROUTES = {'*.tasks.*': {'queue': APP_ENV}}
-CELERY_TASK_DEFAULT_QUEUE = APP_ENV
+broker_url = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
+accept_content = ['json']
+task_serializer = 'json'
+task_routes = {'*.tasks.*': {'queue': APP_ENV}}
+task_default_queue = APP_ENV
 
 REDBEAT_REDIS_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
 REDBEAT_KEY_PREFIX = f'readbeat_{APP_ENV}'
