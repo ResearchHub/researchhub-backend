@@ -4,7 +4,7 @@ from .models import Paper, Vote
 
 
 class PaperAdmin(admin.ModelAdmin):
-    search_fields = ('id', 'title', 'paper_title',)
+    search_fields = ('id', 'uploaded_date',)
 
 
 admin.site.register(Vote)
