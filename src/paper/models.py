@@ -1,7 +1,8 @@
 from django.contrib.postgres.fields import JSONField
 from django.db import models
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Avg
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
+from django.db.models.functions import Extract
 
 from utils.semantic_scholar import SemanticScholar
 from utils.crossref import Crossref
@@ -38,7 +39,7 @@ class Paper(models.Model):
     )
     score = models.IntegerField(default=0, db_index=True)
     discussion_count = models.IntegerField(default=0, db_index=True)
-    vote_avg_epoch = models.IntegerField(default=0, db_index=True)
+    hot_score = models.IntegerField(default=0, db_index=True)
 
     # Moderators are obsolete, in favor of super mods on the user
     moderators = models.ManyToManyField(
@@ -295,6 +296,19 @@ class Paper(models.Model):
         if len(all_votes) > 0:
             return [self.get_vote_for_index(vote) for vote in all_votes]
         return {}
+
+    def calculate_hot_score(self):
+        if self.score >= 0:
+            ALGO_START_UNIX = 1575199677
+            vote_avg_epoch = self.votes.aggregate(avg=Avg(Extract('created_date', 'epoch'), output_field=models.IntegerField()))['avg']
+            avg_hours_since_algo_start = (vote_avg_epoch - ALGO_START_UNIX) / 3600
+            hot_score = avg_hours_since_algo_start + self.score + self.discussion_count * 2
+
+            self.hot_score = hot_score
+        else:
+            self.hot_score = 0
+
+        self.save()
 
     def get_full_name(self, author_or_user):
         return f'{author_or_user.first_name} {author_or_user.last_name}'
