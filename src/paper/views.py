@@ -551,7 +551,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             cache_hit = cache.get_or_set(
                 cache_key_hub,
                 execute_celery_hub_precalc,
-                timeout=60
+                timeout=60*10
             )
 
             if cache_hit and page_number == 1:
