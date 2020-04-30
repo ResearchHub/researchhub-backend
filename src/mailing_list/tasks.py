@@ -103,15 +103,11 @@ def send_hub_digest(frequency):
         most_voted_and_uploaded_in_interval = users_papers.filter(
             uploaded_date__gte=start_date,
             uploaded_date__lte=end_date
-        ).annotate(
-            score=upvotes - downvotes
         ).filter(score__gt=0).order_by('-score')[:3]
         most_discussed_in_interval = users_papers.annotate(
             discussions=thread_counts + comment_counts + reply_counts
         ).filter(discussions__gt=0).order_by('-discussions')[:3]
-        most_voted_in_interval = users_papers.annotate(
-            score=upvotes - downvotes
-        ).filter(score__gt=0).order_by('-score')[:2]
+        most_voted_in_interval = users_papers.filter(score__gt=0).order_by('-score')[:2]
         papers = (
             most_voted_and_uploaded_in_interval
             or most_discussed_in_interval

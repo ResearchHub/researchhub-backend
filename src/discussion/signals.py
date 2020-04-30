@@ -7,6 +7,7 @@ from .models import Thread, Reply, Comment
 def recalc_dis_count(instance):
     paper = instance.paper
     new_dis_count = paper.get_discussion_count()
+    paper.calculate_hot_score()
     paper.discussion_count = new_dis_count
     paper.save()
 
