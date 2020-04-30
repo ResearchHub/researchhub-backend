@@ -332,7 +332,12 @@ def distribute_for_discussion_vote(
     """Distributes reputation to the creator of the item voted on."""
     timestamp = time()
     distributor = None
-    recipient = instance.item.created_by
+    try:
+        recipient = instance.item.created_by
+    except Exception as e:
+        error = ReputationSignalError(e, 'Invalid recipient')
+        print(error)
+        return
 
     if (created or vote_type_updated(update_fields)) and is_eligible_user(
         recipient
