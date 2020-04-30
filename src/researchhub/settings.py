@@ -180,6 +180,7 @@ INSTALLED_APPS = [
     'bullet_point',
     'discussion',
     'ethereum',
+    'google_analytics',
     'hub',
     'mailing_list',
     'notification',
