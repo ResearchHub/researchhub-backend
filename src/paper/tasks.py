@@ -41,6 +41,8 @@ def download_pdf(paper_id):
     if paper.url and check_url_contains_pdf(paper.url):
         pdf = get_pdf_from_url(paper.url)
         filename = paper.url.split('/').pop()
+        if not filename.endswith('.pdf'):
+            filename += '.pdf'
         paper.file.save(filename, pdf)
         paper.save(update_fields=['file'])
 
