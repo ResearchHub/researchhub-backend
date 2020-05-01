@@ -361,7 +361,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
         replies = Reply.objects.filter(
             content_type=get_content_type_for_model(comment),
             object_id=comment_id
-        ).order_by('-created_date')
+        ).order_by('created_date')
         return replies
 
     @action(
