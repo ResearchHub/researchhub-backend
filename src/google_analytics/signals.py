@@ -23,6 +23,9 @@ def send_bullet_point_event(
     update_fields,
     **kwargs
 ):
+    if (not created) or (instance.created_by is None):
+        return
+
     category = 'Key Takeaway'
     if instance.bullet_type == BulletPoint.BULLETPOINT_LIMITATION:
         category = 'Limitation'
@@ -47,6 +50,9 @@ def send_discussion_event(
     update_fields,
     **kwargs
 ):
+    if (not created) or (instance.created_by is None):
+        return
+
     category = 'Discussion'
 
     label = type(instance).__name__
@@ -67,31 +73,12 @@ def send_paper_event(
     update_fields,
     **kwargs
 ):
-    if created and instance.retrieved_from_external_source is True:
+    if (not created) or (instance.uploaded_by is None):
         return
 
     action = 'Upload'
 
     label = None
-
-    if not created:
-        if update_fields is not None:
-            action = 'Update'
-            if ('title' in update_fields) or ('paper_title' in update_fields):
-                label = 'Title'
-            # TODO: Will m2m appear here?
-            elif 'authors' in update_fields:
-                label = 'Authors'
-            elif 'summary' in update_fields:
-                label = 'Summary'
-            elif 'file' in update_fields:
-                label = 'PDF'
-            elif 'abstract' in update_fields:
-                label = 'Abstract'
-            else:
-                return
-        else:
-            return
 
     category = type(instance).__name__
     if label is None:
@@ -100,15 +87,12 @@ def send_paper_event(
         label = f'{category} {label}'
 
     value = 0
-    if created:
-        if instance.uploaded_by is not None:
-            value = instance.uploaded_by.id
+    if instance.uploaded_by is not None:
+        value = instance.uploaded_by.id
 
     paper_id = instance.id
 
     date = instance.uploaded_date
-    if not created:
-        date = instance.updated_date
 
     return get_event_hit_response(
         instance,
@@ -134,14 +118,13 @@ def send_user_event(
     update_fields,
     **kwargs
 ):
-    # TODO: Do we want to get new events only and handle updates differently?
+    if not created:
+        return
+
     category = 'User'
 
     action = 'Sign Up'
     label = 'New'
-    if not created:
-        action = 'Updated'
-        label = 'Existing'
 
     value = instance.id
 
@@ -172,15 +155,10 @@ def send_vote_event(
     update_fields,
     **kwargs
 ):
-    category = 'Vote'
-    if (
-        not created
-        and (update_fields is not None)
-        and ('vote_type' in update_fields)
-    ):
-        category = 'Vote Change'
-    elif not created:
+    if (not created) or (instance.created_by is None):
         return
+
+    category = 'Vote'
 
     action = 'Upvote'
     if instance.vote_type == 2:
@@ -222,8 +200,6 @@ def get_event_hit_response(
 
     if action is None:
         action = 'Add'
-        if not created:
-            action = 'Update'
 
     if (
         (paper_id is None)
