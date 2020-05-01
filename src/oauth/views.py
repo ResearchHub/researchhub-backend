@@ -131,6 +131,9 @@ class SocialLoginSerializer(serializers.Serializer):
             access_token = token['access_token']
 
         else:
+            error = serializers.ValidationError(
+                _("Incorrect input. access_token or code is required."))
+            sentry.log_error(error)
             raise serializers.ValidationError(
                 _("Incorrect input. access_token or code is required."))
 
@@ -176,6 +179,7 @@ class SocialLoginSerializer(serializers.Serializer):
             visits.save()
         except Exception as e:
             print(e)
+            sentry.log_error(e)
             pass
 
         return attrs
