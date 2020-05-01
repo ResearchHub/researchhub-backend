@@ -9,8 +9,6 @@ from django.db.models import (
     Prefetch,
     F,
     Avg,
-    Max,
-    Min,
     IntegerField
 )
 from django.db.models.functions import Extract, Now
@@ -30,6 +28,7 @@ from bullet_point.models import BulletPoint
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import Figure, Flag, Paper, Vote
+from paper.tasks import preload_hub_papers
 from paper.permissions import (
     CreatePaper,
     FlagPaper,
@@ -460,69 +459,8 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         return Response(data, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['get'])
-    def get_hub_papers(self, request):
-        # TODO: move this off the view and recalculate every 10 minutes
-        # through the worker
-        page_number = int(request.GET['page'])
-        start_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get('start_date__gte', 0)),
-            datetime.timezone.utc
-        )
-        end_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get('end_date__lte', 0)),
-            datetime.timezone.utc
-        )
-        ordering = self._set_hub_paper_ordering(request)
-        hub_id = request.GET.get('hub_id', 0)
-
-        time_difference = end_date - start_date
-        cache_pk = ''
-        if time_difference.days == 365:
-            cache_pk = f'{hub_id}_{ordering}_year'
-        elif time_difference.days == 30 or time_difference.days == 31:
-            cache_pk = f'{hub_id}_{ordering}_month'
-        elif time_difference.days == 7:
-            cache_pk = f'{hub_id}_{ordering}_week'
-        else:
-            cache_pk = f'{hub_id}_{ordering}_today'
-
-        cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
-        cache_key_papers = get_cache_key(None, 'hub', pk='papers')
-        cache_hit_hub = cache.get(cache_key_hub)
-        cache_hit_papers = cache.get(cache_key_papers)
-        cache_hit_exists = cache_hit_papers and cache_hit_hub
-        if cache_hit_exists and page_number == 1:
-            for item in cache_hit_hub:
-                paper_id = item['id']
-                try:
-                    paper = Paper.objects.get(pk=paper_id)
-                    item['user_vote'] = self.serializer_class(
-                        context={'request': request}
-                    ).get_user_vote(paper)
-                except Exception as e:
-                    log_error(e)
-            page = self.paginate_queryset(cache_hit_papers)
-            return self.get_paginated_response(
-                {'data': cache_hit_hub, 'no_results': False}
-            )
-
-        papers = self._get_filtered_papers(hub_id)
-
+    def calculate_paper_ordering(self, papers, ordering, start_date, end_date):
         if 'hot_score' in ordering:
-            # constant > (hours in month) ** gravity * (discussion_weight + 2)
-            #INT_DIVISION = 90000000
-            # num votes a comment is worth
-            #DISCUSSION_WEIGHT = 2
-
-            #gravity = 2.5
-            #now_epoch = int(timezone.now().timestamp())
-            #time_since_calc = (now_epoch - F('vote_avg_epoch')) / 3600 + 1
-
-            #numerator = F('score') + F('discussion_count') * DISCUSSION_WEIGHT
-            #inverse_divisor = (
-            #    INT_DIVISION / ((time_since_calc) ** gravity)
-            #)
             order_papers = papers.order_by(ordering)
 
         elif 'score' in ordering:
@@ -530,14 +468,14 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'vote',
                 filter=Q(
                     vote__vote_type=Vote.UPVOTE,
-                    vote__updated_date__range=[start_date,end_date]
+                    vote__updated_date__range=[start_date, end_date]
                 )
             )
             downvotes = Count(
                 'vote',
                 filter=Q(
                     vote__vote_type=Vote.DOWNVOTE,
-                    vote__updated_date__range=[start_date,end_date]
+                    vote__updated_date__range=[start_date, end_date]
                 )
             )
 
@@ -550,13 +488,16 @@ class PaperViewSet(viewsets.ModelViewSet):
             threads_count = Count(
                 'threads',
                 filter=Q(
-                    threads__created_date__range=[start_date,end_date]
+                    threads__created_date__range=[start_date, end_date]
                 )
             )
             comments_count = Count(
                 'threads__comments',
                 filter=Q(
-                    threads__comments__created_date__range=[start_date,end_date]
+                    threads__comments__created_date__range=[
+                        start_date,
+                        end_date
+                    ]
                 )
             )
 
@@ -568,12 +509,79 @@ class PaperViewSet(viewsets.ModelViewSet):
         else:
             order_papers = papers.order_by(ordering)
 
+        return order_papers
+
+    @action(detail=False, methods=['get'])
+    def get_hub_papers(self, request):
+        page_number = int(request.GET['page'])
+        start_date = datetime.datetime.fromtimestamp(
+            int(request.GET.get('start_date__gte', 0)),
+            datetime.timezone.utc
+        )
+        end_date = datetime.datetime.fromtimestamp(
+            int(request.GET.get('end_date__lte', 0)),
+            datetime.timezone.utc
+        )
+        ordering = self._set_hub_paper_ordering(request)
+        hub_id = request.GET.get('hub_id', 0)
+
+        if page_number == 1:
+            time_difference = end_date - start_date
+            cache_pk = ''
+            if time_difference.days == 365:
+                cache_pk = f'{hub_id}_{ordering}_year'
+            elif time_difference.days == 30 or time_difference.days == 31:
+                cache_pk = f'{hub_id}_{ordering}_month'
+            elif time_difference.days == 7:
+                cache_pk = f'{hub_id}_{ordering}_week'
+            else:
+                cache_pk = f'{hub_id}_{ordering}_today'
+
+            def execute_celery_hub_precalc():
+                return preload_hub_papers(
+                    page_number,
+                    start_date,
+                    end_date,
+                    ordering,
+                    hub_id,
+                    None
+                )
+
+            cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
+            cache_hit = cache.get_or_set(
+                cache_key_hub,
+                execute_celery_hub_precalc,
+                timeout=60*40
+            )
+
+            if cache_hit and page_number == 1:
+                cache_hit_hub, cache_hit_papers = cache_hit
+                for item in cache_hit_hub:
+                    paper_id = item['id']
+                    try:
+                        paper = Paper.objects.get(pk=paper_id)
+                        item['user_vote'] = self.serializer_class(
+                            context={'request': request}
+                        ).get_user_vote(paper)
+                    except Exception as e:
+                        log_error(e)
+                page = self.paginate_queryset(cache_hit_papers)
+                return self.get_paginated_response(
+                    {'data': cache_hit_hub, 'no_results': False}
+                )
+
+        papers = self._get_filtered_papers(hub_id)
+        order_papers = self.calculate_paper_ordering(
+            papers,
+            ordering,
+            start_date,
+            end_date
+        )
         page = self.paginate_queryset(order_papers)
         context = self.get_serializer_context()
         serializer = HubPaperSerializer(page, many=True, context=context)
         serializer_data = serializer.data
-        cache.set(cache_key_hub, serializer_data, timeout=60*60*24*7)
-        cache.set(cache_key_papers, order_papers[:15], timeout=60*60*24*7)
+
         return self.get_paginated_response(
             {'data': serializer_data, 'no_results': False}
         )
@@ -597,8 +605,18 @@ class PaperViewSet(viewsets.ModelViewSet):
         # hub_id = 0 is the homepage
         # we aren't on a specific hub so don't filter by that hub_id
         if int(hub_id) == 0:
-            return self.get_queryset(prefetch=False).prefetch_related(*self.prefetch_lookups())
-        return self.get_queryset(prefetch=False).filter(hubs=hub_id).prefetch_related(*self.prefetch_lookups())
+            return self.get_queryset(
+                prefetch=False
+            ).prefetch_related(
+                *self.prefetch_lookups()
+            )
+        return self.get_queryset(
+            prefetch=False
+        ).filter(
+            hubs=hub_id
+            ).prefetch_related(
+            *self.prefetch_lookups()
+        )
 
 
 class FigureViewSet(viewsets.ModelViewSet):

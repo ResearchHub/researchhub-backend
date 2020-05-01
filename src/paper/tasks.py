@@ -1,8 +1,4 @@
-from manubot.cite.doi import get_doi_csl_item
 from psycopg2.errors import UniqueViolation
-
-from utils.semantic_scholar import SemanticScholar
-from utils.crossref import Crossref
 
 import fitz
 import os
@@ -10,15 +6,19 @@ import re
 import requests
 import shutil
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from subprocess import call
+from celery.decorators import periodic_task
+from celery.task.schedules import crontab
 
 from django.apps import apps
 from django.core.cache import cache
 from django.core.files import File
 from django.db import IntegrityError
-
+from django.http.request import HttpRequest
+from rest_framework.request import Request
 from researchhub.celery import app
+from researchhub.settings import APP_ENV
 from paper.utils import (
     check_crossref_title,
     check_pdf_title,
@@ -53,6 +53,7 @@ def add_references(paper_id):
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
     paper.add_references()
+
 
 @app.task
 def celery_extract_figures(paper_id):
@@ -231,3 +232,98 @@ def handle_duplicate_doi(new_paper, doi):
     merge_paper_threads(original_paper, new_paper)
     merge_paper_bulletpoints(original_paper, new_paper)
     new_paper.delete()
+
+
+@periodic_task(
+    run_every=crontab(minute='*/30'),
+    priority=2,
+    options={'queue': APP_ENV}
+)
+def celery_preload_hub_papers():
+    # hub_ids = Hub.objects.values_list('id', flat=True)
+    hub_ids = [0]
+    orderings = (
+        # '-score',
+        # '-discussed',
+        # '-uploaded_date',
+        '-hot_score',
+    )
+    filter_types = (
+        'year',
+        'month',
+        'week',
+        'today',
+    )
+
+    start_date_hour = 7
+    end_date = today = datetime.now()
+    for hub_id in hub_ids:
+        for ordering in orderings:
+            for filter_type in filter_types:
+                cache_pk = f'{hub_id}_{ordering}_{filter_type}'
+                if filter_type == 'year':
+                    td = timedelta(days=365)
+                elif filter_type == 'month':
+                    td = timedelta(days=30)
+                elif filter_type == 'week':
+                    td = timedelta(days=7)
+                else:
+                    td = timedelta(days=0)
+
+                cache_key = get_cache_key(None, 'hub', pk=cache_pk)
+                datetime_diff = today - td
+                year = datetime_diff.year
+                month = datetime_diff.month
+                day = datetime_diff.day
+                start_date = datetime(
+                    year,
+                    month,
+                    day,
+                    hour=start_date_hour
+                )
+
+                args = (
+                    1,
+                    start_date,
+                    end_date,
+                    ordering,
+                    hub_id,
+                    cache_key
+                )
+                preload_hub_papers(*args)
+                break
+            break
+        break
+
+
+@app.task
+def preload_hub_papers(
+    page_number,
+    start_date,
+    end_date,
+    ordering,
+    hub_id,
+    cache_key,
+):
+    from paper.serializers import HubPaperSerializer
+    from paper.views import PaperViewSet
+    paper_view = PaperViewSet()
+    paper_view.request = Request(HttpRequest())
+    papers = paper_view._get_filtered_papers(hub_id)
+    order_papers = paper_view.calculate_paper_ordering(
+        papers,
+        ordering,
+        start_date,
+        end_date
+    )
+
+    page = paper_view.paginate_queryset(order_papers)
+    serializer = HubPaperSerializer(page, many=True)
+    serializer_data = serializer.data
+    if cache_key:
+        cache.set(
+            cache_key,
+            (serializer_data, order_papers[:15]),
+            timeout=60*10
+        )
+    return (serializer_data, order_papers[:15])

@@ -11,6 +11,11 @@ https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
 import os
+import requests
+import sys
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+
 APP_ENV = os.environ.get('APP_ENV') or 'development'
 DEVELOPMENT = 'development' in APP_ENV
 PRODUCTION = 'production' in APP_ENV
@@ -20,11 +25,6 @@ CELERY_WORKER = os.environ.get('CELERY_WORKER', False)
 if not CELERY_WORKER:
     import newrelic.agent
     newrelic.agent.initialize('researchhub/newrelic.ini', 'production')
-
-import requests
-import sys
-import sentry_sdk
-from sentry_sdk.integrations.django import DjangoIntegration
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -525,7 +525,14 @@ REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
 REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
 
 # Cache Settings
-if not TESTING:
+if TESTING:
+    CACHES = {
+        'default': {
+            'BACKEND': 'researchhub.TestCache.TestCache',
+            'LOCATION': f'{REDIS_HOST}:{REDIS_PORT}',
+        },
+    }
+else:
     CACHES = {
         'default': {
             'BACKEND': 'redis_cache.RedisCache',
@@ -545,7 +552,11 @@ else:
 CELERY_BROKER_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
-CELERY_TASK_ROUTES = {'*.tasks.*': {'queue': APP_ENV}}
+CELERY_TASK_ROUTES = {
+    '*.tasks.*': {
+        'queue': APP_ENV
+    }
+}
 CELERY_TASK_DEFAULT_QUEUE = APP_ENV
 
 REDBEAT_REDIS_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
