@@ -67,21 +67,39 @@ def send_paper_event(
     update_fields,
     **kwargs
 ):
-    action = 'User Upload'
-    if instance.retrieved_from_external_source is True:
-        action = 'Add'
-    if not created:
+    if created and instance.retrieved_from_external_source is True:
+        return
+
+    action = 'Upload'
+
+    label = None
+
+    if not created and update_fields is not None:
         action = 'Update'
+        if 'title' in update_fields:
+            label = 'Title'
+        # TODO: Will m2m appear here?
+        elif 'authors' in update_fields:
+            label = 'Authors'
+        elif 'summary' in update_fields:
+            label = 'Summary'
+        elif 'file' in update_fields:
+            label = 'PDF'
+        else:
+            return
+    else:
+        return
 
     category = type(instance).__name__
-
-    label = category
+    if label is None:
+        label = category
+    else:
+        label = f'{category} {label}'
 
     value = 0
     if created:
         if instance.uploaded_by is not None:
             value = instance.uploaded_by.id
-    # TODO: Get user id if not created
 
     paper_id = instance.id
 
