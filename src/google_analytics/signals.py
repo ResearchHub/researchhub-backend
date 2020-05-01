@@ -172,8 +172,15 @@ def send_vote_event(
     update_fields,
     **kwargs
 ):
-    # TODO: Do we want to get new events only and handle updates differently?
     category = 'Vote'
+    if (
+        not created
+        and (update_fields is not None)
+        and ('vote_type' in update_fields)
+    ):
+        category = 'Vote Change'
+    elif not created:
+        return
 
     action = 'Upvote'
     if instance.vote_type == 2:
