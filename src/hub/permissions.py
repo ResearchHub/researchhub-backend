@@ -9,14 +9,14 @@ class CreateHub(RuleBasedPermission):
 
 
 class IsSubscribed(AuthorizationBasedPermission):
-    message = 'Unauthorized.'
+    message = 'Must be subscribed.'
 
     def is_authorized(self, request, view, obj):
         return request.user in obj.subscribers.all()
 
 
 class IsNotSubscribed(AuthorizationBasedPermission):
-    message = 'Unauthorized.'
+    message = 'Must not be subscribed.'
 
     def is_authorized(self, request, view, obj):
         return request.user not in obj.subscribers.all()
