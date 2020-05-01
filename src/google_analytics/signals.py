@@ -4,8 +4,9 @@ from django.dispatch import receiver
 from bullet_point.models import BulletPoint
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from google_analytics.apps import GoogleAnalytics, Hit
-from researchhub.settings import PRODUCTION
 from paper.models import Paper, Vote as PaperVote
+from researchhub.settings import PRODUCTION
+from summary.models import Summary
 from user.models import User
 
 ga = GoogleAnalytics()
@@ -62,6 +63,32 @@ def send_discussion_event(
         created,
         category,
         label
+    )
+
+
+@receiver(post_save, sender=Summary, dispatch_uid='send_summary_event')
+def send_summary_event(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
+    if (not created) or (instance.proposed_by is None):
+        return
+
+    category = 'Summary'
+
+    label = category
+
+    value = instance.proposed_by.id
+
+    return get_event_hit_response(
+        instance,
+        created,
+        category,
+        label,
+        value=value
     )
 
 
