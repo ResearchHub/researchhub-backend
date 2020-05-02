@@ -651,12 +651,16 @@ class FigureViewSet(viewsets.ModelViewSet):
         paper = Paper.objects.get(id=pk)
         figure = request.FILES.get('figure')
         figure_type = request.data.get('figure_type')
-        Figure.objects.create(
-            paper=paper,
-            file=figure,
-            figure_type=figure_type
-        )
-        return Response(status=200)
+        try:
+            fig = Figure.objects.create(
+                paper=paper,
+                file=figure,
+                figure_type=figure_type
+            )
+            return Response({'file': fig.file.url}, status=200)
+        except Exception as e:
+            log_error(e)
+            return Response(status=500)
 
     @action(
         detail=True,
