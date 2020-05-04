@@ -18,6 +18,7 @@ from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly,
     IsAuthenticated
@@ -178,6 +179,14 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         cache.set(cache_key, serializer_data, timeout=60*60*24*7)
         return Response(serializer_data)
+
+    def list(self, request, *args, **kwargs):
+        default_pagination_class = self.pagination_class
+        if request.query_params.get('limit'):
+            self.pagination_class = LimitOffsetPagination
+        else:
+            self.pagination_class = default_pagination_class
+        return super().list(request, *args, **kwargs)
 
     @action(
         detail=True,
