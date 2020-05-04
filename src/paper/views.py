@@ -7,12 +7,8 @@ from django.db.models import (
     Count,
     Q,
     Prefetch,
-    F,
-    Avg,
-    IntegerField
+    F
 )
-from django.db.models.functions import Extract, Now
-from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
