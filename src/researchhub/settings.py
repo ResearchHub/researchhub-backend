@@ -602,3 +602,5 @@ ELASTIC_APM = {
     # Set custom APM Server URL (default: http://localhost:8200)
     'SERVER_URL': 'https://d11bb2079f694eb996ddcfe6edb848f7.apm.us-west-2.aws.cloud.es.io:443',  # noqa
 }
+
+ELASTIC_APM_DISABLE_SEND = CELERY_WORKER
