@@ -618,7 +618,7 @@ ELASTIC_APM = {
     'DISABLE_SEND': CELERY_WORKER or TESTING,
     # 'TRANSACTIONS_IGNORE_PATTERNS': ['.+(ignore_apm).+'],
     'PROCESSORS': (
-        'utils.elastic_apm.paper_processor',
+        'utils.elastic_apm.custom_processor',
         'elasticapm.processors.sanitize_stacktrace_locals',
         'elasticapm.processors.sanitize_http_request_cookies',
         'elasticapm.processors.sanitize_http_headers',
