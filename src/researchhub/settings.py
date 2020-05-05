@@ -176,6 +176,9 @@ INSTALLED_APPS = [
     # Channels
     'channels',
 
+    # Monitoring
+    'elasticapm.contrib.django',
+
     # Custom apps
     'bullet_point',
     'discussion',
@@ -206,6 +209,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # 'elasticapm.contrib.django.middleware.TracingMiddleware',
 ]
 
 # if not TESTING:
@@ -583,3 +587,18 @@ if PRODUCTION or STAGING:
     )
 else:
     ASYNC_SERVICE_HOST = 'http://localhost:8080'
+
+
+# APM
+
+ELASTIC_APM = {
+    # Set required service name. Allowed characters:
+    # # a-z, A-Z, 0-9, -, _, and space
+    'SERVICE_NAME': f'researchhub-{APP_ENV}',
+
+    # Use if APM Server requires a token
+    'SECRET_TOKEN': os.environ.get('ELASTIC_APM_SECRET_TOKEN', ''),
+
+    # Set custom APM Server URL (default: http://localhost:8200)
+    'SERVER_URL': 'https://d11bb2079f694eb996ddcfe6edb848f7.apm.us-west-2.aws.cloud.es.io:443',  # noqa
+}
