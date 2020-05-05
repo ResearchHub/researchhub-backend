@@ -176,8 +176,6 @@ INSTALLED_APPS = [
     # Channels
     'channels',
 
-    # Monitoring
-    'elasticapm.contrib.django',
 
     # Custom apps
     'bullet_point',
@@ -196,6 +194,12 @@ INSTALLED_APPS = [
     'analytics',
     'profiler',
 ]
+
+if not CELERY_WORKER:
+    INSTALLED_APPS += [
+        # Monitoring
+        'elasticapm.contrib.django',
+    ]
 
 SITE_ID = 1
 
