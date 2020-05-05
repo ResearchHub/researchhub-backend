@@ -596,7 +596,8 @@ if not CELERY_WORKER:
     ] + MIDDLEWARE
 
 ELASTIC_APM = {
-    'INSTRUMENT': not CELERY_WORKER,
+    'INSTRUMENT': not CELERY_WORKER or not TESTING,
+    'DEBUG': CELERY_WORKER or TESTING,
     # Set required service name. Allowed characters:
     # # a-z, A-Z, 0-9, -, _, and space
     'SERVICE_NAME': f'researchhub-{APP_ENV}',
@@ -610,6 +611,15 @@ ELASTIC_APM = {
     'ENVIRONMENT': APP_ENV,
     'DJANGO_AUTOINSERT_MIDDLEWARE': False,
     'DJANGO_TRANSACTION_NAME_FROM_ROUTE': True,
-    'DISABLE_SEND': CELERY_WORKER,
-    'TRANSACTIONS_IGNORE_PATTERNS': ['.+(ignore_apm).+']
+    'DISABLE_SEND': CELERY_WORKER or TESTING,
+    # 'TRANSACTIONS_IGNORE_PATTERNS': ['.+(ignore_apm).+'],
+    'PROCESSORS': (
+        'utils.elastic_apm.paper_processor',
+        'elasticapm.processors.sanitize_stacktrace_locals',
+        'elasticapm.processors.sanitize_http_request_cookies',
+        'elasticapm.processors.sanitize_http_headers',
+        'elasticapm.processors.sanitize_http_wsgi_env',
+        'elasticapm.processors.sanitize_http_request_querystring',
+        'elasticapm.processors.sanitize_http_request_body',
+    ),
 }
