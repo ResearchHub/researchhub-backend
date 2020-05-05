@@ -5,6 +5,9 @@ from utils.sentry import log_info
 
 @for_events(TRANSACTION)
 def paper_processor(client, event):
-    log_info(event)
-    print(event)
-    return False
+    if event['type'] == 'request':
+        event_url = event['context']['request']['url']['full']
+        log_info(event_url)
+        if 'ignore_apm' in event_url:
+            return False
+    return event
