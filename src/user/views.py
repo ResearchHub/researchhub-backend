@@ -31,8 +31,7 @@ from user.serializers import (
     UserActions
 )
 
-from utils.http import RequestMethods
-
+from utils.http import RequestMethods    
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -50,6 +49,17 @@ class UserViewSet(viewsets.ModelViewSet):
             return User.objects.filter(id=user.id)
         else:
             return User.objects.none()
+    
+    @action(
+        detail=False,
+        methods=[RequestMethods.GET],
+    )
+    def leaderboard(self, request):
+        users = User.objects.order_by('-reputation')
+        page = self.paginate_queryset(users)
+        serializer = UserSerializer(page, many=True)
+
+        return self.get_paginated_response(serializer.data)
 
     @action(
         detail=True,
