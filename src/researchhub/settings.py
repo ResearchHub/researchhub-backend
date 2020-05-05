@@ -209,7 +209,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    # 'elasticapm.contrib.django.middleware.TracingMiddleware',
 ]
 
 # if not TESTING:
@@ -591,6 +590,11 @@ else:
 
 # APM
 
+if not CELERY_WORKER:
+    MIDDLEWARE = [
+        'elasticapm.contrib.django.middleware.TracingMiddleware',
+    ] + MIDDLEWARE
+
 ELASTIC_APM = {
     # Set required service name. Allowed characters:
     # # a-z, A-Z, 0-9, -, _, and space
@@ -601,6 +605,9 @@ ELASTIC_APM = {
 
     # Set custom APM Server URL (default: http://localhost:8200)
     'SERVER_URL': 'https://d11bb2079f694eb996ddcfe6edb848f7.apm.us-west-2.aws.cloud.es.io:443',  # noqa
-}
 
-ELASTIC_APM_DISABLE_SEND = CELERY_WORKER
+    'ENVIRONMENT': APP_ENV,
+    'DJANGO_AUTOINSERT_MIDDLEWARE': False,
+    'DJANGO_TRANSACTION_NAME_FROM_ROUTE': True,
+    'DISABLE_SEND': CELERY_WORKER,
+}
