@@ -417,7 +417,12 @@ AWS_STORAGE_BUCKET_NAME = os.environ.get(
     'AWS_STORAGE_BUCKET_NAME',
     'researchhub-paper-dev1'
 )
+if PRODUCTION:
+    AWS_STORAGE_BUCKET_NAME = 'researchhub-paper-prod'
 AWS_S3_REGION_NAME = 'us-west-2'
+
+AWS_S3_FILE_OVERWRITE = False
+AWS_DEFAULT_ACL = None
 
 # Email
 
@@ -437,29 +442,25 @@ EMAIL_WHITELIST = [
 
 # Sentry
 
-SENTRY_ENVIRONMENT = 'production' if PRODUCTION else 'dev'
+SENTRY_ENVIRONMENT = APP_ENV
 
-if PRODUCTION:
-    AWS_STORAGE_BUCKET_NAME = 'researchhub-paper-prod'
 
-    def before_send(event, hint):
-        log_record = hint.get('log_record')
-        if log_record and 'Invalid HTTP_HOST header' in log_record.message:
-            return None
-        return event
+def before_send(event, hint):
+    log_record = hint.get('log_record')
+    if log_record and 'Invalid HTTP_HOST header' in log_record.message:
+        return None
+    return event
 
-    sentry_sdk.init(
-        dsn="https://eddb587c90ec4e59916d46bcc43f2957@sentry.io/1797024",
-        before_send=before_send,
-        integrations=[DjangoIntegration()],
-        environment=SENTRY_ENVIRONMENT
-    )
 
-AWS_S3_FILE_OVERWRITE = False
-AWS_DEFAULT_ACL = None
-
+sentry_sdk.init(
+    dsn="https://eddb587c90ec4e59916d46bcc43f2957@sentry.io/1797024",
+    before_send=before_send,
+    integrations=[DjangoIntegration()],
+    environment=SENTRY_ENVIRONMENT
+)
 
 # Search
+
 ELASTICSEARCH_DSL = {
     'default': {
         'hosts': 'http://localhost:9200',
