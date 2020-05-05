@@ -444,20 +444,18 @@ EMAIL_WHITELIST = [
 
 SENTRY_ENVIRONMENT = APP_ENV
 
-
-def before_send(event, hint):
-    log_record = hint.get('log_record')
-    if log_record and 'Invalid HTTP_HOST header' in log_record.message:
-        return None
-    return event
-
-
-sentry_sdk.init(
-    dsn="https://eddb587c90ec4e59916d46bcc43f2957@sentry.io/1797024",
-    before_send=before_send,
-    integrations=[DjangoIntegration()],
-    environment=SENTRY_ENVIRONMENT
-)
+if PRODUCTION or STAGING:
+    def before_send(event, hint):
+        log_record = hint.get('log_record')
+        if log_record and 'Invalid HTTP_HOST header' in log_record.message:
+            return None
+        return event
+    sentry_sdk.init(
+        dsn="https://eddb587c90ec4e59916d46bcc43f2957@sentry.io/1797024",
+        before_send=before_send,
+        integrations=[DjangoIntegration()],
+        environment=SENTRY_ENVIRONMENT
+    )
 
 # Search
 
