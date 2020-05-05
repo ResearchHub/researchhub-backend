@@ -596,6 +596,7 @@ if not CELERY_WORKER:
     ] + MIDDLEWARE
 
 ELASTIC_APM = {
+    'INSTRUMENT': not CELERY_WORKER,
     # Set required service name. Allowed characters:
     # # a-z, A-Z, 0-9, -, _, and space
     'SERVICE_NAME': f'researchhub-{APP_ENV}',
