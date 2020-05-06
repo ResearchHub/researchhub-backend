@@ -94,7 +94,7 @@ class Command(BaseCommand):
             publish_date = data.get('first_posted')
             title = data.get('title')
             url = data.get('biorxiv_url')
-            pdf_url = url + '.full.pdf'
+            pdf_url = url + '.full.pdf' if url else None
             authors = self.construct_authors(data.get('authors'))
             external_source = 'biorxiv'
             category = data.get('category')
