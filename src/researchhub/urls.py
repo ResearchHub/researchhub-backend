@@ -52,6 +52,12 @@ router.register(
 )
 
 router.register(
+    r'paper/([0-9]+)/additional_file',
+    paper.views.AdditionalFileViewSet,
+    basename='additional_files'
+)
+
+router.register(
     r'paper',
     paper.views.PaperViewSet,
     basename='paper'

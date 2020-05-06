@@ -9,10 +9,11 @@ from discussion.serializers import ThreadSerializer
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
-from paper.models import Flag, Paper, Vote, Figure
+from paper.models import AdditionalFile, Flag, Paper, Vote, Figure
 from paper.tasks import download_pdf, add_references
 from paper.utils import check_pdf_title
 from summary.serializers import SummarySerializer
+from researchhub.lib import get_paper_id_from_path
 from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
 from utils.http import get_user_from_request
@@ -336,7 +337,11 @@ class HubPaperSerializer(BasePaperSerializer):
 
 
 class PaperReferenceSerializer(serializers.ModelSerializer):
-    hubs = SimpleHubSerializer(many=True, required=False, context={'no_subscriber_info': True})
+    hubs = SimpleHubSerializer(
+        many=True,
+        required=False,
+        context={'no_subscriber_info': True}
+    )
     first_figure = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
 
@@ -366,6 +371,34 @@ class PaperReferenceSerializer(serializers.ModelSerializer):
             if figure:
                 return FigureSerializer(figure).data
         return None
+
+
+class AdditionalFileSerializer(serializers.ModelSerializer):
+    class Meta:
+        fields = [
+            'id',
+            'file',
+            'paper',
+            'created_by',
+            'created_date',
+            'updated_date'
+        ]
+        read_only_fields = [
+            'id',
+            'created_by',
+            'created_date',
+            'updated_date',
+        ]
+        model = AdditionalFile
+
+    def create(self, validated_data):
+        request = self.context['request']
+        user = request.user
+        paper_id = get_paper_id_from_path(request)
+        validated_data['created_by'] = user
+        validated_data['paper'] = Paper.objects.get(pk=paper_id)
+        additional_file = super().create(validated_data)
+        return additional_file
 
 
 class BookmarkSerializer(serializers.Serializer):
