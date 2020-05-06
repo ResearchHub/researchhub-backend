@@ -601,7 +601,7 @@ else:
 
 # APM
 
-if not CELERY_WORKER:
+if not CELERY_WORKER and not TESTING:
     MIDDLEWARE = [
         'elasticapm.contrib.django.middleware.TracingMiddleware',
     ] + MIDDLEWARE
