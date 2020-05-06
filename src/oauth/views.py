@@ -4,7 +4,6 @@ from allauth.socialaccount.providers.base import ProviderException
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from allauth.socialaccount.providers.orcid.views import OrcidOAuth2Adapter
-
 from allauth.socialaccount.providers.oauth2.client import (
     OAuth2Error,
     OAuth2Client
@@ -28,6 +27,8 @@ from rest_framework.response import Response
 from django.dispatch import receiver
 from django.http import HttpRequest
 from django.utils.translation import ugettext_lazy as _
+
+from elasticsearch.exceptions import ConnectionTimeout
 
 from oauth.helpers import complete_social_login
 from oauth.exceptions import LoginError
@@ -148,6 +149,8 @@ class SocialLoginSerializer(serializers.Serializer):
                 access_token
             )
             complete_social_login(request, login)
+        except ConnectionTimeout:
+            pass
         except Exception as e:
             error = LoginError(e, 'Login failed')
             sentry.log_error(error, base_error=e)
