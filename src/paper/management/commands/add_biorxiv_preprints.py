@@ -68,8 +68,6 @@ class Command(BaseCommand):
 
             results = response.json()['results']
             self.create_papers(results)
-            if i > 100:
-                break
 
     def construct_authors(self, authors):
         authors_list = []
