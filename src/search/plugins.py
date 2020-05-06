@@ -14,6 +14,8 @@ import utils.sentry as sentry
 class IngestPdfPipeline:
     def __init__(self, index):
         self.host = ELASTICSEARCH_DSL.get('default').get('hosts')
+        if type(self.host) is list:
+            self.host = self.host[0]['host']
         self.url = self.host + f'/_ingest/pipeline/pdf'
         self._build_pipeline_if_not_exists()
         self.index = index

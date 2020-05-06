@@ -473,19 +473,33 @@ ELASTICSEARCH_DSL = {
 }
 
 if PRODUCTION:
+    host = {
+        'host': 'https://vpc-researchhub-es-production-2-fsmclpkmgiepjd3xtdmeluj5va.us-west-2.es.amazonaws.com',  # noqa: E501
+        'port': 443,
+        'use_ssl': True,
+    }
     ELASTICSEARCH_DSL = {
         'default': {
-            'hosts': 'https://vpc-researchhub-es-production-2-fsmclpkmgiepjd3xtdmeluj5va.us-west-2.es.amazonaws.com',  # noqa: E501
+            'hosts': [host],
         },
     }
 
 if STAGING:
+    host = {
+        'host': 'https://vpc-researchhub-es-staging-gss6whmowsn26eqzovms5jpdou.us-west-2.es.amazonaws.com',  # noqa: E501
+        'port': 443,
+        'use_ssl': True,
+    }
     ELASTICSEARCH_DSL = {
         'default': {
-            'hosts': 'https://vpc-researchhub-es-staging-gss6whmowsn26eqzovms5jpdou.us-west-2.es.amazonaws.com',  # noqa: E501
+            'hosts': [host],
         },
     }
 
+ELASTICSEARCH_DSL_AUTO_REFRESH = False  # Disable refresh on every save
+ELASTICSEARCH_DSL_PARALLEL = True
+
+# For individual documents
 ELASTICSEARCH_AUTO_REINDEX = not PRODUCTION and os.environ.get(
     'ELASTICSEARCH_AUTO_REINDEX',
     False
@@ -497,7 +511,6 @@ if PRODUCTION:
 if STAGING:
     ELASTICSEARCH_AUTO_REINDEX = True
 
-ELASTICSEARCH_DSL_PARALLEL = True
 
 # Web3
 # https://web3py.readthedocs.io/en/stable/
