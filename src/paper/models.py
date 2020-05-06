@@ -300,9 +300,21 @@ class Paper(models.Model):
     def calculate_hot_score(self):
         if self.score > 0:
             ALGO_START_UNIX = 1575199677
-            vote_avg_epoch = self.votes.aggregate(avg=Avg(Extract('created_date', 'epoch'), output_field=models.IntegerField()))['avg']
-            avg_hours_since_algo_start = (vote_avg_epoch - ALGO_START_UNIX) / 3600
-            hot_score = avg_hours_since_algo_start + self.score + self.discussion_count * 2
+            vote_avg_epoch = self.votes.aggregate(
+                avg=Avg(
+                    Extract('created_date', 'epoch'),
+                    output_field=models.IntegerField()
+                )
+            )['avg']
+            avg_hours_since_algo_start = (
+                vote_avg_epoch - ALGO_START_UNIX
+            ) / 3600
+            hot_score = (
+                avg_hours_since_algo_start
+                + self.score
+                + self.discussion_count
+                * 2
+            )
 
             self.hot_score = hot_score
         else:
@@ -589,3 +601,29 @@ class Flag(models.Model):
                 name='unique_paper_flag'
             )
         ]
+
+
+class AdditionalFile(models.Model):
+    file = models.FileField(
+        max_length=1024,
+        upload_to='uploads/paper_additional_files/%Y/%m/%d',
+        default=None,
+        null=True,
+        blank=True
+    )
+    paper = models.ForeignKey(
+        Paper,
+        on_delete=models.CASCADE,
+        related_name='additional_files',
+        related_query_name='additional_file'
+    )
+    created_by = models.ForeignKey(
+        'user.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='paper_additional_files',
+        related_query_name='paper_additional_file'
+    )
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
