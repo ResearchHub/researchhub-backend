@@ -490,7 +490,8 @@ if STAGING:
         },
     }
 
-ELASTICSEARCH_DSL_AUTO_REFRESH = False  # Disable refresh on every save
+# TODO: Need to test to ensure this is working correctly
+# ELASTICSEARCH_DSL_AUTO_REFRESH = False  # Disable refresh on every save
 ELASTICSEARCH_DSL_PARALLEL = True
 
 # For individual documents
