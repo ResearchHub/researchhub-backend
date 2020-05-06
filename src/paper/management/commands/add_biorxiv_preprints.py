@@ -53,14 +53,14 @@ class Command(BaseCommand):
         super().__init__(*args, **kwargs)
 
     def handle(self, *args, **options):
-        base_url = 'https://api.rxivist.org/v1/papers?metric=downloads&'
+        base_url = 'https://api.rxivist.org/v1/papers?metric=downloads&page_size=250'
         meta_data = requests.get(base_url).json()['query']
         preprint_count = meta_data['total_results']
         preprint_pages = meta_data['final_page']
         print(f'Total amount of preprints: {preprint_count}')
         for i in range(preprint_pages):
             print(f'{i}/{preprint_pages}')
-            url = base_url + f'page_size=250&page={i}'
+            url = base_url + f'&page={i}'
             response = requests.get(url)
             if response.status_code != 200:
                 print(f'ERROR: {response.text}')
