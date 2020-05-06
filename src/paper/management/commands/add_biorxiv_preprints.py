@@ -66,11 +66,7 @@ class Command(BaseCommand):
             for res in results:
                 self.create_paper(res)
 
-            if i > 5:
-                break
-
     def construct_authors(self, authors):
-        # return [{'first_name': author['name'].split(' ')[0], 'last_name': author['name'].split(' ')[-1]} for author in authors]
         authors_list = []
         for author in authors:
             name = author['name'].split(' ')
