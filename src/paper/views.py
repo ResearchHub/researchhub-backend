@@ -24,10 +24,11 @@ from rest_framework.response import Response
 from bullet_point.models import BulletPoint
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
-from paper.models import Figure, Flag, Paper, Vote
+from paper.models import AdditionalFile, Figure, Flag, Paper, Vote
 from paper.tasks import preload_hub_papers
 from paper.permissions import (
     CreatePaper,
+    UpdateOrDeleteAdditionalFile,
     FlagPaper,
     IsAuthor,
     IsModeratorOrVerifiedAuthor,
@@ -36,6 +37,7 @@ from paper.permissions import (
     DownvotePaper
 )
 from paper.serializers import (
+    AdditionalFileSerializer,
     BookmarkSerializer,
     HubPaperSerializer,
     FlagSerializer,
@@ -53,6 +55,7 @@ from paper.utils import (
     invalidate_newest_cache,
     invalidate_most_discussed_cache,
 )
+from researchhub.lib import get_paper_id_from_path
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.sentry import log_error
 
@@ -622,6 +625,22 @@ class PaperViewSet(viewsets.ModelViewSet):
             ).prefetch_related(
             *self.prefetch_lookups()
         )
+
+
+class AdditionalFileViewSet(viewsets.ModelViewSet):
+    queryset = AdditionalFile.objects.all()
+    serializer_class = AdditionalFileSerializer
+    permission_classes = [
+        IsAuthenticatedOrReadOnly
+        & UpdateOrDeleteAdditionalFile
+    ]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        paper_id = get_paper_id_from_path(self.request)
+        if paper_id is not None:
+            queryset = queryset.filter(paper=paper_id)
+        return queryset
 
 
 class FigureViewSet(viewsets.ModelViewSet):
