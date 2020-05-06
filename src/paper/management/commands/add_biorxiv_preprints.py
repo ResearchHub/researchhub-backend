@@ -103,7 +103,7 @@ class Command(BaseCommand):
 
             paper_hub = Hub.objects.get(name=category)
 
-            query = Q(url=url) | Q(pdf_url=pdf_url)
+            query = Q(url=url) | Q(pdf_url=pdf_url) | Q(pdf_title=title)
             if doi is not None:
                 query = query | Q(doi=doi)
 
