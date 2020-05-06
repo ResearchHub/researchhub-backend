@@ -385,6 +385,7 @@ class AdditionalFileSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id',
+            'paper',
             'created_by',
             'created_date',
             'updated_date',
