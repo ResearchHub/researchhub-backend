@@ -171,6 +171,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
 
         with transaction.atomic():
             head_bullet_point = BulletPoint.objects.create(
+                bullet_type=bullet_point.bullet_type,
                 paper_id=paper_id,
                 tail=tail,
                 previous=bullet_point,
