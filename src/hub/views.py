@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.db.models import Count, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from datetime import timedelta
@@ -12,8 +13,6 @@ from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly
 )
 from rest_framework.response import Response
-from django.utils.decorators import method_decorator
-from django.views.decorators.cache import cache_page
 
 from .models import Hub
 from .permissions import CreateHub, IsSubscribed, IsNotSubscribed
@@ -24,6 +23,7 @@ from user.serializers import UserActions
 from utils.http import PATCH, POST, PUT, GET
 from utils.message import send_email_message
 from paper.models import Vote
+from paper.utils import get_cache_key
 
 
 class CustomPageLimitPagination(PageNumberPagination):
@@ -40,18 +40,47 @@ class HubViewSet(viewsets.ModelViewSet):
     filter_class = HubFilter
     search_fields = ('name')
 
-    @method_decorator(cache_page(60*60*24*7))
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
         if 'score' in self.request.query_params.get('ordering', ''):
+            cache_key = get_cache_key(None, 'hub', pk='trending')
+            cache_hit = cache.get(cache_key)
+            if cache_hit:
+                return cache_hit
+
             two_weeks_ago = timezone.now().date() - timedelta(days=14)
-            num_upvotes = Count('papers__vote__vote_type', filter=Q(papers__vote__vote_type=Vote.UPVOTE, created_date__gte=two_weeks_ago))
-            num_downvotes = Count('papers__vote__vote_type', filter=Q(papers__vote__vote_type=Vote.DOWNVOTE, created_date__gte=two_weeks_ago))
-            actions_past_two_weeks = Count('actions', filter=Q(actions__created_date__gte=two_weeks_ago))
-            paper_count = Count('papers', filter=Q(created_date__gte=two_weeks_ago, papers__uploaded_by__isnull=False))
-            return self.queryset.annotate(score=num_upvotes - num_downvotes + actions_past_two_weeks + paper_count)
+            num_upvotes = Count(
+                'papers__vote__vote_type',
+                filter=Q(
+                    papers__vote__vote_type=Vote.UPVOTE,
+                    created_date__gte=two_weeks_ago
+                )
+            )
+            num_downvotes = Count(
+                'papers__vote__vote_type',
+                filter=Q(
+                    papers__vote__vote_type=Vote.DOWNVOTE,
+                    created_date__gte=two_weeks_ago
+                )
+            )
+            actions_past_two_weeks = Count(
+                'actions',
+                filter=Q(actions__created_date__gte=two_weeks_ago)
+            )
+            paper_count = Count(
+                'papers',
+                filter=Q(
+                    created_date__gte=two_weeks_ago,
+                    papers__uploaded_by__isnull=False
+                )
+            )
+            score = num_upvotes - num_downvotes
+            score += actions_past_two_weeks + paper_count
+            qs = self.queryset.annotate(score=score)
+            cache.set(cache_key, qs, timeout=60*60*24*7)
+            return qs
         else:
             return self.queryset
 
