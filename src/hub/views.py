@@ -40,6 +40,7 @@ class HubViewSet(viewsets.ModelViewSet):
     filter_class = HubFilter
     search_fields = ('name')
 
+    @method_decorator(cache_page(60*60*24*7))
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
 
