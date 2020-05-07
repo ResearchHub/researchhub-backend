@@ -13,6 +13,7 @@ from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly
 )
 from rest_framework.response import Response
+from django.utils.decorators import method_decorator
 
 from .models import Hub
 from .permissions import CreateHub, IsSubscribed, IsNotSubscribed
@@ -46,42 +47,12 @@ class HubViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         if 'score' in self.request.query_params.get('ordering', ''):
-            cache_key = get_cache_key(None, 'hub', pk='trending')
-            cache_hit = cache.get(cache_key)
-            if cache_hit:
-                return cache_hit
-
             two_weeks_ago = timezone.now().date() - timedelta(days=14)
-            num_upvotes = Count(
-                'papers__vote__vote_type',
-                filter=Q(
-                    papers__vote__vote_type=Vote.UPVOTE,
-                    created_date__gte=two_weeks_ago
-                )
-            )
-            num_downvotes = Count(
-                'papers__vote__vote_type',
-                filter=Q(
-                    papers__vote__vote_type=Vote.DOWNVOTE,
-                    created_date__gte=two_weeks_ago
-                )
-            )
-            actions_past_two_weeks = Count(
-                'actions',
-                filter=Q(actions__created_date__gte=two_weeks_ago)
-            )
-            paper_count = Count(
-                'papers',
-                filter=Q(
-                    created_date__gte=two_weeks_ago,
-                    papers__uploaded_by__isnull=False
-                )
-            )
-            score = num_upvotes - num_downvotes
-            score += actions_past_two_weeks + paper_count
-            qs = self.queryset.annotate(score=score)
-            cache.set(cache_key, qs, timeout=60*60*24*7)
-            return qs
+            num_upvotes = Count('papers__vote__vote_type', filter=Q(papers__vote__vote_type=Vote.UPVOTE, created_date__gte=two_weeks_ago))
+            num_downvotes = Count('papers__vote__vote_type', filter=Q(papers__vote__vote_type=Vote.DOWNVOTE, created_date__gte=two_weeks_ago))
+            actions_past_two_weeks = Count('actions', filter=Q(actions__created_date__gte=two_weeks_ago))
+            paper_count = Count('papers', filter=Q(created_date__gte=two_weeks_ago, papers__uploaded_by__isnull=False))
+            return self.queryset.annotate(score=num_upvotes - num_downvotes + actions_past_two_weeks + paper_count)
         else:
             return self.queryset
 
