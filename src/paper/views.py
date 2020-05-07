@@ -487,10 +487,13 @@ class PaperViewSet(viewsets.ModelViewSet):
                 )
             )
 
-            order_papers = papers.annotate(
+            order_papers = papers.order_by(
+                ordering + '_in_time',
+                ordering + '_all_time'
+            ).annotate(
                 score_in_time=upvotes - downvotes,
                 score_all_time=F('score')
-            ).order_by(ordering + '_in_time', ordering + '_all_time')
+            )
 
         elif 'discussed' in ordering:
             threads_count = Count(
@@ -509,10 +512,13 @@ class PaperViewSet(viewsets.ModelViewSet):
                 )
             )
 
-            order_papers = papers.annotate(
+            order_papers = papers.order_by(
+                ordering,
+                ordering + '_secondary'
+            ).annotate(
                 discussed=threads_count + comments_count,
                 discussed_secondary=F('discussion_count')
-            ).order_by(ordering, ordering + '_secondary')
+            )
 
         else:
             order_papers = papers.order_by(ordering)
