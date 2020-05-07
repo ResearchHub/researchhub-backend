@@ -14,6 +14,7 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 
 from .models import Hub
 from .permissions import CreateHub, IsSubscribed, IsNotSubscribed
