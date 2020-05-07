@@ -673,15 +673,18 @@ class FigureViewSet(viewsets.ModelViewSet):
     )
     def add_figure(self, request, pk=None):
         paper = Paper.objects.get(id=pk)
-        figure = request.FILES.get('figure')
+        figures = request.FILES.get('figures')
         figure_type = request.data.get('figure_type')
+        urls = []
         try:
-            fig = Figure.objects.create(
-                paper=paper,
-                file=figure,
-                figure_type=figure_type
-            )
-            return Response({'file': fig.file.url}, status=200)
+            for figure in figures:
+                fig = Figure.objects.create(
+                    paper=paper,
+                    file=figure,
+                    figure_type=figure_type
+                )
+                urls.append(fig.file.url)
+            return Response({'files': urls}, status=200)
         except Exception as e:
             log_error(e)
             return Response(status=500)
