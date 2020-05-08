@@ -476,14 +476,14 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'vote',
                 filter=Q(
                     vote__vote_type=Vote.UPVOTE,
-                    vote__updated_date__range=[start_date, end_date]
+                    vote__updated_date__gte=start_date
                 )
             )
             downvotes = Count(
                 'vote',
                 filter=Q(
                     vote__vote_type=Vote.DOWNVOTE,
-                    vote__updated_date__range=[start_date, end_date]
+                    vote__updated_date__gte=start_date
                 )
             )
 
@@ -499,16 +499,13 @@ class PaperViewSet(viewsets.ModelViewSet):
             threads_count = Count(
                 'threads',
                 filter=Q(
-                    threads__created_date__range=[start_date, end_date]
+                    threads__created_date__gte=start_date
                 )
             )
             comments_count = Count(
                 'threads__comments',
                 filter=Q(
-                    threads__comments__created_date__range=[
-                        start_date,
-                        end_date
-                    ]
+                    threads__comments__created_date__gte=start_date
                 )
             )
 
