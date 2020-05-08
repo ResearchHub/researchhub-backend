@@ -673,7 +673,7 @@ class FigureViewSet(viewsets.ModelViewSet):
     )
     def add_figure(self, request, pk=None):
         paper = Paper.objects.get(id=pk)
-        figures = request.FILES.get('figures')
+        figures = request.FILES.values()
         figure_type = request.data.get('figure_type')
         urls = []
         try:
