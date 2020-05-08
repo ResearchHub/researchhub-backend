@@ -1,5 +1,6 @@
 from django.test import TestCase
 
+from django.core.cache import cache
 from discussion.tests.helpers import create_thread
 from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
@@ -42,7 +43,7 @@ class HubViewsTests(TestCase):
                 h2_second = True
 
         self.assertTrue(h1_first and h2_second)
-
+        cache.clear()
         url = self.base_url + '?ordering=score'
         response = get_get_response(url)
         response_data = response.data['results']
