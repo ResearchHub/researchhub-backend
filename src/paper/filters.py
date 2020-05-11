@@ -8,4 +8,10 @@ class PaperFilter(filters.FilterSet):
     class Meta:
         model = Paper
         # TODO: Handle filtering on raw_authors in another way
-        exclude = ['file', 'csl_item', 'oa_pdf_location', 'raw_authors']
+        exclude = [
+            'alternate_ids',
+            'file',
+            'csl_item',
+            'oa_pdf_location',
+            'raw_authors',
+        ]
