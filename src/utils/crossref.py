@@ -7,7 +7,7 @@ import habanero
 
 
 class Crossref:
-    def __init__(self, doi=None, query=None):
+    def __init__(self, id=None, query=None):
         # TODO: Handle query case
         self.cr = habanero.Crossref()
 
@@ -15,29 +15,33 @@ class Crossref:
         self.data_message = None
 
         self.abstract = None
-        self.doi = doi
+        self.id = id
         self.reference_count = None
         self.referenced_by_count = None
         self.referenced_by = []
         self.references = []
         self.title = None
-        if self.doi is not None:
-            self.handle_doi()
 
-    def handle_doi(self):
+        if self.id is not None:
+            self.handle_id()
+
+    def handle_id(self):
         try:
-            self.data = self.cr.works(ids=[self.doi])
+            self.data = self.cr.works(ids=[self.id])
             self.data_message = self.data['message']
         except Exception as e:
             self.data_message = None
             logging.warning(e)
         else:
             self.abstract = self.data_message.get('abstract', None)
+
             # Remove any jat xml tags
             if self.abstract is not None:
                 self.abstract = re.sub(r'<[^<]+>', '', self.abstract)
 
-            self.doi = self.data_message.get('DOI', self.doi)
+            self.doi = self.data_message.get('DOI', None)
+            import ipdb; ipdb.set_trace()
+            self.arxiv_id = self.data_message.get('arxiv', None)
 
             self.paper_publish_date = get_crossref_issued_date(
                 self.data_message
@@ -78,11 +82,12 @@ class Crossref:
         Paper = apps.get_model('paper.Paper')
         if self.data_message is not None:
             if self.publication_type == 'journal-article':
-                if self.doi is not None:
+                if self.id is not None:
                     paper = Paper.objects.create(
                         title=self.title,
                         paper_title=self.title,
                         doi=self.doi,
+                        alternate_ids={'arxiv': self.arxiv_id},
                         url=self.url,
                         paper_publish_date=self.paper_publish_date,
                         publication_type=self.publication_type,
