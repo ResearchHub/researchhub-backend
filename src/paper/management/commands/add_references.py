@@ -11,10 +11,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         papers = Paper.objects.filter(
-            doi__isnull=False,
             is_public=True,
-            references__isnull=True,
-        ).exclude(doi='')
+            # references__isnull=True,
+            external_source='arxiv'
+        )
         count = papers.count()
         for i, paper in enumerate(papers):
             print('{} / {}'.format(i, count))

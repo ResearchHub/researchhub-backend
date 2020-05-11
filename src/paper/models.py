@@ -78,6 +78,12 @@ class Paper(models.Model):
         null=True,
         blank=True
     )
+    external_source_id = models.CharField(
+        max_length=255,
+        default=None,
+        null=True,
+        blank=True
+    )
 
     # User generated
     title = models.CharField(max_length=1024)  # User generated title
@@ -102,6 +108,7 @@ class Paper(models.Model):
         blank=True,
         unique=True
     )
+    alternate_ids = JSONField(default=dict)
     paper_title = models.CharField(  # Official paper title
         max_length=1024,
         default=None,
@@ -215,8 +222,8 @@ class Paper(models.Model):
         )
 
     @classmethod
-    def create_crossref_paper(cls, doi):
-        return Crossref(doi=doi).create_paper()
+    def create_crossref_paper(cls, identifier):
+        return Crossref(id=identifier).create_paper()
 
     @classmethod
     def create_from_csl_item(
@@ -413,42 +420,89 @@ class Paper(models.Model):
         self.save()
 
     def add_references(self):
-        if self.doi:
-            semantic_paper = SemanticScholar(self.doi)
+        import ipdb; ipdb.set_trace()
+        ss_id = self.doi
+        ss_id_type = SemanticScholar.ID_TYPES['doi']
+        # TODO: Modify this to try all availble alternate id keys
+        if (ss_id is None) and (self.alternate_ids != {}):
+            ss_id = self.alternate_ids['arxiv']
+            ss_id_type = SemanticScholar.ID_TYPES['arxiv']
+        if ss_id is not None:
+            semantic_paper = SemanticScholar(ss_id, id_type=ss_id_type)
             references = semantic_paper.references
             referenced_by = semantic_paper.referenced_by
 
-            if self.references.count() < 1:
-                self.add_or_create_reference_papers(references, 'references')
+            # if self.references.count() < 1:
+            self.add_or_create_reference_papers(references, 'references')
 
-            if self.referenced_by.count() < 1:
-                self.add_or_create_reference_papers(
-                    referenced_by,
-                    'referenced_by'
-                )
+            # if self.referenced_by.count() < 1:
+            self.add_or_create_reference_papers(
+                referenced_by,
+                'referenced_by'
+            )
 
     def add_or_create_reference_papers(self, reference_list, reference_field):
-        dois = [ref['doi'] for ref in reference_list]
+        arxiv_ids = []
+        dois = []
+        for ref in reference_list:
+            if ref['doi'] is not None:
+                dois.append(ref['doi'])
+            elif ref['arxivId'] is not None:
+                arxiv_ids.append('arXiv:' + ref['arxivId'])
+            else:
+                pass
+        import ipdb; ipdb.set_trace()
+
+        arxiv_id_set = set(arxiv_ids)
         doi_set = set(dois)
 
-        existing_papers = Paper.objects.filter(doi__in=dois)
-        for existing_paper in existing_papers:
-            if reference_field == 'referenced_by':
+        existing_papers = Paper.objects.filter(
+            Q(doi__in=dois) | Q(alternate_ids__arxiv__in=arxiv_ids)
+        )
+
+        if reference_field == 'referenced_by':
+            for existing_paper in existing_papers:
                 existing_paper.references.add(self)
-            else:
-                self.references.add(existing_paper)
+        else:
+            self.references.add(*existing_papers)
+        import ipdb; ipdb.set_trace()
+
+        arxiv_id_hits = set(
+            existing_papers.filter(
+                doi__isnull=True
+            ).values_list('alternate_ids__arxiv', flat=True)
+        )
+        arxiv_id_misses = arxiv_id_set.difference(arxiv_id_hits)
+        self._create_reference_papers_from_id_misses(
+            arxiv_id_misses,
+            SemanticScholar.ID_TYPES['arxiv'],
+            reference_field
+        )
 
         doi_hits = set(existing_papers.values_list('doi', flat=True))
         doi_misses = doi_set.difference(doi_hits)
+        self._create_reference_papers_from_id_misses(
+            doi_misses,
+            SemanticScholar.ID_TYPES['doi'],
+            reference_field
+        )
 
-        doi_count = len(doi_misses)
-        for i, doi in enumerate(doi_misses):
-            print('DOI MISS: {} / {}'.format(i, doi_count))
-            if not doi:
+        self.save()
+
+    def _create_reference_papers_from_id_misses(
+        self,
+        id_list,
+        ss_id_type,
+        reference_field
+    ):
+        id_count = len(id_list)
+        for index, current_id in enumerate(id_list):
+            print('ID MISS: {} / {}'.format(index, id_count))
+            if not current_id:
                 continue
             hubs = []
             tagline = None
-            semantic_paper = SemanticScholar(doi)
+            semantic_paper = SemanticScholar(current_id, id_type=ss_id_type)
             if semantic_paper is not None:
                 if semantic_paper.hub_candidates is not None:
                     HUB_INSTANCE = 0
@@ -463,18 +517,32 @@ class Paper(models.Model):
 
             new_paper = None
             try:
-                new_paper = Paper.create_manubot_paper(doi)
+                # TODO: Does manubot work for arxiv papers?
+                new_paper = Paper.create_manubot_paper(current_id)
             except Exception as e:
-                print(f'Error creating manubot paper: {e}')
+                print(
+                    f'Error creating manubot paper: {e}',
+                    'Falling back...'
+                )
                 try:
-                    new_paper = Paper.create_crossref_paper(doi)
+                    # TODO: Does crossref work for arxiv papers?
+                    new_paper = Paper.create_crossref_paper(current_id)
+                    if new_paper is None:
+                        raise UserWarning
                 except Exception as e:
-                    print(f'Error creating crossref paper: {e}')
-                    pass
+                    print(
+                        f'Error creating crossref paper: {e}',
+                        'Falling back...'
+                    )
+                    try:
+                        new_paper = semantic_paper.create_paper()
+                        if new_paper is None:
+                            raise UserWarning
+                    except Exception as e:
+                        print(f'Error creating crossref paper: {e}')
+                        pass
 
             if new_paper is not None:
-                if not new_paper.tagline:
-                    new_paper.tagline = tagline
                 new_paper.hubs.add(*hubs)
                 if reference_field == 'referenced_by':
                     new_paper.references.add(self)
@@ -484,8 +552,8 @@ class Paper(models.Model):
                     new_paper.save()
                 except Exception as e:
                     print(f'Error saving reference paper: {e}')
-
-        self.save()
+            else:
+                print('No new paper')
 
 
 class MetadataRetrievalAttempt(models.Model):
