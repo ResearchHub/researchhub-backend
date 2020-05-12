@@ -4,8 +4,6 @@ from django.db.models import Count, Q, Avg
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from django.db.models.functions import Extract
 
-from utils.semantic_scholar import SemanticScholar
-from utils.crossref import Crossref
 from manubot.cite.doi import get_doi_csl_item
 
 from paper.utils import MANUBOT_PAPER_TYPES
@@ -17,6 +15,10 @@ from .tasks import (
 from researchhub.settings import TESTING
 from summary.models import Summary
 from hub.models import Hub
+
+from utils.arxiv import Arxiv
+from utils.crossref import Crossref
+from utils.semantic_scholar import SemanticScholar
 
 HELP_TEXT_IS_PUBLIC = (
     'Hides the paper from the public.'
@@ -420,7 +422,6 @@ class Paper(models.Model):
         self.save()
 
     def add_references(self):
-        import ipdb; ipdb.set_trace()
         ss_id = self.doi
         ss_id_type = SemanticScholar.ID_TYPES['doi']
         # TODO: Modify this to try all availble alternate id keys
@@ -451,7 +452,6 @@ class Paper(models.Model):
                 arxiv_ids.append('arXiv:' + ref['arxivId'])
             else:
                 pass
-        import ipdb; ipdb.set_trace()
 
         arxiv_id_set = set(arxiv_ids)
         doi_set = set(dois)
@@ -459,13 +459,13 @@ class Paper(models.Model):
         existing_papers = Paper.objects.filter(
             Q(doi__in=dois) | Q(alternate_ids__arxiv__in=arxiv_ids)
         )
+        print('existing papers', existing_papers)
 
         if reference_field == 'referenced_by':
             for existing_paper in existing_papers:
                 existing_paper.references.add(self)
         else:
             self.references.add(*existing_papers)
-        import ipdb; ipdb.set_trace()
 
         arxiv_id_hits = set(
             existing_papers.filter(
@@ -473,36 +473,65 @@ class Paper(models.Model):
             ).values_list('alternate_ids__arxiv', flat=True)
         )
         arxiv_id_misses = arxiv_id_set.difference(arxiv_id_hits)
-        self._create_reference_papers_from_id_misses(
+        self._create_reference_papers_from_arxiv_misses(
             arxiv_id_misses,
-            SemanticScholar.ID_TYPES['arxiv'],
             reference_field
         )
 
         doi_hits = set(existing_papers.values_list('doi', flat=True))
         doi_misses = doi_set.difference(doi_hits)
-        self._create_reference_papers_from_id_misses(
+        self._create_reference_papers_from_doi_misses(
             doi_misses,
-            SemanticScholar.ID_TYPES['doi'],
             reference_field
         )
 
         self.save()
 
-    def _create_reference_papers_from_id_misses(
+    def _create_reference_papers_from_arxiv_misses(
         self,
         id_list,
-        ss_id_type,
         reference_field
     ):
         id_count = len(id_list)
-        for index, current_id in enumerate(id_list):
-            print('ID MISS: {} / {}'.format(index, id_count))
+        for idx, current_id in enumerate(id_list):
+            print('Creating paper from arxiv miss: {} / {}'.format(idx + 1, id_count))
+            import ipdb; ipdb.set_trace()
+            arxiv_paper = Arxiv(id=current_id)
+            print(arxiv_paper)
+
+    def _create_reference_papers_from_doi_misses(
+        self,
+        id_list,
+        reference_field
+    ):
+        id_count = len(id_list)
+
+        for idx, current_id in enumerate(id_list):
+            print('Creating paper from doi miss: {} / {}'.format(idx, id_count))
+
             if not current_id:
                 continue
+
+            new_paper = None
             hubs = []
-            tagline = None
-            semantic_paper = SemanticScholar(current_id, id_type=ss_id_type)
+
+            # NOTE: Each metadata provider gives us incomplete data.
+            # Semantic Scholar gives hub identifiers but publish date
+            # (only offers year).
+            # Manubot lacks hub identifiers and is slow.
+            # Crossref lacks the paper abstract and may give a partial publish
+            # date.
+            #
+            # Here I first create the paper with Semantic Scholar because it
+            # gives the most complete data for our current frontend views and
+            # it is faster than Manubot.
+
+            crossref_paper = Crossref(id=current_id)
+
+            semantic_paper = SemanticScholar(
+                current_id,
+                id_type=SemanticScholar.ID_TYPES['doi']
+            )
             if semantic_paper is not None:
                 if semantic_paper.hub_candidates is not None:
                     HUB_INSTANCE = 0
@@ -513,37 +542,34 @@ class Paper(models.Model):
                         for hub_name
                         in semantic_paper.hub_candidates
                     ]
-                tagline = semantic_paper.abstract
-
-            new_paper = None
-            try:
-                # TODO: Does manubot work for arxiv papers?
-                new_paper = Paper.create_manubot_paper(current_id)
-            except Exception as e:
-                print(
-                    f'Error creating manubot paper: {e}',
-                    'Falling back...'
-                )
                 try:
-                    # TODO: Does crossref work for arxiv papers?
-                    new_paper = Paper.create_crossref_paper(current_id)
-                    if new_paper is None:
-                        raise UserWarning
+                    new_paper = semantic_paper.create_paper()
+                    new_paper.paper_publish_date = (
+                        crossref_paper.paper_publish_date
+                    )
                 except Exception as e:
                     print(
-                        f'Error creating crossref paper: {e}',
+                        f'Error creating semantic paper: {e}',
                         'Falling back...'
                     )
                     try:
-                        new_paper = semantic_paper.create_paper()
-                        if new_paper is None:
-                            raise UserWarning
+                        new_paper = Paper.create_manubot_paper(current_id)
                     except Exception as e:
-                        print(f'Error creating crossref paper: {e}')
-                        pass
+                        print(
+                            f'Error creating manubot paper: {e}',
+                            'Falling back...'
+                        )
+                        try:
+                            new_paper = crossref_paper.create_paper()
+                            new_paper.abstract = semantic_paper.abstract
+                        except Exception as e:
+                            print(
+                                f'Error creating crossref paper: {e}',
+                            )
 
             if new_paper is not None:
                 new_paper.hubs.add(*hubs)
+
                 if reference_field == 'referenced_by':
                     new_paper.references.add(self)
                 else:

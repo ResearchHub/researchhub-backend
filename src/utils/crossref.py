@@ -40,7 +40,6 @@ class Crossref:
                 self.abstract = re.sub(r'<[^<]+>', '', self.abstract)
 
             self.doi = self.data_message.get('DOI', None)
-            import ipdb; ipdb.set_trace()
             self.arxiv_id = self.data_message.get('arxiv', None)
 
             self.paper_publish_date = get_crossref_issued_date(
@@ -103,10 +102,14 @@ def get_crossref_issued_date(item):
     parts = item['issued']['date-parts'][0]
     day = 1
     month = 1
+    year = None
     if len(parts) > 2:
-        day = parts[2]
+        day = parts[2] or day
     if len(parts) > 1:
-        month = parts[1]
+        month = parts[1] or month
     if len(parts) > 0:
         year = parts[0]
+    if year is not None:
         return timezone.datetime(year, month, day)
+    else:
+        return None
