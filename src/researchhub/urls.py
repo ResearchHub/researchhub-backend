@@ -10,6 +10,7 @@ from rest_framework import routers
 import bullet_point.views
 import discussion.views
 import ethereum.urls
+import google_analytics.views
 import hub.views
 import mailing_list.views
 import oauth.urls
@@ -125,6 +126,7 @@ router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('email_notifications/', mailing_list.views.email_notifications),
+    path('analytics/forward_event/', google_analytics.views.forward_event),
     path('health/', researchhub.views.healthcheck),
 
     re_path(r'^api/', include(router.urls)),
