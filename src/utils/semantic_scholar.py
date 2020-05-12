@@ -48,28 +48,33 @@ class SemanticScholar:
             self.response = response
             self.data = self.response.json()
 
+            self.doi = None
             doi = self.data.get('doi', None)
             if (doi is None) and (self.id_type == self.ID_TYPES['doi']):
                 self.doi = self.id
 
+            self.alternate_ids = {}
+            self.arxiv_id = None
             arxiv_id = self.data.get('arxivId', None)
             if arxiv_id is not None:
                 if not arxiv_id.startswith('arXiv:'):
                     arxiv_id = f'arXiv:{arxiv_id}'
                 self.arxiv_id = arxiv_id
-            elif (arxiv_id is None) and (self.id_type == self.ID_TYPES['arxiv']):
+            elif (arxiv_id is None) and (
+                self.id_type == self.ID_TYPES['arxiv']
+            ):
                 self.arxiv_id = self.id
+            if self.arxiv_id is not None:
+                self.alternate_ids = {'arxiv': self.arxiv_id}
 
+            self.abstract = self.data.get('abstract', None)
+            self.hub_candidates = self.data.get('fieldsOfStudy', [])
             self.title = self.data.get('title', None)
             authors = self.data.get('authors', None)
             self.raw_authors = self._construct_authors(authors)
-            # TODO: Get raw authors
-            # TODO: Can we get publication type?
-            import ipdb; ipdb.set_trace()
             self.references = self.data.get('references', [])
             self.referenced_by = self.data.get('citations', [])
-            self.hub_candidates = self.data.get('fieldsOfStudy', [])
-            self.abstract = self.data.get('abstract', None)
+            self.year = self.data.get('year', None)
         except Exception as e:
             print(e)
 
@@ -77,11 +82,11 @@ class SemanticScholar:
         Paper = apps.get_model('paper.Paper')
         if (self.data is not None) and (self.id is not None):
             paper = Paper.objects.create(
+                abstract=self.abstract,
                 title=self.title,
                 paper_title=self.title,
                 doi=self.doi,
-                alternate_ids={'arxiv': self.arxiv_id},
-                # paper_publish_date=self.paper_publish_date,
+                alternate_ids=self.alternate_ids,
                 external_source='semantic_scholar',
                 raw_authors=self.raw_authors,
                 retrieved_from_external_source=True,
