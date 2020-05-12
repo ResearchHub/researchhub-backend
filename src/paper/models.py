@@ -80,12 +80,6 @@ class Paper(models.Model):
         null=True,
         blank=True
     )
-    external_source_id = models.CharField(
-        max_length=255,
-        default=None,
-        null=True,
-        blank=True
-    )
 
     # User generated
     title = models.CharField(max_length=1024)  # User generated title
