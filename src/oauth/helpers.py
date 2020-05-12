@@ -1,6 +1,12 @@
 import logging
+import researchhub.settings as app_settings
+
+from django.forms import ValidationError
+from django.shortcuts import render
 from django.conf import settings
 from django.http import HttpResponseRedirect, JsonResponse
+from allauth.account import app_settings as account_settings
+from allauth.account.utils import complete_signup, user_username
 from allauth.socialaccount.helpers import (
     get_adapter,
     get_account_adapter,
@@ -10,11 +16,9 @@ from allauth.socialaccount.helpers import (
     reverse,
     messages,
     ImmediateHttpResponse,
-    _process_signup,
     _login_social_account
 )
 from rest_framework.authtoken.models import Token
-
 
 oauth_method = settings.OAUTH_METHOD
 
@@ -96,6 +100,40 @@ def _add_social_account(request, sociallogin):
         }
     )
     return _send_response(request, HttpResponseRedirect(next_url))
+
+
+def complete_social_signup(request, sociallogin):
+    return complete_signup(request,
+                           sociallogin.user,
+                           app_settings.ACCOUNT_EMAIL_VERIFICATION,
+                           sociallogin.get_redirect_url(request),
+                           signal_kwargs={'sociallogin': sociallogin})
+
+
+def _process_signup(request, sociallogin):
+    # Ok, auto signup it is, at least the e-mail address is ok.
+    # We still need to check the username though...
+
+    if account_settings.USER_MODEL_USERNAME_FIELD:
+        username = user_username(sociallogin.user)
+        try:
+            get_account_adapter(request).clean_username(username)
+        except ValidationError:
+            # This username is no good ...
+            user_username(sociallogin.user, '')
+    # FIXME: This part contains a lot of duplication of logic
+    # ("closed" rendering, create user, send email, in active
+    # etc..)
+    if not get_adapter(request).is_open_for_signup(
+            request,
+            sociallogin):
+        return render(
+            request,
+            "account/signup_closed." +
+            account_settings.TEMPLATE_EXTENSION)
+    get_adapter(request).save_user(request, sociallogin, form=None)
+    ret = complete_social_signup(request, sociallogin)
+    return ret
 
 
 def _complete_social_login(request, sociallogin):

@@ -13,7 +13,7 @@ class EmailTaskLog(models.Model):
 
 class SubscriptionField(models.OneToOneField):
     def __init__(self, *args, **kwargs):
-        kwargs['on_delete'] = models.SET_NULL
+        kwargs['on_delete'] = models.CASCADE
         kwargs['null'] = True
         return super().__init__(*args, **kwargs)
 
@@ -28,7 +28,7 @@ class EmailRecipient(models.Model):
     next_cursor = models.IntegerField(default=0)
     user = models.OneToOneField(
         'user.User',
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         default=None,
         null=True
     )
