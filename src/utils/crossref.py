@@ -73,7 +73,15 @@ class Crossref:
                         f'Referenced by count > 0 but found error: {e}'
                     )
 
-            self.title = self.data_message.get('title', [None])[0]
+            self.title = None
+            title = self.data_message.get('title', [None])
+            if (type(title) is list):
+                if (len(title) > 0):
+                    self.title = title[0]
+            elif type(title) is str and (title != ''):
+                self.title = title
+            if self.title is None:
+                logging.warning('Crossref did not find title')
 
             self.url = self.data_message.get('URL', None)
 
