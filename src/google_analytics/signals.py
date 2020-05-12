@@ -81,14 +81,14 @@ def send_summary_event(
 
     label = category
 
-    value = instance.proposed_by.id
+    user_id = instance.proposed_by.id
 
     return get_event_hit_response(
         instance,
         created,
         category,
         label,
-        value=value
+        user_id=user_id
     )
 
 
@@ -113,9 +113,9 @@ def send_paper_event(
     else:
         label = f'{category} {label}'
 
-    value = 0
+    user_id = None
     if instance.uploaded_by is not None:
-        value = instance.uploaded_by.id
+        user_id = instance.uploaded_by.id
 
     paper_id = instance.id
 
@@ -127,7 +127,7 @@ def send_paper_event(
         category,
         label,
         action=action,
-        value=value,
+        user_id=user_id,
         paper_id=paper_id,
         date=date
     )
@@ -153,7 +153,7 @@ def send_user_event(
     action = 'Sign Up'
     label = 'New'
 
-    value = instance.id
+    user_id = instance.id
 
     return get_event_hit_response(
         instance,
@@ -161,7 +161,7 @@ def send_user_event(
         category,
         label,
         action=action,
-        value=value
+        user_id=user_id
     )
 
 
@@ -216,7 +216,7 @@ def get_event_hit_response(
     category,
     label,
     action=None,
-    value=None,
+    user_id=None,
     paper_id=None,
     date=None
 ):
@@ -239,8 +239,10 @@ def get_event_hit_response(
     if paper_id is not None:
         label += f' Paper:{paper_id}'
 
-    if (value is None) and (instance.created_by is not None):
-        value = instance.created_by.id
+    if (user_id is None) and (instance.created_by is not None):
+        user_id = instance.created_by.id
+
+    label += f' User:{user_id}'
 
     if not PRODUCTION:
         category = 'Test ' + category
@@ -248,8 +250,7 @@ def get_event_hit_response(
     fields = Hit.build_event_fields(
         category=category,
         action=action,
-        label=label,
-        value=value
+        label=label
     )
     hit = Hit(Hit.EVENT, date, fields)
     return ga.send_hit(hit)
