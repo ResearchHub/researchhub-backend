@@ -1,5 +1,5 @@
 from django.contrib.postgres.fields import JSONField
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Count, Q, Avg
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from django.db.models.functions import Extract
@@ -433,14 +433,14 @@ class Paper(models.Model):
             references = semantic_paper.references
             referenced_by = semantic_paper.referenced_by
 
-            # if self.references.count() < 1:
-            self.add_or_create_reference_papers(references, 'references')
+            if self.references.count() < 1:
+                self.add_or_create_reference_papers(references, 'references')
 
-            # if self.referenced_by.count() < 1:
-            self.add_or_create_reference_papers(
-                referenced_by,
-                'referenced_by'
-            )
+            if self.referenced_by.count() < 1:
+                self.add_or_create_reference_papers(
+                    referenced_by,
+                    'referenced_by'
+                )
 
     def add_or_create_reference_papers(self, reference_list, reference_field):
         arxiv_ids = []
@@ -459,7 +459,6 @@ class Paper(models.Model):
         existing_papers = Paper.objects.filter(
             Q(doi__in=dois) | Q(alternate_ids__arxiv__in=arxiv_ids)
         )
-        print('existing papers', existing_papers)
 
         if reference_field == 'referenced_by':
             for existing_paper in existing_papers:
@@ -494,10 +493,12 @@ class Paper(models.Model):
     ):
         id_count = len(id_list)
         for idx, current_id in enumerate(id_list):
-            print('Creating paper from arxiv miss: {} / {}'.format(idx + 1, id_count))
-            import ipdb; ipdb.set_trace()
+            print(
+                f'Creating paper from arxiv miss: {idx + 1} / {id_count}'
+            )
             arxiv_paper = Arxiv(id=current_id)
-            print(arxiv_paper)
+            arxiv_paper.create_paper()
+            arxiv_paper.add_hubs()
 
     def _create_reference_papers_from_doi_misses(
         self,
@@ -507,7 +508,9 @@ class Paper(models.Model):
         id_count = len(id_list)
 
         for idx, current_id in enumerate(id_list):
-            print('Creating paper from doi miss: {} / {}'.format(idx, id_count))
+            print(
+                f'Creating paper from doi miss: {idx + 1} / {id_count}'
+            )
 
             if not current_id:
                 continue
@@ -542,11 +545,13 @@ class Paper(models.Model):
                         for hub_name
                         in semantic_paper.hub_candidates
                     ]
+                # TODO: Restructure this to not use transaction atomic?
                 try:
-                    new_paper = semantic_paper.create_paper()
-                    new_paper.paper_publish_date = (
-                        crossref_paper.paper_publish_date
-                    )
+                    with transaction.atomic():
+                        new_paper = semantic_paper.create_paper()
+                        new_paper.paper_publish_date = (
+                            crossref_paper.paper_publish_date
+                        )
                 except Exception as e:
                     print(
                         f'Error creating semantic paper: {e}',
@@ -560,8 +565,9 @@ class Paper(models.Model):
                             'Falling back...'
                         )
                         try:
-                            new_paper = crossref_paper.create_paper()
-                            new_paper.abstract = semantic_paper.abstract
+                            with transaction.atomic():
+                                new_paper = crossref_paper.create_paper()
+                                new_paper.abstract = semantic_paper.abstract
                         except Exception as e:
                             print(
                                 f'Error creating crossref paper: {e}',
