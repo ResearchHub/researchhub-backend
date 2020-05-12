@@ -48,6 +48,7 @@ watchdog = "*"
 xmltodict = "*"
 newrelic = "*"
 elastic-apm = "*"
+arxiv = "*"
 
 [requires]
 python_version = "3.7"
