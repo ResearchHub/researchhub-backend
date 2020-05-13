@@ -6,6 +6,7 @@ from researchhub.settings import (
     TESTING
 )
 from user.models import Author
+import utils.sentry as sentry
 
 
 @registry.register_document
@@ -43,3 +44,11 @@ class AuthorDocument(Document):
         auto_refresh = (TESTING is False) or (
             ELASTICSEARCH_AUTO_REINDEX is True
         )
+
+    def update(self, *args, **kwargs):
+        try:
+            super().update(*args, **kwargs)
+        except ConnectionError as e:
+            sentry.log_info(e)
+        except Exception as e:
+            sentry.log_info(e)

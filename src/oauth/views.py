@@ -14,7 +14,11 @@ from allauth.socialaccount.providers.oauth2.views import (
     PermissionDenied,
     RequestException
 )
-from allauth.utils import get_request_param, get_user_model
+from allauth.utils import (
+    get_request_param,
+    get_user_model,
+    email_address_exists
+)
 from allauth.account.signals import user_signed_up, user_logged_in
 from allauth.account import app_settings
 
@@ -34,7 +38,7 @@ from oauth.helpers import complete_social_login
 from oauth.exceptions import LoginError
 from oauth.utils import get_orcid_names
 from researchhub.settings import GOOGLE_REDIRECT_URL
-from user.models import Author
+from user.models import Author, User
 from user.utils import merge_author_profiles
 from utils import sentry
 from utils.http import http_request, RequestMethods
@@ -51,6 +55,20 @@ class SocialLoginSerializer(serializers.Serializer):
         if not isinstance(request, HttpRequest):
             request = request._request
         return request
+
+    def _delete_user_account(self, user, error=None):
+        user_email = user.email
+        email_exists = email_address_exists(user_email)
+        if email_exists:
+            user = User.objects.get(email=user_email)
+            social_account_exists = SocialAccount.objects.filter(
+                user=user
+            ).exists()
+            if not social_account_exists:
+                deletion_info = user.delete()
+                sentry.log_info(deletion_info, error=error)
+                return True
+        return False
 
     def get_social_login(self, adapter, app, token, response):
         """
@@ -72,7 +90,7 @@ class SocialLoginSerializer(serializers.Serializer):
         social_login.token = token
         return social_login
 
-    def validate(self, attrs):
+    def validate(self, attrs, retry=0):
         view = self.context.get('view')
         request = self._get_request()
 
@@ -154,6 +172,9 @@ class SocialLoginSerializer(serializers.Serializer):
         except Exception as e:
             error = LoginError(e, 'Login failed')
             sentry.log_error(error, base_error=e)
+            deleted = self._delete_user_account(login.user, error=e)
+            if deleted and retry < 3:
+                return self.validate(attrs, retry=retry+1)
             raise serializers.ValidationError(_("Incorrect value"))
 
         if not login.is_existing:
@@ -168,6 +189,9 @@ class SocialLoginSerializer(serializers.Serializer):
                 ).exists()
                 if account_exists:
                     sentry.log_info('User already registered with this e-mail')
+                    deleted = self._delete_user_account(login.user)
+                    if deleted and retry < 3:
+                        return self.validate(attrs, retry=retry+1)
                     raise serializers.ValidationError(
                         _("User already registered with this e-mail address.")
                     )

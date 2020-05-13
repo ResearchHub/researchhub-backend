@@ -7,6 +7,7 @@ from researchhub.settings import (
     TESTING
 )
 from search.analyzers import title_analyzer
+import utils.sentry as sentry
 
 
 @registry.register_document
@@ -59,3 +60,11 @@ class ThreadDocument(Document):
         # specified size (by default it uses the database driver's default
         # setting)
         # queryset_pagination = 5000
+
+    def update(self, *args, **kwargs):
+        try:
+            super().update(*args, **kwargs)
+        except ConnectionError as e:
+            sentry.log_info(e)
+        except Exception as e:
+            sentry.log_info(e)
