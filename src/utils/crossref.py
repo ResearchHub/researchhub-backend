@@ -9,7 +9,7 @@ import habanero
 class Crossref:
     def __init__(self, id=None, query=None):
         # TODO: Handle query case
-        self.cr = habanero.Crossref()
+        self.cr = habanero.Crossref(mailto='dev@quantfive.org')
 
         self.data = None
         self.data_message = None
