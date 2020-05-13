@@ -1,4 +1,6 @@
+import logging
 import time
+
 from django.apps import apps
 
 from utils.http import GET, http_request
@@ -41,12 +43,22 @@ class SemanticScholar:
 
         status_code = None
         try:
+            # TODO: Refactor
             response = http_request(GET, url)
             status_code = response.status_code
             time.sleep(.1)
             if status_code == 429:
-                print(429)
-                time.sleep(1)
+                logging.warning(
+                    'Semantic Scholar responded with 429. Sleeping for 4s'
+                )
+                time.sleep(4)
+                response = http_request(GET, url)
+                status_code = response.status_code
+            if status_code == 403:
+                logging.warning(
+                    'Semantic Scholar responded with 403. Sleeping for 60s'
+                )
+                time.sleep(60)
                 response = http_request(GET, url)
                 status_code = response.status_code
 
