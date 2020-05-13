@@ -78,7 +78,7 @@ class SemanticScholar:
         except Exception as e:
             print(e)
 
-    def create_paper(self):
+    def create_paper(self, is_public=False):
         Paper = apps.get_model('paper.Paper')
         if (self.data is not None) and (self.id is not None):
             paper = Paper.objects.create(
@@ -90,7 +90,7 @@ class SemanticScholar:
                 external_source='semantic_scholar',
                 raw_authors=self.raw_authors,
                 retrieved_from_external_source=True,
-                is_public=True
+                is_public=is_public
             )
             return paper
         return None
