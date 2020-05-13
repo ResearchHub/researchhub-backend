@@ -7,7 +7,10 @@ class Command(BaseCommand):
     key = 'https://arxiv.org/abs/'
 
     def handle(self, *args, **options):
-        for paper in Paper.objects.filter(url__isnull=False):
+        for paper in Paper.objects.filter(
+            url__isnull=False,
+            external_source='arxiv'
+        ):
             if (
                 (self.key in paper.url)
                 and (paper.alternate_ids['arxiv'] is None)
