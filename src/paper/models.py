@@ -541,6 +541,7 @@ class Paper(models.Model):
                     ]
                 # TODO: Restructure this to not use transaction atomic?
                 try:
+                    print('Trying semantic scholar')
                     with transaction.atomic():
                         new_paper = semantic_paper.create_paper()
                         new_paper.paper_publish_date = (
@@ -552,6 +553,7 @@ class Paper(models.Model):
                         'Falling back...'
                     )
                     try:
+                        print('Trying manubot')
                         new_paper = Paper.create_manubot_paper(current_id)
                     except Exception as e:
                         print(
@@ -559,6 +561,7 @@ class Paper(models.Model):
                             'Falling back...'
                         )
                         try:
+                            print('Trying crossref')
                             with transaction.atomic():
                                 new_paper = crossref_paper.create_paper()
                                 new_paper.abstract = semantic_paper.abstract
