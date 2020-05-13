@@ -43,25 +43,8 @@ class SemanticScholar:
 
         status_code = None
         try:
-            # TODO: Refactor
-            response = http_request(GET, url)
+            response = self._get_response(url)
             status_code = response.status_code
-            time.sleep(.1)
-            if status_code == 429:
-                logging.warning(
-                    'Semantic Scholar responded with 429. Sleeping for 4s'
-                )
-                time.sleep(4)
-                response = http_request(GET, url)
-                status_code = response.status_code
-            if status_code == 403:
-                logging.warning(
-                    'Semantic Scholar responded with 403. Sleeping for 60s'
-                )
-                time.sleep(60)
-                response = http_request(GET, url)
-                status_code = response.status_code
-
             self.response = response
             self.data = self.response.json()
 
@@ -117,6 +100,26 @@ class SemanticScholar:
             )
             return paper
         return None
+
+    def _get_response(self, url):
+        response = http_request(GET, url)
+        time.sleep(.1)
+
+        if response.status_code == 429:
+            logging.warning(
+                'Semantic Scholar responded with 429. Sleeping for 4 seconds'
+            )
+            time.sleep(4)
+            response = http_request(GET, url)
+
+        if response.status_code == 403:
+            logging.warning(
+                'Semantic Scholar responded with 403. Sleeping for 2 minutes'
+            )
+            time.sleep(120)
+            response = http_request(GET, url)
+
+        return response
 
     def _construct_authors(self, authors):
         if authors is None:
