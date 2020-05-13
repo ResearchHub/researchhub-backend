@@ -114,9 +114,9 @@ class SemanticScholar:
 
         if response.status_code == 403:
             logging.warning(
-                'Semantic Scholar responded with 403. Sleeping for 2 minutes'
+                'Semantic Scholar responded with 403. Sleeping for 5 minutes'
             )
-            time.sleep(120)
+            time.sleep(300)
             response = http_request(GET, url)
 
         return response
