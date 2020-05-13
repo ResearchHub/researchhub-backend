@@ -187,6 +187,12 @@ class PaperViewSet(viewsets.ModelViewSet):
             self.pagination_class = default_pagination_class
         return super().list(request, *args, **kwargs)
 
+    def update(self, request, *args, **kwargs):
+        cache_key = get_cache_key(request, 'paper')
+        cache.delete(cache_key)
+        response = super().update(request, *args, **kwargs)
+        return response
+
     @action(
         detail=True,
         methods=['put', 'patch', 'delete'],
