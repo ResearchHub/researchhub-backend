@@ -31,8 +31,10 @@ def forward_event(request):
         )
 
     utc_datetime = iso_string_to_datetime(utc)
-    get_event_hit_response(*event, utc_datetime)
-    return Response('Success', status=200)
+    response = get_event_hit_response(*event, utc_datetime)
+    if response.ok:
+        return Response('Success', status=200)
+    return Response('Failed', status=500)
 
 
 def build_paper_event(paper, interaction, item, user):
@@ -41,7 +43,7 @@ def build_paper_event(paper, interaction, item, user):
         user_id = user.id
     category = 'Paper'
     action = (
-        f'{item["name"].capitalize()}',
+        f'{item["name"].capitalize()}'
         f' {interaction.capitalize()} Paper:{paper.id}'
     )
     label = f'{item["value"].capitalize()} User:{user_id}'
