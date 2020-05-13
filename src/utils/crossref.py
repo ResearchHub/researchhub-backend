@@ -85,7 +85,7 @@ class Crossref:
 
             self.url = self.data_message.get('URL', None)
 
-    def create_paper(self):
+    def create_paper(self, is_public=False):
         Paper = apps.get_model('paper.Paper')
         if self.data_message is not None:
             if self.publication_type == 'journal-article':
@@ -100,7 +100,7 @@ class Crossref:
                         publication_type=self.publication_type,
                         external_source='crossref',
                         retrieved_from_external_source=True,
-                        is_public=False
+                        is_public=is_public
                     )
                     return paper
         return None
