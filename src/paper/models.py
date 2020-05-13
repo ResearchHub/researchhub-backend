@@ -254,6 +254,7 @@ class Paper(models.Model):
         paper_publish_date = csl_item.get_date('issued', fill=True)
 
         paper = cls(
+            abstract=csl_item.get('abstract', None),
             doi=doi,
             is_public=is_public,
             title=csl_item.get('title', None),
@@ -262,8 +263,7 @@ class Paper(models.Model):
             csl_item=csl_item,
             external_source=external_source,
             retrieved_from_external_source=externally_sourced,
-            paper_publish_date=paper_publish_date,
-            tagline=csl_item.get('abstract', None)
+            paper_publish_date=paper_publish_date
         )
         paper.save()
         return paper
