@@ -38,13 +38,18 @@ class SemanticScholar:
                 url += f'arXiv:{id}'
             else:
                 url += id
+
+        status_code = None
         try:
             response = http_request(GET, url)
+            status_code = response.status_code
             time.sleep(.1)
-            if response.status_code == 429:
+            if status_code == 429:
                 print(429)
                 time.sleep(1)
                 response = http_request(GET, url)
+                status_code = response.status_code
+
             self.response = response
             self.data = self.response.json()
 
@@ -77,6 +82,12 @@ class SemanticScholar:
             self.year = self.data.get('year', None)
         except Exception as e:
             print(e)
+
+        if status_code == 403:
+            raise UserWarning(
+                '''Semantic scholar is returning 403.
+                Try this operation again later.'''
+            )
 
     def create_paper(self, is_public=False):
         Paper = apps.get_model('paper.Paper')
