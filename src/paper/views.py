@@ -191,6 +191,11 @@ class PaperViewSet(viewsets.ModelViewSet):
         cache_key = get_cache_key(request, 'paper')
         cache.delete(cache_key)
         response = super().update(request, *args, **kwargs)
+        hub_ids = request.data.get('hubs', [])
+        invalidate_trending_cache(hub_ids)
+        invalidate_top_rated_cache(hub_ids)
+        invalidate_newest_cache(hub_ids)
+        invalidate_most_discussed_cache(hub_ids)
         return response
 
     @action(
