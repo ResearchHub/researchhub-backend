@@ -126,9 +126,8 @@ router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('email_notifications/', mailing_list.views.email_notifications),
-    path('analytics/forward_event/', google_analytics.views.forward_event),
     path('health/', researchhub.views.healthcheck),
-
+    path('api/google_analytics/forward_event/', google_analytics.views.forward_event),
     re_path(r'^api/', include(router.urls)),
     path('api/ethereum/', include(ethereum.urls)),
     path(
