@@ -206,7 +206,8 @@ def send_vote_event(
         category,
         label,
         action=action,
-        paper_id=paper_id
+        paper_id=paper_id,
+        exclude_paper_id=True
     )
 
 
@@ -218,7 +219,8 @@ def get_event_hit_response(
     action=None,
     user_id=None,
     paper_id=None,
-    date=None
+    date=None,
+    exclude_paper_id=False
 ):
     if date is None:
         date = instance.created_date
@@ -236,8 +238,9 @@ def get_event_hit_response(
         paper_id = instance.paper.id
 
     label = f'{action} {label}'
-    if paper_id is not None:
-        label += f' Paper:{paper_id}'
+    if not exclude_paper_id:
+        if paper_id is not None:
+            label += f' Paper:{paper_id}'
 
     if (user_id is None) and (instance.created_by is not None):
         user_id = instance.created_by.id
