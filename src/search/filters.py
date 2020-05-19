@@ -29,7 +29,7 @@ class ElasticsearchPaperTitleFilter(filters.SearchFilter):
             'paper_title'
         )
         terms = ' '.join(self.get_search_terms(request))
-        threshold = len(terms)
+        threshold = len(terms) # max(score) - len(terms)?
         # es.query(explain=True).extra(explain=True).execute().to_dict()
         query = Match(
             title=terms
@@ -59,7 +59,7 @@ class ElasticsearchPaperTitleFilter(filters.SearchFilter):
         # )
         es = search.query(query)
         response = es.execute()
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         for res in response:
             print(res.meta.score)
         return response
