@@ -694,7 +694,7 @@ class FigureViewSet(viewsets.ModelViewSet):
                     file=figure,
                     figure_type=figure_type
                 )
-                urls.append(fig.file.url)
+                urls.append((fig.id, fig.file.url))
             return Response({'files': urls}, status=200)
         except Exception as e:
             log_error(e)
