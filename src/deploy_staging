@@ -11,7 +11,7 @@ echo "Deploying to staging-backend"
 eb deploy staging-backend-2
 
 echo "Deploying to staging-backend-worker"
-eb deploy staging-backend-worker-2
+eb deploy staging-backend-2-worker
 
 done="Finished executing staging deployment"
 echo $done
