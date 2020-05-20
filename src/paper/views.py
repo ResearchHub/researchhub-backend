@@ -476,46 +476,43 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'vote',
                 filter=Q(
                     vote__vote_type=Vote.UPVOTE,
-                    vote__updated_date__gte=start_date
+                    vote__updated_date__range=[start_date, end_date]
                 )
             )
             downvotes = Count(
                 'vote',
                 filter=Q(
                     vote__vote_type=Vote.DOWNVOTE,
-                    vote__updated_date__gte=start_date
+                    vote__updated_date__range=[start_date, end_date]
                 )
             )
 
-            order_papers = papers.order_by(
-                ordering + '_in_time',
-                ordering + '_all_time'
-            ).annotate(
+            order_papers = papers.annotate(
                 score_in_time=upvotes - downvotes,
                 score_all_time=F('score')
-            )
+            ).order_by(ordering + '_in_time', ordering + '_all_time')
 
         elif 'discussed' in ordering:
             threads_count = Count(
                 'threads',
                 filter=Q(
-                    threads__created_date__gte=start_date
+                    threads__created_date__range=[start_date, end_date]
                 )
             )
             comments_count = Count(
                 'threads__comments',
                 filter=Q(
-                    threads__comments__created_date__gte=start_date
+                    threads__comments__created_date__range=[
+                        start_date,
+                        end_date
+                    ]
                 )
             )
 
-            order_papers = papers.order_by(
-                ordering,
-                ordering + '_secondary'
-            ).annotate(
+            order_papers = papers.annotate(
                 discussed=threads_count + comments_count,
                 discussed_secondary=F('discussion_count')
-            )
+            ).order_by(ordering, ordering + '_secondary')
 
         else:
             order_papers = papers.order_by(ordering)
