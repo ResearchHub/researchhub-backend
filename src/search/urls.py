@@ -10,6 +10,7 @@ from search.views import (
     # crossref,
     # orcid
 )
+from search.views.combined import MatchingPaperSearch
 
 router = DefaultRouter()
 author = router.register(
@@ -31,6 +32,7 @@ thread = router.register(
 urlpatterns = [
     url(r'^', include(router.urls)),
     path('all/', CombinedView.as_view(), name='combined_search'),
+    path('match/', MatchingPaperSearch.as_view(), name='matching_search')
     # path('crossref/', crossref, name='crossref'),
     # path('orcid/', orcid, name='orcid'),
 ]
