@@ -1,6 +1,9 @@
-from rest_framework import filters
 from elasticsearch_dsl.query import MultiMatch, Match, MatchPhrase, Fuzzy, MatchAll
 from elasticsearch_dsl import Q
+from rest_framework import filters
+
+from .utils import practical_score, get_avgdl
+from paper.models import Paper
 
 
 class ElasticsearchFuzzyFilter(filters.SearchFilter):
@@ -28,9 +31,12 @@ class ElasticsearchPaperTitleFilter(filters.SearchFilter):
             'title',
             'paper_title'
         )
-        terms = ' '.join(self.get_search_terms(request))
-        threshold = len(terms) # max(score) - len(terms)?
+        search_terms = self.get_search_terms(request)
+        terms_count = len(search_terms)
+        terms = ' '.join(search_terms)
+        threshold = len(terms) # max(score) - len(terms)? # This assumes that the first one is an exact match
         # es.query(explain=True).extra(explain=True).execute().to_dict()
+        # x = [len(paper.paper_title.split(' ')) for paper in response]
         query = Match(
             title=terms
         )
@@ -58,8 +64,14 @@ class ElasticsearchPaperTitleFilter(filters.SearchFilter):
         #     type='phrase'
         # )
         es = search.query(query)
+        N = Paper.objects.count()
+        dl = len(search_terms)
+        avgdl = get_avgdl(es, Paper.objects.all())
+        threshold = practical_score(search_terms, N, dl, avgdl) - terms_count
+        print(f'threshold: {threshold}')
         response = es.execute()
-        # import pdb; pdb.set_trace()
         for res in response:
             print(res.meta.score)
+        response = [res for res in response if res.meta.score >= threshold]
+        # import pdb; pdb.set_trace()
         return response
