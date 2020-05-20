@@ -86,7 +86,6 @@ def get_avgdl(es, qs):
             avgdl = tf_details[-1]['value']
             cache.set(cache_key, avgdl, timeout=60*60*24)
         except Exception as e:
-            print(e)
             sentry.log_info('Missing Elasticsearch explanation', error=e)
             qs_count = qs.count()
             total_len = sum([len(paper.title.split()) for paper in qs])
