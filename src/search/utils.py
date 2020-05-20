@@ -61,34 +61,48 @@ def practical_score(terms, N, dl, avgdl):
     return total_score
 
 
+def get_avgdl_from_hit(hit):
+    details = hit['details'][::-1]
+    for detail in details:
+        description = detail['description']
+
+        if 'average length of field' in description:
+            return detail['value']
+
+        res = get_avgdl_from_hit(detail)
+        if type(res) is float:
+            return res
+    return None
+
+
+def get_avgdl_from_qs(qs):
+    qs_count = qs.count()
+    total_len = sum(
+        [len(paper.title.split()) for paper in qs.iterator()]
+    )
+    avgdl = max(1, (total_len / qs_count) - 1)
+    return avgdl
+
+
 def get_avgdl(es, qs):
     cache_key = 'paper_avgdl'
     avgdl = cache.get(cache_key)
     if avgdl is None:
         try:
-            explanation = es.query(
-                explain=True
-            ).extra(
+            explanation = es.extra(
                 explain=True
             ).execute().to_dict()
+            explanation = explanation['hits']['hits']
+            first_hit = explanation[0]['_explanation']
 
-            hits = explanation['hits']['hits'][0]
-            _explanation = hits['_explanation']
-            description = _explanation['description']
-
-            if 'sum of' in description:
-                details = _explanation['details'][0]['details'][0]['details']
+            avgdl = get_avgdl_from_hit(first_hit)
+            if not avgdl:
+                avgdl = get_avgdl_from_qs(qs)
+                sentry.log_info('Could not find avgdl from explanation')
             else:
-                details = _explanation['details']
-
-            term_freq = details[-1]
-            tf_details = term_freq['details']
-            avgdl = tf_details[-1]['value']
-            cache.set(cache_key, avgdl, timeout=60*60*24)
+                cache.set(cache_key, avgdl, timeout=60*60*24)
         except Exception as e:
             sentry.log_info('Missing Elasticsearch explanation', error=e)
-            qs_count = qs.count()
-            total_len = sum([len(paper.title.split()) for paper in qs])
-            avgdl = max(1, (total_len / qs_count) - 1)
+            avgdl = get_avgdl_from_qs(qs)
 
     return avgdl
