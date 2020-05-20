@@ -9,7 +9,10 @@ from rest_framework.response import Response
 
 from paper.models import Paper
 from researchhub.settings import PAGINATION_PAGE_SIZE
-from search.filters import ElasticsearchFuzzyFilter
+from search.filters import (
+    ElasticsearchFuzzyFilter,
+    ElasticsearchPaperTitleFilter
+)
 from search.serializers.combined import CombinedSerializer
 from search.tasks import (
     create_authors_from_crossref,
@@ -67,6 +70,10 @@ class CombinedView(ListAPIView):
 
     def list(self, request, *args, **kwargs):
         es_response_queryset = self.filter_queryset(self.get_queryset())
+        es_response_queryset = [
+            hit for hit in es_response_queryset if hit.meta['score'] > 10
+        ]
+
         # NOTE: Not using crossref for now, pending some refinement
         # if request.query_params.get('external_search') != 'false':
         #     es_response_queryset = self._add_crossref_results(
@@ -102,6 +109,49 @@ class CombinedView(ListAPIView):
         es_papers = filter(lambda hit: (hit.meta['index'] == 'paper'), hits)
         es_dois = [paper['doi'] for paper in es_papers]
         return es_dois
+
+
+class MatchingPaperSearch(ListAPIView):
+    indices = [
+        'paper',
+        'author',
+        'discussion_thread',
+        'hub',
+        'summary',
+        'university'
+    ]
+    serializer_class = CombinedSerializer
+
+    permission_classes = [ReadOnly]
+    filter_backends = [ElasticsearchPaperTitleFilter]
+
+    search_fields = [
+        'title',
+    ]
+
+    def __init__(self, *args, **kwargs):
+        assert self.indices is not None
+
+        self.search = Search(index=self.indices).highlight(
+            *self.search_fields,
+            fragment_size=50
+        )
+
+        super(MatchingPaperSearch, self).__init__(*args, **kwargs)
+
+    def get_queryset(self):
+        es_search = self.search.query()
+        return es_search
+
+    def list(self, request, *args, **kwargs):
+        es_response_queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(es_response_queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(es_response_queryset, many=True)
+        return Response(serializer.data)
 
 
 class CrossrefHits:
