@@ -38,7 +38,7 @@ class ElasticsearchPaperTitleFilter(filters.SearchFilter):
         es = search.query(query)
         N = Paper.objects.count()
         dl = len(search_terms)
-        avgdl = get_avgdl(es, Paper.objects.all())
+        avgdl = get_avgdl(es, Paper.objects)
         threshold = practical_score(search_terms, N, dl, avgdl) - terms_count
         response = es.execute()
         response = [res for res in response if res.meta.score >= threshold]
