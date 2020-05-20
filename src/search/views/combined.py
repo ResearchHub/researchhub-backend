@@ -127,7 +127,6 @@ class MatchingPaperSearch(ListAPIView):
 
     search_fields = [
         'title',
-        'paper_title',
     ]
 
     def __init__(self, *args, **kwargs):

@@ -56,7 +56,6 @@ def practical_score(terms, N, dl, avgdl):
     for term in terms:
         n = Paper.objects.filter(title__contains=term).count()
         s = score(n, N, dl, avgdl)
-        print(f'score: {s}, n: {n}')
         total_score += s
 
     return total_score
@@ -72,7 +71,6 @@ def get_avgdl(es, qs):
             ).extra(
                 explain=True
             ).execute().to_dict()
-            print(explanation)
 
             hits = explanation['hits']['hits'][0]
             _explanation = hits['_explanation']
