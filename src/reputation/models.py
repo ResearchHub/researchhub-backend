@@ -64,11 +64,9 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
         blank=True,
         null=True
     )
-    hub = models.ForeignKey(
+    hubs = models.ManyToManyField(
         Hub,
-        on_delete=models.CASCADE,
-        null=True,
-        related_name='reputation_records'
+        related_name='reputation_records',
     )
     amount = models.IntegerField(default=0)
     created_date = models.DateTimeField(auto_now_add=True)
@@ -84,7 +82,7 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
     proof_item_object_id = models.PositiveIntegerField()
     proof_item = GenericForeignKey(
         'proof_item_content_type',
-        'proof_item_object_id'
+        'proof_item_object_id',
     )
     proof = JSONField()
     distributed_date = models.DateTimeField(default=None, null=True)
