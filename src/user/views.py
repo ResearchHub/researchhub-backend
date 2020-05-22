@@ -55,6 +55,7 @@ class UserViewSet(viewsets.ModelViewSet):
         methods=[RequestMethods.GET],
     )
     def leaderboard(self, request):
+        print(request.GET.get('hub_id'))
         users = User.objects.order_by('-reputation')
         page = self.paginate_queryset(users)
         serializer = UserSerializer(page, many=True)
