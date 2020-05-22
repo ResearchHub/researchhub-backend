@@ -28,7 +28,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         distributions = Distribution.objects.all()
-        for distribution in distributions:
+        count = distributions.count()
+        for i, distribution in enumerate(distributions):
+            print('{} / {}'.format(i, count))
             instance = distribution.proof_item
             hubs = None
             if isinstance(instance, BulletPoint) and instance.paper:
@@ -63,7 +65,7 @@ class Command(BaseCommand):
                     try:
                         hubs = instance.item.parent.parent.paper.hubs
                     except Exception as e:
-                        sentry.log_error(e)
+                        print(e)
                 elif isinstance(instance.item, Thread):
                     hubs = instance.item.paper.hubs
 
