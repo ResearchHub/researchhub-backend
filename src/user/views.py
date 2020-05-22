@@ -57,9 +57,10 @@ class UserViewSet(viewsets.ModelViewSet):
     )
     def leaderboard(self, request):
         hub_id = request.GET.get('hub_id')
+
         if hub_id:
             hub_id = int(hub_id)
-        if hub_id != 0:
+        if hub_id and hub_id != 0:
             users = User.objects.all().annotate(
                 hub_rep=Sum(
                     'reputation_records__amount',
