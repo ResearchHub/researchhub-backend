@@ -427,7 +427,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         Retrieve bibliographic metadata and potential paper matches
         from the database for `url` (specified via request post data).
         """
-        url = request.data.get('url')
+        url = request.data.get('url').strip()
         data = {'url': url}
 
         if not url:
@@ -454,6 +454,8 @@ class PaperViewSet(viewsets.ModelViewSet):
             csl_item = None
 
         if csl_item:
+            cleaned_title = csl_item.get('title', '').strip()
+            csl_item['title'] = cleaned_title
             url_is_unsupported_pdf = url_is_pdf and csl_item.get('URL') == url
             data['url_is_unsupported_pdf'] = url_is_unsupported_pdf
             csl_item.url_is_unsupported_pdf = url_is_unsupported_pdf

@@ -1,8 +1,11 @@
+import utils.sentry as sentry
+import rest_framework.serializers as serializers
+
+from bs4 import BeautifulSoup
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.db import transaction
 from django.http import QueryDict
-import rest_framework.serializers as serializers
 
 from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
@@ -17,7 +20,6 @@ from researchhub.lib import get_paper_id_from_path
 from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
 from utils.http import get_user_from_request
-import utils.sentry as sentry
 
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 
@@ -195,6 +197,7 @@ class PaperSerializer(BasePaperSerializer):
 
         try:
             with transaction.atomic():
+                self._clean_abstract(validated_data)
                 paper = super(PaperSerializer, self).create(validated_data)
                 paper_title = paper.paper_title or ''
                 self._check_pdf_title(paper, paper_title, file)
@@ -234,6 +237,7 @@ class PaperSerializer(BasePaperSerializer):
 
         try:
             with transaction.atomic():
+                self._clean_abstract(validated_data)
                 paper = super(PaperSerializer, self).update(
                     instance,
                     validated_data
@@ -311,6 +315,13 @@ class PaperSerializer(BasePaperSerializer):
             return
         else:
             paper.extract_meta_data(title=title, use_celery=True)
+
+    def _clean_abstract(self, data):
+        abstract = data.get('abstract', '')
+        soup = BeautifulSoup(abstract, 'html.parser')
+        strings = soup.strings
+        cleaned_text = ' '.join(strings)
+        data.update(abstract=cleaned_text)
 
     def get_discussion(self, paper):
         return None
