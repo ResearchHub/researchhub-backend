@@ -67,6 +67,7 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
     hub = models.ForeignKey(
         Hub,
         on_delete=models.CASCADE,
+        null=True,
         related_name='reputation_records'
     )
     amount = models.IntegerField(default=0)
