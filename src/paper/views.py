@@ -1,5 +1,6 @@
 import datetime
 
+from bs4 import BeautifulSoup
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
@@ -454,8 +455,15 @@ class PaperViewSet(viewsets.ModelViewSet):
             csl_item = None
 
         if csl_item:
+            # Cleaning csl data
             cleaned_title = csl_item.get('title', '').strip()
             csl_item['title'] = cleaned_title
+            abstract = csl_item.get('abstract', '')
+            soup = BeautifulSoup(abstract, 'html.parser')
+            strings = soup.strings
+            cleaned_abstract = ' '.join(strings)
+            csl_item['abstract'] = cleaned_abstract
+
             url_is_unsupported_pdf = url_is_pdf and csl_item.get('URL') == url
             data['url_is_unsupported_pdf'] = url_is_unsupported_pdf
             csl_item.url_is_unsupported_pdf = url_is_unsupported_pdf
