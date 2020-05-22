@@ -59,6 +59,7 @@ class Distributor:
         return record
 
     def _record_distribution(self):
+        print(self.proof_item)
         record = Distribution.objects.create(
             recipient=self.recipient,
             amount=self.distribution.amount,
