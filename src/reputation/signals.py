@@ -7,6 +7,7 @@ from django.db import transaction
 from django.db.models.signals import m2m_changed, post_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
+from django.contrib.admin.options import get_content_type_for_model
 
 from bullet_point.models import (
     BulletPoint,
@@ -68,10 +69,28 @@ def distribute_for_create_paper(sender, instance, created, **kwargs):
             distributions.CreatePaper,
             instance.uploaded_by,
             instance,
-            timestamp
+            timestamp,
         )
         distributor.distribute()
 
+@receiver(m2m_changed, sender=Paper.hubs.through, dispatch_uid='paper_hubs_changed')
+def update_distribution_for_hub_changes(
+    sender,
+    instance,
+    action,
+    reverse,
+    model,
+    pk_set,
+    **kwargs
+):
+    timestamp = time()
+    if (action == "post_add") and pk_set is not None:
+        distributions = Distribution.objects.filter(
+            proof_item_object_id=instance.id,
+            proof_item_content_type=get_content_type_for_model(instance)
+        )
+        for distribution in distributions:
+            distribution.hubs.add(*instance.hubs.all())
 
 @receiver(
     m2m_changed,
@@ -94,7 +113,8 @@ def distribute_for_create_authored_paper(
                 distributions.CreateAuthoredPaper,
                 instance.uploaded_by,
                 instance,
-                timestamp
+                timestamp,
+                instance.hubs.all()
             )
             distributor.distribute()
 
@@ -124,7 +144,8 @@ def distribute_for_vote_on_paper(
             distributions.VoteOnPaper,
             recipient,
             instance,
-            timestamp
+            timestamp,
+            instance.paper.hubs.all(),
         )
         distributor.distribute()
 
@@ -154,7 +175,8 @@ def distribute_for_flag_paper(
                         distributions.FlagPaper,
                         recipient,
                         instance,
-                        timestamp
+                        timestamp,
+                        instance.paper.hubs.all(),
                     )
                     distributor.distribute()
 
@@ -195,7 +217,8 @@ def distribute_for_create_summary(
         distribution,
         recipient,
         instance,
-        timestamp
+        timestamp,
+        instance.paper.hubs.all(),
     )
     distributor.distribute()
 
@@ -217,24 +240,35 @@ def check_approved_updated(update_fields):
 def distribute_for_create_discussion(sender, instance, created, **kwargs):
     timestamp = time()
     recipient = instance.created_by
+    hubs = None
     if created and is_eligible_for_create_discussion(recipient):
         if isinstance(instance, BulletPoint):
             distribution = distributions.CreateBulletPoint
+            hubs = instance.paper.hubs
         elif isinstance(instance, Comment):
             distribution = distributions.CreateComment
+            hubs = instance.parent.paper.hubs
         elif isinstance(instance, Reply):
+            try:
+                hubs = instance.parent.parent.paper.hubs
+            except Exception as e:
+                sentry.log_error(e)
+
             distribution = distributions.CreateReply
             if check_author_replied_to_user_comment(instance):
                 distribution = distributions.CreateReplyAsAuthor
         elif isinstance(instance, Thread):
             distribution = distributions.CreateThread
+            hubs = instance.paper.hubs
         else:
             return
+        
         distributor = Distributor(
             distribution,
             recipient,
             instance,
-            timestamp
+            timestamp,
+            hubs.all()
         )
         distributor.distribute()
 
@@ -278,26 +312,53 @@ def distribute_for_action(
 ):
     timestamp = time()
     distributor = None
+    hubs = None
 
     if created:
         try:
             if isinstance(instance, BulletPointFlag):
                 distribution = distributions.BulletPointFlagged
                 recipient = instance.bullet_point.created_by
+                hubs = instance.bullet_point.paper.hubs
 
             elif isinstance(instance, BulletPointEndorsement):
                 distribution = distributions.BulletPointEndorsed
                 recipient = instance.bullet_point.created_by
+                hubs = instance.bullet_point.paper.hubs
 
             if isinstance(instance, DiscussionFlag):
                 distribution = get_discussion_flag_item_distribution(instance)
                 recipient = instance.item.created_by
+
+                if isinstance(instance.item, BulletPoint):
+                    hubs = instance.item.paper.hubs
+                elif isinstance(instance.item, Comment):
+                    hubs = instance.item.parent.paper.hubs
+                elif isinstance(instance.item, Reply):
+                    try:
+                        hubs = instance.item.parent.parent.paper.hubs
+                    except Exception as e:
+                        sentry.log_error(e)
+                elif isinstance(instance.item, Thread):
+                    hubs = instance.item.paper.hubs
 
             elif isinstance(instance, DiscussionEndorsement):
                 distribution = get_discussion_endorsement_item_distribution(
                     instance
                 )
                 recipient = instance.item.created_by
+
+                if isinstance(instance.item, BulletPoint):
+                    hubs = instance.item.paper.hubs
+                elif isinstance(instance.item, Comment):
+                    hubs = instance.item.parent.paper.hubs
+                elif isinstance(instance.item, Reply):
+                    try:
+                        hubs = instance.item.parent.parent.paper.hubs
+                    except Exception as e:
+                        sentry.log_error(e)
+                elif isinstance(instance.item, Thread):
+                    hubs = instance.item.paper.hubs
 
             else:
                 raise TypeError
@@ -307,7 +368,8 @@ def distribute_for_action(
                     distribution,
                     recipient,
                     instance,
-                    timestamp
+                    timestamp,
+                    hubs.all()
                 )
 
         except TypeError as e:
@@ -342,6 +404,19 @@ def distribute_for_discussion_vote(
     if (created or vote_type_updated(update_fields)) and is_eligible_user(
         recipient
     ):
+        hubs = None
+        if isinstance(instance.item, BulletPoint):
+            hubs = instance.item.paper.hubs
+        elif isinstance(instance.item, Comment):
+            hubs = instance.item.parent.paper.hubs
+        elif isinstance(instance.item, Reply):
+            try:
+                hubs = instance.item.parent.parent.paper.hubs
+            except Exception as e:
+                sentry.log_error(e)
+        elif isinstance(instance.item, Thread):
+            hubs = instance.item.paper.hubs
+
         # TODO: This needs to be altered so that if the vote changes the
         # original distribution is deleted if not yet withdrawn
         try:
@@ -350,7 +425,8 @@ def distribute_for_discussion_vote(
                 distribution,
                 recipient,
                 instance,
-                timestamp
+                timestamp,
+                hubs.all()
             )
         except TypeError as e:
             error = ReputationSignalError(
@@ -377,6 +453,18 @@ def distribute_for_vote_on_discussion(
     recipient = instance.created_by
 
     if created and is_eligible_for_vote_on_discussion(recipient):
+        if isinstance(instance.item, BulletPoint):
+            hubs = instance.item.paper.hubs
+        elif isinstance(instance.item, Comment):
+            hubs = instance.item.parent.paper.hubs
+        elif isinstance(instance.item, Reply):
+            try:
+                hubs = instance.item.parent.parent.paper.hubs
+            except Exception as e:
+                sentry.log_error(e)
+        elif isinstance(instance.item, Thread):
+            hubs = instance.item.paper.hubs
+
         try:
             distribution = get_vote_on_discussion_item_distribution(
                 instance
@@ -385,7 +473,8 @@ def distribute_for_vote_on_discussion(
                 distribution,
                 recipient,
                 instance,
-                timestamp
+                timestamp,
+                hubs.all()
             )
         except TypeError as e:
             error = ReputationSignalError(
