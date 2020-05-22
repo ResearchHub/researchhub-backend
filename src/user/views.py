@@ -8,6 +8,7 @@ from rest_framework.permissions import (
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db.models import Sum, Q, F
 
 from discussion.models import Comment, Reply, Thread
 from discussion.serializers import (
@@ -55,8 +56,16 @@ class UserViewSet(viewsets.ModelViewSet):
         methods=[RequestMethods.GET],
     )
     def leaderboard(self, request):
-        print(request.GET.get('hub_id'))
-        users = User.objects.order_by('-reputation')
+        hub_id = int(request.GET.get('hub_id'))
+        if hub_id != 0:
+            users = User.objects.all().annotate(
+                hub_rep=Sum(
+                    'reputation_records__amount',
+                    filter=Q(reputation_records__hubs__in=[hub_id])
+                )
+            ).order_by(F('hub_rep').desc(nulls_last=True))
+        else:
+            users = User.objects.order_by('-reputation')
         page = self.paginate_queryset(users)
         serializer = UserSerializer(page, many=True)
 

@@ -58,6 +58,7 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
     subscribed = rest_framework_serializers.SerializerMethodField(
         read_only=True
     )
+    hub_rep = rest_framework_serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -74,6 +75,7 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
             'subscribed',
             'updated_date',
             'upload_tutorial_complete',
+            'hub_rep',
         ]
         read_only_fields = fields
 
@@ -84,6 +86,12 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
         if self.context.get('get_subscribed'):
             subscribed_query = obj.subscribed_hubs.all()
             return HubSerializer(subscribed_query, many=True).data
+    
+    def get_hub_rep(self, obj):
+        try:
+            return obj.hub_rep
+        except:
+            return None
 
 
 class UserEditableSerializer(rest_framework_serializers.ModelSerializer):
