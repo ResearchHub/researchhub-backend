@@ -41,7 +41,7 @@ class Command(BaseCommand):
                 try:
                     hubs = instance.parent.parent.paper.hubs
                 except Exception as e:
-                    sentry.log_error(e)
+                    print(e)
             elif isinstance(instance, Thread) and instance.paper:
                 hubs = instance.paper.hubs
             elif isinstance(instance, PaperVote) and instance.paper:
