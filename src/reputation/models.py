@@ -8,7 +8,7 @@ import ethereum.lib
 import reputation.distributions as distributions
 from user.models import User
 from utils.models import SoftDeletableModel
-
+from hub.models import Hub
 
 class PaidStatusModelMixin(models.Model):
     FAILED = 'FAILED'
@@ -64,6 +64,10 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
         blank=True,
         null=True
     )
+    hubs = models.ManyToManyField(
+        Hub,
+        related_name='reputation_records',
+    )
     amount = models.IntegerField(default=0)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -78,7 +82,7 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
     proof_item_object_id = models.PositiveIntegerField()
     proof_item = GenericForeignKey(
         'proof_item_content_type',
-        'proof_item_object_id'
+        'proof_item_object_id',
     )
     proof = JSONField()
     distributed_date = models.DateTimeField(default=None, null=True)

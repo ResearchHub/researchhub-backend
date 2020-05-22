@@ -27,11 +27,12 @@ class Distributor:
         proof_item (obj) - (same as db_record above)
 
     '''
-    def __init__(self, distribution, recipient, db_record, timestamp):
+    def __init__(self, distribution, recipient, db_record, timestamp, hubs=None):
         self.distribution = distribution
         self.recipient = recipient
         self.proof = self.generate_proof(db_record, timestamp)
         self.proof_item = db_record
+        self.hubs = hubs
 
     @staticmethod
     def generate_proof(db_record, timestamp):
@@ -69,6 +70,9 @@ class Distributor:
             ),
             proof_item_object_id=self.proof_item.id
         )
+
+        if self.hubs:
+            record.hubs.add(*self.hubs)
         return record
 
     def _update_reputation(self):
