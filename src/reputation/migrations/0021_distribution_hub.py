@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='distribution',
             name='hub',
-            field=models.ForeignKey(default=None, on_delete=django.db.models.deletion.CASCADE, related_name='reputation_records', to='hub.Hub'),
+            field=models.ForeignKey(default=None, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='reputation_records', to='hub.Hub'),
             preserve_default=False,
         ),
     ]
