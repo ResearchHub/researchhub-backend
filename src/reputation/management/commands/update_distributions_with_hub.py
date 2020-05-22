@@ -31,7 +31,7 @@ class Command(BaseCommand):
         for distribution in distributions:
             instance = distribution.proof_item
             hubs = None
-            if isinstance(instance, BulletPoint):
+            if isinstance(instance, BulletPoint) and instance.paper:
                 hubs = instance.paper.hubs
             elif isinstance(instance, Comment):
                 hubs = instance.parent.paper.hubs
@@ -40,9 +40,9 @@ class Command(BaseCommand):
                     hubs = instance.parent.parent.paper.hubs
                 except Exception as e:
                     sentry.log_error(e)
-            elif isinstance(instance, Thread):
+            elif isinstance(instance, Thread) and instance.paper:
                 hubs = instance.paper.hubs
-            elif isinstance(instance, PaperVote):
+            elif isinstance(instance, PaperVote) and instance.paper:
                 hubs = instance.paper.hubs
 
             if isinstance(instance, Paper):
