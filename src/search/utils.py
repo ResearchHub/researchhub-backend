@@ -1,6 +1,7 @@
 import math
 import utils.sentry as sentry
 
+from django.db.models import Q, Count
 from django.core.cache import cache
 from django.utils import timezone
 
@@ -53,8 +54,12 @@ def score(n, N, dl, avgdl):
 
 def practical_score(terms, N, dl, avgdl):
     total_score = 0
+    aggregate_dict = {}
     for term in terms:
-        n = Paper.objects.filter(title__contains=term).count()
+        aggregate_dict[term] = Count('pk', filter=Q(title__contains=term))
+
+    counts = Paper.objects.aggregate(**aggregate_dict)
+    for n in counts.values():
         s = score(n, N, dl, avgdl)
         total_score += s
 
