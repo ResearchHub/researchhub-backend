@@ -1,6 +1,10 @@
 from rest_framework.decorators import action
 from utils.http import DELETE, GET, PATCH, POST, PUT
 
+CREATED_LOCATIONS = {
+    'PROGRESS': 'PROGRESS'
+}
+
 
 class ActionableViewSet:
     @action(detail=True, methods=[DELETE, PATCH, PUT])

@@ -2,6 +2,7 @@ from django.contrib.postgres.fields import JSONField
 from django.db import models
 
 from bullet_point.exceptions import BulletPointModelError
+from researchhub.lib import CREATED_LOCATIONS
 
 HELP_TEXT_WAS_EDITED = (
     'True if the text was edited after first being created.'
@@ -20,6 +21,10 @@ class BulletPoint(models.Model):
     BULLETPOINT_CHOICES = [
         (BULLETPOINT_KEYTAKEAWAY, BULLETPOINT_KEYTAKEAWAY),
         (BULLETPOINT_LIMITATION, BULLETPOINT_LIMITATION)
+    ]
+    CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS['PROGRESS']
+    CREATED_LOCATION_CHOICES = [
+        (CREATED_LOCATION_PROGRESS, CREATED_LOCATION_PROGRESS)
     ]
     paper = models.ForeignKey(
         'paper.Paper',
@@ -53,6 +58,13 @@ class BulletPoint(models.Model):
     )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+    created_location = models.CharField(
+        choices=CREATED_LOCATION_CHOICES,
+        max_length=255,
+        default=None,
+        null=True,
+        blank=True
+    )
     was_edited = models.BooleanField(
         default=False,
         help_text=HELP_TEXT_WAS_EDITED

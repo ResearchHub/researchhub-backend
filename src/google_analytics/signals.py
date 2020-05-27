@@ -4,7 +4,7 @@ from django.dispatch import receiver
 from bullet_point.models import BulletPoint
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from google_analytics.apps import GoogleAnalytics, Hit
-from paper.models import Paper, Vote as PaperVote
+from paper.models import Figure, Paper, Vote as PaperVote
 from researchhub.settings import PRODUCTION
 from summary.models import Summary
 from user.models import User
@@ -32,6 +32,9 @@ def send_bullet_point_event(
         category = 'Limitation'
 
     label = category
+
+    if instance.created_location == BulletPoint.CREATED_LOCATION_PROGRESS:
+        label += ' from Progress'
 
     return get_event_hit_response(
         instance,
@@ -66,29 +69,31 @@ def send_discussion_event(
     )
 
 
-@receiver(post_save, sender=Summary, dispatch_uid='send_summary_event')
-def send_summary_event(
+@receiver(post_save, sender=Figure, dispatch_uid='send_figure_event')
+def send_figure_event(
     sender,
     instance,
     created,
     update_fields,
     **kwargs
 ):
-    if (not created) or (instance.proposed_by is None):
+    if (not created) or (instance.created_by is None):
         return
 
-    category = 'Summary'
+    category = 'Figure'
+    if instance.figure_type == Figure.PREVIEW:
+        category = 'Preview'
 
     label = category
 
-    user_id = instance.proposed_by.id
+    if instance.created_location == Figure.CREATED_LOCATION_PROGRESS:
+        label += ' from Progress'
 
     return get_event_hit_response(
         instance,
         created,
         category,
-        label,
-        user_id=user_id
+        label
     )
 
 
@@ -130,6 +135,32 @@ def send_paper_event(
         user_id=user_id,
         paper_id=paper_id,
         date=date
+    )
+
+
+@receiver(post_save, sender=Summary, dispatch_uid='send_summary_event')
+def send_summary_event(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
+    if (not created) or (instance.proposed_by is None):
+        return
+
+    category = 'Summary'
+
+    label = category
+
+    user_id = instance.proposed_by.id
+
+    return get_event_hit_response(
+        instance,
+        created,
+        category,
+        label,
+        user_id=user_id
     )
 
 

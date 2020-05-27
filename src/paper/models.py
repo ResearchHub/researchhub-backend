@@ -12,6 +12,7 @@ from .tasks import (
     celery_extract_pdf_preview,
     celery_extract_meta_data
 )
+from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
 from summary.models import Summary
 from hub.models import Hub
@@ -623,6 +624,11 @@ class Figure(models.Model):
         (PREVIEW, 'Preview')
     ]
 
+    CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS['PROGRESS']
+    CREATED_LOCATION_CHOICES = [
+        (CREATED_LOCATION_PROGRESS, 'Progress')
+    ]
+
     file = models.FileField(
         upload_to='uploads/figures/%Y/%m/%d',
         default=None,
@@ -637,6 +643,13 @@ class Figure(models.Model):
     figure_type = models.CharField(choices=FIGURE_TYPE_CHOICES, max_length=16)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+    created_location = models.CharField(
+        choices=CREATED_LOCATION_CHOICES,
+        max_length=255,
+        default=None,
+        null=True,
+        blank=True
+    )
 
 
 class Vote(models.Model):
