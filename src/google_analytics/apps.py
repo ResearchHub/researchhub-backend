@@ -93,11 +93,12 @@ class GoogleAnalytics:
             base_url += 'debug/'
             error = GoogleAnalyticsError(
                 UserWarning,
-                'Not sending outside of production env'
+                'Sending event to debugger'
             )
-            if not TESTING:
+            if TESTING:
+                return
+            else:
                 print(error)
-            return
 
         url = base_url + 'collect'
         if batch:
