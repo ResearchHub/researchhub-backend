@@ -10,18 +10,26 @@ from utils.parsers import iso_string_to_datetime
 @api_view(http_method_names=[POST])
 @permission_classes(())  # Override default permission classes
 def forward_event(request):
-    user = request.user
-    if user.is_anonymous:
-        user = None
     try:
-        paper = request.data['paper']
         interaction = request.data['interaction']
         item = request.data['item']
         utc = request.data['utc']
     except KeyError as e:
         return Response(f'Missing post body data: {e}', status=400)
 
-    paper = Paper.objects.get(pk=paper)
+    if request.query_params.get('ignore_user') is True:
+        user = None
+    else:
+        user = request.user
+        if user.is_anonymous:
+            user = 'None'
+
+    if request.query_params.get('ignore_paper') is True:
+        paper = None
+    else:
+        paper = request.data['paper']
+        paper = Paper.objects.get(pk=paper)
+
     try:
         event = build_paper_event(paper, interaction, item, user)
     except (KeyError, TypeError) as e:
@@ -38,13 +46,18 @@ def forward_event(request):
 
 
 def build_paper_event(paper, interaction, item, user):
-    user_id = None
-    if user is not None:
-        user_id = user.id
     category = 'Paper'
-    action = (
-        f'{item["name"].capitalize()}'
-        f' {interaction.capitalize()} Paper:{paper.id}'
-    )
-    label = f'{item["value"].capitalize()} User:{user_id}'
+
+    action = f'{item["name"].capitalize()} {interaction.capitalize()}'
+    if paper is not None:
+        action += f' Paper:{paper.id}'
+
+    label = f'{item["value"].capitalize()}'
+    if user is not None:
+        if type(user) is str:
+            user_id = user
+        else:
+            user_id = user.id
+        label += (' User:' + user_id)
+
     return (category, action, label)
