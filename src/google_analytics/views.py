@@ -58,6 +58,6 @@ def build_paper_event(paper, interaction, item, user):
             user_id = user
         else:
             user_id = user.id
-        label += (' User:' + user_id)
+        label += f' User:{user_id}'
 
     return (category, action, label)
