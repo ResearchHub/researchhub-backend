@@ -206,6 +206,14 @@ class PaperViewSet(viewsets.ModelViewSet):
     )
     def censor(self, request, pk=None):
         paper = self.get_object()
+        cache_key = get_cache_key(request, 'paper')
+        cache.delete(cache_key)
+        hub_ids = paper.hubs.values_list('id', flat=True)
+
+        invalidate_trending_cache(hub_ids)
+        invalidate_top_rated_cache(hub_ids)
+        invalidate_newest_cache(hub_ids)
+        invalidate_most_discussed_cache(hub_ids)
         paper.delete()
         return Response('Paper was deleted.', status=200)
 
@@ -218,7 +226,17 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper = self.get_object()
         paper.file = None
         paper.url = ''
+        paper.figures.all().delete()
         paper.save()
+
+        cache_key = get_cache_key(request, 'paper')
+        cache.delete(cache_key)
+        hub_ids = paper.hubs.values_list('id', flat=True)
+
+        invalidate_trending_cache(hub_ids)
+        invalidate_top_rated_cache(hub_ids)
+        invalidate_newest_cache(hub_ids)
+        invalidate_most_discussed_cache(hub_ids)
         return Response(
             self.get_serializer(instance=paper).data,
             status=200
