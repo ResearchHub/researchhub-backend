@@ -446,3 +446,12 @@ class FigureSerializer(serializers.ModelSerializer):
     class Meta:
         fields = '__all__'
         model = Figure
+
+    def create(self, validated_data):
+        request = self.context['request']
+        user = request.user
+        if user.is_anonymous:
+            user = None
+        validated_data['created_by'] = user
+        figure = super().create(validated_data)
+        return figure

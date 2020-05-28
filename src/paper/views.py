@@ -711,6 +711,14 @@ class FigureViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthor]
     )
     def add_figure(self, request, pk=None):
+        user = request.user
+        if user.is_anonymous:
+            user = None
+
+        created_location = None
+        if request.query_params.get('created_location') == 'progress':
+            created_location = Figure.CREATED_LOCATION_PROGRESS
+
         paper = Paper.objects.get(id=pk)
         figures = request.FILES.values()
         figure_type = request.data.get('figure_type')
@@ -720,7 +728,9 @@ class FigureViewSet(viewsets.ModelViewSet):
                 fig = Figure.objects.create(
                     paper=paper,
                     file=figure,
-                    figure_type=figure_type
+                    figure_type=figure_type,
+                    created_by=user,
+                    created_location=created_location
                 )
                 urls.append({'id': fig.id, 'file': fig.file.url})
             return Response({'files': urls}, status=200)
