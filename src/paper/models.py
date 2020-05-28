@@ -643,6 +643,12 @@ class Figure(models.Model):
     figure_type = models.CharField(choices=FIGURE_TYPE_CHOICES, max_length=16)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        'user.User',
+        on_delete=models.SET_NULL,
+        related_name='figures',
+        null=True
+    )
     created_location = models.CharField(
         choices=CREATED_LOCATION_CHOICES,
         max_length=255,
