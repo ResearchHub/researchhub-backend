@@ -1,4 +1,3 @@
-from django.db.models import Avg, IntegerField
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -32,6 +31,17 @@ def queue_extract_figures_from_pdf(
     if not created and file_updated and not instance.figures.all():
         instance.extract_pdf_preview(use_celery=True)
         instance.extract_figures(use_celery=True)
+
+
+@receiver(post_save, sender=Paper, dispatch_uid='extract_twitter_comments')
+def queue_extract_twitter_comments(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
+    instance.extract_twitter_comments(use_celery=True)
 
 
 def check_file_updated(update_fields, file):

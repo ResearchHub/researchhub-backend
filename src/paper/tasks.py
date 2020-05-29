@@ -5,6 +5,7 @@ import os
 import re
 import requests
 import shutil
+import twitter
 
 from datetime import datetime, timedelta
 from subprocess import call
@@ -17,8 +18,15 @@ from django.core.files import File
 from django.db import IntegrityError
 from django.http.request import HttpRequest
 from rest_framework.request import Request
+from discussion.models import ExternalThread, ExternalComment
 from researchhub.celery import app
-from researchhub.settings import APP_ENV
+from researchhub.settings import (
+    APP_ENV,
+    TWITTER_CONSUMER_KEY,
+    TWITTER_CONSUMER_SECRET,
+    TWITER_ACCESS_TOKEN,
+    TWITTER_ACCESS_TOKEN_SECRET,
+)
 from paper.utils import (
     check_crossref_title,
     check_pdf_title,
@@ -224,6 +232,64 @@ def celery_extract_meta_data(paper_id, title, check_title):
         handle_duplicate_doi(paper, doi)
     except Exception as e:
         sentry.log_info(e)
+
+
+@app.task
+def celery_extract_twitter_comments(paper_id):
+    if paper_id is None:
+        return
+
+    Paper = apps.get_model('paper.Paper')
+    paper = Paper.objects.get(id=paper_id)
+    source = 'twitter'
+    api = twitter.Api(
+        consumer_key=TWITTER_CONSUMER_KEY,
+        consumer_secret=TWITTER_CONSUMER_SECRET,
+        access_token_key=TWITER_ACCESS_TOKEN,
+        access_token_secret=TWITTER_ACCESS_TOKEN_SECRET,
+        tweet_mode='extended'
+    )
+
+    url = paper.url
+    results = api.GetSearch(
+        term=f'{url} -filter:retweets'
+    )
+    for res in results:
+        source_id = res.id_str
+        username = res.user.screen_name
+        text = res.full_text
+        thread_exists = ExternalThread.objects.filter(
+            source_id=source_id
+        ).exists()
+
+        if not thread_exists:
+            thread = ExternalThread.objects.create(
+                paper=paper,
+                source_id=source_id,
+                source=source,
+                username=username,
+                plain_text=text,
+            )
+
+            replies = api.GetSearch(
+                term=f'to:{username}'
+            )
+            for reply in replies:
+                reply_username = reply.user.screen_name
+                reply_id = reply.id_str
+                reply_text = reply.full_text
+                reply_exists = ExternalComment.objects.filter(
+                    source_id=reply_id
+                ).exists()
+
+                if not reply_exists:
+                    ExternalComment.objects.create(
+                        parent=thread,
+                        source_id=reply_id,
+                        source=source,
+                        username=reply_username,
+                        plain_text=reply_text
+                    )
 
 
 @app.task

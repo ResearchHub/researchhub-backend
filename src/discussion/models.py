@@ -232,6 +232,19 @@ class Thread(BaseComment):
         return users
 
 
+class ExternalThread(BaseComment):
+    paper = models.ForeignKey(
+        'paper.Paper',
+        on_delete=models.CASCADE,
+        related_name='external_threads',
+        blank=True,
+        null=True
+    )
+    source_id = models.CharField(max_length=64)
+    source = models.CharField(max_length=16)
+    username = models.CharField(max_length=32)
+
+
 class Reply(BaseComment):
     content_type = models.ForeignKey(
         ContentType,
@@ -311,6 +324,19 @@ class Reply(BaseComment):
         return users
 
 
+class ExternalReply(BaseComment):
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True
+    )
+    object_id = models.PositiveIntegerField()
+    source_id = models.CharField(max_length=64)
+    source = models.CharField(max_length=16)
+    username = models.CharField(max_length=32)
+
+
 class Comment(BaseComment):
     parent = models.ForeignKey(
         Thread,
@@ -369,3 +395,21 @@ class Comment(BaseComment):
         #     ):
         #         sibling_comment_users.append(c.created_by)
         # return parent_owners + sibling_comment_users
+
+
+class ExternalComment(BaseComment):
+    parent = models.ForeignKey(
+        ExternalThread,
+        on_delete=models.CASCADE,
+        related_name='comments',
+        blank=True,
+        null=True
+    )
+    replies = GenericRelation(ExternalReply)
+    source_id = models.CharField(max_length=64)
+    source = models.CharField(max_length=16)
+    username = models.CharField(max_length=32)
+
+    @property
+    def children(self):
+        return self.replies.all()

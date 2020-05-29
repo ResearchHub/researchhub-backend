@@ -627,3 +627,10 @@ ELASTIC_APM = {
         'elasticapm.processors.sanitize_http_request_body',
     ),
 }
+
+# Twitter
+
+TWITTER_CONSUMER_KEY = os.environ.get('TWITTER_CONSUMER_KEY', 'l1asT7ZKpn8CWj9heB54yq7nX')
+TWITTER_CONSUMER_SECRET = os.environ.get('TWITTER_CONSUMER_SECRET', 'qymqOrtuwGvVqcbywyVW2842DQKfwOTRGkBGmNHf9UT87owGQH')
+TWITER_ACCESS_TOKEN = os.environ.get('TWITER_ACCESS_TOKEN', '1234900010782740482-BXPIhwT4Bo8gsphzbWdgmdbrF0wXYL')
+TWITTER_ACCESS_TOKEN_SECRET = os.environ.get('TWITTER_ACCESS_TOKEN_SECRET', 'k5rOGKNkM5KvewADTfjfUbi6VJg2ws2VBxdiuHURCHLaQ')
