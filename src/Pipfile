@@ -49,6 +49,7 @@ xmltodict = "*"
 newrelic = "*"
 elastic-apm = "*"
 arxiv = "*"
+python-twitter = "*"
 
 [requires]
 python_version = "3.7"
