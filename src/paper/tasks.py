@@ -241,6 +241,10 @@ def celery_extract_twitter_comments(paper_id):
 
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
+    url = paper.url
+    if not url:
+        return
+
     source = 'twitter'
     api = twitter.Api(
         consumer_key=TWITTER_CONSUMER_KEY,
@@ -250,7 +254,6 @@ def celery_extract_twitter_comments(paper_id):
         tweet_mode='extended'
     )
 
-    url = paper.url
     results = api.GetSearch(
         term=f'{url} -filter:retweets'
     )

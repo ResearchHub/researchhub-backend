@@ -5,13 +5,25 @@ import rest_framework.serializers as serializers
 
 from researchhub.settings import PAGINATION_PAGE_SIZE
 
-from .models import Comment, Endorsement, Flag, Thread, Reply, Vote
+from .models import (
+    Comment,
+    Endorsement,
+    Flag,
+    Thread,
+    Reply,
+    Vote,
+    ExternalThread,
+    ExternalComment,
+    ExternalReply
+)
 from user.serializers import UserSerializer
 from utils.http import get_user_from_request
 
 # TODO: Make is_public editable for creator as a delete mechanism
 
 # TODO: undo
+
+
 class CensorMixin:
 
     def get_plain_text(self, obj):
@@ -35,6 +47,7 @@ class CensorMixin:
     def requester_is_moderator(self):
         request = self.context.get('request')
         return request and request.user and request.user.is_authenticated and request.user.moderator
+
 
 class VoteMixin:
 
@@ -80,6 +93,7 @@ class VoteMixin:
                     pass
         return flag
 
+
 class VoteSerializer(serializers.ModelSerializer):
     item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
 
@@ -92,6 +106,7 @@ class VoteSerializer(serializers.ModelSerializer):
             'item',
         ]
         model = Vote
+
 
 class CommentSerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
@@ -172,6 +187,34 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
         else:
             return None
 
+
+class ExternalCommentSerializer(serializers.ModelSerializer, VoteMixin):
+    class Meta:
+        fields = '__all__'
+        read_only_fields = [
+            'is_public',
+            'is_removed',
+            'reply_count',
+            'replies',
+            'paper_id',
+            'score',
+            'user_vote',
+            'user_flag',
+        ]
+        model = ExternalComment
+
+    def get_thread_id(self, obj):
+        if isinstance(obj.parent, Thread):
+            return obj.parent.id
+        return None
+
+    def get_paper_id(self, obj):
+        if obj.paper:
+            return obj.paper.id
+        else:
+            return None
+
+
 class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
         read_only=False,
@@ -227,12 +270,54 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     def get_comment_count(self, obj):
         return obj.comments.count()
 
+
+class ExternalThreadSerializer(serializers.ModelSerializer, VoteMixin):
+    created_by = UserSerializer(
+        read_only=False,
+        default=serializers.CurrentUserDefault()
+    )
+    comment_count = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
+    user_flag = serializers.SerializerMethodField()
+    comments = serializers.SerializerMethodField()
+
+    class Meta:
+        fields = '__all__'
+        read_only_fields = [
+            'is_public',
+            'is_removed',
+            'score',
+            'user_vote',
+            'user_flag',
+        ]
+        model = ExternalThread
+
+    def get_comments(self, obj):
+        if self.context.get('depth', 3) <= 0:
+            return []
+        comments_queryset = self.get_children_annotated(obj).order_by(*self.context.get('ordering', ['-created_date']))[:PAGINATION_PAGE_SIZE]
+        comment_serializer = ExternalCommentSerializer(
+            comments_queryset,
+            many=True,
+            context={
+                **self.context,
+                'depth': self.context.get('depth', 3) - 1,
+            },
+        )
+        return comment_serializer.data
+
+    def get_comment_count(self, obj):
+        return obj.external_comments.count()
+
+
 class SimpleThreadSerializer(ThreadSerializer):
     class Meta:
         fields = [
             'id',
         ]
         model = Thread
+
 
 class ReplySerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
@@ -320,6 +405,7 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
         replies = self._replies_query(obj)
         return replies.count()
 
+
 class EndorsementSerializer(serializers.ModelSerializer):
     item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
 
@@ -331,6 +417,7 @@ class EndorsementSerializer(serializers.ModelSerializer):
             'item',
         ]
         model = Endorsement
+
 
 class FlagSerializer(serializers.ModelSerializer):
     item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)

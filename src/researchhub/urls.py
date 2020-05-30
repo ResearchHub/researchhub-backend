@@ -47,6 +47,12 @@ router.register(
 )
 
 router.register(
+    r'paper/[0-9]+/external_discussion',
+    discussion.views.ExternalThreadViewSet,
+    basename='discussion_external_threads'
+)
+
+router.register(
     r'paper/([0-9]+)/bullet_point',
     bullet_point.views.BulletPointViewSet,
     basename='bullet_points'
