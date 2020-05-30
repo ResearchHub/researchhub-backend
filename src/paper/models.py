@@ -408,12 +408,12 @@ class Paper(models.Model):
 
         if not TESTING and use_celery:
             celery_extract_twitter_comments.apply_async(
-                (self.id),
+                (self.id,),
                 priority=5,
                 countdown=10,
             )
         else:
-            celery_extract_meta_data(self.id)
+            celery_extract_twitter_comments(self.id)
 
     def calculate_score(self):
         upvotes = self.votes.filter(vote_type=Vote.UPVOTE).count()

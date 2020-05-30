@@ -41,7 +41,8 @@ def queue_extract_twitter_comments(
     update_fields,
     **kwargs
 ):
-    instance.extract_twitter_comments(use_celery=True)
+    if created:
+        instance.extract_twitter_comments(use_celery=True)
 
 
 def check_file_updated(update_fields, file):

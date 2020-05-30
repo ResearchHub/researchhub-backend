@@ -244,6 +244,10 @@ class ExternalThread(BaseComment):
     source = models.CharField(max_length=16)
     username = models.CharField(max_length=32)
 
+    @property
+    def children(self):
+        return self.external_comments.all()
+
 
 class Reply(BaseComment):
     content_type = models.ForeignKey(
@@ -401,7 +405,7 @@ class ExternalComment(BaseComment):
     parent = models.ForeignKey(
         ExternalThread,
         on_delete=models.CASCADE,
-        related_name='comments',
+        related_name='external_comments',
         blank=True,
         null=True
     )
