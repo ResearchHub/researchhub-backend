@@ -7,7 +7,7 @@ import requests
 import shutil
 import twitter
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from subprocess import call
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
@@ -18,7 +18,7 @@ from django.core.files import File
 from django.db import IntegrityError
 from django.http.request import HttpRequest
 from rest_framework.request import Request
-from discussion.models import ExternalThread, ExternalComment
+from discussion.models import Thread, Comment
 from researchhub.celery import app
 from researchhub.settings import (
     APP_ENV,
@@ -261,18 +261,31 @@ def celery_extract_twitter_comments(paper_id):
         source_id = res.id_str
         username = res.user.screen_name
         text = res.full_text
-        thread_exists = ExternalThread.objects.filter(
-            source_id=source_id
+        thread_user_profile_img = res.user.profile_image_url_https
+        thread_created_date = res.created_at_in_seconds
+        thread_created_date = datetime.fromtimestamp(
+            thread_created_date,
+            timezone.utc
+        )
+
+        thread_exists = Thread.objects.filter(
+            external_metadata__source_id=source_id
         ).exists()
 
         if not thread_exists:
-            thread = ExternalThread.objects.create(
+            external_thread_metadata = {
+                'source_id': source_id,
+                'username': username,
+                'picture': thread_user_profile_img
+            }
+            thread = Thread.objects.create(
                 paper=paper,
-                source_id=source_id,
                 source=source,
-                username=username,
+                external_metadata=external_thread_metadata,
                 plain_text=text,
             )
+            thread.created_date = thread_created_date
+            thread.save()
 
             replies = api.GetSearch(
                 term=f'to:{username}'
@@ -281,18 +294,31 @@ def celery_extract_twitter_comments(paper_id):
                 reply_username = reply.user.screen_name
                 reply_id = reply.id_str
                 reply_text = reply.full_text
-                reply_exists = ExternalComment.objects.filter(
-                    source_id=reply_id
+                comment_user_profile_img = reply.user.profile_image_url_https
+                comment_created_date = reply.created_at_in_seconds
+                comment_created_date = datetime.fromtimestamp(
+                    comment_created_date,
+                    timezone.utc
+                )
+
+                reply_exists = Comment.objects.filter(
+                    external_metadata__source_id=reply_id
                 ).exists()
 
                 if not reply_exists:
-                    ExternalComment.objects.create(
+                    external_comment_metadata = {
+                        'source_id': reply_id,
+                        'username': reply_username,
+                        'picture': comment_user_profile_img
+                    }
+                    comment = Comment.objects.create(
                         parent=thread,
-                        source_id=reply_id,
                         source=source,
-                        username=reply_username,
-                        plain_text=reply_text
+                        external_metadata=external_comment_metadata,
+                        plain_text=reply_text,
                     )
+                    comment.created_date = comment_created_date
+                    comment.save()
 
 
 @app.task
