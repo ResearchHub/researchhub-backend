@@ -12,9 +12,6 @@ from .models import (
     Thread,
     Reply,
     Vote,
-    ExternalThread,
-    ExternalComment,
-    ExternalReply
 )
 from user.serializers import UserSerializer
 from utils.http import get_user_from_request
@@ -128,10 +125,12 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
             'created_date',
             'is_public',
             'is_removed',
+            'external_metadata',
             'parent',
             'reply_count',
             'replies',
             'score',
+            'source',
             'text',
             'updated_date',
             'user_vote',
@@ -188,33 +187,6 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
             return None
 
 
-class ExternalCommentSerializer(serializers.ModelSerializer, VoteMixin):
-    class Meta:
-        fields = '__all__'
-        read_only_fields = [
-            'is_public',
-            'is_removed',
-            'reply_count',
-            'replies',
-            'paper_id',
-            'score',
-            'user_vote',
-            'user_flag',
-        ]
-        model = ExternalComment
-
-    def get_thread_id(self, obj):
-        if isinstance(obj.parent, Thread):
-            return obj.parent.id
-        return None
-
-    def get_paper_id(self, obj):
-        if obj.paper:
-            return obj.paper.id
-        else:
-            return None
-
-
 class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
         read_only=False,
@@ -236,9 +208,11 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
             'comments',
             'created_by',
             'created_date',
+            'external_metadata',
             'is_public',
             'is_removed',
             'score',
+            'source',
             'user_vote',
             'user_flag',
             'was_edited',
@@ -269,46 +243,6 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
 
     def get_comment_count(self, obj):
         return obj.comments.count()
-
-
-class ExternalThreadSerializer(serializers.ModelSerializer, VoteMixin):
-    created_by = UserSerializer(
-        read_only=False,
-        default=serializers.CurrentUserDefault()
-    )
-    comment_count = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
-    user_vote = serializers.SerializerMethodField()
-    user_flag = serializers.SerializerMethodField()
-    comments = serializers.SerializerMethodField()
-
-    class Meta:
-        fields = '__all__'
-        read_only_fields = [
-            'is_public',
-            'is_removed',
-            'score',
-            'user_vote',
-            'user_flag',
-        ]
-        model = ExternalThread
-
-    def get_comments(self, obj):
-        if self.context.get('depth', 3) <= 0:
-            return []
-        comments_queryset = self.get_children_annotated(obj).order_by(*self.context.get('ordering', ['-created_date']))[:PAGINATION_PAGE_SIZE]
-        comment_serializer = ExternalCommentSerializer(
-            comments_queryset,
-            many=True,
-            context={
-                **self.context,
-                'depth': self.context.get('depth', 3) - 1,
-            },
-        )
-        return comment_serializer.data
-
-    def get_comment_count(self, obj):
-        return obj.external_comments.count()
 
 
 class SimpleThreadSerializer(ThreadSerializer):

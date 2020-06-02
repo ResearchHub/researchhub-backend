@@ -16,9 +16,6 @@ from discussion.models import (
     Thread,
     Reply,
     Vote,
-    ExternalThread,
-    ExternalComment,
-    ExternalReply
 )
 from .serializers import (
     CommentSerializer,
@@ -27,7 +24,6 @@ from .serializers import (
     ThreadSerializer,
     ReplySerializer,
     VoteSerializer,
-    ExternalThreadSerializer
 )
 from discussion.permissions import (
     CensorDiscussion,
@@ -257,73 +253,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         downvotes = Count('votes', filter=Q(votes__vote_type=Vote.DOWNVOTE,))
         paper_id = get_paper_id_from_path(self.request)
         threads = Thread.objects.filter(
-            paper=paper_id
-        ).annotate(
-            score=upvotes-downvotes
-        )
-        return threads
-
-    @action(
-        detail=True,
-        methods=['post'],
-        permission_classes=[FlagDiscussionThread]
-    )
-    def flag(self, *args, **kwargs):
-        return super().flag(*args, **kwargs)
-
-    @flag.mapping.delete
-    def delete_flag(self, *args, **kwargs):
-        return super().delete_flag(*args, **kwargs)
-
-    @action(
-        detail=True,
-        methods=['post', 'put', 'patch'],
-        permission_classes=[UpvoteDiscussionThread & VotePermission]
-    )
-    def upvote(self, *args, **kwargs):
-        return super().upvote(*args, **kwargs)
-
-    @action(
-        detail=True,
-        methods=['post', 'put', 'patch'],
-        permission_classes=[DownvoteDiscussionThread & VotePermission]
-    )
-    def downvote(self, *args, **kwargs):
-        return super().downvote(*args, **kwargs)
-
-
-class ExternalThreadViewSet(ThreadViewSet):
-    serializer_class = ExternalThreadSerializer
-
-    # Optional attributes
-    permission_classes = [
-        IsAuthenticatedOrReadOnly
-        & CreateDiscussionThread
-        & UpdateDiscussionThread
-    ]
-    filter_backends = (OrderingFilter,)
-    order_fields = '__all__'
-    ordering = ('-created_date',)
-
-    def get_serializer_context(self):
-        return {
-            **super().get_serializer_context(),
-            **self.get_action_context(),
-            'needs_score': True
-        }
-
-    def filter_queryset(self, *args, **kwargs):
-        return super().filter_queryset(
-            *args, **kwargs
-        ).order_by(
-            *self.get_ordering()
-        )
-
-    def get_queryset(self):
-        upvotes = Count('votes', filter=Q(votes__vote_type=Vote.UPVOTE,))
-        downvotes = Count('votes', filter=Q(votes__vote_type=Vote.DOWNVOTE,))
-        paper_id = get_paper_id_from_path(self.request)
-        threads = ExternalThread.objects.filter(
             paper=paper_id
         ).annotate(
             score=upvotes-downvotes
