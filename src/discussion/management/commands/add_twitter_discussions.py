@@ -1,4 +1,5 @@
 import twitter
+import time
 
 from django.core.management.base import BaseCommand
 
@@ -32,41 +33,53 @@ class Command(BaseCommand):
             doi__iexact='',
             url__iexact='',
         )
+        paper_iterator = papers.iterator()
+        paper_count = papers.count()
+        count = 0
 
-        for paper in papers:
+        paper = next(paper_iterator)
+        while count < paper_count:
             doi = paper.doi
             url = paper.url
-            print(f'Searching tweets from {doi}, {url}')
-            results = self.api.GetSearch(
-                term=f'{url} -filter:retweets'
-            )
-            for res in results:
-                source_id = res.id_str
-                username = res.user.screen_name
-                user_profile_img = res.user.profile_image_url_https
-                text = res.full_text
-                thread = ExternalThread.objects.create(
-                    paper=paper,
-                    source_id=source_id,
-                    source=SOURCE,
-                    username=username,
-                    plain_text=text,
+            print(f'Searching tweets for {url}')
+            try:
+                results = self.api.GetSearch(
+                    term=f'{url} -filter:retweets'
                 )
-
-                replies = self.api.GetSearch(
-                    term=f'to:{username}'
-                )
-                for reply in replies:
-                    reply_username = reply.user.screen_name
-                    reply_id = reply.id_str
-                    reply_text = reply.full_text
-                    ExternalComment.objects.create(
-                        parent=thread,
-                        source_id=reply_id,
+                for res in results:
+                    source_id = res.id_str
+                    username = res.user.screen_name
+                    user_profile_img = res.user.profile_image_url_https
+                    text = res.full_text
+                    thread = ExternalThread.objects.create(
+                        paper=paper,
+                        source_id=source_id,
                         source=SOURCE,
-                        username=reply_username,
-                        plain_text=reply_text
+                        username=username,
+                        plain_text=text,
                     )
+                    replies = self.api.GetSearch(
+                        term=f'to:{username}'
+                    )
+                    for reply in replies:
+                        reply_username = reply.user.screen_name
+                        reply_id = reply.id_str
+                        reply_text = reply.full_text
+                        ExternalComment.objects.create(
+                            parent=thread,
+                            source_id=reply_id,
+                            source=SOURCE,
+                            username=reply_username,
+                            plain_text=reply_text
+                        )
+                count += 1
+                paper = next(paper_iterator)
+                time.sleep(10)
+            except Exception as e:
+                print(e)
+                print('Rate limiting')
+                time.sleep(60)
+
 
 
     # New discussion models for external sources?
