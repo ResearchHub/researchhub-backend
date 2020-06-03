@@ -19,7 +19,7 @@ from discussion.serializers import (
 
 from paper.models import Paper
 from paper.views import PaperViewSet
-from paper.serializers import PaperSerializer
+from paper.serializers import PaperSerializer, HubPaperSerializer
 from user.filters import AuthorFilter
 from user.models import User, University, Author
 from user.permissions import UpdateAuthor
@@ -58,19 +58,31 @@ class UserViewSet(viewsets.ModelViewSet):
     def leaderboard(self, request):
         hub_id = request.GET.get('hub_id')
 
-        if hub_id:
-            hub_id = int(hub_id)
-        if hub_id and hub_id != 0:
-            users = User.objects.all().annotate(
-                hub_rep=Sum(
-                    'reputation_records__amount',
-                    filter=Q(reputation_records__hubs__in=[hub_id])
-                )
-            ).order_by(F('hub_rep').desc(nulls_last=True))
-        else:
-            users = User.objects.order_by('-reputation')
-        page = self.paginate_queryset(users)
-        serializer = UserSerializer(page, many=True)
+        leaderboard_type = request.GET.get('type')
+
+        if leaderboard_type == 'papers':
+            serializerClass = HubPaperSerializer
+            if hub_id:
+                hub_id = int(hub_id)
+            if hub_id and hub_id != 0:
+                items = Paper.objects.filter(hubs__in=[hub_id]).order_by('-score')
+            else:
+                items = Paper.objects.order_by('-score')
+        elif leaderboard_type == 'users':
+            serializerClass = UserSerializer
+            if hub_id:
+                hub_id = int(hub_id)
+            if hub_id and hub_id != 0:
+                items = User.objects.all().annotate(
+                    hub_rep=Sum(
+                        'reputation_records__amount',
+                        filter=Q(reputation_records__hubs__in=[hub_id])
+                    )
+                ).order_by(F('hub_rep').desc(nulls_last=True))
+            else:
+                items = User.objects.order_by('-reputation')
+        page = self.paginate_queryset(items)
+        serializer = serializerClass(page, many=True)
 
         return self.get_paginated_response(serializer.data)
 
