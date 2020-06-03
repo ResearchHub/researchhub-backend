@@ -35,7 +35,7 @@ NO_SILK = os.environ.get('NO_SILK', False)
 
 if CLOUD:
     CONFIG_BASE_DIR = 'config'
-    from config import db, keys, wallet
+    from config import db, keys, wallet, twitter
 else:
     CONFIG_BASE_DIR = 'config_local'
     from config_local import db, keys, wallet, twitter
