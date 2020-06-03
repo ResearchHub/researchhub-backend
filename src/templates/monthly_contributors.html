@@ -1,0 +1,80 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a>
+  &rsaquo;
+  <a href="/admin/user/">User</a>
+  &rsaquo;
+  Analytics
+</div>
+{% endblock %}
+
+{% block content %}
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.bundle.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const ctx = document.getElementById('myChart').getContext('2d');
+
+    // Sample data
+    const chartData = [
+      {"date": "2019-08-08T00:00:00Z", "y": 3},
+      {"date": "2019-08-07T00:00:00Z", "y": 10},
+      {"date": "2019-08-06T00:00:00Z", "y": 15},
+      {"date": "2019-08-05T00:00:00Z", "y": 4},
+      {"date": "2019-08-03T00:00:00Z", "y": 2},
+      {"date": "2019-08-04T00:00:00Z", "y": 11},
+      {"date": "2019-08-02T00:00:00Z", "y": 3},
+      {"date": "2019-08-01T00:00:00Z", "y": 2},
+    ];
+
+    // Parse the dates to JS
+    chartData.forEach((d) => {
+      d.x = new Date(d.date);
+    });
+
+    // Render the chart
+    const chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        datasets: [
+          {
+            label: 'new subscribers',
+            data: chartData,
+            backgroundColor: 'rgba(220,20,20,0.5)',
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        scales: {
+          xAxes: [
+            {
+              type: 'time',
+              time: {
+                unit: 'day',
+                round: 'day',
+                displayFormats: {
+                  day: 'MMM D',
+                },
+              },
+            },
+          ],
+          yAxes: [
+            {
+              ticks: {
+                beginAtZero: true,
+              },
+            },
+          ],
+        },
+      },
+    });
+  });
+</script>
+<div style="width: 80%;">
+  <canvas style="margin-bottom: 30px; width: 60%; height: 50%;" id="myChart"></canvas>
+</div>
+{% endblock %}
