@@ -124,10 +124,12 @@ class BaseComment(models.Model):
         null=True
     )
     text = JSONField(blank=True, null=True)
+    external_metadata = JSONField(null=True)
     votes = GenericRelation(Vote)
     flags = GenericRelation(Flag)
     endorsement = GenericRelation(Endorsement)
     plain_text = models.TextField(default='', blank=True)
+    source = models.CharField(default='researchhub', max_length=32, null=True)
 
     class Meta:
         abstract = True

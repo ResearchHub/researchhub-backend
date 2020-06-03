@@ -46,6 +46,7 @@ router.register(
     basename='discussion_threads'
 )
 
+
 router.register(
     r'paper/([0-9]+)/bullet_point',
     bullet_point.views.BulletPointViewSet,

@@ -1,4 +1,3 @@
-from django.core.cache import cache
 from django.contrib.admin.options import get_content_type_for_model
 from django.db.models import Count, Q
 from rest_framework import status, viewsets
@@ -10,14 +9,21 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
-from discussion.models import Comment, Endorsement, Flag, Thread, Reply, Vote
+from discussion.models import (
+    Comment,
+    Endorsement,
+    Flag,
+    Thread,
+    Reply,
+    Vote,
+)
 from .serializers import (
     CommentSerializer,
     EndorsementSerializer,
     FlagSerializer,
     ThreadSerializer,
     ReplySerializer,
-    VoteSerializer
+    VoteSerializer,
 )
 from discussion.permissions import (
     CensorDiscussion,
@@ -246,6 +252,12 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         upvotes = Count('votes', filter=Q(votes__vote_type=Vote.UPVOTE,))
         downvotes = Count('votes', filter=Q(votes__vote_type=Vote.DOWNVOTE,))
         paper_id = get_paper_id_from_path(self.request)
+        Paper.objects.get(
+            id=paper_id
+        ).extract_twitter_comments(
+            use_celery=False
+        )
+
         threads = Thread.objects.filter(
             paper=paper_id
         ).annotate(

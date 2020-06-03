@@ -5,13 +5,22 @@ import rest_framework.serializers as serializers
 
 from researchhub.settings import PAGINATION_PAGE_SIZE
 
-from .models import Comment, Endorsement, Flag, Thread, Reply, Vote
+from .models import (
+    Comment,
+    Endorsement,
+    Flag,
+    Thread,
+    Reply,
+    Vote,
+)
 from user.serializers import UserSerializer
 from utils.http import get_user_from_request
 
 # TODO: Make is_public editable for creator as a delete mechanism
 
 # TODO: undo
+
+
 class CensorMixin:
 
     def get_plain_text(self, obj):
@@ -35,6 +44,7 @@ class CensorMixin:
     def requester_is_moderator(self):
         request = self.context.get('request')
         return request and request.user and request.user.is_authenticated and request.user.moderator
+
 
 class VoteMixin:
 
@@ -80,6 +90,7 @@ class VoteMixin:
                     pass
         return flag
 
+
 class VoteSerializer(serializers.ModelSerializer):
     item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
 
@@ -92,6 +103,7 @@ class VoteSerializer(serializers.ModelSerializer):
             'item',
         ]
         model = Vote
+
 
 class CommentSerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
@@ -113,10 +125,12 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
             'created_date',
             'is_public',
             'is_removed',
+            'external_metadata',
             'parent',
             'reply_count',
             'replies',
             'score',
+            'source',
             'text',
             'updated_date',
             'user_vote',
@@ -172,6 +186,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
         else:
             return None
 
+
 class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
         read_only=False,
@@ -193,9 +208,11 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
             'comments',
             'created_by',
             'created_date',
+            'external_metadata',
             'is_public',
             'is_removed',
             'score',
+            'source',
             'user_vote',
             'user_flag',
             'was_edited',
@@ -227,12 +244,14 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     def get_comment_count(self, obj):
         return obj.comments.count()
 
+
 class SimpleThreadSerializer(ThreadSerializer):
     class Meta:
         fields = [
             'id',
         ]
         model = Thread
+
 
 class ReplySerializer(serializers.ModelSerializer, VoteMixin):
     created_by = UserSerializer(
@@ -320,6 +339,7 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
         replies = self._replies_query(obj)
         return replies.count()
 
+
 class EndorsementSerializer(serializers.ModelSerializer):
     item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
 
@@ -331,6 +351,7 @@ class EndorsementSerializer(serializers.ModelSerializer):
             'item',
         ]
         model = Endorsement
+
 
 class FlagSerializer(serializers.ModelSerializer):
     item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
