@@ -252,6 +252,12 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         upvotes = Count('votes', filter=Q(votes__vote_type=Vote.UPVOTE,))
         downvotes = Count('votes', filter=Q(votes__vote_type=Vote.DOWNVOTE,))
         paper_id = get_paper_id_from_path(self.request)
+        Paper.objects.get(
+            id=paper_id
+        ).extract_twitter_comments(
+            use_celery=False
+        )
+
         threads = Thread.objects.filter(
             paper=paper_id
         ).annotate(

@@ -352,7 +352,7 @@ class Paper(models.Model):
         if TESTING:
             return
 
-        if not TESTING and use_celery:
+        if use_celery:
             celery_extract_figures.apply_async(
                 (self.id,),
                 priority=3,
@@ -365,7 +365,7 @@ class Paper(models.Model):
         if TESTING:
             return
 
-        if not TESTING and use_celery:
+        if use_celery:
             celery_extract_pdf_preview.apply_async(
                 (self.id,),
                 priority=3,
@@ -390,7 +390,7 @@ class Paper(models.Model):
         elif title is None:
             return
 
-        if not TESTING and use_celery:
+        if use_celery:
             celery_extract_meta_data.apply_async(
                 (self.id, title, check_title),
                 priority=1,
@@ -406,7 +406,7 @@ class Paper(models.Model):
         if TESTING:
             return
 
-        if not TESTING and use_celery:
+        if use_celery:
             celery_extract_twitter_comments.apply_async(
                 (self.id,),
                 priority=5,

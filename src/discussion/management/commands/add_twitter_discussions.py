@@ -6,11 +6,13 @@ from django.core.management.base import BaseCommand
 
 from paper.models import Paper
 from discussion.models import Thread, Comment
+from researchhub.settings import (
+    TWITTER_CONSUMER_KEY,
+    TWITTER_CONSUMER_SECRET,
+    TWITER_ACCESS_TOKEN,
+    TWITTER_ACCESS_TOKEN_SECRET,
+)
 
-consumer_key = 'l1asT7ZKpn8CWj9heB54yq7nX'
-consumer_secret = 'qymqOrtuwGvVqcbywyVW2842DQKfwOTRGkBGmNHf9UT87owGQH'
-access_token_key = '1234900010782740482-BXPIhwT4Bo8gsphzbWdgmdbrF0wXYL'
-access_token_secret = 'k5rOGKNkM5KvewADTfjfUbi6VJg2ws2VBxdiuHURCHLaQ'
 SOURCE = 'twitter'
 
 
@@ -18,10 +20,10 @@ class Command(BaseCommand):
 
     def __init__(self, *args, **kwargs):
         self.api = twitter.Api(
-            consumer_key=consumer_key,
-            consumer_secret=consumer_secret,
-            access_token_key=access_token_key,
-            access_token_secret=access_token_secret,
+            consumer_key=TWITTER_CONSUMER_KEY,
+            consumer_secret=TWITTER_CONSUMER_SECRET,
+            access_token_key=TWITER_ACCESS_TOKEN,
+            access_token_secret=TWITTER_ACCESS_TOKEN_SECRET,
             tweet_mode='extended'
         )
 
