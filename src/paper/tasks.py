@@ -276,7 +276,8 @@ def celery_extract_twitter_comments(paper_id):
             external_thread_metadata = {
                 'source_id': source_id,
                 'username': username,
-                'picture': thread_user_profile_img
+                'picture': thread_user_profile_img,
+                'url': f'https://twitter.com/{username}/status/{source_id}'
             }
             thread = Thread.objects.create(
                 paper=paper,
@@ -309,7 +310,8 @@ def celery_extract_twitter_comments(paper_id):
                     external_comment_metadata = {
                         'source_id': reply_id,
                         'username': reply_username,
-                        'picture': comment_user_profile_img
+                        'picture': comment_user_profile_img,
+                        'url': f'https://twitter.com/{reply_username}/status/{reply_id}'
                     }
                     comment = Comment.objects.create(
                         parent=thread,
