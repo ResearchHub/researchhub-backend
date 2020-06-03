@@ -10,7 +10,8 @@ from paper.utils import MANUBOT_PAPER_TYPES
 from .tasks import (
     celery_extract_figures,
     celery_extract_pdf_preview,
-    celery_extract_meta_data
+    celery_extract_meta_data,
+    celery_extract_twitter_comments
 )
 from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
@@ -351,7 +352,7 @@ class Paper(models.Model):
         if TESTING:
             return
 
-        if not TESTING and use_celery:
+        if use_celery:
             celery_extract_figures.apply_async(
                 (self.id,),
                 priority=3,
@@ -364,7 +365,7 @@ class Paper(models.Model):
         if TESTING:
             return
 
-        if not TESTING and use_celery:
+        if use_celery:
             celery_extract_pdf_preview.apply_async(
                 (self.id,),
                 priority=3,
@@ -389,7 +390,7 @@ class Paper(models.Model):
         elif title is None:
             return
 
-        if not TESTING and use_celery:
+        if use_celery:
             celery_extract_meta_data.apply_async(
                 (self.id, title, check_title),
                 priority=1,
@@ -397,6 +398,22 @@ class Paper(models.Model):
             )
         else:
             celery_extract_meta_data(self.id, title, check_title)
+
+    def extract_twitter_comments(
+        self,
+        use_celery=True
+    ):
+        if TESTING:
+            return
+
+        if use_celery:
+            celery_extract_twitter_comments.apply_async(
+                (self.id,),
+                priority=5,
+                countdown=10,
+            )
+        else:
+            celery_extract_twitter_comments(self.id)
 
     def calculate_score(self):
         upvotes = self.votes.filter(vote_type=Vote.UPVOTE).count()

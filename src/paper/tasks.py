@@ -5,8 +5,9 @@ import os
 import re
 import requests
 import shutil
+import twitter
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from subprocess import call
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
@@ -17,8 +18,15 @@ from django.core.files import File
 from django.db import IntegrityError
 from django.http.request import HttpRequest
 from rest_framework.request import Request
+from discussion.models import Thread, Comment
 from researchhub.celery import app
-from researchhub.settings import APP_ENV
+from researchhub.settings import (
+    APP_ENV,
+    TWITTER_CONSUMER_KEY,
+    TWITTER_CONSUMER_SECRET,
+    TWITER_ACCESS_TOKEN,
+    TWITTER_ACCESS_TOKEN_SECRET,
+)
 from paper.utils import (
     check_crossref_title,
     check_pdf_title,
@@ -224,6 +232,95 @@ def celery_extract_meta_data(paper_id, title, check_title):
         handle_duplicate_doi(paper, doi)
     except Exception as e:
         sentry.log_info(e)
+
+
+@app.task
+def celery_extract_twitter_comments(paper_id):
+    if paper_id is None:
+        return
+
+    Paper = apps.get_model('paper.Paper')
+    paper = Paper.objects.get(id=paper_id)
+    url = paper.url
+    if not url:
+        return
+
+    source = 'twitter'
+    api = twitter.Api(
+        consumer_key=TWITTER_CONSUMER_KEY,
+        consumer_secret=TWITTER_CONSUMER_SECRET,
+        access_token_key=TWITER_ACCESS_TOKEN,
+        access_token_secret=TWITTER_ACCESS_TOKEN_SECRET,
+        tweet_mode='extended'
+    )
+
+    results = api.GetSearch(
+        term=f'{url} -filter:retweets'
+    )
+    for res in results:
+        source_id = res.id_str
+        username = res.user.screen_name
+        text = res.full_text
+        thread_user_profile_img = res.user.profile_image_url_https
+        thread_created_date = res.created_at_in_seconds
+        thread_created_date = datetime.fromtimestamp(
+            thread_created_date,
+            timezone.utc
+        )
+
+        thread_exists = Thread.objects.filter(
+            external_metadata__source_id=source_id
+        ).exists()
+
+        if not thread_exists:
+            external_thread_metadata = {
+                'source_id': source_id,
+                'username': username,
+                'picture': thread_user_profile_img,
+                'url': f'https://twitter.com/{username}/status/{source_id}'
+            }
+            thread = Thread.objects.create(
+                paper=paper,
+                source=source,
+                external_metadata=external_thread_metadata,
+                plain_text=text,
+            )
+            thread.created_date = thread_created_date
+            thread.save()
+
+            replies = api.GetSearch(
+                term=f'to:{username}'
+            )
+            for reply in replies:
+                reply_username = reply.user.screen_name
+                reply_id = reply.id_str
+                reply_text = reply.full_text
+                comment_user_profile_img = reply.user.profile_image_url_https
+                comment_created_date = reply.created_at_in_seconds
+                comment_created_date = datetime.fromtimestamp(
+                    comment_created_date,
+                    timezone.utc
+                )
+
+                reply_exists = Comment.objects.filter(
+                    external_metadata__source_id=reply_id
+                ).exists()
+
+                if not reply_exists:
+                    external_comment_metadata = {
+                        'source_id': reply_id,
+                        'username': reply_username,
+                        'picture': comment_user_profile_img,
+                        'url': f'https://twitter.com/{reply_username}/status/{reply_id}'
+                    }
+                    comment = Comment.objects.create(
+                        parent=thread,
+                        source=source,
+                        external_metadata=external_comment_metadata,
+                        plain_text=reply_text,
+                    )
+                    comment.created_date = comment_created_date
+                    comment.save()
 
 
 @app.task
