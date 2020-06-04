@@ -19,7 +19,7 @@ class AnalyticModel(models.Model):
         app_label = 'user'
 
 
-class DummyModelAdmin(admin.ModelAdmin):
+class AnalyticAdminPanel(admin.ModelAdmin):
     model = AnalyticModel
 
     def get_urls(self):
@@ -84,5 +84,5 @@ class DummyModelAdmin(admin.ModelAdmin):
         return res
 
 
-admin.site.register(AnalyticModel, DummyModelAdmin)
+admin.site.register(AnalyticModel, AnalyticAdminPanel)
 admin.site.register(User, UserAdmin)
