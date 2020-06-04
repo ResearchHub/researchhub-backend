@@ -35,7 +35,7 @@
 
     // Parse the dates to JS
     chartData.forEach((d) => {
-      d.x = new Date(d.date);
+      d.x = d.date;
     });
 
     const contributorsChart = new Chart(ctx, {
@@ -51,6 +51,10 @@
       },
       options: {
         responsive: true,
+        tooltips: {
+          intersect: true,
+          mode: 'x-axis',
+        },
         scales: {
           xAxes: [
             {
@@ -58,7 +62,7 @@
               time: {
                 unit: 'month',
                 displayFormats: {
-                  day: 'MM',
+                  day: 'MMM',
                 },
               },
             },
@@ -93,7 +97,7 @@
         const res = await fetch(url);
         const json = await res.json();
         json.forEach((d) => {
-          d.x = new Date(d.date);
+          d.x = d.date
         });
         contributorsChart.data.datasets[0].data = json;
         contributorsChart.update();
