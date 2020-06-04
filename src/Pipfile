@@ -50,6 +50,7 @@ newrelic = "*"
 elastic-apm = "*"
 arxiv = "*"
 python-twitter = "*"
+pandas = "*"
 
 [requires]
 python_version = "3.7"
