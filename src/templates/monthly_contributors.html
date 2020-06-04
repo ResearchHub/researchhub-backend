@@ -14,34 +14,36 @@
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.bundle.min.js"></script>
+
+<div style="width: 80%;">
+  <canvas style="margin-bottom: 30px; width: 60%; height: 50%;" id="contributorsChart"></canvas>
+</div>
+
+<div>
+  <label for="start_date">Start date:</label>
+  <input type="date" id="start_date" name="start_date" value="2020-01-01">
+  <label for="end_date">End date:</label>
+  <input type="date" id="end_date" name="end_date" value="2020-01-01">
+  <button id="reload">Reload chart data</button>
+</div>
+
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    const ctx = document.getElementById('myChart').getContext('2d');
+    const ctx = document.getElementById('contributorsChart').getContext('2d');
 
-    // Sample data
-    const chartData = [
-      {"date": "2019-08-08T00:00:00Z", "y": 3},
-      {"date": "2019-08-07T00:00:00Z", "y": 10},
-      {"date": "2019-08-06T00:00:00Z", "y": 15},
-      {"date": "2019-08-05T00:00:00Z", "y": 4},
-      {"date": "2019-08-03T00:00:00Z", "y": 2},
-      {"date": "2019-08-04T00:00:00Z", "y": 11},
-      {"date": "2019-08-02T00:00:00Z", "y": 3},
-      {"date": "2019-08-01T00:00:00Z", "y": 2},
-    ];
+    const chartData = {{ chart_data | safe }};
 
     // Parse the dates to JS
     chartData.forEach((d) => {
       d.x = new Date(d.date);
     });
 
-    // Render the chart
-    const chart = new Chart(ctx, {
-      type: 'bar',
+    const contributorsChart = new Chart(ctx, {
+      type: 'line',
       data: {
         datasets: [
           {
-            label: 'new subscribers',
+            label: 'Unique Contributors',
             data: chartData,
             backgroundColor: 'rgba(220,20,20,0.5)',
           },
@@ -54,10 +56,9 @@
             {
               type: 'time',
               time: {
-                unit: 'day',
-                round: 'day',
+                unit: 'month',
                 displayFormats: {
-                  day: 'MMM D',
+                  day: 'MM',
                 },
               },
             },
@@ -72,9 +73,34 @@
         },
       },
     });
+
+    var date = new Date();
+    date = date.toISOString().split('T')[0];
+    document.getElementById('end_date').value = date;
+
+    // Reload chart data from the backend on button click
+    const reloadButton = document.getElementById('reload');
+
+    reloadButton.addEventListener('click', async() => {
+        var data = {
+          start_date: document.getElementById('start_date').value,
+          end_date: document.getElementById('end_date').value
+        };
+        var url = "/admin/user/analyticmodel/chart_data/";
+        url += "?start_date=" + data.start_date;
+        url += "&end_date=" + data.end_date;
+
+        const res = await fetch(url);
+        const json = await res.json();
+        json.forEach((d) => {
+          d.x = new Date(d.date);
+        });
+        contributorsChart.data.datasets[0].data = json;
+        contributorsChart.update();
+      }
+    );
   });
 </script>
-<div style="width: 80%;">
-  <canvas style="margin-bottom: 30px; width: 60%; height: 50%;" id="myChart"></canvas>
-</div>
 {% endblock %}
+
+
