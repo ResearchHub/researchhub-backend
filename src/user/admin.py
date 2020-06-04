@@ -1,9 +1,15 @@
-from django import forms
+import pandas as pd
+import json
+import datetime
+
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.db import models
+from django.http import JsonResponse, HttpRequest
 from django.shortcuts import render
-from .models import User
+from django.urls import path
+
+from .models import User, Action
 
 
 class AnalyticModel(models.Model):
@@ -13,67 +19,69 @@ class AnalyticModel(models.Model):
         app_label = 'user'
 
 
-class AnalyticForm(forms.ModelForm):
-    extra_field = forms.CharField()
-
-    def save(self, commit=True):
-        extra_field = self.cleaned_data.get('extra_field', None)
-        # ...do something with extra_field here...
-        return super(AnalyticForm, self).save(commit=commit)
-
-    class Meta:
-        fields = '__all__'
-        model = AnalyticModel
-
-
 class DummyModelAdmin(admin.ModelAdmin):
     model = AnalyticModel
-    form = AnalyticForm
 
-    # fieldsets = (
-    #     (None, {
-    #         'fields': ('name', 'description', 'extra_field',),
-    #     }),
-    # )
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                'chart_data/',
+                self.admin_site.admin_view(self.chart_data_viewset)
+            ),
+        ]
+        return custom_urls + urls
 
     def changelist_view(self, request):
-        # cl = self.get_changelist_instance(request)
         context = {
-            'title': 'Website Analytics'
+            'title': 'Website Analytics',
+            'chart_data': json.loads(
+                self.chart_data_viewset(HttpRequest()).getvalue()
+            )
         }
         return render(request, 'monthly_contributors.html', context)
-    # change_form_template = 'monthly_contributors.html'
-    # change_list_template = 'monthly_contributors.html'
 
-    # def my_custom_view(self, request):
-    #     # import pdb; pdb.set_trace()
-    #     context = dict(
-    #         self.admin_site.each_context(request),
-    #     )
-    #     template = TemplateResponse(request, 'monthly_contributors.html', context)
-    #     # import pdb; pdb.set_trace()
-    #     return template
+    def chart_data_viewset(self, request):
+        start_date = request.GET.get('start_date', '2020-01-01')
+        end_date = request.GET.get('end_date', datetime.datetime.now())
+        actions = Action.objects.filter(
+            created_date__gte=start_date,
+            created_date__lte=end_date,
+            user__isnull=False,
+        ).order_by(
+            '-created_date'
+        ).annotate(
+            date=models.functions.TruncDate('created_date')
+        )
+        actions_created_dates = actions.values_list(
+            'date',
+            flat=True
+        )
+        actions_user_ids = actions.values_list(
+            'user',
+            flat=True
+        )
 
-    # def get_urls(self):
-    #     urls = super().get_urls()
-    #     my_urls = [
-    #         path('monthly_contributors/', self.my_custom_view),
-    #     ]
-    #     return my_urls + urls
+        actions_df = pd.DataFrame(data={
+            'created_date': actions_created_dates,
+            'user_id': actions_user_ids,
+            }
+        )
+        actions_df['created_date'] = actions_df['created_date'].apply(
+            lambda date: date.strftime('%Y-%m')
+        )
+        unique_contributors_by_date = actions_df.groupby('created_date').apply(
+            lambda row: len(row['user_id'].unique())
+        )
+        data = []
+        for date, count in zip(
+            unique_contributors_by_date.index,
+            unique_contributors_by_date.values
+        ):
+            data.append({'date': date, 'y': int(count)})
 
-    # def get_urls(self):
-    #     view_name = '{}_{}_changelist'.format(
-    #         self.model._meta.app_label, self.model._meta.model_name)
-    #     return [
-    #         path('monthly_contributors/', self.my_custom_view, name=view_name),
-    #     ]
-
-    # def change_view(self, request, object_id, form_url='', extra_context=None):
-    #     extra_context = extra_context or {}
-    #     extra_context['osm_data'] = self.get_osm_info()
-    #     return super().change_view(
-    #         request, object_id, form_url, extra_context=extra_context,
-    #     )
+        res = JsonResponse(data, safe=False)
+        return res
 
 
 admin.site.register(AnalyticModel, DummyModelAdmin)

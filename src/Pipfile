@@ -51,7 +51,6 @@ elastic-apm = "*"
 arxiv = "*"
 python-twitter = "*"
 pandas = "*"
-seaborn = "*"
 
 [requires]
 python_version = "3.7"
