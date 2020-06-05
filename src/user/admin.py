@@ -88,7 +88,7 @@ class AnalyticAdminPanel(admin.ModelAdmin):
             }
         )
         days_offset = 30 - actions_created_dates.first().day
-        # days_offset = int(f'-{actions_created_dates.first().day}') + 1
+
         normalized_dates = (
             actions_df['created_date'] + pd.DateOffset(days=days_offset)
         )
@@ -117,45 +117,7 @@ class AnalyticAdminPanel(admin.ModelAdmin):
         ].set_index(
             'created_date'
         )
-        # import pdb; pdb.set_trace()
 
-        # actions_df.groupby(pd.Grouper(key='normalized_date', freq='2MS', closed='left', label='right')).apply(lambda x: len(x['user_id'].unique()))
-
-        # end_date = datetime.datetime.now() 
-        # start_date = (end_date - datetime.timedelta(days=30)).date()
-        # actions = Action.objects.filter(user__isnull=False, created_date__gte=start_date, created_date__lte=end_date) 
-
-        # TODO: convert normalized dates back to regular dates
-        # TODO: add in filler dates?
-
-
-        # actions_df['created_date'] = actions_df['created_date'].apply(
-        #     lambda date: date
-        # )
-        # actions_df.groupby(pd.Grouper(key='created_date', freq='30D')).apply(lambda x: print(x))
-        # for i in range(0, created_dates_len, days_range):
-        #     grouped_dates = created_dates[i:i+days_range]
-        #     grouped_month = grouped_dates[-1]
-        #     final_dates.append(grouped_month)
-
-        #     matching_indicies = actions_df[
-        #         actions_df['created_date'].isin(grouped_dates)
-        #     ].index
-        #     actions_df.loc[matching_indicies, 'created_date'] = grouped_month
-
-        # unique_contributors_by_date = actions_df.groupby(
-        #     'created_date'
-        # ).apply(
-        #     lambda row: len(row['user_id'].unique())
-        # )
-        # unique_contributors_df = unique_contributors_by_date.to_frame().T
-        # unique_contributors_df = pd.concat(
-        #     [unique_contributors_df, pd.DataFrame(columns=final_dates)]
-        # ).fillna(0)
-        # unique_contributors_df = unique_contributors_df.reindex(
-        #     sorted(unique_contributors_df.columns),
-        #     axis=1
-        # )
         data = []
         for date, count in zip(
             unique_contributors_df.index,
