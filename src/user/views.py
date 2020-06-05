@@ -19,7 +19,7 @@ from discussion.serializers import (
 
 from paper.models import Paper
 from paper.views import PaperViewSet
-from paper.serializers import PaperSerializer
+from paper.serializers import PaperSerializer, HubPaperSerializer
 from user.filters import AuthorFilter
 from user.models import User, University, Author
 from user.permissions import UpdateAuthor
@@ -33,6 +33,8 @@ from user.serializers import (
 )
 
 from utils.http import RequestMethods    
+from datetime import timedelta
+from django.utils import timezone
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -56,21 +58,80 @@ class UserViewSet(viewsets.ModelViewSet):
         methods=[RequestMethods.GET],
     )
     def leaderboard(self, request):
+        """
+        Leaderboard serves both Papers and Users
+        """
         hub_id = request.GET.get('hub_id')
 
-        if hub_id:
-            hub_id = int(hub_id)
-        if hub_id and hub_id != 0:
-            users = User.objects.all().annotate(
-                hub_rep=Sum(
-                    'reputation_records__amount',
-                    filter=Q(reputation_records__hubs__in=[hub_id])
-                )
-            ).order_by(F('hub_rep').desc(nulls_last=True))
+        leaderboard_type = request.GET.get('type', 'users')
+        """
+        createdByOptions can be values:
+        1. created_date
+        2. published_date
+        """
+        created_by_options = request.GET.get('dateOption', 'created_date')
+
+        """
+        Timeframe can be values:
+        1. all_time
+        2. today
+        3. past_week
+        4. past_month
+        5. past_year
+        """
+        timeframe = request.GET.get('timeframe', 'all_time')
+
+        time_filter = {}
+        if leaderboard_type == 'papers':
+            if created_by_options == 'created_date':
+                keyword = 'uploaded_date__gte'
+            else:
+                keyword = 'paper_publish_date__gte'
         else:
-            users = User.objects.order_by('-reputation')
-        page = self.paginate_queryset(users)
-        serializer = UserSerializer(page, many=True)
+            keyword = 'created_date__gte'
+
+        if timeframe == 'today':
+            time_filter = {keyword: timezone.now().date()}
+        elif timeframe == 'past_week':
+            time_filter = {keyword: timezone.now().date() - timedelta(days=7)}
+        elif timeframe == 'past_month':
+            time_filter = {keyword: timezone.now().date() - timedelta(days=30)}
+        elif timeframe == 'past_year':
+            if leaderboard_type == 'papers':
+                keyword = 'uploaded_date__year__gte'
+            else:
+                keyword = 'created_date__year__gte'
+            time_filter = {keyword: timezone.now().year}
+
+        items = []
+        if leaderboard_type == 'papers':
+            serializerClass = HubPaperSerializer
+            if hub_id:
+                hub_id = int(hub_id)
+            if hub_id and hub_id != 0:
+                items = Paper.objects.filter(**time_filter, hubs__in=[hub_id]).order_by('-score')
+            else:
+                items = Paper.objects.filter(**time_filter).order_by('-score')
+        elif leaderboard_type == 'users':
+            serializerClass = UserSerializer
+            if hub_id:
+                hub_id = int(hub_id)
+            if hub_id and hub_id != 0:
+                items = User.objects.all().annotate(
+                    hub_rep=Sum(
+                        'reputation_records__amount',
+                        filter=Q(**time_filter, reputation_records__hubs__in=[hub_id])
+                    )
+                ).order_by(F('hub_rep').desc(nulls_last=True))
+            else:
+                items = User.objects.all().annotate(
+                    hub_rep=Sum(
+                        'reputation_records__amount',
+                        filter=Q(**time_filter)
+                    )
+                ).order_by(F('hub_rep').desc(nulls_last=True))
+        page = self.paginate_queryset(items)
+        serializer = serializerClass(page, many=True)
 
         return self.get_paginated_response(serializer.data)
 
