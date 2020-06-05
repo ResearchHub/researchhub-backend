@@ -32,31 +32,46 @@ class ConfigureWeb3:
             logging.info(f'web3 connected to {w3.clientVersion}')
             return w3
         logging.warning(f'web3 could not connect to {WEB3_PROVIDER_URL}')
+        return None
 
     def get_keystore_path(self):
         if DEVELOPMENT:
-            local_path = os.path.join(
-                BASE_DIR,
-                CONFIG_BASE_DIR,
-                WEB3_KEYSTORE_FILE
-            )
-            if os.path.exists(local_path):
+            try:
+                local_path = os.path.join(
+                    BASE_DIR,
+                    CONFIG_BASE_DIR,
+                    WEB3_KEYSTORE_FILE
+                )
                 return local_path
-        # assume keystore is hosted on AWS
-        bucket = 'keystore-researchcoin/'
-        return get_s3_url(bucket, WEB3_KEYSTORE_FILE, with_credentials=True)
+            except Exception as e:
+                logging.warning(f'Could not find keystore path. {e}')
+                return None
+        try:
+            bucket = 'keystore-researchcoin/'
+            return get_s3_url(bucket, WEB3_KEYSTORE_FILE, with_credentials=True)  # noqa: E501
+        except Exception as e:
+            logging.warning(f'Could not find keystore path. {e}')
+            return None
 
     def get_default_private_key(self):
-        path = self.get_keystore_path()
-        with smart_open.open(path) as keyfile:
-            encrypted_key = keyfile.read()
-        return self.w3.eth.account.decrypt(
-            encrypted_key,
-            WEB3_KEYSTORE_PASSWORD
-        )
+        try:
+            path = self.get_keystore_path()
+            with smart_open.open(path) as keyfile:
+                encrypted_key = keyfile.read()
+            return self.w3.eth.account.decrypt(
+                encrypted_key,
+                WEB3_KEYSTORE_PASSWORD
+            )
+        except Exception as e:
+            logging.warning(f'Could not retrieve private key. {e}')
+            return None
 
     def get_default_address(self):
-        return self.w3.eth.account.from_key(self.DEFAULT_PRIVATE_KEY).address
+        try:
+            return self.w3.eth.account.from_key(self.DEFAULT_PRIVATE_KEY).address  # noqa: E501
+        except Exception as e:
+            logging.warning(f'Could not retrieve default address. {e}')
+            return None
 
 
 web3_config = ConfigureWeb3()
