@@ -64,9 +64,15 @@ class UserViewSet(viewsets.ModelViewSet):
         hub_id = request.GET.get('hub_id')
 
         leaderboard_type = request.GET.get('type', 'users')
+        """
+        createdByOptions can be values:
+        1. created_date
+        2. published_date
+        """
+        created_by_options = request.GET.get('dateOption', 'created_date')
 
         """
-        Timeframe can be values
+        Timeframe can be values:
         1. all_time
         2. today
         3. past_week
@@ -77,7 +83,10 @@ class UserViewSet(viewsets.ModelViewSet):
 
         time_filter = {}
         if leaderboard_type == 'papers':
-            keyword = 'uploaded_date__gte'
+            if created_by_options == 'created_date':
+                keyword = 'uploaded_date__gte'
+            else:
+                keyword = 'paper_publish_date__gte'
         else:
             keyword = 'created_date__gte'
 
