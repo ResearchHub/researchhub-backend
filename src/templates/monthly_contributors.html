@@ -15,16 +15,32 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.bundle.min.js"></script>
 
-<div style="width: 80%;">
+<div style="display: flex; width: 80%;">
   <canvas style="margin-bottom: 30px; width: 60%; height: 50%;" id="contributorsChart"></canvas>
-</div>
-
-<div>
-  <label for="start_date">Start date:</label>
-  <input type="date" id="start_date" name="start_date" value="2020-01-01">
-  <label for="end_date">End date:</label>
-  <input type="date" id="end_date" name="end_date" value="2020-01-01">
-  <button id="reload">Reload chart data</button>
+  <div style="display: table-caption; padding: 10px;">
+    <div style="padding: 5px">
+      <label for="start_date">Start Date:</label>
+      <input type="date" id="start_date" name="start_date" value="2020-01-01">
+    </div>
+    <div style="padding: 5px">
+      <label for="end_date">End Date:</label>
+      <input type="date" id="end_date" name="end_date" value="2020-01-01">
+    </div>
+    <div style="display: grid; padding: 5px">
+      <label for="days_range">Days Range:</label>
+      <select name="days_range" id="days_range">
+        <option value="1">30</option>
+        <option value="2">60</option>
+        <option value="3">90</option>
+        <option value="4">120</option>
+      </select>
+    </div>
+    <div style="padding: 5px">
+      <button id="reload" style="height: 30px; width: 100%; font-size: 14px">
+        Reload Chart Data
+      </button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -44,6 +60,7 @@
         datasets: [
           {
             label: 'Unique Contributors',
+            fill: true,
             data: chartData,
             backgroundColor: 'rgba(220,20,20,0.5)',
           },
@@ -60,9 +77,9 @@
             {
               type: 'time',
               time: {
-                unit: 'month',
+                unit: 'day',
                 displayFormats: {
-                  day: 'MMM',
+                  day: 'MMM DD',
                 },
               },
             },
@@ -88,11 +105,13 @@
     reloadButton.addEventListener('click', async() => {
         var data = {
           start_date: document.getElementById('start_date').value,
-          end_date: document.getElementById('end_date').value
+          end_date: document.getElementById('end_date').value,
+          days_range: document.getElementById('days_range').value,
         };
         var url = "/admin/user/analyticmodel/chart_data/";
         url += "?start_date=" + data.start_date;
-        url += "&end_date=" + data.end_date;
+        url += "&end_date=" + data.end_date + "T23:59";
+        url += "&days_range=" + data.days_range;
 
         const res = await fetch(url);
         const json = await res.json();
