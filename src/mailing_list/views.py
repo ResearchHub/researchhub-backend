@@ -201,6 +201,7 @@ def email_notifications(request):
 
             for b_r in bounced_recipients:
                 email_address = b_r['emailAddress']
+                # TODO: Sanitize email address before putting it in the db
                 try:
                     recipient, created = EmailRecipient.objects.get_or_create(
                         email=email_address
