@@ -15,8 +15,8 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.bundle.min.js"></script>
 
-<div style="display: flex; width: 80%;">
-  <canvas style="margin-bottom: 30px; width: 60%; height: 50%;" id="contributorsChart"></canvas>
+<div style="display: flex; width: 70%;">
+  <canvas style="margin-bottom: 30px; width: 55%; height: 45%;" id="contributorsChart"></canvas>
   <div style="display: table-caption; padding: 10px;">
     <div style="padding: 5px">
       <label for="start_date">Start Date:</label>
@@ -35,11 +35,22 @@
         <option value="4">120</option>
       </select>
     </div>
+    <div style="display: grid; padding: 5px">
+      <label for="chart_selector">Chart:</label>
+      <select name="chart_selector" id="chart_selector">
+        <option value="day">Day</option>
+        <option value="month">Month</option>
+      </select>
+    </div>
     <div style="padding: 5px">
       <button id="reload" style="height: 30px; width: 100%; font-size: 14px">
         Reload Chart Data
       </button>
     </div>
+  </div>
+  <div style="padding: 10px;">
+    <label for="tool_tip_output">Tool Tip Info: Users</label>
+    <textarea readonly style="height: 235px; width: 210px; margin-top: 5px;" id='tool_tip_output'></textarea>
   </div>
 </div>
 
@@ -71,11 +82,27 @@
         tooltips: {
           intersect: true,
           mode: 'x-axis',
+            callbacks: {
+                label: function(tooltipItem, data) {
+                  var userData = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index].users;
+                  var label = "Unique Contributors: " + userData.length;
+                  var toolTipTextArea = document.getElementById('tool_tip_output');
+                  toolTipTextArea.value = ""
+
+                  userData.forEach((user) => {
+                    toolTipTextArea.value += user + "\n"
+                  });
+                  return label
+                }
+            }
         },
         scales: {
           xAxes: [
             {
               type: 'time',
+              ticks: {
+                source: 'data',
+              },
               time: {
                 unit: 'day',
                 displayFormats: {
@@ -107,18 +134,29 @@
           start_date: document.getElementById('start_date').value,
           end_date: document.getElementById('end_date').value,
           days_range: document.getElementById('days_range').value,
+          chart_selector: document.getElementById('chart_selector').value,
         };
         var url = "/admin/user/analyticmodel/chart_data/";
         url += "?start_date=" + data.start_date;
         url += "&end_date=" + data.end_date + "T23:59";
         url += "&days_range=" + data.days_range;
+        url += "&chart_selector=" + data.chart_selector;
 
         const res = await fetch(url);
         const json = await res.json();
-        json.forEach((d) => {
+        var chartData = json.chart_data;
+        chartData.forEach((d) => {
           d.x = d.date
         });
-        contributorsChart.data.datasets[0].data = json;
+
+        var xAxisFormat = ''
+        if (data.chart_selector === 'day') {
+          xAxisFormat = 'MMM DD'
+        } else {
+          xAxisFormat = 'MMM'
+        }
+        contributorsChart.data.datasets[0].data = chartData;
+        contributorsChart.scales["x-axis-0"].options.time.displayFormats.day = xAxisFormat;
         contributorsChart.update();
       }
     );
