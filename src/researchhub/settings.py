@@ -189,6 +189,7 @@ INSTALLED_APPS = [
     'user',
     'analytics',
     'profiler',
+    'purchase',
 ]
 
 if not CELERY_WORKER:
