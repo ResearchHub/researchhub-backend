@@ -275,19 +275,34 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         upvotes = Count('votes', filter=Q(votes__vote_type=Vote.UPVOTE,))
         downvotes = Count('votes', filter=Q(votes__vote_type=Vote.DOWNVOTE,))
         paper_id = get_paper_id_from_path(self.request)
-        try:
-            Paper.objects.get(
-                id=paper_id
-            ).extract_twitter_comments(
-                use_celery=True
-            )
-        except Exception as e:
-            sentry.log_error(e)
-            pass
 
-        threads = Thread.objects.filter(
-            paper=paper_id
-        ).annotate(
+        source = self.request.query_params.get('source')
+
+        if source and source == 'twitter':
+            try:
+                Paper.objects.get(
+                    id=paper_id
+                ).extract_twitter_comments(
+                    use_celery=True
+                )
+            except Exception as e:
+                sentry.log_error(e)
+
+            threads = Thread.objects.filter(
+                paper=paper_id,
+                source=source
+            )
+        elif source:
+            threads = Thread.objects.filter(
+                paper=paper_id,
+                source=source
+            )
+        else:
+            threads = Thread.objects.filter(
+                paper=paper_id
+            )
+
+        threads = threads.annotate(
             score=upvotes-downvotes
         )
         return threads
