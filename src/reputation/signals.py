@@ -700,6 +700,11 @@ class PendingWithdrawal:
         try:
             self.withdrawal.set_paid_pending()
             token_contract = ethereum.contracts.research_coin_contract
+
+            topping_up = self.top_up_if_needed()
+            print(topping_up)
+            # TODO: Queue the transfer if we are topping up
+
             transaction_hash = ethereum.utils.execute_erc20_transfer(
                 token_contract,
                 self.withdrawal.to_address,
@@ -712,6 +717,33 @@ class PendingWithdrawal:
             self.withdrawal.transaction_hash = transaction_hash
             self.withdrawal.save()
             self.track_withdrawal_paid_status()
+
+    def top_up_if_needed(self, token_contract):
+        """Returns true if a top up request was made to a supplier.
+
+        In this case, subsequent transactions should be queued or will likely
+        revert.
+        """
+        topping_up = False
+        method_call = token_contract.functions.transfer(
+            self.withdrawal.to_address,
+            self.token_payout
+        )
+        fee_estimate = ethereum.utils.get_fee_estimate(method_call)
+
+        if (ethereum.utils.get_eth_balance() <= fee_estimate):
+            topping_up = True
+            ethereum.utils.transact(ethereum.contracts.request_top_up_eth())
+
+        if (
+            ethereum.utils.get_erc20_balance(
+                token_contract
+            ) <= self.token_payout
+        ):
+            topping_up = True
+            ethereum.utils.transact(ethereum.contracts.request_top_up_erc20())
+
+        return topping_up
 
     def track_withdrawal_paid_status(self):
         url = ASYNC_SERVICE_HOST + '/ethereum/track_withdrawal'

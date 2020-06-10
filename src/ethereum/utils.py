@@ -27,13 +27,15 @@ def get_address():
     return DEFAULT_ADDRESS
 
 
-def get_eth_balance(account):
+def get_eth_balance(account=None):
     if account is None:
         account = get_address()
     return w3.eth.getBalance(account)
 
 
-def get_erc20_balance(contract, account):
+def get_erc20_balance(contract, account=None):
+    if account is None:
+        account = get_address()
     return contract.functions.balanceOf(account).call()
 
 
@@ -57,26 +59,7 @@ def execute_erc20_transfer(contract, to, amount):
         amount (int) - Amount of token to send (in smallest possible
             denomination)
     """
-    method_call = contract.functions.transfer(to, amount)
-    fee_estimate = get_fee_estimate(method_call)
-
-    if (get_eth_balance(DEFAULT_ADDRESS) <= fee_estimate):
-        from ethereum.contracts import eth_supplier_contract
-        transact(request_top_up_eth(eth_supplier_contract))
-
-    if (get_erc20_balance(contract, DEFAULT_ADDRESS) <= amount):
-        from etheruem.contracts import erc20Supplier
-        transact(request_top_up_erc20(erc20Supplier))
-
     return transact(contract.functions.transfer(to, amount))
-
-
-def request_top_up_eth(contract):
-    return contract.functions.withdraw(DEFAULT_ADDRESS)
-
-
-def request_top_up_erc20(contract):
-    return contract.functions.withdraw(contract.address, DEFAULT_ADDRESS)
 
 
 def transact(method_call, gas=None, sender=None, sender_signing_key=None):
