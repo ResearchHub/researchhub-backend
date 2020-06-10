@@ -1,17 +1,18 @@
 from decimal import Decimal
 from ethereum.utils import decimal_to_token_amount
+from researchhub.settings import WEB3_RSC_ADDRESS
 
 TOKENS = {
-    'rhc': {
-        'name': 'Research Coin',
-        'contract_address': '0x7D50101BbFa12f4A1B4e6de0Dd58Ad36dE150D55',
-        'ticker': 'rhc',
+    'rsc': {
+        'name': 'ResearchCoin',
+        'contract_address': WEB3_RSC_ADDRESS,
+        'ticker': 'rsc',
         'denomination': 18,
         'reputation_exchange_rate': '1.0'
-    }
+    },
 }
 
-RESEARCHCOIN_CONTRACT_ADDRESS = TOKENS['rhc']['contract_address']  # convenient
+RSC_CONTRACT_ADDRESS = TOKENS['rsc']['contract_address']  # convenient
 
 
 def get_token_address_choices():
