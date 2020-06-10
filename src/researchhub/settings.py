@@ -531,6 +531,33 @@ WEB3_KEYSTORE_PASSWORD = os.environ.get(
     wallet.KEYSTORE_PASSWORD
 )
 
+WEB3_RSC_ADDRESS = os.environ.get(
+    'WEB3_RSC_ADDRESS',
+    ''
+)
+WEB3_ETH_SUPPLIER_ADDRESS = os.environ.get(
+    'WEB3_ETH_SUPPLIER_ADDRESS',
+    ''
+)
+WEB3_ERC20_SUPPLIER_ADDRESS = os.environ.get(
+    'WEB3_ERC20_SUPPLIER_ADDRESS',
+    ''
+)
+
+if STAGING:
+    # Testnet addresses
+    WEB3_RSC_ADDRESS = os.environ.get(
+        'WEB3_RSC_ADDRESS',
+        ''
+    )
+    WEB3_ETH_SUPPLIER_ADDRESS = os.environ.get(
+        'WEB3_ETH_SUPPLIER_ADDRESS',
+        ''
+    )
+    WEB3_ERC20_SUPPLIER_ADDRESS = os.environ.get(
+        'WEB3_ERC20_SUPPLIER_ADDRESS',
+        ''
+    )
 
 # Redis
 # redis://:password@hostname:port/db_number
