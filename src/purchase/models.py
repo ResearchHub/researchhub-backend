@@ -1,9 +1,9 @@
 import json
+import hashlib
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-# Create your models here.
 
 
 class Purchase(models.Model):
@@ -14,7 +14,9 @@ class Purchase(models.Model):
     PENDING = 'PENDING'
     SUCCESS = 'SUCCESS'
 
-    PURCHASE_TYPE_CHOICES = [
+    BOOST = 'BOOST'
+
+    PURCHASE_METHOD_CHOICES = [
         (OFF_CHAIN, OFF_CHAIN),
         (ON_CHAIN, ON_CHAIN),
     ]
@@ -23,6 +25,10 @@ class Purchase(models.Model):
         (INITIATED, INITIATED),
         (PENDING, PENDING),
         (SUCCESS, SUCCESS)
+    ]
+
+    PURCHASE_TYPE_CHOICES = [
+        (BOOST, BOOST)
     ]
 
     user = models.ForeignKey(
@@ -37,9 +43,8 @@ class Purchase(models.Model):
     object_id = models.PositiveIntegerField()
     item = GenericForeignKey('content_type', 'object_id')
 
-    purchase_type = models.CharField(
-        choices=PURCHASE_TYPE_CHOICES,
-        default=ON_CHAIN,
+    purchase_method = models.CharField(
+        choices=PURCHASE_METHOD_CHOICES,
         max_length=16,
     )
     status = models.CharField(
@@ -47,20 +52,33 @@ class Purchase(models.Model):
         default=INITIATED,
         max_length=16,
     )
-    transaction_id = models.CharField(
-        max_length=64,
+    purchase_type = models.CharField(
+        choices=PURCHASE_TYPE_CHOICES,
+        max_length=16
+    )
+
+    transaction_hash = models.CharField(
+        max_length=255,
         blank=True,
         null=True
     )
-    amount = models.FloatField()
+
+    purchase_hash = models.CharField(
+        max_length=32,
+        blank=True,
+        null=True
+    )
+    amount = models.CharField(max_length=255)
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
-    def __hash__(self):
-        return hash(self.get_serialized_representation())
-
     def hash(self):
+        md5 = hashlib.md5(self.get_serialized_representation().encode())
+        hexdigest = md5.hexdigest()
+        return hexdigest
+
+    def data(self):
         data = self.get_serialized_representation()
         data_hash = hash(data)
         return {'data': data, 'hash': data_hash}
@@ -70,9 +88,10 @@ class Purchase(models.Model):
             'id': self.id,
             'content_type': self.content_type.id,
             'object_id': self.object_id,
+            'purchase_method': self.purchase_method,
             'purchase_type': self.purchase_type,
             'status': self.status,
-            'transaction_id': self.transaction_id,
+            'transaction_hash': self.transaction_hash,
             'amount': self.amount,
             'created_date': hash(self.created_date),
             'updated_date': hash(self.updated_date)
