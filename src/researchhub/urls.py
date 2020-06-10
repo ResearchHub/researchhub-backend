@@ -23,6 +23,7 @@ import summary.views
 import user.views
 import notification.views
 import analytics.views
+import purchase.views
 
 from researchhub.settings import CLOUD, NO_SILK
 
@@ -116,7 +117,13 @@ router.register(
 router.register(
     r'analytics/websiteviews',
     analytics.views.WebsiteVisitsViewSet,
-    basename="websiteviews"
+    basename='websiteviews'
+)
+
+router.register(
+    r'purchase',
+    purchase.views.PurchaseViewSet,
+    basename='purchase'
 )
 
 router.register(r'user', user.views.UserViewSet)
