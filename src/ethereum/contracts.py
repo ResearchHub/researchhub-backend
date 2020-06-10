@@ -5,7 +5,7 @@ from researchhub.settings import (
     WEB3_ETH_SUPPLIER_ADDRESS,
     WEB3_ERC20_SUPPLIER_ADDRESS
 )
-from ethereum.apps import w3
+from ethereum.apps import w3, DEFAULT_ADDRESS
 from ethereum.lib import TOKENS
 
 
@@ -36,7 +36,6 @@ research_coin_contract = ContractComposer(
     'MiniMeToken.json'
 ).contract
 
-
 eth_supplier_contract = ContractComposer(
     WEB3_ETH_SUPPLIER_ADDRESS,
     'ETHSupplier.json'
@@ -46,3 +45,14 @@ erc20_supplier_contract = ContractComposer(
     WEB3_ERC20_SUPPLIER_ADDRESS,
     'ERC20Supplier.json'
 ).contract
+
+
+def request_top_up_eth():
+    return eth_supplier_contract.functions.withdraw(DEFAULT_ADDRESS)
+
+
+def request_top_up_erc20():
+    return erc20_supplier_contract.functions.withdraw(
+        erc20_supplier_contract.address,
+        DEFAULT_ADDRESS
+    )
