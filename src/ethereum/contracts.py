@@ -1,9 +1,12 @@
 import json
 import os
-from researchhub.settings import BASE_DIR
+from researchhub.settings import (
+    BASE_DIR,
+    WEB3_ETH_SUPPLIER_ADDRESS,
+    WEB3_ERC20_SUPPLIER_ADDRESS
+)
 from ethereum.apps import w3
 from ethereum.lib import TOKENS
-from ethereum.utils import get_address, get_erc20_balance
 
 
 class ContractComposer:
@@ -28,19 +31,18 @@ class ContractComposer:
         self.contract = w3.eth.contract(address=self.address, abi=self.abi)
 
 
-def get_eth_balance(account):
-    if account is None:
-        account = get_address()
-    return w3.eth.getBalance(account)
-
-
 research_coin_contract = ContractComposer(
-    TOKENS['rhc']['contract_address'],
+    TOKENS['rsc']['contract_address'],
     'MiniMeToken.json'
 ).contract
 
 
-def get_rhc_balance(account):
-    if account is None:
-        account = get_address()
-    return get_erc20_balance(research_coin_contract, account)
+eth_supplier_contract = ContractComposer(
+    WEB3_ETH_SUPPLIER_ADDRESS,
+    'ETHSupplier.json'
+).contract
+
+erc20_supplier_contract = ContractComposer(
+    WEB3_ERC20_SUPPLIER_ADDRESS,
+    'ERC20Supplier.json'
+).contract

@@ -73,7 +73,12 @@ def distribute_for_create_paper(sender, instance, created, **kwargs):
         )
         distributor.distribute()
 
-@receiver(m2m_changed, sender=Paper.hubs.through, dispatch_uid='paper_hubs_changed')
+
+@receiver(
+    m2m_changed,
+    sender=Paper.hubs.through,
+    dispatch_uid='paper_hubs_changed'
+)
 def update_distribution_for_hub_changes(
     sender,
     instance,
@@ -83,7 +88,6 @@ def update_distribution_for_hub_changes(
     pk_set,
     **kwargs
 ):
-    timestamp = time()
     if (action == "post_add") and pk_set is not None:
         distributions = Distribution.objects.filter(
             proof_item_object_id=instance.id,
@@ -91,6 +95,7 @@ def update_distribution_for_hub_changes(
         )
         for distribution in distributions:
             distribution.hubs.add(*instance.hubs.all())
+
 
 @receiver(
     m2m_changed,
@@ -262,7 +267,7 @@ def distribute_for_create_discussion(sender, instance, created, **kwargs):
             hubs = instance.paper.hubs
         else:
             return
-        
+
         distributor = Distributor(
             distribution,
             recipient,
@@ -684,7 +689,7 @@ class PendingWithdrawal:
 
     def calculate_tokens_and_withdrawal_amount(self):
         token_payout, withdrawal_amount = ethereum.lib.convert_reputation_amount_to_token_amount(  # noqa: E501
-            'rhc',
+            'rsc',
             self.reputation_payout
         )
         self.withdrawal.amount = withdrawal_amount
@@ -709,7 +714,7 @@ class PendingWithdrawal:
             self.track_withdrawal_paid_status()
 
     def track_withdrawal_paid_status(self):
-        url = ASYNC_SERVICE_HOST + f'/ethereum/track_withdrawal'
+        url = ASYNC_SERVICE_HOST + '/ethereum/track_withdrawal'
         data = {
             'withdrawal': self.withdrawal.id,
             'transaction_hash': self.withdrawal.transaction_hash
