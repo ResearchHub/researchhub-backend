@@ -77,7 +77,7 @@ def transact(method_call, gas=None, sender=None, sender_signing_key=None):
     tx = method_call.buildTransaction({
         'from': sender or DEFAULT_ADDRESS,
         'nonce': get_nonce(None),
-        'gas': gas or (get_gas_estimate(method_call) * 10),
+        'gas': gas or (get_gas_estimate(method_call) * 2),
     })
     signing_key = sender_signing_key or DEFAULT_PRIVATE_KEY
     signed = w3.eth.account.signTransaction(tx, signing_key)
