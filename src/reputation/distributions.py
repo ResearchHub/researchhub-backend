@@ -121,6 +121,8 @@ SummaryFlagged = Distribution(
     'SUMMARY_FLAGGED', -5
 )
 
+Purchase= Distribution
+
 DISTRIBUTION_TYPE_CHOICES = [
     (
         SignUp.name,
@@ -222,4 +224,8 @@ DISTRIBUTION_TYPE_CHOICES = [
         CreateSummary.name,
         CreateSummary.name
     ),
+    (
+        'PURCHASE',
+        'PURCHASE'
+    )
 ]
