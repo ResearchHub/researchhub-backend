@@ -45,7 +45,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
         serializer = self.serializer_class(purchase)
         serializer_data = serializer.data
-        return Response({'data': serializer_data})
+        return Response(serializer_data, status=201)
 
     @action(
         detail=False,
@@ -57,4 +57,4 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         transactions = user.purchases
         serializer = self.serializer_class(transactions, many=True)
         serializer_data = serializer.data
-        return Response({'data': serializer_data})
+        return Response(serializer_data, status=200)
