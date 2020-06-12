@@ -93,7 +93,27 @@ class Purchase(models.Model):
             'status': self.status,
             'transaction_hash': self.transaction_hash,
             'amount': self.amount,
-            'created_date': hash(self.created_date),
-            'updated_date': hash(self.updated_date)
+            'created_date': self.created_date.isoformat(),
+            'updated_date': self.updated_date.isoformat()
         })
         return data
+
+
+class Balance(models.Model):
+
+    user = models.ForeignKey(
+        'user.User',
+        on_delete=models.CASCADE,
+        related_name='balances'
+    )
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE
+    )
+    object_id = models.PositiveIntegerField(null=True)
+    source = GenericForeignKey('content_type', 'object_id')
+
+    amount = models.CharField(max_length=255)
+
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)

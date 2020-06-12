@@ -1,9 +1,11 @@
 from django.db import transaction
 from django.contrib.admin.options import get_content_type_for_model
+from django.contrib.contenttypes.models import ContentType
 
 from reputation.exceptions import ReputationDistributorError
 from reputation.models import Distribution
 from reputation.serializers import get_model_serializer
+from purchase.models import Balance
 from user.models import User
 import utils.sentry as sentry
 
@@ -70,10 +72,21 @@ class Distributor:
             ),
             proof_item_object_id=self.proof_item.id
         )
+        self._record_balance(record)
 
         if self.hubs:
             record.hubs.add(*self.hubs)
         return record
+
+    def _record_balance(self, distribution):
+        # TODO: Test that this works
+        content_type = ContentType.objects.get_for_model(distribution)
+        Balance.objects.create(
+            user=self.recipient,
+            content_type=content_type,
+            object_id=distribution.id,
+            amount=self.distribution.amount
+        )
 
     def _update_reputation(self):
         users = User.objects.filter(pk=self.recipient.id).select_for_update(

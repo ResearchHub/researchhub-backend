@@ -1,3 +1,5 @@
+import decimal
+
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from rest_framework import viewsets
@@ -7,10 +9,7 @@ from rest_framework.permissions import (
 )
 
 from rest_framework.response import Response
-from reputation.distributions import DISTRIBUTION_TYPE_CHOICES
-from reputation.models import Distribution
-from reputation.lib import get_user_balance
-from purchase.models import Purchase
+from purchase.models import Purchase, Balance
 from purchase.serializers import PurchaseSerializer
 from utils.permissions import CreateOrReadOnly
 
@@ -28,7 +27,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         purchase_method = data['purchase_method']
         purchase_type = data['purchase_type']
         content_type = data['content_type']
-        content_type = ContentType(model=content_type)
+        content_type = ContentType.objects.get(model=content_type)
         object_id = data['object_id']
 
         if purchase_method == Purchase.ON_CHAIN:
@@ -41,10 +40,10 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 amount=amount
             )
         else:
-            # TODO: amount conversion stuff
-            user_balance = get_user_balance(user)
+            user_balance = user.get_balance()
+            decimal_amount = decimal.Decimal(amount)
 
-            if user_balance - amount < 0:
+            if user_balance - decimal_amount < 0:
                 return Response('Insufficient Funds', status=402)
 
             with transaction.atomic():
@@ -56,18 +55,16 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                     purchase_type=purchase_type,
                     amount=amount
                 )
+                purchase_hash = purchase.hash()
+                purchase.purchase_hash = purchase_hash
+                purchase.save()
 
-                purchase_distribution = DISTRIBUTION_TYPE_CHOICES.Purchase(
-                    'PURCHASE',
-                    -amount
-                )
-                Distribution.objects.create(
-                    recipient=user,
-                    amount=amount,
-                    distribution_type=purchase_distribution,
-                    proof_item_content_type=content_type,
-                    proof_item_object_id=object_id,
-                    distributed_status=Distribution.DISTRIBUTED
+                source_type = ContentType.objects.get_for_model(purchase)
+                Balance.objects.create(
+                    user=user,
+                    content_type=source_type,
+                    object_id=purchase.id,
+                    amount=f'-{amount}',
                 )
 
             serializer = self.serializer_class(purchase)
