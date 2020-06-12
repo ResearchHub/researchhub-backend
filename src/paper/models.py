@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
 from django.db import models, transaction
 from django.db.models import Count, Q, Avg
@@ -169,6 +170,12 @@ class Paper(models.Model):
         null=True,
         blank=True,
         help_text='PDF availability in Unpaywall OA Location format.'
+    )
+
+    purchases = GenericRelation(
+        'purchase.Purchase',
+        object_id_field='object_id',
+        content_type_field='content_type',
     )
 
     class Meta:

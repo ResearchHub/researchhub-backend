@@ -84,7 +84,7 @@ class User(AbstractUser):
         user_balance = self.balances.all()
         if not user_balance:
             return 0
-
+        # return 10
         balance = self.balances.annotate(
             as_decimal=Cast('amount', DecimalField())
         ).aggregate(

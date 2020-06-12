@@ -36,6 +36,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     uploaded_by = UserSerializer(read_only=True)
     user_vote = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
+    promoted = serializers.SerializerMethodField()
 
     class Meta:
         abstract = True
@@ -182,6 +183,12 @@ class BasePaperSerializer(serializers.ModelSerializer):
                 except Vote.DoesNotExist:
                     pass
         return vote
+
+    def get_promoted(self, paper):
+        # TODO: Flush this out - decay algorithm?
+        if paper.purchases.exists():
+            return True
+        return False
 
 
 class PaperSerializer(BasePaperSerializer):
