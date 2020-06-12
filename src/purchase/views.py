@@ -1,5 +1,6 @@
 import decimal
 
+from django.core.cache import cache
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from rest_framework import viewsets
@@ -9,6 +10,7 @@ from rest_framework.permissions import (
 )
 
 from rest_framework.response import Response
+from paper.utils import get_cache_key
 from purchase.models import Purchase, Balance
 from purchase.serializers import PurchaseSerializer
 from utils.permissions import CreateOrReadOnly
@@ -26,8 +28,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         amount = data['amount']
         purchase_method = data['purchase_method']
         purchase_type = data['purchase_type']
-        content_type = data['content_type']
-        content_type = ContentType.objects.get(model=content_type)
+        content_type_str = data['content_type']
+        content_type = ContentType.objects.get(model=content_type_str)
         object_id = data['object_id']
 
         if purchase_method == Purchase.ON_CHAIN:
@@ -67,9 +69,13 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                     amount=f'-{amount}',
                 )
 
-            serializer = self.serializer_class(purchase)
-            serializer_data = serializer.data
-            return Response(serializer_data, status=201)
+        if content_type_str == 'paper':
+            cache_key = get_cache_key(None, 'paper', pk=object_id)
+            cache.delete(cache_key)
+
+        serializer = self.serializer_class(purchase)
+        serializer_data = serializer.data
+        return Response(serializer_data, status=201)
 
     @action(
         detail=False,

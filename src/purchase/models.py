@@ -2,6 +2,7 @@ import json
 import hashlib
 
 from django.contrib.contenttypes.fields import GenericForeignKey
+
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
@@ -41,7 +42,10 @@ class Purchase(models.Model):
         on_delete=models.CASCADE
     )
     object_id = models.PositiveIntegerField()
-    item = GenericForeignKey('content_type', 'object_id')
+    item = GenericForeignKey(
+        'content_type',
+        'object_id'
+    )
 
     purchase_method = models.CharField(
         choices=PURCHASE_METHOD_CHOICES,
@@ -100,7 +104,6 @@ class Purchase(models.Model):
 
 
 class Balance(models.Model):
-
     user = models.ForeignKey(
         'user.User',
         on_delete=models.CASCADE,
