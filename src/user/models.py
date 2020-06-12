@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models import Sum, DecimalField
+from django.db.models.functions import Cast
 from django.contrib.auth.models import AbstractUser
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -77,6 +79,18 @@ class User(AbstractUser):
     def set_has_seen_orcid_connect_modal(self, has_seen):
         self.has_seen_orcid_connect_modal = has_seen
         self.save()
+
+    def get_balance(self):
+        user_balance = self.balances.all()
+        if not user_balance:
+            return 10
+
+        balance = self.balances.annotate(
+            as_decimal=Cast('amount', DecimalField())
+        ).aggregate(
+            Sum('as_decimal')
+        )
+        return balance
 
 
 @receiver(models.signals.post_save, sender=User)
