@@ -75,7 +75,10 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             cache_key = get_cache_key(None, 'paper', pk=object_id)
             cache.delete(cache_key)
 
-        serializer = self.serializer_class(purchase)
+        context = {
+            'purchase_minimal_serialization': True
+        }
+        serializer = self.serializer_class(purchase, context=context)
         serializer_data = serializer.data
         return Response(serializer_data, status=201)
 
