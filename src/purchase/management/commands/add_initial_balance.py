@@ -1,5 +1,5 @@
 '''
-Setting up watchdog watcher to read files from arxiv.
+Creates an initial balance for pre-existing users
 '''
 
 from django.core.management.base import BaseCommand
