@@ -1,3 +1,5 @@
+import decimal
+
 from django.db import models
 from django.db.models import Sum, DecimalField
 from django.db.models.functions import Cast
@@ -84,12 +86,19 @@ class User(AbstractUser):
         user_balance = self.balances.all()
         if not user_balance:
             return 0
-        balance = self.balances.annotate(
-            as_decimal=Cast('amount', DecimalField())
-        ).aggregate(
-            Sum('as_decimal')
-        )
-        return balance
+
+        balance = self.balances.values_list('amount', flat=True)
+        balance_decimal = map(decimal.Decimal, balance)
+        total_balance = sum(balance_decimal)
+        return total_balance
+
+        # TODO: Fix db issue/bug with this snippet?
+        # balance = self.balances.annotate(
+        #     as_decimal=Cast('amount', DecimalField())
+        # ).aggregate(
+        #     Sum('as_decimal')
+        # )
+        # return balance
 
 
 @receiver(models.signals.post_save, sender=User)
