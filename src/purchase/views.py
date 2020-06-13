@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import (
     IsAuthenticated
 )
@@ -20,6 +21,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     queryset = Purchase.objects.all()
     serializer_class = PurchaseSerializer
     permission_classes = [IsAuthenticated, CreateOrReadOnly]
+    pagination_class = PageNumberPagination
 
     def create(self, request):
         user = request.user
@@ -83,8 +85,16 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated]
     )
     def user_transactions(self, request):
+        context = {
+            'purchase_minimal_serialization': True
+        }
         user = request.user
-        transactions = user.purchases
-        serializer = self.serializer_class(transactions, many=True)
-        serializer_data = serializer.data
-        return Response(serializer_data, status=200)
+        transactions = user.purchases.all()
+        page = self.paginate_queryset(transactions)
+        if page is not None:
+            serializer = self.serializer_class(
+                page,
+                context=context,
+                many=True
+            )
+            return self.get_paginated_response(serializer.data)
