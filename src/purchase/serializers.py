@@ -16,7 +16,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
         if model_name == 'paper':
             Paper = purchase.content_type.model_class()
             paper = Paper.objects.get(id=purchase.object_id)
-            serializer = BasePaperSerializer(paper)
+            serializer = BasePaperSerializer(paper, context=self.context)
             data = serializer.data
             return data
         return None

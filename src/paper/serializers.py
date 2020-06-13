@@ -113,9 +113,15 @@ class BasePaperSerializer(serializers.ModelSerializer):
         return None
 
     def get_csl_item(self, paper):
+        if self.context.get('purchase_minimal_serialization', False):
+            return None
+
         return paper.csl_item
 
     def get_discussion(self, paper):
+        if self.context.get('purchase_minimal_serialization', False):
+            return None
+
         threads_queryset = paper.threads.all()
         threads = ThreadSerializer(
             threads_queryset.order_by('-created_date')[:PAGINATION_PAGE_SIZE],
@@ -151,6 +157,9 @@ class BasePaperSerializer(serializers.ModelSerializer):
         return None
 
     def get_user_flag(self, paper):
+        if self.context.get('purchase_minimal_serialization', False):
+            return None
+
         flag = None
         user = get_user_from_request(self.context)
         if user:
