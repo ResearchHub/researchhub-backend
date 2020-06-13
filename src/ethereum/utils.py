@@ -1,4 +1,8 @@
 from decimal import Decimal
+import json
+
+from eth_keys import keys
+
 from ethereum.apps import w3, DEFAULT_PRIVATE_KEY, DEFAULT_ADDRESS
 
 
@@ -45,46 +49,6 @@ def get_nonce(account):
     return w3.eth.getTransactionCount(account)
 
 
-def execute_erc20_transfer(contract, to, amount):
-    """Sends `amount` of the token located at `contract` to `to`.
-
-    !!! NOTE: This method should be used carefully because the default
-    msg.sender is this server's default account.
-
-    Returns the transaction hash.
-
-    Args:
-        contract (obj) - w3 contract instance of the ERC20
-        to (str) - Ethereum address of recipient
-        amount (int) - Amount of token to send (in smallest possible
-            denomination)
-    """
-    return transact(contract.functions.transfer(to, amount))
-
-
-def transact(method_call, gas=None, sender=None, sender_signing_key=None):
-    """Executes the contract's `method_call` on chain.
-
-    !!! NOTE: This method should be used carefully because the default
-    msg.sender is this server's default account.
-
-    Args:
-        gas (int) - Amount of gas to fund transaction execution. Defaults to
-            method_call.estimateGas()
-        sender (str) - Address of message sender
-        sender_signing_key (bytes) - Private key of sender
-    """
-    tx = method_call.buildTransaction({
-        'from': sender or DEFAULT_ADDRESS,
-        'nonce': get_nonce(None),
-        'gas': gas or (get_gas_estimate(method_call) * 2),
-    })
-    signing_key = sender_signing_key or DEFAULT_PRIVATE_KEY
-    signed = w3.eth.account.signTransaction(tx, signing_key)
-    tx_hash = w3.eth.sendRawTransaction(signed.rawTransaction)
-    return tx_hash.hex()
-
-
 def get_fee_estimate(method_call):
     gas_estimate = get_gas_estimate(method_call)
     gas_price = w3.eth.generateGasPrice()
@@ -98,3 +62,11 @@ def get_gas_estimate(method_call):
 def call(method_call, tx):
     """Returns the data from the contract's `method_call`."""
     return method_call.call()
+
+
+def sign(message, private_key=DEFAULT_PRIVATE_KEY):
+    sk = keys.PrivateKey(private_key)
+    message = json.dumps(message)
+    signature = sk.sign_msg(message)
+    public_key = sk.public_key
+    return signature, public_key
