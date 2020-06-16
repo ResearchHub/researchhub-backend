@@ -475,6 +475,7 @@ if PRODUCTION:
             'hosts': 'https://vpc-researchhub-es-production-2-fsmclpkmgiepjd3xtdmeluj5va.us-west-2.es.amazonaws.com',  # noqa: E501
             'port': 443,
             'use_ssl': True,
+            'max_retries': 5,
         },
     }
 
@@ -484,6 +485,7 @@ if STAGING:
             'hosts': 'https://vpc-researchhub-es-staging-gss6whmowsn26eqzovms5jpdou.us-west-2.es.amazonaws.com',  # noqa: E501
             'port': 443,
             'use_ssl': True,
+            'max_retries': 3,
         },
     }
 

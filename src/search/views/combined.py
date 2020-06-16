@@ -70,9 +70,6 @@ class CombinedView(ListAPIView):
 
     def list(self, request, *args, **kwargs):
         es_response_queryset = self.filter_queryset(self.get_queryset())
-        es_response_queryset = [
-            hit for hit in es_response_queryset if hit.meta['score'] > 10
-        ]
 
         # NOTE: Not using crossref for now, pending some refinement
         # if request.query_params.get('external_search') != 'false':
