@@ -31,10 +31,13 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             serialized = WithdrawalSerializer(withdrawal)
             return Response(serialized.data, status=201)
         else:
-            return Response(
-                f'Insufficient balance of {user_balance}',
-                status=400
-            )
+            message = f'Insufficient balance of {user_balance}'
+            if user_balance > 0:
+                message = (
+                    f'Balance {user_balance} is below the withdrawal minimum'
+                    f' of {FIRST_WITHDRAWAL_MINIMUM}'
+                )
+            return Response(message, status=400)
 
     def list(self, request):
         # TODO: Do we really need the user on this list? Can we make some
