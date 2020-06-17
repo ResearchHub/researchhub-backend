@@ -8,7 +8,7 @@ import ethereum.lib
 from reputation.exceptions import ReputationSignalError
 from reputation.models import Distribution
 from reputation.utils import get_total_reputation_from_distributions
-from researchhub.settings import ASYNC_SERVICE_HOST
+from researchhub.settings import ASYNC_SERVICE_HOST, WEB3_SHARED_SECRET
 from utils.http import http_request, RequestMethods
 
 FIRST_WITHDRAWAL_MINIMUM = 75
@@ -62,34 +62,23 @@ class PendingWithdrawal:
         except Exception as e:
             self.fail_distributions()
             raise e
-        else:
-            self.track_withdrawal_paid_status()
 
     def request_transfer(self, token):
-        url = ASYNC_SERVICE_HOST + '/ethereum/transfer'
-        message = {
-            'token': token,
-            'to': self.withdrawal.to_address,
-            'amount': self.token_payout,
+        url = ASYNC_SERVICE_HOST + '/ethereum/erc20transfer'
+        message_raw = {
+            "token": token,
+            "to": self.withdrawal.to_address,
+            "amount": self.token_payout
         }
-        signature, public_key = ethereum.utils.sign(message)
-        data = {
-            'public_key': public_key,
-            'message': message,
-            'signature': signature,
-        }
-        response = http_request(
-            RequestMethods.POST,
-            url,
-            data=json.dumps(data),
-            timeout=3
+        signature, message, public_key = ethereum.utils.sign_message(
+            message_raw,
+            WEB3_SHARED_SECRET
         )
-        logging.error(response.content)
-        return response
-
-    def track_withdrawal_paid_status(self):
-        url = ASYNC_SERVICE_HOST + '/ethereum/track_withdrawal'
-        data = {'withdrawal': self.withdrawal.id}
+        data = {
+            "signature": signature,
+            "message": message.hex(),
+            "public_key": public_key
+        }
         response = http_request(
             RequestMethods.POST,
             url,
