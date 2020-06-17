@@ -1,9 +1,9 @@
 from decimal import Decimal
 import json
 
-from eth_keys import keys
+from eth_keys import keys, KeyAPI
 
-from ethereum.apps import w3, DEFAULT_PRIVATE_KEY, DEFAULT_ADDRESS
+from ethereum.apps import w3, DEFAULT_ADDRESS
 
 
 def decimal_to_token_amount(value, denomination):
@@ -64,9 +64,38 @@ def call(method_call, tx):
     return method_call.call()
 
 
-def sign(message, private_key=DEFAULT_PRIVATE_KEY):
-    sk = keys.PrivateKey(private_key)
+def sign_message(message, private_key: str) -> (str, bytes, str):
+    """Returns tuple of signature, message, public key.
+
+    Args:
+        message (obj) -- Gets json stringified and converted to bytes.
+        private_key (str) -- A hex string
+    """
+    sk_bytes = bytes.fromhex(private_key[2:])
+    sk = keys.PrivateKey(sk_bytes)
     message = json.dumps(message)
-    signature = sk.sign_msg(message)
+    message_bytes = bytes(message, 'utf-8')
+    signature = sk.sign_msg(message_bytes)
+    signature_hex = signature.to_bytes().hex()
     public_key = sk.public_key
-    return signature, public_key
+    public_key_hex = public_key.to_hex()
+    return signature_hex, message_bytes, public_key_hex
+
+
+def verify_signature(
+    signature_hex: str,
+    message_bytes: bytes,
+    public_key_hex: str
+):
+    """Returns True for a valid signature.
+
+    Args:
+        signature (str) -- hex string
+        message (bytes)
+        public_key (str) -- hex string
+    """
+    signature_bytes = bytes.fromhex(signature_hex)
+    signature = KeyAPI.Signature(signature_bytes=signature_bytes)
+    pk_bytes = bytes.fromhex(public_key_hex[2:])
+    pk = KeyAPI.PublicKey(pk_bytes)
+    return signature.verify_msg(message_bytes, pk)
