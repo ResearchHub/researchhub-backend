@@ -485,7 +485,8 @@ if STAGING:
             'hosts': 'https://vpc-researchhub-es-staging-gss6whmowsn26eqzovms5jpdou.us-west-2.es.amazonaws.com',  # noqa: E501
             'port': 443,
             'use_ssl': True,
-            'max_retries': 3,
+            'max_retries': 0,
+            'timeout': 0,
         },
     }
 
