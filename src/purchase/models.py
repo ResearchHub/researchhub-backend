@@ -15,6 +15,7 @@ class Purchase(models.Model):
     INITIATED = 'INITIATED'
     PENDING = 'PENDING'
     SUCCESS = 'SUCCESS'
+    FAILED = 'FAILED'
 
     BOOST = 'BOOST'
 
@@ -26,7 +27,8 @@ class Purchase(models.Model):
     STATUS_CHOICES = [
         (INITIATED, INITIATED),
         (PENDING, PENDING),
-        (SUCCESS, SUCCESS)
+        (SUCCESS, SUCCESS),
+        (FAILED, FAILED)
     ]
 
     PURCHASE_TYPE_CHOICES = [
