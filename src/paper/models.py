@@ -18,6 +18,7 @@ from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
 from summary.models import Summary
 from hub.models import Hub
+from purchase.models import Purchase
 
 from utils.arxiv import Arxiv
 from utils.crossref import Crossref
@@ -611,7 +612,7 @@ class Paper(models.Model):
 
     def get_promoted_score(self):
         base_score = self.score
-        purchases = self.purchases
+        purchases = self.purchases.filter(status=Purchase.SUCCESS)
         if purchases.exists():
             boost_score = purchases.filter(boost_time__gt=0).count()
             return base_score + boost_score

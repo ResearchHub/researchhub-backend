@@ -61,7 +61,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                     object_id=object_id,
                     purchase_method=purchase_method,
                     purchase_type=purchase_type,
-                    amount=amount
+                    amount=amount,
+                    status=Purchase.SUCCESS
                 )
 
                 source_type = ContentType.objects.get_for_model(purchase)

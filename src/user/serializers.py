@@ -3,7 +3,6 @@ import rest_framework.serializers as rest_framework_serializers
 import rest_auth.registration.serializers as rest_auth_serializers
 
 from bullet_point.models import BulletPoint
-import reputation.lib
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from discussion.lib import check_is_discussion_item
 from hub.serializers import HubSerializer
@@ -80,17 +79,17 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_balance(self, obj):
-        return reputation.lib.get_user_balance(obj)
+        return obj.get_balance()
 
     def get_subscribed(self, obj):
         if self.context.get('get_subscribed'):
             subscribed_query = obj.subscribed_hubs.all()
             return HubSerializer(subscribed_query, many=True).data
-    
+
     def get_hub_rep(self, obj):
         try:
             return obj.hub_rep
-        except:
+        except Exception:
             return None
 
 
@@ -113,7 +112,7 @@ class UserEditableSerializer(rest_framework_serializers.ModelSerializer):
         ]
 
     def get_balance(self, obj):
-        return reputation.lib.get_user_balance(obj)
+        return obj.get_balance()
 
     def get_subscribed(self, obj):
         if self.context.get('get_subscribed'):
