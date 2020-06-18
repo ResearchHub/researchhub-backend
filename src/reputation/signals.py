@@ -1,12 +1,10 @@
 from datetime import timedelta
-import logging
 from time import time
 
 from django.db.models.signals import m2m_changed, post_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 from django.contrib.admin.options import get_content_type_for_model
-from reputation.lib import PendingWithdrawal
 
 from bullet_point.models import (
     BulletPoint,
@@ -29,8 +27,7 @@ from paper.models import (
 from reputation.distributor import Distributor
 import reputation.distributions as distributions
 from reputation.exceptions import ReputationSignalError
-from reputation.lib import get_unpaid_distributions
-from reputation.models import Distribution, Withdrawal
+from reputation.models import Distribution
 from summary.models import Summary
 from user.models import User
 from utils import sentry
@@ -607,36 +604,6 @@ def revoke_reputation(sender, instance, **kwargs):
     current = recipient.reputation
     recipient.reputation = current - amount
     recipient.save(update_fields=['reputation'])
-
-
-@receiver(post_save, sender=Withdrawal, dispatch_uid='withdrawal')
-def pay_withdrawal(sender, instance, created, **kwargs):
-    if not created:
-        return
-
-    withdrawal_instance = instance
-    try:
-        withdrawal = withdrawal_instance
-        unpaid_distributions = get_unpaid_distributions(
-            withdrawal.user
-        )
-        pending_withdrawal = PendingWithdrawal(
-            withdrawal,
-            unpaid_distributions
-        )
-        pending_withdrawal.complete_token_transfer()
-    except Exception as e:
-        logging.error(e)
-
-        withdrawal_instance.set_paid_failed()
-
-        error = ReputationSignalError(
-            e,
-            f'Failed to pay withdrawal {withdrawal.id}'
-        )
-        logging.error(error)
-        sentry.log_error(error, error.message)
-        return
 
 
 def is_eligible_for_new_user_bonus(user):
