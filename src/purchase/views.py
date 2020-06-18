@@ -51,29 +51,28 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 if user_balance - decimal_amount < 0:
                     return Response('Insufficient Funds', status=402)
 
-                with transaction.atomic():
-                    purchase = Purchase.objects.create(
-                        user=user,
-                        content_type=content_type,
-                        object_id=object_id,
-                        purchase_method=purchase_method,
-                        purchase_type=purchase_type,
-                        amount=amount
-                    )
+                purchase = Purchase.objects.create(
+                    user=user,
+                    content_type=content_type,
+                    object_id=object_id,
+                    purchase_method=purchase_method,
+                    purchase_type=purchase_type,
+                    amount=amount
+                )
 
-                    source_type = ContentType.objects.get_for_model(purchase)
-                    Balance.objects.create(
-                        user=user,
-                        content_type=source_type,
-                        object_id=purchase.id,
-                        amount=f'-{amount}',
-                    )
+                source_type = ContentType.objects.get_for_model(purchase)
+                Balance.objects.create(
+                    user=user,
+                    content_type=source_type,
+                    object_id=purchase.id,
+                    amount=f'-{amount}',
+                )
 
-                purchase_hash = purchase.hash()
-                purchase.purchase_hash = purchase_hash
-                purchase_boost_time = purchase.get_boost_time(amount)
-                purchase.boost_time = purchase_boost_time
-                purchase.save()
+            purchase_hash = purchase.hash()
+            purchase.purchase_hash = purchase_hash
+            purchase_boost_time = purchase.get_boost_time(amount)
+            purchase.boost_time = purchase_boost_time
+            purchase.save()
 
         if content_type_str == 'paper':
             cache_key = get_cache_key(None, 'paper', pk=object_id)
