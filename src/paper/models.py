@@ -609,6 +609,14 @@ class Paper(models.Model):
             else:
                 print('No new paper')
 
+    def get_promoted_score(self):
+        base_score = self.score
+        purchases = self.purchases
+        if purchases.exists():
+            boost_score = purchases.filter(boost_time__gt=0).count()
+            return base_score + boost_score
+        return base_score
+
 
 class MetadataRetrievalAttempt(models.Model):
     CROSSREF_DOI = 'CROSSREF_DOI'

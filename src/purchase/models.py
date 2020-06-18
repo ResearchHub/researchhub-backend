@@ -1,8 +1,9 @@
 import json
 import hashlib
 
-from django.contrib.contenttypes.fields import GenericForeignKey
+from datetime import datetime
 
+from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
@@ -73,6 +74,7 @@ class Purchase(models.Model):
         null=True
     )
     amount = models.CharField(max_length=255)
+    boost_time = models.FloatField(null=True)
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -101,6 +103,25 @@ class Purchase(models.Model):
             'updated_date': self.updated_date.isoformat()
         })
         return data
+
+    def get_boost_time(self, amount=None):
+        if amount:
+            amount = float(amount)
+            boost_time = amount * 60
+            return boost_time
+
+        timestamp = self.created_date.timestamp()
+        boost_amount = float(self.amount)
+        boost_time = timestamp + (boost_amount * 60 * 60)
+        current_timestamp = datetime.utcnow().timestamp()
+
+        if boost_time > current_timestamp:
+            new_boost_time = (
+                ((boost_time - current_timestamp) / (60 * 60))
+            )
+            return new_boost_time
+
+        return 0
 
 
 class Balance(models.Model):

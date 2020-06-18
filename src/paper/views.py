@@ -101,6 +101,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             'hubs__subscribers',
             'votes',
             'flags',
+            'purchases',
             'threads',
             'threads__comments',
             Prefetch(
