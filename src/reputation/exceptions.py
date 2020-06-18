@@ -28,3 +28,16 @@ class ReputationSignalError(Error):
     def __init__(self, trigger, message):
         self.trigger = trigger
         self.message = message
+
+
+class WithdrawalError(Error):
+    """Raised for errors related to withdrawal.
+
+    Attributes:
+        trigger -- error that triggered this one
+        message -- explanation of this error
+    """
+
+    def __init__(self, trigger, message):
+        self.trigger = trigger
+        self.message = message

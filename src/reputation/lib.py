@@ -85,6 +85,7 @@ class PendingWithdrawal:
             data=json.dumps(data),
             timeout=3
         )
+        response.raise_for_status()
         logging.error(response.content)
         return response
 
