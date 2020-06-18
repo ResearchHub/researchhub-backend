@@ -709,7 +709,7 @@ class PendingWithdrawal:
             self.track_withdrawal_paid_status()
 
     def track_withdrawal_paid_status(self):
-        url = ASYNC_SERVICE_HOST + f'/ethereum/track_withdrawal'
+        url = ASYNC_SERVICE_HOST + '/ethereum/track_withdrawal'
         data = {
             'withdrawal': self.withdrawal.id,
             'transaction_hash': self.withdrawal.transaction_hash

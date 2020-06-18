@@ -10,6 +10,7 @@ from django.http import QueryDict
 from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
+from purchase.models import Purchase
 from hub.serializers import SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.models import AdditionalFile, Flag, Paper, Vote, Figure
@@ -194,7 +195,10 @@ class BasePaperSerializer(serializers.ModelSerializer):
         return vote
 
     def get_promoted(self, paper):
-        purchases = paper.purchases.filter(boost_time__gt=0)
+        purchases = paper.purchases.filter(
+            status=Purchase.SUCCESS,
+            boost_time__gt=0
+        )
         if purchases.exists():
             return paper.get_promoted_score()
         return False

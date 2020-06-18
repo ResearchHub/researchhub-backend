@@ -50,7 +50,7 @@ class Distributor:
         record = self._record_distribution()
         try:
             record.set_distributed_pending()
-            self._update_reputation()
+            self._update_reputation(record)
             record.set_distributed()
         except Exception as e:
             record.set_distributed_failed()
@@ -72,7 +72,6 @@ class Distributor:
             ),
             proof_item_object_id=self.proof_item.id
         )
-        self._record_balance(record)
 
         if self.hubs:
             record.hubs.add(*self.hubs)
@@ -88,12 +87,13 @@ class Distributor:
             amount=self.distribution.amount
         )
 
-    def _update_reputation(self):
+    def _update_reputation(self, record):
         users = User.objects.filter(pk=self.recipient.id).select_for_update(
             of=('self',)
         )
 
         with transaction.atomic():
+            self._record_balance(record)
             user = users.get()
             current = user.reputation
             user.reputation = current + self.distribution.amount

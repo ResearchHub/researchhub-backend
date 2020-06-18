@@ -83,6 +83,7 @@ class User(AbstractUser):
         self.save()
 
     def get_balance(self):
+        # TODO: FIX
         user_balance = self.balances.all()
         if not user_balance:
             return 0
