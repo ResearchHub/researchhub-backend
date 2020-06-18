@@ -14,13 +14,13 @@ from rest_framework.response import Response
 from paper.utils import get_cache_key
 from purchase.models import Purchase, Balance
 from purchase.serializers import PurchaseSerializer
-from utils.permissions import CreateOrReadOnly
+from utils.permissions import CreateOrUpdateOrReadOnly
 
 
 class PurchaseViewSet(viewsets.ModelViewSet):
     queryset = Purchase.objects.all()
     serializer_class = PurchaseSerializer
-    permission_classes = [IsAuthenticated, CreateOrReadOnly]
+    permission_classes = [IsAuthenticated, CreateOrUpdateOrReadOnly]
     pagination_class = PageNumberPagination
 
     def create(self, request):
@@ -34,23 +34,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         content_type = ContentType.objects.get(model=content_type_str)
         object_id = data['object_id']
 
-        if purchase_method == Purchase.ON_CHAIN:
-            purchase = Purchase.objects.create(
-                user=user,
-                content_type=content_type,
-                object_id=object_id,
-                purchase_method=purchase_method,
-                purchase_type=purchase_type,
-                amount=amount
-            )
-        else:
-            user_balance = user.get_balance()
-            decimal_amount = decimal.Decimal(amount)
-
-            if user_balance - decimal_amount < 0:
-                return Response('Insufficient Funds', status=402)
-
-            with transaction.atomic():
+        with transaction.atomic():
+            if purchase_method == Purchase.ON_CHAIN:
                 purchase = Purchase.objects.create(
                     user=user,
                     content_type=content_type,
@@ -59,17 +44,36 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                     purchase_type=purchase_type,
                     amount=amount
                 )
+            else:
+                user_balance = user.get_balance()
+                decimal_amount = decimal.Decimal(amount)
+
+                if user_balance - decimal_amount < 0:
+                    return Response('Insufficient Funds', status=402)
+
+                with transaction.atomic():
+                    purchase = Purchase.objects.create(
+                        user=user,
+                        content_type=content_type,
+                        object_id=object_id,
+                        purchase_method=purchase_method,
+                        purchase_type=purchase_type,
+                        amount=amount
+                    )
+
+                    source_type = ContentType.objects.get_for_model(purchase)
+                    Balance.objects.create(
+                        user=user,
+                        content_type=source_type,
+                        object_id=purchase.id,
+                        amount=f'-{amount}',
+                    )
+
                 purchase_hash = purchase.hash()
                 purchase.purchase_hash = purchase_hash
+                purchase_boost_time = purchase.get_boost_time(amount)
+                purchase.boost_time = purchase_boost_time
                 purchase.save()
-
-                source_type = ContentType.objects.get_for_model(purchase)
-                Balance.objects.create(
-                    user=user,
-                    content_type=source_type,
-                    object_id=purchase.id,
-                    amount=f'-{amount}',
-                )
 
         if content_type_str == 'paper':
             cache_key = get_cache_key(None, 'paper', pk=object_id)

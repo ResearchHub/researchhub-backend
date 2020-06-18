@@ -194,9 +194,9 @@ class BasePaperSerializer(serializers.ModelSerializer):
         return vote
 
     def get_promoted(self, paper):
-        # TODO: Flush this out - decay algorithm?
-        if paper.purchases.exists():
-            return True
+        purchases = paper.purchases.filter(boost_time__gt=0)
+        if purchases.exists():
+            return paper.get_promoted_score()
         return False
 
 
