@@ -612,7 +612,7 @@ class Paper(models.Model):
 
     def get_promoted_score(self):
         base_score = self.score
-        purchases = self.purchases.filter(status=Purchase.SUCCESS)
+        purchases = self.purchases.filter(paid_status=Purchase.PAID)
         if purchases.exists():
             boost_score = purchases.filter(boost_time__gt=0).count()
             return base_score + boost_score
