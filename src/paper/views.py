@@ -513,7 +513,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             boosts = Count(
                 'purchases',
                 filter=Q(
-                    purchases__status=Purchase.PAID,
+                    purchases__paid_status=Purchase.PAID,
                     purchases__boost_time__gt=0,
                 )
             )
