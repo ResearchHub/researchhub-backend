@@ -1,6 +1,5 @@
 import decimal
 import json
-import logging
 
 from django.core.cache import cache
 from django.contrib.contenttypes.models import ContentType
@@ -91,14 +90,14 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         return Response(serializer_data, status=201)
 
     def update(self, request, *args, **kwargs):
-        response = super().update()
+        response = super().update(request, *args, **kwargs)
         purchase = self.get_object()
         if purchase.transaction_hash:
             self.track_paid_status(purchase.id, purchase.transaction_hash)
         return response
 
     def track_paid_status(self, purchase_id, transaction_hash):
-        url = ASYNC_SERVICE_HOST + '/ethereum/track_transfer'
+        url = ASYNC_SERVICE_HOST + '/ethereum/track_purchase'
         data = {
             'purchase': purchase_id,
             'transaction_hash': transaction_hash
@@ -109,7 +108,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             data=json.dumps(data),
             timeout=3
         )
-        logging.error(response.content)
+        response.raise_for_status()
         return response
 
     @action(
