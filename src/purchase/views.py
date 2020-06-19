@@ -1,4 +1,6 @@
 import decimal
+import json
+import logging
 
 from django.core.cache import cache
 from django.contrib.contenttypes.models import ContentType
@@ -14,6 +16,8 @@ from rest_framework.response import Response
 from paper.utils import get_cache_key
 from purchase.models import Purchase, Balance
 from purchase.serializers import PurchaseSerializer
+from researchhub.settings import ASYNC_SERVICE_HOST
+from utils.http import http_request, RequestMethods
 from utils.permissions import CreateOrUpdateOrReadOnly
 
 
@@ -84,6 +88,28 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         serializer = self.serializer_class(purchase, context=context)
         serializer_data = serializer.data
         return Response(serializer_data, status=201)
+
+    def update(self, request, *args, **kwargs):
+        response = super().update()
+        purchase = self.get_object()
+        if purchase.transaction_hash:
+            self.track_paid_status(purchase.id, purchase.transaction_hash)
+        return response
+
+    def track_paid_status(self, purchase_id, transaction_hash):
+        url = ASYNC_SERVICE_HOST + '/ethereum/track_transfer'
+        data = {
+            'purchase': purchase_id,
+            'transaction_hash': transaction_hash
+        }
+        response = http_request(
+            RequestMethods.POST,
+            url,
+            data=json.dumps(data),
+            timeout=3
+        )
+        logging.error(response.content)
+        return response
 
     @action(
         detail=False,
