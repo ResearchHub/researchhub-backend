@@ -103,7 +103,7 @@ class Purchase(PaidStatusModelMixin):
 
         if boost_time > current_timestamp:
             new_boost_time = (
-                ((boost_time - current_timestamp) / (60 * 60))
+                ((boost_time - current_timestamp) / 60)
             )
             return new_boost_time
 

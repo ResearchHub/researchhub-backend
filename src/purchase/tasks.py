@@ -3,12 +3,7 @@ from celery.decorators import periodic_task
 
 from purchase.models import Purchase
 from researchhub.settings import APP_ENV
-from paper.utils import (
-    invalidate_trending_cache,
-    invalidate_top_rated_cache,
-    invalidate_newest_cache,
-    invalidate_most_discussed_cache,
-)
+from paper.utils import invalidate_trending_cache
 
 
 @periodic_task(
@@ -24,7 +19,4 @@ def update_purchases():
         purchase.save()
 
     hub_ids = []
-    invalidate_newest_cache(hub_ids)
     invalidate_trending_cache(hub_ids)
-    invalidate_most_discussed_cache(hub_ids)
-    invalidate_top_rated_cache(hub_ids)
