@@ -56,6 +56,7 @@ from paper.utils import (
     invalidate_newest_cache,
     invalidate_most_discussed_cache,
 )
+from purchase.models import Purchase
 from researchhub.lib import get_paper_id_from_path
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.sentry import log_error
@@ -509,7 +510,17 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def calculate_paper_ordering(self, papers, ordering, start_date, end_date):
         if 'hot_score' in ordering:
-            order_papers = papers.order_by(ordering)
+            boosts = Count(
+                'purchases',
+                filter=Q(
+                    purchases__status=Purchase.SUCCESS,
+                    purchases__boost_time__gt=0,
+                )
+            )
+            order_papers = papers.annotate(
+                boost_score=boosts
+            )
+            order_papers = order_papers.order_by('-boost_score', ordering)
 
         elif 'score' in ordering:
             upvotes = Count(
