@@ -486,7 +486,7 @@ if STAGING:
             'port': 443,
             'use_ssl': True,
             'max_retries': 0,
-            'timeout': 0,
+            'timeout': 1,
         },
     }
 
