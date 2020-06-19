@@ -227,6 +227,7 @@ class Action(DefaultModel):
     )
     object_id = models.PositiveIntegerField()
     item = GenericForeignKey('content_type', 'object_id')
+    display = models.BooleanField(default=True)
     read_date = models.DateTimeField(default=None, null=True)
     hubs = models.ManyToManyField(
         Hub,
