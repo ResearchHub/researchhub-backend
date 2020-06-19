@@ -31,6 +31,13 @@ class Purchase(models.Model):
         (FAILED, FAILED)
     ]
 
+    PAID = 'PAID'
+    PAID_STATUS_CHOICES = [
+        (FAILED, FAILED),
+        (PAID, PAID),
+        (PENDING, PENDING),
+    ]
+
     PURCHASE_TYPE_CHOICES = [
         (BOOST, BOOST)
     ]
@@ -62,6 +69,13 @@ class Purchase(models.Model):
     purchase_type = models.CharField(
         choices=PURCHASE_TYPE_CHOICES,
         max_length=16
+    )
+    paid_date = models.DateTimeField(default=None, null=True)
+    paid_status = models.CharField(
+        max_length=255,
+        choices=PAID_STATUS_CHOICES,
+        default=None,
+        null=True
     )
 
     transaction_hash = models.CharField(
