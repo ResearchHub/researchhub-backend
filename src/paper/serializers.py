@@ -196,7 +196,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
 
     def get_promoted(self, paper):
         purchases = paper.purchases.filter(
-            status=Purchase.SUCCESS,
+            paid_status=Purchase.PAID,
             boost_time__gt=0
         )
         if purchases.exists():
