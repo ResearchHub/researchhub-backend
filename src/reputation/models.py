@@ -10,6 +10,7 @@ from user.models import User
 from utils.models import SoftDeletableModel
 from hub.models import Hub
 
+
 class PaidStatusModelMixin(models.Model):
     FAILED = 'FAILED'
     PAID = 'PAID'
@@ -155,4 +156,3 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
 
     class Meta:
         ordering = ['-updated_date']
-
