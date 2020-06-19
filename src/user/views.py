@@ -131,7 +131,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     )
                 ).order_by(F('hub_rep').desc(nulls_last=True))
         page = self.paginate_queryset(items)
-        serializer = serializerClass(page, many=True)
+        serializer = serializerClass(page, many=True, context={'request': request})
 
         return self.get_paginated_response(serializer.data)
 
