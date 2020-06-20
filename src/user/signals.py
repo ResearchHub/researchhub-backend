@@ -84,6 +84,7 @@ def create_action(sender, instance, created, **kwargs):
         else:
             user = instance.created_by
 
+        display = True
         if sender == PaperVote:
             display = False
         elif sender == DisVote:
