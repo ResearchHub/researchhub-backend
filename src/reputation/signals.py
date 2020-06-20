@@ -599,6 +599,7 @@ def get_vote_on_discussion_item_distribution(instance):
 
 @receiver(post_delete, sender=Distribution, dispatch_uid='delete_distribution')
 def revoke_reputation(sender, instance, **kwargs):
+    # TODO: Use F expression here to avoid race conditions
     recipient = instance.recipient
     amount = instance.amount
     current = recipient.reputation

@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
 from django.db import models, transaction
 from django.db.models import Count, Q, Avg
@@ -17,6 +18,7 @@ from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
 from summary.models import Summary
 from hub.models import Hub
+from purchase.models import Purchase
 
 from utils.arxiv import Arxiv
 from utils.crossref import Crossref
@@ -169,6 +171,12 @@ class Paper(models.Model):
         null=True,
         blank=True,
         help_text='PDF availability in Unpaywall OA Location format.'
+    )
+
+    purchases = GenericRelation(
+        'purchase.Purchase',
+        object_id_field='object_id',
+        content_type_field='content_type',
     )
 
     class Meta:
@@ -332,18 +340,18 @@ class Paper(models.Model):
 
     def get_discussion_count(self):
         thread_count = self.threads.aggregate(
-            discussion_count=Count(1, filter=Q(is_removed=False))
+            discussion_count=Count(1, filter=Q(is_removed=False, created_by__isnull=False))
         )['discussion_count']
         comment_count = self.threads.aggregate(
             discussion_count=Count(
                 'comments',
-                filter=Q(comments__is_removed=False)
+                filter=Q(comments__is_removed=False, comments__created_by__isnull=False)
             )
         )['discussion_count']
         reply_count = self.threads.aggregate(
             discussion_count=Count(
                 'comments__replies',
-                filter=Q(comments__replies__is_removed=False)
+                filter=Q(comments__replies__is_removed=False, comments__replies__created_by__isnull=False)
             )
         )['discussion_count']
         return thread_count + comment_count + reply_count
@@ -601,6 +609,14 @@ class Paper(models.Model):
                     print(f'Error saving reference paper: {e}')
             else:
                 print('No new paper')
+
+    def get_promoted_score(self):
+        base_score = self.score
+        purchases = self.purchases.filter(paid_status=Purchase.PAID)
+        if purchases.exists():
+            boost_score = purchases.filter(boost_time__gt=0).count()
+            return base_score + boost_score
+        return base_score
 
 
 class MetadataRetrievalAttempt(models.Model):

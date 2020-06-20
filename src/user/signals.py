@@ -8,7 +8,8 @@ from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from bullet_point.models import BulletPoint
 from discussion.models import Comment, Reply, Thread
 from notification.models import Notification
-from paper.models import Paper
+from paper.models import Paper, Vote as PaperVote
+from discussion.models import Vote as DisVote
 from researchhub.settings import TESTING
 from summary.models import Summary
 from user.models import Action, Author
@@ -72,6 +73,8 @@ def doi_updated(update_fields):
 @receiver(post_save, sender=Reply, dispatch_uid='create_reply_action')
 @receiver(post_save, sender=Thread, dispatch_uid='create_thread_action')
 @receiver(post_save, sender=Paper, dispatch_uid='paper_upload_action')
+@receiver(post_save, sender=PaperVote, dispatch_uid='paper_vote_action')
+@receiver(post_save, sender=DisVote, dispatch_uid='discussion_vote_action')
 def create_action(sender, instance, created, **kwargs):
     if created:
         if sender == Summary:
@@ -81,9 +84,17 @@ def create_action(sender, instance, created, **kwargs):
         else:
             user = instance.created_by
 
+        if sender == PaperVote:
+            display = False
+        elif sender == DisVote:
+            display = False
+        else:
+            display = True
+
         action = Action.objects.create(
             item=instance,
-            user=user
+            user=user,
+            display=display
         )
 
         if sender == Paper:
@@ -96,6 +107,9 @@ def create_action(sender, instance, created, **kwargs):
 
 
 def create_notification(sender, instance, created, action, **kwargs):
+    if sender == DisVote or sender == PaperVote:
+        return
+
     if created:
         for recipient in action.item.users_to_notify:
             recipient_exists = True
@@ -119,7 +133,7 @@ def create_notification(sender, instance, created, action, **kwargs):
                     paper=paper,
                     recipient=recipient,
                     action_user=creator,
-                    action=action
+                    action=action,
                 )
                 if not TESTING:
                     notification.send_notification()
