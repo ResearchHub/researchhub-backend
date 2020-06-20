@@ -52,7 +52,7 @@ class UserViewSet(viewsets.ModelViewSet):
             return User.objects.filter(id=user.id)
         else:
             return User.objects.none()
-    
+
     @action(
         detail=False,
         methods=[RequestMethods.GET],
@@ -109,9 +109,20 @@ class UserViewSet(viewsets.ModelViewSet):
             if hub_id:
                 hub_id = int(hub_id)
             if hub_id and hub_id != 0:
-                items = Paper.objects.filter(**time_filter, hubs__in=[hub_id]).order_by('-score')
+                items = Paper.objects.exclude(
+                    is_public=False,
+                ).filter(
+                    **time_filter,
+                    hubs__in=[hub_id]
+                ).order_by('-score')
             else:
-                items = Paper.objects.filter(**time_filter).order_by('-score')
+                items = Paper.objects.exclude(
+                    is_public=False
+                ).filter(
+                    **time_filter
+                ).order_by(
+                    '-score'
+                )
         elif leaderboard_type == 'users':
             serializerClass = UserSerializer
             if hub_id:
@@ -120,7 +131,10 @@ class UserViewSet(viewsets.ModelViewSet):
                 items = User.objects.all().annotate(
                     hub_rep=Sum(
                         'reputation_records__amount',
-                        filter=Q(**time_filter, reputation_records__hubs__in=[hub_id])
+                        filter=Q(
+                            **time_filter,
+                            reputation_records__hubs__in=[hub_id]
+                        )
                     )
                 ).order_by(F('hub_rep').desc(nulls_last=True))
             else:
@@ -130,8 +144,9 @@ class UserViewSet(viewsets.ModelViewSet):
                         filter=Q(**time_filter)
                     )
                 ).order_by(F('hub_rep').desc(nulls_last=True))
+
         page = self.paginate_queryset(items)
-        serializer = serializerClass(page, many=True)
+        serializer = serializerClass(page, many=True, context={'request': request})
 
         return self.get_paginated_response(serializer.data)
 

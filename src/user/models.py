@@ -1,3 +1,5 @@
+import decimal
+
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -77,6 +79,18 @@ class User(AbstractUser):
     def set_has_seen_orcid_connect_modal(self, has_seen):
         self.has_seen_orcid_connect_modal = has_seen
         self.save()
+
+    def get_balance(self):
+        user_balance = self.balances.all()
+        if not user_balance:
+            return 0
+
+        # TODO: Could this be faster if we do it on the db level? Could we run
+        # into a memory error here?
+        balance = self.balances.values_list('amount', flat=True)
+        balance_decimal = map(decimal.Decimal, balance)
+        total_balance = sum(balance_decimal)
+        return total_balance
 
 
 @receiver(models.signals.post_save, sender=User)
@@ -227,6 +241,7 @@ class Action(DefaultModel):
     )
     object_id = models.PositiveIntegerField()
     item = GenericForeignKey('content_type', 'object_id')
+    display = models.BooleanField(default=True)
     read_date = models.DateTimeField(default=None, null=True)
     hubs = models.ManyToManyField(
         Hub,
@@ -234,7 +249,7 @@ class Action(DefaultModel):
     )
 
     def __str__(self):
-        return 'Action: {}-{}, '.format(
+        return 'Action: {}-{}-{}, '.format(
             self.content_type.app_label,
             self.content_type.model,
             self.object_id

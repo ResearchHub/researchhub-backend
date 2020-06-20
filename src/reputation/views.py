@@ -7,9 +7,7 @@ from rest_framework.response import Response
 from reputation.exceptions import WithdrawalError
 from reputation.lib import (
     FIRST_WITHDRAWAL_MINIMUM,
-    get_user_balance,
-    PendingWithdrawal,
-    get_unpaid_distributions
+    PendingWithdrawal
 )
 from reputation.models import Withdrawal
 from reputation.serializers import WithdrawalSerializer
@@ -32,7 +30,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
     def create(self, request):
         user = request.user
-        user_balance = get_user_balance(user)
+        user_balance = user.get_balance()
         if self._check_meets_withdrawal_minimum(user, user_balance):
             try:
                 with transaction.atomic():
@@ -62,14 +60,11 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
     def _pay_withdrawal(self, withdrawal, user):
         try:
-            unpaid_distributions = get_unpaid_distributions(user)
-            pending_withdrawal = PendingWithdrawal(
-                withdrawal,
-                unpaid_distributions
-            )
+            pending_withdrawal = PendingWithdrawal(withdrawal)
             pending_withdrawal.complete_token_transfer()
         except Exception as e:
             logging.error(e)
+            withdrawal.set_paid_failed()
             error = WithdrawalError(
                 e,
                 f'Failed to pay withdrawal {withdrawal.id}'
