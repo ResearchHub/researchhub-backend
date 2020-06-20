@@ -121,7 +121,8 @@ def create_action(user=None, item=None, hub=None):
 
     action = Action.objects.create(
         user=user,
-        item=item
+        item=item,
+        display=True
     )
     if hub:
         action.hubs.add(hub)
