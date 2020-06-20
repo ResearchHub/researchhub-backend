@@ -1,4 +1,4 @@
-from django.db import transaction
+from django.db import transaction, models
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 
@@ -29,7 +29,14 @@ class Distributor:
         proof_item (obj) - (same as db_record above)
 
     '''
-    def __init__(self, distribution, recipient, db_record, timestamp, hubs=None):
+    def __init__(
+        self,
+        distribution,
+        recipient,
+        db_record,
+        timestamp,
+        hubs=None
+    ):
         self.distribution = distribution
         self.recipient = recipient
         self.proof = self.generate_proof(db_record, timestamp)
@@ -50,7 +57,7 @@ class Distributor:
         record = self._record_distribution()
         try:
             record.set_distributed_pending()
-            self._update_reputation(record)
+            self._update_reputation_and_balance(record)
             record.set_distributed()
         except Exception as e:
             record.set_distributed_failed()
@@ -77,24 +84,24 @@ class Distributor:
             record.hubs.add(*self.hubs)
         return record
 
-    def _record_balance(self, distribution):
-        # TODO: Test that this works
-        content_type = ContentType.objects.get_for_model(distribution)
-        Balance.objects.create(
-            user=self.recipient,
-            content_type=content_type,
-            object_id=distribution.id,
-            amount=self.distribution.amount
-        )
-
-    def _update_reputation(self, record):
+    def _update_reputation_and_balance(self, record):
+        # Prevents simultaneous changes to the user
         users = User.objects.filter(pk=self.recipient.id).select_for_update(
             of=('self',)
         )
 
         with transaction.atomic():
+            # updates at the SQL level and does not call save() or emit signals
+            users.update(
+                reputation=models.F('reputation') + self.distribution.amount
+            )
             self._record_balance(record)
-            user = users.get()
-            current = user.reputation
-            user.reputation = current + self.distribution.amount
-            user.save(update_fields=['reputation'])
+
+    def _record_balance(self, distribution):
+        content_type = ContentType.objects.get_for_model(distribution)
+        Balance.objects.create(
+            user=self.recipient,
+            content_type=content_type,
+            object_id=distribution.id,
+            amount=self.distribution.amount  # db converts integer to string
+        )
