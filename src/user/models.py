@@ -1,8 +1,6 @@
 import decimal
 
 from django.db import models
-from django.db.models import Sum, DecimalField
-from django.db.models.functions import Cast
 from django.contrib.auth.models import AbstractUser
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -87,18 +85,12 @@ class User(AbstractUser):
         if not user_balance:
             return 0
 
+        # TODO: Could this be faster if we do it on the db level? Could we run
+        # into a memory error here?
         balance = self.balances.values_list('amount', flat=True)
         balance_decimal = map(decimal.Decimal, balance)
         total_balance = sum(balance_decimal)
         return total_balance
-
-        # TODO: Fix db issue/bug with this snippet?
-        # balance = self.balances.annotate(
-        #     as_decimal=Cast('amount', DecimalField())
-        # ).aggregate(
-        #     Sum('as_decimal')
-        # )
-        # return balance
 
 
 @receiver(models.signals.post_save, sender=User)
@@ -257,7 +249,7 @@ class Action(DefaultModel):
     )
 
     def __str__(self):
-        return 'Action: {}-{}, '.format(
+        return 'Action: {}-{}-{}, '.format(
             self.content_type.app_label,
             self.content_type.model,
             self.object_id
