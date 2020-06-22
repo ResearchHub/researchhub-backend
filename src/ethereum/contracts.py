@@ -32,7 +32,7 @@ class ContractComposer:
 
 
 research_coin_contract = ContractComposer(
-    TOKENS['rsc']['contract_address'],
+    TOKENS['RSC']['contract_address'],
     'MiniMeToken.json'
 ).contract
 
