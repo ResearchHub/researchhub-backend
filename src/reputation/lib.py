@@ -38,6 +38,7 @@ class PendingWithdrawal:
     def _request_transfer(self, token):
         url = ASYNC_SERVICE_HOST + '/ethereum/erc20transfer'
         message_raw = {
+            "withdrawal": self.withdrawal.id,
             "token": token,
             "to": self.withdrawal.to_address,
             "amount": self.token_payout
