@@ -3,7 +3,6 @@ import logging
 
 import ethereum.utils
 import ethereum.lib
-from reputation.exceptions import ReputationSignalError
 from researchhub.settings import ASYNC_SERVICE_HOST, WEB3_SHARED_SECRET
 from utils.http import http_request, RequestMethods
 
@@ -11,17 +10,12 @@ FIRST_WITHDRAWAL_MINIMUM = 75
 
 
 class PendingWithdrawal:
-    def __init__(self, withdrawal):
+    def __init__(self, withdrawal, starting_balance, balance_record_id):
         self.withdrawal = withdrawal
+        self.balance_payout = starting_balance
+        self.balance_record_id = balance_record_id
 
     def complete_token_transfer(self):
-        self.balance_payout = self.withdrawal.user.get_balance()
-        if self.balance_payout <= 0:
-            # TODO: Change this to PendingWithdrawalError
-            raise ReputationSignalError(
-                None,
-                'Insufficient balance to pay out'
-            )
         self.withdrawal.set_paid_pending()
         self.token_payout = self._calculate_tokens_and_update_withdrawal_amount()  # noqa
         self._request_transfer('RSC')
@@ -38,6 +32,7 @@ class PendingWithdrawal:
     def _request_transfer(self, token):
         url = ASYNC_SERVICE_HOST + '/ethereum/erc20transfer'
         message_raw = {
+            "balance_record": self.balance_record_id,
             "withdrawal": self.withdrawal.id,
             "token": token,
             "to": self.withdrawal.to_address,
