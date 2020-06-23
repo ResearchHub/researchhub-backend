@@ -246,81 +246,85 @@ def celery_extract_twitter_comments(paper_id):
         return
 
     source = 'twitter'
-    api = twitter.Api(
-        consumer_key=TWITTER_CONSUMER_KEY,
-        consumer_secret=TWITTER_CONSUMER_SECRET,
-        access_token_key=TWITER_ACCESS_TOKEN,
-        access_token_secret=TWITTER_ACCESS_TOKEN_SECRET,
-        tweet_mode='extended'
-    )
-
-    results = api.GetSearch(
-        term=f'{url} -filter:retweets'
-    )
-    for res in results:
-        source_id = res.id_str
-        username = res.user.screen_name
-        text = res.full_text
-        thread_user_profile_img = res.user.profile_image_url_https
-        thread_created_date = res.created_at_in_seconds
-        thread_created_date = datetime.fromtimestamp(
-            thread_created_date,
-            timezone.utc
+    try:
+        api = twitter.Api(
+            consumer_key=TWITTER_CONSUMER_KEY,
+            consumer_secret=TWITTER_CONSUMER_SECRET,
+            access_token_key=TWITER_ACCESS_TOKEN,
+            access_token_secret=TWITTER_ACCESS_TOKEN_SECRET,
+            tweet_mode='extended'
         )
 
-        thread_exists = Thread.objects.filter(
-            external_metadata__source_id=source_id
-        ).exists()
-
-        if not thread_exists:
-            external_thread_metadata = {
-                'source_id': source_id,
-                'username': username,
-                'picture': thread_user_profile_img,
-                'url': f'https://twitter.com/{username}/status/{source_id}'
-            }
-            thread = Thread.objects.create(
-                paper=paper,
-                source=source,
-                external_metadata=external_thread_metadata,
-                plain_text=text,
+        results = api.GetSearch(
+            term=f'{url} -filter:retweets'
+        )
+        for res in results:
+            source_id = res.id_str
+            username = res.user.screen_name
+            text = res.full_text
+            thread_user_profile_img = res.user.profile_image_url_https
+            thread_created_date = res.created_at_in_seconds
+            thread_created_date = datetime.fromtimestamp(
+                thread_created_date,
+                timezone.utc
             )
-            thread.created_date = thread_created_date
-            thread.save()
 
-            replies = api.GetSearch(
-                term=f'to:{username}'
-            )
-            for reply in replies:
-                reply_username = reply.user.screen_name
-                reply_id = reply.id_str
-                reply_text = reply.full_text
-                comment_user_profile_img = reply.user.profile_image_url_https
-                comment_created_date = reply.created_at_in_seconds
-                comment_created_date = datetime.fromtimestamp(
-                    comment_created_date,
-                    timezone.utc
+            thread_exists = Thread.objects.filter(
+                external_metadata__source_id=source_id
+            ).exists()
+
+            if not thread_exists:
+                external_thread_metadata = {
+                    'source_id': source_id,
+                    'username': username,
+                    'picture': thread_user_profile_img,
+                    'url': f'https://twitter.com/{username}/status/{source_id}'
+                }
+                thread = Thread.objects.create(
+                    paper=paper,
+                    source=source,
+                    external_metadata=external_thread_metadata,
+                    plain_text=text,
                 )
+                thread.created_date = thread_created_date
+                thread.save()
 
-                reply_exists = Comment.objects.filter(
-                    external_metadata__source_id=reply_id
-                ).exists()
-
-                if not reply_exists:
-                    external_comment_metadata = {
-                        'source_id': reply_id,
-                        'username': reply_username,
-                        'picture': comment_user_profile_img,
-                        'url': f'https://twitter.com/{reply_username}/status/{reply_id}'
-                    }
-                    comment = Comment.objects.create(
-                        parent=thread,
-                        source=source,
-                        external_metadata=external_comment_metadata,
-                        plain_text=reply_text,
+                replies = api.GetSearch(
+                    term=f'to:{username}'
+                )
+                for reply in replies:
+                    reply_username = reply.user.screen_name
+                    reply_id = reply.id_str
+                    reply_text = reply.full_text
+                    comment_user_img = reply.user.profile_image_url_https
+                    comment_created_date = reply.created_at_in_seconds
+                    comment_created_date = datetime.fromtimestamp(
+                        comment_created_date,
+                        timezone.utc
                     )
-                    comment.created_date = comment_created_date
-                    comment.save()
+
+                    reply_exists = Comment.objects.filter(
+                        external_metadata__source_id=reply_id
+                    ).exists()
+
+                    if not reply_exists:
+                        external_comment_metadata = {
+                            'source_id': reply_id,
+                            'username': reply_username,
+                            'picture': comment_user_img,
+                            'url': f'https://twitter.com/{reply_username}/status/{reply_id}'
+                        }
+                        comment = Comment.objects.create(
+                            parent=thread,
+                            source=source,
+                            external_metadata=external_comment_metadata,
+                            plain_text=reply_text,
+                        )
+                        comment.created_date = comment_created_date
+                        comment.save()
+    except twitter.TwitterError as e:
+        # TODO: Do we want to push the call back to celery if it exceeds the rate limit?
+        return
 
 
 @app.task
