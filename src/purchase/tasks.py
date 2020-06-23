@@ -14,8 +14,8 @@ from paper.utils import invalidate_trending_cache
 def update_purchases():
     purchases = Purchase.objects.filter(boost_time__gt=0)
     for purchase in purchases:
-        purchase_boost_time = purchase.get_boost_time()
-        purchase.boost_time = purchase_boost_time
+        purchase.boost_time = purchase.get_boost_time()
+        purchase.boost_score = purchase.get_boost_score()
         purchase.save()
 
     hub_ids = []

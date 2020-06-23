@@ -12,7 +12,7 @@ from rest_framework.permissions import (
 )
 
 from rest_framework.response import Response
-from paper.utils import get_cache_key
+from paper.utils import get_cache_key, invalidate_trending_cache
 from purchase.models import Purchase, Balance
 from purchase.serializers import PurchaseSerializer
 from researchhub.settings import ASYNC_SERVICE_HOST
@@ -76,11 +76,13 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             purchase.purchase_hash = purchase_hash
             purchase_boost_time = purchase.get_boost_time(amount)
             purchase.boost_time = purchase_boost_time
+            purchase.boost_score = purchase.get_boost_score()
             purchase.save()
 
         if content_type_str == 'paper':
             cache_key = get_cache_key(None, 'paper', pk=object_id)
             cache.delete(cache_key)
+            invalidate_trending_cache([])
 
         context = {
             'purchase_minimal_serialization': True

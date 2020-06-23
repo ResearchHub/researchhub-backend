@@ -614,7 +614,8 @@ class Paper(models.Model):
         base_score = self.score
         purchases = self.purchases.filter(paid_status=Purchase.PAID)
         if purchases.exists():
-            boost_score = purchases.filter(boost_time__gt=0).count()
+            boost_scores = purchases.values_list('boost_score', flat=True)
+            boost_score = sum(boost_scores)
             return base_score + boost_score
         return base_score
 
