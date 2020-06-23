@@ -40,7 +40,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                     withdrawal_id = response.data['id']
                     withdrawal = Withdrawal.objects.get(pk=withdrawal_id)
                     ending_balance_record = self._create_balance_record(
-                        withdrawal
+                        withdrawal,
+                        starting_balance
                     )
                     self._pay_withdrawal(
                         withdrawal,
@@ -67,13 +68,13 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         resp.data['user'] = UserSerializer(request.user).data
         return resp
 
-    def _create_balance_record(self, withdrawal):
+    def _create_balance_record(self, withdrawal, amount):
         source_type = ContentType.objects.get_for_model(withdrawal)
         balance_record = Balance.objects.create(
             user=withdrawal.user,
             content_type=source_type,
             object_id=withdrawal.id,
-            amount=f'-{withdrawal.amount}',
+            amount=f'-{amount}',
         )
         return balance_record
 
