@@ -233,7 +233,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
             )
 
         response = super().create(request, *args, **kwargs)
-        paper_id = get_paper_id_from_path(args[0])
+        paper_id = get_paper_id_from_path(request)
         hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
 
         invalidate_trending_cache(hubs)
@@ -333,7 +333,7 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
             )
 
         response = super().create(request, *args, **kwargs)
-        paper_id = get_paper_id_from_path(args[0])
+        paper_id = get_paper_id_from_path(request)
         hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
 
         invalidate_trending_cache(hubs)
