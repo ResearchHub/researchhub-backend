@@ -115,7 +115,7 @@ class Purchase(PaidStatusModelMixin):
         time = self.boost_time / 60
         decay_amount = 2 * max(10, (time)) * math.exp(-0.2 * (time))
         boost_score = math.floor(int(self.amount) - decay_amount)
-        return boost_score
+        return min(0, boost_score)
 
 
 class Balance(models.Model):
