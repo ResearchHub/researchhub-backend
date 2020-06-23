@@ -1,3 +1,4 @@
+import math
 import json
 import hashlib
 from datetime import datetime
@@ -61,6 +62,7 @@ class Purchase(PaidStatusModelMixin):
     )
     amount = models.CharField(max_length=255)
     boost_time = models.FloatField(null=True)
+    boost_score = models.IntegerField(null=True)
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -108,6 +110,12 @@ class Purchase(PaidStatusModelMixin):
             return new_boost_time
 
         return 0
+
+    def get_boost_score(self):
+        time = self.boost_time / 60
+        decay_amount = 2 * max(10, (time)) * math.exp(-0.2 * (time))
+        boost_score = math.floor(int(self.amount) - decay_amount)
+        return boost_score
 
 
 class Balance(models.Model):
