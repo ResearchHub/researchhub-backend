@@ -10,6 +10,7 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 
 from discussion.models import (
+    BaseComment,
     Comment,
     Endorsement,
     Flag,
@@ -59,6 +60,7 @@ from .utils import (
 )
 
 from utils import sentry
+
 
 class ActionMixin:
 
@@ -224,8 +226,13 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     order_fields = '__all__'
     ordering = ('-created_date',)
 
-    def create(self, *args, **kwargs):
-        response = super().create(*args, **kwargs)
+    def create(self, request, *args, **kwargs):
+        if request.query_params.get('created_location') == 'progress':
+            request.data['created_location'] = (
+                BaseComment.CREATED_LOCATION_PROGRESS
+            )
+
+        response = super().create(request, *args, **kwargs)
         paper_id = get_paper_id_from_path(args[0])
         hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
 
@@ -319,8 +326,13 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
         ).order_by('-created_date')
         return comments
 
-    def create(self, *args, **kwargs):
-        response = super().create(*args, **kwargs)
+    def create(self, request, *args, **kwargs):
+        if request.query_params.get('created_location') == 'progress':
+            request.data['created_location'] = (
+                BaseComment.CREATED_LOCATION_PROGRESS
+            )
+
+        response = super().create(request, *args, **kwargs)
         paper_id = get_paper_id_from_path(args[0])
         hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
 
@@ -380,6 +392,13 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
             object_id=comment_id
         ).order_by('created_date')
         return replies
+
+    def create(self, request, *args, **kwargs):
+        if request.query_params.get('created_location') == 'progress':
+            request.data['created_location'] = (
+                BaseComment.CREATED_LOCATION_PROGRESS
+            )
+        return super().create(request, *args, **kwargs)
 
     @action(
         detail=True,
