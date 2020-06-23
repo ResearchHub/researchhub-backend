@@ -195,13 +195,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
         return vote
 
     def get_promoted(self, paper):
-        purchases = paper.purchases.filter(
-            paid_status=Purchase.PAID,
-            boost_time__gt=0
-        )
-        if purchases.exists():
-            return paper.get_promoted_score()
-        return False
+        return paper.get_promoted_score()
 
 
 class PaperSerializer(BasePaperSerializer):

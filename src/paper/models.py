@@ -611,13 +611,17 @@ class Paper(models.Model):
                 print('No new paper')
 
     def get_promoted_score(self):
-        base_score = self.score
-        purchases = self.purchases.filter(paid_status=Purchase.PAID)
+        purchases = self.purchases.filter(
+            paid_status=Purchase.PAID,
+            boost_time__gt=0
+        )
         if purchases.exists():
+            base_score = self.score
+            purchases = self.purchases.filter(paid_status=Purchase.PAID)
             boost_scores = purchases.values_list('boost_score', flat=True)
             boost_score = sum(boost_scores)
             return base_score + boost_score
-        return base_score
+        return False
 
 
 class MetadataRetrievalAttempt(models.Model):
