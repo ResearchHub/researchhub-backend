@@ -105,6 +105,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
         summary = request.data.get('summary')
         paper_id = request.data.get('paper')
         previous_summary_id = request.data.get('previousSummaryId', None)
+        created_location = request.data.get('createdLocation', None)
 
         previous_summary = None
         if previous_summary_id is not None:
@@ -114,7 +115,8 @@ class SummaryViewSet(viewsets.ModelViewSet):
             summary=summary,
             proposed_by=user,
             paper_id=paper_id,
-            previous=previous_summary
+            previous=previous_summary,
+            created_location=created_location
         )
 
         return new_summary

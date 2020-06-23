@@ -2,8 +2,15 @@ from django.db import models
 from django.contrib.postgres.fields import JSONField
 from django.utils import timezone
 
+from researchhub.lib import CREATED_LOCATIONS
+
 
 class Summary(models.Model):
+    CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS['PROGRESS']
+    CREATED_LOCATION_CHOICES = [
+        (CREATED_LOCATION_PROGRESS, 'Progress')
+    ]
+
     summary = JSONField(default=None, null=True)
     summary_plain_text = models.TextField()
     proposed_by = models.ForeignKey(
@@ -39,6 +46,13 @@ class Summary(models.Model):
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+    created_location = models.CharField(
+        choices=CREATED_LOCATION_CHOICES,
+        max_length=255,
+        default=None,
+        null=True,
+        blank=True
+    )
 
     def __str__(self):
         return 'Summary: {}, Paper: {}'.format(self.id, self.paper.title)

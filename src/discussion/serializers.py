@@ -1,4 +1,3 @@
-from django.contrib.admin.options import get_content_type_for_model
 from django.db.models import Count, Q
 
 import rest_framework.serializers as serializers
@@ -43,7 +42,12 @@ class CensorMixin:
 
     def requester_is_moderator(self):
         request = self.context.get('request')
-        return request and request.user and request.user.is_authenticated and request.user.moderator
+        return (
+            request
+            and request.user
+            and request.user.is_authenticated
+            and request.user.moderator
+        )
 
 
 class VoteMixin:
@@ -56,8 +60,14 @@ class VoteMixin:
 
     def get_children_annotated(self, obj):
         if self.context.get('needs_score', False):
-            upvotes = Count('votes__vote_type', filter=Q(votes__vote_type=Vote.UPVOTE))
-            downvotes = Count('votes__vote_type', filter=Q(votes__vote_type=Vote.DOWNVOTE))
+            upvotes = Count(
+                'votes__vote_type',
+                filter=Q(votes__vote_type=Vote.UPVOTE)
+            )
+            downvotes = Count(
+                'votes__vote_type',
+                filter=Q(votes__vote_type=Vote.DOWNVOTE)
+            )
             return obj.children.annotate(score=upvotes - downvotes)
         else:
             return obj.children
@@ -123,6 +133,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
             'id',
             'created_by',
             'created_date',
+            'created_location',
             'is_public',
             'is_removed',
             'external_metadata',
@@ -153,7 +164,9 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
         model = Comment
 
     def _replies_query(self, obj):
-        return self.get_children_annotated(obj).order_by(*self.context.get('ordering', ['-created_date']))
+        return self.get_children_annotated(obj).order_by(
+            *self.context.get('ordering', ['-created_date'])
+        )
 
     def get_replies(self, obj):
         if self.context.get('depth', 3) <= 0:
@@ -208,6 +221,7 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
             'comments',
             'created_by',
             'created_date',
+            'created_location',
             'external_metadata',
             'is_public',
             'is_removed',
@@ -230,7 +244,9 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     def get_comments(self, obj):
         if self.context.get('depth', 3) <= 0:
             return []
-        comments_queryset = self.get_children_annotated(obj).order_by(*self.context.get('ordering', ['-created_date']))[:PAGINATION_PAGE_SIZE]
+        comments_queryset = self.get_children_annotated(obj).order_by(
+            *self.context.get('ordering', ['-created_date'])
+        )[:PAGINATION_PAGE_SIZE]
         comment_serializer = CommentSerializer(
             comments_queryset,
             many=True,
@@ -276,6 +292,7 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
             'id',
             'created_by',
             'created_date',
+            'created_location',
             'is_public',
             'is_removed',
             'parent',
@@ -317,7 +334,10 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
         return None
 
     def _replies_query(self, obj):
-        return self.get_children_annotated(obj).order_by(*self.context.get('ordering', ['-created_date']))
+        return self.get_children_annotated(obj).order_by(*self.context.get(
+            'ordering',
+            ['-created_date'])
+        )
 
     def get_replies(self, obj):
         if self.context.get('depth', 3) <= 0:
