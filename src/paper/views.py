@@ -23,6 +23,7 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 
 from bullet_point.models import BulletPoint
+from google_analytics.signals import get_event_hit_response
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import AdditionalFile, Figure, Flag, Paper, Vote
@@ -191,13 +192,53 @@ class PaperViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         cache_key = get_cache_key(request, 'paper')
         cache.delete(cache_key)
+
+        # TODO: This needs improvement so we guarantee that we are tracking
+        # file created location when a file is actually being added and not
+        # just any updates to the paper
+        created_location = None
+        if request.query_params.get('created_location') == 'progress':
+            created_location = Paper.CREATED_LOCATION_PROGRESS
+            request.data['file_created_location'] = created_location
+
         response = super().update(request, *args, **kwargs)
+
+        if (created_location is not None) and not request.user.is_anonymous:
+            instance = self.get_object()
+            self._send_created_location_ga_event(instance, request.user)
+
         hub_ids = request.data.get('hubs', [])
         invalidate_trending_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
         return response
+
+    def _send_created_location_ga_event(self, instance, user):
+        created = True
+
+        category = 'Paper'
+
+        label = 'Pdf from Progress'
+
+        action = 'Upload'
+
+        user_id = user.id
+
+        paper_id = instance.id
+
+        date = instance.updated_date
+
+        return get_event_hit_response(
+            instance,
+            created,
+            category,
+            label,
+            action=action,
+            user_id=user_id,
+            paper_id=paper_id,
+            date=date
+        )
 
     @action(
         detail=True,
