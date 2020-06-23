@@ -1,8 +1,21 @@
+"""
+Mostly handles sending google analytics events on past save signals.
+
+Notice events related to pdf uploads are *not* included here and are better
+handled at the view level.
+"""
+
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from bullet_point.models import BulletPoint
-from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
+from discussion.models import (
+    BaseComment,
+    Comment,
+    Reply,
+    Thread,
+    Vote as DiscussionVote
+)
 from google_analytics.apps import GoogleAnalytics, Hit
 from paper.models import Figure, Paper, Vote as PaperVote
 from researchhub.settings import PRODUCTION
@@ -60,6 +73,9 @@ def send_discussion_event(
     category = 'Discussion'
 
     label = type(instance).__name__
+
+    if instance.created_location == BaseComment.CREATED_LOCATION_PROGRESS:
+        label += ' from Progress'
 
     return get_event_hit_response(
         instance,
@@ -152,6 +168,9 @@ def send_summary_event(
     category = 'Summary'
 
     label = category
+
+    if instance.created_location == Summary.CREATED_LOCATION_PROGRESS:
+        label += ' from Progress'
 
     user_id = instance.proposed_by.id
 

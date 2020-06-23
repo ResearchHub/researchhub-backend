@@ -6,6 +6,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.db import models
 
+from researchhub.lib import CREATED_LOCATIONS
+
 HELP_TEXT_WAS_EDITED = (
     'True if the comment text was edited after first being created.'
 )
@@ -98,6 +100,11 @@ class Endorsement(models.Model):
 
 
 class BaseComment(models.Model):
+    CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS['PROGRESS']
+    CREATED_LOCATION_CHOICES = [
+        (CREATED_LOCATION_PROGRESS, 'Progress')
+    ]
+
     created_by = models.ForeignKey(
         'user.User',
         on_delete=models.SET_NULL,
@@ -106,6 +113,13 @@ class BaseComment(models.Model):
     )
     created_date = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_date = models.DateTimeField(auto_now=True)
+    created_location = models.CharField(
+        choices=CREATED_LOCATION_CHOICES,
+        max_length=255,
+        default=None,
+        null=True,
+        blank=True
+    )
     was_edited = models.BooleanField(
         default=False,
         help_text=HELP_TEXT_WAS_EDITED
