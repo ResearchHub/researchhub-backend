@@ -105,7 +105,10 @@ class SummaryViewSet(viewsets.ModelViewSet):
         summary = request.data.get('summary')
         paper_id = request.data.get('paper')
         previous_summary_id = request.data.get('previousSummaryId', None)
-        created_location = request.data.get('createdLocation', None)
+
+        created_location = None
+        if request.query_params.get('created_location') == 'progress':
+            created_location = Summary.CREATED_LOCATION_PROGRESS
 
         previous_summary = None
         if previous_summary_id is not None:
