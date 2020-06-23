@@ -58,6 +58,7 @@ from .utils import (
     get_thread_id_from_path
 )
 
+from utils import sentry
 
 class ActionMixin:
 
@@ -256,9 +257,10 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
             Paper.objects.get(
                 id=paper_id
             ).extract_twitter_comments(
-                use_celery=False
+                use_celery=True
             )
-        except:
+        except Exception as e:
+            sentry.log_error(e)
             pass
 
         threads = Thread.objects.filter(

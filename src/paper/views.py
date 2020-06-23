@@ -171,7 +171,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             cache_hit['user_vote'] = vote
             return Response(cache_hit)
 
-        if request.query_params.get('make_public'):
+        if request.query_params.get('make_public') and not instance.is_public:
             instance.is_public = True
             instance.save()
         serializer = self.get_serializer(instance)
