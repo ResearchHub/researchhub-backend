@@ -311,7 +311,11 @@ class Paper(models.Model):
         return {}
 
     def calculate_hot_score(self):
-        if self.score > 0:
+        boosts = self.purchases.filter(
+            paid_status=Purchase.PAID,
+            amount__gt=0
+        )
+        if self.score > 0 or boosts.exists():
             ALGO_START_UNIX = 1575199677
             vote_avg_epoch = self.votes.aggregate(
                 avg=Avg(
@@ -319,6 +323,13 @@ class Paper(models.Model):
                     output_field=models.IntegerField()
                 )
             )['avg']
+
+            boost_amount = sum(
+                map(int, boosts.values_list(
+                    'amount',
+                    flat=True
+                ))
+            )
             avg_hours_since_algo_start = (
                 vote_avg_epoch - ALGO_START_UNIX
             ) / 3600
@@ -326,6 +337,7 @@ class Paper(models.Model):
                 avg_hours_since_algo_start
                 + self.score
                 + self.discussion_count
+                + boost_amount
                 * 2
             )
 
@@ -617,9 +629,9 @@ class Paper(models.Model):
         )
         if purchases.exists():
             base_score = self.score
-            purchases = self.purchases.filter(paid_status=Purchase.PAID)
-            boost_scores = purchases.values_list('boost_score', flat=True)
-            boost_score = sum(boost_scores)
+            boost_score = sum(
+                map(int, purchases.values_list('amount', flat=True))
+            )
             return base_score + boost_score
         return False
 

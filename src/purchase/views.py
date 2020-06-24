@@ -7,11 +7,12 @@ from django.db import transaction
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.response import Response
 from rest_framework.permissions import (
     IsAuthenticated
 )
 
-from rest_framework.response import Response
+from paper.models import Paper
 from paper.utils import get_cache_key, invalidate_trending_cache
 from purchase.models import Purchase, Balance
 from purchase.serializers import PurchaseSerializer
@@ -76,10 +77,11 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             purchase.purchase_hash = purchase_hash
             purchase_boost_time = purchase.get_boost_time(amount)
             purchase.boost_time = purchase_boost_time
-            purchase.boost_score = purchase.get_boost_score()
             purchase.save()
 
         if content_type_str == 'paper':
+            paper = Paper.objects.get(id=object_id)
+            paper.calculate_hot_score()
             cache_key = get_cache_key(None, 'paper', pk=object_id)
             cache.delete(cache_key)
             invalidate_trending_cache([])

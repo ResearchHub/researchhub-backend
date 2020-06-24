@@ -5,13 +5,11 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.db.models import (
-    Sum,
     Count,
     Q,
     Prefetch,
     F
 )
-from django.db.models.functions import Coalesce
 from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
@@ -512,20 +510,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def calculate_paper_ordering(self, papers, ordering, start_date, end_date):
         if 'hot_score' in ordering:
-            boosts = Coalesce(
-                Sum(
-                    'purchases__boost_score',
-                    filter=Q(
-                        purchases__paid_status=Purchase.PAID,
-                        purchases__boost_time__gt=0,
-                    )
-                ), 0
-            )
-            order_papers = papers.annotate(
-                boost_score=boosts
-            )
-            order_papers = order_papers.order_by('-boost_score', ordering)
-
+            order_papers = papers.order_by(ordering)
         elif 'score' in ordering:
             upvotes = Count(
                 'vote',
