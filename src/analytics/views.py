@@ -1,4 +1,6 @@
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
+from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
 from analytics.models import PaperEvent, WebsiteVisits
@@ -20,6 +22,16 @@ class PaperEventViewSet(viewsets.ModelViewSet):
     queryset = PaperEvent.objects.all()
     serializer_class = PaperEventSerializer
     permission_classes = [UpdateOrDelete]
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = [
+        'paper',
+        'created_date',
+        'created_location',
+        'interaction',
+        'paper_is_boosted',
+    ]
+    ordering = ['-created_date']
+    ordering_fields = ['created_date']
 
     def create(self, request, *args, **kwargs):
         user = request.user
