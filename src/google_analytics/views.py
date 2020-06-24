@@ -11,20 +11,40 @@ from utils.parsers import iso_string_to_datetime
 @permission_classes(())  # Override default permission classes
 def forward_event(request):
     try:
-        interaction = request.data['interaction']
-        item = request.data['item']
         utc = request.data['utc']
+        utc_datetime = iso_string_to_datetime(utc)
     except KeyError as e:
         return Response(f'Missing post body data: {e}', status=400)
+    except Exception as e:
+        return Response(str(e), status=400)
 
-    if request.query_params.get('ignore_user') is True:
+    if request.query_params.get('manual') == 'true':
+        try:
+            event = [
+                request.data['category'],
+                request.data['action'],
+                request.data['label'],
+            ]
+            value = request.data['value']
+        except KeyError as e:
+            return Response(f'Missing post body data: {e}', status=400)
+
+        response = get_event_hit_response(*event, utc_datetime, value=value)
+        if response.ok:
+            return Response('Success', status=200)
+        return Response('Failed', status=500)
+
+    interaction = request.data['interaction']
+    item = request.data['item']
+
+    if request.query_params.get('ignore_user') == 'true':
         user = None
     else:
         user = request.user
         if user.is_anonymous:
             user = 'None'
 
-    if request.query_params.get('ignore_paper') is True:
+    if request.query_params.get('ignore_paper') == 'true':
         paper = None
     else:
         paper = request.data['paper']
@@ -38,7 +58,6 @@ def forward_event(request):
             status=400
         )
 
-    utc_datetime = iso_string_to_datetime(utc)
     response = get_event_hit_response(*event, utc_datetime)
     if response.ok:
         return Response('Success', status=200)
