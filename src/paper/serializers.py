@@ -10,7 +10,6 @@ from django.http import QueryDict
 from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
-from purchase.models import Purchase
 from hub.serializers import SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.models import AdditionalFile, Flag, Paper, Vote, Figure
