@@ -10,7 +10,8 @@ def get_event_hit_response(
     category,
     action,
     label,
-    utc_datetime
+    utc_datetime,
+    value=0
 ):
     if not PRODUCTION:
         category = 'Test ' + category
@@ -18,7 +19,7 @@ def get_event_hit_response(
         category=category,
         action=action,
         label=label,
-        value=0
+        value=value
     )
     hit = Hit(Hit.EVENT, utc_datetime, fields)
     return ga.send_hit(hit)
