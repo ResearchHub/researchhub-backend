@@ -212,6 +212,19 @@ class ActionMixin:
             'needs_score': needs_score,
         }
 
+    def get_self_upvote_response(self, request, response, model):
+        """Returns item in response data with upvote from creator and score."""
+        item = model.objects.get(pk=response.data['id'])
+        create_vote(request.user, item, Vote.UPVOTE)
+
+        serializer = self.get_serializer(item)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED,
+            headers=headers
+        )
+
 
 class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     serializer_class = ThreadSerializer
@@ -233,9 +246,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
             )
 
         response = super().create(request, *args, **kwargs)
-
-        item = Thread.objects.get(pk=response.data['id'])
-        create_vote(request.user, item, Vote.UPVOTE)
+        response = self.get_self_upvote_response(request, response, Thread)
 
         paper_id = get_paper_id_from_path(request)
         hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
@@ -337,9 +348,7 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
             )
 
         response = super().create(request, *args, **kwargs)
-
-        item = Comment.objects.get(pk=response.data['id'])
-        create_vote(request.user, item, Vote.UPVOTE)
+        response = self.get_self_upvote_response(request, response, Comment)
 
         paper_id = get_paper_id_from_path(request)
         hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
@@ -409,10 +418,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
 
         response = super().create(request, *args, **kwargs)
 
-        item = Reply.objects.get(pk=response.data['id'])
-        create_vote(request.user, item, Vote.UPVOTE)
-
-        return response
+        return self.get_self_upvote_response(request, response, Reply)
 
     @action(
         detail=True,
