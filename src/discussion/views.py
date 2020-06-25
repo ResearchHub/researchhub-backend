@@ -233,6 +233,10 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
             )
 
         response = super().create(request, *args, **kwargs)
+
+        item = Thread.objects.get(pk=response.data['id'])
+        create_vote(request.user, item, Vote.UPVOTE)
+
         paper_id = get_paper_id_from_path(request)
         hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
 
@@ -333,6 +337,10 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
             )
 
         response = super().create(request, *args, **kwargs)
+
+        item = Comment.objects.get(pk=response.data['id'])
+        create_vote(request.user, item, Vote.UPVOTE)
+
         paper_id = get_paper_id_from_path(request)
         hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
 
@@ -398,7 +406,13 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
             request.data['created_location'] = (
                 BaseComment.CREATED_LOCATION_PROGRESS
             )
-        return super().create(request, *args, **kwargs)
+
+        response = super().create(request, *args, **kwargs)
+
+        item = Reply.objects.get(pk=response.data['id'])
+        create_vote(request.user, item, Vote.UPVOTE)
+
+        return response
 
     @action(
         detail=True,
@@ -497,6 +511,7 @@ def retrieve_vote(user, item):
 
 
 def create_vote(user, item, vote_type):
+    """Returns a vote of `voted_type` on `item` `created_by` `user`."""
     vote = Vote(created_by=user, item=item, vote_type=vote_type)
     vote.save()
     return vote
