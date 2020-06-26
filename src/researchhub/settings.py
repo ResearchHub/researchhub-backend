@@ -35,10 +35,10 @@ NO_SILK = os.environ.get('NO_SILK', False)
 
 if CLOUD:
     CONFIG_BASE_DIR = 'config'
-    from config import db, keys, wallet, twitter
+    from config import db, keys, twitter
 else:
     CONFIG_BASE_DIR = 'config_local'
-    from config_local import db, keys, wallet, twitter
+    from config_local import db, keys, twitter
 
 if DEVELOPMENT or TESTING:
     BASE_FRONTEND_URL = 'http://localhost:3000'
@@ -512,7 +512,7 @@ if STAGING:
 
 WEB3_SHARED_SECRET = os.environ.get(
     'WEB3_SHARED_SECRET',
-    wallet.SHARED_SECRET
+    ''
 )
 
 # TODO: Pull contract addresses from s3
