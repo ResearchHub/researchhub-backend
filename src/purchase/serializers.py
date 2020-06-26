@@ -60,9 +60,14 @@ class PurchaseSerializer(serializers.ModelSerializer):
         ).reset_index()
         truncated_date = grouped_data['created_date'].dt.strftime('%Y-%m-%d')
         grouped_data['created_date'] = truncated_date
-        grouped_data_dict = grouped_data.to_dict('records')
+        views_index = ['created_date', 'views']
+        clicks_index = ['created_date', 'clicks']
 
-        return grouped_data_dict
+        stats = {
+            'views': grouped_data[views_index].to_dict('records'),
+            'clicks': grouped_data[clicks_index].to_dict('records')
+        }
+        return stats
 
     def _aggregate_stats(self, row):
         index = ('views', 'clicks')
