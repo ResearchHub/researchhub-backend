@@ -3,8 +3,6 @@ import json
 
 from eth_keys import keys, KeyAPI
 
-from ethereum.apps import w3, DEFAULT_ADDRESS
-
 
 def decimal_to_token_amount(value, denomination):
     if type(value) is not Decimal:
@@ -21,47 +19,6 @@ def decimal_to_token_amount(value, denomination):
     decimal_part = int(decimal_padded)
 
     return integer_part + decimal_part
-
-
-def get_client_version():
-    return w3.clientVersion
-
-
-def get_address():
-    return DEFAULT_ADDRESS
-
-
-def get_eth_balance(account=None):
-    if account is None:
-        account = get_address()
-    return w3.eth.getBalance(account)
-
-
-def get_erc20_balance(contract, account=None):
-    if account is None:
-        account = get_address()
-    return contract.functions.balanceOf(account).call()
-
-
-def get_nonce(account):
-    if account is None:
-        account = get_address()
-    return w3.eth.getTransactionCount(account)
-
-
-def get_fee_estimate(method_call):
-    gas_estimate = get_gas_estimate(method_call)
-    gas_price = w3.eth.generateGasPrice()
-    return gas_estimate * gas_price
-
-
-def get_gas_estimate(method_call):
-    return method_call.estimateGas()
-
-
-def call(method_call, tx):
-    """Returns the data from the contract's `method_call`."""
-    return method_call.call()
 
 
 def sign_message(message, private_key: str) -> (str, bytes, str):
