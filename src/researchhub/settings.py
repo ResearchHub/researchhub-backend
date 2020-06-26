@@ -624,9 +624,13 @@ CHANNEL_LAYERS = {
 
 # Async service
 
-if PRODUCTION or STAGING:
+if PRODUCTION:
     ASYNC_SERVICE_HOST = (
         'http://ec2-34-219-51-163.us-west-2.compute.amazonaws.com'
+    )
+elif STAGING:
+    ASYNC_SERVICE_HOST = (
+        'http://ec2-52-38-164-185.us-west-2.compute.amazonaws.com'
     )
 else:
     ASYNC_SERVICE_HOST = 'http://localhost:8080'
