@@ -177,6 +177,7 @@ class Paper(models.Model):
         'purchase.Purchase',
         object_id_field='object_id',
         content_type_field='content_type',
+        related_query_name='paper'
     )
 
     class Meta:
