@@ -9,7 +9,6 @@ from rest_framework import routers
 
 import bullet_point.views
 import discussion.views
-import ethereum.urls
 import google_analytics.views
 import hub.views
 import mailing_list.views
@@ -143,7 +142,6 @@ urlpatterns = [
     path('health/', researchhub.views.healthcheck),
     path('api/events/forward_event/', google_analytics.views.forward_event),
     re_path(r'^api/', include(router.urls)),
-    path('api/ethereum/', include(ethereum.urls)),
     path(
         'api/permissions/',
         researchhub.views.permissions,
