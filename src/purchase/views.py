@@ -145,6 +145,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated]
     )
     def user_transactions_by_item(self, request):
+        context = self.get_serializer_context()
+        context['purchase_minimal_serialization'] = True
         queryset = Purchase.objects.filter(user=request.user).order_by(
             '-created_date',
             'object_id'
@@ -152,7 +154,11 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
         page = self.paginate_queryset(queryset)
         if page is not None:
-            serializer = self.serializer_class(page, many=True)
+            serializer = self.serializer_class(
+                page,
+                many=True,
+                context=context
+            )
             return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(queryset, many=True)
