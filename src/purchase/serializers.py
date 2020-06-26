@@ -40,6 +40,8 @@ class PurchaseSerializer(serializers.ModelSerializer):
         return end_date.isoformat()
 
     def get_stats(self, purchase):
+        views = []
+        clicks = []
         Paper = purchase.content_type.model_class()
         paper = Paper.objects.get(id=purchase.object_id)
         events = paper.events.filter(
@@ -50,22 +52,26 @@ class PurchaseSerializer(serializers.ModelSerializer):
 
         serializer = PaperEventSerializer(events, many=True)
         data = serializer.data
-        events_df = pd.DataFrame(data)
-        events_df['created_date'] = pd.to_datetime(events_df['created_date'])
 
-        grouped_data = events_df.groupby(
-            pd.Grouper(key='created_date', freq='D')
-        ).apply(
-            self._aggregate_stats,
-        ).reset_index()
-        truncated_date = grouped_data['created_date'].dt.strftime('%Y-%m-%d')
-        grouped_data['created_date'] = truncated_date
-        views_index = ['created_date', 'views']
-        clicks_index = ['created_date', 'clicks']
+        if data:
+            event_df = pd.DataFrame(data)
+            event_df['created_date'] = pd.to_datetime(event_df['created_date'])
+
+            grouped_data = event_df.groupby(
+                pd.Grouper(key='created_date', freq='D')
+            ).apply(
+                self._aggregate_stats,
+            ).reset_index()
+            trunc_date = grouped_data['created_date'].dt.strftime('%Y-%m-%d')
+            grouped_data['created_date'] = trunc_date
+            views_index = ['created_date', 'views']
+            clicks_index = ['created_date', 'clicks']
+            views = grouped_data[views_index].to_dict('records')
+            clicks = grouped_data[clicks_index].to_dict('records')
 
         stats = {
-            'views': grouped_data[views_index].to_dict('records'),
-            'clicks': grouped_data[clicks_index].to_dict('records')
+            'views': views,
+            'clicks': clicks
         }
         return stats
 
