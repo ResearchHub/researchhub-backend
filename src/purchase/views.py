@@ -4,7 +4,7 @@ import json
 from django.core.cache import cache
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
@@ -121,12 +121,13 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated]
     )
     def user_transactions(self, request):
-        context = {
-            'purchase_minimal_serialization': True
-        }
+        context = self.get_serializer_context()
+        context['purchase_minimal_serialization'] = True
+
         user = request.user
-        transactions = user.purchases.all()
-        page = self.paginate_queryset(transactions)
+        queryset = user.purchases.all()
+
+        page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.serializer_class(
                 page,
@@ -134,3 +135,25 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 many=True
             )
             return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(
+        detail=False,
+        methods=['get'],
+        permission_classes=[IsAuthenticated]
+    )
+    def user_transactions_by_item(self, request):
+        queryset = Purchase.objects.filter(user=request.user).order_by(
+            '-created_date',
+            'object_id'
+        )
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.serializer_class(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
