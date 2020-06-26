@@ -42,6 +42,8 @@ class PurchaseSerializer(serializers.ModelSerializer):
     def get_stats(self, purchase):
         views = []
         clicks = []
+        total_views = 0
+        total_clicks = 0
         Paper = purchase.content_type.model_class()
         paper = Paper.objects.get(id=purchase.object_id)
         events = paper.events.filter(
@@ -62,16 +64,21 @@ class PurchaseSerializer(serializers.ModelSerializer):
             ).apply(
                 self._aggregate_stats,
             ).reset_index()
+
             trunc_date = grouped_data['created_date'].dt.strftime('%Y-%m-%d')
             grouped_data['created_date'] = trunc_date
             views_index = ['created_date', 'views']
             clicks_index = ['created_date', 'clicks']
             views = grouped_data[views_index].to_dict('records')
             clicks = grouped_data[clicks_index].to_dict('records')
+            total_views = grouped_data.views.sum()
+            total_clicks = grouped_data.clicks.sum()
 
         stats = {
             'views': views,
-            'clicks': clicks
+            'clicks': clicks,
+            'total_views': total_views,
+            'total_clicks': total_clicks
         }
         return stats
 
