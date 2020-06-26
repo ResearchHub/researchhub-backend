@@ -16,8 +16,18 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
         app_label = instance._meta.app_label
         model_name = instance._meta.concrete_model.__name__
 
-        self.registry_update_task.delay(pk, app_label, model_name)
-        self.registry_update_related_task.delay(pk, app_label, model_name)
+        self.registry_update_task.delay(
+            pk,
+            app_label,
+            model_name,
+            countdown=10
+        )
+        self.registry_update_related_task.delay(
+            pk,
+            app_label,
+            model_name,
+            countdown=10
+        )
 
     @shared_task()
     def registry_update_task(pk, app_label, model_name):
