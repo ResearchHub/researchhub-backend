@@ -14,20 +14,20 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
     def handle_save(self, sender, instance, **kwargs):
         pk = instance.pk
         app_label = instance._meta.app_label
-        model_name = instance._meta.concrete_model.__name__
+        model = instance._meta.concrete_model
+        model_name = model.__name__
 
-        self.registry_update_task.delay(
-            pk,
-            app_label,
-            model_name,
-            countdown=10
-        )
-        self.registry_update_related_task.delay(
-            pk,
-            app_label,
-            model_name,
-            countdown=10
-        )
+        if model in registry._models:
+            self.registry_update_task.apply_async(
+                (pk, app_label, model_name),
+                countdown=30
+            )
+
+        if model in registry._related_models:
+            self.registry_update_related_task.apply_async(
+                (pk, app_label, model_name),
+                countdown=30
+            )
 
     @shared_task()
     def registry_update_task(pk, app_label, model_name):
