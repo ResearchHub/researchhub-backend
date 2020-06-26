@@ -35,10 +35,10 @@ NO_SILK = os.environ.get('NO_SILK', False)
 
 if CLOUD:
     CONFIG_BASE_DIR = 'config'
-    from config import db, keys, wallet, twitter
+    from config import db, keys, twitter
 else:
     CONFIG_BASE_DIR = 'config_local'
-    from config_local import db, keys, wallet, twitter
+    from config_local import db, keys, twitter
 
 if DEVELOPMENT or TESTING:
     BASE_FRONTEND_URL = 'http://localhost:3000'
@@ -510,46 +510,15 @@ if STAGING:
 # Web3
 # https://web3py.readthedocs.io/en/stable/
 
-WEB3_PROVIDER_URL = os.environ.get(
-    'WEB3_PROVIDER_URL',
-    keys.INFURA_RINKEBY_ENDPOINT
-)
-
-WEB3_INFURA_PROJECT_ID = os.environ.get(
-    'WEB3_INFURA_PROJECT_ID',
-    keys.INFURA_PROJECT_ID
-)
-
-WEB3_INFURA_API_SECRET = os.environ.get(
-    'WEB3_INFURA_API_SECRET',
-    keys.INFURA_PROJECT_SECRET
-)
-
-WEB3_KEYSTORE_FILE = os.environ.get(
-    'WEB3_KEYSTORE_FILE',
-    wallet.KEYSTORE_FILE
-)
-
-WEB3_KEYSTORE_PASSWORD = os.environ.get(
-    'WEB3_KEYSTORE_PASSWORD',
-    wallet.KEYSTORE_PASSWORD
-)
-
 WEB3_SHARED_SECRET = os.environ.get(
     'WEB3_SHARED_SECRET',
-    wallet.SHARED_SECRET
+    ''
 )
+
+# TODO: Pull contract addresses from s3
 
 WEB3_RSC_ADDRESS = os.environ.get(
     'WEB3_RSC_ADDRESS',
-    ''
-)
-WEB3_ETH_SUPPLIER_ADDRESS = os.environ.get(
-    'WEB3_ETH_SUPPLIER_ADDRESS',
-    ''
-)
-WEB3_ERC20_SUPPLIER_ADDRESS = os.environ.get(
-    'WEB3_ERC20_SUPPLIER_ADDRESS',
     ''
 )
 
@@ -559,14 +528,7 @@ if STAGING:
         'WEB3_RSC_ADDRESS',
         ''
     )
-    WEB3_ETH_SUPPLIER_ADDRESS = os.environ.get(
-        'WEB3_ETH_SUPPLIER_ADDRESS',
-        ''
-    )
-    WEB3_ERC20_SUPPLIER_ADDRESS = os.environ.get(
-        'WEB3_ERC20_SUPPLIER_ADDRESS',
-        ''
-    )
+
 
 # Redis
 # redis://:password@hostname:port/db_number
