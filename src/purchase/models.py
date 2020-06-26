@@ -91,22 +91,21 @@ class Purchase(PaidStatusModelMixin):
         return data
 
     def get_boost_time(self, amount=None):
+        day_multiplier = 60 * 60 * 24
+
         if amount:
-            amount = float(amount)
-            boost_time = amount * 60
+            boost_time = float(amount)
+            boost_time = boost_time * day_multiplier
             return boost_time
 
         timestamp = self.created_date.timestamp()
         boost_amount = float(self.amount)
-        boost_time = timestamp + (boost_amount * 60 * 60)
+        boost_time = timestamp + (boost_amount * day_multiplier)
         current_timestamp = datetime.utcnow().timestamp()
 
         if boost_time > current_timestamp:
-            new_boost_time = (
-                ((boost_time - current_timestamp) / 60)
-            )
+            new_boost_time = boost_time - current_timestamp
             return new_boost_time
-
         return 0
 
 
