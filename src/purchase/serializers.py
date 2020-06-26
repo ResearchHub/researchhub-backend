@@ -25,6 +25,12 @@ class PurchaseSerializer(serializers.ModelSerializer):
         return None
 
     def get_end_date(self, purchase):
+        status = purchase.paid_status
+        purchase_method = purchase.purchase_method
+
+        if purchase_method == Purchase.ON_CHAIN and status != Purchase.PAID:
+            return None
+
         created_date = purchase.created_date
         timedelta = datetime.timedelta(days=int(purchase.amount))
         end_date = created_date + timedelta
