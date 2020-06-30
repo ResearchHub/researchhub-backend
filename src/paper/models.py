@@ -328,24 +328,34 @@ class Paper(models.Model):
             paid_status=Purchase.PAID,
             amount__gt=0
         )
-        if self.score > 0 or boosts.exists():
+        boost_exists = boosts.exists()
+        if self.score > 0 or boost_exists:
             ALGO_START_UNIX = 1575199677
-            vote_avg_epoch = self.votes.aggregate(
-                avg=Avg(
-                    Extract('created_date', 'epoch'),
-                    output_field=models.IntegerField()
-                )
-            )['avg']
+            if boost_exists:
+                avg_hours_since_algo_start = (
+                    int(boosts.last().created_date.timestamp()) -
+                    ALGO_START_UNIX
+                ) / 3600
 
-            boost_amount = sum(
-                map(int, boosts.values_list(
-                    'amount',
-                    flat=True
-                ))
-            )
-            avg_hours_since_algo_start = (
-                vote_avg_epoch - ALGO_START_UNIX
-            ) / 3600
+                boost_amount = sum(
+                    map(int, boosts.values_list(
+                        'amount',
+                        flat=True
+                    ))
+                )
+            else:
+                vote_avg_epoch = self.votes.aggregate(
+                    avg=Avg(
+                        Extract('created_date', 'epoch'),
+                        output_field=models.IntegerField()
+                    )
+                )['avg']
+
+                avg_hours_since_algo_start = (
+                    vote_avg_epoch - ALGO_START_UNIX
+                ) / 3600
+                boost_amount = 0
+
             hot_score = (
                 avg_hours_since_algo_start
                 + self.score
