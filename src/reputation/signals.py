@@ -1,9 +1,6 @@
 from datetime import timedelta
-import json
-import logging
 from time import time
 
-from django.db import transaction
 from django.db.models.signals import m2m_changed, post_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
@@ -22,22 +19,17 @@ from discussion.models import (
     Thread,
     Vote as DiscussionVote
 )
-import ethereum.lib
 from paper.models import (
     Flag as PaperFlag,
     Paper,
     Vote as PaperVote
 )
-from researchhub.settings import ASYNC_SERVICE_HOST
 from reputation.distributor import Distributor
 import reputation.distributions as distributions
 from reputation.exceptions import ReputationSignalError
-from reputation.lib import get_unpaid_distributions
-from reputation.models import Distribution, Withdrawal
-from reputation.utils import get_total_reputation_from_distributions
+from reputation.models import Distribution
 from summary.models import Summary
 from user.models import User
-from utils.http import http_request, RequestMethods
 from utils import sentry
 
 # TODO: "Suspend" user if their reputation becomes negative
@@ -73,7 +65,12 @@ def distribute_for_create_paper(sender, instance, created, **kwargs):
         )
         distributor.distribute()
 
-@receiver(m2m_changed, sender=Paper.hubs.through, dispatch_uid='paper_hubs_changed')
+
+@receiver(
+    m2m_changed,
+    sender=Paper.hubs.through,
+    dispatch_uid='paper_hubs_changed'
+)
 def update_distribution_for_hub_changes(
     sender,
     instance,
@@ -83,7 +80,6 @@ def update_distribution_for_hub_changes(
     pk_set,
     **kwargs
 ):
-    timestamp = time()
     if (action == "post_add") and pk_set is not None:
         distributions = Distribution.objects.filter(
             proof_item_object_id=instance.id,
@@ -91,6 +87,7 @@ def update_distribution_for_hub_changes(
         )
         for distribution in distributions:
             distribution.hubs.add(*instance.hubs.all())
+
 
 @receiver(
     m2m_changed,
@@ -262,7 +259,7 @@ def distribute_for_create_discussion(sender, instance, created, **kwargs):
             hubs = instance.paper.hubs
         else:
             return
-        
+
         distributor = Distributor(
             distribution,
             recipient,
@@ -602,41 +599,12 @@ def get_vote_on_discussion_item_distribution(instance):
 
 @receiver(post_delete, sender=Distribution, dispatch_uid='delete_distribution')
 def revoke_reputation(sender, instance, **kwargs):
+    # TODO: Use F expression here to avoid race conditions
     recipient = instance.recipient
     amount = instance.amount
     current = recipient.reputation
     recipient.reputation = current - amount
     recipient.save(update_fields=['reputation'])
-
-
-@receiver(post_save, sender=Withdrawal, dispatch_uid='withdrawal')
-def pay_withdrawal(sender, instance, created, **kwargs):
-    if not created:
-        return
-
-    withdrawal_instance = instance
-    try:
-        withdrawal = withdrawal_instance
-        unpaid_distributions = get_unpaid_distributions(
-            withdrawal.user
-        )
-        pending_withdrawal = PendingWithdrawal(
-            withdrawal,
-            unpaid_distributions
-        )
-        pending_withdrawal.complete_token_transfer()
-    except Exception as e:
-        logging.error(e)
-
-        withdrawal_instance.set_paid_failed()
-
-        error = ReputationSignalError(
-            e,
-            f'Failed to pay withdrawal {withdrawal.id}'
-        )
-        logging.error(error)
-        sentry.log_error(error, error.message)
-        return
 
 
 def is_eligible_for_new_user_bonus(user):
@@ -648,84 +616,3 @@ def is_eligible_for_new_user_bonus(user):
 
 def new_user_cutoff_date():
     return timezone.now() - timedelta(days=NEW_USER_BONUS_DAYS_LIMIT)
-
-
-class PendingWithdrawal:
-    def __init__(self, withdrawal, distributions):
-        self.withdrawal = withdrawal
-        self.distributions = self.add_withdrawal_to_distributions(
-            distributions
-        )
-        self.reputation_payout = self.calculate_reputation_payout()
-        self.token_payout = self.calculate_tokens_and_withdrawal_amount()
-
-    def add_withdrawal_to_distributions(self, distributions):
-        pending_distributions = []
-        for distribution in distributions:
-            try:
-                with transaction.atomic():
-                    distribution.set_paid_pending()
-                    distribution.set_withdrawal(self.withdrawal)
-                    pending_distributions.append(distribution)
-            except Exception as e:
-                logging.error(e)
-        return pending_distributions
-
-    def calculate_reputation_payout(self):
-        reputation_payout = get_total_reputation_from_distributions(
-            self.distributions
-        )
-        if reputation_payout <= 0:
-            raise ReputationSignalError(
-                None,
-                'Insufficient balance to pay out'
-            )
-        return reputation_payout
-
-    def calculate_tokens_and_withdrawal_amount(self):
-        token_payout, withdrawal_amount = ethereum.lib.convert_reputation_amount_to_token_amount(  # noqa: E501
-            'rhc',
-            self.reputation_payout
-        )
-        self.withdrawal.amount = withdrawal_amount
-        self.withdrawal.save()
-        return token_payout
-
-    def complete_token_transfer(self):
-        try:
-            self.withdrawal.set_paid_pending()
-            token_contract = ethereum.contracts.research_coin_contract
-            transaction_hash = ethereum.utils.execute_erc20_transfer(
-                token_contract,
-                self.withdrawal.to_address,
-                self.token_payout
-            )
-        except Exception as e:
-            self.fail_distributions()
-            raise e
-        else:
-            self.withdrawal.transaction_hash = transaction_hash
-            self.withdrawal.save()
-            self.track_withdrawal_paid_status()
-
-    def track_withdrawal_paid_status(self):
-        url = ASYNC_SERVICE_HOST + f'/ethereum/track_withdrawal'
-        data = {
-            'withdrawal': self.withdrawal.id,
-            'transaction_hash': self.withdrawal.transaction_hash
-        }
-        response = http_request(
-            RequestMethods.POST,
-            url,
-            data=json.dumps(data),
-            timeout=3
-        )
-        logging.error(response.content)
-        return response
-
-    def fail_distributions(self):
-        for distribution in self.distributions:
-            try:
-                distribution.set_paid_failed()
-            except Exception:
-                pass

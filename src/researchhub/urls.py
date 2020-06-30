@@ -9,7 +9,6 @@ from rest_framework import routers
 
 import bullet_point.views
 import discussion.views
-import ethereum.urls
 import google_analytics.views
 import hub.views
 import mailing_list.views
@@ -23,6 +22,7 @@ import summary.views
 import user.views
 import notification.views
 import analytics.views
+import purchase.views
 
 from researchhub.settings import CLOUD, NO_SILK
 
@@ -116,7 +116,19 @@ router.register(
 router.register(
     r'analytics/websiteviews',
     analytics.views.WebsiteVisitsViewSet,
-    basename="websiteviews"
+    basename='websiteviews'
+)
+
+router.register(
+    r'events/paper',
+    analytics.views.PaperEventViewSet,
+    basename='events_paper'
+)
+
+router.register(
+    r'purchase',
+    purchase.views.PurchaseViewSet,
+    basename='purchase'
 )
 
 router.register(r'user', user.views.UserViewSet)
@@ -130,7 +142,6 @@ urlpatterns = [
     path('health/', researchhub.views.healthcheck),
     path('api/events/forward_event/', google_analytics.views.forward_event),
     re_path(r'^api/', include(router.urls)),
-    path('api/ethereum/', include(ethereum.urls)),
     path(
         'api/permissions/',
         researchhub.views.permissions,

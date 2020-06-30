@@ -5,7 +5,7 @@ from ethereum.lib import convert_reputation_amount_to_token_amount
 
 class EthereumLibTests(TestCase):
     def setUp(self):
-        self.token_ticker = 'rhc'
+        self.token_ticker = 'RSC'
 
     def test_convert_reputation_amount_to_token_amount(self):
         rep = 1

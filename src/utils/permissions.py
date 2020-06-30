@@ -16,6 +16,15 @@ class CreateOrReadOnly(BasePermission):
         )
 
 
+class CreateOrUpdateOrReadOnly(BasePermission):
+    def has_permission(self, request, view):
+        return (
+            (request.method in SAFE_METHODS)
+            or (request.method == RequestMethods.POST)
+            or (request.method == RequestMethods.PATCH)
+        )
+
+
 class AuthorizationBasedPermission(BasePermission):
     class Meta:
         abstract = True
