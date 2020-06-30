@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
 from django.db import models, transaction
 from django.db.models import Count, Q, Avg
@@ -17,6 +18,7 @@ from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
 from summary.models import Summary
 from hub.models import Hub
+from purchase.models import Purchase
 
 from utils.arxiv import Arxiv
 from utils.crossref import Crossref
@@ -183,6 +185,13 @@ class Paper(models.Model):
         help_text='PDF availability in Unpaywall OA Location format.'
     )
 
+    purchases = GenericRelation(
+        'purchase.Purchase',
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='paper'
+    )
+
     class Meta:
         ordering = ['-paper_publish_date']
 
@@ -315,7 +324,11 @@ class Paper(models.Model):
         return {}
 
     def calculate_hot_score(self):
-        if self.score > 0:
+        boosts = self.purchases.filter(
+            paid_status=Purchase.PAID,
+            amount__gt=0
+        )
+        if self.score > 0 or boosts.exists():
             ALGO_START_UNIX = 1575199677
             vote_avg_epoch = self.votes.aggregate(
                 avg=Avg(
@@ -323,6 +336,13 @@ class Paper(models.Model):
                     output_field=models.IntegerField()
                 )
             )['avg']
+
+            boost_amount = sum(
+                map(int, boosts.values_list(
+                    'amount',
+                    flat=True
+                ))
+            )
             avg_hours_since_algo_start = (
                 vote_avg_epoch - ALGO_START_UNIX
             ) / 3600
@@ -330,6 +350,7 @@ class Paper(models.Model):
                 avg_hours_since_algo_start
                 + self.score
                 + self.discussion_count
+                + boost_amount
                 * 2
             )
 
@@ -622,6 +643,19 @@ class Paper(models.Model):
                     print(f'Error saving reference paper: {e}')
             else:
                 print('No new paper')
+
+    def get_promoted_score(self):
+        purchases = self.purchases.filter(
+            paid_status=Purchase.PAID,
+            boost_time__gt=0
+        )
+        if purchases.exists():
+            base_score = self.score
+            boost_score = sum(
+                map(int, purchases.values_list('amount', flat=True))
+            )
+            return base_score + boost_score
+        return False
 
 
 class MetadataRetrievalAttempt(models.Model):

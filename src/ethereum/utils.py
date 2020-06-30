@@ -1,5 +1,7 @@
 from decimal import Decimal
-from ethereum.apps import w3, DEFAULT_PRIVATE_KEY, DEFAULT_ADDRESS
+import json
+
+from eth_keys import keys, KeyAPI
 
 
 def decimal_to_token_amount(value, denomination):
@@ -19,68 +21,38 @@ def decimal_to_token_amount(value, denomination):
     return integer_part + decimal_part
 
 
-def get_client_version():
-    return w3.clientVersion
-
-
-def get_address():
-    return DEFAULT_ADDRESS
-
-
-def get_erc20_balance(contract, account):
-    return contract.functions.balanceOf(account).call()
-
-
-def get_nonce(account):
-    if account is None:
-        account = get_address()
-    return w3.eth.getTransactionCount(account)
-
-
-def execute_erc20_transfer(contract, to, amount):
-    """Sends `amount` of the token located at `contract` to `to`.
-
-    !!! NOTE: This method should be used carefully because the default
-    msg.sender is this server's default account.
-
-    Returns the transaction hash.
+def sign_message(message, private_key: str) -> (str, bytes, str):
+    """Returns tuple of signature, message, public key.
 
     Args:
-        contract (obj) - w3 contract instance of the ERC20
-        to (str) - Ethereum address of recipient
-        amount (int) - Amount of token to send (in smallest possible
-            denomination)
+        message (obj) -- Gets json stringified and converted to bytes.
+        private_key (str) -- A hex string
     """
-    return transact(contract.functions.transfer(to, amount))
+    sk_bytes = bytes.fromhex(private_key[2:])
+    sk = keys.PrivateKey(sk_bytes)
+    message = json.dumps(message)
+    message_bytes = bytes(message, 'utf-8')
+    signature = sk.sign_msg(message_bytes)
+    signature_hex = signature.to_bytes().hex()
+    public_key = sk.public_key
+    public_key_hex = public_key.to_hex()
+    return signature_hex, message_bytes, public_key_hex
 
 
-def transact(method_call, gas=None, sender=None, sender_signing_key=None):
-    """Executes the contract's `method_call` on chain.
-
-    !!! NOTE: This method should be used carefully because the default
-    msg.sender is this server's default account.
+def verify_signature(
+    signature_hex: str,
+    message_bytes: bytes,
+    public_key_hex: str
+):
+    """Returns True for a valid signature.
 
     Args:
-        gas (int) - Amount of gas to fund transaction execution. Defaults to
-            method_call.estimateGas()
-        sender (str) - Address of message sender
-        sender_signing_key (bytes) - Private key of sender
+        signature (str) -- hex string
+        message (bytes)
+        public_key (str) -- hex string
     """
-    tx = method_call.buildTransaction({
-        'from': sender or DEFAULT_ADDRESS,
-        'nonce': get_nonce(None),
-        'gas': gas or (get_gas_estimate(method_call) * 10),
-    })
-    signing_key = sender_signing_key or DEFAULT_PRIVATE_KEY
-    signed = w3.eth.account.signTransaction(tx, signing_key)
-    tx_hash = w3.eth.sendRawTransaction(signed.rawTransaction)
-    return tx_hash.hex()
-
-
-def get_gas_estimate(method_call):
-    return method_call.estimateGas()
-
-
-def call(method_call, tx):
-    """Returns the data from the contract's `method_call`."""
-    return method_call.call()
+    signature_bytes = bytes.fromhex(signature_hex)
+    signature = KeyAPI.Signature(signature_bytes=signature_bytes)
+    pk_bytes = bytes.fromhex(public_key_hex[2:])
+    pk = KeyAPI.PublicKey(pk_bytes)
+    return signature.verify_msg(message_bytes, pk)

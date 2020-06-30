@@ -51,6 +51,7 @@ elastic-apm = "*"
 arxiv = "*"
 python-twitter = "*"
 pandas = "*"
+eth-keys = "*"
 
 [requires]
 python_version = "3.7"

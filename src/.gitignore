@@ -19,5 +19,7 @@ db.json
 static/
 !static/css
 !static/ethereum
+!static/ethereum/*
 !static/researchhub
+!static/researchhub/*
 backups/
