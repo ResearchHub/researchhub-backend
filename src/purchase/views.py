@@ -79,6 +79,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             purchase_boost_time = purchase.get_boost_time(amount)
             purchase.boost_time = purchase_boost_time
             purchase.save()
+            purchase.group()
 
         if content_type_str == 'paper':
             paper = Paper.objects.get(id=object_id)
