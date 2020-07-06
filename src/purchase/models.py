@@ -9,6 +9,25 @@ from django.db import models
 from utils.models import PaidStatusModelMixin
 
 
+class AggregatePurchase(PaidStatusModelMixin):
+    user = models.ForeignKey(
+        'user.User',
+        on_delete=models.CASCADE,
+        related_name='aggregate_purchases'
+    )
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE
+    )
+    object_id = models.PositiveIntegerField()
+    item = GenericForeignKey(
+        'content_type',
+        'object_id'
+    )
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
+
+
 class Purchase(PaidStatusModelMixin):
     OFF_CHAIN = 'OFF_CHAIN'
     ON_CHAIN = 'ON_CHAIN'
@@ -27,6 +46,11 @@ class Purchase(PaidStatusModelMixin):
     user = models.ForeignKey(
         'user.User',
         on_delete=models.CASCADE,
+        related_name='purchases'
+    )
+    group = models.ForeignKey(
+        AggregatePurchase,
+        on_delete=models.SET_NULL,
         related_name='purchases'
     )
     content_type = models.ForeignKey(
@@ -107,6 +131,37 @@ class Purchase(PaidStatusModelMixin):
             new_boost_time = boost_time - current_timestamp
             return new_boost_time
         return 0
+
+    def get_aggregate_purchase(self, groups, paid_status):
+        # Group all pending, initiated, failed, paid
+        for group in groups:
+            purchases = group.purchases
+            purchases.filter()
+
+    def group(self):
+        user = self.user
+        item = self.item
+        paid_status = self.paid_status
+        groups = AggregatePurchase.objects.filter(
+            user=user,
+            item=item,
+            paid_status=paid_status
+            # content_type=self.content_type,
+            # object_id=self.object_id,
+        )
+
+        if groups.exists():
+            agg = self.get_aggregate_purchase(groups, paid_status)
+            self.group = groups.last()
+            self.save()
+        else:
+            agg = AggregatePurchase.objects.create(
+                user=user,
+                item=item,
+                paid_status=paid_status
+            )
+            self.group = agg
+            agg.save()
 
 
 class Balance(models.Model):
