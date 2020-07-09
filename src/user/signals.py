@@ -1,6 +1,6 @@
 # TODO: Fix the celery task on cloud deploys
 
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
@@ -105,6 +105,16 @@ def create_action(sender, instance, created, **kwargs):
         action.hubs.add(*hubs)
         create_notification(sender, instance, created, action, **kwargs)
         return action
+
+
+@receiver(post_delete, sender=Paper, dispatch_uid='paper_delete_action')
+def create_delete_action(sender, instance, using, **kwargs):
+    display = False
+    action = Action.objects.create(
+        item=instance,
+        display=display
+    )
+    return action
 
 
 def create_notification(sender, instance, created, action, **kwargs):
