@@ -377,7 +377,11 @@ class Paper(models.Model):
         thread_count = self.threads.aggregate(
             discussion_count=Count(
                 1,
-                filter=Q(is_removed=False, created_by__isnull=False)
+                filter=Q(
+                    is_removed=False,
+                    created_by__isnull=False,
+                    source='researchhub'
+                )
             )
         )['discussion_count']
         comment_count = self.threads.aggregate(
@@ -385,7 +389,8 @@ class Paper(models.Model):
                 'comments',
                 filter=Q(
                     comments__is_removed=False,
-                    comments__created_by__isnull=False
+                    comments__created_by__isnull=False,
+                    source='researchhub'
                 )
             )
         )['discussion_count']
@@ -394,7 +399,8 @@ class Paper(models.Model):
                 'comments__replies',
                 filter=Q(
                     comments__replies__is_removed=False,
-                    comments__replies__created_by__isnull=False
+                    comments__replies__created_by__isnull=False,
+                    source='researchhub'
                 )
             )
         )['discussion_count']
