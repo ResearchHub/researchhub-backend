@@ -10,6 +10,7 @@ from allauth.socialaccount.providers.oauth2.client import (
 )
 from allauth.socialaccount.providers.oauth2.views import (
     AuthError,
+    OAuth2LoginView,
     OAuth2CallbackView,
     PermissionDenied,
     RequestException
@@ -34,10 +35,11 @@ from django.utils.translation import ugettext_lazy as _
 
 from elasticsearch.exceptions import ConnectionTimeout
 
+from oauth.adapters import GoogleOAuth2AdapterIdToken
 from oauth.helpers import complete_social_login
 from oauth.exceptions import LoginError
 from oauth.utils import get_orcid_names
-from researchhub.settings import GOOGLE_REDIRECT_URL
+from researchhub.settings import GOOGLE_REDIRECT_URL, GOOGLE_YOLO_REDIRECT_URL
 from user.models import Author, User
 from user.utils import merge_author_profiles
 from utils import sentry
@@ -48,6 +50,7 @@ from analytics.models import WebsiteVisits
 class SocialLoginSerializer(serializers.Serializer):
     access_token = serializers.CharField(required=False, allow_blank=True)
     code = serializers.CharField(required=False, allow_blank=True)
+    credential = serializers.CharField(required=False, allow_blank=True)
     uuid = serializers.CharField(required=False, allow_blank=True)
 
     def _get_request(self):
@@ -111,9 +114,15 @@ class SocialLoginSerializer(serializers.Serializer):
         # More info on code vs access_token
         # http://stackoverflow.com/questions/8666316/facebook-oauth-2-0-code-and-token
 
+        credential = attrs.get('credential')
+
         # Case 1: We received the access_token
-        if attrs.get('access_token'):
+        if attrs.get('access_token') or credential:
             access_token = attrs.get('access_token')
+            if credential:
+                # TODO: Remove
+                # verify_google_yolo_csrf(request)
+                access_token = credential
 
         # Case 2: We received the authorization code
         elif attrs.get('code'):
@@ -159,6 +168,7 @@ class SocialLoginSerializer(serializers.Serializer):
         social_token = adapter.parse_token({'access_token': access_token})
         social_token.app = app
 
+        login = None
         try:
             login = self.get_social_login(
                 adapter,
@@ -172,13 +182,14 @@ class SocialLoginSerializer(serializers.Serializer):
         except Exception as e:
             error = LoginError(e, 'Login failed')
             sentry.log_info(error, error=e)
-            deleted = self._delete_user_account(login.user, error=e)
-            if deleted and retry < 3:
-                return self.validate(attrs, retry=retry+1)
+            if login:
+                deleted = self._delete_user_account(login.user, error=e)
+                if deleted and retry < 3:
+                    return self.validate(attrs, retry=retry+1)
             sentry.log_error(error, base_error=e)
             raise serializers.ValidationError(_("Incorrect value"))
 
-        if not login.is_existing:
+        if login and not login.is_existing:
             # We have an account already signed up in a different flow
             # with the same email address: raise an exception.
             # This needs to be handled in the frontend. We can not just
@@ -213,9 +224,27 @@ class SocialLoginSerializer(serializers.Serializer):
         return attrs
 
 
+def verify_google_yolo_csrf(request):
+    csrf_token_cookie = request.COOKIES.get('g_csrf_token')
+    if not csrf_token_cookie:
+        raise AttributeError('No CSRF token in Cookie.')
+    csrf_token_body = request.POST.get('g_csrf_token')
+    if not csrf_token_body:
+        raise AttributeError('No CSRF token in post body.')
+    if csrf_token_cookie != csrf_token_body:
+        raise ValueError('Failed to verify double submit cookie.')
+
+
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
     callback_url = GOOGLE_REDIRECT_URL
+    client_class = OAuth2Client
+    serializer_class = SocialLoginSerializer
+
+
+class GoogleYoloLogin(SocialLoginView):
+    adapter_class = GoogleOAuth2AdapterIdToken
+    callback_url = GOOGLE_YOLO_REDIRECT_URL
     client_class = OAuth2Client
     serializer_class = SocialLoginSerializer
 
@@ -242,7 +271,10 @@ class CallbackView(OAuth2CallbackView):
         app = self.adapter.get_provider().get_app(self.request)
         client = self.get_client(request, app)
         try:
-            access_token = client.get_access_token(request.GET['code'])
+            try:
+                access_token = client.get_access_token(request.GET['code'])
+            except:
+                access_token = client.get_access_token(request.GET['credential'])
             token = self.adapter.parse_token(access_token)
             token.app = app
             login = self.adapter.complete_login(request,
@@ -268,8 +300,9 @@ class CallbackView(OAuth2CallbackView):
                 self.adapter.provider_id,
                 exception=e)
 
-
 google_callback = CallbackView.adapter_view(GoogleOAuth2Adapter)
+google_yolo_login = OAuth2LoginView.adapter_view(GoogleOAuth2AdapterIdToken)
+google_yolo_callback = CallbackView.adapter_view(GoogleOAuth2AdapterIdToken)
 orcid_callback = CallbackView.adapter_view(OrcidOAuth2Adapter)
 
 

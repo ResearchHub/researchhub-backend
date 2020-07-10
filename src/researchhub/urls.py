@@ -159,6 +159,16 @@ urlpatterns = [
         name='orcid_login'
     ),
     path(
+        'auth/google/yolo/callback/',
+        oauth.views.google_yolo_callback,
+        name='google_yolo_callback'
+    ),
+    path(
+        'api/auth/google/yolo/',
+        oauth.views.GoogleYoloLogin.as_view(),
+        name='google_yolo'
+    ),
+    path(
         'auth/google/login/callback/',
         oauth.views.google_callback,
         name='google_callback'
