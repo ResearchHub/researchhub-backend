@@ -1,7 +1,12 @@
 from time import time
 
+from allauth.socialaccount import providers
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.providers.google.provider import GoogleProvider
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
+from google.oauth2 import id_token
+from google.auth.transport import requests
 
 from user.models import Author
 from user.utils import merge_author_profiles
@@ -45,3 +50,33 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         author_profile.orcid_id = social_account.uid
         author_profile.orcid_account = social_account
         author_profile.save()
+
+
+class GoogleIdTokenProvider(GoogleProvider):
+
+    def extract_uid(self, data):
+        return str(data['sub'])
+
+
+class GoogleOAuth2AdapterIdToken(GoogleOAuth2Adapter):
+
+    def get_provider(self):
+        return GoogleIdTokenProvider(self.request)
+
+    def complete_login(self, request, app, token, **kwargs):
+        idinfo = id_token.verify_oauth2_token(
+            token.token,
+            requests.Request(),
+            app.client_id
+        )
+        if idinfo['iss'] not in [
+            'accounts.google.com',
+            'https://accounts.google.com'
+        ]:
+            raise ValueError('Wrong issuer.')
+        extra_data = idinfo
+        login = self.get_provider().sociallogin_from_response(
+            request,
+            extra_data
+        )
+        return login
