@@ -323,13 +323,20 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 
 GOOGLE_REDIRECT_URL = 'http://localhost:8000/auth/google/login/callback/'
+GOOGLE_YOLO_REDIRECT_URL = 'http://localhost:8000/auth/google/yolo/callback/'
 if PRODUCTION:
     GOOGLE_REDIRECT_URL = (
         'https://backend.researchhub.com/auth/google/login/callback/'
     )
+    GOOGLE_YOLO_REDIRECT_URL = (
+        'https://backend.researchhub.com/auth/google/yolo/callback/'
+    )
 if STAGING:
     GOOGLE_REDIRECT_URL = (
         'https://staging-backend.researchhub.com/auth/google/login/callback/'
+    )
+    GOOGLE_YOLO_REDIRECT_URL = (
+        'https://staging-backend.researchhub.com/auth/google/yolo/callback/'
     )
 
 
