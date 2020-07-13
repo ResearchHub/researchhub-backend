@@ -14,8 +14,11 @@ from rest_framework.permissions import (
 
 from paper.models import Paper
 from paper.utils import get_cache_key, invalidate_trending_cache
-from purchase.models import Purchase, Balance
-from purchase.serializers import PurchaseSerializer
+from purchase.models import Purchase, Balance, AggregatePurchase
+from purchase.serializers import (
+    PurchaseSerializer,
+    AggregatePurchaseSerializer
+)
 from researchhub.settings import ASYNC_SERVICE_HOST
 from utils.http import http_request, RequestMethods
 from utils.permissions import CreateOrUpdateOrReadOnly
@@ -78,8 +81,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             purchase.purchase_hash = purchase_hash
             purchase_boost_time = purchase.get_boost_time(amount)
             purchase.boost_time = purchase_boost_time
+            purchase.group = purchase.group()
             purchase.save()
-            purchase.group()
 
         if content_type_str == 'paper':
             paper = Paper.objects.get(id=object_id)
@@ -98,6 +101,9 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
         purchase = self.get_object()
+        purchase.group = purchase.group()
+        purchase.save()
+
         if purchase.transaction_hash:
             self.track_paid_status(purchase.id, purchase.transaction_hash)
         return response
@@ -139,6 +145,23 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(
+        detail=False,
+        methods=['get'],
+        permission_classes=[IsAuthenticated]
+    )
+    def temp(self, request, pk=None):
+        user = request.user
+        context = self.get_serializer_context()
+        context['purchase_minimal_serialization'] = True
+        groups = AggregatePurchase.objects.filter(user=user)
+        serializer = AggregatePurchaseSerializer(
+            groups,
+            context=context,
+            many=True
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(
