@@ -110,6 +110,8 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'figures',
                 queryset=Figure.objects.filter(
                     figure_type=Figure.FIGURE
+                ).order_by(
+                    'created_date'
                 ),
                 to_attr='figure_list',
             ),
@@ -117,6 +119,8 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'figures',
                 queryset=Figure.objects.filter(
                     figure_type=Figure.PREVIEW
+                ).order_by(
+                    'created_date'
                 ),
                 to_attr='preview_list',
             ),

@@ -133,7 +133,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     def get_first_figure(self, paper):
         try:
             if len(paper.figure_list) > 0:
-                figure = paper.figure_list[-1]
+                figure = paper.figure_list[0]
                 return FigureSerializer(figure).data
         except AttributeError:
             figure = paper.figures.filter(
@@ -146,7 +146,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     def get_first_preview(self, paper):
         try:
             if len(paper.preview_list) > 0:
-                figure = paper.preview_list[-1]
+                figure = paper.preview_list[0]
                 return FigureSerializer(figure).data
         except AttributeError:
             figure = paper.figures.filter(
