@@ -2,8 +2,7 @@ name: Backend CI
 on:
   push:
     branches:
-      - master
-      - staging
+      - ci
   pull_request:
 jobs:
   build:
