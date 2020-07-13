@@ -3,7 +3,7 @@ import pandas as pd
 
 import rest_framework.serializers as serializers
 
-from purchase.models import Purchase
+from purchase.models import Purchase, AggregatePurchase
 from analytics.serializers import PaperEventSerializer
 from paper.serializers import BasePaperSerializer
 
@@ -87,3 +87,9 @@ class PurchaseSerializer(serializers.ModelSerializer):
         views = len(row[row['interaction'] == 'VIEW'])
         clicks = len(row[row['interaction'] == 'CLICK'])
         return pd.Series((views, clicks), index=index)
+
+
+class AggregatePurchaseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AggregatePurchase
+        fields = '__all__'

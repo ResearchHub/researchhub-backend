@@ -132,36 +132,18 @@ class Purchase(PaidStatusModelMixin):
             return new_boost_time
         return 0
 
-    def get_aggregate_purchase(self, groups, paid_status):
-        # Group all pending, initiated, failed, paid
-        for group in groups:
-            purchases = group.purchases
-            purchases.filter()
-
     def group(self):
         user = self.user
-        item = self.item
+        object_id = self.object_id
+        content_type = self.content_type
         paid_status = self.paid_status
-        groups = AggregatePurchase.objects.filter(
+        agg, created = AggregatePurchase.objects.get_or_create(
             user=user,
-            item=item,
+            content_type=content_type,
+            object_id=object_id,
             paid_status=paid_status
-            # content_type=self.content_type,
-            # object_id=self.object_id,
         )
-
-        if groups.exists():
-            agg = self.get_aggregate_purchase(groups, paid_status)
-            self.group = groups.last()
-            self.save()
-        else:
-            agg = AggregatePurchase.objects.create(
-                user=user,
-                item=item,
-                paid_status=paid_status
-            )
-            self.group = agg
-            agg.save()
+        return agg
 
 
 class Balance(models.Model):
