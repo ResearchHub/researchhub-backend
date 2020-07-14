@@ -34,6 +34,12 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         user = request.user
         starting_balance = user.get_balance()
         if self._check_meets_withdrawal_minimum(user, starting_balance):
+            if not user.agreed_to_terms:
+                user.agreed_to_terms = request.data.get(
+                    'agreed_to_terms',
+                    False
+                )
+                user.save()
             try:
                 with transaction.atomic():
                     response = super().create(request)
