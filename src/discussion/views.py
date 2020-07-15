@@ -547,7 +547,7 @@ class CommentFileUpload(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def create(self, request):
-        _, base64_content = request.data.get('content').split(';base64',)
+        _, base64_content = request.data.get('content').split(';base64,')
         base64_content = base64_content.encode()
 
         content_type = request.data.get('content_type')
