@@ -1,4 +1,9 @@
+import base64
+import hashlib
+
 from django.contrib.admin.options import get_content_type_for_model
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.db.models import Count, Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -536,3 +541,24 @@ def create_vote(user, item, vote_type):
     vote = Vote(created_by=user, item=item, vote_type=vote_type)
     vote.save()
     return vote
+
+
+class CommentFileUpload(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def create(self, request):
+        base64_content = request.data.get('content').encode()
+        content_type = request.data.get('content_type')
+        bucket_directory = f'comment_files/{content_type}'
+        checksum = hashlib.md5(base64_content).hexdigest()
+        path = f'{bucket_directory}/{checksum}.{content_type}'
+        file_data = base64.b64decode(base64_content)
+        data = ContentFile(file_data)
+
+        if default_storage.exists(path):
+            url = default_storage.url(path)
+        else:
+            file_path = default_storage.save(path, data)
+            url = default_storage.url(file_path)
+
+        return Response(url, status.HTTP_201_CREATED)
