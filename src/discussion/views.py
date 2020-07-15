@@ -547,7 +547,9 @@ class CommentFileUpload(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def create(self, request):
-        base64_content = request.data.get('content').encode()
+        _, base64_content = request.data.get('content').split(';base64')[-1]
+        base64_content = base64_content.encode()
+
         content_type = request.data.get('content_type')
         bucket_directory = f'comment_files/{content_type}'
         checksum = hashlib.md5(base64_content).hexdigest()
