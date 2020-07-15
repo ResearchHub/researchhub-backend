@@ -557,8 +557,10 @@ class CommentFileUpload(viewsets.ViewSet):
 
         if default_storage.exists(path):
             url = default_storage.url(path)
+            res_status = status.HTTP_200_OK
         else:
             file_path = default_storage.save(path, data)
             url = default_storage.url(file_path)
+            res_status = status.HTTP_201_CREATED
 
-        return Response(url, status.HTTP_201_CREATED)
+        return Response(url, status=res_status)
