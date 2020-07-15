@@ -81,7 +81,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             purchase.purchase_hash = purchase_hash
             purchase_boost_time = purchase.get_boost_time(amount)
             purchase.boost_time = purchase_boost_time
-            purchase.group = purchase.group()
+            purchase.group = purchase.get_aggregate_group()
             purchase.save()
 
         if content_type_str == 'paper':
@@ -101,7 +101,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
         purchase = self.get_object()
-        purchase.group = purchase.group()
+        purchase.group = purchase.get_aggregate_group()
         purchase.save()
 
         if purchase.transaction_hash:
