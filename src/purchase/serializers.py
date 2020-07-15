@@ -3,9 +3,12 @@ import pandas as pd
 
 import rest_framework.serializers as serializers
 
+from django.db.models import Count, Q
+
 from purchase.models import Purchase, AggregatePurchase
 from analytics.serializers import PaperEventSerializer
 from paper.serializers import BasePaperSerializer
+from analytics.models import INTERACTIONS
 
 
 class PurchaseSerializer(serializers.ModelSerializer):
@@ -19,6 +22,9 @@ class PurchaseSerializer(serializers.ModelSerializer):
 
     def get_source(self, purchase):
         model_name = purchase.content_type.name
+        if self.context.get('exclude_source', False):
+            return None
+
         if model_name == 'paper':
             Paper = purchase.content_type.model_class()
             paper = Paper.objects.get(id=purchase.object_id)
@@ -40,6 +46,9 @@ class PurchaseSerializer(serializers.ModelSerializer):
         return end_date.isoformat()
 
     def get_stats(self, purchase):
+        if self.context.get('exclude_stats', False):
+            return None
+
         views = []
         clicks = []
         total_views = 0
@@ -90,6 +99,60 @@ class PurchaseSerializer(serializers.ModelSerializer):
 
 
 class AggregatePurchaseSerializer(serializers.ModelSerializer):
+    source = serializers.SerializerMethodField()
+    purchases = serializers.SerializerMethodField()
+    stats = serializers.SerializerMethodField()
+
     class Meta:
         model = AggregatePurchase
         fields = '__all__'
+
+    def get_source(self, purchase):
+        model_name = purchase.content_type.name
+        if model_name == 'paper':
+            Paper = purchase.content_type.model_class()
+            paper = Paper.objects.get(id=purchase.object_id)
+            serializer = BasePaperSerializer(paper, context=self.context)
+            data = serializer.data
+            return data
+        return None
+
+    def get_purchases(self, purchase):
+        purchases = purchase.purchases
+        self.context['exclude_source'] = True
+        self.context['exclude_stats'] = True
+        serializer = PurchaseSerializer(
+            purchases,
+            context=self.context,
+            many=True
+        )
+        data = serializer.data
+        return data
+
+    def get_stats(self, purchase):
+        total_views = purchase.purchases.filter(
+            paper__event__interaction=INTERACTIONS['VIEW']
+        ).distinct().count()
+        total_clicks = purchase.purchases.filter(
+            paper__event__interaction=INTERACTIONS['CLICK']
+        ).distinct().count()
+        # stats = purchase.purchases.annotate(
+        #     total_views=Count(
+        #         'paper__event',
+        #         filter=Q(paper__event__interaction=INTERACTIONS['VIEW']),
+        #         distinct=True
+        #     ),
+        #     total_clicks=Count(
+        #         'paper__event',
+        #         filter=Q(paper__event__interaction=INTERACTIONS['CLICK']),
+        #         distinct=True
+        #     )
+        # ).values(
+        #     'total_views',
+        #     'total_clicks'
+        # )
+        stats = {
+            'total_views': total_views,
+            'total_clicks': total_clicks
+        }
+        return stats

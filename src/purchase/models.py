@@ -50,6 +50,7 @@ class Purchase(PaidStatusModelMixin):
     )
     group = models.ForeignKey(
         AggregatePurchase,
+        null=True,
         on_delete=models.SET_NULL,
         related_name='purchases'
     )
@@ -132,7 +133,7 @@ class Purchase(PaidStatusModelMixin):
             return new_boost_time
         return 0
 
-    def group(self):
+    def get_aggregate_group(self):
         user = self.user
         object_id = self.object_id
         content_type = self.content_type
