@@ -128,32 +128,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         methods=['get'],
         permission_classes=[IsAuthenticated]
     )
-    def user_transactions(self, request, pk=None):
-        context = self.get_serializer_context()
-        context['purchase_minimal_serialization'] = True
-
+    def aggregate_user_promotions(self, request, pk=None):
         user = User.objects.get(id=pk)
-        queryset = user.purchases.all()
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.serializer_class(
-                page,
-                context=context,
-                many=True
-            )
-            return self.get_paginated_response(serializer.data)
-
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    @action(
-        detail=False,
-        methods=['get'],
-        permission_classes=[IsAuthenticated]
-    )
-    def temp(self, request, pk=None):
-        user = request.user
         context = self.get_serializer_context()
         context['purchase_minimal_serialization'] = True
         groups = AggregatePurchase.objects.filter(user=user)
@@ -165,14 +141,16 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(
-        detail=False,
+        detail=True,
         methods=['get'],
         permission_classes=[IsAuthenticated]
     )
-    def user_transactions_by_item(self, request):
+    def user_promotions(self, request, pk=None):
         context = self.get_serializer_context()
         context['purchase_minimal_serialization'] = True
-        queryset = Purchase.objects.filter(user=request.user).order_by(
+
+        user = User.objects.get(id=pk)
+        queryset = Purchase.objects.filter(user=user).order_by(
             '-created_date',
             'object_id'
         )
