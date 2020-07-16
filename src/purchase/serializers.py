@@ -3,6 +3,7 @@ import pandas as pd
 
 import rest_framework.serializers as serializers
 
+from django.db.models import Max
 # from django.db.models import Count, Q, FloatField, Sum, F
 # from django.db.models.functions import Cast
 
@@ -142,9 +143,12 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
         )
 
         created_date = purchase.created_date
-        timedelta = datetime.timedelta(days=int(total_amount))
+        max_boost = purchase.purchases.aggregate(
+            max=Max('amount')
+        ).get('max', 0)
+        timedelta = datetime.timedelta(days=int(max_boost))
         end_date = (created_date + timedelta).isoformat()
-        # import pdb; pdb.set_trace()
+
         # total_amount = purchase.purchases.annotate(tota)
         # stats = purchase.purchases.annotate(
         #     total_views=Count(

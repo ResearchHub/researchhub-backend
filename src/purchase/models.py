@@ -138,14 +138,37 @@ class Purchase(PaidStatusModelMixin):
         object_id = self.object_id
         content_type = self.content_type
         paid_status = self.paid_status
-        # aggregates = AggregatePurchase.objects.filter(
-        #     user=user,
-        #     content_type=content_type,
-        #     object_id=object_id,
-        #     paid_status=paid_status
-        # )
-        # aggregate_group = None
-        # if aggregates.exists():
+
+        aggregate_group = None
+        aggregates = AggregatePurchase.objects.filter(
+            user=user,
+            content_type=content_type,
+            object_id=object_id,
+            paid_status=paid_status,
+            purchases__boost_time__gt=0
+        ).distinct()
+
+        if aggregates.exists():
+            aggregate_group = aggregates.last()
+        else:
+            aggregate_group = AggregatePurchase.objects.create(
+                user=user,
+                content_type=content_type,
+                object_id=object_id,
+                paid_status=paid_status
+            )
+            # active_groups = aggregates.filter(purchases__boost_time__gt=0)
+            # if active_groups.exists():
+            #     # There should only be one active group
+            #     aggregate_group = active_groups.last()
+            # else:
+            #     aggregate_group = AggregatePurchase.objects.create(
+            #         user=user,
+            #         content_type=content_type,
+            #         object_id=object_id,
+            #         paid_status=paid_status
+            #     )
+
         #     for agg in aggregates:
         #         if agg.purchases.exists():
         #             aggregate_group = agg
@@ -165,12 +188,12 @@ class Purchase(PaidStatusModelMixin):
         #         paid_status=paid_status
         #     )
 
-        aggregate_group, created = AggregatePurchase.objects.get_or_create(
-            user=user,
-            content_type=content_type,
-            object_id=object_id,
-            paid_status=paid_status
-        )
+        # aggregate_group, created = AggregatePurchase.objects.get_or_create(
+        #     user=user,
+        #     content_type=content_type,
+        #     object_id=object_id,
+        #     paid_status=paid_status
+        # )
         return aggregate_group
 
 
