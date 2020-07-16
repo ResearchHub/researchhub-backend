@@ -138,13 +138,40 @@ class Purchase(PaidStatusModelMixin):
         object_id = self.object_id
         content_type = self.content_type
         paid_status = self.paid_status
-        agg, created = AggregatePurchase.objects.get_or_create(
+        # aggregates = AggregatePurchase.objects.filter(
+        #     user=user,
+        #     content_type=content_type,
+        #     object_id=object_id,
+        #     paid_status=paid_status
+        # )
+        # aggregate_group = None
+        # if aggregates.exists():
+        #     for agg in aggregates:
+        #         if agg.purchases.exists():
+        #             aggregate_group = agg
+        #             break
+        #     else:
+        #         aggregate_group = AggregatePurchase.objects.create(
+        #             user=user,
+        #             content_type=content_type,
+        #             object_id=object_id,
+        #             paid_status=paid_status
+        #         )
+        # else:
+        #     aggregate_group = AggregatePurchase.objects.create(
+        #         user=user,
+        #         content_type=content_type,
+        #         object_id=object_id,
+        #         paid_status=paid_status
+        #     )
+
+        aggregate_group, created = AggregatePurchase.objects.get_or_create(
             user=user,
             content_type=content_type,
             object_id=object_id,
             paid_status=paid_status
         )
-        return agg
+        return aggregate_group
 
 
 class Balance(models.Model):

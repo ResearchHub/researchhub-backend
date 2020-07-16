@@ -3,7 +3,8 @@ import pandas as pd
 
 import rest_framework.serializers as serializers
 
-from django.db.models import Count, Q
+# from django.db.models import Count, Q, FloatField, Sum, F
+# from django.db.models.functions import Cast
 
 from purchase.models import Purchase, AggregatePurchase
 from analytics.serializers import PaperEventSerializer
@@ -136,6 +137,15 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
         total_clicks = purchase.purchases.filter(
             paper__event__interaction=INTERACTIONS['CLICK']
         ).distinct().count()
+        total_amount = sum(
+            map(float, purchase.purchases.values_list('amount', flat=True))
+        )
+
+        created_date = purchase.created_date
+        timedelta = datetime.timedelta(days=int(total_amount))
+        end_date = (created_date + timedelta).isoformat()
+        # import pdb; pdb.set_trace()
+        # total_amount = purchase.purchases.annotate(tota)
         # stats = purchase.purchases.annotate(
         #     total_views=Count(
         #         'paper__event',
@@ -153,6 +163,15 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
         # )
         stats = {
             'total_views': total_views,
-            'total_clicks': total_clicks
+            'total_clicks': total_clicks,
+            'total_amount': total_amount,
+            'end_date': end_date
         }
         return stats
+
+
+"""
+end date for promotion
+total amount used
+create new aggregate if filter returns none?
+"""
