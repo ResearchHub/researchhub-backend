@@ -46,6 +46,12 @@ router.register(
     basename='discussion_threads'
 )
 
+router.register(
+    r'paper/discussion/file',
+    discussion.views.CommentFileUpload,
+    basename='discussion_file_upload'
+)
+
 
 router.register(
     r'paper/([0-9]+)/bullet_point',
