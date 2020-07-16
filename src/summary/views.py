@@ -104,6 +104,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
         user = request.user
         summary = request.data.get('summary')
         paper_id = request.data.get('paper')
+        summary_plain_text = request.data.get('summary_plain_text', '')
         previous_summary_id = request.data.get('previousSummaryId', None)
 
         created_location = None
@@ -116,6 +117,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
 
         new_summary = Summary.objects.create(
             summary=summary,
+            summary_plain_text=summary_plain_text,
             proposed_by=user,
             paper_id=paper_id,
             previous=previous_summary,
