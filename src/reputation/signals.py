@@ -1,26 +1,23 @@
 from datetime import timedelta
 from time import time
 
+from django.db.models import Q
 from django.db.models.signals import m2m_changed, post_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 from django.contrib.admin.options import get_content_type_for_model
 
 from bullet_point.models import (
-    BulletPoint,
-    Endorsement as BulletPointEndorsement,
-    Flag as BulletPointFlag
+    BulletPoint
 )
+from discussion.lib import check_is_discussion_item
 from discussion.models import (
     Comment,
-    Endorsement as DiscussionEndorsement,
-    Flag as DiscussionFlag,
     Reply,
     Thread,
     Vote as DiscussionVote
 )
 from paper.models import (
-    Flag as PaperFlag,
     Paper,
     Vote as PaperVote
 )
@@ -35,7 +32,6 @@ from utils import sentry
 # TODO: "Suspend" user if their reputation becomes negative
 # This could mean setting `is_active` to false
 
-ELIGIBLE_PAPER_FLAG_COUNT = 3
 NEW_USER_BONUS_REPUTATION_LIMIT = 200
 NEW_USER_BONUS_DAYS_LIMIT = 30
 
@@ -89,40 +85,6 @@ def update_distribution_for_hub_changes(
             distribution.hubs.add(*instance.hubs.all())
 
 
-@receiver(
-    m2m_changed,
-    sender=Paper.authors.through,
-    dispatch_uid='create_authored_paper'
-)
-def distribute_for_create_authored_paper(
-    sender,
-    instance,
-    action,
-    reverse,
-    model,
-    pk_set,
-    **kwargs
-):
-    timestamp = time()
-    if (action == "post_add") and pk_set is not None:
-        if check_uploaded_by_author(instance, pk_set):
-            distributor = Distributor(
-                distributions.CreateAuthoredPaper,
-                instance.uploaded_by,
-                instance,
-                timestamp,
-                instance.hubs.all()
-            )
-            distributor.distribute()
-
-
-def check_uploaded_by_author(paper, pk_set):
-    return (
-        is_eligible_author(paper.uploaded_by)
-        and (paper.uploaded_by.author_profile.id in pk_set)
-    )
-
-
 @receiver(post_save, sender=PaperVote, dispatch_uid='vote_on_paper')
 def distribute_for_vote_on_paper(
     sender,
@@ -136,7 +98,10 @@ def distribute_for_vote_on_paper(
     recipient = instance.created_by
     paper_uploader = instance.paper.uploaded_by
 
-    if created and is_eligible_for_vote_on_paper(recipient, paper_uploader):
+    if (
+        is_eligible_for_vote_on_paper(created, recipient, paper_uploader)
+        and instance.vote_type == DiscussionVote.UPVOTE
+    ):
         distributor = Distributor(
             distributions.VoteOnPaper,
             recipient,
@@ -147,45 +112,58 @@ def distribute_for_vote_on_paper(
         distributor.distribute()
 
 
-def is_eligible_for_vote_on_paper(user, paper_uploader):
+def is_eligible_for_vote_on_paper(created, user, paper_uploader):
     return (
-        is_eligible_user(user)
+        created
+        and is_eligible_user(user)
         and (user != paper_uploader)
         and is_eligible_for_new_user_bonus(user)
     )
 
 
-@receiver(post_save, sender=PaperFlag, dispatch_uid='flag_paper')
-def distribute_for_flag_paper(
+@receiver(post_save, sender=PaperVote, dispatch_uid='paper_upvoted')
+def distribute_for_paper_upvoted(
     sender,
     instance,
     created,
+    update_fields,
+    **kwargs
+):
+    """Distributes reputation to the uploader."""
+    timestamp = time()
+    recipient = instance.paper.uploaded_by
+
+    if created and is_eligible_user(recipient):
+        distributor = Distributor(
+            distributions.PaperUpvoted,
+            recipient,
+            instance,
+            timestamp,
+            instance.paper.hubs.all(),
+        )
+        distributor.distribute()
+
+
+@receiver(post_delete, sender=Paper, dispatch_uid='censor_paper')
+def distribute_for_censor_paper(
+    sender,
+    instance,
+    using,
     **kwargs
 ):
     timestamp = time()
-    if created:
-        recipients = get_eligible_paper_flaggers(instance.paper)
-        if len(recipients) == ELIGIBLE_PAPER_FLAG_COUNT:
-            for recipient in recipients:
-                if is_eligible_user(recipient):
-                    distributor = Distributor(
-                        distributions.FlagPaper,
-                        recipient,
-                        instance,
-                        timestamp,
-                        instance.paper.hubs.all(),
-                    )
-                    distributor.distribute()
-
-
-def get_eligible_paper_flaggers(paper):
-    flaggers = []
-    flags = paper.flags.all()
-    if len(flags) == ELIGIBLE_PAPER_FLAG_COUNT:
-        flags = flags[:ELIGIBLE_PAPER_FLAG_COUNT]
-        for flag in flags:
-            flaggers.append(flag.created_by)
-    return flaggers
+    flags = instance.flags.select_related('created_by').all()
+    for flag in flags:
+        recipient = flag.created_by
+        if is_eligible_user(recipient):
+            distributor = Distributor(
+                distributions.FlagPaper,
+                recipient,
+                instance,
+                timestamp,
+                instance.hubs.all(),
+            )
+            distributor.distribute()
 
 
 @receiver(post_save, sender=Summary, dispatch_uid='create_summary')
@@ -199,35 +177,60 @@ def distribute_for_create_summary(
     timestamp = time()
     recipient = instance.proposed_by
 
-    if created and is_eligible_for_create_summary(recipient):
+    if is_eligible_for_create_summary(created, recipient):
         distribution = distributions.CreateSummary
-    elif (
-        not created
-        and check_approved_updated(update_fields)
-        and instance.is_first_paper_summary
+    elif is_eligible_for_create_first_summary(
+        created,
+        update_fields,
+        instance
     ):
         distribution = distributions.CreateFirstSummary
     else:
         return
 
-    distributor = Distributor(
-        distribution,
-        recipient,
-        instance,
-        timestamp,
-        instance.paper.hubs.all(),
+    last_distribution = recipient.reputation_records.filter(
+        Q(distribution_type=distributions.CreateSummary)
+        | Q(distribution_type=distributions.CreateFirstSummary)
+    ).last()
+    if check_summary_distribution_interval(last_distribution):
+        distributor = Distributor(
+            distribution,
+            recipient,
+            instance,
+            timestamp,
+            instance.paper.hubs.all(),
+        )
+        distributor.distribute()
+
+
+def is_eligible_for_create_summary(created, user):
+    return (
+        created
+        and is_eligible_user(user)
+        and is_eligible_for_new_user_bonus(user)
     )
-    distributor.distribute()
 
 
-def is_eligible_for_create_summary(user):
-    return is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
+def is_eligible_for_create_first_summary(created, update_fields, summary):
+    return (
+        not created
+        and check_approved_updated(update_fields)
+        and summary.is_first_paper_summary
+    )
 
 
 def check_approved_updated(update_fields):
     if update_fields is not None:
         return 'approved' in update_fields
     return False
+
+
+def check_summary_distribution_interval(distribution):
+    """
+    Returns True if distribution was created over an hour ago.
+    """
+    time_ago = timezone.now() - timedelta(hours=1)
+    return distribution.created_date < time_ago
 
 
 @receiver(post_save, sender=BulletPoint, dispatch_uid='create_bullet_point')
@@ -239,7 +242,10 @@ def distribute_for_create_discussion(sender, instance, created, **kwargs):
     recipient = instance.created_by
     hubs = None
     if created and is_eligible_for_create_discussion(recipient):
-        if isinstance(instance, BulletPoint):
+        if (
+            isinstance(instance, BulletPoint)
+            and check_key_takeaway_interval(instance, recipient)
+        ):
             distribution = distributions.CreateBulletPoint
             hubs = instance.paper.hubs
         elif isinstance(instance, Comment):
@@ -252,8 +258,6 @@ def distribute_for_create_discussion(sender, instance, created, **kwargs):
                 sentry.log_error(e)
 
             distribution = distributions.CreateReply
-            if check_author_replied_to_user_comment(instance):
-                distribution = distributions.CreateReplyAsAuthor
         elif isinstance(instance, Thread):
             distribution = distributions.CreateThread
             hubs = instance.paper.hubs
@@ -274,33 +278,27 @@ def is_eligible_for_create_discussion(user):
     return is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
 
 
-def check_author_replied_to_user_comment(reply):
-    if isinstance(reply.parent, Comment):
-        return (
-            check_reply_created_by_reply_paper_author(reply)
-            and check_reply_to_other_creator(reply)
-        )
-    else:
-        return False
+def check_key_takeaway_interval(bullet_point, recipient):
+    if bullet_point.bullet_type == BulletPoint.BULLETPOINT_KEYTAKEAWAY:
+        time_ago = timezone.now() - timedelta(hours=1)
+        key_takeaway_count = recipient.bullet_points.filter(
+            created_date__gte=time_ago,
+            bullet_type=BulletPoint.BULLETPOINT_KEYTAKEAWAY
+        ).count()
+        if key_takeaway_count < 5:
+            return True
+    return False
 
 
 def check_reply_to_other_creator(reply):
     return reply.parent.created_by is not reply.created_by
 
 
-@receiver(post_save, sender=BulletPointFlag, dispatch_uid='bullet_point_flag')
-@receiver(
-    post_save,
-    sender=BulletPointEndorsement,
-    dispatch_uid='bullet_point_endorsement'
-)
-@receiver(post_save, sender=DiscussionFlag, dispatch_uid='discussion_flag')
-@receiver(
-    post_save,
-    sender=DiscussionEndorsement,
-    dispatch_uid='discussion_endorsement'
-)
-def distribute_for_action(
+@receiver(post_save, sender=BulletPoint, dispatch_uid='censor_bullet_point')
+@receiver(post_save, sender=Comment, dispatch_uid='censor_comment')
+@receiver(post_save, sender=Reply, dispatch_uid='censor_reply')
+@receiver(post_save, sender=Thread, dispatch_uid='censor_thread')
+def distribute_for_censor(
     sender,
     instance,
     created,
@@ -311,54 +309,24 @@ def distribute_for_action(
     distributor = None
     hubs = None
 
-    if created:
+    if check_censored(created, update_fields) is True:
         try:
-            if isinstance(instance, BulletPointFlag):
-                distribution = distributions.BulletPointFlagged
+            if isinstance(instance, BulletPoint):
+                distribution = distributions.BulletPointCensored
                 recipient = instance.bullet_point.created_by
                 hubs = instance.bullet_point.paper.hubs
 
-            elif isinstance(instance, BulletPointEndorsement):
-                distribution = distributions.BulletPointEndorsed
-                recipient = instance.bullet_point.created_by
-                hubs = instance.bullet_point.paper.hubs
-
-            if isinstance(instance, DiscussionFlag):
-                distribution = get_discussion_flag_item_distribution(instance)
-                recipient = instance.item.created_by
-
-                if isinstance(instance.item, BulletPoint):
-                    hubs = instance.item.paper.hubs
-                elif isinstance(instance.item, Comment):
-                    hubs = instance.item.parent.paper.hubs
-                elif isinstance(instance.item, Reply):
-                    try:
-                        hubs = instance.item.parent.parent.paper.hubs
-                    except Exception as e:
-                        sentry.log_error(e)
-                elif isinstance(instance.item, Thread):
-                    hubs = instance.item.paper.hubs
-
-            elif isinstance(instance, DiscussionEndorsement):
-                distribution = get_discussion_endorsement_item_distribution(
-                    instance
-                )
-                recipient = instance.item.created_by
-
-                if isinstance(instance.item, BulletPoint):
-                    hubs = instance.item.paper.hubs
-                elif isinstance(instance.item, Comment):
-                    hubs = instance.item.parent.paper.hubs
-                elif isinstance(instance.item, Reply):
-                    try:
-                        hubs = instance.item.parent.parent.paper.hubs
-                    except Exception as e:
-                        sentry.log_error(e)
-                elif isinstance(instance.item, Thread):
-                    hubs = instance.item.paper.hubs
+            elif check_is_discussion_item(instance):
+                distribution = get_discussion_censored_distribution(instance)
+                recipient = instance.created_by
+                hubs = get_discussion_hubs(instance)
 
             else:
                 raise TypeError
+
+            all_hubs = None
+            if hubs is not None:
+                all_hubs = hubs.all()
 
             if is_eligible_user(recipient):
                 distributor = Distributor(
@@ -366,7 +334,7 @@ def distribute_for_action(
                     recipient,
                     instance,
                     timestamp,
-                    hubs.all()
+                    all_hubs
                 )
 
         except TypeError as e:
@@ -378,6 +346,45 @@ def distribute_for_action(
 
     if distributor is not None:
         distributor.distribute()
+
+
+def check_censored(created, update_fields):
+    return (
+        not created
+        and (update_fields is not None)
+        and ('censor' in update_fields)
+    )
+
+
+def get_discussion_censored_distribution(instance):
+    item_type = type(instance)
+
+    error = TypeError(f'Instance of type {item_type} is not supported')
+
+    if item_type == Comment:
+        return distributions.CommentCensored
+    elif item_type == Reply:
+        return distributions.ReplyCensored
+    elif item_type == Thread:
+        return distributions.ThreadCensored
+    else:
+        raise error
+
+
+def get_discussion_hubs(instance):
+    hubs = None
+    if isinstance(instance, BulletPoint):
+        hubs = instance.paper.hubs
+    elif isinstance(instance, Comment):
+        hubs = instance.parent.paper.hubs
+    elif isinstance(instance, Reply):
+        try:
+            hubs = instance.parent.parent.paper.hubs
+        except Exception as e:
+            sentry.log_error(e)
+    elif isinstance(instance, Thread):
+        hubs = instance.paper.hubs
+    return hubs
 
 
 @receiver(post_save, sender=DiscussionVote, dispatch_uid='discussion_vote')
@@ -449,7 +456,11 @@ def distribute_for_vote_on_discussion(
     distributor = None
     recipient = instance.created_by
 
-    if created and is_eligible_for_vote_on_discussion(recipient):
+    if (
+        created
+        and (instance.vote_type == DiscussionVote.UPVOTE)
+        and is_eligible_for_vote_on_discussion(recipient)
+    ):
         if isinstance(instance.item, BulletPoint):
             hubs = instance.item.paper.hubs
         elif isinstance(instance.item, Comment):
@@ -488,12 +499,6 @@ def is_eligible_for_vote_on_discussion(user):
     return is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
 
 
-def is_eligible_author(user):
-    if user is not None:
-        return user.is_active and (user.author_profile.orcid_id is not None)
-    return False
-
-
 def is_eligible_user(user):
     if user is not None:
         return user.is_active
@@ -504,21 +509,6 @@ def vote_type_updated(update_fields):
     if update_fields is not None:
         return 'vote_type' in update_fields
     return False
-
-
-def get_discussion_endorsement_item_distribution(instance):
-    item_type = type(instance.item)
-
-    error = TypeError(f'Instance of type {item_type} is not supported')
-
-    if item_type == Comment:
-        return distributions.CommentEndorsed
-    elif item_type == Reply:
-        return distributions.ReplyEndorsed
-    elif item_type == Thread:
-        return distributions.ThreadEndorsed
-    else:
-        raise error
 
 
 def get_discussion_flag_item_distribution(instance):
@@ -545,12 +535,8 @@ def get_discussion_vote_item_distribution(instance):
 
     if vote_type == DiscussionVote.UPVOTE:
         if item_type == Comment:
-            if check_comment_created_by_comment_paper_author(item):
-                return distributions.AuthorCommentUpvoted
             return distributions.CommentUpvoted
         elif item_type == Reply:
-            if check_reply_created_by_reply_paper_author(item):
-                return distributions.AuthorReplyUpvoted
             return distributions.ReplyUpvoted
         elif item_type == Thread:
             return distributions.ThreadUpvoted
@@ -566,20 +552,6 @@ def get_discussion_vote_item_distribution(instance):
             return distributions.ThreadDownvoted
         else:
             raise error
-
-
-def check_comment_created_by_comment_paper_author(comment):
-    return (
-        is_eligible_author(comment.created_by)
-        and (comment.created_by.author_profile in comment.paper.authors.all())
-    )
-
-
-def check_reply_created_by_reply_paper_author(reply):
-    return (
-        is_eligible_author(reply.created_by)
-        and (reply.created_by.author_profile in reply.paper.authors.all())
-    )
 
 
 def get_vote_on_discussion_item_distribution(instance):

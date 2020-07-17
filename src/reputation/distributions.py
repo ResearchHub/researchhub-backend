@@ -19,21 +19,21 @@ SignUp = Distribution(
 CreatePaper = Distribution(
     'CREATE_PAPER', 1
 )
-CreateAuthoredPaper = Distribution(
-    'CREATE_AUTHORED_PAPER', 9
+FlagPaper = Distribution(
+    'FLAG_PAPER', 1
 )
 VoteOnPaper = Distribution(
     'VOTE_ON_PAPER', 1
 )
-FlagPaper = Distribution(
-    'FLAG_PAPER', 1
+PaperUpvoted = Distribution(
+    'PAPER_UPVOTED', 1
 )
 
 CreateBulletPoint = Distribution(
     'CREATE_BULLET_POINT', 1
 )
-BulletPointEndorsed = Distribution(
-    'BULLET_POINT_ENDORSED', 15
+BulletPointCensored = Distribution(
+    'BULLET_POINT_CENSORED', -2
 )
 BulletPointFlagged = Distribution(
     'BULLET_POINT_FLAGGED', -2
@@ -45,17 +45,14 @@ CreateComment = Distribution(
 VoteOnComment = Distribution(
     'VOTE_ON_COMMENT', 1
 )
-CommentEndorsed = Distribution(
-    'COMMENT_ENDORSED', 15
+CommentCensored = Distribution(
+    'COMMENT_CENSORED', -2
 )
 CommentFlagged = Distribution(
     'COMMENT_FLAGGED', -2
 )
 CommentUpvoted = Distribution(
     'COMMENT_UPVOTED', 1
-)
-AuthorCommentUpvoted = Distribution(
-    'AUTHOR_COMMENT_UPVOTED', 5
 )
 CommentDownvoted = Distribution(
     'COMMENT_DOWNVOTED', -1
@@ -64,23 +61,17 @@ CommentDownvoted = Distribution(
 CreateReply = Distribution(
     'CREATE_REPLY', 1
 )
-CreateReplyAsAuthor = Distribution(
-    'CREATE_REPLY_AS_AUTHOR', 5
-)
 VoteOnReply = Distribution(
     'VOTE_ON_REPLY', 1
 )
-ReplyEndorsed = Distribution(
-    'REPLY_ENDORSED', 15
+ReplyCensored = Distribution(
+    'REPLY_CENSORED', -2
 )
 ReplyFlagged = Distribution(
     'REPLY_FLAGGED', -2
 )
 ReplyUpvoted = Distribution(
     'REPLY_UPVOTED', 1
-)
-AuthorReplyUpvoted = Distribution(
-    'AUTHOR_REPLY_UPVOTED', 5
 )
 ReplyDownvoted = Distribution(
     'REPLY_DOWNVOTED', -1
@@ -92,14 +83,14 @@ CreateThread = Distribution(
 VoteOnThread = Distribution(
     'VOTE_ON_THREAD', 1
 )
-ThreadEndorsed = Distribution(
-    'THREAD_ENDORSED', 15
+ThreadCensored = Distribution(
+    'THREAD_CENSORED', -2
 )
 ThreadFlagged = Distribution(
     'THREAD_FLAGGED', -2
 )
 ThreadUpvoted = Distribution(
-    'THREAD_UPVOTED', 5
+    'THREAD_UPVOTED', 1
 )
 ThreadDownvoted = Distribution(
     'THREAD_DOWNVOTED', -1
@@ -131,16 +122,20 @@ DISTRIBUTION_TYPE_CHOICES = [
         CreatePaper.name
     ),
     (
+        FlagPaper.name,
+        FlagPaper.name
+    ),
+    (
         VoteOnPaper.name,
         VoteOnPaper.name
     ),
     (
-        CreateBulletPoint.name,
-        CreateBulletPoint.name
+        PaperUpvoted.name,
+        PaperUpvoted.name
     ),
     (
-        BulletPointEndorsed.name,
-        BulletPointEndorsed.name
+        CreateBulletPoint.name,
+        CreateBulletPoint.name
     ),
     (
         BulletPointFlagged.name,
@@ -155,8 +150,8 @@ DISTRIBUTION_TYPE_CHOICES = [
         VoteOnComment.name
     ),
     (
-        CommentEndorsed.name,
-        CommentEndorsed.name
+        CommentCensored.name,
+        CommentCensored.name
     ),
     (
         CommentFlagged.name,
@@ -179,8 +174,8 @@ DISTRIBUTION_TYPE_CHOICES = [
         VoteOnReply.name
     ),
     (
-        ReplyEndorsed.name,
-        ReplyEndorsed.name
+        ReplyCensored.name,
+        ReplyCensored.name
     ),
     (
         ReplyFlagged.name,
@@ -203,8 +198,8 @@ DISTRIBUTION_TYPE_CHOICES = [
         VoteOnThread.name
     ),
     (
-        ThreadEndorsed.name,
-        ThreadEndorsed.name
+        ThreadCensored.name,
+        ThreadCensored.name
     ),
     (
         ThreadFlagged.name,

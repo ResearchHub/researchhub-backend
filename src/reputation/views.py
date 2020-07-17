@@ -1,6 +1,9 @@
+from datetime import timedelta
 import logging
+
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -8,7 +11,7 @@ from rest_framework.response import Response
 from purchase.models import Balance
 from reputation.exceptions import WithdrawalError
 from reputation.lib import (
-    FIRST_WITHDRAWAL_MINIMUM,
+    WITHDRAWAL_MINIMUM,
     PendingWithdrawal
 )
 from reputation.models import Withdrawal
@@ -33,13 +36,13 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
     def create(self, request):
         user = request.user
         starting_balance = user.get_balance()
-        if self._check_meets_withdrawal_minimum(user, starting_balance):
-            if not user.agreed_to_terms:
-                user.agreed_to_terms = request.data.get(
-                    'agreed_to_terms',
-                    False
-                )
-                user.save()
+
+        valid, message = self._check_meets_withdrawal_minimum(starting_balance)
+        if valid:
+            valid, message = self._check_agreed_to_terms(user, request)
+        if valid:
+            valid, message = self._check_withdrawal_interval(user)
+        if valid:
             try:
                 with transaction.atomic():
                     response = super().create(request)
@@ -59,12 +62,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 return Response(str(e), status=400)
         else:
-            message = f'Insufficient balance of {starting_balance}'
-            if starting_balance > 0:
-                message = (
-                    f'Balance {starting_balance} is below the withdrawal'
-                    f' minimum of {FIRST_WITHDRAWAL_MINIMUM}'
-                )
             return Response(message, status=400)
 
     def list(self, request):
@@ -103,8 +100,37 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             sentry.log_error(error, error.message)
             raise e
 
-    def _check_meets_withdrawal_minimum(self, user, balance):
+    def _check_meets_withdrawal_minimum(self, balance):
         # Withdrawal amount is full balance for now
-        if user.withdrawals.count() < 1:
-            return balance >= FIRST_WITHDRAWAL_MINIMUM
-        return balance > 0
+        if balance > WITHDRAWAL_MINIMUM:
+            return (True, None)
+
+        message = f'Insufficient balance of {balance}'
+        if balance > 0:
+            message = (
+                f'Balance {balance} is below the withdrawal'
+                f' minimum of {WITHDRAWAL_MINIMUM}'
+            )
+        return (False, message)
+
+    def _check_agreed_to_terms(self, user, request):
+        agreed = user.agreed_to_terms
+        if not agreed:
+            agreed = request.data.get('agreed_to_terms', False)
+        if agreed == 'true' or agreed is True:
+            user.agreed_to_terms = True
+            user.save()
+            return (True, None)
+        return (False, 'User has not agreed to terms')
+
+    def _check_withdrawal_interval(self, user):
+        """
+        Returns True is the user's last withdrawal was more than 72 hours ago.
+        """
+        if user.withdrawals.count() > 0:
+            time_ago = timezone.now() - timedelta(hours=72)
+            valid = user.withdrawals.last().created_date < time_ago
+            if valid:
+                return (True, None)
+            return (False, 'Too soon to withdraw again')
+        return (True, None)
