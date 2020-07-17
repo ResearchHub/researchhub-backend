@@ -19,6 +19,7 @@ from purchase.serializers import PurchaseSerializer
 from researchhub.settings import ASYNC_SERVICE_HOST
 from utils.http import http_request, RequestMethods
 from utils.permissions import CreateOrUpdateOrReadOnly
+from user.models import User
 
 
 class PurchaseViewSet(viewsets.ModelViewSet):
@@ -116,15 +117,15 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         return response
 
     @action(
-        detail=False,
+        detail=True,
         methods=['get'],
         permission_classes=[IsAuthenticated]
     )
-    def user_transactions(self, request):
+    def user_transactions(self, request, pk=None):
         context = self.get_serializer_context()
         context['purchase_minimal_serialization'] = True
 
-        user = request.user
+        user = User.objects.get(id=pk)
         queryset = user.purchases.all()
 
         page = self.paginate_queryset(queryset)
