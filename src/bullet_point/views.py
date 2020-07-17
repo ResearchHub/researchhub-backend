@@ -119,7 +119,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
     def censor(self, request, pk=None):
         bullet_point = self.get_object()
         bullet_point.is_removed = True
-        bullet_point.save()
+        bullet_point.save(update_fields=['is_removed'])
         return Response(
             self.get_serializer(instance=bullet_point).data,
             status=200
