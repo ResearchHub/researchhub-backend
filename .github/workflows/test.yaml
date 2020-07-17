@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - ci
-  pull_request:
 jobs:
   build:
     name: build
