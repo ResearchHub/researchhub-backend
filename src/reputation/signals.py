@@ -229,6 +229,8 @@ def check_summary_distribution_interval(distribution):
     """
     Returns True if distribution was created over an hour ago.
     """
+    if not distribution:
+        return True
     time_ago = timezone.now() - timedelta(hours=1)
     return distribution.created_date < time_ago
 
