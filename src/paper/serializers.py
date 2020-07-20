@@ -331,7 +331,10 @@ class PaperSerializer(BasePaperSerializer):
             paper.extract_meta_data(title=title, use_celery=True)
 
     def _clean_abstract(self, data):
-        abstract = data.get('abstract', '')
+        abstract = data.get('abstract')
+
+        if not abstract:
+            return
         soup = BeautifulSoup(abstract, 'html.parser')
         strings = soup.strings
         cleaned_text = ' '.join(strings)
