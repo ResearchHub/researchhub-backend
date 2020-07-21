@@ -455,7 +455,7 @@ def _create_sitemap_index(index_count):
     soup = BeautifulSoup(features='xml')
     index_tag = soup.new_tag(
         'sitemapindex',
-        xlmns='"http://www.sitemaps.org/schemas/sitemap/0.9"'
+        xmlns='"http://www.sitemaps.org/schemas/sitemap/0.9"'
     )
     soup.append(index_tag)
     tags = list(range(1, index_count + 1))
@@ -485,7 +485,7 @@ def _create_sitemaps():
     index = 0
     soup = BeautifulSoup(features='xml')
     for k, paper_id in enumerate(ids):
-        if k % 1000 == 0:
+        if k % 10000 == 0:
             if index != 0:
                 sitemap_path = f'sitemap/sitemap.prod-{index}.xml'
                 sitemap_file = ContentFile(soup.prettify().encode())
@@ -496,7 +496,7 @@ def _create_sitemaps():
 
             index_tag = soup.new_tag(
                 'urlset',
-                xlmns='"http://www.sitemaps.org/schemas/sitemap/0.9"'
+                xmlns='"http://www.sitemaps.org/schemas/sitemap/0.9"'
             )
             soup.append(index_tag)
             index += 1
@@ -522,7 +522,7 @@ def _create_sitemap_hubs():
     soup = BeautifulSoup(features='xml')
     index_tag = soup.new_tag(
         'urlset',
-        xlmns='"http://www.sitemaps.org/schemas/sitemap/0.9"'
+        xmlns='"http://www.sitemaps.org/schemas/sitemap/0.9"'
     )
     soup.append(index_tag)
 
