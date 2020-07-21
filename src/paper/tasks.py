@@ -7,6 +7,7 @@ import requests
 import shutil
 import twitter
 
+from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
 from subprocess import call
 from celery.decorators import periodic_task
@@ -17,11 +18,14 @@ from django.core.cache import cache
 from django.core.files import File
 from django.db import IntegrityError
 from django.http.request import HttpRequest
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from rest_framework.request import Request
 from discussion.models import Thread, Comment
 from researchhub.celery import app
 from researchhub.settings import (
     APP_ENV,
+    PRODUCTION,
     TWITTER_CONSUMER_KEY,
     TWITTER_CONSUMER_SECRET,
     TWITER_ACCESS_TOKEN,
@@ -430,3 +434,158 @@ def preload_hub_papers(
             timeout=60*10
         )
     return (serializer_data, order_papers[:15])
+
+
+@periodic_task(
+    run_every=crontab(minute=0, hour=0, day_of_week='sunday'),
+    priority=5,
+    options={'queue': APP_ENV}
+)
+def create_sitemaps():
+    # if not PRODUCTION:
+    #     return
+
+    index_count = _create_sitemaps()
+    _create_sitemap_index(index_count)
+    _create_sitemap_hubs()
+    _create_sitemap_static()
+
+
+def _create_sitemap_index(index_count):
+    soup = BeautifulSoup(features='xml')
+    index_tag = soup.new_tag(
+        'sitemapindex',
+        xlmns='"http://www.sitemaps.org/schemas/sitemap/0.9"'
+    )
+    soup.append(index_tag)
+    tags = list(range(1, index_count + 1))
+    tags += ['hubs', 'static']
+    for name in tags:
+        s3_loc = f'https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/sitemap/sitemap.prod-{name}.xml'
+        sitemap_tag = soup.new_tag('sitemap')
+        loc_tag = soup.new_tag('loc')
+        loc_tag.string = s3_loc
+        sitemap_tag.insert(1, loc_tag)
+        soup.sitemapindex.append(sitemap_tag)
+
+    index_path = 'sitemap/sitemap-prod.xml'
+    index_file = ContentFile(soup.prettify().encode())
+
+    if default_storage.exists(index_path):
+        default_storage.delete(index_path)
+    default_storage.save(index_path, index_file)
+    return soup
+
+
+def _create_sitemaps():
+    today = datetime.today().date().strftime('%Y-%m-%d')
+    Paper = apps.get_model('paper.Paper')
+    ids = Paper.objects.order_by('id').values_list('id', flat=True).iterator()
+
+    index = 0
+    soup = BeautifulSoup(features='xml')
+    for k, paper_id in enumerate(ids):
+        if k % 1000 == 0:
+            if index != 0:
+                sitemap_path = f'sitemap/sitemap.prod-{index}.xml'
+                sitemap_file = ContentFile(soup.prettify().encode())
+                if default_storage.exists(sitemap_path):
+                    default_storage.delete(sitemap_path)
+                default_storage.save(sitemap_path, sitemap_file)
+                soup = BeautifulSoup(features='xml')
+
+            index_tag = soup.new_tag(
+                'urlset',
+                xlmns='"http://www.sitemaps.org/schemas/sitemap/0.9"'
+            )
+            soup.append(index_tag)
+            index += 1
+
+        url_tag = soup.new_tag('url')
+        loc_tag = soup.new_tag('loc')
+        lastmod_tag = soup.new_tag('lastmod')
+        loc_string = f'https://www.researchhub.com/paper/{paper_id}/summary'
+
+        loc_tag.string = loc_string
+        lastmod_tag.string = today
+        url_tag.insert(1, loc_tag)
+        url_tag.insert(2, lastmod_tag)
+        soup.urlset.append(url_tag)
+
+    return index
+
+
+def _create_sitemap_hubs():
+    today = datetime.today().date().strftime('%Y-%m-%d')
+    Hub = apps.get_model('hub.Hub')
+    hub_names = Hub.objects.values_list('name', flat=True).iterator()
+    soup = BeautifulSoup(features='xml')
+    index_tag = soup.new_tag(
+        'urlset',
+        xlmns='"http://www.sitemaps.org/schemas/sitemap/0.9"'
+    )
+    soup.append(index_tag)
+
+    for hub_name in hub_names:
+        url_tag = soup.new_tag('url')
+        loc_tag = soup.new_tag('loc')
+        lastmod_tag = soup.new_tag('lastmod')
+        loc_string = f'https://www.researchhub.com/hubs/{hub_name}'
+
+        loc_tag.string = loc_string
+        lastmod_tag.string = today
+        url_tag.insert(1, loc_tag)
+        url_tag.insert(2, lastmod_tag)
+        soup.urlset.append(url_tag)
+
+    sitemap_hubs_path = 'sitemap/sitemap.prod-hubs.xml'
+    hubs_file = ContentFile(soup.prettify().encode())
+    if default_storage.exists(sitemap_hubs_path):
+        default_storage.delete(sitemap_hubs_path)
+    default_storage.save(sitemap_hubs_path, hubs_file)
+
+
+def _create_sitemap_static():
+    static = """
+        <?xml version="1.0" encoding="UTF-8"?>
+          <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+              <url>
+                <loc>https://www.researchhub.com</loc>
+                <lastmod>2020-05-22</lastmod>
+              </url>
+              <url>
+                <loc>https://www.researchhub.com/hubs</loc>
+                <lastmod>2020-05-22</lastmod>
+              </url>
+              <url>
+                <loc>https://www.researchhub.com/live</loc>
+                <lastmod>2020-05-22</lastmod>
+              </url>
+              <url>
+                <loc>https://www.researchhub.com/about</loc>
+                <lastmod>2020-05-22</lastmod>
+              </url>
+              <url>
+                <loc>https://www.researchhub.com/about/tos</loc>
+                <lastmod>2020-05-22</lastmod>
+              </url>
+              <url>
+                <loc>https://www.researchhub.com/about/privacy</loc>
+                <lastmod>2020-05-22</lastmod>
+              </url>
+              <url>
+                <loc>https://www.researchhub.com/leaderboard/users</loc>
+                <lastmod>2020-07-01</lastmod>
+              </url>
+              <url>
+                <loc>https://www.researchhub.com/leaderboard/papers</loc>
+                <lastmod>2020-07-01</lastmod>
+              </url>
+          </urlset>
+    """
+    soup = BeautifulSoup(static, features='xml')
+    sitemap_static_path = 'sitemap/sitemap.prod-static.xml'
+    static_file = ContentFile(soup.prettify().encode())
+    if default_storage.exists(sitemap_static_path):
+        default_storage.delete(sitemap_static_path)
+    default_storage.save(sitemap_static_path, static_file)
