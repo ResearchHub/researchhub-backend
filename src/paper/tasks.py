@@ -346,10 +346,10 @@ def celery_preload_hub_papers():
     # hub_ids = Hub.objects.values_list('id', flat=True)
     hub_ids = [0]
     orderings = (
-        # '-score',
-        # '-discussed',
-        # '-uploaded_date',
         '-hot_score',
+        '-score',
+        '-discussed',
+        '-uploaded_date',
     )
     filter_types = (
         'year',

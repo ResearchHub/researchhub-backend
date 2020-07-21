@@ -316,7 +316,7 @@ def invalidate_trending_cache(hub_ids, with_default=True):
         cache_key = get_cache_key(
             None,
             'hub',
-            pk=f'{hub_id}_-hot_score_week'
+            pk=f'{hub_id}_-hot_score_today'
         )
         cache.delete(cache_key)
 
@@ -343,7 +343,7 @@ def invalidate_newest_cache(hub_ids, with_default=True):
         cache_key = get_cache_key(
             None,
             'hub',
-            pk=f'{hub_id}_-uploaded_date_week'
+            pk=f'{hub_id}_-uploaded_date_today'
         )
         cache.delete(cache_key)
 
