@@ -442,8 +442,8 @@ def preload_hub_papers(
     options={'queue': APP_ENV}
 )
 def create_sitemaps():
-    # if not PRODUCTION:
-    #     return
+    if not PRODUCTION:
+        return
 
     index_count = _create_sitemaps()
     _create_sitemap_index(index_count)
