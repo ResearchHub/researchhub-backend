@@ -1,6 +1,7 @@
 import base64
 import hashlib
 
+from django.core.cache import cache
 from django.contrib.admin.options import get_content_type_for_model
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
@@ -53,6 +54,7 @@ from discussion.permissions import (
 )
 from paper.models import Paper
 from paper.utils import (
+    get_cache_key,
     invalidate_trending_cache,
     invalidate_top_rated_cache,
     invalidate_newest_cache,
@@ -255,6 +257,8 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
 
         paper_id = get_paper_id_from_path(request)
         hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
+        cache_key = get_cache_key(None, 'paper', paper_id)
+        cache.delete(cache_key)
 
         invalidate_trending_cache(hubs)
         invalidate_top_rated_cache(hubs)
