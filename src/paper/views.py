@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
+from django.db import IntegrityError
 from django.db.models import (
     Count,
     Q,
@@ -57,7 +58,6 @@ from paper.utils import (
     invalidate_newest_cache,
     invalidate_most_discussed_cache,
 )
-from purchase.models import Purchase
 from researchhub.lib import get_paper_id_from_path
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.sentry import log_error
@@ -164,8 +164,23 @@ class PaperViewSet(viewsets.ModelViewSet):
             invalidate_trending_cache(hub_ids)
             invalidate_newest_cache(hub_ids)
             return response
+        except IntegrityError as e:
+            return self._get_integrity_error_response(e)
         except PaperSerializerError as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+
+    def _get_integrity_error_response(self, error):
+        error_message = str(error)
+        parts = error_message.split('DETAIL:')
+        try:
+            error_message = parts[1].strip()
+            if 'url' in error_message:
+                error_message = 'A paper with this url already exists.'
+            if 'doi' in error_message:
+                error_message = 'A paper with this DOI already exists.'
+        except IndexError:
+            error_message = 'A paper with this url or DOI already exists.'
+        return Response(error_message, status=status.HTTP_400_BAD_REQUEST)
 
     def retrieve(self, request, *args, **kwargs):
         cache_key = get_cache_key(request, 'paper')
