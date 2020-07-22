@@ -151,7 +151,8 @@ class Paper(models.Model):
         max_length=1024,
         default=None,
         null=True,
-        blank=True
+        blank=True,
+        unique=True
     )
     pdf_url = models.URLField(
         max_length=1024,
