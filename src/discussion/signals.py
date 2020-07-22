@@ -1,4 +1,4 @@
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 
 from .models import Thread, Reply, Comment
@@ -42,4 +42,19 @@ def recalc_dis_count_comment(
     update_fields,
     **kwargs
 ):
+    recalc_dis_count(instance)
+
+
+@receiver(post_delete, sender=Thread, dispatch_uid='recalc_dis_count_del_thr')
+def recalc_dis_count_thread_delete(sender, instance, **kwargs):
+    recalc_dis_count(instance)
+
+
+@receiver(post_delete, sender=Reply, dispatch_uid='recalc_dis_count_del_reply')
+def recalc_dis_count_reply_delete(sender, instance, **kwargs):
+    recalc_dis_count(instance)
+
+
+@receiver(post_delete, sender=Comment, dispatch_uid='recalc_dis_count_del_com')
+def recalc_dis_count_comment_delete(sender, instance, **kwargs):
     recalc_dis_count(instance)
