@@ -4,7 +4,7 @@ import rest_framework.serializers as serializers
 from bs4 import BeautifulSoup
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.http import QueryDict
 
 from bullet_point.serializers import BulletPointTextOnlySerializer
@@ -235,8 +235,10 @@ class PaperSerializer(BasePaperSerializer):
                 self._add_references(paper)
 
                 return paper
+        except IntegrityError as e:
+            raise e
         except Exception as e:
-            error = PaperSerializerError(e, 'Failed to created paper')
+            error = PaperSerializerError(e, 'Failed to create paper')
             sentry.log_error(
                 error,
                 base_error=error.trigger
