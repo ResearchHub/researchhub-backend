@@ -25,6 +25,8 @@ class Command(BaseCommand):
                     soup = BeautifulSoup(abstract, 'html.parser')
                     strings = soup.strings
                     cleaned_text = ' '.join(strings)
+                    cleaned_text = cleaned_text.replace('\n', '')
+                    cleaned_text = cleaned_text.replace('\r', '')
                     paper.abstract = cleaned_text
                     paper.save()
             except Exception as e:

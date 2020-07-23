@@ -338,6 +338,8 @@ class PaperSerializer(BasePaperSerializer):
         soup = BeautifulSoup(abstract, 'html.parser')
         strings = soup.strings
         cleaned_text = ' '.join(strings)
+        cleaned_text = cleaned_text.replace('\n', '')
+        cleaned_text = cleaned_text.replace('\r', '')
         data.update(abstract=cleaned_text)
 
     def get_discussion(self, paper):
