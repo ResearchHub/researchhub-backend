@@ -581,12 +581,14 @@ class PaperViewSet(viewsets.ModelViewSet):
             threads_count = Count(
                 'threads',
                 filter=Q(
+                    threads__source='researchhub',
                     threads__created_date__range=[start_date, end_date]
                 )
             )
             comments_count = Count(
                 'threads__comments',
                 filter=Q(
+                    threads__comments__source='researchhub',
                     threads__comments__created_date__range=[
                         start_date,
                         end_date
