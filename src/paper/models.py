@@ -24,6 +24,7 @@ from utils.arxiv import Arxiv
 from utils.crossref import Crossref
 from utils.semantic_scholar import SemanticScholar
 
+HOT_SCORE_WEIGHT = 5
 HELP_TEXT_IS_PUBLIC = (
     'Hides the paper from the public.'
 )
@@ -330,7 +331,7 @@ class Paper(models.Model):
             amount__gt=0
         )
         boost_exists = boosts.exists()
-        if self.score > 0 or boost_exists:
+        if self.score >= 0 or boost_exists:
             ALGO_START_UNIX = 1575199677
             if boost_exists:
                 avg_hours_since_algo_start = (
@@ -359,10 +360,9 @@ class Paper(models.Model):
 
             hot_score = (
                 avg_hours_since_algo_start
-                + self.score
-                + self.discussion_count
-                + boost_amount
-                * 2
+                + self.score * HOT_SCORE_WEIGHT
+                + self.discussion_count * HOT_SCORE_WEIGHT
+                + boost_amount * HOT_SCORE_WEIGHT
             )
 
             self.hot_score = hot_score

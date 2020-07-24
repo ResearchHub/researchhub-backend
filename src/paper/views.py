@@ -565,6 +565,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'vote',
                 filter=Q(vote__vote_type=Vote.DOWNVOTE)
             )
+
             order_papers = papers.filter(
                 vote__updated_date__range=[start_date, end_date]
             ).annotate(
