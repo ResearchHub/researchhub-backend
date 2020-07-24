@@ -621,7 +621,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             cache_pk = ''
             if time_difference.days > 365:
                 cache_pk = f'{hub_id}_{ordering}_all_time'
-            if time_difference.days == 365:
+            elif time_difference.days == 365:
                 cache_pk = f'{hub_id}_{ordering}_year'
             elif time_difference.days == 30 or time_difference.days == 31:
                 cache_pk = f'{hub_id}_{ordering}_month'
