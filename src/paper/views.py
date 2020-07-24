@@ -504,6 +504,10 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def search_by_url(self, request):
+        # TODO: Ensure we are saving data from here, license, title,
+        # publish date, authors, pdf
+        # handle pdf url, journal url, or pdf upload
+        # TODO: Refactor
         """
         Retrieve bibliographic metadata and potential paper matches
         from the database for `url` (specified via request post data).
@@ -552,8 +556,9 @@ class PaperViewSet(viewsets.ModelViewSet):
             doi = csl_item.get('DOI', None)
             data['doi_already_in_db'] = (
                 (doi is not None)
-                and (len(Paper.objects.filter(doi=doi)) > 0)
+                and (Paper.objects.filter(doi=doi).count() > 0)
             )
+            data['paper_publish_date'] = csl_item.get_date('issued', fill=True)
 
         if csl_item and request.data.get('search', False):
             # search existing papers
