@@ -19,13 +19,15 @@ CACHE_TOP_RATED_DATES = (
     '-score_today',
     '-score_week',
     '-score_month',
-    '-score_year'
+    '-score_year',
+    '-score_all_time'
 )
 CACHE_MOST_DISCUSSED_DATES = (
     '-discussed_today',
     '-discussed_week',
     '-discussed_month',
-    '-discussed_year'
+    '-discussed_year',
+    '-discussed_all_time'
 )
 MANUBOT_PAPER_TYPES = [
     'paper-conference',
