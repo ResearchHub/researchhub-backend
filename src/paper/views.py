@@ -619,6 +619,8 @@ class PaperViewSet(viewsets.ModelViewSet):
         if page_number == 1:
             time_difference = end_date - start_date
             cache_pk = ''
+            if time_difference.days > 365:
+                cache_pk = f'{hub_id}_{ordering}_all_time'
             if time_difference.days == 365:
                 cache_pk = f'{hub_id}_{ordering}_year'
             elif time_difference.days == 30 or time_difference.days == 31:
