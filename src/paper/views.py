@@ -593,26 +593,24 @@ class PaperViewSet(viewsets.ModelViewSet):
             ).order_by(ordering + '_in_time', ordering + '_all_time')
 
         elif 'discussed' in ordering:
-            threads_count = Count(
-                'threads',
-                filter=Q(
-                    threads__created_date__range=[start_date, end_date]
-                )
-            )
-            comments_count = Count(
-                'threads__comments',
-                filter=Q(
-                    threads__comments__created_date__range=[
-                        start_date,
-                        end_date
-                    ]
-                )
-            )
+            threads_count = Count('threads')
+            comments_count = Count('threads__comments')
 
-            order_papers = papers.annotate(
+            order_papers = papers.filter(
+                Q(threads__source='researchhub') |
+                Q(threads__comments__source='researchhub'),
+                Q(threads__created_date__range=[
+                    start_date, end_date
+                ]) |
+                Q(threads__comments__created_date__range=[
+                    start_date, end_date
+                ])
+            ).annotate(
                 discussed=threads_count + comments_count,
                 discussed_secondary=F('discussion_count')
-            ).order_by(ordering, ordering + '_secondary')
+            ).order_by(
+                ordering, ordering + '_secondary'
+            )
 
         else:
             order_papers = papers.order_by(ordering)
@@ -636,7 +634,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         if page_number == 1:
             time_difference = end_date - start_date
             cache_pk = ''
-            if time_difference.days == 365:
+            if time_difference.days > 365:
+                cache_pk = f'{hub_id}_{ordering}_all_time'
+            elif time_difference.days == 365:
                 cache_pk = f'{hub_id}_{ordering}_year'
             elif time_difference.days == 30 or time_difference.days == 31:
                 cache_pk = f'{hub_id}_{ordering}_month'
