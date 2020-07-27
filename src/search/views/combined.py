@@ -27,15 +27,13 @@ from search.utils import (
 from utils.permissions import ReadOnly
 # from utils.http import RequestMethods
 
+HUB_RESULTS_LIMIT = 5
+
 
 class CombinedView(ListAPIView):
     indices = [
         'paper',
-        'author',
-        'discussion_thread',
         'hub',
-        'summary',
-        'university'
     ]
     serializer_class = CombinedSerializer
 
@@ -57,19 +55,38 @@ class CombinedView(ListAPIView):
     def __init__(self, *args, **kwargs):
         assert self.indices is not None
 
+        # Keeping this for use with default DRF methods
         self.search = Search(index=self.indices).highlight(
+            *self.search_fields,
+            fragment_size=50
+        )
+        self.paper_search = Search(index=['paper']).highlight(
+            *self.search_fields,
+            fragment_size=50
+        )
+        self.hub_search = Search(index=['hub']).highlight(
             *self.search_fields,
             fragment_size=50
         )
 
         super(CombinedView, self).__init__(*args, **kwargs)
 
-    def get_queryset(self):
-        es_search = self.search.query()
-        return es_search
-
     def list(self, request, *args, **kwargs):
-        es_response_queryset = self.filter_queryset(self.get_queryset())
+        # TODO: Think about moving this custom response format to a separate
+        # method
+        es_paper_response_queryset = self.filter_queryset(
+            self.paper_search,
+            es=True
+        )
+        es_hub_response_queryset = self.filter_queryset(
+            self.hub_search,
+            es=True,
+            limit=HUB_RESULTS_LIMIT
+        )
+        es_response_queryset = self._merge_es_querysets_in_order([
+            es_hub_response_queryset,
+            es_paper_response_queryset
+        ])
 
         # NOTE: Not using crossref for now, pending some refinement
         # if request.query_params.get('external_search') != 'false':
@@ -85,6 +102,52 @@ class CombinedView(ListAPIView):
 
         serializer = self.get_serializer(es_response_queryset, many=True)
         return Response(serializer.data)
+
+    def get_queryset(self):
+        """
+        Returns the elastic search Response object.
+
+        Note: Using this as the input to `filter_queryset` may fail.
+        """
+        es_response = self.search.query().execute()
+        return es_response
+
+    def filter_queryset(self, queryset, es=False, limit=None):
+        """
+        Assumes queryset is either a elastic search Search object or a Django
+        queryset.
+
+        Note: Using get_queryset as the input for `queryset` may fail.
+        """
+        search = None
+        if es:
+            search = queryset
+
+        has_backends = False
+        for backend in list(self.filter_backends):
+            has_backends = True
+            # TODO: This may break depending on the backend so we should check
+            # the type of backend first and then handle it accordingly.
+            queryset = backend().filter_queryset(
+                self.request,
+                queryset,
+                self,
+                search=search,
+                limit=limit
+            )
+
+        if es and not has_backends:
+            return search.execute()
+        return queryset
+
+    def _merge_es_querysets_in_order(self, qs_list):
+        if len(qs_list) < 2:
+            return qs_list[0]
+
+        merged = qs_list[0]
+        for qs in qs_list[1:]:
+            merged.hits.extend(qs.hits)
+        return merged
 
     def _add_crossref_results(self, request, es_response):
         result_space_available = PAGINATION_PAGE_SIZE - len(es_response.hits)
