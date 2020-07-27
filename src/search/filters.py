@@ -8,8 +8,19 @@ from paper.models import Paper
 
 class ElasticsearchFuzzyFilter(filters.SearchFilter):
 
-    def filter_queryset(self, request, queryset, view):
-        search = getattr(view, 'search')
+    def filter_queryset(
+        self,
+        request,
+        queryset,
+        view,
+        search=None,
+        limit=None
+    ):
+        """
+        Builds and executes the elastic search query, returning the response.
+        """
+        if search is None:
+            search = getattr(view, 'search')
         fields = getattr(view, 'search_fields')
         terms = ' '.join(self.get_search_terms(request))
         query = Q(
@@ -19,6 +30,9 @@ class ElasticsearchFuzzyFilter(filters.SearchFilter):
             fuzziness='AUTO'
         )
         es = search.query(query)
+        if limit:
+            es = es[:limit]
+
         response = es.execute()
         return response
 
