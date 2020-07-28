@@ -25,11 +25,13 @@ class Hub(models.Model):
         self.name = self.name.lower()
         self.slugify()
         return super(Hub, self).save(*args, **kwargs)
- 
+
     def slugify(self):
         if not self.slug:
             self.slug = slugify(self.name)
-            hub_slugs = Hub.objects.filter(slug__startswith=self.slug).order_by('slug_index')
+            hub_slugs = Hub.objects.filter(
+                slug__startswith=self.slug
+            ).order_by('slug_index')
             if hub_slugs.exists():
                 last_slug = hub_slugs.last()
                 if not last_slug.slug_index:
@@ -40,8 +42,12 @@ class Hub(models.Model):
         return self.slug
 
     @property
+    def paper_count_indexing(self):
+        return self.papers.count()
+
+    @property
     def subscriber_count_indexing(self):
-        return len(self.subscribers.all())
+        return self.subscribers.count()
 
     def unlock(self):
         self.is_locked = False
