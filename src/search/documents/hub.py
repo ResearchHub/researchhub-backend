@@ -12,6 +12,7 @@ import utils.sentry as sentry
 
 @registry.register_document
 class HubDocument(Document):
+    paper_count = IntegerField(attr='paper_count_indexing')
     subscriber_count = IntegerField(attr='subscriber_count_indexing')
 
     class Index:
