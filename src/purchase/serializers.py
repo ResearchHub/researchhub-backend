@@ -4,6 +4,7 @@ import pandas as pd
 import rest_framework.serializers as serializers
 
 from django.db.models import Max
+from django.db.models import Max, F, Func, Value, CharField, Count
 # from django.db.models import Count, Q, FloatField, Sum, F
 # from django.db.models.functions import Cast
 
@@ -132,15 +133,37 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
         return data
 
     def get_stats(self, purchase):
-        total_views = purchase.purchases.filter(
+        # TODO: Fix total views and clicks
+
+        distinct_views = purchase.purchases.filter(
             paper__event__interaction=INTERACTIONS['VIEW']
-        ).distinct().count()
-        total_clicks = purchase.purchases.filter(
+        ).distinct()
+        total_views = distinct_views.count()
+        distinct_clicks = purchase.purchases.filter(
             paper__event__interaction=INTERACTIONS['CLICK']
-        ).distinct().count()
+        ).distinct()
+        total_clicks = distinct_clicks.count()
         total_amount = sum(
             map(float, purchase.purchases.values_list('amount', flat=True))
         )
+
+        views = distinct_views.values(
+            date=Func(
+                F('paper__event__created_date'),
+                Value('YYYY-MM-DD'),
+                function='to_char',
+                output_field=CharField()
+            )
+        ).annotate(views=Count('date'))
+
+        clicks = distinct_clicks.values(
+            date=Func(
+                F('paper__event__created_date'),
+                Value('YYYY-MM-DD'),
+                function='to_char',
+                output_field=CharField()
+            )
+        ).annotate(clicks=Count('date'))
 
         created_date = purchase.created_date
         max_boost = purchase.purchases.aggregate(
@@ -166,6 +189,8 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
         #     'total_clicks'
         # )
         stats = {
+            'views': views,
+            'clicks': clicks,
             'total_views': total_views,
             'total_clicks': total_clicks,
             'total_amount': total_amount,
