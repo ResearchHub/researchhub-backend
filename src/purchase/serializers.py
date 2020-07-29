@@ -3,10 +3,7 @@ import pandas as pd
 
 import rest_framework.serializers as serializers
 
-from django.db.models import Max
 from django.db.models import Max, F, Func, Value, CharField, Count
-# from django.db.models import Count, Q, FloatField, Sum, F
-# from django.db.models.functions import Cast
 
 from purchase.models import Purchase, AggregatePurchase
 from analytics.serializers import PaperEventSerializer
@@ -172,22 +169,6 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
         timedelta = datetime.timedelta(days=int(max_boost))
         end_date = (created_date + timedelta).isoformat()
 
-        # total_amount = purchase.purchases.annotate(tota)
-        # stats = purchase.purchases.annotate(
-        #     total_views=Count(
-        #         'paper__event',
-        #         filter=Q(paper__event__interaction=INTERACTIONS['VIEW']),
-        #         distinct=True
-        #     ),
-        #     total_clicks=Count(
-        #         'paper__event',
-        #         filter=Q(paper__event__interaction=INTERACTIONS['CLICK']),
-        #         distinct=True
-        #     )
-        # ).values(
-        #     'total_views',
-        #     'total_clicks'
-        # )
         stats = {
             'views': views,
             'clicks': clicks,
