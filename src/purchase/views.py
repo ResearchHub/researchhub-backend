@@ -133,6 +133,16 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         context = self.get_serializer_context()
         context['purchase_minimal_serialization'] = True
         groups = AggregatePurchase.objects.filter(user=user)
+        
+        page = self.paginate_queryset(groups)
+        if page is not None:
+            serializer =  AggregatePurchaseSerializer(
+                page,
+                many=True,
+                context=context
+            )
+            return self.get_paginated_response(serializer.data)
+            
         serializer = AggregatePurchaseSerializer(
             groups,
             context=context,
