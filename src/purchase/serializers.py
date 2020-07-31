@@ -3,7 +3,16 @@ import pandas as pd
 
 import rest_framework.serializers as serializers
 
-from django.db.models import Max, F, Func, Value, CharField, Count
+from django.db.models import (
+    Max,
+    Value,
+    F,
+    Func,
+    CharField,
+    Count,
+    IntegerField
+)
+from django.db.models.functions import Cast, Coalesce
 
 from purchase.models import Purchase, AggregatePurchase
 from analytics.serializers import PaperEventSerializer
@@ -133,13 +142,16 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
         # TODO: Fix total views and clicks
 
         distinct_views = purchase.purchases.filter(
-            paper__event__interaction=INTERACTIONS['VIEW']
+            paper__event__interaction=INTERACTIONS['VIEW'],
+            paper__event__paper_is_boosted=True
         ).distinct()
-        total_views = distinct_views.count()
         distinct_clicks = purchase.purchases.filter(
-            paper__event__interaction=INTERACTIONS['CLICK']
+            paper__event__interaction=INTERACTIONS['CLICK'],
+            paper__event__paper_is_boosted=True
         ).distinct()
-        total_clicks = distinct_clicks.count()
+
+        total_views = distinct_views.values('paper__event').count()
+        total_clicks = distinct_clicks.values('paper__event').count()
         total_amount = sum(
             map(float, purchase.purchases.values_list('amount', flat=True))
         )
@@ -163,9 +175,13 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
         ).annotate(clicks=Count('date'))
 
         created_date = purchase.created_date
-        max_boost = purchase.purchases.aggregate(
-            max=Max('amount')
+
+        max_boost = purchase.purchases.annotate(
+            amount_as_int=Cast('amount', IntegerField())
+        ).aggregate(
+            max=Max('amount_as_int')
         ).get('max', 0)
+
         timedelta = datetime.timedelta(days=int(max_boost))
         end_date = (created_date + timedelta).isoformat()
 
