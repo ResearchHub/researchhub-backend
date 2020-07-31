@@ -4,7 +4,7 @@ import pandas as pd
 import rest_framework.serializers as serializers
 
 from django.db.models import (
-    Max,
+    Sum,
     Value,
     F,
     Func,
@@ -12,7 +12,7 @@ from django.db.models import (
     Count,
     IntegerField
 )
-from django.db.models.functions import Cast, Coalesce
+from django.db.models.functions import Cast
 
 from purchase.models import Purchase, AggregatePurchase
 from analytics.serializers import PaperEventSerializer
@@ -179,8 +179,8 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
         max_boost = purchase.purchases.annotate(
             amount_as_int=Cast('amount', IntegerField())
         ).aggregate(
-            max=Max('amount_as_int')
-        ).get('max', 0)
+            sum=Sum('amount_as_int')
+        ).get('sum', 0)
 
         timedelta = datetime.timedelta(days=int(max_boost))
         end_date = (created_date + timedelta).isoformat()
