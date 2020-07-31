@@ -180,7 +180,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                 error_message = 'A paper with this DOI already exists.'
         except IndexError:
             error_message = 'A paper with this url or DOI already exists.'
-        return Response(error_message, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': error_message}, status=status.HTTP_400_BAD_REQUEST)
 
     def retrieve(self, request, *args, **kwargs):
         cache_key = get_cache_key(request, 'paper')
