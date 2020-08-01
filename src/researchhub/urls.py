@@ -139,7 +139,7 @@ router.register(
 
 router.register(r'user', user.views.UserViewSet)
 
-# router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
+router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
 
 
 urlpatterns = [
