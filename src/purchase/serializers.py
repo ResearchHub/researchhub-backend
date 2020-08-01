@@ -204,10 +204,3 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
             'end_date': end_date
         }
         return stats
-
-
-"""
-end date for promotion
-total amount used
-create new aggregate if filter returns none?
-"""
