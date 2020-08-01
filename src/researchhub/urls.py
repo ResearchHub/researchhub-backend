@@ -15,7 +15,7 @@ import mailing_list.views
 import oauth.urls
 import oauth.views
 import paper.views
-# import reputation.views
+import reputation.views
 import researchhub.views
 import search.urls
 import summary.views
