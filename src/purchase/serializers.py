@@ -17,7 +17,7 @@ from django.db.models.functions import Cast
 from purchase.models import Purchase, AggregatePurchase
 from analytics.serializers import PaperEventSerializer
 from paper.serializers import BasePaperSerializer
-from analytics.models import INTERACTIONS
+from analytics.models import PaperEvent, INTERACTIONS
 
 
 class PurchaseSerializer(serializers.ModelSerializer):
@@ -139,8 +139,6 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
         return data
 
     def get_stats(self, purchase):
-        # TODO: Fix total views and clicks
-
         distinct_views = purchase.purchases.filter(
             paper__event__interaction=INTERACTIONS['VIEW'],
             paper__event__paper_is_boosted=True
@@ -156,23 +154,35 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
             map(float, purchase.purchases.values_list('amount', flat=True))
         )
 
-        views = distinct_views.values(
+        distinct_views_ids = distinct_views.values_list(
+            'paper__event',
+            flat=True
+        )
+        views = PaperEvent.objects.filter(id__in=distinct_views_ids).values(
             date=Func(
-                F('paper__event__created_date'),
+                F('created_date'),
                 Value('YYYY-MM-DD'),
                 function='to_char',
                 output_field=CharField()
             )
-        ).annotate(views=Count('date'))
+        ).annotate(
+            views=Count('date')
+        )
 
-        clicks = distinct_clicks.values(
+        distinct_clicks_ids = distinct_clicks.values_list(
+            'paper__event',
+            flat=True
+        )
+        clicks = PaperEvent.objects.filter(id__in=distinct_clicks_ids).values(
             date=Func(
-                F('paper__event__created_date'),
+                F('created_date'),
                 Value('YYYY-MM-DD'),
                 function='to_char',
                 output_field=CharField()
             )
-        ).annotate(clicks=Count('date'))
+        ).annotate(
+            clicks=Count('date')
+        )
 
         created_date = purchase.created_date
 
