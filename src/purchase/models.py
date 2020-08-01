@@ -122,7 +122,9 @@ class Balance(models.Model):
     object_id = models.PositiveIntegerField(null=True)
     source = GenericForeignKey('content_type', 'object_id')
 
+    # TODO: why is this a char field?
     amount = models.CharField(max_length=255)
+    testnet_amount = models.CharField(max_length=255)
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
