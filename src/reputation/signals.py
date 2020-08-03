@@ -133,7 +133,11 @@ def distribute_for_paper_upvoted(
     timestamp = time()
     recipient = instance.paper.uploaded_by
 
-    if created and is_eligible_user(recipient):
+    if is_eligible_for_paper_upvoted(
+        created,
+        instance.created_by,
+        recipient
+    ):
         distributor = Distributor(
             distributions.PaperUpvoted,
             recipient,
@@ -142,6 +146,14 @@ def distribute_for_paper_upvoted(
             instance.paper.hubs.all(),
         )
         distributor.distribute()
+
+
+def is_eligible_for_paper_upvoted(created, voter, paper_uploader):
+    return (
+        created
+        and is_eligible_user(paper_uploader)
+        and (voter != paper_uploader)
+    )
 
 
 @receiver(post_delete, sender=Paper, dispatch_uid='censor_paper')
