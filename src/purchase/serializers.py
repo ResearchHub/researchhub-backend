@@ -3,9 +3,21 @@ import pandas as pd
 
 import rest_framework.serializers as serializers
 
-from purchase.models import Purchase
+from django.db.models import (
+    Sum,
+    Value,
+    F,
+    Func,
+    CharField,
+    Count,
+    IntegerField
+)
+from django.db.models.functions import Cast
+
+from purchase.models import Purchase, AggregatePurchase
 from analytics.serializers import PaperEventSerializer
 from paper.serializers import BasePaperSerializer
+from analytics.models import PaperEvent, INTERACTIONS
 
 
 class PurchaseSerializer(serializers.ModelSerializer):
@@ -19,6 +31,9 @@ class PurchaseSerializer(serializers.ModelSerializer):
 
     def get_source(self, purchase):
         model_name = purchase.content_type.name
+        if self.context.get('exclude_source', False):
+            return None
+
         if model_name == 'paper':
             Paper = purchase.content_type.model_class()
             paper = Paper.objects.get(id=purchase.object_id)
@@ -40,6 +55,9 @@ class PurchaseSerializer(serializers.ModelSerializer):
         return end_date.isoformat()
 
     def get_stats(self, purchase):
+        if self.context.get('exclude_stats', False):
+            return None
+
         views = []
         clicks = []
         total_views = 0
@@ -87,3 +105,102 @@ class PurchaseSerializer(serializers.ModelSerializer):
         views = len(row[row['interaction'] == 'VIEW'])
         clicks = len(row[row['interaction'] == 'CLICK'])
         return pd.Series((views, clicks), index=index)
+
+
+class AggregatePurchaseSerializer(serializers.ModelSerializer):
+    source = serializers.SerializerMethodField()
+    purchases = serializers.SerializerMethodField()
+    stats = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AggregatePurchase
+        fields = '__all__'
+
+    def get_source(self, purchase):
+        model_name = purchase.content_type.name
+        if model_name == 'paper':
+            Paper = purchase.content_type.model_class()
+            paper = Paper.objects.get(id=purchase.object_id)
+            serializer = BasePaperSerializer(paper, context=self.context)
+            data = serializer.data
+            return data
+        return None
+
+    def get_purchases(self, purchase):
+        purchases = purchase.purchases
+        self.context['exclude_source'] = True
+        self.context['exclude_stats'] = True
+        serializer = PurchaseSerializer(
+            purchases,
+            context=self.context,
+            many=True
+        )
+        data = serializer.data
+        return data
+
+    def get_stats(self, purchase):
+        distinct_views = purchase.purchases.filter(
+            paper__event__interaction=INTERACTIONS['VIEW'],
+            paper__event__paper_is_boosted=True
+        ).distinct()
+        distinct_clicks = purchase.purchases.filter(
+            paper__event__interaction=INTERACTIONS['CLICK'],
+            paper__event__paper_is_boosted=True
+        ).distinct()
+
+        total_views = distinct_views.values('paper__event').count()
+        total_clicks = distinct_clicks.values('paper__event').count()
+        total_amount = sum(
+            map(float, purchase.purchases.values_list('amount', flat=True))
+        )
+
+        distinct_views_ids = distinct_views.values_list(
+            'paper__event',
+            flat=True
+        )
+        views = PaperEvent.objects.filter(id__in=distinct_views_ids).values(
+            date=Func(
+                F('created_date'),
+                Value('YYYY-MM-DD'),
+                function='to_char',
+                output_field=CharField()
+            )
+        ).annotate(
+            views=Count('date')
+        )
+
+        distinct_clicks_ids = distinct_clicks.values_list(
+            'paper__event',
+            flat=True
+        )
+        clicks = PaperEvent.objects.filter(id__in=distinct_clicks_ids).values(
+            date=Func(
+                F('created_date'),
+                Value('YYYY-MM-DD'),
+                function='to_char',
+                output_field=CharField()
+            )
+        ).annotate(
+            clicks=Count('date')
+        )
+
+        created_date = purchase.created_date
+
+        max_boost = purchase.purchases.annotate(
+            amount_as_int=Cast('amount', IntegerField())
+        ).aggregate(
+            sum=Sum('amount_as_int')
+        ).get('sum', 0)
+
+        timedelta = datetime.timedelta(days=int(max_boost))
+        end_date = (created_date + timedelta).isoformat()
+
+        stats = {
+            'views': views,
+            'clicks': clicks,
+            'total_views': total_views,
+            'total_clicks': total_clicks,
+            'total_amount': total_amount,
+            'end_date': end_date
+        }
+        return stats
