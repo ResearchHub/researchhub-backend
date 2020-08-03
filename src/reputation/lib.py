@@ -6,7 +6,7 @@ import ethereum.lib
 from researchhub.settings import ASYNC_SERVICE_HOST, WEB3_SHARED_SECRET
 from utils.http import http_request, RequestMethods
 
-WITHDRAWAL_MINIMUM = 400
+WITHDRAWAL_MINIMUM = 1200
 
 
 class PendingWithdrawal:
