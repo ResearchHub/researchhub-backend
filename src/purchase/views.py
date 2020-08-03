@@ -14,8 +14,11 @@ from rest_framework.permissions import (
 
 from paper.models import Paper
 from paper.utils import get_cache_key, invalidate_trending_cache
-from purchase.models import Purchase, Balance
-from purchase.serializers import PurchaseSerializer
+from purchase.models import Purchase, Balance, AggregatePurchase
+from purchase.serializers import (
+    PurchaseSerializer,
+    AggregatePurchaseSerializer
+)
 from researchhub.settings import ASYNC_SERVICE_HOST
 from utils.http import http_request, RequestMethods
 from utils.permissions import CreateOrUpdateOrReadOnly
@@ -78,6 +81,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             purchase.purchase_hash = purchase_hash
             purchase_boost_time = purchase.get_boost_time(amount)
             purchase.boost_time = purchase_boost_time
+            purchase.group = purchase.get_aggregate_group()
             purchase.save()
 
         if content_type_str == 'paper':
@@ -97,6 +101,9 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
         purchase = self.get_object()
+        purchase.group = purchase.get_aggregate_group()
+        purchase.save()
+
         if purchase.transaction_hash:
             self.track_paid_status(purchase.id, purchase.transaction_hash)
         return response
@@ -121,34 +128,39 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         methods=['get'],
         permission_classes=[IsAuthenticated]
     )
-    def user_transactions(self, request, pk=None):
+    def aggregate_user_promotions(self, request, pk=None):
+        user = User.objects.get(id=pk)
+        context = self.get_serializer_context()
+        context['purchase_minimal_serialization'] = True
+        groups = AggregatePurchase.objects.filter(user=user)
+        
+        page = self.paginate_queryset(groups)
+        if page is not None:
+            serializer =  AggregatePurchaseSerializer(
+                page,
+                many=True,
+                context=context
+            )
+            return self.get_paginated_response(serializer.data)
+            
+        serializer = AggregatePurchaseSerializer(
+            groups,
+            context=context,
+            many=True
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[IsAuthenticated]
+    )
+    def user_promotions(self, request, pk=None):
         context = self.get_serializer_context()
         context['purchase_minimal_serialization'] = True
 
         user = User.objects.get(id=pk)
-        queryset = user.purchases.all()
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.serializer_class(
-                page,
-                context=context,
-                many=True
-            )
-            return self.get_paginated_response(serializer.data)
-
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    @action(
-        detail=False,
-        methods=['get'],
-        permission_classes=[IsAuthenticated]
-    )
-    def user_transactions_by_item(self, request):
-        context = self.get_serializer_context()
-        context['purchase_minimal_serialization'] = True
-        queryset = Purchase.objects.filter(user=request.user).order_by(
+        queryset = Purchase.objects.filter(user=user).order_by(
             '-created_date',
             'object_id'
         )
