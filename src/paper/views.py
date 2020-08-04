@@ -12,6 +12,7 @@ from django.db.models import (
     F
 )
 from django_filters.rest_framework import DjangoFilterBackend
+from django.contrib.postgres.search import TrigramSimilarity
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -535,6 +536,21 @@ class PaperViewSet(viewsets.ModelViewSet):
         url_is_pdf = check_url_contains_pdf(url)
         data['url_is_pdf'] = url_is_pdf
 
+        duplicate_papers = Paper.objects.filter(
+            Q(url__icontains=url) | Q(pdf_url__icontains=url)
+        )
+        if duplicate_papers.exists() and False:
+            duplicate_paper = duplicate_papers.first()
+            serializer_data = self.serializer_class(
+                duplicate_paper,
+                context={'purchase_minimal_serialization': True}
+            ).data
+            data = {
+                'key': 'url',
+                'results': serializer_data
+            }
+            return Response(data, status=status.HTTP_403_FORBIDDEN)
+
         try:
             csl_item = get_csl_item(url)
         except Exception as error:
@@ -544,6 +560,28 @@ class PaperViewSet(viewsets.ModelViewSet):
         if csl_item:
             # Cleaning csl data
             cleaned_title = csl_item.get('title', '').strip()
+            duplicate_papers = Paper.objects.filter(
+                paper_title__icontains=cleaned_title,
+            ).annotate(
+                similarity=TrigramSimilarity('paper_title', cleaned_title)
+            ).filter(
+                similarity__gt=0.7
+            ).order_by(
+                'similarity'
+            )[:3]
+
+            if duplicate_papers.exists() and False:
+                serializer_data = self.serializer_class(
+                    duplicate_papers,
+                    context={'purchase_minimal_serialization': True},
+                    many=True
+                ).data
+                data = {
+                    'key': 'title',
+                    'results': serializer_data
+                }
+                return Response(data, status=status.HTTP_403_FORBIDDEN)
+
             csl_item['title'] = cleaned_title
             abstract = csl_item.get('abstract', '')
             soup = BeautifulSoup(abstract, 'html.parser')
@@ -557,10 +595,20 @@ class PaperViewSet(viewsets.ModelViewSet):
             data['csl_item'] = csl_item
             data['oa_pdf_location'] = get_pdf_location_for_csl_item(csl_item)
             doi = csl_item.get('DOI', None)
-            data['doi_already_in_db'] = (
-                (doi is not None)
-                and (Paper.objects.filter(doi=doi).count() > 0)
-            )
+
+            duplicate_papers = Paper.objects.filter(doi=doi)
+            if duplicate_papers.exists():
+                duplicate_paper = duplicate_papers.first()
+                serializer_data = self.serializer_class(
+                    duplicate_paper,
+                    context={'purchase_minimal_serialization': True}
+                ).data
+                data = {
+                    'key': 'doi',
+                    'results': serializer_data
+                }
+                return Response(data, status=status.HTTP_403_FORBIDDEN)
+
             data['paper_publish_date'] = csl_item.get_date('issued', fill=True)
 
         if csl_item and request.data.get('search', False):
