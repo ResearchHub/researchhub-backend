@@ -208,6 +208,15 @@ class PaperSerializer(BasePaperSerializer):
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
 
+        # TODO: This is a hotfix to prevent spam but we should update this
+        # to be handled in the best way
+        title_duplicates = Paper.objects.filter(title=validated_data['title'])
+        if title_duplicates.count() > 0:
+            raise PaperSerializerError(
+                None,
+                'Paper with this title already exists'
+            )
+
         try:
             with transaction.atomic():
                 self._clean_abstract(validated_data)
