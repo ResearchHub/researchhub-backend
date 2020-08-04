@@ -38,6 +38,12 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             return Withdrawal.objects.filter(user=user)
 
     def create(self, request):
+        if timezone.now() < timezone.make_aware(timezone.datetime(2020, 9, 1)):
+            return Response(
+                'Withdrawals are disabled until September 1, 2020',
+                status=400
+            )
+
         user = request.user
         starting_balance = user.get_balance()
 
