@@ -21,14 +21,18 @@ from purchase.serializers import (
 )
 from researchhub.settings import ASYNC_SERVICE_HOST
 from utils.http import http_request, RequestMethods
-from utils.permissions import CreateOrUpdateOrReadOnly
+from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfActive
 from user.models import User
 
 
 class PurchaseViewSet(viewsets.ModelViewSet):
     queryset = Purchase.objects.all()
     serializer_class = PurchaseSerializer
-    permission_classes = [IsAuthenticated, CreateOrUpdateOrReadOnly]
+    permission_classes = [
+        IsAuthenticated,
+        CreateOrUpdateOrReadOnly,
+        CreateOrUpdateIfActive
+    ]
     pagination_class = PageNumberPagination
 
     def create(self, request):
