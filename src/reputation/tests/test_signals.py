@@ -252,61 +252,6 @@ class SignalTests(TestCase):
             self.start_rep
         )
 
-    def test_create_reply_increases_rep_by_5_if_orcid_author(self):
-        author = create_random_default_user('Viktor ORCID')
-        social = create_social_account(OrcidProvider.id, author)
-        author.author_profile.orcid_id = social.uid
-        author.author_profile.save()
-
-        paper = create_paper()
-        paper.authors.add(author.author_profile)
-
-        user = create_random_default_user('Cedric')
-        thread = create_thread(paper=paper)
-        comment = create_comment(thread=thread, created_by=user)
-        create_reply(parent=comment, created_by=author)
-
-        author.refresh_from_db()
-        self.assertEqual(
-            author.reputation,
-            self.start_rep + distributions.CreateReplyAsAuthor.amount
-        )
-
-    def test_create_reply_increases_rep_by_1_if_non_orcid_author(self):
-        author = create_random_default_user('Viktor')
-        paper = create_paper()
-        paper.authors.add(author.author_profile)
-
-        user = create_random_default_user('Cedric')
-        thread = create_thread(paper=paper)
-        comment = create_comment(thread=thread, created_by=user)
-        create_reply(parent=comment, created_by=author)
-
-        author.refresh_from_db()
-        self.assertEqual(
-            author.reputation,
-            self.start_rep + distributions.CreateReply.amount
-        )
-
-    def test_create_reply_does_NOT_increase_author_rep_on_own_comment(self):
-        author = create_random_default_user('Maxine')
-        paper = create_paper()
-        paper.authors.add(author.author_profile)
-
-        create_comment(created_by=author)
-        create_reply(created_by=author)
-
-        earned_rep = (
-            self.new_user_create_rep  # for comment
-            + self.new_user_create_rep  # for reply
-        )
-
-        author.refresh_from_db()
-        self.assertEqual(
-            author.reputation,
-            self.start_rep + earned_rep
-        )
-
     def test_reply_upvoted_increases_rep_by_1(self):
         recipient = create_random_default_user('George')
         reply = create_reply(created_by=recipient)
@@ -335,10 +280,7 @@ class SignalTests(TestCase):
 
         upvote_discussion(reply, self.user)
 
-        earned_rep = (
-            distributions.CreateReplyAsAuthor.amount
-            + distributions.AuthorReplyUpvoted.amount
-        )
+        earned_rep = 0
 
         recipient.refresh_from_db()
         self.assertEqual(
@@ -359,8 +301,7 @@ class SignalTests(TestCase):
         upvote_discussion(reply, self.user)
 
         earned_rep = (
-            distributions.CreateReply.amount
-            + distributions.ReplyUpvoted.amount
+            distributions.ReplyUpvoted.amount
         )
 
         recipient.refresh_from_db()
