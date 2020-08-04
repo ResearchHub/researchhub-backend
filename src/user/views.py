@@ -32,9 +32,10 @@ from user.serializers import (
     UserActions
 )
 
-from utils.http import RequestMethods    
+from utils.http import RequestMethods
 from datetime import timedelta
 from django.utils import timezone
+
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -128,7 +129,9 @@ class UserViewSet(viewsets.ModelViewSet):
             if hub_id:
                 hub_id = int(hub_id)
             if hub_id and hub_id != 0:
-                items = User.objects.all().annotate(
+                items = User.objects.filter(
+                    is_active=True
+                ).annotate(
                     hub_rep=Sum(
                         'reputation_records__amount',
                         filter=Q(
@@ -138,7 +141,9 @@ class UserViewSet(viewsets.ModelViewSet):
                     )
                 ).order_by(F('hub_rep').desc(nulls_last=True))
             else:
-                items = User.objects.all().annotate(
+                items = User.objects.filter(
+                    is_active=True
+                ).annotate(
                     hub_rep=Sum(
                         'reputation_records__amount',
                         filter=Q(**time_filter)
@@ -146,7 +151,11 @@ class UserViewSet(viewsets.ModelViewSet):
                 ).order_by(F('hub_rep').desc(nulls_last=True))
 
         page = self.paginate_queryset(items)
-        serializer = serializerClass(page, many=True, context={'request': request})
+        serializer = serializerClass(
+            page,
+            many=True,
+            context={'request': request}
+        )
 
         return self.get_paginated_response(serializer.data)
 
