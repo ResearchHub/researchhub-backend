@@ -197,9 +197,8 @@ class ActionMixin:
             return Response(f'Failed to delete vote: {e}', status=400)
 
     def get_ordering(self):
-        default_ordering = ['-created_date']
-        if self.ordering:
-            default_ordering = self.ordering
+        default_ordering = ['-score', '-created_date']
+
         ordering = self.request.query_params.get('ordering', default_ordering)
         if isinstance(ordering, str):
             if ordering and 'created_date' not in ordering:
@@ -211,6 +210,7 @@ class ActionMixin:
         return ordering
 
     def get_action_context(self):
+
         ordering = self.get_ordering()
         needs_score = False
         if 'score' in ordering or '-score' in ordering:
@@ -364,7 +364,7 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
         thread_id = get_thread_id_from_path(self.request)
         comments = Comment.objects.filter(
             parent=thread_id
-        ).order_by('-created_date')
+        ).order_by('-score', '-created_date')
         return comments
 
     def create(self, request, *args, **kwargs):
