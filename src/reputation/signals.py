@@ -26,7 +26,6 @@ import reputation.distributions as distributions
 from reputation.exceptions import ReputationSignalError
 from reputation.models import Distribution
 from summary.models import Summary
-from user.models import User
 from utils import sentry
 
 # TODO: "Suspend" user if their reputation becomes negative
@@ -34,32 +33,6 @@ from utils import sentry
 
 NEW_USER_BONUS_REPUTATION_LIMIT = 200
 NEW_USER_BONUS_DAYS_LIMIT = 30
-
-
-@receiver(post_save, sender=User, dispatch_uid='sign_up')
-def distribute_for_sign_up(sender, instance, created, **kwargs):
-    timestamp = time()
-    if created and is_eligible_user(instance):
-        distributor = Distributor(
-            distributions.SignUp,
-            instance,
-            instance,
-            timestamp
-        )
-        distributor.distribute()
-
-
-@receiver(post_save, sender=Paper, dispatch_uid='create_paper')
-def distribute_for_create_paper(sender, instance, created, **kwargs):
-    timestamp = time()
-    if created and is_eligible_user(instance.uploaded_by):
-        distributor = Distributor(
-            distributions.CreatePaper,
-            instance.uploaded_by,
-            instance,
-            timestamp,
-        )
-        distributor.distribute()
 
 
 @receiver(
@@ -83,42 +56,6 @@ def update_distribution_for_hub_changes(
         )
         for distribution in distributions:
             distribution.hubs.add(*instance.hubs.all())
-
-
-@receiver(post_save, sender=PaperVote, dispatch_uid='vote_on_paper')
-def distribute_for_vote_on_paper(
-    sender,
-    instance,
-    created,
-    update_fields,
-    **kwargs
-):
-    """Distributes reputation to the voter."""
-    timestamp = time()
-    recipient = instance.created_by
-    paper_uploader = instance.paper.uploaded_by
-
-    if (
-        is_eligible_for_vote_on_paper(created, recipient, paper_uploader)
-        and instance.vote_type == DiscussionVote.UPVOTE
-    ):
-        distributor = Distributor(
-            distributions.VoteOnPaper,
-            recipient,
-            instance,
-            timestamp,
-            instance.paper.hubs.all(),
-        )
-        distributor.distribute()
-
-
-def is_eligible_for_vote_on_paper(created, user, paper_uploader):
-    return (
-        created
-        and is_eligible_user(user)
-        and (user != paper_uploader)
-        and is_eligible_for_new_user_bonus(user)
-    )
 
 
 @receiver(post_save, sender=PaperVote, dispatch_uid='paper_upvoted')
@@ -248,9 +185,6 @@ def check_summary_distribution_interval(distribution):
 
 
 @receiver(post_save, sender=BulletPoint, dispatch_uid='create_bullet_point')
-@receiver(post_save, sender=Comment, dispatch_uid='create_comment')
-@receiver(post_save, sender=Reply, dispatch_uid='create_reply')
-@receiver(post_save, sender=Thread, dispatch_uid='create_thread')
 def distribute_for_create_discussion(sender, instance, created, **kwargs):
     timestamp = time()
     recipient = instance.created_by
@@ -261,19 +195,6 @@ def distribute_for_create_discussion(sender, instance, created, **kwargs):
             and check_key_takeaway_interval(instance, recipient)
         ):
             distribution = distributions.CreateBulletPoint
-            hubs = instance.paper.hubs
-        elif isinstance(instance, Comment):
-            distribution = distributions.CreateComment
-            hubs = instance.parent.paper.hubs
-        elif isinstance(instance, Reply):
-            try:
-                hubs = instance.parent.parent.paper.hubs
-            except Exception as e:
-                sentry.log_error(e)
-
-            distribution = distributions.CreateReply
-        elif isinstance(instance, Thread):
-            distribution = distributions.CreateThread
             hubs = instance.paper.hubs
         else:
             return
@@ -457,62 +378,6 @@ def distribute_for_discussion_vote(
         distributor.distribute()
 
 
-@receiver(post_save, sender=DiscussionVote, dispatch_uid='vote_on_discussion')
-def distribute_for_vote_on_discussion(
-    sender,
-    instance,
-    created,
-    update_fields,
-    **kwargs
-):
-    """Distributes reputation to the voter."""
-    timestamp = time()
-    distributor = None
-    recipient = instance.created_by
-
-    if (
-        created
-        and (instance.vote_type == DiscussionVote.UPVOTE)
-        and is_eligible_for_vote_on_discussion(recipient)
-    ):
-        if isinstance(instance.item, BulletPoint):
-            hubs = instance.item.paper.hubs
-        elif isinstance(instance.item, Comment):
-            hubs = instance.item.parent.paper.hubs
-        elif isinstance(instance.item, Reply):
-            try:
-                hubs = instance.item.parent.parent.paper.hubs
-            except Exception as e:
-                sentry.log_error(e)
-        elif isinstance(instance.item, Thread):
-            hubs = instance.item.paper.hubs
-
-        try:
-            distribution = get_vote_on_discussion_item_distribution(
-                instance
-            )
-            distributor = Distributor(
-                distribution,
-                recipient,
-                instance,
-                timestamp,
-                hubs.all()
-            )
-        except TypeError as e:
-            error = ReputationSignalError(
-                e,
-                'Failed to distribute for vote on discussion'
-            )
-            print(error)
-
-    if distributor is not None:
-        distributor.distribute()
-
-
-def is_eligible_for_vote_on_discussion(user):
-    return is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
-
-
 def is_eligible_user(user):
     if user is not None:
         return user.is_active
@@ -566,21 +431,6 @@ def get_discussion_vote_item_distribution(instance):
             return distributions.ThreadDownvoted
         else:
             raise error
-
-
-def get_vote_on_discussion_item_distribution(instance):
-    item_type = type(instance.item)
-
-    error = TypeError(f'Instance of type {item_type} is not supported')
-
-    if item_type == Comment:
-        return distributions.VoteOnComment
-    elif item_type == Reply:
-        return distributions.VoteOnReply
-    elif item_type == Thread:
-        return distributions.VoteOnThread
-    else:
-        raise error
 
 
 @receiver(post_delete, sender=Distribution, dispatch_uid='delete_distribution')

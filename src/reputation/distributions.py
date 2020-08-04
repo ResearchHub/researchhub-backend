@@ -12,18 +12,8 @@ class Distribution:
         return self._amount
 
 
-SignUp = Distribution(
-    'SIGN_UP', 25
-)
-
-CreatePaper = Distribution(
-    'CREATE_PAPER', 1
-)
 FlagPaper = Distribution(
     'FLAG_PAPER', 1
-)
-VoteOnPaper = Distribution(
-    'VOTE_ON_PAPER', 1
 )
 PaperUpvoted = Distribution(
     'PAPER_UPVOTED', 1
@@ -39,12 +29,6 @@ BulletPointFlagged = Distribution(
     'BULLET_POINT_FLAGGED', -2
 )
 
-CreateComment = Distribution(
-    'CREATE_COMMENT', 1
-)
-VoteOnComment = Distribution(
-    'VOTE_ON_COMMENT', 1
-)
 CommentCensored = Distribution(
     'COMMENT_CENSORED', -2
 )
@@ -58,12 +42,6 @@ CommentDownvoted = Distribution(
     'COMMENT_DOWNVOTED', -1
 )
 
-CreateReply = Distribution(
-    'CREATE_REPLY', 1
-)
-VoteOnReply = Distribution(
-    'VOTE_ON_REPLY', 1
-)
 ReplyCensored = Distribution(
     'REPLY_CENSORED', -2
 )
@@ -77,12 +55,6 @@ ReplyDownvoted = Distribution(
     'REPLY_DOWNVOTED', -1
 )
 
-CreateThread = Distribution(
-    'CREATE_THREAD', 1
-)
-VoteOnThread = Distribution(
-    'VOTE_ON_THREAD', 1
-)
 ThreadCensored = Distribution(
     'THREAD_CENSORED', -2
 )
@@ -114,20 +86,8 @@ SummaryFlagged = Distribution(
 
 DISTRIBUTION_TYPE_CHOICES = [
     (
-        SignUp.name,
-        SignUp.name
-    ),
-    (
-        CreatePaper.name,
-        CreatePaper.name
-    ),
-    (
         FlagPaper.name,
         FlagPaper.name
-    ),
-    (
-        VoteOnPaper.name,
-        VoteOnPaper.name
     ),
     (
         PaperUpvoted.name,
@@ -140,14 +100,6 @@ DISTRIBUTION_TYPE_CHOICES = [
     (
         BulletPointFlagged.name,
         BulletPointFlagged.name
-    ),
-    (
-        CreateComment.name,
-        CreateComment.name
-    ),
-    (
-        VoteOnComment.name,
-        VoteOnComment.name
     ),
     (
         CommentCensored.name,
@@ -166,14 +118,6 @@ DISTRIBUTION_TYPE_CHOICES = [
         CommentDownvoted.name
     ),
     (
-        CreateReply.name,
-        CreateReply.name
-    ),
-    (
-        VoteOnReply.name,
-        VoteOnReply.name
-    ),
-    (
         ReplyCensored.name,
         ReplyCensored.name
     ),
@@ -188,14 +132,6 @@ DISTRIBUTION_TYPE_CHOICES = [
     (
         ReplyDownvoted.name,
         ReplyDownvoted.name
-    ),
-    (
-        CreateThread.name,
-        CreateThread.name
-    ),
-    (
-        VoteOnThread.name,
-        VoteOnThread.name
     ),
     (
         ThreadCensored.name,
