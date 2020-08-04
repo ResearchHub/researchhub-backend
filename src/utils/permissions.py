@@ -13,6 +13,7 @@ class CreateOrUpdateIfActive(BasePermission):
         if (
             (request.method == RequestMethods.POST)
             or (request.method == RequestMethods.PATCH)
+            or (request.method == RequestMethods.PUT)
         ):
             return request.user.is_active
         return True
