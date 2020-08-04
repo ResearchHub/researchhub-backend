@@ -8,6 +8,16 @@ class ReadOnly(BasePermission):
         return request.method in SAFE_METHODS
 
 
+class CreateOrUpdateIfActive(BasePermission):
+    def has_permission(self, request, view):
+        if (
+            (request.method == RequestMethods.POST)
+            or (request.method == RequestMethods.PATCH)
+        ):
+            return request.user.is_active
+        return True
+
+
 class CreateOrReadOnly(BasePermission):
     def has_permission(self, request, view):
         return (

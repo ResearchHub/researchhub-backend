@@ -32,6 +32,7 @@ from bullet_point.serializers import (
 )
 from researchhub.lib import ActionableViewSet, get_paper_id_from_path
 from utils.http import DELETE, POST, PATCH, PUT
+from utils.permissions import CreateOrUpdateIfActive
 
 from .filters import BulletPointFilter
 
@@ -50,6 +51,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         IsAuthenticatedOrReadOnly
         & CreateBulletPoint
         & UpdateOrDeleteBulletPoint
+        & CreateOrUpdateIfActive
     ]
 
     def get_queryset(self):

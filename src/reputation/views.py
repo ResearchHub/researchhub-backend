@@ -18,13 +18,17 @@ from reputation.models import Withdrawal
 from reputation.serializers import WithdrawalSerializer
 from user.serializers import UserSerializer
 from utils import sentry
-from utils.permissions import CreateOrReadOnly
+from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfActive
 
 
 class WithdrawalViewSet(viewsets.ModelViewSet):
     queryset = Withdrawal.objects.all()
     serializer_class = WithdrawalSerializer
-    permission_classes = [IsAuthenticated, CreateOrReadOnly]
+    permission_classes = [
+        IsAuthenticated,
+        CreateOrReadOnly,
+        CreateOrUpdateIfActive
+    ]
 
     def get_queryset(self):
         user = self.request.user
