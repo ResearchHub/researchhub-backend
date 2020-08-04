@@ -22,6 +22,7 @@ from user.models import Action
 from user.serializers import UserActions
 from utils.http import PATCH, POST, PUT, GET
 from utils.message import send_email_message
+from utils.permissions import CreateOrUpdateIfActive
 from paper.models import Vote
 from paper.utils import get_cache_key
 
@@ -35,7 +36,11 @@ class HubViewSet(viewsets.ModelViewSet):
     queryset = Hub.objects.all()
     serializer_class = HubSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter,)
-    permission_classes = [IsAuthenticatedOrReadOnly & CreateHub]
+    permission_classes = [
+        IsAuthenticatedOrReadOnly
+        & CreateHub
+        & CreateOrUpdateIfActive
+    ]
     pagination_class = CustomPageLimitPagination
     filter_class = HubFilter
     search_fields = ('name')
@@ -77,7 +82,7 @@ class HubViewSet(viewsets.ModelViewSet):
             # actions_past_two_weeks = Count(
             #     'actions',
             #     filter=Q(
-            #         actions__created_date__gte=two_weeks_ago, 
+            #         actions__created_date__gte=two_weeks_ago,
             #         actions__user__isnull=False
             #     )
             # )
@@ -90,7 +95,10 @@ class HubViewSet(viewsets.ModelViewSet):
             )
             score = num_upvotes - num_downvotes
             score += paper_count
-            qs = self.queryset.annotate(score=score, paper_count=paper_count).order_by('-score')
+            qs = self.queryset.annotate(
+                score=score,
+                paper_count=paper_count
+            ).order_by('-score')
             return qs
         else:
             return self.queryset

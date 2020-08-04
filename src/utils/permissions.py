@@ -10,11 +10,7 @@ class ReadOnly(BasePermission):
 
 class CreateOrUpdateIfActive(BasePermission):
     def has_permission(self, request, view):
-        if (
-            (request.method == RequestMethods.POST)
-            or (request.method == RequestMethods.PATCH)
-            or (request.method == RequestMethods.PUT)
-        ):
+        if request.method not in SAFE_METHODS:
             return request.user.is_active
         return True
 

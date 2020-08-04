@@ -32,6 +32,7 @@ from rest_framework.response import Response
 from django.dispatch import receiver
 from django.http import HttpRequest
 from django.utils.translation import ugettext_lazy as _
+from django.urls.exceptions import NoReverseMatch
 
 from elasticsearch.exceptions import ConnectionTimeout
 
@@ -120,8 +121,6 @@ class SocialLoginSerializer(serializers.Serializer):
         if attrs.get('access_token') or credential:
             access_token = attrs.get('access_token')
             if credential:
-                # TODO: Remove
-                # verify_google_yolo_csrf(request)
                 access_token = credential
 
         # Case 2: We received the authorization code
@@ -179,6 +178,9 @@ class SocialLoginSerializer(serializers.Serializer):
             complete_social_login(request, login)
         except ConnectionTimeout:
             pass
+        except NoReverseMatch as e:
+            if 'account_inactive' in str(e):
+                raise LoginError(None, 'Account is suspended')
         except Exception as e:
             error = LoginError(e, 'Login failed')
             sentry.log_info(error, error=e)
@@ -224,17 +226,6 @@ class SocialLoginSerializer(serializers.Serializer):
         return attrs
 
 
-def verify_google_yolo_csrf(request):
-    csrf_token_cookie = request.COOKIES.get('g_csrf_token')
-    if not csrf_token_cookie:
-        raise AttributeError('No CSRF token in Cookie.')
-    csrf_token_body = request.POST.get('g_csrf_token')
-    if not csrf_token_body:
-        raise AttributeError('No CSRF token in post body.')
-    if csrf_token_cookie != csrf_token_body:
-        raise ValueError('Failed to verify double submit cookie.')
-
-
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
     callback_url = GOOGLE_REDIRECT_URL
@@ -273,8 +264,10 @@ class CallbackView(OAuth2CallbackView):
         try:
             try:
                 access_token = client.get_access_token(request.GET['code'])
-            except:
-                access_token = client.get_access_token(request.GET['credential'])
+            except Exception:
+                access_token = client.get_access_token(
+                    request.GET['credential']
+                )
             token = self.adapter.parse_token(access_token)
             token.app = app
             login = self.adapter.complete_login(request,
@@ -298,7 +291,9 @@ class CallbackView(OAuth2CallbackView):
             return render_authentication_error(
                 request,
                 self.adapter.provider_id,
-                exception=e)
+                exception=e
+            )
+
 
 google_callback = CallbackView.adapter_view(GoogleOAuth2Adapter)
 google_yolo_login = OAuth2LoginView.adapter_view(GoogleOAuth2AdapterIdToken)
