@@ -185,11 +185,11 @@ def check_summary_distribution_interval(distribution):
 
 
 @receiver(post_save, sender=BulletPoint, dispatch_uid='create_bullet_point')
-def distribute_for_create_discussion(sender, instance, created, **kwargs):
+def distribute_for_create_bullet_point(sender, instance, created, **kwargs):
     timestamp = time()
     recipient = instance.created_by
     hubs = None
-    if created and is_eligible_for_create_discussion(recipient):
+    if created and is_eligible_for_create_bullet_point(recipient):
         if (
             isinstance(instance, BulletPoint)
             and check_key_takeaway_interval(instance, recipient)
@@ -209,7 +209,7 @@ def distribute_for_create_discussion(sender, instance, created, **kwargs):
         distributor.distribute()
 
 
-def is_eligible_for_create_discussion(user):
+def is_eligible_for_create_bullet_point(user):
     return is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
 
 
@@ -340,13 +340,14 @@ def distribute_for_discussion_vote(
         print(error)
         return
 
-    if (created or vote_type_updated(update_fields)) and is_eligible_user(
-        recipient
-    ):
+    voter = instance.created_by
+
+    if (
+        created
+        or vote_type_updated(update_fields)
+    ) and is_eligible_for_discussion_vote(recipient, voter):
         hubs = None
-        if isinstance(instance.item, BulletPoint):
-            hubs = instance.item.paper.hubs
-        elif isinstance(instance.item, Comment):
+        if isinstance(instance.item, Comment):
             hubs = instance.item.parent.paper.hubs
         elif isinstance(instance.item, Reply):
             try:
@@ -376,6 +377,17 @@ def distribute_for_discussion_vote(
 
     if distributor is not None:
         distributor.distribute()
+
+
+def is_eligible_for_discussion_vote(recipient, voter):
+    """
+    Returns True if the recipient is eligible to receive an award.
+
+    Checks to ensure recipient is not also the voter.
+    """
+    if voter is None:
+        return True
+    return (recipient != voter) and is_eligible_user(recipient)
 
 
 def is_eligible_user(user):
