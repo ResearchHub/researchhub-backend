@@ -9,9 +9,8 @@ pipenv lock --requirements > requirements.txt
 
 echo "Deploying"
 
-(eb deploy staging-backend-2) &
-(eb deploy staging-backend-2-worker) &
-wait
+eb deploy staging-backend-2
+eb deploy staging-backend-2-worker
 
 git checkout HEAD -- requirements.txt
 
