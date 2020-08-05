@@ -661,3 +661,11 @@ TWITTER_ACCESS_TOKEN_SECRET = os.environ.get(
 # MailChimp
 MAILCHIMP_SERVER = 'us4'
 MAILCHIMP_LIST_ID = '7e0e5c04df'
+
+# Recaptcha
+
+RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
+RECAPTCHA_SECRET_KEY = os.environ.get(
+    'RECAPTCHA_SECRET_KEY',
+    keys.RECAPTCHA_SECRET_KEY
+)
