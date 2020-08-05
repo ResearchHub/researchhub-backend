@@ -1,8 +1,8 @@
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 
 THROTTLE_RATES = {
-    'user.burst': '1/min',
-    'user.sustained': '500/day',
+    'user.burst': '7/min',
+    'user.sustained': '60/day',
 }
 
 class UserNonGETThrottle(UserRateThrottle):
