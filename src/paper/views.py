@@ -62,7 +62,7 @@ from researchhub.lib import get_paper_id_from_path
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.sentry import log_error
 from utils.permissions import CreateOrUpdateIfActive
-
+from utils.throttles import THROTTLE_CLASSES
 
 class PaperViewSet(viewsets.ModelViewSet):
     queryset = Paper.objects.all()
@@ -70,6 +70,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('title', 'doi')
     filter_class = PaperFilter
+    throttle_classes = THROTTLE_CLASSES
     ordering = ('-uploaded_date')
 
     permission_classes = [
@@ -733,6 +734,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 class AdditionalFileViewSet(viewsets.ModelViewSet):
     queryset = AdditionalFile.objects.all()
     serializer_class = AdditionalFileSerializer
+    throttle_classes = THROTTLE_CLASSES
     permission_classes = [
         IsAuthenticatedOrReadOnly
         & UpdateOrDeleteAdditionalFile
@@ -749,6 +751,7 @@ class AdditionalFileViewSet(viewsets.ModelViewSet):
 class FigureViewSet(viewsets.ModelViewSet):
     queryset = Figure.objects.all()
     serializer_class = FigureSerializer
+    throttle_classes = THROTTLE_CLASSES
 
     permission_classes = [
         IsModeratorOrVerifiedAuthor

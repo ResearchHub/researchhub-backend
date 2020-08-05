@@ -14,6 +14,7 @@ from .serializers import SummarySerializer
 from paper.models import Paper
 from paper.utils import get_cache_key
 from utils.permissions import CreateOrUpdateIfActive
+from utils.throttles import throttle_classes
 
 # TODO: Add flagging actions and permissions
 
@@ -22,6 +23,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
     queryset = Summary.objects.all()
     serializer_class = SummarySerializer
 
+    throttle_classes = THROTTLE_CLASSES
     permission_classes = [
         IsAuthenticatedOrReadOnly
         & ProposeSummaryEdit

@@ -234,6 +234,8 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25MB max data allowed
 
 PAGINATION_PAGE_SIZE = 10
 
+from utils.throttles import THROTTLE_RATES, THROTTLE_CLASSES
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.TokenAuthentication',
@@ -250,6 +252,8 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
         'utils.renderers.PlainTextRenderer',
     ],
+    'DEFAULT_THROTTLE_CLASSES': THROTTLE_CLASSES,
+    'DEFAULT_THROTTLE_RATES': THROTTLE_RATES,
 }
 
 

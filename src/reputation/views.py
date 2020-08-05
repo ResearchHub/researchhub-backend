@@ -19,6 +19,7 @@ from reputation.serializers import WithdrawalSerializer
 from user.serializers import UserSerializer
 from utils import sentry
 from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfActive
+from utils.throttles import THROTTLE_CLASSES
 
 
 class WithdrawalViewSet(viewsets.ModelViewSet):
@@ -29,6 +30,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         CreateOrReadOnly,
         CreateOrUpdateIfActive
     ]
+    throttle_classes = THROTTLE_CLASSES
 
     def get_queryset(self):
         user = self.request.user

@@ -33,6 +33,7 @@ from bullet_point.serializers import (
 from researchhub.lib import ActionableViewSet, get_paper_id_from_path
 from utils.http import DELETE, POST, PATCH, PUT
 from utils.permissions import CreateOrUpdateIfActive
+from utils.throttles import THROTTLE_CLASSES
 
 from .filters import BulletPointFilter
 
@@ -53,6 +54,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         & UpdateOrDeleteBulletPoint
         & CreateOrUpdateIfActive
     ]
+    throttle_classes = THROTTLE_CLASSES
 
     def get_queryset(self):
         filters = {}
