@@ -51,9 +51,10 @@ class UserCaptchaThrottle(UserRateThrottle):
 
     def captcha_complete(self, request):
         key = self.get_cache_key(request, None)
-        locked = self.cache.get(key, False)
+        locked = self.cache.get(key + '_locked', False)
         if locked:
             self.cache.delete(key + '_locked')
+            self.cache.delete(key)
 
             throt, created = Throttle.objects.get_or_create(throttle_key=key)
             # TODO sentry logic for new user same ip here?
