@@ -677,6 +677,10 @@ class PaperViewSet(viewsets.ModelViewSet):
                         ).get_user_vote(paper)
                     except Exception as e:
                         log_error(e)
+
+                # Paginates the papers stored in the cache
+                # Returns the cached data
+
                 page = self.paginate_queryset(cache_hit_papers)
                 return self.get_paginated_response(
                     {'data': cache_hit_hub, 'no_results': False}
