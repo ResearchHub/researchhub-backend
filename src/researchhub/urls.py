@@ -180,6 +180,11 @@ urlpatterns = [
         name='google_callback'
     ),
     path(
+        'api/auth/captcha_verify/',
+        oauth.views.captcha_verify,
+        name='captcha_verify'
+    ),
+    path(
         'api/auth/google/login/',
         oauth.views.GoogleLogin.as_view(),
         name='google_login'
