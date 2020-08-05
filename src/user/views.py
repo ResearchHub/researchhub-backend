@@ -33,6 +33,7 @@ from user.serializers import (
 )
 
 from utils.http import RequestMethods
+from utils.throttles import THROTTLE_CLASSES
 from datetime import timedelta
 from django.utils import timezone
 
@@ -207,6 +208,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
     filter_class = AuthorFilter
     search_fields = ('first_name', 'last_name')
     permission_classes = [IsAuthenticatedOrReadOnly & UpdateAuthor]
+    throttle_classes = THROTTLE_CLASSES
 
     def create(self, request, *args, **kwargs):
         '''Override to use an editable serializer.'''
