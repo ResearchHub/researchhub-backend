@@ -10,3 +10,4 @@ INFURA_PROJECT_SECRET = os.environ.get('INFURA_PROJECT_SECRET', '')
 INFURA_RINKEBY_ENDPOINT = f'https://rinkeby.infura.io/v3/{INFURA_PROJECT_ID}'
 
 MAILCHIMP_KEY = os.environ.get('MAILCHIMP_KEY')
+RECAPTCHA_SECRET_KEY = os.environ.get('RECAPTCHA_SECRET_KEY', '')
