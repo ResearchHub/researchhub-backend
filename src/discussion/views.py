@@ -15,6 +15,8 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
+from utils.throttles import THROTTLE_CLASSES
+
 from discussion.models import (
     BaseComment,
     Comment,
@@ -236,6 +238,8 @@ class ActionMixin:
 
 class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     serializer_class = ThreadSerializer
+    throttle_classes = THROTTLE_CLASSES
+
 
     # Optional attributes
     permission_classes = [
@@ -349,6 +353,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
 
 class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
     serializer_class = CommentSerializer
+    throttle_classes = THROTTLE_CLASSES
 
     permission_classes = [
         IsAuthenticatedOrReadOnly
@@ -416,6 +421,7 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
 
 class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
     serializer_class = ReplySerializer
+    throttle_classes = THROTTLE_CLASSES
 
     permission_classes = [
         IsAuthenticatedOrReadOnly
@@ -551,6 +557,7 @@ def create_vote(user, item, vote_type):
 
 class CommentFileUpload(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
+    throttle_classes = THROTTLE_CLASSES
 
     def create(self, request):
         _, base64_content = request.data.get('content').split(';base64,')
