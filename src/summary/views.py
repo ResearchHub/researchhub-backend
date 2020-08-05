@@ -14,7 +14,7 @@ from .serializers import SummarySerializer
 from paper.models import Paper
 from paper.utils import get_cache_key
 from utils.permissions import CreateOrUpdateIfActive
-from utils.throttles import throttle_classes
+from utils.throttles import THROTTLE_CLASSES
 
 # TODO: Add flagging actions and permissions
 

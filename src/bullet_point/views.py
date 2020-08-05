@@ -30,11 +30,11 @@ from bullet_point.serializers import (
     EndorsementSerializer,
     FlagSerializer
 )
-from researchhub.lib import ActionableViewSet, get_paper_id_from_path
 from utils.http import DELETE, POST, PATCH, PUT
 from utils.permissions import CreateOrUpdateIfActive
 from utils.throttles import THROTTLE_CLASSES
 
+from researchhub.lib import ActionableViewSet, get_paper_id_from_path
 from .filters import BulletPointFilter
 
 

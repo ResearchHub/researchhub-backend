@@ -19,11 +19,12 @@ from purchase.serializers import (
     PurchaseSerializer,
     AggregatePurchaseSerializer
 )
-from researchhub.settings import ASYNC_SERVICE_HOST
+from utils.throttles import THROTTLE_CLASSES
 from utils.http import http_request, RequestMethods
 from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfActive
 from user.models import User
 
+from researchhub.settings import ASYNC_SERVICE_HOST
 
 class PurchaseViewSet(viewsets.ModelViewSet):
     queryset = Purchase.objects.all()
@@ -34,6 +35,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         CreateOrUpdateIfActive
     ]
     pagination_class = PageNumberPagination
+    throttle_classes = THROTTLE_CLASSES
 
     def create(self, request):
         user = request.user
