@@ -26,7 +26,7 @@ class UserCaptchaThrottle(UserRateThrottle):
         self.now = self.timer()
 
         if self.locked:
-            return self.throttle_success()
+            return self.throttle_failure()
 
         # Drop any requests from the history which have now passed the throttle duration
         while self.history and self.history[-1] <= self.now - self.duration:
