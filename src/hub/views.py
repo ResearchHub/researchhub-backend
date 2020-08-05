@@ -23,6 +23,7 @@ from user.serializers import UserActions
 from utils.http import PATCH, POST, PUT, GET
 from utils.message import send_email_message
 from utils.permissions import CreateOrUpdateIfActive
+from utils.throttles import THROTTLE_CLASSES
 from paper.models import Vote
 from paper.utils import get_cache_key
 
@@ -42,6 +43,7 @@ class HubViewSet(viewsets.ModelViewSet):
         & CreateOrUpdateIfActive
     ]
     pagination_class = CustomPageLimitPagination
+    throttle_classes = THROTTLE_CLASSES
     filter_class = HubFilter
     search_fields = ('name')
 
