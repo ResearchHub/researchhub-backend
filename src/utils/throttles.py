@@ -32,22 +32,27 @@ class UserCaptchaThrottle(UserRateThrottle):
         while self.history and self.history[-1] <= self.now - self.duration:
             self.history.pop()
         if len(self.history) >= self.num_requests:
+            # Log to db
+            if not self.locked:
+                throt, created = Throttle.objects.get_or_create(throttle_key=self.key)
+                throt.locked = True
+                throt.ident = self.get_ident(request)
+                if request.user.is_authenticated:
+                    throt.user = request.user
+                throt.save()
             return self.throttle_failure()
         else:
-            # Log Throttling
-            throt, created = Throttle.objects.get_or_create(throttle_key=self.key)
-            throt.locked = True
-            throt.ident = self.get_ident(request)
-            if request.user.is_authenticated:
-                throt.user = request.user
-            throt.save()
             return self.throttle_success()
 
     def throttle_success(self):
         self.history.insert(0, self.now)
         self.cache.set(self.key, self.history, self.duration)
-        self.cache.set(self.key + '_locked', True, None)
         return True
+
+    def throttle_failure(self):
+        if not self.locked:
+            self.cache.set(self.key + '_locked', True, None)
+        return False
 
     def captcha_complete(self, request):
         key = self.get_cache_key(request, None)
