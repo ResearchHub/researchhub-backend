@@ -8,3 +8,5 @@ AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', '')
 INFURA_PROJECT_ID = os.environ.get('INFURA_PROJECT_ID', '')
 INFURA_PROJECT_SECRET = os.environ.get('INFURA_PROJECT_SECRET', '')
 INFURA_RINKEBY_ENDPOINT = f'https://rinkeby.infura.io/v3/{INFURA_PROJECT_ID}'
+
+MAILCHIMP_KEY = os.environ.get('MAILCHIMP_KEY')
