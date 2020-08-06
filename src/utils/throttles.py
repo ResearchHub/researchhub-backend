@@ -1,5 +1,6 @@
-from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 from oauth.models import Throttle
+from rest_framework.permissions import SAFE_METHODS
+from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 
 THROTTLE_RATES = {
     'user.burst': '7/min',
@@ -8,13 +9,19 @@ THROTTLE_RATES = {
 
 class UserCaptchaThrottle(UserRateThrottle):
 
-    # For some reason it raise imporperly configured without this
     def get_rate(self):
         return THROTTLE_RATES[self.scope]
 
     def allow_request(self, request, view):
-        # allow GET always
-        if self.rate is None or request.method == 'GET':
+        if (
+            (self.rate is None)
+            or (request.method in SAFE_METHODS)
+            or (
+                request.user.is_authenticated
+                and (request.user.email is not None)
+                and request.user.email.endswith('@quantfive.org')
+            )
+        ):
             return True
 
         self.key = self.get_cache_key(request, view)
@@ -91,4 +98,3 @@ THROTTLE_CLASSES = [
     UserBurstRateThrottle,
     UserSustainedRateThrottle,
 ]
-
