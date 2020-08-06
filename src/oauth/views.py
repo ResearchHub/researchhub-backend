@@ -35,12 +35,19 @@ from django.utils.translation import ugettext_lazy as _
 from django.urls.exceptions import NoReverseMatch
 
 from elasticsearch.exceptions import ConnectionTimeout
+from mailchimp_marketing import Client
 
 from oauth.adapters import GoogleOAuth2AdapterIdToken
 from oauth.helpers import complete_social_login
 from oauth.exceptions import LoginError
 from oauth.utils import get_orcid_names
-from researchhub.settings import GOOGLE_REDIRECT_URL, GOOGLE_YOLO_REDIRECT_URL
+from researchhub.settings import (
+    GOOGLE_REDIRECT_URL,
+    GOOGLE_YOLO_REDIRECT_URL,
+    keys,
+    MAILCHIMP_SERVER,
+    MAILCHIMP_LIST_ID
+)
 from user.models import Author, User
 from user.utils import merge_author_profiles
 from utils import sentry
@@ -369,7 +376,15 @@ def update_author_profile(user, orcid_id, orcid_data, orcid_account):
 @receiver(user_signed_up)
 @receiver(user_logged_in)
 def user_signed_up_(request, user, **kwargs):
-    """After a user signs up with social account, set their profile image"""
+    """
+    After a user signs up with social account, set their profile image.
+    Adds their email to MaiLChimp
+    """
+    mailchimp = Client()
+    mailchimp.set_config({
+        'api_key': keys.MAILCHIMP_KEY,
+        'server': MAILCHIMP_SERVER
+    })
 
     queryset = SocialAccount.objects.filter(
         provider='google',
@@ -381,6 +396,12 @@ def user_signed_up_(request, user, **kwargs):
             raise Exception(
                 f'Expected 1 item in the queryset. Found {queryset.count()}.'
             )
+
+        try:
+            member_info = {'email_address': user.email, 'status': 'subscribed'}
+            mailchimp.lists.add_list_member(MAILCHIMP_LIST_ID, member_info)
+        except Exception as error:
+            sentry.log_error(error)
 
         google_account = queryset.first()
         url = google_account.extra_data.get('picture', None)
