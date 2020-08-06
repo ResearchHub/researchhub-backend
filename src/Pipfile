@@ -53,6 +53,7 @@ python-twitter = "*"
 pandas = "*"
 eth-keys = "*"
 google-api-python-client = "*"
+mailchimp-marketing = "*"
 
 [requires]
 python_version = "3.7"
