@@ -378,13 +378,7 @@ def update_author_profile(user, orcid_id, orcid_data, orcid_account):
 def user_signed_up_(request, user, **kwargs):
     """
     After a user signs up with social account, set their profile image.
-    Adds their email to MaiLChimp
     """
-    mailchimp = Client()
-    mailchimp.set_config({
-        'api_key': keys.MAILCHIMP_KEY,
-        'server': MAILCHIMP_SERVER
-    })
 
     queryset = SocialAccount.objects.filter(
         provider='google',
@@ -397,12 +391,6 @@ def user_signed_up_(request, user, **kwargs):
                 f'Expected 1 item in the queryset. Found {queryset.count()}.'
             )
 
-        try:
-            member_info = {'email_address': user.email, 'status': 'subscribed'}
-            mailchimp.lists.add_list_member(MAILCHIMP_LIST_ID, member_info)
-        except Exception as error:
-            sentry.log_error(error)
-
         google_account = queryset.first()
         url = google_account.extra_data.get('picture', None)
 
@@ -413,3 +401,19 @@ def user_signed_up_(request, user, **kwargs):
 
     else:
         return None
+
+
+@receiver(user_signed_up)
+def mailchimp_add_user(request, user, **kwargs):
+    """Adds user email to MailChimp"""
+    mailchimp = Client()
+    mailchimp.set_config({
+        'api_key': keys.MAILCHIMP_KEY,
+        'server': MAILCHIMP_SERVER
+    })
+
+    try:
+        member_info = {'email_address': user.email, 'status': 'subscribed'}
+        mailchimp.lists.add_list_member(MAILCHIMP_LIST_ID, member_info)
+    except Exception as error:
+        sentry.log_error(error)
