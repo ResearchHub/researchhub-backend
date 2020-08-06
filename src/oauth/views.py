@@ -416,4 +416,4 @@ def mailchimp_add_user(request, user, **kwargs):
         member_info = {'email_address': user.email, 'status': 'subscribed'}
         mailchimp.lists.add_list_member(MAILCHIMP_LIST_ID, member_info)
     except Exception as error:
-        sentry.log_error(error)
+        sentry.log_error(error, message=error.text)
