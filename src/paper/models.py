@@ -338,7 +338,7 @@ class Paper(models.Model):
         if self.score >= 0 or boost_exists:
             ALGO_START_UNIX = 1575199677
             if boost_exists:
-                uploaded_date = boosts.last().created_date.timestamp()
+                uploaded_date = boosts.first().created_date.timestamp()
                 avg_hrs = (
                     uploaded_date -
                     ALGO_START_UNIX
