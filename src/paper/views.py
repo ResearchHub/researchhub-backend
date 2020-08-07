@@ -596,7 +596,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             data['oa_pdf_location'] = get_pdf_location_for_csl_item(csl_item)
             doi = csl_item.get('DOI', None)
 
-            duplicate_papers = Paper.objects.filter(doi=doi)
+            duplicate_papers = Paper.objects.exclude(doi=None).filter(doi=doi)
             if duplicate_papers.exists():
                 duplicate_paper = duplicate_papers.first()
                 serializer_data = self.serializer_class(
