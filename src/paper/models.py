@@ -1,3 +1,5 @@
+import math
+
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
 from django.db import models, transaction
@@ -326,16 +328,19 @@ class Paper(models.Model):
         return {}
 
     def calculate_hot_score(self):
+        N = 1572080689
         boosts = self.purchases.filter(
             paid_status=Purchase.PAID,
             amount__gt=0
         )
         boost_exists = boosts.exists()
+
         if self.score >= 0 or boost_exists:
             ALGO_START_UNIX = 1575199677
             if boost_exists:
-                avg_hours_since_algo_start = (
-                    int(boosts.last().created_date.timestamp()) -
+                uploaded_date = boosts.first().created_date.timestamp()
+                avg_hrs = (
+                    uploaded_date -
                     ALGO_START_UNIX
                 ) / 3600
 
@@ -345,7 +350,10 @@ class Paper(models.Model):
                         flat=True
                     ))
                 )
+                boost_amount = math.log(boost_amount, 10)
             else:
+                boost_amount = 0
+                uploaded_date = self.uploaded_date.timestamp()
                 vote_avg_epoch = self.votes.aggregate(
                     avg=Avg(
                         Extract('created_date', 'epoch'),
@@ -353,17 +361,19 @@ class Paper(models.Model):
                     )
                 )['avg']
 
-                avg_hours_since_algo_start = (
+                avg_hrs = (
                     vote_avg_epoch - ALGO_START_UNIX
                 ) / 3600
-                boost_amount = 0
 
+            avg_hrs /= 100
+            score = self.score
+
+            hot_score = 5 * math.log(max(abs(score), 1), 10)
+            seconds = (uploaded_date - N) / 45000
+            discussion_score = math.log(max(self.discussion_count, 1), 10)
             hot_score = (
-                avg_hours_since_algo_start
-                + self.score * HOT_SCORE_WEIGHT
-                + self.discussion_count * HOT_SCORE_WEIGHT
-                + boost_amount * HOT_SCORE_WEIGHT
-            )
+                boost_amount + avg_hrs + hot_score + seconds + discussion_score
+            ) * 100
 
             self.hot_score = hot_score
         else:
