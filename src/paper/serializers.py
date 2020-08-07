@@ -1,9 +1,6 @@
 import utils.sentry as sentry
 import rest_framework.serializers as serializers
 
-from bs4 import BeautifulSoup
-from django.core.exceptions import ValidationError
-from django.core.validators import URLValidator
 from django.db import transaction, IntegrityError
 from django.http import QueryDict
 
@@ -14,7 +11,7 @@ from hub.serializers import SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.models import AdditionalFile, Flag, Paper, Vote, Figure
 from paper.tasks import download_pdf, add_references
-from paper.utils import check_pdf_title
+from paper.utils import check_pdf_title, check_file_is_url, clean_abstract
 from summary.serializers import SummarySerializer
 from researchhub.lib import get_paper_id_from_path
 from user.models import Author
@@ -305,13 +302,9 @@ class PaperSerializer(BasePaperSerializer):
             sentry.log_info(e)
 
     def _add_file(self, paper, file):
-        if (type(file) is str):
-            try:
-                URLValidator()(file)
-            except (ValidationError, Exception) as e:
-                sentry.log_info(e)
-            else:
-                paper.url = file
+        if type(file) is str:
+            paper.url = file
+            if check_file_is_url(file):
                 paper.file = None
                 paper.save()
         elif file is not None:
@@ -346,11 +339,8 @@ class PaperSerializer(BasePaperSerializer):
 
         if not abstract:
             return
-        soup = BeautifulSoup(abstract, 'html.parser')
-        strings = soup.strings
-        cleaned_text = ' '.join(strings)
-        cleaned_text = cleaned_text.replace('\n', '')
-        cleaned_text = cleaned_text.replace('\r', '')
+
+        cleaned_text = clean_abstract(abstract)
         data.update(abstract=cleaned_text)
 
     def get_discussion(self, paper):
