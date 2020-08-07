@@ -369,9 +369,10 @@ class Paper(models.Model):
             score = self.score
 
             hot_score = 5 * math.log(max(abs(score), 1), 10)
-            seconds = uploaded_date - N
+            seconds = (uploaded_date - N) / 45000
+            discussion_score = math.log(max(self.discussion_count, 1), 10)
             hot_score = (
-                boost_amount + avg_hrs + hot_score + seconds / 45000
+                boost_amount + avg_hrs + hot_score + seconds + discussion_score
             ) * 100
 
             self.hot_score = hot_score
