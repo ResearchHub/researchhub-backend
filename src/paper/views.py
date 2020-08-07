@@ -290,7 +290,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     def censor_pdf(self, request, pk=None):
         paper = self.get_object()
         paper.file = None
-        paper.url = ''
+        paper.url = None
         paper.figures.all().delete()
         paper.save()
 
