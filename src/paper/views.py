@@ -539,7 +539,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         duplicate_papers = Paper.objects.filter(
             Q(url__icontains=url) | Q(pdf_url__icontains=url)
         )
-        if duplicate_papers.exists() and False:
+        if duplicate_papers.exists():
             duplicate_paper = duplicate_papers.first()
             serializer_data = self.serializer_class(
                 duplicate_paper,
@@ -570,7 +570,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'similarity'
             )[:3]
 
-            if duplicate_papers.exists() and False:
+            if duplicate_papers.exists():
                 serializer_data = self.serializer_class(
                     duplicate_papers,
                     context={'purchase_minimal_serialization': True},
