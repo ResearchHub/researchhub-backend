@@ -11,7 +11,13 @@ from hub.serializers import SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.models import AdditionalFile, Flag, Paper, Vote, Figure
 from paper.tasks import download_pdf, add_references
-from paper.utils import check_pdf_title, check_file_is_url, clean_abstract
+from paper.utils import (
+    check_pdf_title,
+    check_file_is_url,
+    clean_abstract,
+    convert_journal_url_to_pdf_url,
+    convert_pdf_url_to_journal_url
+)
 from summary.serializers import SummarySerializer
 from researchhub.lib import get_paper_id_from_path
 from user.models import Author
@@ -216,6 +222,7 @@ class PaperSerializer(BasePaperSerializer):
 
         try:
             with transaction.atomic():
+                self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
                 paper = super(PaperSerializer, self).create(validated_data)
                 paper_title = paper.paper_title or ''
@@ -302,12 +309,7 @@ class PaperSerializer(BasePaperSerializer):
             sentry.log_info(e)
 
     def _add_file(self, paper, file):
-        if type(file) is str:
-            paper.url = file
-            if check_file_is_url(file):
-                paper.file = None
-                paper.save()
-        elif file is not None:
+        if type(file) is not str and file is not None:
             paper.file = file
             paper.save(update_fields=['file'])
             return
@@ -317,6 +319,23 @@ class PaperSerializer(BasePaperSerializer):
                 download_pdf.apply_async((paper.id,), priority=3)
             else:
                 download_pdf(paper.id)
+
+    def _add_url(self, file, validated_data):
+        if check_file_is_url(file):
+            journal_url, is_pdf = convert_pdf_url_to_journal_url(file)
+            if is_pdf:
+                validated_data['url'] = journal_url
+                validated_data['pdf_url'] = file
+                return
+
+            pdf_url, is_journal = convert_journal_url_to_pdf_url(file)
+            if is_journal:
+                validated_data['url'] = file
+                validated_data['pdf_url'] = pdf_url
+                return
+
+            validated_data['url'] = file
+        return
 
     def _check_pdf_title(self, paper, title, file):
         if type(file) is str:
