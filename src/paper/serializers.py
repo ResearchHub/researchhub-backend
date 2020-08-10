@@ -15,6 +15,7 @@ from paper.utils import (
     check_pdf_title,
     check_file_is_url,
     clean_abstract,
+    check_url_is_pdf,
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url
 )
@@ -322,20 +323,21 @@ class PaperSerializer(BasePaperSerializer):
 
     def _add_url(self, file, validated_data):
         if check_file_is_url(file):
-            import pdb; pdb.set_trace()
-            journal_url, is_pdf = convert_pdf_url_to_journal_url(file)
-            if is_pdf:
-                validated_data['url'] = journal_url
-                validated_data['pdf_url'] = file
-                return
+            is_pdf = check_url_is_pdf(file)
 
-            pdf_url, is_journal = convert_journal_url_to_pdf_url(file)
-            if is_journal:
+            if is_pdf is True:
+                pdf_url = file
+                journal_url, converted = convert_pdf_url_to_journal_url(file)
+            elif is_pdf is False:
+                journal_url = file
+                pdf_url, converted = convert_journal_url_to_pdf_url(file)
+            else:
                 validated_data['url'] = file
-                validated_data['pdf_url'] = pdf_url
                 return
 
-            validated_data['url'] = file
+            if converted:
+                validated_data['url'] = journal_url
+                validated_data['pdf_url'] = pdf_url
         return
 
     def _check_pdf_title(self, paper, title, file):

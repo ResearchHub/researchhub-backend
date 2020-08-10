@@ -15,7 +15,6 @@ from bs4 import BeautifulSoup
 
 from paper.lib import (
     journal_hosts,
-    pdf_identifiers,
     journal_hosts_and_pdf_identifiers,
     journal_pdf_to_url,
     journal_url_to_pdf
@@ -126,7 +125,6 @@ def convert_pdf_url_to_journal_url(pdf_url):
     journal_url = None
     for host in journal_hosts:
         if host in pdf_url:
-            import pdb; pdb.set_trace()
             journal_url = journal_pdf_to_url[host](pdf_url)
             break
     if journal_url is not None:
