@@ -61,7 +61,7 @@ from paper.utils import (
 from researchhub.lib import get_paper_id_from_path
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.sentry import log_error
-from utils.permissions import CreateOrUpdateIfActive
+from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -77,7 +77,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         IsAuthenticatedOrReadOnly
         & CreatePaper
         & UpdatePaper
-        & CreateOrUpdateIfActive
+        & CreateOrUpdateIfAllowed
     ]
 
     def prefetch_lookups(self):

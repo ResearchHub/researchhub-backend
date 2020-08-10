@@ -22,7 +22,7 @@ from user.models import Action
 from user.serializers import UserActions
 from utils.http import PATCH, POST, PUT, GET
 from utils.message import send_email_message
-from utils.permissions import CreateOrUpdateIfActive
+from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from paper.models import Vote
 from paper.utils import get_cache_key
@@ -40,7 +40,7 @@ class HubViewSet(viewsets.ModelViewSet):
     permission_classes = [
         IsAuthenticatedOrReadOnly
         & CreateHub
-        & CreateOrUpdateIfActive
+        & CreateOrUpdateIfAllowed
     ]
     pagination_class = CustomPageLimitPagination
     throttle_classes = THROTTLE_CLASSES

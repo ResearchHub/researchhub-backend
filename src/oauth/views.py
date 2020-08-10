@@ -60,7 +60,6 @@ from utils.throttles import captcha_unlock
 from analytics.models import WebsiteVisits
 
 @api_view([RequestMethods.POST])
-# @permission_classes([IsAuthenticated])
 @permission_classes([AllowAny])
 def captcha_verify(request):
     verify_request = requests.post(RECAPTCHA_VERIFY_URL, { 'secret': RECAPTCHA_SECRET_KEY, 'response': request.data.get('response')})

@@ -18,7 +18,7 @@ from reputation.models import Withdrawal
 from reputation.serializers import WithdrawalSerializer
 from user.serializers import UserSerializer
 from utils import sentry
-from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfActive
+from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
 
@@ -28,7 +28,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
     permission_classes = [
         IsAuthenticated,
         CreateOrReadOnly,
-        CreateOrUpdateIfActive
+        CreateOrUpdateIfAllowed
     ]
     throttle_classes = THROTTLE_CLASSES
 

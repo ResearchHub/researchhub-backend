@@ -33,6 +33,7 @@ from user.serializers import (
 )
 
 from utils.http import RequestMethods
+from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from datetime import timedelta
 from django.utils import timezone
@@ -207,7 +208,11 @@ class AuthorViewSet(viewsets.ModelViewSet):
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     filter_class = AuthorFilter
     search_fields = ('first_name', 'last_name')
-    permission_classes = [IsAuthenticatedOrReadOnly & UpdateAuthor]
+    permission_classes = [
+        IsAuthenticatedOrReadOnly
+        & UpdateAuthor
+        & CreateOrUpdateIfAllowed
+    ]
     throttle_classes = THROTTLE_CLASSES
 
     def create(self, request, *args, **kwargs):

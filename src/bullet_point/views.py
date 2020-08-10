@@ -31,7 +31,7 @@ from bullet_point.serializers import (
     FlagSerializer
 )
 from utils.http import DELETE, POST, PATCH, PUT
-from utils.permissions import CreateOrUpdateIfActive
+from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
 from researchhub.lib import ActionableViewSet, get_paper_id_from_path
@@ -52,7 +52,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         IsAuthenticatedOrReadOnly
         & CreateBulletPoint
         & UpdateOrDeleteBulletPoint
-        & CreateOrUpdateIfActive
+        & CreateOrUpdateIfAllowed
     ]
     throttle_classes = THROTTLE_CLASSES
 

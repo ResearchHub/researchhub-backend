@@ -35,6 +35,7 @@ class User(AbstractUser):
         related_name='users_who_bookmarked'
     )
     moderator = models.BooleanField(default=False)
+    is_suspended = models.BooleanField(default=False)
 
     def __str__(self):
         return '{} / {}'.format(
@@ -81,6 +82,11 @@ class User(AbstractUser):
         self.has_seen_orcid_connect_modal = has_seen
         self.save()
 
+    def set_suspended(self, is_suspended):
+        if self.is_suspended != is_suspended:
+            self.is_suspended = is_suspended
+            self.save(update_fields=['is_suspended'])
+
     def get_balance(self):
         user_balance = self.balances.all()
         if not user_balance:
@@ -92,6 +98,7 @@ class User(AbstractUser):
         balance_decimal = map(decimal.Decimal, balance)
         total_balance = sum(balance_decimal)
         return total_balance
+
 
 
 @receiver(models.signals.post_save, sender=User)

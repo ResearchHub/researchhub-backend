@@ -62,6 +62,10 @@ class UserCaptchaThrottle(UserRateThrottle):
         return False
 
     def captcha_complete(self, request):
+        """
+        Unlocks user on throttle cache and db level
+        """
+        # unique id for requester
         key = self.get_cache_key(request, None)
         locked = self.cache.get(key + '_locked', False)
         if locked:
@@ -69,7 +73,7 @@ class UserCaptchaThrottle(UserRateThrottle):
             self.cache.delete(key)
 
             throt, created = Throttle.objects.get_or_create(throttle_key=key)
-            # TODO sentry logic for new user same ip here?
+            # TODO Log to sentry when we see a new user with same ip?
             throt.locked = False
             throt.ident = self.get_ident(request)
             if request.user.is_authenticated:

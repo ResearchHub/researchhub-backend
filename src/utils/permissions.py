@@ -8,10 +8,10 @@ class ReadOnly(BasePermission):
         return request.method in SAFE_METHODS
 
 
-class CreateOrUpdateIfActive(BasePermission):
+class CreateOrUpdateIfAllowed(BasePermission):
     def has_permission(self, request, view):
         if request.method not in SAFE_METHODS:
-            return request.user.is_active
+            return request.user.is_active and (not request.user.is_suspended)
         return True
 
 
