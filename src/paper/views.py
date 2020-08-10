@@ -64,6 +64,7 @@ from utils.sentry import log_error
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
+
 class PaperViewSet(viewsets.ModelViewSet):
     queryset = Paper.objects.all()
     serializer_class = PaperSerializer
@@ -183,7 +184,10 @@ class PaperViewSet(viewsets.ModelViewSet):
                 error_message = 'A paper with this DOI already exists.'
         except IndexError:
             error_message = 'A paper with this url or DOI already exists.'
-        return Response({'error': error_message}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {'error': error_message},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     def retrieve(self, request, *args, **kwargs):
         cache_key = get_cache_key(request, 'paper')
@@ -325,7 +329,10 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['post'],
-        permission_classes=[IsAuthenticatedOrReadOnly]
+        permission_classes=[
+            IsAuthenticatedOrReadOnly
+            & CreateOrUpdateIfAllowed
+        ]
     )
     def bookmark(self, request, pk=None):
         paper = self.get_object()
@@ -361,7 +368,10 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['post'],
-        permission_classes=[FlagPaper]  # Also applies to delete_flag below
+        permission_classes=[
+            FlagPaper
+            & CreateOrUpdateIfAllowed
+        ]  # Also applies to delete_flag below
     )
     def flag(self, request, pk=None):
         paper = self.get_object()
@@ -432,7 +442,10 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
-        permission_classes=[UpvotePaper]
+        permission_classes=[
+            UpvotePaper
+            & CreateOrUpdateIfAllowed
+        ]
     )
     def upvote(self, request, pk=None):
         paper = self.get_object()
@@ -459,7 +472,10 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
-        permission_classes=[DownvotePaper]
+        permission_classes=[
+            DownvotePaper
+            & CreateOrUpdateIfAllowed
+        ]
     )
     def downvote(self, request, pk=None):
         paper = self.get_object()
@@ -779,7 +795,10 @@ class FigureViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['post'],
-        permission_classes=[IsAuthor]
+        permission_classes=[
+            IsAuthor
+            & CreateOrUpdateIfAllowed
+        ]
     )
     def add_figure(self, request, pk=None):
         user = request.user
@@ -812,7 +831,10 @@ class FigureViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['delete'],
-        permission_classes=[IsAuthor]
+        permission_classes=[
+            IsAuthor
+            & CreateOrUpdateIfAllowed
+        ]
     )
     def delete_figure(self, request, pk=None):
         figure = self.get_queryset().get(id=pk)

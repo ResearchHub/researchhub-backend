@@ -73,11 +73,17 @@ from utils.permissions import CreateOrUpdateIfAllowed
 
 
 class ActionMixin:
+    """
+    Note: Action decorators may be applied by classes inheriting this one.
+    """
 
     @action(
         detail=True,
         methods=['post'],
-        permission_classes=[Endorse]
+        permission_classes=[
+            Endorse
+            & CreateOrUpdateIfAllowed
+        ]
     )
     def endorse(self, request, pk=None):
         item = self.get_object()
@@ -140,7 +146,11 @@ class ActionMixin:
     @action(
         detail=True,
         methods=['put', 'patch', 'delete'],
-        permission_classes=[IsAuthenticated, CensorDiscussion]
+        permission_classes=[
+            IsAuthenticated,
+            CensorDiscussion,
+            CreateOrUpdateIfAllowed
+        ]
     )
     def censor(self, request, pk=None):
         item = self.get_object()
@@ -240,7 +250,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     serializer_class = ThreadSerializer
     throttle_classes = THROTTLE_CLASSES
 
-
     # Optional attributes
     permission_classes = [
         IsAuthenticatedOrReadOnly
@@ -325,7 +334,10 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     @action(
         detail=True,
         methods=['post'],
-        permission_classes=[FlagDiscussionThread]
+        permission_classes=[
+            FlagDiscussionThread
+            & CreateOrUpdateIfAllowed
+        ]
     )
     def flag(self, *args, **kwargs):
         return super().flag(*args, **kwargs)
@@ -337,7 +349,11 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
-        permission_classes=[UpvoteDiscussionThread & VotePermission]
+        permission_classes=[
+            UpvoteDiscussionThread
+            & VotePermission
+            & CreateOrUpdateIfAllowed
+        ]
     )
     def upvote(self, *args, **kwargs):
         return super().upvote(*args, **kwargs)
@@ -345,7 +361,11 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
-        permission_classes=[DownvoteDiscussionThread & VotePermission]
+        permission_classes=[
+            DownvoteDiscussionThread
+            & VotePermission
+            & CreateOrUpdateIfAllowed
+        ]
     )
     def downvote(self, *args, **kwargs):
         return super().downvote(*args, **kwargs)
@@ -359,6 +379,7 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
         IsAuthenticatedOrReadOnly
         & CreateDiscussionComment
         & UpdateDiscussionComment
+        & CreateOrUpdateIfAllowed
     ]
 
     filter_backends = (OrderingFilter,)
@@ -393,7 +414,10 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
     @action(
         detail=True,
         methods=['post'],
-        permission_classes=[FlagDiscussionComment]
+        permission_classes=[
+            FlagDiscussionComment
+            & CreateOrUpdateIfAllowed
+        ]
     )
     def flag(self, *args, **kwargs):
         return super().flag(*args, **kwargs)
@@ -405,7 +429,11 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
-        permission_classes=[UpvoteDiscussionComment & VotePermission]
+        permission_classes=[
+            UpvoteDiscussionComment
+            & VotePermission
+            & CreateOrUpdateIfAllowed
+        ]
     )
     def upvote(self, *args, **kwargs):
         return super().upvote(*args, **kwargs)
@@ -413,7 +441,11 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
-        permission_classes=[DownvoteDiscussionComment & VotePermission]
+        permission_classes=[
+            DownvoteDiscussionComment
+            & VotePermission
+            & CreateOrUpdateIfAllowed
+        ]
     )
     def downvote(self, *args, **kwargs):
         return super().downvote(*args, **kwargs)
@@ -427,6 +459,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
         IsAuthenticatedOrReadOnly
         & CreateDiscussionReply
         & UpdateDiscussionReply
+        & CreateOrUpdateIfAllowed
     ]
 
     filter_backends = (OrderingFilter,)
@@ -455,7 +488,10 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
     @action(
         detail=True,
         methods=['post'],
-        permission_classes=[FlagDiscussionReply]
+        permission_classes=[
+            FlagDiscussionReply
+            & CreateOrUpdateIfAllowed
+        ]
     )
     def flag(self, *args, **kwargs):
         return super().flag(*args, **kwargs)
@@ -467,7 +503,11 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
-        permission_classes=[UpvoteDiscussionReply & VotePermission]
+        permission_classes=[
+            UpvoteDiscussionReply
+            & VotePermission
+            & CreateOrUpdateIfAllowed
+        ]
     )
     def upvote(self, *args, **kwargs):
         return super().upvote(*args, **kwargs)
@@ -475,7 +515,11 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
     @action(
         detail=True,
         methods=['post', 'put', 'patch'],
-        permission_classes=[DownvoteDiscussionReply & VotePermission]
+        permission_classes=[
+            DownvoteDiscussionReply
+            & VotePermission
+            & CreateOrUpdateIfAllowed
+        ]
     )
     def downvote(self, *args, **kwargs):
         return super().downvote(*args, **kwargs)
@@ -556,7 +600,7 @@ def create_vote(user, item, vote_type):
 
 
 class CommentFileUpload(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated & CreateOrUpdateIfAllowed]
     throttle_classes = THROTTLE_CLASSES
 
     def create(self, request):
