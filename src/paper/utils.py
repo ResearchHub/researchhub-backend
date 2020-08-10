@@ -13,7 +13,13 @@ from habanero import Crossref
 from manubot.cite.csl_item import CSL_Item
 from bs4 import BeautifulSoup
 
-from paper.lib import journal_hosts, journal_pdf_to_url, journal_url_to_pdf
+from paper.lib import (
+    journal_hosts,
+    pdf_identifiers,
+    journal_hosts_and_pdf_identifiers,
+    journal_pdf_to_url,
+    journal_url_to_pdf
+)
 from researchhub.settings import CACHE_KEY_PREFIX
 from utils.http import (
     check_url_contains_pdf,
@@ -61,6 +67,21 @@ def clean_abstract(abstract):
     cleaned_text = cleaned_text.replace('\n', '')
     cleaned_text = cleaned_text.replace('\r', '')
     return cleaned_text
+
+
+def check_url_is_pdf(url):
+    """
+    Checks if the url is a from a journal and is a pdf.
+    Returns true if the above requirements are met, false
+    if the url is from the journal but not a pdf, and none
+    if both requirements are not met.
+    """
+    for host, pdf_identifier in journal_hosts_and_pdf_identifiers:
+        if host in url and pdf_identifier in url:
+            return True
+        elif host in url and pdf_identifier not in url:
+            return False
+    return None
 
 
 def populate_pdf_url_from_journal_url(url, metadata):

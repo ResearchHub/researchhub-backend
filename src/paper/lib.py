@@ -374,6 +374,30 @@ journal_hosts = [
     JPET_ASPET.host
 ]
 
+pdf_identifiers = [
+    Arxiv.pdf_identifier,
+    Biorxiv.pdf_identifier,
+    ScienceMag.pdf_identifier,
+    Nature.pdf_identifier,
+    JNeurosci.pdf_identifier,
+    PLOS.pdf_identifier,
+    PNAS.pdf_identifier,
+    Lancet.pdf_identifier,
+    JPET_ASPET.pdf_identifier,
+]
+
+journal_hosts_and_pdf_identifiers = [
+    (Arxiv.host, Arxiv.pdf_identifier),
+    (Biorxiv.host, Biorxiv.pdf_identifier),
+    (ScienceMag.host, ScienceMag.pdf_identifier),
+    (Nature.host, Nature.pdf_identifier),
+    (JNeurosci.host, JNeurosci.pdf_identifier),
+    (PLOS.host, PLOS.pdf_identifier),
+    (PNAS.host, PNAS.pdf_identifier),
+    (Lancet.host, Lancet.pdf_identifier),
+    (JPET_ASPET.host, JPET_ASPET.pdf_identifier),
+]
+
 journal_pdf_to_url = {
     Arxiv.host: Arxiv.pdf_url_to_journal_url,
     Biorxiv.host: Biorxiv.pdf_url_to_journal_url,
