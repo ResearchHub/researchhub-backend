@@ -5,6 +5,10 @@ from django.test import TestCase, TransactionTestCase, tag
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from paper.tasks import handle_duplicate_doi
+from paper.utils import (
+    convert_journal_url_to_pdf_url,
+    convert_pdf_url_to_journal_url
+)
 from utils.test_helpers import (
     IntegrationTestHelper,
     TestHelper,
@@ -132,3 +136,51 @@ class DuplicatePaperIntegrationTest(
 
         new_paper_id = None
         self.assertEqual(new_paper.id, new_paper_id)
+
+
+class JournalPdfTests(TestCase):
+    journal_test_urls = [
+        'https://arxiv.org/abs/2007.10529',
+        'https://jpet.aspetjournals.org/content/368/1/59',
+        'https://www.biorxiv.org/content/10.1101/2020.04.14.040808v1',
+        'https://www.jneurosci.org/content/29/13/3974',
+        'https://www.thelancet.com/journals/journal_id/article/PIIS2215-0366(20)30308-4/fulltext',
+        'https://www.nature.com/articles/srep42765',
+        'https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0198090',
+        'https://www.pnas.org/content/102/4/1193',
+        'https://advances.sciencemag.org/content/1/6/e1500251',
+        'https://onlinelibrary.wiley.com/doi/full/10.1111/jvim.15646',
+        'https://academic.oup.com/nar/article/46/W1/W180/5033528',
+        'https://www.sciencedirect.com/science/article/abs/pii/S105381191832161X',
+        'https://link.springer.com/article/10.1007/s11033-020-05249-1',
+        'https://www.cell.com/current-biology/fulltext/S0960-9822(19)31258-8',
+        'https://ieeexplore.ieee.org/document/8982960'
+    ]
+
+    pdf_test_urls = [
+        'https://arxiv.org/pdf/2007.10529.pdf',
+        'https://jpet.aspetjournals.org/content/jpet/368/1/59.full.pdf',
+        'https://www.biorxiv.org/content/10.1101/2020.04.14.040808v1.full.pdf',
+        'https://www.jneurosci.org/content/jneuro/29/13/3974.full.pdf',
+        'https://www.thelancet.com/action/showPdf?pii=S2215-0366(20)30308-4',
+        'https://www.nature.com/articles/srep42765.pdf',
+        'https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0198090&type=printable',
+        'https://www.pnas.org/content/pnas/102/4/1193.full.pdf',
+        'https://advances.sciencemag.org/content/advances/1/6/e1500251.full.pdf',
+        'https://onlinelibrary.wiley.com/doi/pdfdirect/10.1111/jvim.15646?download=true',
+        'https://academic.oup.com/nar/article-pdf/46/W1/W180/25110691/gky509.pdf'
+    ]
+
+    def test_journal_to_pdf(self):
+        for i, url in enumerate(self.journal_test_urls):
+            pdf_url, exists = convert_journal_url_to_pdf_url(url)
+            if exists:
+                print(pdf_url)
+                self.assertEquals(pdf_url, self.pdf_test_urls[i])
+
+    def test_pdf_to_journal(self):
+        for i, url in enumerate(self.pdf_test_urls):
+            journal_url, exists = convert_pdf_url_to_journal_url(url)
+            if exists:
+                print(journal_url)
+                self.assertEquals(journal_url, self.journal_test_urls[i])

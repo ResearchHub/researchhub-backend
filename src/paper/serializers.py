@@ -322,6 +322,7 @@ class PaperSerializer(BasePaperSerializer):
 
     def _add_url(self, file, validated_data):
         if check_file_is_url(file):
+            import pdb; pdb.set_trace()
             journal_url, is_pdf = convert_pdf_url_to_journal_url(file)
             if is_pdf:
                 validated_data['url'] = journal_url

@@ -36,6 +36,7 @@ class Arxiv(Journal):
     pdf_url_base = 'https://arxiv.org/pdf/'
     pdf_url_split_on = 'arxiv.org/pdf/'
     pdf_url_suffix = '.pdf'
+    pdf_identifier = pdf_url_suffix
 
     @classmethod
     def journal_url_to_pdf_url(cls, journal_url):
@@ -69,6 +70,7 @@ class Biorxiv(Journal):
     pdf_url_base = 'https://www.biorxiv.org/content/'
     pdf_url_split_on = 'biorxiv.org/content/'
     pdf_url_suffix = '.full.pdf'
+    pdf_identifier = pdf_url_suffix
 
     @classmethod
     def journal_url_to_pdf_url(cls, journal_url):
@@ -101,6 +103,7 @@ class Nature(Journal):
     pdf_url_base = 'https://www.nature.com/articles/'
     pdf_url_split_on = 'nature.com/articles/'
     pdf_url_suffix = '.pdf'
+    pdf_identifier = pdf_url_suffix
 
     @classmethod
     def journal_url_to_pdf_url(cls, journal_url):
@@ -133,6 +136,7 @@ class JNeurosci(Journal):
     pdf_url_base = 'https://www.jneurosci.org/content/jneuro/'
     pdf_url_split_on = 'jneurosci.org/content/jneuro/'
     pdf_url_suffix = '.full.pdf'
+    pdf_identifier = pdf_url_suffix
 
     @classmethod
     def journal_url_to_pdf_url(cls, journal_url):
@@ -166,6 +170,7 @@ class PLOS(Journal):
     pdf_url_base = 'https://journals.plos.org/plosone/article/file?'
     pdf_url_split_on_partial = 'journals.plos.org/plosone/article/file?'
     pdf_url_suffix = '&type=printable'
+    pdf_identifier = pdf_url_suffix
 
     @classmethod
     def journal_url_to_pdf_url(cls, journal_url):
@@ -199,6 +204,7 @@ class PNAS(Journal):
     pdf_url_base = 'https://www.pnas.org/content/pnas/'
     pdf_url_split_on_partial = 'pnas.org/content/pnas/'
     pdf_url_suffix = '.full.pdf'
+    pdf_identifier = pdf_url_suffix
 
     @classmethod
     def journal_url_to_pdf_url(cls, journal_url):
@@ -234,6 +240,7 @@ class Lancet(Journal):
     pdf_url_base = 'https://www.thelancet.com/action/showPdf?pii='
     pdf_url_split_on_partial = 'thelancet.com/action/showPdf?pii='
     pdf_url_suffix = ''
+    pdf_identifier = 'showPdf?'
 
     @classmethod
     def journal_url_to_pdf_url(cls, journal_url):
@@ -344,6 +351,7 @@ class ScienceMag(JournalWithSubdomain):
     journal_url_split_on = 'sciencemag.org/content/'
     pdf_url_split_on_partial = 'sciencemag.org/content/'
     pdf_url_suffix = '.full.pdf'
+    pdf_identifier = pdf_url_suffix
 
 
 class JPET_ASPET(JournalWithSubdomain):
@@ -351,6 +359,7 @@ class JPET_ASPET(JournalWithSubdomain):
     journal_url_split_on = 'jpet.aspetjournals.org/content/'
     pdf_url_split_on_partial = 'jpet.aspetjournals.org/content/'
     pdf_url_suffix = '.full.pdf'
+    pdf_identifier = pdf_url_suffix
 
 
 journal_hosts = [
