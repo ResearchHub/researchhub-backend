@@ -21,7 +21,7 @@ from purchase.serializers import (
 )
 from utils.throttles import THROTTLE_CLASSES
 from utils.http import http_request, RequestMethods
-from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfActive
+from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfAllowed
 from user.models import User
 
 from researchhub.settings import ASYNC_SERVICE_HOST
@@ -32,7 +32,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     permission_classes = [
         IsAuthenticated,
         CreateOrUpdateOrReadOnly,
-        CreateOrUpdateIfActive
+        CreateOrUpdateIfAllowed
     ]
     pagination_class = PageNumberPagination
     throttle_classes = THROTTLE_CLASSES

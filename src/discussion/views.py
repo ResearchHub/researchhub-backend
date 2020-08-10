@@ -69,7 +69,7 @@ from .utils import (
 )
 
 from utils import sentry
-from utils.permissions import CreateOrUpdateIfActive
+from utils.permissions import CreateOrUpdateIfAllowed
 
 
 class ActionMixin:
@@ -246,7 +246,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         IsAuthenticatedOrReadOnly
         & CreateDiscussionThread
         & UpdateDiscussionThread
-        & CreateOrUpdateIfActive
+        & CreateOrUpdateIfAllowed
     ]
     filter_backends = (OrderingFilter,)
     order_fields = '__all__'

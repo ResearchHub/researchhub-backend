@@ -13,7 +13,7 @@ from .permissions import ProposeSummaryEdit, UpdateOrDeleteSummaryEdit
 from .serializers import SummarySerializer
 from paper.models import Paper
 from paper.utils import get_cache_key
-from utils.permissions import CreateOrUpdateIfActive
+from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
 # TODO: Add flagging actions and permissions
@@ -28,7 +28,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
         IsAuthenticatedOrReadOnly
         & ProposeSummaryEdit
         & UpdateOrDeleteSummaryEdit
-        & CreateOrUpdateIfActive
+        & CreateOrUpdateIfAllowed
     ]
 
     def _invalidate_paper_cache(self, paper_id):
