@@ -1,9 +1,6 @@
 import utils.sentry as sentry
 import rest_framework.serializers as serializers
 
-from bs4 import BeautifulSoup
-from django.core.exceptions import ValidationError
-from django.core.validators import URLValidator
 from django.db import transaction, IntegrityError
 from django.http import QueryDict
 
@@ -14,7 +11,14 @@ from hub.serializers import SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.models import AdditionalFile, Flag, Paper, Vote, Figure
 from paper.tasks import download_pdf, add_references
-from paper.utils import check_pdf_title
+from paper.utils import (
+    check_pdf_title,
+    check_file_is_url,
+    clean_abstract,
+    check_url_is_pdf,
+    convert_journal_url_to_pdf_url,
+    convert_pdf_url_to_journal_url
+)
 from summary.serializers import SummarySerializer
 from researchhub.lib import get_paper_id_from_path
 from user.models import Author
@@ -219,6 +223,7 @@ class PaperSerializer(BasePaperSerializer):
 
         try:
             with transaction.atomic():
+                self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
                 paper = super(PaperSerializer, self).create(validated_data)
                 paper_title = paper.paper_title or ''
@@ -305,16 +310,7 @@ class PaperSerializer(BasePaperSerializer):
             sentry.log_info(e)
 
     def _add_file(self, paper, file):
-        if (type(file) is str):
-            try:
-                URLValidator()(file)
-            except (ValidationError, Exception) as e:
-                sentry.log_info(e)
-            else:
-                paper.url = file
-                paper.file = None
-                paper.save()
-        elif file is not None:
+        if type(file) is not str and file is not None:
             paper.file = file
             paper.save(update_fields=['file'])
             return
@@ -324,6 +320,25 @@ class PaperSerializer(BasePaperSerializer):
                 download_pdf.apply_async((paper.id,), priority=3)
             else:
                 download_pdf(paper.id)
+
+    def _add_url(self, file, validated_data):
+        if check_file_is_url(file):
+            is_pdf = check_url_is_pdf(file)
+
+            if is_pdf is True:
+                pdf_url = file
+                journal_url, converted = convert_pdf_url_to_journal_url(file)
+            elif is_pdf is False:
+                journal_url = file
+                pdf_url, converted = convert_journal_url_to_pdf_url(file)
+            else:
+                validated_data['url'] = file
+                return
+
+            if converted:
+                validated_data['url'] = journal_url
+                validated_data['pdf_url'] = pdf_url
+        return
 
     def _check_pdf_title(self, paper, title, file):
         if type(file) is str:
@@ -346,11 +361,8 @@ class PaperSerializer(BasePaperSerializer):
 
         if not abstract:
             return
-        soup = BeautifulSoup(abstract, 'html.parser')
-        strings = soup.strings
-        cleaned_text = ' '.join(strings)
-        cleaned_text = cleaned_text.replace('\n', '')
-        cleaned_text = cleaned_text.replace('\r', '')
+
+        cleaned_text = clean_abstract(abstract)
         data.update(abstract=cleaned_text)
 
     def get_discussion(self, paper):

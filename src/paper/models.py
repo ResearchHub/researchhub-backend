@@ -9,7 +9,14 @@ from django.db.models.functions import Extract
 
 from manubot.cite.doi import get_doi_csl_item
 
-from paper.utils import MANUBOT_PAPER_TYPES
+from paper.utils import (
+    MANUBOT_PAPER_TYPES,
+    populate_metadata_from_manubot_url,
+    populate_metadata_from_manubot_pdf_url,
+    populate_pdf_url_from_journal_url,
+    populate_metadata_from_pdf,
+    populate_metadata_from_crossref
+)
 from .tasks import (
     celery_extract_figures,
     celery_extract_pdf_preview,
@@ -22,6 +29,7 @@ from summary.models import Summary
 from hub.models import Hub
 from purchase.models import Purchase
 
+from utils.http import check_url_contains_pdf
 from utils.arxiv import Arxiv
 from utils.crossref import Crossref
 from utils.semantic_scholar import SemanticScholar
@@ -350,7 +358,7 @@ class Paper(models.Model):
                         flat=True
                     ))
                 )
-                boost_amount = math.log(boost_amount, 10)
+                boost_amount = 4 * math.log(boost_amount, 10)
             else:
                 boost_amount = 0
                 uploaded_date = self.uploaded_date.timestamp()
@@ -368,12 +376,12 @@ class Paper(models.Model):
             avg_hrs /= 100
             score = self.score
 
-            hot_score = 5 * math.log(max(abs(score), 1), 10)
+            hot_score = math.log(max(abs(score), 1), 10)
             seconds = (uploaded_date - N) / 45000
             discussion_score = math.log(max(self.discussion_count, 1), 10)
             hot_score = (
                 boost_amount + avg_hrs + hot_score + seconds + discussion_score
-            ) * 100
+            ) * 1000
 
             self.hot_score = hot_score
         else:
@@ -691,6 +699,7 @@ class MetadataRetrievalAttempt(models.Model):
     MANUBOT_PDF_URL = 'MANUBOT_PDF_URL'
     MANUBOT_URL = 'MANUBOT_URL'
     PARSE_PDF = 'PARSE_PDF'
+    PDF_FROM_URL = 'PDF_FROM_URL'
 
     METHOD_CHOICES = [
         (CROSSREF_DOI, CROSSREF_DOI),
@@ -699,7 +708,16 @@ class MetadataRetrievalAttempt(models.Model):
         (MANUBOT_PDF_URL, MANUBOT_PDF_URL),
         (MANUBOT_URL, MANUBOT_URL),
         (PARSE_PDF, PARSE_PDF),
+        (PDF_FROM_URL, PDF_FROM_URL)
     ]
+
+    POPULATE_METADATA_METHODS = {
+        MANUBOT_URL: populate_metadata_from_manubot_url,
+        MANUBOT_PDF_URL: populate_metadata_from_manubot_pdf_url,
+        PDF_FROM_URL: populate_pdf_url_from_journal_url,
+        PARSE_PDF: populate_metadata_from_pdf,
+        CROSSREF_QUERY: populate_metadata_from_crossref,
+    }
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now_add=True)
@@ -712,6 +730,24 @@ class MetadataRetrievalAttempt(models.Model):
         choices=METHOD_CHOICES,
         max_length=125
     )
+
+    @classmethod
+    def get_url_method_priority_list(cls, url):
+        """
+        Evaluates the url and returns the methods in the order they should be
+        attempted to retrieve metadata.
+        """
+        methods = []
+        if check_url_contains_pdf(url):
+            methods.append(cls.MANUBOT_PDF_URL)
+            # TODO: Create util functions for these methods
+            methods.append(cls.PARSE_PDF)
+            methods.append(cls.CROSSREF_QUERY)
+        else:
+            methods.append(cls.PDF_FROM_URL)
+            # methods.append(cls.MANUBOT_PDF_URL)
+            methods.append(cls.MANUBOT_URL)
+        return methods
 
 
 class Figure(models.Model):
