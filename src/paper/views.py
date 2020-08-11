@@ -577,8 +577,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             # Cleaning csl data
             cleaned_title = csl_item.get('title', '').strip()
             duplicate_papers = Paper.objects.filter(
-                Q(paper_title__icontains=cleaned_title) |
-                Q(title__icontains=cleaned_title)
+                paper_title__icontains=cleaned_title
             ).annotate(
                 similarity=TrigramSimilarity('paper_title', cleaned_title)
             ).filter(
