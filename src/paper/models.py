@@ -368,7 +368,7 @@ class Paper(models.Model):
             avg_hrs /= 100
             score = self.score
 
-            hot_score = 5 * math.log(max(abs(score), 1), 10)
+            hot_score = math.log(max(abs(score), 1), 10)
             seconds = (uploaded_date - N) / 45000
             discussion_score = math.log(max(self.discussion_count, 1), 10)
             hot_score = (
