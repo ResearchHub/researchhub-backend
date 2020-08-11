@@ -13,7 +13,13 @@ from rest_framework.permissions import (
 )
 
 from paper.models import Paper
-from paper.utils import get_cache_key, invalidate_trending_cache
+from paper.utils import (
+    get_cache_key,
+    invalidate_trending_cache,
+    invalidate_top_rated_cache,
+    invalidate_newest_cache,
+    invalidate_most_discussed_cache,
+)
 from purchase.models import Purchase, Balance, AggregatePurchase
 from purchase.serializers import (
     PurchaseSerializer,
@@ -25,6 +31,7 @@ from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfActive
 from user.models import User
 
 from researchhub.settings import ASYNC_SERVICE_HOST
+
 
 class PurchaseViewSet(viewsets.ModelViewSet):
     queryset = Purchase.objects.all()
@@ -96,6 +103,9 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             cache_key = get_cache_key(None, 'paper', pk=object_id)
             cache.delete(cache_key)
             invalidate_trending_cache([])
+            invalidate_top_rated_cache([])
+            invalidate_most_discussed_cache([])
+            invalidate_newest_cache([])
 
         context = {
             'purchase_minimal_serialization': True

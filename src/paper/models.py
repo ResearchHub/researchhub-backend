@@ -358,7 +358,7 @@ class Paper(models.Model):
                         flat=True
                     ))
                 )
-                boost_amount = math.log(boost_amount, 10)
+                boost_amount = 4 * math.log(boost_amount, 10)
             else:
                 boost_amount = 0
                 uploaded_date = self.uploaded_date.timestamp()
@@ -376,12 +376,12 @@ class Paper(models.Model):
             avg_hrs /= 100
             score = self.score
 
-            hot_score = 5 * math.log(max(abs(score), 1), 10)
+            hot_score = math.log(max(abs(score), 1), 10)
             seconds = (uploaded_date - N) / 45000
             discussion_score = math.log(max(self.discussion_count, 1), 10)
             hot_score = (
                 boost_amount + avg_hrs + hot_score + seconds + discussion_score
-            ) * 100
+            ) * 1000
 
             self.hot_score = hot_score
         else:
