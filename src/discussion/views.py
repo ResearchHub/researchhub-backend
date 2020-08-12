@@ -622,4 +622,5 @@ class CommentFileUpload(viewsets.ViewSet):
             url = default_storage.url(file_path)
             res_status = status.HTTP_201_CREATED
 
+        url = url.split('?AWSAccessKeyId')[0]
         return Response(url, status=res_status)
