@@ -1,6 +1,7 @@
 from psycopg2.errors import UniqueViolation
 
 import fitz
+import logging
 import os
 import re
 import requests
@@ -86,9 +87,11 @@ def add_orcid_authors(paper_id):
         break
 
         if len(orcid_authors) < 1:
-            print('Did not find paper identifier to give to ORCID API')
+            print('No authors to add')
+            logging.info('Did not find paper identifier to give to ORCID API')
 
     paper.authors.add(*orcid_authors)
+    logging.info(f'Finished adding orcid authors to paper {paper.id}')
 
 
 @app.task
