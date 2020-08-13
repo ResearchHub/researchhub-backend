@@ -2,25 +2,10 @@ from oauth.utils import get_orcid_works, check_doi_in_works
 from paper.models import Paper
 from paper.utils import download_pdf
 from researchhub.celery import app
-from researchhub.orcid import orcid_api
+from utils.orcid import orcid_api
 from user.models import Author
 
 VALID_LICENSES = []
-
-
-@app.task
-def create_crossref_paper_with_csl(crossref_item):
-    # csl_item = get_csl_item(crossref_item['URL'])  # This is very slow.
-    # Paper.create_from_csl_item(csl_item)
-    pass
-
-
-@app.task
-def get_authors_from_doi(authors):
-    # for author in authors:
-    # search orcid author
-    #     query = author['given'] + ' ' + author['family']
-    pass
 
 
 @app.task
