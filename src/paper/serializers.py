@@ -238,10 +238,10 @@ class PaperSerializer(BasePaperSerializer):
                     vote_type=Vote.UPVOTE
                 )
 
-                self._add_orcid_authors(paper)
-
                 # Now add m2m values properly
+                # TODO: Do we still need add authors from the request content?
                 paper.authors.add(*authors)
+                self._add_orcid_authors(paper)
                 paper.hubs.add(*hubs)
 
                 try:
