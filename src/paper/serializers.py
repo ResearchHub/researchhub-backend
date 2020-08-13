@@ -23,6 +23,8 @@ from summary.serializers import SummarySerializer
 from researchhub.lib import get_paper_id_from_path
 from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
+from utils.arxiv import Arxiv
+from utils.orcid import orcid_api
 from utils.http import get_user_from_request
 
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
@@ -216,7 +218,18 @@ class PaperSerializer(BasePaperSerializer):
             with transaction.atomic():
                 self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
-                paper = super(PaperSerializer, self).create(validated_data)
+
+                paper = None
+
+                # TODO: Replace this with proper metadata handling
+                if 'https://arxiv.org/abs/' in validated_data['url']:
+                    arxiv_id = validated_data['url'].split('abs/')[1]
+                    arxiv_paper = Arxiv(id=arxiv_id)
+                    paper = arxiv_paper.create_paper(uploaded_by=user)
+
+                if paper is None:
+                    paper = super(PaperSerializer, self).create(validated_data)
+
                 paper_title = paper.paper_title or ''
                 self._check_pdf_title(paper, paper_title, file)
 
@@ -225,6 +238,8 @@ class PaperSerializer(BasePaperSerializer):
                     created_by=user,
                     vote_type=Vote.UPVOTE
                 )
+
+                self._add_orcid_authors(paper)
 
                 # Now add m2m values properly
                 paper.authors.add(*authors)
@@ -286,6 +301,24 @@ class PaperSerializer(BasePaperSerializer):
                 base_error=error.trigger
             )
             raise error
+
+    def _add_orcid_authors(self, paper):
+        orcid_authors = []
+
+        while True:
+            if paper.doi is not None:
+                orcid_authors = orcid_api.get_authors(doi=paper.doi)
+                break
+            arxiv_id = paper.alternate_ids.get('arxiv', None)
+            if arxiv_id is not None:
+                orcid_authors = orcid_api.get_authors(arxiv=paper.doi)
+                break
+            break
+
+        if len(orcid_authors) < 1:
+            print('Did not find paper identifier to give to ORCID API')
+
+        paper.authors.add(*orcid_authors)
 
     def _add_references(self, paper):
         try:
