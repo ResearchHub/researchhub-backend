@@ -301,7 +301,7 @@ class PaperSerializer(BasePaperSerializer):
             sentry.log_info(e)
 
     def _add_file(self, paper, file):
-        if type(file) is not str and file is not None:
+        if type(file) is not str:
             paper.file = file
             paper.save(update_fields=['file'])
             return
