@@ -44,7 +44,7 @@ class OrcidApi:
 
     def search_by_id(self, uid):
         url = self.base_url + f'/{uid}/record'
-        response = http_request(GET, url, headers=self.headers, timeout=2)
+        response = http_request(GET, url, headers=self.headers, timeout=5)
         return response
 
     def search_by_paper_id(self, doi=None, arxiv=None):
@@ -57,7 +57,7 @@ class OrcidApi:
             key = 'arxiv'
             uid = arxiv
         url = self.search_url + f'/?q={key}:{uid}'
-        response = http_request(GET, url, headers=self.headers, timeout=2)
+        response = http_request(GET, url, headers=self.headers, timeout=5)
         return response, uid
 
     def get_authors(self, **kwargs):

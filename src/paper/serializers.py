@@ -10,7 +10,7 @@ from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.models import AdditionalFile, Flag, Paper, Vote, Figure
-from paper.tasks import download_pdf, add_references
+from paper.tasks import download_pdf, add_references, add_orcid_authors
 from paper.utils import (
     check_pdf_title,
     check_file_is_url,
@@ -24,7 +24,6 @@ from researchhub.lib import get_paper_id_from_path
 from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
 from utils.arxiv import Arxiv
-from utils.orcid import orcid_api
 from utils.http import get_user_from_request
 
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
@@ -303,22 +302,17 @@ class PaperSerializer(BasePaperSerializer):
             raise error
 
     def _add_orcid_authors(self, paper):
-        orcid_authors = []
-
-        while True:
-            if paper.doi is not None:
-                orcid_authors = orcid_api.get_authors(doi=paper.doi)
-                break
-            arxiv_id = paper.alternate_ids.get('arxiv', None)
-            if arxiv_id is not None:
-                orcid_authors = orcid_api.get_authors(arxiv=paper.doi)
-                break
-            break
-
-        if len(orcid_authors) < 1:
-            print('Did not find paper identifier to give to ORCID API')
-
-        paper.authors.add(*orcid_authors)
+        try:
+            if not TESTING:
+                add_orcid_authors.apply_async(
+                    (paper.id,),
+                    priority=5,
+                    countdown=10
+                )
+            else:
+                add_orcid_authors(paper.id)
+        except Exception as e:
+            sentry.log_info(e)
 
     def _add_references(self, paper):
         try:
