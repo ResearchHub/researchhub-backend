@@ -32,8 +32,15 @@ class Arxiv:
             self.pdf_url = self.data.get('pdf_url')
             self.url = self.data.get('arxiv_url')
 
-    def create_paper(self, public=True):
+    def create_paper(self, public=True, uploaded_by=None):
         Paper = apps.get_model('paper.Paper')
+
+        external = True
+        external_source = 'arxiv'
+        if uploaded_by is not None:
+            external = False
+            external_source = None
+
         if (self.data is not None) and (self.id is not None):
             self.paper = Paper.objects.create(
                 abstract=self.abstract,
@@ -41,12 +48,13 @@ class Arxiv:
                 paper_title=self.title,
                 doi=self.doi,
                 alternate_ids=self.alternate_ids,
-                external_source='arxiv',
+                external_source=external_source,
                 paper_publish_date=self.paper_publish_date,
                 pdf_url=self.pdf_url,
                 raw_authors=self.raw_authors,
-                retrieved_from_external_source=True,
+                retrieved_from_external_source=external,
                 is_public=public,
+                uploaded_by=uploaded_by,
                 url=self.url,
             )
             return self.paper
