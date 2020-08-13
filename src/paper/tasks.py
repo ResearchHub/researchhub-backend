@@ -66,6 +66,32 @@ def add_references(paper_id):
 
 
 @app.task
+def add_orcid_authors(paper_id):
+    if paper_id is None:
+        return
+
+    from utils.orcid import orcid_api
+
+    Paper = apps.get_model('paper.Paper')
+    paper = Paper.objects.get(id=paper_id)
+    orcid_authors = []
+    while True:
+        if paper.doi is not None:
+            orcid_authors = orcid_api.get_authors(doi=paper.doi)
+            break
+        arxiv_id = paper.alternate_ids.get('arxiv', None)
+        if arxiv_id is not None:
+            orcid_authors = orcid_api.get_authors(arxiv=arxiv_id)
+            break
+        break
+
+        if len(orcid_authors) < 1:
+            print('Did not find paper identifier to give to ORCID API')
+
+    paper.authors.add(*orcid_authors)
+
+
+@app.task
 def celery_extract_figures(paper_id):
     if paper_id is None:
         return
@@ -322,8 +348,9 @@ def celery_extract_twitter_comments(paper_id):
                         )
                         comment.created_date = comment_created_date
                         comment.save()
-    except twitter.TwitterError as e:
-        # TODO: Do we want to push the call back to celery if it exceeds the rate limit?
+    except twitter.TwitterError:
+        # TODO: Do we want to push the call back to celery if it exceeds the
+        # rate limit?
         return
 
 
