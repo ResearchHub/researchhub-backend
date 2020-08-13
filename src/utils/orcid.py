@@ -1,3 +1,5 @@
+from time import sleep
+
 from researchhub.settings import SOCIALACCOUNT_PROVIDERS
 from user.models import Author
 from utils.exceptions import OrcidApiError
@@ -69,18 +71,26 @@ class OrcidApi:
             if results is None:
                 raise ValueError
             for result in results:
-                result_orcid_id = result['orcid-identifier']['path']
-                record_response = self.search_by_id(result_orcid_id)
-                try:
-                    author = self.get_record_as_author(record_response)
-                    authors.append(author)
-                except Exception as e:
-                    print(e)
+                sleep(1)
+                self._attempt_to_add_author(result, authors)
             return authors
         except Exception as e:
             error = OrcidApiError(e, 'Failed to get authors')
             print(error)
             return []
+
+    def _attempt_to_add_author(self, result, authors, attempts=2):
+        tries = attempts
+        while tries > 0:
+            try:
+                result_orcid_id = result['orcid-identifier']['path']
+                record_response = self.search_by_id(result_orcid_id)
+                author = self.get_record_as_author(record_response)
+                authors.append(author)
+            except Exception as e:
+                print(e)
+                sleep(10)
+            tries -= 1
 
     def get_record_as_author(self, record):
         author = record.json()
