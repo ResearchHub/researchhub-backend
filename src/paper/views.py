@@ -575,28 +575,31 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         if csl_item:
             # Cleaning csl data
-            cleaned_title = csl_item.get('title', '').strip()
-            duplicate_papers = Paper.objects.filter(
-                paper_title__icontains=cleaned_title
-            ).annotate(
-                similarity=TrigramSimilarity('paper_title', cleaned_title)
-            ).filter(
-                similarity__gt=0.7
-            ).order_by(
-                'similarity'
-            )[:3]
+            try:
+                cleaned_title = csl_item.get('title', '').strip()
+                duplicate_papers = Paper.objects.filter(
+                    paper_title__icontains=cleaned_title
+                ).annotate(
+                    similarity=TrigramSimilarity('paper_title', cleaned_title)
+                ).filter(
+                    similarity__gt=0.7
+                ).order_by(
+                    'similarity'
+                )[:3]
 
-            if duplicate_papers.exists():
-                serializer_data = self.serializer_class(
-                    duplicate_papers,
-                    context={'purchase_minimal_serialization': True},
-                    many=True
-                ).data
-                data = {
-                    'key': 'title',
-                    'results': serializer_data
-                }
-                return Response(data, status=status.HTTP_403_FORBIDDEN)
+                if duplicate_papers.exists():
+                    serializer_data = self.serializer_class(
+                        duplicate_papers,
+                        context={'purchase_minimal_serialization': True},
+                        many=True
+                    ).data
+                    data = {
+                        'key': 'title',
+                        'results': serializer_data
+                    }
+                    return Response(data, status=status.HTTP_403_FORBIDDEN)
+            except Exception as e:
+                print(e)
 
             csl_item['title'] = cleaned_title
             abstract = csl_item.get('abstract', '')
