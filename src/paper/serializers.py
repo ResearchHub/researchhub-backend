@@ -10,7 +10,7 @@ from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.models import AdditionalFile, Flag, Paper, Vote, Figure
-from paper.tasks import download_pdf, add_references
+from paper.tasks import download_pdf, add_references, add_orcid_authors
 from paper.utils import (
     check_pdf_title,
     check_file_is_url,
@@ -23,6 +23,7 @@ from summary.serializers import SummarySerializer
 from researchhub.lib import get_paper_id_from_path
 from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
+from utils.arxiv import Arxiv
 from utils.http import get_user_from_request
 
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
@@ -216,7 +217,18 @@ class PaperSerializer(BasePaperSerializer):
             with transaction.atomic():
                 self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
-                paper = super(PaperSerializer, self).create(validated_data)
+
+                paper = None
+
+                # TODO: Replace this with proper metadata handling
+                if 'https://arxiv.org/abs/' in validated_data['url']:
+                    arxiv_id = validated_data['url'].split('abs/')[1]
+                    arxiv_paper = Arxiv(id=arxiv_id)
+                    paper = arxiv_paper.create_paper(uploaded_by=user)
+
+                if paper is None:
+                    paper = super(PaperSerializer, self).create(validated_data)
+
                 paper_title = paper.paper_title or ''
                 self._check_pdf_title(paper, paper_title, file)
 
@@ -227,7 +239,9 @@ class PaperSerializer(BasePaperSerializer):
                 )
 
                 # Now add m2m values properly
+                # TODO: Do we still need add authors from the request content?
                 paper.authors.add(*authors)
+                self._add_orcid_authors(paper)
                 paper.hubs.add(*hubs)
 
                 try:
@@ -286,6 +300,19 @@ class PaperSerializer(BasePaperSerializer):
                 base_error=error.trigger
             )
             raise error
+
+    def _add_orcid_authors(self, paper):
+        try:
+            if not TESTING:
+                add_orcid_authors.apply_async(
+                    (paper.id,),
+                    priority=5,
+                    countdown=10
+                )
+            else:
+                add_orcid_authors(paper.id)
+        except Exception as e:
+            sentry.log_info(e)
 
     def _add_references(self, paper):
         try:

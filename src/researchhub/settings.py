@@ -524,18 +524,17 @@ WEB3_SHARED_SECRET = os.environ.get(
     '0x0000000000000000000000000000000000000000000000000000000000000000'
 )
 
-# TODO: Pull contract addresses from s3
-
+# Mainnet
 WEB3_RSC_ADDRESS = os.environ.get(
     'WEB3_RSC_ADDRESS',
-    ''
+    '0xD101dCC414F310268c37eEb4cD376CcFA507F571'
 )
 
 if STAGING:
     # Testnet addresses
     WEB3_RSC_ADDRESS = os.environ.get(
         'WEB3_RSC_ADDRESS',
-        ''
+        '0x2275736dfEf93a811Bb32156724C1FCF6FFd41be'
     )
 
 
