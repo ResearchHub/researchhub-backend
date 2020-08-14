@@ -51,6 +51,7 @@ from paper.serializers import (
     PaperVoteSerializer,
 )
 from paper.utils import (
+    clean_abstract,
     get_csl_item,
     get_pdf_location_for_csl_item,
     get_cache_key,
@@ -600,9 +601,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 
             csl_item['title'] = cleaned_title
             abstract = csl_item.get('abstract', '')
-            soup = BeautifulSoup(abstract, 'html.parser')
-            strings = soup.strings
-            cleaned_abstract = ' '.join(strings)
+            cleaned_abstract = clean_abstract(abstract)
             csl_item['abstract'] = cleaned_abstract
 
             url_is_unsupported_pdf = url_is_pdf and csl_item.get('URL') == url
