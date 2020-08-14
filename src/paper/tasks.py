@@ -53,6 +53,8 @@ def download_pdf(paper_id):
             filename += '.pdf'
         paper.file.save(filename, pdf)
         paper.save(update_fields=['file'])
+        paper.extract_pdf_preview(use_celery=True)
+        paper.extract_figures(use_celery=True)
 
 
 @app.task
