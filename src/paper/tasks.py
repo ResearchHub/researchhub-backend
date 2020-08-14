@@ -46,15 +46,18 @@ from utils.http import check_url_contains_pdf
 def download_pdf(paper_id):
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
-    if paper.url and check_url_contains_pdf(paper.url):
-        pdf = get_pdf_from_url(paper.url)
+    paper_url = paper.url
+    pdf_url = paper.pdf_url
+    url = pdf_url or paper_url
+    url_has_pdf = (check_url_contains_pdf(paper_url) or pdf_url)
+
+    if paper_url and url_has_pdf:
+        pdf = get_pdf_from_url(url)
         filename = paper.url.split('/').pop()
         if not filename.endswith('.pdf'):
             filename += '.pdf'
         paper.file.save(filename, pdf)
         paper.save(update_fields=['file'])
-        paper.extract_pdf_preview(use_celery=True)
-        paper.extract_figures(use_celery=True)
 
 
 @app.task
