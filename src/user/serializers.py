@@ -69,6 +69,7 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
             'created_date',
             'has_seen_first_coin_modal',
             'has_seen_orcid_connect_modal',
+            'is_suspended',
             'moderator',
             'reputation',
             'subscribed',
