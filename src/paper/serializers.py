@@ -209,7 +209,10 @@ class PaperSerializer(BasePaperSerializer):
         validated_data['uploaded_by'] = user
 
         # Prepare validated_data by removing m2m and file for now
-        authors = validated_data.pop('authors')
+        authors = validated_data.pop('authors', [])
+        if type(authors) is not list:
+            authors = list(authors)
+
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
 
