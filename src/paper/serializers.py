@@ -209,10 +209,7 @@ class PaperSerializer(BasePaperSerializer):
         validated_data['uploaded_by'] = user
 
         # Prepare validated_data by removing m2m and file for now
-        authors = validated_data.pop('authors', [])
-        if type(authors) is not list:
-            authors = list(authors)
-
+        authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
 
@@ -220,6 +217,9 @@ class PaperSerializer(BasePaperSerializer):
             with transaction.atomic():
                 self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
+                raw_authors = validated_data.get('raw_authors', [])
+                if type(raw_authors) is not list:
+                    validated_data['raw_authors'] = list(raw_authors)
 
                 paper = None
 
