@@ -223,6 +223,7 @@ class PaperSerializer(BasePaperSerializer):
                 # TODO: Replace this with proper metadata handling
                 if 'https://arxiv.org/abs/' in validated_data['url']:
                     arxiv_id = validated_data['url'].split('abs/')[1]
+                    arxiv_id = arxiv_id.strip('.pdf')
                     arxiv_paper = Arxiv(id=arxiv_id)
                     paper = arxiv_paper.create_paper(uploaded_by=user)
 
