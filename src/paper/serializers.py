@@ -254,6 +254,7 @@ class PaperSerializer(BasePaperSerializer):
                         e,
                     )
 
+                self._add_scholarcy_data(paper)
                 self._add_references(paper)
 
                 return paper
@@ -396,6 +397,13 @@ class PaperSerializer(BasePaperSerializer):
             raw_authors.append(raw_author)
 
         validated_data['raw_authors'] = raw_authors
+
+    def _add_scholarcy_data(self, paper):
+        options = {
+            'get_key_takeaways': True,
+            'get_summary': True,
+        }
+        paper.extract_scholarcy_data(options, use_celery=True)
 
     def get_discussion(self, paper):
         return None

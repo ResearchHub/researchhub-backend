@@ -20,6 +20,8 @@ from django.db import IntegrityError
 from django.http.request import HttpRequest
 from rest_framework.request import Request
 from discussion.models import Thread, Comment
+from bullet_point.models import BulletPoint
+from summary.models import Summary
 from researchhub.celery import app
 from researchhub.settings import (
     APP_ENV,
@@ -39,6 +41,7 @@ from paper.utils import (
     merge_paper_votes,
     get_cache_key,
 )
+from paper.scholarcy import ScholarcyMetadata
 from utils import sentry
 from utils.http import check_url_contains_pdf
 
@@ -360,6 +363,56 @@ def celery_extract_twitter_comments(paper_id):
         # TODO: Do we want to push the call back to celery if it exceeds the
         # rate limit?
         return
+
+
+@app.task
+def celery_extract_scholarcy_data(paper_id, url, options):
+    if paper_id is None:
+        return
+
+    Paper = apps.get_model('paper.Paper')
+    paper = Paper.objects.get(id=paper_id)
+    scholarcy = ScholarcyMetadata(url)
+
+    if options.get('get_key_takeaways', False):
+        celery_extract_scholarcy_takeaways(paper, scholarcy)
+
+    if options.get('get_summary', False):
+        celery_extract_scholarcy_summary(paper, scholarcy)
+
+
+@app.task
+def celery_extract_scholarcy_takeaways(paper, scholarcy):
+    takeaways = scholarcy.get_key_takeaways()
+    for i, takeaway in enumerate(takeaways):
+        BulletPoint.objects.create(
+            paper=paper,
+            created_by=None,
+            plain_text=takeaway,
+            ordinal=i+1,
+            bullet_type=BulletPoint.BULLETPOINT_KEYTAKEAWAY
+        )
+
+
+@app.task
+def celery_extract_scholarcy_summary(paper, scholarcy):
+    summary = scholarcy.get_summary()
+    summary_json = {'ops': [
+        {
+            'insert': summary
+        }
+    ]}
+    summary_obj = Summary.objects.create(
+        summary=summary_json,
+        summary_plain_text=summary,
+        paper=paper,
+        approved=True,
+    )
+    paper.summary = summary_obj
+    paper.save()
+
+    cache_key = get_cache_key(None, 'paper', pk=paper.id)
+    cache.delete(cache_key)
 
 
 @app.task

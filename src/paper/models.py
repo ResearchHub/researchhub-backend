@@ -21,7 +21,8 @@ from .tasks import (
     celery_extract_figures,
     celery_extract_pdf_preview,
     celery_extract_meta_data,
-    celery_extract_twitter_comments
+    celery_extract_twitter_comments,
+    celery_extract_scholarcy_data
 )
 from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
@@ -491,6 +492,23 @@ class Paper(models.Model):
             )
         else:
             celery_extract_twitter_comments(self.id)
+
+    def extract_scholarcy_data(self, options, use_celery=True):
+        if TESTING:
+            return
+
+        url = self.pdf_url or self.url
+        if not url:
+            url = self.file.url
+
+        if use_celery:
+            celery_extract_scholarcy_data.apply_async(
+                (self.id, url, options),
+                priority=4,
+                countdown=10
+            )
+        else:
+            celery_extract_scholarcy_data(self.id, url, options)
 
     def calculate_score(self):
         upvotes = self.votes.filter(vote_type=Vote.UPVOTE).count()
