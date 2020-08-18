@@ -1,3 +1,4 @@
+import json
 import utils.sentry as sentry
 import rest_framework.serializers as serializers
 
@@ -217,9 +218,7 @@ class PaperSerializer(BasePaperSerializer):
             with transaction.atomic():
                 self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
-                raw_authors = validated_data.get('raw_authors', [])
-                if type(raw_authors) is not list:
-                    validated_data['raw_authors'] = list(raw_authors)
+                self._add_raw_authors(validated_data)
 
                 paper = None
 
@@ -386,6 +385,17 @@ class PaperSerializer(BasePaperSerializer):
 
         cleaned_text = clean_abstract(abstract)
         data.update(abstract=cleaned_text)
+
+    def _add_raw_authors(self, validated_data):
+        raw_authors = []
+        length = int(validated_data.pop('raw_authors_length', 0))
+
+        for i in range(length):
+            key = f'raw_authors[{i}]'
+            raw_author = json.loads(validated_data.pop(key))
+            raw_authors.append(raw_author)
+
+        validated_data['raw_authors'] = raw_authors
 
     def get_discussion(self, paper):
         return None
