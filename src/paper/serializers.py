@@ -91,9 +91,11 @@ class BasePaperSerializer(serializers.ModelSerializer):
         if isinstance(obj, QueryDict):
             authors = obj.getlist('authors', [])
             hubs = obj.getlist('hubs', [])
+            raw_authors = obj.getlist('raw_authors', [])
             obj = obj.dict()
             obj['authors'] = authors
             obj['hubs'] = hubs
+            obj['raw_authors'] = raw_authors
         return obj
 
     def _copy_data(self, data):
@@ -387,15 +389,9 @@ class PaperSerializer(BasePaperSerializer):
         data.update(abstract=cleaned_text)
 
     def _add_raw_authors(self, validated_data):
-        raw_authors = []
-        length = int(validated_data.pop('raw_authors_length', 0))
-
-        for i in range(length):
-            key = f'raw_authors[{i}]'
-            raw_author = json.loads(validated_data.pop(key))
-            raw_authors.append(raw_author)
-
-        validated_data['raw_authors'] = raw_authors
+        raw_authors = validated_data['raw_authors']
+        json_raw_authors = list(map(json.loads, raw_authors))
+        validated_data['raw_authors'] = json_raw_authors
 
     def get_discussion(self, paper):
         return None
