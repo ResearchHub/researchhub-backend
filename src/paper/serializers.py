@@ -350,6 +350,8 @@ class PaperSerializer(BasePaperSerializer):
 
             if is_pdf is True:
                 pdf_url = file
+                validated_data['pdf_url'] = file
+                validated_data['url'] = file
                 journal_url, converted = convert_pdf_url_to_journal_url(file)
             elif is_pdf is False:
                 journal_url = file
