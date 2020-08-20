@@ -276,7 +276,9 @@ class PaperSerializer(BasePaperSerializer):
 
         try:
             with transaction.atomic():
+                self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
+
                 paper = super(PaperSerializer, self).update(
                     instance,
                     validated_data
