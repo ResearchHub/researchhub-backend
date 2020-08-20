@@ -25,7 +25,7 @@ from researchhub.lib import get_paper_id_from_path
 from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
 from utils.arxiv import Arxiv
-from utils.http import get_user_from_request
+from utils.http import get_user_from_request, check_url_contains_pdf
 
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 
@@ -276,7 +276,9 @@ class PaperSerializer(BasePaperSerializer):
 
         try:
             with transaction.atomic():
+                self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
+
                 paper = super(PaperSerializer, self).update(
                     instance,
                     validated_data
@@ -346,12 +348,17 @@ class PaperSerializer(BasePaperSerializer):
 
     def _add_url(self, file, validated_data):
         if check_file_is_url(file):
-            is_pdf = check_url_is_pdf(file)
+            contains_pdf = check_url_contains_pdf(file)
+            is_journal_pdf = check_url_is_pdf(file)
 
-            if is_pdf is True:
+            if contains_pdf:
+                validated_data['url'] = file
+                validated_data['pdf_url'] = file
+
+            if is_journal_pdf is True:
                 pdf_url = file
                 journal_url, converted = convert_pdf_url_to_journal_url(file)
-            elif is_pdf is False:
+            elif is_journal_pdf is False:
                 journal_url = file
                 pdf_url, converted = convert_journal_url_to_pdf_url(file)
             else:

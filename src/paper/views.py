@@ -297,6 +297,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper = self.get_object()
         paper.file = None
         paper.url = None
+        paper.pdf_url = None
         paper.figures.all().delete()
         paper.save()
 
