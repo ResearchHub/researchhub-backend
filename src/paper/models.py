@@ -203,7 +203,6 @@ class Paper(models.Model):
         content_type_field='content_type',
         related_query_name='paper'
     )
-    slug = models.SlugField(max_length=1024)
 
     class Meta:
         ordering = ['-paper_publish_date']
