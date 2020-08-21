@@ -3,7 +3,6 @@ import utils.sentry as sentry
 import rest_framework.serializers as serializers
 
 from django.db import transaction, IntegrityError
-from django.utils.text import slugify
 from django.http import QueryDict
 
 from bullet_point.serializers import BulletPointTextOnlySerializer
@@ -207,7 +206,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
         return paper.get_promoted_score()
 
     def get_slug(self, paper):
-        slug = slugify(paper.title)
+        slug = paper.get_slug()
         return slug
 
 
