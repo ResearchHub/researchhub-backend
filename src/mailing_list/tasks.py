@@ -19,11 +19,17 @@ from paper.models import Paper, Vote as PaperVote
 
 @app.task
 def notify_immediate(action_id):
+    # TODO: Temporarily turning off notifications - Revamp
+    return
     actions_notifications([action_id], NotificationFrequencies.IMMEDIATE)
+
 
 @periodic_task(run_every=crontab(minute='30', hour='1'), priority=7)
 def notify_daily():
+    # TODO: Temporarily turning off notifications - Revamp
+    return
     send_hub_digest(NotificationFrequencies.DAILY)
+
 
 @periodic_task(run_every=crontab(minute='0', hour='*/3'), priority=7)
 def notify_three_hours():
@@ -35,7 +41,10 @@ def notify_three_hours():
     priority=9
 )
 def notify_weekly():
+    # TODO: Temporarily turning off notifications - Revamp
+    return
     send_hub_digest(NotificationFrequencies.WEEKLY)
+
 
 def send_hub_digest(frequency):
     etl = EmailTaskLog.objects.create(emails='', notification_frequency=frequency)
@@ -139,6 +148,7 @@ def send_hub_digest(frequency):
 
     etl.emails = ','.join(emails)
     etl.save()
+
 
 def calculate_hub_digest_start_date(end_date, frequency):
     if frequency == NotificationFrequencies.DAILY:
