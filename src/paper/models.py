@@ -6,6 +6,7 @@ from django.db import models, transaction
 from django.db.models import Count, Q, Avg
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from django.db.models.functions import Extract
+from django.utils.text import slugify
 
 from manubot.cite.doi import get_doi_csl_item
 
@@ -690,6 +691,10 @@ class Paper(models.Model):
             )
             return base_score + boost_score
         return False
+
+    def get_slug(self):
+        slug = slugify(self.title)
+        return slug
 
 
 class MetadataRetrievalAttempt(models.Model):
