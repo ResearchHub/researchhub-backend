@@ -28,7 +28,7 @@ class PaperDocumentSerializer(DocumentSerializer):
         # TODO: Better way to add slug from a search hit?
         paper_id = hit['id']
         paper = Paper.objects.get(id=paper_id)
-        slug = paper.get_slug()
+        slug = paper.slug
         return slug
 
 
