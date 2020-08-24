@@ -223,7 +223,7 @@ class UserActions:
                 data['paper_id'] = paper.id
                 data['paper_title'] = paper.title
                 data['paper_official_title'] = paper.paper_title
-                data['slug'] = paper.get_slug()
+                data['slug'] = paper.slug
 
             if isinstance(item, Thread):
                 thread = item
