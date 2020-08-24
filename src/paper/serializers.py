@@ -5,6 +5,7 @@ import rest_framework.serializers as serializers
 from django.db import transaction, IntegrityError
 from django.http import QueryDict
 from django.utils.text import slugify
+from django.utils.crypto import get_random_string
 
 from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
@@ -404,11 +405,17 @@ class PaperSerializer(BasePaperSerializer):
         validated_data['raw_authors'] = json_raw_authors
 
     def _add_slug(self, validated_data):
+        suffix = get_random_string(length=32)
         title = validated_data.get(
             'paper_title',
-            validated_data.get('title', '')
+            validated_data.get(
+                'title',
+                suffix
+            )
         )
         slug = slugify(title)
+        if not slug:
+            slug += suffix
         validated_data['slug'] = slug
 
     def get_discussion(self, paper):
