@@ -428,6 +428,8 @@ class Paper(models.Model):
         return thread_count + comment_count + reply_count
 
     def extract_figures(self, use_celery=True):
+        # TODO: Make figure more consistent - temporarily removing figures
+        return
         if TESTING:
             return
 
