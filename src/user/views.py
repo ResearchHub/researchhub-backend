@@ -8,7 +8,7 @@ from rest_framework.permissions import (
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Sum, Q, F
+from django.db.models import Sum, Q, F, Count
 
 from discussion.models import Comment, Reply, Thread
 from discussion.serializers import (
@@ -17,7 +17,7 @@ from discussion.serializers import (
     ThreadSerializer
 )
 
-from paper.models import Paper
+from paper.models import Paper, Vote
 from paper.views import PaperViewSet
 from paper.serializers import PaperSerializer, HubPaperSerializer
 from user.filters import AuthorFilter
@@ -65,6 +65,8 @@ class UserViewSet(viewsets.ModelViewSet):
         Leaderboard serves both Papers and Users
         """
         hub_id = request.GET.get('hub_id')
+        if hub_id:
+            hub_id = int(hub_id)
 
         leaderboard_type = request.GET.get('type', 'users')
         """
@@ -109,8 +111,6 @@ class UserViewSet(viewsets.ModelViewSet):
         items = []
         if leaderboard_type == 'papers':
             serializerClass = HubPaperSerializer
-            if hub_id:
-                hub_id = int(hub_id)
             if hub_id and hub_id != 0:
                 items = Paper.objects.exclude(
                     is_public=False,
@@ -128,8 +128,6 @@ class UserViewSet(viewsets.ModelViewSet):
                 )
         elif leaderboard_type == 'users':
             serializerClass = UserSerializer
-            if hub_id:
-                hub_id = int(hub_id)
             if hub_id and hub_id != 0:
                 items = User.objects.filter(
                     is_active=True
@@ -151,6 +149,27 @@ class UserViewSet(viewsets.ModelViewSet):
                         filter=Q(**time_filter)
                     )
                 ).order_by(F('hub_rep').desc(nulls_last=True))
+        elif leaderboard_type == 'authors':
+            serializerClass = AuthorSerializer
+            authors = Author.objects.filter(authored_papers__isnull=False)
+            upvotes = Count(
+                'authored_papers__vote',
+                filter=Q(authored_papers__vote__vote_type=Vote.UPVOTE)
+            )
+            downvotes = Count(
+                'authored_papers__vote',
+                filter=Q(authored_papers__vote__vote_type=Vote.DOWNVOTE)
+            )
+            if hub_id and hub_id != 0:
+                authors = authors.filter(authored_papers__hubs=hub_id)
+
+            authors = authors.annotate(
+                paper_count=Count('authored_papers'),
+                score=upvotes-downvotes
+            )
+
+            items = authors.annotate(total_score=F('paper_count') + F('score'))
+            items = items.order_by('-total_score')
 
         page = self.paginate_queryset(items)
         serializer = serializerClass(
