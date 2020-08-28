@@ -21,6 +21,7 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
     university = UniversitySerializer(required=False)
     reputation = rest_framework_serializers.SerializerMethodField()
     orcid_id = rest_framework_serializers.SerializerMethodField()
+    total_score = rest_framework_serializers.SerializerMethodField()
 
     class Meta:
         model = Author
@@ -28,6 +29,7 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
             'university',
             'reputation',
             'orcid_id',
+            'total_score'
         ]
 
     def get_reputation(self, obj):
@@ -37,6 +39,12 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
 
     def get_orcid_id(self, author):
         return author.orcid_id
+
+    def get_total_score(self, author):
+        try:
+            return author.total_score
+        except Exception:
+            return None
 
 
 class AuthorEditableSerializer(rest_framework_serializers.ModelSerializer):
