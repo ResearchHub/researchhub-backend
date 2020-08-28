@@ -170,15 +170,66 @@ class EventsApi:
 
     def track_update_content_paper(self, user, paper):
         # https://sift.com/developers/docs/curl/events-api/reserved-events/update-content
-        pass
+        post_properties = {
+            # Required fields
+            "$user_id": user.id,
+            "$content_id": f'{type(paper)}_{paper.id}',
 
-    def track_flag_content(self, user):
+            # Recommended fields
+            # "$session_id"           : "a234ksjfgn435sfg",
+            "$status": "$active",
+            # "$ip"                   : "255.255.255.0",
+
+            # Required $post object
+            "$post": {
+                "$subject": paper.title,
+                "$body": paper.paper_title,
+                "$contact_email": user.email,
+                "$contact_address": {
+                    "$name": user.full_name,
+                },
+                "$categories": paper.hubs.all(),
+                # TODO: Can/should we use the pdf for images here?
+                # "$images"           : [
+                # {
+                #     "$md5_hash"     : "0cc175b9c0f1b6a831c399e269772661",
+                #     "$link"         : "https://www.domain.com/file.png",
+                #     "$description"  : "View from the window!"
+                # }
+                # ],
+            },
+        }
+
+        try:
+            response = client.track("$update_content", post_properties)
+            print(response.body)
+        except sift.client.ApiException as e:
+            sentry.log_error(e)
+            print(e)
+
+    def track_flag_content(self, user, content_id, referer_id):
         # https://sift.com/developers/docs/curl/events-api/reserved-events/flag-content
-        pass
+        properties = {
+            "$user_id": user.id,
+            "$content_id": content_id,
+            "$flagged_by": referer_id
+        }
+
+        try:
+            response = client.track("$flag_content", properties)
+            print(response.body)
+        except sift.client.ApiException as e:
+            sentry.log_error(e)
+            print(e)
 
     def track_content_status(self):
         # https://sift.com/developers/docs/python/events-api/reserved-events/content-status
-        pass
+        # TODO: We might not need this?
+        properties = {
+            "$user_id": '',
+            "$content_id": '',
+            "$status": ''
+        }
 
 
 events_api = EventsApi()
