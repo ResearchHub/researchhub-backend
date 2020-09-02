@@ -90,7 +90,7 @@ incremental==17.5.0
 ipdb==0.13.3
 ipfshttpclient==0.6.1
 ipython-genutils==0.2.0
-ipython==7.17.0
+ipython==7.16.1
 isbnlib==3.10.3
 jedi==0.17.2
 jellyfish==0.8.2
