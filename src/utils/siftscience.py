@@ -97,6 +97,8 @@ class EventsApi:
             '$user_id': user.id,
             '$login_status': login_status,
 
+            '$username': user.username,
+
             '$browser': {
                 '$user_agent': user_agent,
             }
@@ -257,6 +259,48 @@ class EventsApi:
 
         try:
             response = client.track('$update_content', post_properties)
+            print(response.body)
+        except sift.client.ApiException as e:
+            sentry.log_error(e)
+            print(e.api_error_message)
+
+    def track_create_content_vote(self, user, vote, user_agent):
+        vote_type = vote.vote_type
+        review_properties = {
+            '$user_id': user.id,
+            '$content_id': f'{type(vote).__name__}_{vote.id}',
+
+            '$status': '$active',
+
+            '$review': {
+                '$contact_email': user.email,
+                '$rating': vote_type
+            }
+        }
+
+        try:
+            response = client.track('$create_content', review_properties)
+            print(response.body)
+        except sift.client.ApiException as e:
+            sentry.log_error(e)
+            print(e.api_error_message)
+
+    def track_update_content_vote(self, user, vote, user_agent):
+        vote_type = vote.vote_type
+        review_properties = {
+            '$user_id': user.id,
+            '$content_id': f'{type(vote).__name__}_{vote.id}',
+
+            '$status': '$active',
+
+            '$review': {
+                '$contact_email': user.email,
+                '$rating': vote_type
+            }
+        }
+
+        try:
+            response = client.track('$update_content', review_properties)
             print(response.body)
         except sift.client.ApiException as e:
             sentry.log_error(e)

@@ -180,7 +180,7 @@ class ActionMixin:
                 'This vote already exists',
                 status=status.HTTP_400_BAD_REQUEST
             )
-        response = update_or_create_vote(user, item, Vote.UPVOTE)
+        response = update_or_create_vote(request, user, item, Vote.UPVOTE)
         return response
 
     def downvote(self, request, pk=None):
@@ -194,7 +194,7 @@ class ActionMixin:
                 'This vote already exists',
                 status=status.HTTP_400_BAD_REQUEST
             )
-        response = update_or_create_vote(user, item, Vote.DOWNVOTE)
+        response = update_or_create_vote(request, user, item, Vote.DOWNVOTE)
         return response
 
     @action(detail=True, methods=['get'])
@@ -632,14 +632,18 @@ def find_vote(user, item, vote_type):
     return False
 
 
-def update_or_create_vote(user, item, vote_type):
+def update_or_create_vote(request, user, item, vote_type):
     vote = retrieve_vote(user, item)
+    user_agent = request.META.get('HTTP_USER_AGENT', '')
 
     if vote:
         vote.vote_type = vote_type
         vote.save(update_fields=['updated_date', 'vote_type'])
+        events_api.track_update_content_vote(user, vote, user_agent)
         return get_vote_response(vote, 200)
+
     vote = create_vote(user, item, vote_type)
+    events_api.track_create_content_vote(user, vote, user_agent)
     return get_vote_response(vote, 201)
 
 
