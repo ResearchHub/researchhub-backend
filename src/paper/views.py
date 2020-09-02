@@ -501,6 +501,25 @@ class PaperViewSet(viewsets.ModelViewSet):
         cache.delete(cache_key_paper)
         return response
 
+    @action(
+        detail=False,
+        methods=['post'],
+    )
+    def check_user_vote(self, request):
+        paper_ids = request.data.get('paperIds', [])
+        user = request.user
+        votes = Vote.objects.filter(paper__id__in=paper_ids, created_by=user)
+
+        response = {}
+
+        for vote in votes.iterator():
+            paper_id = vote.paper_id
+            data = PaperVoteSerializer(instance=vote).data
+            response[paper_id] = data
+        
+        return Response(response, status=status.HTTP_200_OK)
+
+
     @action(detail=False, methods=[POST])
     def check_url(self, request):
         url = request.data.get('url', None)
