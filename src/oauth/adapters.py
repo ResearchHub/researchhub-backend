@@ -10,6 +10,7 @@ from google.auth.transport import requests
 
 from user.models import Author
 from user.utils import merge_author_profiles
+from utils.siftscience import events_api
 
 
 class SocialAccountAdapter(DefaultSocialAccountAdapter):
@@ -22,6 +23,9 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             self._merge_or_update_orcid_author(saved_user, sociallogin)
         else:
             saved_user = super().save_user(request, sociallogin, form)
+
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+        events_api.track_create_account(saved_user, user_agent)
         return saved_user
 
     def _generate_temporary_username(self, sociallogin):

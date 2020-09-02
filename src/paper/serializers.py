@@ -26,7 +26,7 @@ from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
 from utils.arxiv import Arxiv
 from utils.http import get_user_from_request, check_url_contains_pdf
-
+from utils.siftscience import events_api
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 
 
@@ -209,7 +209,8 @@ class BasePaperSerializer(serializers.ModelSerializer):
 class PaperSerializer(BasePaperSerializer):
 
     def create(self, validated_data):
-        user = self.context['request'].user
+        request = self.context['request']
+        user = request.user
         validated_data['uploaded_by'] = user
 
         # Prepare validated_data by removing m2m and file for now
@@ -258,6 +259,8 @@ class PaperSerializer(BasePaperSerializer):
                     )
 
                 self._add_references(paper)
+                user_agent = request.META.get('HTTP_USER_AGENT', '')
+                events_api.track_create_content_paper(user, paper, user_agent)
 
                 return paper
         except IntegrityError as e:
@@ -271,6 +274,7 @@ class PaperSerializer(BasePaperSerializer):
             raise error
 
     def update(self, instance, validated_data):
+        request = self.context['request']
         authors = validated_data.pop('authors', [None])
         hubs = validated_data.pop('hubs', [None])
         file = validated_data.pop('file', None)
@@ -300,6 +304,9 @@ class PaperSerializer(BasePaperSerializer):
                 if file:
                     self._add_file(paper, file)
 
+                user = paper.uploaded_by
+                user_agent = request.META.get('HTTP_USER_AGENT', '')
+                events_api.track_update_content_paper(user, paper, user_agent)
                 return paper
         except Exception as e:
             error = PaperSerializerError(e, 'Failed to created paper')

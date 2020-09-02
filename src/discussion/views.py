@@ -70,6 +70,7 @@ from .utils import (
 
 from utils import sentry
 from utils.permissions import CreateOrUpdateIfAllowed
+from utils.siftscience import events_api
 
 
 class ActionMixin:
@@ -122,6 +123,13 @@ class ActionMixin:
         try:
             flag = create_flag(user, item, reason)
             serialized = FlagSerializer(flag)
+
+            content_id = f'{type(item).__name__}_{item.id}'
+            events_api.track_flag_content(
+                item.created_by,
+                content_id,
+                user.id
+            )
             return Response(serialized.data, status=201)
         except Exception as e:
             return Response(
@@ -245,6 +253,38 @@ class ActionMixin:
             headers=headers
         )
 
+    def sift_track_create_content_comment(
+        self,
+        request,
+        response,
+        model,
+        is_thread=False
+    ):
+        item = model.objects.get(pk=response.data['id'])
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+        events_api.track_create_content_comment(
+            item.created_by,
+            item,
+            user_agent,
+            is_thread=is_thread
+        )
+
+    def sift_track_update_content_comment(
+        self,
+        request,
+        response,
+        model,
+        is_thread=False
+    ):
+        item = model.objects.get(pk=response.data['id'])
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+        events_api.track_update_content_comment(
+            item.created_by,
+            item,
+            user_agent,
+            is_thread=is_thread
+        )
+
 
 class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     serializer_class = ThreadSerializer
@@ -269,6 +309,12 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
 
         response = super().create(request, *args, **kwargs)
         response = self.get_self_upvote_response(request, response, Thread)
+        self.sift_track_create_content_comment(
+            request,
+            response,
+            Thread,
+            is_thread=True
+        )
 
         paper_id = get_paper_id_from_path(request)
         hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
@@ -279,6 +325,16 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)
         invalidate_most_discussed_cache(hubs)
+        return response
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        self.sift_track_update_content_comment(
+            request,
+            response,
+            Thread,
+            is_thread=True
+        )
         return response
 
     def get_serializer_context(self):
@@ -401,6 +457,7 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
 
         response = super().create(request, *args, **kwargs)
         response = self.get_self_upvote_response(request, response, Comment)
+        self.sift_track_create_content_comment(request, response, Comment)
 
         paper_id = get_paper_id_from_path(request)
         hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
@@ -409,6 +466,11 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)
         invalidate_most_discussed_cache(hubs)
+        return response
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        self.sift_track_update_content_comment(request, response, Comment)
         return response
 
     @action(
@@ -482,8 +544,13 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
             )
 
         response = super().create(request, *args, **kwargs)
-
+        self.sift_track_create_content_comment(request, response, Reply)
         return self.get_self_upvote_response(request, response, Reply)
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        self.sift_track_update_content_comment(request, response, Reply)
+        return response
 
     @action(
         detail=True,

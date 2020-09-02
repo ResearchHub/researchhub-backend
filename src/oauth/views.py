@@ -19,8 +19,6 @@ from allauth.socialaccount.providers.oauth2.views import (
 )
 from allauth.utils import (
     get_request_param,
-    get_user_model,
-    email_address_exists
 )
 from allauth.account.signals import user_signed_up, user_logged_in
 from allauth.account import app_settings
@@ -31,11 +29,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from django.dispatch import receiver
-from django.http import HttpRequest
-from django.utils.translation import ugettext_lazy as _
-from django.urls.exceptions import NoReverseMatch
 
-from elasticsearch.exceptions import ConnectionTimeout
 from mailchimp_marketing import Client
 
 from oauth.serializers import *
@@ -52,17 +46,24 @@ from researchhub.settings import (
     RECAPTCHA_SECRET_KEY,
     RECAPTCHA_VERIFY_URL
 )
-from user.models import Author, User
+from user.models import Author
 from user.utils import merge_author_profiles
 from utils import sentry
 from utils.http import http_request, RequestMethods
 from utils.throttles import captcha_unlock
-from analytics.models import WebsiteVisits
+from utils.siftscience import events_api
+
 
 @api_view([RequestMethods.POST])
 @permission_classes([AllowAny])
 def captcha_verify(request):
-    verify_request = requests.post(RECAPTCHA_VERIFY_URL, { 'secret': RECAPTCHA_SECRET_KEY, 'response': request.data.get('response')})
+    verify_request = requests.post(
+        RECAPTCHA_VERIFY_URL,
+        {
+            'secret': RECAPTCHA_SECRET_KEY,
+            'response': request.data.get('response')
+        }
+    )
     status = verify_request.status_code
     req_json = verify_request.json()
 
@@ -75,6 +76,7 @@ def captcha_verify(request):
         captcha_unlock(request)
 
     return Response(data, status=status)
+
 
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
@@ -173,6 +175,8 @@ def orcid_connect(request):
         user = request.user
 
         save_orcid_author(user, orcid, response.json())
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+        events_api.track_update_account(user, user_agent)
 
         success = True
         status = 201

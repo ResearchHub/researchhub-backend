@@ -64,6 +64,7 @@ from utils.http import GET, POST, check_url_contains_pdf
 from utils.sentry import log_error
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
+from utils.siftscience import events_api
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -378,10 +379,18 @@ class PaperViewSet(viewsets.ModelViewSet):
     def flag(self, request, pk=None):
         paper = self.get_object()
         reason = request.data.get('reason')
+        referrer = request.user
         flag = Flag.objects.create(
             paper=paper,
-            created_by=request.user,
+            created_by=referrer,
             reason=reason
+        )
+
+        content_id = f'{type(paper).__name__}_{paper.id}'
+        events_api.track_flag_content(
+            paper.uploaded_by,
+            content_id,
+            referrer.id
         )
         return Response(FlagSerializer(flag).data, status=201)
 
