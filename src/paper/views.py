@@ -470,7 +470,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'This vote already exists',
                 status=status.HTTP_400_BAD_REQUEST
             )
-        response = update_or_create_vote(user, paper, Vote.UPVOTE)
+        response = update_or_create_vote(request, user, paper, Vote.UPVOTE)
 
         invalidate_trending_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
@@ -500,7 +500,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'This vote already exists',
                 status=status.HTTP_400_BAD_REQUEST
             )
-        response = update_or_create_vote(user, paper, Vote.DOWNVOTE)
+        response = update_or_create_vote(request, user, paper, Vote.DOWNVOTE)
 
         invalidate_trending_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
@@ -978,14 +978,18 @@ def find_vote(user, paper, vote_type):
     return False
 
 
-def update_or_create_vote(user, paper, vote_type):
+def update_or_create_vote(request, user, paper, vote_type):
     vote = retrieve_vote(user, paper)
+    user_agent = request.META.get('HTTP_USER_AGENT', '')
 
     if vote:
         vote.vote_type = vote_type
         vote.save()
+        events_api.track_update_content_vote(user, vote, user_agent)
         return get_vote_response(vote, 200)
     vote = create_vote(user, paper, vote_type)
+
+    events_api.track_create_content_vote(user, vote, user_agent)
     return get_vote_response(vote, 201)
 
 
