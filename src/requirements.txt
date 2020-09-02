@@ -6,7 +6,7 @@ appnope==0.1.0 ; sys_platform == 'darwin'
 arxiv==0.5.3
 asgiref==3.2.10
 async-timeout==3.0.1
-attrs==19.3.0
+attrs==20.1.0
 autobahn==20.7.1
 automat==20.2.0
 autopep8==1.5.4
@@ -15,14 +15,14 @@ base58==2.0.1
 beautifulsoup4==4.9.1
 billiard==3.6.3.0
 bitarray==1.2.2
-boto3==1.14.36
+boto3==1.14.48
 boto==2.49.0
-botocore==1.17.36
+botocore==1.17.48
 cachetools==4.1.1
 celery-redbeat==1.0.0
 celery[redis]==4.4.7
 certifi==2020.6.20
-cffi==1.14.1
+cffi==1.14.2
 cfgv==3.2.0
 channels-redis==3.0.1
 channels==2.4.0
@@ -39,18 +39,18 @@ distlib==0.3.1
 django-allauth==0.42.0
 django-celery-beat==2.0.0
 django-contrib-comments==1.9.2
-django-cors-headers==3.4.0
+django-cors-headers==3.5.0
 django-dbbackup==3.3.0
 django-elasticsearch-dsl-drf==0.20.8
 django-elasticsearch-dsl==7.1.4
-django-extensions==3.0.4
+django-extensions==3.0.5
 django-filter==2.3.0
 django-inlinecss==0.3.0
 django-nine==0.2.3
 django-redis-cache==2.1.1
 django-rest-auth==0.9.5
 django-ses==1.0.2
-django-silk==4.0.1
+django-silk==4.1.0
 django-storages==1.9.1
 django-timezone-field==4.0
 django==2.2.15
@@ -58,7 +58,7 @@ djangorestframework==3.11.1
 docutils==0.15.2
 elastic-apm==5.8.1
 elasticsearch-dsl==7.2.1
-elasticsearch==7.8.1
+elasticsearch==7.9.1
 errorhandler==2.0.1
 eth-abi==2.1.1
 eth-account==0.5.2
@@ -67,15 +67,15 @@ eth-keyfile==0.5.1
 eth-keys==0.3.3
 eth-rlp==0.1.2
 eth-typing==2.2.1
-eth-utils==1.9.0
+eth-utils==1.9.4
 feedparser==5.2.1
 filelock==3.0.12
 flake8==3.8.3
 future==0.18.2
-google-api-core==1.22.0
-google-api-python-client==1.10.0
+google-api-core==1.22.1
+google-api-python-client==1.10.1
 google-auth-httplib2==0.0.4
-google-auth==1.20.0
+google-auth==1.20.1
 googleapis-common-protos==1.52.0
 gprof2dot==2019.11.30
 habanero==0.7.4
@@ -83,14 +83,14 @@ hexbytes==0.2.1
 hiredis==1.1.0
 httplib2==0.18.1
 hyperlink==20.0.1
-identify==1.4.25
+identify==1.4.29
 idna==2.10
 importlib-metadata==1.7.0 ; python_version < '3.8'
 incremental==17.5.0
 ipdb==0.13.3
-ipfshttpclient==0.6.0.post1
+ipfshttpclient==0.6.1
 ipython-genutils==0.2.0
-ipython==7.16.1
+ipython==7.17.0
 isbnlib==3.10.3
 jedi==0.17.2
 jellyfish==0.8.2
@@ -101,20 +101,20 @@ jsonref==0.2
 jsonschema==3.2.0
 kombu==4.6.11
 lru-dict==1.1.6
-mailchimp-marketing==3.0.12
+mailchimp-marketing==3.0.14
 manubot==0.3.1
 markupsafe==1.1.1
 mccabe==0.6.1
 msgpack==1.0.0
 multiaddr==0.0.9
 netaddr==0.8.0
-newrelic==5.14.1.144
+newrelic==5.16.2.147
 nltk==3.5
-nodeenv==1.4.0
+nodeenv==1.5.0
 numpy==1.19.1
 oauthlib==3.1.0
 packaging==20.4
-pandas==1.1.0
+pandas==1.1.1
 panflute==1.12.5
 parsimonious==0.8.1
 parso==0.7.1
@@ -122,9 +122,9 @@ pathtools==0.1.2
 pexpect==4.8.0 ; sys_platform != 'win32'
 pickleshare==0.7.5
 postgres==3.0.0
-pre-commit==2.6.0
-prompt-toolkit==3.0.5
-protobuf==3.12.4
+pre-commit==2.7.1
+prompt-toolkit==3.0.6
+protobuf==3.13.0
 psycopg2-binary==2.8.5
 psycopg2-pool==1.1
 ptyprocess==0.6.0
@@ -137,7 +137,7 @@ pycryptodome==3.9.8
 pyflakes==2.2.0
 pygments==2.6.1
 pyhamcrest==2.0.2
-pymupdf==1.17.4
+pymupdf==1.17.5
 pynliner==0.8.0
 pyopenssl==19.1.0
 pyparsing==2.4.7
@@ -158,8 +158,9 @@ requests==2.24.0
 rlp==1.2.0
 rsa==4.6 ; python_version >= '3.5'
 s3transfer==0.3.3
-sentry-sdk==0.16.3
+sentry-sdk==0.17.0
 service-identity==18.1.0
+sift==5.0.1
 six==1.15.0
 smart-open==2.1.0
 soupsieve==2.0.1
@@ -172,13 +173,13 @@ tqdm==4.48.2
 traitlets==4.3.3
 twisted[tls]==20.3.0
 txaio==20.4.1
-typing-extensions==3.7.4.2 ; python_version < '3.8'
+typing-extensions==3.7.4.3 ; python_version < '3.8'
 unidecode==1.1.1
 uritemplate==3.0.1
 urllib3==1.25.10 ; python_version != '3.4'
 varint==1.0.2
 vine==1.3.0
-virtualenv==20.0.30
+virtualenv==20.0.31
 watchdog==0.10.3
 wcwidth==0.2.5
 web3==5.12.0
