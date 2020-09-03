@@ -288,7 +288,11 @@ class AuthorViewSet(viewsets.ModelViewSet):
         if authors:
             author = authors.first()
             user = author.user
-            user_discussions = Thread.objects.filter(created_by=user)
+            user_discussions = Thread.objects.exclude(
+                created_by=None
+            ).filter(
+                created_by=user
+            )
             page = self.paginate_queryset(user_discussions)
             serializer = ThreadSerializer(page, many=True)
             return self.get_paginated_response(serializer.data)
@@ -313,7 +317,13 @@ class AuthorViewSet(viewsets.ModelViewSet):
             paper_upload_offset = int(request.GET['paperUploadOffset'])
 
             prefetch_lookups = PaperViewSet.prefetch_lookups(self)
-            user_paper_uploads = Paper.objects.filter(uploaded_by=user).prefetch_related(*prefetch_lookups)
+            user_paper_uploads = Paper.objects.exclude(
+                uploaded_by=None
+            ).filter(
+                uploaded_by=user
+            ).prefetch_related(
+                *prefetch_lookups
+            )
 
             user_paper_uploads_count = len(user_paper_uploads)
             count = (
