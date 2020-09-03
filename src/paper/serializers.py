@@ -304,7 +304,7 @@ class PaperSerializer(BasePaperSerializer):
         except Exception as e:
             error = PaperSerializerError(e, 'Failed to update paper')
             sentry.log_error(
-                error,
+                e,
                 base_error=error.trigger
             )
             raise error
