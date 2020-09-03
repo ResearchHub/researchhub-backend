@@ -304,7 +304,7 @@ class PaperSerializer(BasePaperSerializer):
                 if file:
                     self._add_file(paper, file)
 
-                user = paper.uploaded_by
+                user = request.user
                 user_agent = request.META.get('HTTP_USER_AGENT', '')
                 events_api.track_update_content_paper(user, paper, user_agent)
                 return paper
