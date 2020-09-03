@@ -1,34 +1,11 @@
-from allauth.socialaccount.helpers import render_authentication_error
 from allauth.socialaccount.models import SocialLogin, SocialAccount
-from allauth.socialaccount.providers.base import ProviderException
-from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
-from allauth.socialaccount.providers.orcid.provider import OrcidProvider
-from allauth.socialaccount.providers.orcid.views import OrcidOAuth2Adapter
-from allauth.socialaccount.providers.oauth2.client import (
-    OAuth2Error,
-    OAuth2Client
-)
-from allauth.socialaccount.providers.oauth2.views import (
-    AuthError,
-    OAuth2LoginView,
-    OAuth2CallbackView,
-    PermissionDenied,
-    RequestException
-)
+from allauth.account import app_settings
 from allauth.utils import (
-    get_request_param,
     get_user_model,
     email_address_exists
 )
-from allauth.account.signals import user_signed_up, user_logged_in
-from allauth.account import app_settings
+from rest_framework import serializers
 
-from rest_auth.registration.views import SocialLoginView
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.response import Response
-
-from django.dispatch import receiver
 from django.http import HttpRequest
 from django.utils.translation import ugettext_lazy as _
 from django.urls.exceptions import NoReverseMatch
@@ -44,10 +21,9 @@ from researchhub.settings import GOOGLE_REDIRECT_URL, GOOGLE_YOLO_REDIRECT_URL
 from user.models import Author, User
 from user.utils import merge_author_profiles
 from utils import sentry
-from utils.http import http_request, RequestMethods
+from utils.siftscience import events_api
 from analytics.models import WebsiteVisits
 
-from rest_framework import serializers
 
 class SocialLoginSerializer(serializers.Serializer):
     access_token = serializers.CharField(required=False, allow_blank=True)
@@ -98,6 +74,7 @@ class SocialLoginSerializer(serializers.Serializer):
     def validate(self, attrs, retry=0):
         view = self.context.get('view')
         request = self._get_request()
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
 
         if not view:
             raise serializers.ValidationError(
@@ -181,6 +158,11 @@ class SocialLoginSerializer(serializers.Serializer):
             pass
         except NoReverseMatch as e:
             if 'account_inactive' in str(e):
+                events_api.track_login(
+                    login.account.user,
+                    '$failure',
+                    user_agent
+                )
                 raise LoginError(None, 'Account is suspended')
         except Exception as e:
             error = LoginError(e, 'Login failed')
@@ -214,7 +196,9 @@ class SocialLoginSerializer(serializers.Serializer):
             login.lookup()
             login.save(request, connect=True)
 
-        attrs['user'] = login.account.user
+        login_user = login.account.user
+        attrs['user'] = login_user
+        events_api.track_login(login_user, '$success', user_agent)
         try:
             visits = WebsiteVisits.objects.get(uuid=attrs['uuid'])
             visits.user = attrs['user']
@@ -225,4 +209,3 @@ class SocialLoginSerializer(serializers.Serializer):
             pass
 
         return attrs
-

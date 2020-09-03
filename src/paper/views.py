@@ -64,6 +64,7 @@ from utils.http import GET, POST, check_url_contains_pdf
 from utils.sentry import log_error
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
+from utils.siftscience import events_api
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -378,10 +379,18 @@ class PaperViewSet(viewsets.ModelViewSet):
     def flag(self, request, pk=None):
         paper = self.get_object()
         reason = request.data.get('reason')
+        referrer = request.user
         flag = Flag.objects.create(
             paper=paper,
-            created_by=request.user,
+            created_by=referrer,
             reason=reason
+        )
+
+        content_id = f'{type(paper).__name__}_{paper.id}'
+        events_api.track_flag_content(
+            paper.uploaded_by,
+            content_id,
+            referrer.id
         )
         return Response(FlagSerializer(flag).data, status=201)
 
@@ -461,7 +470,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'This vote already exists',
                 status=status.HTTP_400_BAD_REQUEST
             )
-        response = update_or_create_vote(user, paper, Vote.UPVOTE)
+        response = update_or_create_vote(request, user, paper, Vote.UPVOTE)
 
         invalidate_trending_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
@@ -491,7 +500,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                 'This vote already exists',
                 status=status.HTTP_400_BAD_REQUEST
             )
-        response = update_or_create_vote(user, paper, Vote.DOWNVOTE)
+        response = update_or_create_vote(request, user, paper, Vote.DOWNVOTE)
 
         invalidate_trending_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
@@ -969,14 +978,18 @@ def find_vote(user, paper, vote_type):
     return False
 
 
-def update_or_create_vote(user, paper, vote_type):
+def update_or_create_vote(request, user, paper, vote_type):
     vote = retrieve_vote(user, paper)
+    user_agent = request.META.get('HTTP_USER_AGENT', '')
 
     if vote:
         vote.vote_type = vote_type
         vote.save()
+        events_api.track_update_content_vote(user, vote, user_agent)
         return get_vote_response(vote, 200)
     vote = create_vote(user, paper, vote_type)
+
+    events_api.track_create_content_vote(user, vote, user_agent)
     return get_vote_response(vote, 201)
 
 

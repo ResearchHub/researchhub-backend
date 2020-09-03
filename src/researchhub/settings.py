@@ -668,3 +668,8 @@ RECAPTCHA_SECRET_KEY = os.environ.get(
     'RECAPTCHA_SECRET_KEY',
     keys.RECAPTCHA_SECRET_KEY
 )
+
+# Sift Science
+
+SIFT_ACCOUNT_ID = os.environ.get('SIFT_ACCOUNT_ID', keys.SIFT_ACCOUNT_ID)
+SIFT_REST_API_KEY = os.environ.get('SIFT_REST_API_KEY', keys.SIFT_REST_API_KEY)
