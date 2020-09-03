@@ -100,7 +100,6 @@ class User(AbstractUser):
         return total_balance
 
 
-
 @receiver(models.signals.post_save, sender=User)
 def attach_author_and_email_preference(
     sender,
@@ -218,6 +217,10 @@ class Author(models.Model):
             university_city = university.city
         return (f'{self.first_name}_{self.last_name}_{university_name}_'
                 f'{university_city}')
+
+    @property
+    def full_name(self):
+        return self.first_name + ' ' + self.last_name
 
     @property
     def profile_image_indexing(self):
