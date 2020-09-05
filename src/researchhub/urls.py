@@ -132,6 +132,12 @@ router.register(
 )
 
 router.register(
+    r'events/amplitude/forward_event',
+    analytics.views.AmplitudeViewSet,
+    basename='events_amplitude'
+)
+
+router.register(
     r'purchase',
     purchase.views.PurchaseViewSet,
     basename='purchase'

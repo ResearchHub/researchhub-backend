@@ -55,6 +55,7 @@ eth-keys = "*"
 google-api-python-client = "*"
 mailchimp-marketing = "*"
 sift = "*"
+django-ipware = "*"
 
 [requires]
 python_version = "3.7"

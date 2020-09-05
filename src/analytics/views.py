@@ -9,6 +9,7 @@ from analytics.serializers import (
     PaperEventSerializer,
     WebsiteVisitsSerializer
 )
+from analytics.amplitude import Amplitude
 
 
 class WebsiteVisitsViewSet(viewsets.ModelViewSet):
@@ -53,3 +54,13 @@ class PaperEventViewSet(viewsets.ModelViewSet):
             interaction = interaction.upper()
             request.data['interaction'] = interaction
         return super().create(request, *args, **kwargs)
+
+
+class AmplitudeViewSet(viewsets.ViewSet):
+    def create(self, request, *args, **kwargs):
+        # import pdb; pdb.set_trace()
+        data = request.data['event']
+        amp = Amplitude()
+        event = amp.build_hit(request, data)
+        amp.forward_event()
+        
