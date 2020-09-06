@@ -56,6 +56,9 @@ class BasePaperSerializer(serializers.ModelSerializer):
         ]
         model = Paper
 
+    # def get_uploaded_by(self, obj):
+    #     return UserSerializer(obj.uploaded_by, read_only=True).data
+
     def to_internal_value(self, data):
         data = self._transform_to_dict(data)
         data = self._copy_data(data)
@@ -414,10 +417,15 @@ class PaperSerializer(BasePaperSerializer):
 
 class HubPaperSerializer(BasePaperSerializer):
     def get_bullet_points(self, paper):
-        bullet_points = paper.bullet_points.filter(
-            ordinal__isnull=False
-        ).order_by('ordinal')[:3]
-        return BulletPointTextOnlySerializer(bullet_points, many=True).data
+        # bullet_points = paper.bullet_points.filter(
+        #     ordinal__isnull=False
+        # ).order_by('ordinal')[:3]
+        return BulletPointTextOnlySerializer(paper.bullet_points, many=True).data
+
+    # def get_uploaded_by(self, paper):
+    #     serializer_context = {'request': self.context.get('request'), 'no_balance': True}
+    #     data = UserSerializer(paper.uploaded_by, context=serializer_context, read_only=True).data
+    #     return data
 
     def get_csl_item(self, paper):
         return None

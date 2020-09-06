@@ -789,6 +789,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         )
         page = self.paginate_queryset(order_papers)
         context = self.get_serializer_context()
+        context['user_no_balance'] = True
         serializer = HubPaperSerializer(page, many=True, context=context)
         serializer_data = serializer.data
 
