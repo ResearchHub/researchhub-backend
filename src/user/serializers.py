@@ -85,10 +85,25 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
             'upload_tutorial_complete',
             'hub_rep',
         ]
-        read_only_fields = fields
+        read_only_fields = [
+            'id',
+            'author_profile',
+            'bookmarks',
+            'created_date',
+            'has_seen_first_coin_modal',
+            'has_seen_orcid_connect_modal',
+            'is_suspended',
+            'moderator',
+            'reputation',
+            'subscribed',
+            'updated_date',
+            'upload_tutorial_complete',
+            'hub_rep',
+        ]
 
     def get_balance(self, obj):
-        return obj.get_balance()
+        if not self.read_only:
+            return obj.get_balance()
 
     def get_subscribed(self, obj):
         if self.context.get('get_subscribed'):
