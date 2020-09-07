@@ -32,8 +32,9 @@ PYTHONPATH = '/opt/python/current/app:$PYTHONPATH'
 DJANGO_SETTINGS_MODULE = 'researchhub.settings'
 ELASTIC_BEANSTALK = (APP_ENV in ['production', 'staging', 'development'])
 NO_SILK = os.environ.get('NO_SILK', False)
+CONFIG = os.environ.get('CONFIG')
 
-if CLOUD:
+if CLOUD or CONFIG:
     CONFIG_BASE_DIR = 'config'
     from config import db, keys, twitter
 else:
