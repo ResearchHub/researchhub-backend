@@ -525,9 +525,8 @@ class PaperViewSet(viewsets.ModelViewSet):
             paper_id = vote.paper_id
             data = PaperVoteSerializer(instance=vote).data
             response[paper_id] = data
-        
-        return Response(response, status=status.HTTP_200_OK)
 
+        return Response(response, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=[POST])
     def check_url(self, request):
@@ -762,15 +761,15 @@ class PaperViewSet(viewsets.ModelViewSet):
 
             if cache_hit and page_number == 1:
                 cache_hit_hub, cache_hit_papers = cache_hit
-                for item in cache_hit_hub:
-                    paper_id = item['id']
-                    try:
-                        paper = Paper.objects.get(pk=paper_id)
-                        item['user_vote'] = self.serializer_class(
-                            context={'request': request}
-                        ).get_user_vote(paper)
-                    except Exception as e:
-                        log_error(e)
+                # for item in cache_hit_hub:
+                #     paper_id = item['id']
+                #     try:
+                #         paper = Paper.objects.get(pk=paper_id)
+                #         item['user_vote'] = self.serializer_class(
+                #             context={'request': request}
+                #         ).get_user_vote(paper)
+                #     except Exception as e:
+                #         log_error(e)
 
                 # Paginates the papers stored in the cache
                 # Returns the cached data
@@ -789,6 +788,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         )
         page = self.paginate_queryset(order_papers)
         context = self.get_serializer_context()
+        context['user_no_balance'] = True
         serializer = HubPaperSerializer(page, many=True, context=context)
         serializer_data = serializer.data
 
