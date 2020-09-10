@@ -53,7 +53,7 @@ class Amplitude:
                 event_data['region'] = geo_info['region']
                 event_data['dma'] = geo_info['dma_code']
                 event_data['location_lat'] = geo_info['latitude']
-                event_data['location_lon'] = geo_info['longitude']
+                event_data['location_lng'] = geo_info['longitude']
             except Exception as e:
                 log_info(e)
 
