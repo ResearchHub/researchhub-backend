@@ -2,6 +2,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 
 from analytics.models import PaperEvent, WebsiteVisits
 from analytics.permissions import UpdateOrDelete
@@ -57,10 +58,11 @@ class PaperEventViewSet(viewsets.ModelViewSet):
 
 
 class AmplitudeViewSet(viewsets.ViewSet):
+    permissions_classes = [AllowAny]
+
     def create(self, request, *args, **kwargs):
-        data = request.data['event']
+        data = request.data
         amp = Amplitude()
         amp.build_hit(request, data)
-        res = amp.forward_event()
-        print(res)
+        amp.forward_event()
         return Response(status=200)
