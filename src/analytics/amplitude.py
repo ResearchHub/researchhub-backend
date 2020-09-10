@@ -51,5 +51,4 @@ class Amplitude:
             data=self.hit,
             headers=headers
         )
-        
-
+        return response.json()

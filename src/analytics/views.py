@@ -58,9 +58,9 @@ class PaperEventViewSet(viewsets.ModelViewSet):
 
 class AmplitudeViewSet(viewsets.ViewSet):
     def create(self, request, *args, **kwargs):
-        # import pdb; pdb.set_trace()
         data = request.data['event']
         amp = Amplitude()
-        event = amp.build_hit(request, data)
-        amp.forward_event()
-        
+        amp.build_hit(request, data)
+        res = amp.forward_event()
+        print(res)
+        return Response(status=200)
