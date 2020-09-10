@@ -39,6 +39,7 @@ class Amplitude:
                 'first_name': 'Anonymous',
                 'reputation': 0,
             }
+            event_data['user_id'] = 'Anonymous'
 
         event_data['user_properties'] = user_properties
 
