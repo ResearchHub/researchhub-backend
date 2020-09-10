@@ -673,5 +673,7 @@ SIFT_ACCOUNT_ID = os.environ.get('SIFT_ACCOUNT_ID', keys.SIFT_ACCOUNT_ID)
 SIFT_REST_API_KEY = os.environ.get('SIFT_REST_API_KEY', keys.SIFT_REST_API_KEY)
 
 
-# Amplitude
+# Amplitude and GeoIP
 AMPLITUDE_API_KEY = os.environ.get('AMPLITUDE_API_KEY', keys.AMPLITUDE_API_KEY)
+
+GEOIP_PATH = os.path.join(BASE_DIR, 'analytics')
