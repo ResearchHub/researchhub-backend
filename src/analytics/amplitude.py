@@ -14,17 +14,24 @@ class Amplitude:
 
     def build_hit(self, request, data):
         hit = data.copy()
-        user_id = data['user_id']
-        user = User.objects.get(id=user_id)
-
+        user_id = data.get('user_id')
         ip, is_routable = get_client_ip(request)
 
-        user_properties = {
-            'email': user.email,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'reputation': user.reputation,
-        }
+        if user_id:
+            user = User.objects.get(id=user_id)
+
+            user_properties = {
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'reputation': user.reputation,
+            }
+        else:
+            user_properties = {
+                'email': '',
+                'first_name': 'Anonymous',
+                'reputation': 0,
+            }
 
         hit['user_properties'] = user_properties
 
