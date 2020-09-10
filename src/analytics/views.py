@@ -58,7 +58,10 @@ class PaperEventViewSet(viewsets.ModelViewSet):
 
 
 class AmplitudeViewSet(viewsets.ViewSet):
-    permissions_classes = [AllowAny]
+    authentication_classes = ()
+
+    def get_permissions(self):
+        return [AllowAny()]
 
     def create(self, request, *args, **kwargs):
         data = request.data
