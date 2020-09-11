@@ -20,6 +20,9 @@ class Amplitude:
         user_id = data.get('user_id')
         ip, is_routable = get_client_ip(request)
 
+        if len(user_id) < 5:
+            user_id += '_____'
+
         hit['api_key'] = self.api_key
 
         if user_id:
