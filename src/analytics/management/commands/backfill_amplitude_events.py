@@ -47,7 +47,7 @@ class Command(BaseCommand):
         count = comments.count()
         events = []
         for i, comment in enumerate(comments.iterator()):
-            if (count % 1000 == 0 and i != 0) or (count - 1) == i:
+            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
                 self.forward_amp_event(events)
                 events = []
             else:
@@ -74,7 +74,7 @@ class Command(BaseCommand):
         count = replies.count()
         events = []
         for i, reply in enumerate(replies.iterator()):
-            if (count % 1000 == 0 and i != 0) or (count - 1) == i:
+            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
                 self.forward_amp_event(events)
                 events = []
             else:
@@ -101,7 +101,7 @@ class Command(BaseCommand):
         count = threads.count()
         events = []
         for i, thread in enumerate(threads.iterator()):
-            if (count % 1000 == 0 and i != 0) or (count - 1) == i:
+            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
                 self.forward_amp_event(events)
                 events = []
             else:
@@ -128,7 +128,7 @@ class Command(BaseCommand):
         count = votes.count()
         events = []
         for i, vote in enumerate(votes.iterator()):
-            if (count % 1000 == 0 and i != 0) or (count - 1) == i:
+            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
                 self.forward_amp_event(events)
                 events = []
             else:
@@ -155,7 +155,7 @@ class Command(BaseCommand):
         count = papers.count()
         events = []
         for i, paper in enumerate(papers.iterator()):
-            if (count % 1000 == 0 and i != 0) or (count - 1) == i:
+            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
                 self.forward_amp_event(events)
                 events = []
             else:
@@ -182,7 +182,7 @@ class Command(BaseCommand):
         count = votes.count()
         events = []
         for i, vote in enumerate(votes.iterator()):
-            if (count % 1000 == 0 and i != 0) or (count - 1) == i:
+            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
                 self.forward_amp_event(events)
                 events = []
             else:
@@ -209,7 +209,7 @@ class Command(BaseCommand):
         count = summaries.count()
         events = []
         for i, summary in enumerate(summaries.iterator()):
-            if (count % 1000 == 0 and i != 0) or (count - 1) == i:
+            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
                 self.forward_amp_event(events)
                 events = []
             else:
@@ -236,7 +236,7 @@ class Command(BaseCommand):
         count = bulletpoints.count()
         events = []
         for i, bulletpoint in enumerate(bulletpoints.iterator()):
-            if (count % 1000 == 0 and i != 0) or (count - 1) == i:
+            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
                 self.forward_amp_event(events)
                 events = []
             else:
@@ -263,7 +263,7 @@ class Command(BaseCommand):
         count = users.count()
         events = []
         for i, user in enumerate(users.iterator()):
-            if (count % 1000 == 0 and i != 0) or (count - 1) == i:
+            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
                 self.forward_amp_event(events)
                 events = []
             else:
