@@ -5,6 +5,7 @@ from django.core.management.base import BaseCommand
 from django.contrib.contenttypes.models import ContentType
 
 from user.models import User, Action
+from purchase.models import Purchase
 from researchhub.settings import AMPLITUDE_API_KEY
 
 
@@ -41,6 +42,7 @@ class Command(BaseCommand):
         if request.status_code != 200:
             res = request.json()
             print(res)
+        print(res)
 
     def handle_comments(self, comments):
         print('Comments')
@@ -282,6 +284,34 @@ class Command(BaseCommand):
                 }
                 events.append(hit)
 
+    def handle_purchases(self, purchases):
+        print('Purchases')
+        count = purchases.count()
+        events = []
+        for i, purchase in enumerate(purchases.iterator()):
+            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
+                self.forward_amp_event(events)
+                events = []
+            else:
+                print(f'{i}/{count}')
+                user = purchase.user
+                user_email = user.email
+                user_properties = self.get_user_props(user, user_email)
+                user_id = f'{user_email}_{user.id}'
+                if len(user_id) < 5:
+                    user_id += '_____'
+                hit = {
+                    'user_id': user_id,
+                    'event_type': 'create_purchase',
+                    'time': int(purchase.created_date.timestamp()),
+                    'user_properties': user_properties,
+                    'insert_id': f'purchase_{purchase.id}',
+                    'event_properties': {
+                        'boost_amount': purchase.amount
+                    }
+                }
+                events.append(hit)
+
     def handle(self, *args, **options):
         comment_ct = ContentType.objects.get(model='comment')
         reply_ct = ContentType.objects.get(model='reply')
@@ -331,6 +361,7 @@ class Command(BaseCommand):
             content_type=bullet_point_ct
         )
         user = User.objects
+        purchase = Purchase.objects
 
         self.handle_comments(comment)
         self.handle_replies(reply)
@@ -341,3 +372,4 @@ class Command(BaseCommand):
         self.handle_summaries(summary)
         self.handle_bulletpoints(bulletpoint)
         self.handle_user_signup(user)
+        self.handle_purchases(purchase)
