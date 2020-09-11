@@ -512,10 +512,10 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=['post'],
+        methods=['get'],
     )
     def check_user_vote(self, request):
-        paper_ids = request.data.get('paperIds', [])
+        paper_ids = request.query_params['paper_ids'].split(',')
         user = request.user
         votes = Vote.objects.filter(paper__id__in=paper_ids, created_by=user)
 
