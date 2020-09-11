@@ -57,8 +57,11 @@ class Command(BaseCommand):
                     user = comment.created_by
                     user_email = user.email
                     user_properties = self.get_user_props(user, user_email)
+                    user_id = f'{user_email}_{user.id}'
+                    if len(user_id) < 5:
+                        user_id += '_____'
                     hit = {
-                        'user_id': f'{user_email}_{user.id}',
+                        'user_id': user_id,
                         'event_type': 'create_comment',
                         'time': int(comment.created_date.timestamp()),
                         'user_properties': user_properties,
@@ -81,8 +84,11 @@ class Command(BaseCommand):
                     user = reply.created_by
                     user_email = user.email
                     user_properties = self.get_user_props(user, user_email)
+                    user_id = f'{user_email}_{user.id}'
+                    if len(user_id) < 5:
+                        user_id += '_____'
                     hit = {
-                        'user_id': f'{user_email}_{user.id}',
+                        'user_id': user_id,
                         'event_type': 'create_reply',
                         'time': int(reply.created_date.timestamp()),
                         'user_properties': user_properties,
@@ -105,8 +111,11 @@ class Command(BaseCommand):
                     user = thread.created_by
                     user_email = user.email
                     user_properties = self.get_user_props(user, user_email)
+                    user_id = f'{user_email}_{user.id}'
+                    if len(user_id) < 5:
+                        user_id += '_____'
                     hit = {
-                        'user_id': f'{user_email}_{user.id}',
+                        'user_id': user_id,
                         'event_type': 'create_thread',
                         'time': int(thread.created_date.timestamp()),
                         'user_properties': user_properties,
@@ -129,8 +138,11 @@ class Command(BaseCommand):
                     user = vote.created_by
                     user_email = user.email
                     user_properties = self.get_user_props(user, user_email)
+                    user_id = f'{user_email}_{user.id}'
+                    if len(user_id) < 5:
+                        user_id += '_____'
                     hit = {
-                        'user_id': f'{user_email}_{user.id}',
+                        'user_id': user_id,
                         'event_type': 'create_discussion_vote',
                         'time': int(vote.created_date.timestamp()),
                         'user_properties': user_properties,
@@ -153,8 +165,11 @@ class Command(BaseCommand):
                     user = paper.uploaded_by
                     user_email = user.email
                     user_properties = self.get_user_props(user, user_email)
+                    user_id = f'{user_email}_{user.id}'
+                    if len(user_id) < 5:
+                        user_id += '_____'
                     hit = {
-                        'user_id': f'{user_email}_{user.id}',
+                        'user_id': user_id,
                         'event_type': 'create_paper',
                         'time': int(paper.uploaded_date.timestamp()),
                         'user_properties': user_properties,
@@ -177,8 +192,11 @@ class Command(BaseCommand):
                     user = vote.created_by
                     user_email = user.email
                     user_properties = self.get_user_props(user, user_email)
+                    user_id = f'{user_email}_{user.id}'
+                    if len(user_id) < 5:
+                        user_id += '_____'
                     hit = {
-                        'user_id': f'{user_email}_{user.id}',
+                        'user_id': user_id,
                         'event_type': 'create_paper_vote',
                         'time': int(vote.created_date.timestamp()),
                         'user_properties': user_properties,
@@ -201,8 +219,11 @@ class Command(BaseCommand):
                     user = summary.proposed_by
                     user_email = user.email
                     user_properties = self.get_user_props(user, user_email)
+                    user_id = f'{user_email}_{user.id}'
+                    if len(user_id) < 5:
+                        user_id += '_____'
                     hit = {
-                        'user_id': f'{user_email}_{user.id}',
+                        'user_id': user_id,
                         'event_type': 'create_summary',
                         'time': int(summary.created_date.timestamp()),
                         'user_properties': user_properties,
@@ -225,8 +246,11 @@ class Command(BaseCommand):
                     user = bulletpoint.created_by
                     user_email = user.email
                     user_properties = self.get_user_props(user, user_email)
+                    user_id = f'{user_email}_{user.id}'
+                    if len(user_id) < 5:
+                        user_id += '_____'
                     hit = {
-                        'user_id': f'{user_email}_{user.id}',
+                        'user_id': user_id,
                         'event_type': 'create_bulletpoints',
                         'time': int(bulletpoint.created_date.timestamp()),
                         'user_properties': user_properties,
@@ -246,8 +270,11 @@ class Command(BaseCommand):
                 print(f'{i}/{count}')
                 user_email = user.email
                 user_properties = self.get_user_props(user, user_email)
+                user_id = f'{user_email}_{user.id}'
+                if len(user_id) < 5:
+                    user_id += '_____'
                 hit = {
-                    'user_id': f'{user_email}_{user.id}',
+                    'user_id': user_id,
                     'event_type': 'user_signup',
                     'time': int(user.date_joined.timestamp()),
                     'user_properties': user_properties,
