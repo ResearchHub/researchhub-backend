@@ -4,7 +4,7 @@ import json
 from django.core.management.base import BaseCommand
 from django.contrib.contenttypes.models import ContentType
 
-from user.models import Action
+from user.models import User, Action
 from researchhub.settings import AMPLITUDE_API_KEY
 
 
@@ -234,6 +234,27 @@ class Command(BaseCommand):
                     }
                     events.append(hit)
 
+    def handle_user_signup(self, users):
+        print('Users')
+        count = users.count()
+        events = []
+        for i, user in enumerate(users.iterator()):
+            if (count % 1000 == 0 and i != 0) or (count - 1) == i:
+                self.forward_amp_event(events)
+                events = []
+            else:
+                print(f'{i}/{count}')
+                user_email = user.email
+                user_properties = self.get_user_props(user, user_email)
+                hit = {
+                    'user_id': f'{user_email}_{user.id}',
+                    'event_type': 'user_signup',
+                    'time': int(user.date_joined.timestamp()),
+                    'user_properties': user_properties,
+                    'insert_id': f'bulletpoint_{user.id}'
+                }
+                events.append(hit)
+
     def handle(self, *args, **options):
         comment_ct = ContentType.objects.get(model='comment')
         reply_ct = ContentType.objects.get(model='reply')
@@ -282,6 +303,7 @@ class Command(BaseCommand):
         ).filter(
             content_type=bullet_point_ct
         )
+        user = User.objects
 
         self.handle_comments(comment)
         self.handle_replies(reply)
@@ -291,3 +313,4 @@ class Command(BaseCommand):
         self.handle_paper_votes(paper_vote)
         self.handle_summaries(summary)
         self.handle_bulletpoints(bulletpoint)
+        self.handle_user_signup(user)
