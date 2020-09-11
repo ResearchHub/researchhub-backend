@@ -2,6 +2,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 
 from analytics.models import PaperEvent, WebsiteVisits
 from analytics.permissions import UpdateOrDelete
@@ -9,6 +10,7 @@ from analytics.serializers import (
     PaperEventSerializer,
     WebsiteVisitsSerializer
 )
+from analytics.amplitude import Amplitude
 
 
 class WebsiteVisitsViewSet(viewsets.ModelViewSet):
@@ -53,3 +55,17 @@ class PaperEventViewSet(viewsets.ModelViewSet):
             interaction = interaction.upper()
             request.data['interaction'] = interaction
         return super().create(request, *args, **kwargs)
+
+
+class AmplitudeViewSet(viewsets.ViewSet):
+    authentication_classes = ()
+
+    def get_permissions(self):
+        return [AllowAny()]
+
+    def create(self, request, *args, **kwargs):
+        data = request.data
+        amp = Amplitude()
+        amp.build_hit(request, data)
+        amp.forward_event()
+        return Response(status=200)
