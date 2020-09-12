@@ -12,6 +12,12 @@ def get_default_hub_category():
 class HubCategory(models.Model):
     """A grouping of hubs, organized by category"""
 
+    def __str__(self):
+        return self.category_name
+
+    def __int__(self):
+        return self.id
+
     category_name = models.CharField(max_length=1024, unique=True)
 
 
