@@ -14,9 +14,9 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
-from .models import Hub
+from .models import Hub, HubCategory
 from .permissions import CreateHub, IsSubscribed, IsNotSubscribed
-from .serializers import HubSerializer
+from .serializers import HubSerializer, HubCategorySerializer
 from .filters import HubFilter
 from user.models import Action
 from user.serializers import UserActions
@@ -229,3 +229,9 @@ class HubViewSet(viewsets.ModelViewSet):
 
         data = UserActions(data=actions, user=request.user).serialized
         return Response(data)
+
+
+class HubCategoryViewSet(viewsets.ModelViewSet):
+    queryset = HubCategory.objects.all()
+    serializer_class = HubCategorySerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
