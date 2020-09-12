@@ -517,14 +517,15 @@ class PaperViewSet(viewsets.ModelViewSet):
     def check_user_vote(self, request):
         paper_ids = request.query_params['paper_ids'].split(',')
         user = request.user
-        votes = Vote.objects.filter(paper__id__in=paper_ids, created_by=user)
-
         response = {}
 
-        for vote in votes.iterator():
-            paper_id = vote.paper_id
-            data = PaperVoteSerializer(instance=vote).data
-            response[paper_id] = data
+        if user.is_authenticated:
+            votes = Vote.objects.filter(paper__id__in=paper_ids, created_by=user)
+
+            for vote in votes.iterator():
+                paper_id = vote.paper_id
+                data = PaperVoteSerializer(instance=vote).data
+                response[paper_id] = data
 
         return Response(response, status=status.HTTP_200_OK)
 
