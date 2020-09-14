@@ -1,7 +1,8 @@
 from rest_framework import serializers
 
-from .models import Hub
+from .models import Hub, HubCategory
 from utils.http import get_user_from_request
+
 
 class SimpleHubSerializer(serializers.ModelSerializer):
     class Meta:
@@ -12,6 +13,7 @@ class SimpleHubSerializer(serializers.ModelSerializer):
             'slug',
         ]
         model = Hub
+
 
 class HubSerializer(serializers.ModelSerializer):
     subscriber_count = serializers.SerializerMethodField()
@@ -25,6 +27,8 @@ class HubSerializer(serializers.ModelSerializer):
             'subscriber_count',
             'user_is_subscribed',
             'slug',
+            'description',
+            'hub_image'
         ]
         read_only_fields = [
             'subscriber_count',
@@ -38,3 +42,11 @@ class HubSerializer(serializers.ModelSerializer):
     def get_user_is_subscribed(self, obj):
         user = get_user_from_request(self.context)
         return user in obj.subscribers.all()
+
+
+class HubCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        fields = [
+            'category_name'
+        ]
+        model = HubCategory
