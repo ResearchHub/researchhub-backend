@@ -74,7 +74,6 @@ class SocialLoginSerializer(serializers.Serializer):
     def validate(self, attrs, retry=0):
         view = self.context.get('view')
         request = self._get_request()
-        user_agent = request.META.get('HTTP_USER_AGENT', '')
 
         if not view:
             raise serializers.ValidationError(
@@ -161,7 +160,7 @@ class SocialLoginSerializer(serializers.Serializer):
                 events_api.track_login(
                     login.account.user,
                     '$failure',
-                    user_agent
+                    request
                 )
                 raise LoginError(None, 'Account is suspended')
         except Exception as e:
@@ -198,7 +197,7 @@ class SocialLoginSerializer(serializers.Serializer):
 
         login_user = login.account.user
         attrs['user'] = login_user
-        events_api.track_login(login_user, '$success', user_agent)
+        events_api.track_login(login_user, '$success', request)
         try:
             visits = WebsiteVisits.objects.get(uuid=attrs['uuid'])
             visits.user = attrs['user']

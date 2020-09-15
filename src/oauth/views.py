@@ -175,8 +175,7 @@ def orcid_connect(request):
         user = request.user
 
         save_orcid_author(user, orcid, response.json())
-        user_agent = request.META.get('HTTP_USER_AGENT', '')
-        events_api.track_update_account(user, user_agent)
+        events_api.track_account(user, request, update=True)
 
         success = True
         status = 201
