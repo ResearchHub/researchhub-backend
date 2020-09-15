@@ -261,11 +261,10 @@ class ActionMixin:
         is_thread=False
     ):
         item = model.objects.get(pk=response.data['id'])
-        user_agent = request.META.get('HTTP_USER_AGENT', '')
-        events_api.track_create_content_comment(
+        events_api.track_content_comment(
             item.created_by,
             item,
-            user_agent,
+            request,
             is_thread=is_thread
         )
 
@@ -277,12 +276,12 @@ class ActionMixin:
         is_thread=False
     ):
         item = model.objects.get(pk=response.data['id'])
-        user_agent = request.META.get('HTTP_USER_AGENT', '')
-        events_api.track_update_content_comment(
+        events_api.track_content_comment(
             item.created_by,
             item,
-            user_agent,
-            is_thread=is_thread
+            request,
+            is_thread=is_thread,
+            update=True
         )
 
 
@@ -634,16 +633,15 @@ def find_vote(user, item, vote_type):
 
 def update_or_create_vote(request, user, item, vote_type):
     vote = retrieve_vote(user, item)
-    user_agent = request.META.get('HTTP_USER_AGENT', '')
 
     if vote:
         vote.vote_type = vote_type
         vote.save(update_fields=['updated_date', 'vote_type'])
-        events_api.track_update_content_vote(user, vote, user_agent)
+        events_api.track_content_vote(user, vote, request)
         return get_vote_response(vote, 200)
 
     vote = create_vote(user, item, vote_type)
-    events_api.track_create_content_vote(user, vote, user_agent)
+    events_api.track_content_vote(user, vote, request)
     return get_vote_response(vote, 201)
 
 

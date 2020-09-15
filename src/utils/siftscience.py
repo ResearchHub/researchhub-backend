@@ -1,6 +1,8 @@
 import json
 import sift.client
 
+from ipware import get_client_ip
+
 from researchhub.settings import SIFT_ACCOUNT_ID, SIFT_REST_API_KEY
 from utils import sentry
 
@@ -48,61 +50,47 @@ def unlabel_user(user_id):
 
 class EventsApi:
 
-    def track_create_account(self, user, user_agent):
+    def create_meta_properties(self, properties, request, exclude_ip=False):
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+        properties['$browser'] = {
+            '$user_agent': user_agent
+        }
+
+        if not exclude_ip:
+            ip, is_routable = get_client_ip(request)
+            if ip:
+                properties['ip'] = ip
+
+    def track_account(self, user, request, update=False):
         properties = {
             # Required Fields
-            '$user_id': user.id,
+            '$user_id': str(user.id),
 
             # Supported Fields
             '$user_email': user.email,
             '$name': f'{user.first_name} {user.last_name}',
             '$social_sign_on_type': '$google',
-
-            '$browser': {
-                '$user_agent': user_agent,
-            },
         }
+        self.create_meta_properties(properties, request, exclude_ip=True)
+        track_type = '$update_account' if update else '$create_account'
+
         try:
-            response = client.track('$create_account', properties)
+            response = client.track(track_type, properties)
             print(response.body)
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e.api_error_message)
 
-    def track_update_account(self, user, user_agent):
-        # https://sift.com/developers/docs/curl/events-api/reserved-events/update-account
-        properties = {
-            # Required Fields
-            '$user_id': user.id,
-
-            # Supported Fields
-            '$user_email': user.email,
-            '$name': f'{user.first_name} {user.last_name}',
-            '$social_sign_on_type': '$google',
-
-            '$browser': {
-                '$user_agent': user_agent,
-            }
-        }
-        try:
-            response = client.track('$update_account', properties)
-            print(response.body)
-        except sift.client.ApiException as e:
-            sentry.log_error(e)
-            print(e.api_error_message)
-
-    def track_login(self, user, login_status, user_agent):
+    def track_login(self, user, login_status, request):
         # https://sift.com/developers/docs/python/events-api/reserved-events/login
         properties = {
-            '$user_id': user.id,
+            '$user_id': str(user.id),
             '$login_status': login_status,
 
             '$username': user.username,
-
-            '$browser': {
-                '$user_agent': user_agent,
-            }
         }
+        self.create_meta_properties(properties, request)
+
         try:
             response = client.track('$login', properties)
             print(response.body)
@@ -110,12 +98,13 @@ class EventsApi:
             sentry.log_error(e)
             print(e.api_error_message)
 
-    def track_create_content_comment(
+    def track_content_comment(
         self,
         user,
         comment,
-        user_agent,
-        is_thread=False
+        request,
+        is_thread=False,
+        update=False
     ):
         root_content_id = ''
         if comment.paper is not None:
@@ -125,7 +114,7 @@ class EventsApi:
 
         comment_properties = {
             # Required fields
-            '$user_id': user.id,
+            '$user_id': str(user.id),
             # must be unique across all content types
             '$content_id': f'{type(comment).__name__}_{comment.id}',
 
@@ -137,74 +126,27 @@ class EventsApi:
                 '$body': comment.plain_text,
                 '$contact_email': user.email,
                 '$root_content_id': root_content_id,
-            },
-            '$browser': {
-                '$user_agent': user_agent,
             }
         }
-
         if not is_thread:
             comment_properties['$comment']['$parent_comment_id'] = (
                 f'{type(comment.parent).__name__}_{comment.parent.id}'
             )
 
+        self.create_meta_properties(comment_properties, request)
+        track_type = '$update_content' if update else '$create_content'
+
         try:
-            response = client.track('$create_content', comment_properties)
+            response = client.track(track_type, comment_properties)
             print(response.body)
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e.api_error_message)
 
-    def track_update_content_comment(
-        self,
-        user,
-        comment,
-        user_agent,
-        is_thread=False
-    ):
-        # https://sift.com/developers/docs/curl/events-api/reserved-events/update-content
-        root_content_id = ''
-        if comment.paper is not None:
-            root_content_id = (
-                f'{type(comment.paper).__name__}_{comment.paper.id}'
-            )
-
-        comment_properties = {
-            # Required fields
-            '$user_id': user.id,
-            # must be unique across all content types
-            '$content_id': f'{type(comment).__name__}_{comment.id}',
-
-            # Recommended fields
-            '$status': '$active',
-
-            # Required $comment object
-            '$comment': {
-                '$body': comment.plain_text,
-                '$contact_email': user.email,
-                '$root_content_id': root_content_id,
-            },
-            '$browser': {
-                '$user_agent': user_agent,
-            }
-        }
-
-        if not is_thread:
-            comment_properties['$comment']['$parent_comment_id'] = (
-                f'{type(comment.parent).__name__}_{comment.parent.id}'
-            )
-
-        try:
-            response = client.track('$update_content', comment_properties)
-            print(response.body)
-        except sift.client.ApiException as e:
-            sentry.log_error(e)
-            print(e.api_error_message)
-
-    def track_create_content_paper(self, user, paper, user_agent):
+    def track_content_paper(self, user, paper, request, update=False):
         post_properties = {
             # Required fields
-            '$user_id': user.id,
+            '$user_id': str(user.id),
             '$content_id': f'{type(paper).__name__}_{paper.id}',
 
             # Recommended fields
@@ -219,55 +161,23 @@ class EventsApi:
                     '$name': f'{user.first_name} {user.last_name}',
                 },
                 '$categories': list(paper.hubs.values_list('slug', flat=True)),
-            },
-            '$browser': {
-                '$user_agent': user_agent,
             }
         }
 
+        self.create_meta_properties(post_properties, request)
+        track_type = '$update_content' if update else '$create_content'
+
         try:
-            response = client.track('$create_content', post_properties)
+            response = client.track(track_type, post_properties)
             print(response.body)
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e.api_error_message)
 
-    def track_update_content_paper(self, user, paper, user_agent):
-        # https://sift.com/developers/docs/curl/events-api/reserved-events/update-content
-        post_properties = {
-            # Required fields
-            '$user_id': user.id,
-            '$content_id': f'{type(paper).__name__}_{paper.id}',
-
-            # Recommended fields
-            '$status': '$active',
-
-            # Required $post object
-            '$post': {
-                '$subject': paper.title,
-                '$body': paper.paper_title,
-                '$contact_email': user.email,
-                '$contact_address': {
-                    '$name': f'{user.first_name} {user.last_name}',
-                },
-                '$categories': list(paper.hubs.values_list('slug', flat=True)),
-            },
-            '$browser': {
-                '$user_agent': user_agent,
-            }
-        }
-
-        try:
-            response = client.track('$update_content', post_properties)
-            print(response.body)
-        except sift.client.ApiException as e:
-            sentry.log_error(e)
-            print(e.api_error_message)
-
-    def track_create_content_vote(self, user, vote, user_agent):
+    def track_content_vote(self, user, vote, request, update=False):
         vote_type = vote.vote_type
         review_properties = {
-            '$user_id': user.id,
+            '$user_id': str(user.id),
             '$content_id': f'{type(vote).__name__}_{vote.id}',
 
             '$status': '$active',
@@ -277,30 +187,11 @@ class EventsApi:
                 '$rating': vote_type
             }
         }
+        self.create_meta_properties(review_properties, request)
+        track_type = '$update_content' if update else '$create_content'
 
         try:
-            response = client.track('$create_content', review_properties)
-            print(response.body)
-        except sift.client.ApiException as e:
-            sentry.log_error(e)
-            print(e.api_error_message)
-
-    def track_update_content_vote(self, user, vote, user_agent):
-        vote_type = vote.vote_type
-        review_properties = {
-            '$user_id': user.id,
-            '$content_id': f'{type(vote).__name__}_{vote.id}',
-
-            '$status': '$active',
-
-            '$review': {
-                '$contact_email': user.email,
-                '$rating': vote_type
-            }
-        }
-
-        try:
-            response = client.track('$update_content', review_properties)
+            response = client.track(track_type, review_properties)
             print(response.body)
         except sift.client.ApiException as e:
             sentry.log_error(e)
@@ -309,7 +200,7 @@ class EventsApi:
     def track_flag_content(self, user, content_id, referer_id):
         # https://sift.com/developers/docs/curl/events-api/reserved-events/flag-content
         properties = {
-            '$user_id': user.id,
+            '$user_id': str(user.id),
             '$content_id': content_id,
             '$flagged_by': referer_id
         }
