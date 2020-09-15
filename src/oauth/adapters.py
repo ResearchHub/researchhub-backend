@@ -24,8 +24,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         else:
             saved_user = super().save_user(request, sociallogin, form)
 
-        user_agent = request.META.get('HTTP_USER_AGENT', '')
-        events_api.track_create_account(saved_user, user_agent)
+        events_api.track_account(saved_user, request)
         return saved_user
 
     def _generate_temporary_username(self, sociallogin):

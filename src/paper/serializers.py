@@ -262,8 +262,7 @@ class PaperSerializer(BasePaperSerializer):
                     )
 
                 self._add_references(paper)
-                user_agent = request.META.get('HTTP_USER_AGENT', '')
-                events_api.track_create_content_paper(user, paper, user_agent)
+                events_api.track_content_paper(user, paper, request)
 
                 return paper
         except IntegrityError as e:
@@ -308,8 +307,12 @@ class PaperSerializer(BasePaperSerializer):
                     self._add_file(paper, file)
 
                 user = request.user
-                user_agent = request.META.get('HTTP_USER_AGENT', '')
-                events_api.track_update_content_paper(user, paper, user_agent)
+                events_api.track_content_paper(
+                    user,
+                    paper,
+                    request,
+                    update=True
+                )
                 return paper
         except Exception as e:
             error = PaperSerializerError(e, 'Failed to update paper')

@@ -981,16 +981,15 @@ def find_vote(user, paper, vote_type):
 
 def update_or_create_vote(request, user, paper, vote_type):
     vote = retrieve_vote(user, paper)
-    user_agent = request.META.get('HTTP_USER_AGENT', '')
 
     if vote:
         vote.vote_type = vote_type
         vote.save()
-        events_api.track_update_content_vote(user, vote, user_agent)
+        events_api.track_content_vote(user, vote, request)
         return get_vote_response(vote, 200)
     vote = create_vote(user, paper, vote_type)
 
-    events_api.track_create_content_vote(user, vote, user_agent)
+    events_api.track_content_vote(user, vote, request)
     return get_vote_response(vote, 201)
 
 
