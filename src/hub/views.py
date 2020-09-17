@@ -241,9 +241,6 @@ class HubCategoryViewSet(viewsets.ModelViewSet):
         methods=[GET]
     )
     def get_hub_categories(self, request):
-        print(self.get_queryset())
         queryset = self.get_queryset()
-        #uh = [x.category_name for x in queryset]
         serializer = HubCategorySerializer(queryset, many=True)
-        print(serializer.data)
-        return Response(serializer.data)
+        return Response({'results': serializer.data})
