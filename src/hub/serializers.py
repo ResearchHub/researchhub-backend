@@ -28,7 +28,8 @@ class HubSerializer(serializers.ModelSerializer):
             'user_is_subscribed',
             'slug',
             'description',
-            'hub_image'
+            'hub_image',
+            'category_id'
         ]
         read_only_fields = [
             'subscriber_count',
@@ -47,6 +48,7 @@ class HubSerializer(serializers.ModelSerializer):
 class HubCategorySerializer(serializers.ModelSerializer):
     class Meta:
         fields = [
+            'id',
             'category_name'
         ]
         model = HubCategory
