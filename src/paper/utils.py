@@ -277,9 +277,9 @@ def get_csl_item(url) -> dict:
     persistent identifiers can be extracted.
     """
     from manubot.cite.citekey import (
-        citekey_to_csl_item, standardize_citekey, url_to_citekey)
+        CiteKey, citekey_to_csl_item, url_to_citekey)
     citekey = url_to_citekey(url)
-    citekey = standardize_citekey(citekey)
+    citekey = CiteKey(citekey).standard_id
     csl_item = citekey_to_csl_item(citekey)
     return csl_item
 
