@@ -356,7 +356,7 @@ class PaperSerializer(BasePaperSerializer):
 
         if paper.url is not None:
             if not TESTING:
-                download_pdf.apply_async((paper.id,), priority=3)
+                download_pdf.apply_async((paper.id,), priority=3, countdown=10)
             else:
                 download_pdf(paper.id)
 
