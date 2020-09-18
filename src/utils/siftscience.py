@@ -3,6 +3,9 @@ import sift.client
 
 from ipware import get_client_ip
 
+from django.apps import apps
+
+from researchhub.celery import app
 from researchhub.settings import SIFT_ACCOUNT_ID, SIFT_REST_API_KEY
 from utils import sentry
 
@@ -50,18 +53,26 @@ def unlabel_user(user_id):
 
 class EventsApi:
 
-    def create_meta_properties(self, properties, request, exclude_ip=False):
+    def create_meta_properties(self, request, exclude_ip=False):
         user_agent = request.META.get('HTTP_USER_AGENT', '')
-        properties['$browser'] = {
-            '$user_agent': user_agent
+        properties = {
+            '$browser': {
+                '$user_agent': user_agent
+            }
         }
 
         if not exclude_ip:
             ip, is_routable = get_client_ip(request)
             if ip:
                 properties['ip'] = ip
+        return properties
 
-    def track_account(self, user, request, update=False):
+    @staticmethod
+    @app.task
+    def celery_track_account(user_id, meta, update):
+        User = apps.get_model('user.User')
+        user = User.objects.get(id=user_id)
+
         properties = {
             # Required Fields
             '$user_id': str(user.id),
@@ -71,7 +82,6 @@ class EventsApi:
             '$name': f'{user.first_name} {user.last_name}',
             '$social_sign_on_type': '$google',
         }
-        self.create_meta_properties(properties, request, exclude_ip=True)
         track_type = '$update_account' if update else '$create_account'
 
         try:
@@ -81,15 +91,35 @@ class EventsApi:
             sentry.log_error(e)
             print(e.api_error_message)
 
+    def track_account(self, user, request, update=False):
+        meta = self.create_meta_properties(request, exclude_ip=True)
+        self.celery_track_account.apply_async(
+                (user.id, meta, update),
+                priority=4,
+                countdown=10,
+            )
+
     def track_login(self, user, login_status, request):
         # https://sift.com/developers/docs/python/events-api/reserved-events/login
+        meta = self.create_meta_properties(request)
+        self.celery_track_login.apply_async(
+            (user.id, meta, login_status),
+            priority=4,
+            countdown=10
+        )
+
+    @staticmethod
+    @app.task
+    def celery_track_login(user_id, meta, login_status):
+        User = apps.get_model('user.User')
+        user = User.objects.get(id=user_id)
+
         properties = {
             '$user_id': str(user.id),
             '$login_status': login_status,
 
             '$username': user.username,
         }
-        self.create_meta_properties(properties, request)
 
         try:
             response = client.track('$login', properties)
@@ -106,6 +136,35 @@ class EventsApi:
         is_thread=False,
         update=False
     ):
+        meta = self.create_meta_properties(request)
+        self.celery_track_content_comment.apply_async(
+            (
+                user.id,
+                comment.id,
+                comment.__class__.__name__,
+                meta,
+                is_thread,
+                update
+            ),
+            priority=4,
+            countdown=10
+        )
+
+    @staticmethod
+    @app.task
+    def celery_track_content_comment(
+        user_id,
+        comment_id,
+        comment_type,
+        meta,
+        is_thread,
+        update,
+    ):
+        User = apps.get_model('user.User')
+        user = User.objects.get(id=user_id)
+        Discussion = apps.get_model(f'discussion.{comment_type}')
+        comment = Discussion.objects.get(id=comment_id)
+
         root_content_id = ''
         if comment.paper is not None:
             root_content_id = (
@@ -133,7 +192,6 @@ class EventsApi:
                 f'{type(comment.parent).__name__}_{comment.parent.id}'
             )
 
-        self.create_meta_properties(comment_properties, request)
         track_type = '$update_content' if update else '$create_content'
 
         try:
@@ -144,6 +202,21 @@ class EventsApi:
             print(e.api_error_message)
 
     def track_content_paper(self, user, paper, request, update=False):
+        meta = self.create_meta_properties(request)
+        self.celery_track_content_paper.apply_async(
+            (user.id, paper.id, meta, update),
+            priority=4,
+            countdown=10,
+        )
+
+    @staticmethod
+    @app.task
+    def celery_track_content_paper(user_id, paper_id, meta, update):
+        User = apps.get_model('user.User')
+        user = User.objects.get(id=user_id)
+        Paper = apps.get_model('paper.Paper')
+        paper = Paper.objects.get(id=paper_id)
+
         post_properties = {
             # Required fields
             '$user_id': str(user.id),
@@ -164,7 +237,6 @@ class EventsApi:
             }
         }
 
-        self.create_meta_properties(post_properties, request)
         track_type = '$update_content' if update else '$create_content'
 
         try:
@@ -175,7 +247,35 @@ class EventsApi:
             print(e.api_error_message)
 
     def track_content_vote(self, user, vote, request, update=False):
-        vote_type = vote.vote_type
+        meta = self.create_meta_properties(request)
+        vote_type = vote.__module__.split('.')[0]
+        self.celery_track_content_vote.apply_async(
+            (
+                user.id,
+                vote.id,
+                vote_type,
+                meta,
+                update
+            ),
+            priority=4,
+            countdown=10
+        )
+
+    @staticmethod
+    @app.task
+    def celery_track_content_vote(
+        user_id,
+        vote_id,
+        vote_type,
+        meta,
+        update
+    ):
+        User = apps.get_model('user.User')
+        user = User.objects.get(id=user_id)
+        Vote = apps.get_model(f'{vote_type}.Vote')
+        vote = Vote.objects.get(id=vote_id)
+        rating = vote.vote_type
+
         review_properties = {
             '$user_id': str(user.id),
             '$content_id': f'{type(vote).__name__}_{vote.id}',
@@ -184,10 +284,9 @@ class EventsApi:
 
             '$review': {
                 '$contact_email': user.email,
-                '$rating': vote_type
+                '$rating': rating
             }
         }
-        self.create_meta_properties(review_properties, request)
         track_type = '$update_content' if update else '$create_content'
 
         try:
