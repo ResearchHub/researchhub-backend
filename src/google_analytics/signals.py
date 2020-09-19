@@ -303,14 +303,14 @@ def get_event_hit_response(
         category = 'Test ' + category
 
     celery_get_event_hit_response.apply_async(
-        (category, action, label, 0, date.isoformat())
+        (category, action, label, 0, date.timestamp())
     )
     return True
 
 
 @app.task
 def celery_get_event_hit_response(category, action, label, value, date):
-    date = datetime.datetime.fromisoformat(date)
+    date = datetime.datetime.fromtimestamp(date)
     fields = Hit.build_event_fields(
         category=category,
         action=action,
