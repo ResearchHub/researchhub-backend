@@ -1,6 +1,5 @@
-import datetime
-
 from django.apps import AppConfig
+from django.utils import timezone
 from urllib.parse import urlencode
 
 from google_analytics.exceptions import GoogleAnalyticsError
@@ -84,7 +83,11 @@ class GoogleAnalytics:
         '''
         if dt is None:
             return 0
-        delta = datetime.datetime.now() - dt
+
+        if dt.tzinfo is None:
+            dt = timezone.make_aware(dt)
+
+        delta = timezone.now() - dt
         return int(delta.total_seconds() * 1000)
 
     def _send_hit_data(self, data, batch=False):
