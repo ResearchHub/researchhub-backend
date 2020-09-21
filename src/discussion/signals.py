@@ -7,10 +7,11 @@ from utils.siftscience import events_api
 
 def recalc_dis_count(instance):
     paper = instance.paper
-    new_dis_count = paper.get_discussion_count()
-    paper.calculate_hot_score()
-    paper.discussion_count = new_dis_count
-    paper.save()
+    if paper:
+        new_dis_count = paper.get_discussion_count()
+        paper.calculate_hot_score()
+        paper.discussion_count = new_dis_count
+        paper.save()
 
 
 @receiver(post_save, sender=Thread, dispatch_uid='thread_post_save_signal')
