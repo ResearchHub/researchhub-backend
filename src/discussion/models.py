@@ -343,8 +343,9 @@ class Comment(BaseComment):
     @property
     def paper(self):
         thread = self.parent
-        paper = thread.paper
-        return paper
+        if thread:
+            paper = thread.paper
+            return paper
 
     @property
     def thread(self):
