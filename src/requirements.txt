@@ -105,7 +105,7 @@ jsonschema==3.2.0
 kombu==4.6.11
 lru-dict==1.1.6
 mailchimp-marketing==3.0.15
-manubot==0.3.1
+manubot==0.4.0
 markupsafe==1.1.1
 maxminddb==2.0.2
 mccabe==0.6.1
