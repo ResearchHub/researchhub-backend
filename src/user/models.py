@@ -2,6 +2,7 @@ import decimal
 
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.contrib.postgres.fields import ArrayField
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.dispatch import receiver
@@ -187,6 +188,12 @@ class Author(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True
+    )
+    education = ArrayField(
+        models.CharField(max_length=32, blank=True)
+    )
+    occupation = ArrayField(
+        models.CharField(max_length=32, blank=True)
     )
     facebook = models.CharField(
         max_length=255,
