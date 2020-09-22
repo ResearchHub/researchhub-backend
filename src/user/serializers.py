@@ -117,6 +117,17 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
             return None
 
 
+class MinimalUserSerializer(rest_framework_serializers.ModelSerializer):
+    author_profile = AuthorSerializer(read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'id',
+            'author_profile',
+        ]
+
+
 class UserEditableSerializer(rest_framework_serializers.ModelSerializer):
     author_profile = AuthorSerializer()
     balance = rest_framework_serializers.SerializerMethodField()
