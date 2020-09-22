@@ -8,6 +8,7 @@ class AuthorFilter(filters.FilterSet):
     id__ne = ListExcludeFilter(field_name='id')
     education = filters.CharFilter(lookup_expr='icontains')
     occupation = filters.CharFilter(lookup_expr='icontains')
+    tag = filters.CharFilter(lookup_expr='icontains')
 
     class Meta:
         model = Author
