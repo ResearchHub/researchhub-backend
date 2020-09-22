@@ -768,11 +768,11 @@ class PaperViewSet(viewsets.ModelViewSet):
 
             if cache_hit and page_number == 1:
                 return Response(cache_hit)
-                cache_hit_hub, cache_hit_papers = cache_hit
-                page = self.paginate_queryset(cache_hit_papers)
-                return self.get_paginated_response(
-                    {'data': cache_hit_hub, 'no_results': False}
-                )
+                # cache_hit_hub, cache_hit_papers = cache_hit
+                # page = self.paginate_queryset(cache_hit_papers)
+                # return self.get_paginated_response(
+                #     {'data': cache_hit_hub, 'no_results': False}
+                # )
 
         papers = self._get_filtered_papers(hub_id)
         order_papers = self.calculate_paper_ordering(
