@@ -441,12 +441,16 @@ def preload_hub_papers(
     end_date,
     ordering,
     hub_id,
+    meta,
+    context,
     cache_key,
 ):
     from paper.serializers import HubPaperSerializer
     from paper.views import PaperViewSet
     paper_view = PaperViewSet()
-    paper_view.request = Request(HttpRequest())
+    http_req = HttpRequest()
+    http_req.META = meta
+    paper_view.request = Request(http_req)
     papers = paper_view._get_filtered_papers(hub_id)
     order_papers = paper_view.calculate_paper_ordering(
         papers,
@@ -456,8 +460,13 @@ def preload_hub_papers(
     )
 
     page = paper_view.paginate_queryset(order_papers)
-    serializer = HubPaperSerializer(page, many=True)
+    serializer = HubPaperSerializer(page, many=True, context=context)
     serializer_data = serializer.data
+    paginated_response = paper_view.get_paginated_response(
+        {'data': serializer_data, 'no_results': False}
+    )
+    return paginated_response.data
+
     if cache_key:
         cache.set(
             cache_key,
