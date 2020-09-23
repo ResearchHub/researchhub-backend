@@ -42,8 +42,6 @@ class HubSerializer(serializers.ModelSerializer):
         model = Hub
 
     def get_subscriber_count(self, obj):
-        # print('printing obj.subscribers')
-        # print(dir(obj.subscribers))
         return len(obj.subscribers.all())
 
     def get_user_is_subscribed(self, obj):
