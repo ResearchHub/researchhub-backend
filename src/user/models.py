@@ -195,8 +195,11 @@ class Author(models.Model):
     occupation = ArrayField(
         models.CharField(max_length=32, blank=True)
     )
-    tag = ArrayField(
-        models.CharField(max_length=32, blank=True)
+    tag = models.CharField(
+        max_length=32,
+        default=None,
+        null=True,
+        blank=True,
     )
     facebook = models.CharField(
         max_length=255,
