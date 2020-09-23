@@ -12,7 +12,7 @@ from .models import (
     Reply,
     Vote,
 )
-from user.serializers import UserSerializer
+from user.serializers import MinimalUserSerializer
 from utils.http import get_user_from_request
 
 # TODO: Make is_public editable for creator as a delete mechanism
@@ -116,7 +116,7 @@ class VoteSerializer(serializers.ModelSerializer):
 
 
 class CommentSerializer(serializers.ModelSerializer, VoteMixin):
-    created_by = UserSerializer(
+    created_by = MinimalUserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
@@ -201,7 +201,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
 
 
 class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
-    created_by = UserSerializer(
+    created_by = MinimalUserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
@@ -270,7 +270,7 @@ class SimpleThreadSerializer(ThreadSerializer):
 
 
 class ReplySerializer(serializers.ModelSerializer, VoteMixin):
-    created_by = UserSerializer(
+    created_by = MinimalUserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
