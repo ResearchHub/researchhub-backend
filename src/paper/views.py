@@ -729,6 +729,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         ordering = self._set_hub_paper_ordering(request)
         hub_id = request.GET.get('hub_id', 0)
 
+        context = self.get_serializer_context()
+        context['user_no_balance'] = True
+
         if page_number == 1:
             time_difference = end_date - start_date
             cache_pk = ''
@@ -750,6 +753,8 @@ class PaperViewSet(viewsets.ModelViewSet):
                     end_date,
                     ordering,
                     hub_id,
+                    request.META,
+                    context,
                     None
                 )
 
@@ -761,24 +766,12 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
 
             if cache_hit and page_number == 1:
-                cache_hit_hub, cache_hit_papers = cache_hit
-                # for item in cache_hit_hub:
-                #     paper_id = item['id']
-                #     try:
-                #         paper = Paper.objects.get(pk=paper_id)
-                #         item['user_vote'] = self.serializer_class(
-                #             context={'request': request}
-                #         ).get_user_vote(paper)
-                #     except Exception as e:
-                #         log_error(e)
-
-                # Paginates the papers stored in the cache
-                # Returns the cached data
-
-                page = self.paginate_queryset(cache_hit_papers)
-                return self.get_paginated_response(
-                    {'data': cache_hit_hub, 'no_results': False}
-                )
+                return Response(cache_hit)
+                # cache_hit_hub, cache_hit_papers = cache_hit
+                # page = self.paginate_queryset(cache_hit_papers)
+                # return self.get_paginated_response(
+                #     {'data': cache_hit_hub, 'no_results': False}
+                # )
 
         papers = self._get_filtered_papers(hub_id)
         order_papers = self.calculate_paper_ordering(
@@ -788,8 +781,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             end_date
         )
         page = self.paginate_queryset(order_papers)
-        context = self.get_serializer_context()
-        context['user_no_balance'] = True
         serializer = HubPaperSerializer(page, many=True, context=context)
         serializer_data = serializer.data
 
