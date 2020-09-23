@@ -2,7 +2,7 @@ import decimal
 
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from django.contrib.postgres.fields import ArrayField
+from django.contrib.postgres.fields import ArrayField, JSONField
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.dispatch import receiver
@@ -190,16 +190,14 @@ class Author(models.Model):
         blank=True
     )
     education = ArrayField(
-        models.CharField(max_length=32, blank=True)
+        JSONField(
+            blank=True,
+            null=True
+        )
     )
-    occupation = ArrayField(
-        models.CharField(max_length=32, blank=True)
-    )
-    tag = models.CharField(
-        max_length=32,
-        default=None,
-        null=True,
+    headline = JSONField(
         blank=True,
+        null=True
     )
     facebook = models.CharField(
         max_length=255,
