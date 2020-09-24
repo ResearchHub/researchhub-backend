@@ -235,12 +235,3 @@ class HubCategoryViewSet(viewsets.ModelViewSet):
     queryset = HubCategory.objects.all()
     serializer_class = HubCategorySerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
-
-    @action(
-        detail=False,
-        methods=[GET]
-    )
-    def get_hub_categories(self, request):
-        queryset = self.get_queryset()
-        serializer = HubCategorySerializer(queryset, many=True)
-        return Response({'results': serializer.data})
