@@ -5,7 +5,8 @@ class Command(BaseCommand):
 
     def migrate_content(self, from_hub_name, to_hub_name):
         """ 
-        Migrates content (papers, user actions, reputation distributions) between hubs.
+        Migrates content (subscribers, papers, user actions, reputation distributions)
+        between hubs.
   
         Parameters: 
             from_hub_name (str): The name of the hub we are migrating the content out of.
@@ -14,6 +15,10 @@ class Command(BaseCommand):
         """
         from_hub = Hub.objects.get(name=from_hub_name)
         to_hub = Hub.objects.get(name=to_hub_name)
+
+        for subscriber in from_hub.subscribers.all():
+            subscriber.subscribed_hubs.remove(from_hub)
+            subscriber.subscribed_hubs.add(to_hub)
 
         for paper in from_hub.papers.all():
             paper.hubs.remove(from_hub)
