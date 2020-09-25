@@ -52,6 +52,7 @@ class Hub(models.Model):
     updated_date = models.DateTimeField(auto_now=True)
 
     paper_count = models.IntegerField(default=0)
+    discussion_count = models.IntegerField(default=0)
 
     def __str__(self):
         return '{}, locked: {}'.format(self.name, self.is_locked)

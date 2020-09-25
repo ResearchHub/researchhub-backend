@@ -12,6 +12,11 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name='hub',
+            name='discussion_count',
+            field=models.IntegerField(default=0)
+        ),
+        migrations.AddField(
+            model_name='hub',
             name='paper_count',
             field=models.IntegerField(default=0),
         ),
