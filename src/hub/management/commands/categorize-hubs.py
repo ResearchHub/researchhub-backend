@@ -1,13 +1,14 @@
 from django.core.management.base import BaseCommand
 from hub.models import Hub, HubCategory
 
+
 class Command(BaseCommand):
 
     def update_hub_category(self, hub_name, category_name):
-        """ 
+        """
         Updates the category of a hub.
-  
-        Parameters: 
+
+        Parameters:
             hub_name (str): The name of the hub to update.
             category_name (str): The name of the category we're updating to.
 
@@ -19,14 +20,14 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         categories_and_hubs = {
-            'Math' : [
+            'Math': [
                 'mathematics',
                 'abstract algebra',
                 'data analysis, statistics and probability',
                 'number theory',
                 'logic',
             ],
-            'Physics' : [
+            'Physics': [
                 'physics',
                 'astrophysics',
                 'atomic physics',
@@ -37,7 +38,7 @@ class Command(BaseCommand):
                 'optics',
                 'quantum physics',
             ],
-            'Computer Science' : [
+            'Computer Science': [
                 'computer science',
                 'artificial intelligence',
                 'distributed, parallel, and cluster computing',
@@ -50,7 +51,7 @@ class Command(BaseCommand):
                 'machine learning',
                 'software engineering',
             ],
-            'Biology' : [
+            'Biology': [
                 'biology',
                 'bioinformatics',
                 'biomolecules',
@@ -75,7 +76,7 @@ class Command(BaseCommand):
                 'synthetic biology',
                 'zoology',
             ],
-            'Medicine' : [
+            'Medicine': [
                 'anesthesiology',
                 'medicine',
                 'covid-19 / coronavirus',
@@ -91,12 +92,12 @@ class Command(BaseCommand):
                 'psychology',
                 'nutrition',
             ],
-            'Chemistry' : [
+            'Chemistry': [
                 'chemistry',
                 'chemical physics',
                 'materials science',
             ],
-            'Engineering' : [
+            'Engineering': [
                 'engineering',
                 'biotechnology',
                 'chemical engineering',
@@ -104,7 +105,7 @@ class Command(BaseCommand):
                 'emerging technologies',
                 'photovoltaics',
             ],
-            'Social and Behavioral Sciences' : [
+            'Social and Behavioral Sciences': [
                 'sociology',
                 'political science',
                 'social and information networks',
@@ -115,7 +116,7 @@ class Command(BaseCommand):
                 'methodology',
                 'metascience',
             ],
-            'Arts and Humanities' : [
+            'Arts and Humanities': [
                 'art',
                 'design',
                 'philosophy',
@@ -123,7 +124,7 @@ class Command(BaseCommand):
                 'general literature',
                 'anthropology',
             ],
-            'Other' : [
+            'Other': [
                 'other',
             ],
         }
