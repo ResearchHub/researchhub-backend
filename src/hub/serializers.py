@@ -18,7 +18,6 @@ class SimpleHubSerializer(serializers.ModelSerializer):
 class HubSerializer(serializers.ModelSerializer):
     subscriber_count = serializers.SerializerMethodField()
     user_is_subscribed = serializers.SerializerMethodField()
-    discussion_count = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -46,9 +45,6 @@ class HubSerializer(serializers.ModelSerializer):
     def get_user_is_subscribed(self, obj):
         user = get_user_from_request(self.context)
         return user in obj.subscribers.all()
-
-    def get_discussion_count(self, obj):
-        return sum(paper.discussion_count for paper in obj.papers.all())
 
 
 class HubCategorySerializer(serializers.ModelSerializer):
