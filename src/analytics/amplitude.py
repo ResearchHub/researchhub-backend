@@ -17,7 +17,7 @@ class Amplitude:
     def build_hit(self, request, data):
         hit = {}
         event_data = data.copy()
-        user_id = data.get('user_id')
+        user_id = data.get('user_id', request.user.id)
         ip, is_routable = get_client_ip(request)
 
         hit['api_key'] = self.api_key
@@ -32,7 +32,11 @@ class Amplitude:
                 'last_name': user.last_name,
                 'reputation': user.reputation,
             }
-            event_data['user_id'] = f'{user_email}_{user_id}'
+            user_id = f'{user_email}_{user_id}'
+
+            if len(user_id) < 5:
+                user_id += '_____'
+            event_data['user_id'] = user_id
         else:
             user_properties = {
                 'email': '',

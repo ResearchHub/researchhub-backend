@@ -19,8 +19,6 @@ from paper.models import Paper, Vote as PaperVote
 
 @app.task
 def notify_immediate(action_id):
-    # TODO: Temporarily turning off notifications - Revamp
-    return
     actions_notifications([action_id], NotificationFrequencies.IMMEDIATE)
 
 
