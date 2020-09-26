@@ -517,14 +517,15 @@ class PaperViewSet(viewsets.ModelViewSet):
     def check_user_vote(self, request):
         paper_ids = request.query_params['paper_ids'].split(',')
         user = request.user
-        votes = Vote.objects.filter(paper__id__in=paper_ids, created_by=user)
-
         response = {}
 
-        for vote in votes.iterator():
-            paper_id = vote.paper_id
-            data = PaperVoteSerializer(instance=vote).data
-            response[paper_id] = data
+        if user.is_authenticated:
+            votes = Vote.objects.filter(paper__id__in=paper_ids, created_by=user)
+
+            for vote in votes.iterator():
+                paper_id = vote.paper_id
+                data = PaperVoteSerializer(instance=vote).data
+                response[paper_id] = data
 
         return Response(response, status=status.HTTP_200_OK)
 
@@ -728,6 +729,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         ordering = self._set_hub_paper_ordering(request)
         hub_id = request.GET.get('hub_id', 0)
 
+        context = self.get_serializer_context()
+        context['user_no_balance'] = True
+
         if page_number == 1:
             time_difference = end_date - start_date
             cache_pk = ''
@@ -749,6 +753,8 @@ class PaperViewSet(viewsets.ModelViewSet):
                     end_date,
                     ordering,
                     hub_id,
+                    request.META,
+                    context,
                     None
                 )
 
@@ -760,24 +766,12 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
 
             if cache_hit and page_number == 1:
-                cache_hit_hub, cache_hit_papers = cache_hit
-                # for item in cache_hit_hub:
-                #     paper_id = item['id']
-                #     try:
-                #         paper = Paper.objects.get(pk=paper_id)
-                #         item['user_vote'] = self.serializer_class(
-                #             context={'request': request}
-                #         ).get_user_vote(paper)
-                #     except Exception as e:
-                #         log_error(e)
-
-                # Paginates the papers stored in the cache
-                # Returns the cached data
-
-                page = self.paginate_queryset(cache_hit_papers)
-                return self.get_paginated_response(
-                    {'data': cache_hit_hub, 'no_results': False}
-                )
+                return Response(cache_hit)
+                # cache_hit_hub, cache_hit_papers = cache_hit
+                # page = self.paginate_queryset(cache_hit_papers)
+                # return self.get_paginated_response(
+                #     {'data': cache_hit_hub, 'no_results': False}
+                # )
 
         papers = self._get_filtered_papers(hub_id)
         order_papers = self.calculate_paper_ordering(
@@ -787,8 +781,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             end_date
         )
         page = self.paginate_queryset(order_papers)
-        context = self.get_serializer_context()
-        context['user_no_balance'] = True
         serializer = HubPaperSerializer(page, many=True, context=context)
         serializer_data = serializer.data
 
@@ -980,16 +972,15 @@ def find_vote(user, paper, vote_type):
 
 def update_or_create_vote(request, user, paper, vote_type):
     vote = retrieve_vote(user, paper)
-    user_agent = request.META.get('HTTP_USER_AGENT', '')
 
     if vote:
         vote.vote_type = vote_type
         vote.save()
-        events_api.track_update_content_vote(user, vote, user_agent)
+        events_api.track_content_vote(user, vote, request)
         return get_vote_response(vote, 200)
     vote = create_vote(user, paper, vote_type)
 
-    events_api.track_create_content_vote(user, vote, user_agent)
+    events_api.track_content_vote(user, vote, request)
     return get_vote_response(vote, 201)
 
 

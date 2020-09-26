@@ -4,6 +4,7 @@ Mostly handles sending google analytics events on past save signals.
 Notice events related to pdf uploads are *not* included here and are better
 handled at the view level.
 """
+import datetime
 
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -19,6 +20,7 @@ from discussion.models import (
 from google_analytics.apps import GoogleAnalytics, Hit
 from paper.models import Figure, Paper, Vote as PaperVote
 from researchhub.settings import PRODUCTION
+from researchhub.celery import app
 from summary.models import Summary
 from user.models import User
 
@@ -300,6 +302,15 @@ def get_event_hit_response(
     if not PRODUCTION:
         category = 'Test ' + category
 
+    celery_get_event_hit_response.apply_async(
+        (category, action, label, 0, date.timestamp())
+    )
+    return True
+
+
+@app.task
+def celery_get_event_hit_response(category, action, label, value, date):
+    date = datetime.datetime.fromtimestamp(date)
     fields = Hit.build_event_fields(
         category=category,
         action=action,

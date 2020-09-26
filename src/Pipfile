@@ -27,7 +27,7 @@ django-inlinecss = "*"
 boto = "*"
 django-ses = "*"
 web3 = "*"
-manubot = "==0.3.1"
+manubot = "==0.4.0"
 django-silk = "*"
 django-dbbackup = "*"
 celery = {extras = ["redis"],version = "*"}
