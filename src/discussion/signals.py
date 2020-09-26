@@ -9,6 +9,12 @@ def recalc_dis_count(instance):
     paper = instance.paper
     new_dis_count = paper.get_discussion_count()
     paper.calculate_hot_score()
+
+    if paper.discussion_count < new_dis_count:
+        for hub in paper.hubs.all():
+            hub.discussion_count += 1
+            hub.save()
+
     paper.discussion_count = new_dis_count
     paper.save()
 
