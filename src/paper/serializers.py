@@ -253,6 +253,9 @@ class PaperSerializer(BasePaperSerializer):
                 paper.authors.add(*authors)
                 self._add_orcid_authors(paper)
                 paper.hubs.add(*hubs)
+                for hub in hubs:
+                    hub.paper_count += 1
+                    hub.save()
 
                 try:
                     self._add_file(paper, file)
@@ -300,8 +303,18 @@ class PaperSerializer(BasePaperSerializer):
                     for current_hub in current_hubs:
                         if current_hub not in hubs:
                             remove_hubs.append(current_hub)
+                    new_hubs = []
+                    for hub in hubs:
+                        if hub not in current_hubs:
+                            new_hubs.append(hub)
                     paper.hubs.remove(*remove_hubs)
                     paper.hubs.add(*hubs)
+                    for hub in remove_hubs:
+                        hub.paper_count -= 1
+                        hub.save()
+                    for hub in new_hubs:
+                        hub.paper_count += 1
+                        hub.save()
                 paper.authors.add(*authors)
 
                 if file:
