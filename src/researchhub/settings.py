@@ -612,9 +612,9 @@ else:
 elastic_token = os.environ.get('ELASTIC_APM_SECRET_TOKEN', '')
 if elastic_token:
     if not CELERY_WORKER and not TESTING:
-    MIDDLEWARE = [
-        'elasticapm.contrib.django.middleware.TracingMiddleware',
-    ] + MIDDLEWARE
+        MIDDLEWARE = [
+            'elasticapm.contrib.django.middleware.TracingMiddleware',
+        ] + MIDDLEWARE
 
     ELASTIC_APM = {
         # Set required service name. Allowed characters:
