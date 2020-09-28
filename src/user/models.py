@@ -193,7 +193,9 @@ class Author(models.Model):
         JSONField(
             blank=True,
             null=True
-        )
+        ),
+        blank=True,
+        null=True
     )
     headline = JSONField(
         blank=True,
