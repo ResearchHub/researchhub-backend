@@ -193,12 +193,6 @@ INSTALLED_APPS = [
     'purchase',
 ]
 
-if not CELERY_WORKER:
-    INSTALLED_APPS += [
-        # Monitoring
-        'elasticapm.contrib.django',
-    ]
-
 SITE_ID = 1
 
 MIDDLEWARE = [
@@ -611,6 +605,11 @@ else:
 
 elastic_token = os.environ.get('ELASTIC_APM_SECRET_TOKEN', '')
 if elastic_token:
+    if not CELERY_WORKER:
+        INSTALLED_APPS += [
+            # Monitoring
+            'elasticapm.contrib.django',
+        ]
     if not CELERY_WORKER and not TESTING:
         MIDDLEWARE = [
             'elasticapm.contrib.django.middleware.TracingMiddleware',
