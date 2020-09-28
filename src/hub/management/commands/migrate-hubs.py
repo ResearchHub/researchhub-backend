@@ -34,21 +34,18 @@ class Command(BaseCommand):
             reputation_distribution.hubs.remove(from_hub)
             reputation_distribution.hubs.add(to_hub)
 
+        print(f'done {from_hub_name} -> {to_hub_name}')
+
     def handle(self, *args, **options):
         # Math
         print('STARTING MATH')
         self.migrate_content('general mathematics', 'mathematics')
-        print('done general mathematics -> mathematics')
         self.migrate_content('mathematical software', 'mathematics')
-        print('done mathematical software -> mathematics')
         self.migrate_content('statistics theory',
                              'data analysis, statistics and probability')
-        print('done statistics theory -> data analysis, statistics and probability')
         self.migrate_content('other statistics',
                              'data analysis, statistics and probability')
-        print('done other statistics -> data analysis, statistics and probability')
         self.migrate_content('logic in computer science', 'logic')
-        print('logic in computer science -> logic')
         print('DONE MATH')
 
         # Physics
