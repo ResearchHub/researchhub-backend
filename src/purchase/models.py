@@ -9,6 +9,42 @@ from django.db import models
 from utils.models import PaidStatusModelMixin
 
 
+class Support(models.Model):
+    STRIPE = 'STRIPE'
+    PAYPAL = 'PAYPAL'
+    ETH = 'ETH'
+    BTC = 'BTC'
+    RSC = 'RSC'
+
+    SINGLE = 'SINGLE'
+    MONTHLY = 'MONTHLY'
+
+    payment_type_choices = [
+        (STRIPE, STRIPE),
+        (PAYPAL, PAYPAL),
+        (ETH, ETH),
+        (BTC, BTC),
+        (RSC, RSC)
+    ]
+
+    duration_choices = [
+        (SINGLE, SINGLE),
+        (MONTHLY, MONTHLY)
+    ]
+
+    payment_type = models.CharField(
+        choices=payment_type_choices,
+        max_length=8
+    )
+    duration = models.CharField(
+        choices=duration_choices,
+        max_length=8
+    )
+    amount = models.CharField(
+        max_length=255
+    )
+
+
 class AggregatePurchase(PaidStatusModelMixin):
     user = models.ForeignKey(
         'user.User',
