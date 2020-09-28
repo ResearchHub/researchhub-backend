@@ -25,19 +25,16 @@ class Command(BaseCommand):
 
         for i, paper in enumerate(from_hub.papers.all()):
             print('paper', i)
-            subscriber.subscribed_hubs.remove(from_hub)
             paper.hubs.remove(from_hub)
             paper.hubs.add(to_hub)
 
         for i, user_action in enumerate(from_hub.actions.all()):
             print('user_action', i)
-            subscriber.subscribed_hubs.remove(from_hub)
             user_action.hubs.remove(from_hub)
             user_action.hubs.add(to_hub)
 
         for i, reputation_distribution in enumerate(from_hub.reputation_records.all()):
             print('reputation_distribution', i)
-            subscriber.subscribed_hubs.remove(from_hub)
             reputation_distribution.hubs.remove(from_hub)
             reputation_distribution.hubs.add(to_hub)
 
