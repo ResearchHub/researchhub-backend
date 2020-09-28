@@ -132,6 +132,13 @@ class University(models.Model):
         ordering = ['name']
 
 
+class Major(models.Model):
+    # FOD1P is a census id
+    FOD1P = models.IntegerField()
+    major = models.CharField(max_length=128)
+    major_category = models.CharField(max_length=64)
+
+
 class ProfileImageStorage(S3Boto3Storage):
     def __init__(self):
         super(ProfileImageStorage, self).__init__()
