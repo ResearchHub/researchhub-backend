@@ -15,7 +15,6 @@ class Command(BaseCommand):
             'Engineering',
             'Social and Behavioral Sciences',
             'Arts and Humanities',
-            'Other',
         ]
         for category_name in categories:
             category = HubCategory(category_name=category_name)

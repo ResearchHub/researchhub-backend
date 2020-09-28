@@ -36,15 +36,23 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         # Math
+        print('STARTING MATH')
         self.migrate_content('general mathematics', 'mathematics')
+        print('done general mathematics -> mathematics')
         self.migrate_content('mathematical software', 'mathematics')
+        print('done mathematical software -> mathematics')
         self.migrate_content('statistics theory',
                              'data analysis, statistics and probability')
+        print('done statistics theory -> data analysis, statistics and probability')
         self.migrate_content('other statistics',
                              'data analysis, statistics and probability')
+        print('done other statistics -> data analysis, statistics and probability')
         self.migrate_content('logic in computer science', 'logic')
+        print('logic in computer science -> logic')
+        print('DONE MATH')
 
         # Physics
+        print('STARTING PHYSICS')
         self.migrate_content('general physics', 'physics')
         self.migrate_content('applied physics', 'physics')
         self.migrate_content('classical physics', 'physics')
@@ -61,8 +69,10 @@ class Command(BaseCommand):
         self.migrate_content(
             'cosmology and nongalactic astrophysics', 'astrophysics')
         self.migrate_content('quantum gravity', 'quantum physics')
+        print('DONE PHYSICS')
 
         # Computer Science
+        print('STARTING COMPUTER SCIENCE')
         self.migrate_content('other computer science', 'computer science')
         self.migrate_content('computers and society', 'computer science')
         self.migrate_content('digital libraries', 'computer science')
@@ -73,8 +83,10 @@ class Command(BaseCommand):
                              'programming languages')
         self.migrate_content('human computer interaction',
                              'human-computer interaction')
+        print('DONE COMPUTER SCIENCE')
 
         # Biology
+        print('STARTING BIOLOGY')
         self.migrate_content('agronomy', 'biology')
         self.migrate_content('lipid', 'biomolecules')
         self.migrate_content('biological physics', 'biophysics')
@@ -91,17 +103,25 @@ class Command(BaseCommand):
         self.migrate_content('molecular networks', 'systems-biology')
         self.migrate_content('drug discovery', 'pharmacology-and-toxicology')
         self.migrate_content('synthetic-biology', 'synthetic biology')
+        print('DONE BIOLOGY')
 
         # Medicine
+        print('STARTING MEDICINE')
         self.migrate_content('medical sciences', 'medicine')
+        print('DONE MEDICINE')
 
         # Chemistry
+        print('STARTING CHEMISTRY')
         self.migrate_content('material science', 'materials science')
+        print('DONE CHEMISTRY')
 
         # Engineering
+        print('STARTING ENGINEERING')
         self.migrate_content('bioengineering', 'biotechnology')
+        print('DONE ENGINEERING')
 
         # Social and Behavioral Sciences
+        print('STARTING SOCIAL AND BEHAVIORAL SCIENCES')
         self.migrate_content('social and information networks', 'sociology')
         self.migrate_content('populations and evolution', 'sociology')
         self.migrate_content('general economics', 'economics')
@@ -113,6 +133,9 @@ class Command(BaseCommand):
         self.migrate_content('quantitative methods', 'methodology')
         self.migrate_content(
             'scientific-communication-and-education', 'metascience')
+        print('DONE SOCIAL AND BEHAVIORAL SCIENCES')
 
         # Other
+        print('STARTING OTHER')
         self.migrate_content('general', 'other')
+        print('DONE OTHER')
