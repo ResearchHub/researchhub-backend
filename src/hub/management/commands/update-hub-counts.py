@@ -7,6 +7,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         all_hubs = Hub.objects.all()
         for hub in all_hubs:
+            hub.subscriber_count = hub.subscribers.count()
             hub.paper_count = hub.papers.count()
             hub.discussion_count = sum(paper.discussion_count_indexing for paper in hub.papers.all())
             hub.save()
