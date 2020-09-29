@@ -99,7 +99,6 @@ class HubViewSet(viewsets.ModelViewSet):
             score += paper_count
             qs = self.queryset.annotate(
                 score=score,
-                paper_count=paper_count
             ).order_by('-score')
             return qs
         else:
