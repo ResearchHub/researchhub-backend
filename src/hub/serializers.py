@@ -33,7 +33,6 @@ class HubSerializer(serializers.ModelSerializer):
             'category'
         ]
         read_only_fields = [
-            'subscriber_count',
             'user_is_subscribed'
         ]
         model = Hub
