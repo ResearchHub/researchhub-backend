@@ -51,6 +51,7 @@ class Hub(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
+    subscriber_count = models.IntegerField(default=0)
     paper_count = models.IntegerField(default=0)
     discussion_count = models.IntegerField(default=0)
 

@@ -16,7 +16,6 @@ class SimpleHubSerializer(serializers.ModelSerializer):
 
 
 class HubSerializer(serializers.ModelSerializer):
-    subscriber_count = serializers.SerializerMethodField()
     user_is_subscribed = serializers.SerializerMethodField()
 
     class Meta:
@@ -24,8 +23,8 @@ class HubSerializer(serializers.ModelSerializer):
             'id',
             'name',
             'is_locked',
-            'subscriber_count',
             'user_is_subscribed',
+            'subscriber_count',
             'paper_count',
             'discussion_count',
             'slug',
@@ -38,9 +37,6 @@ class HubSerializer(serializers.ModelSerializer):
             'user_is_subscribed'
         ]
         model = Hub
-
-    def get_subscriber_count(self, obj):
-        return obj.subscribers.count()
 
     def get_user_is_subscribed(self, obj):
         user = get_user_from_request(self.context)
