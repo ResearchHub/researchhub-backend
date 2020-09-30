@@ -62,10 +62,12 @@ class Command(BaseCommand):
             'Engineering',
             'Social and Behavioral Sciences',
             'Arts and Humanities',
+            'Other',
         ]
         for category_name in categories:
-            category = HubCategory(category_name=category_name)
-            category.save()
+            if not HubCategory.objects.filter(category_name=category_name).exists():
+                category = HubCategory(category_name=category_name)
+                category.save()
 
         # categorize-hubs.py
         categories_and_hubs = {
