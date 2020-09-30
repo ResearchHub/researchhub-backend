@@ -13,10 +13,11 @@ class Command(BaseCommand):
             category_name (str): The name of the category we're updating to.
 
         """
-        hub = Hub.objects.get(name=hub_name)
-        category = HubCategory.objects.get(category_name=category_name)
-        hub.category = category
-        hub.save()
+        if Hub.objects.filter(name=hub_name).exists():
+            hub = Hub.objects.get(name=hub_name)
+            category = HubCategory.objects.get(category_name=category_name)
+            hub.category = category
+            hub.save()
 
     def migrate_content(self, from_hub_name, to_hub_name):
         """
@@ -29,26 +30,28 @@ class Command(BaseCommand):
             to_hub_name (str): The name of hub we are migrating the content into.
 
         """
-        from_hub = Hub.objects.get(name=from_hub_name)
-        to_hub = Hub.objects.get(name=to_hub_name)
+        if (Hub.objects.filter(name=from_hub_name).exists() and
+            Hub.objects.filter(name=to_hub_name).exists()):
+            from_hub = Hub.objects.get(name=from_hub_name)
+            to_hub = Hub.objects.get(name=to_hub_name)
 
-        for subscriber in from_hub.subscribers.all():
-            subscriber.subscribed_hubs.remove(from_hub)
-            subscriber.subscribed_hubs.add(to_hub)
+            for subscriber in from_hub.subscribers.all():
+                subscriber.subscribed_hubs.remove(from_hub)
+                subscriber.subscribed_hubs.add(to_hub)
 
-        for paper in from_hub.papers.all():
-            paper.hubs.remove(from_hub)
-            paper.hubs.add(to_hub)
+            for paper in from_hub.papers.all():
+                paper.hubs.remove(from_hub)
+                paper.hubs.add(to_hub)
 
-        for user_action in from_hub.actions.all():
-            user_action.hubs.remove(from_hub)
-            user_action.hubs.add(to_hub)
+            for user_action in from_hub.actions.all():
+                user_action.hubs.remove(from_hub)
+                user_action.hubs.add(to_hub)
 
-        for reputation_distribution in from_hub.reputation_records.all():
-            reputation_distribution.hubs.remove(from_hub)
-            reputation_distribution.hubs.add(to_hub)
+            for reputation_distribution in from_hub.reputation_records.all():
+                reputation_distribution.hubs.remove(from_hub)
+                reputation_distribution.hubs.add(to_hub)
 
-        print(f'finished migrating {from_hub_name} -> {to_hub_name}')
+            print(f'finished migrating {from_hub_name} -> {to_hub_name}')
 
     def handle(self, *args, **options):
         # create-categories.py
@@ -346,5 +349,6 @@ class Command(BaseCommand):
         ]
 
         for hub_name in hubs_to_delete:
-            hub = Hub.objects.get(name=hub_name)
-            hub.delete()
+            if Hub.objects.filter(name=hub_name).exists():
+                hub = Hub.objects.get(name=hub_name)
+                hub.delete()
