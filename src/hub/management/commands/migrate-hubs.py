@@ -18,31 +18,26 @@ class Command(BaseCommand):
         from_hub = Hub.objects.get(name=from_hub_name)
         to_hub = Hub.objects.get(name=to_hub_name)
 
-        for i, subscriber in enumerate(from_hub.subscribers.all()):
-            print('subscriber', i)
+        for subscriber in from_hub.subscribers.all():
             subscriber.subscribed_hubs.remove(from_hub)
             subscriber.subscribed_hubs.add(to_hub)
 
-        for i, paper in enumerate(from_hub.papers.all()):
-            print('paper', i)
+        for paper in from_hub.papers.all():
             paper.hubs.remove(from_hub)
             paper.hubs.add(to_hub)
 
-        for i, user_action in enumerate(from_hub.actions.all()):
-            print('user_action', i)
+        for user_action in from_hub.actions.all():
             user_action.hubs.remove(from_hub)
             user_action.hubs.add(to_hub)
 
-        for i, reputation_distribution in enumerate(from_hub.reputation_records.all()):
-            print('reputation_distribution', i)
+        for reputation_distribution in from_hub.reputation_records.all():
             reputation_distribution.hubs.remove(from_hub)
             reputation_distribution.hubs.add(to_hub)
 
-        print(f'done {from_hub_name} -> {to_hub_name}')
+        print(f'finished migrating {from_hub_name} -> {to_hub_name}')
 
     def handle(self, *args, **options):
         # Math
-        print('STARTING MATH')
         self.migrate_content('general mathematics', 'mathematics')
         self.migrate_content('mathematical software', 'mathematics')
         self.migrate_content('statistics theory',
@@ -50,10 +45,8 @@ class Command(BaseCommand):
         self.migrate_content('other statistics',
                              'data analysis, statistics and probability')
         self.migrate_content('logic in computer science', 'logic')
-        print('DONE MATH')
 
         # Physics
-        print('STARTING PHYSICS')
         self.migrate_content('general physics', 'physics')
         self.migrate_content('applied physics', 'physics')
         self.migrate_content('classical physics', 'physics')
@@ -70,10 +63,8 @@ class Command(BaseCommand):
         self.migrate_content(
             'cosmology and nongalactic astrophysics', 'astrophysics')
         self.migrate_content('quantum gravity', 'quantum physics')
-        print('DONE PHYSICS')
 
         # Computer Science
-        print('STARTING COMPUTER SCIENCE')
         self.migrate_content('other computer science', 'computer science')
         self.migrate_content('computers and society', 'computer science')
         self.migrate_content('digital libraries', 'computer science')
@@ -84,10 +75,8 @@ class Command(BaseCommand):
                              'programming languages')
         self.migrate_content('human computer interaction',
                              'human-computer interaction')
-        print('DONE COMPUTER SCIENCE')
 
         # Biology
-        print('STARTING BIOLOGY')
         self.migrate_content('agronomy', 'biology')
         self.migrate_content('lipid', 'biomolecules')
         self.migrate_content('biological physics', 'biophysics')
@@ -104,25 +93,17 @@ class Command(BaseCommand):
         self.migrate_content('molecular networks', 'systems-biology')
         self.migrate_content('drug discovery', 'pharmacology-and-toxicology')
         self.migrate_content('synthetic-biology', 'synthetic biology')
-        print('DONE BIOLOGY')
 
         # Medicine
-        print('STARTING MEDICINE')
         self.migrate_content('medical sciences', 'medicine')
-        print('DONE MEDICINE')
 
         # Chemistry
-        print('STARTING CHEMISTRY')
         self.migrate_content('material science', 'materials science')
-        print('DONE CHEMISTRY')
 
         # Engineering
-        print('STARTING ENGINEERING')
         self.migrate_content('bioengineering', 'biotechnology')
-        print('DONE ENGINEERING')
 
         # Social and Behavioral Sciences
-        print('STARTING SOCIAL AND BEHAVIORAL SCIENCES')
         self.migrate_content('social and information networks', 'sociology')
         self.migrate_content('populations and evolution', 'sociology')
         self.migrate_content('general economics', 'economics')
@@ -134,9 +115,6 @@ class Command(BaseCommand):
         self.migrate_content('quantitative methods', 'methodology')
         self.migrate_content(
             'scientific-communication-and-education', 'metascience')
-        print('DONE SOCIAL AND BEHAVIORAL SCIENCES')
 
         # Other
-        print('STARTING OTHER')
         self.migrate_content('general', 'other')
-        print('DONE OTHER')
