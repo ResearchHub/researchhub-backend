@@ -149,6 +149,12 @@ router.register(
     basename='purchase'
 )
 
+router.register(
+    r'support',
+    purchase.views.SupportViewSet,
+    basename='support'
+)
+
 router.register(r'user', user.views.UserViewSet)
 
 router.register(r'withdrawal', reputation.views.WithdrawalViewSet)

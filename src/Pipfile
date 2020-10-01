@@ -30,7 +30,7 @@ web3 = "*"
 manubot = "==0.4.0"
 django-silk = "*"
 django-dbbackup = "*"
-celery = {extras = ["redis"],version = "*"}
+celery = {extras = ["redis"],version = "~=4.4.7"}
 django-celery-beat = "*"
 ipdb = "*"
 habanero = "*"
@@ -57,6 +57,7 @@ mailchimp-marketing = "*"
 sift = "*"
 django-ipware = "*"
 geoip2 = "*"
+stripe = "*"
 
 [requires]
 python_version = "3.7"
