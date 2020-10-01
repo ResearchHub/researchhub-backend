@@ -7,13 +7,19 @@ from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from discussion.lib import check_is_discussion_item
 from hub.serializers import HubSerializer
 from paper.models import Vote as PaperVote, Paper
-from user.models import Action, Author, University, User
+from user.models import Action, Author, University, User, Major
 from summary.models import Summary
 
 
 class UniversitySerializer(rest_framework_serializers.ModelSerializer):
     class Meta:
         model = University
+        fields = '__all__'
+
+
+class MajorSerializer(rest_framework_serializers.ModelSerializer):
+    class Meta:
+        model = Major
         fields = '__all__'
 
 

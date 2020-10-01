@@ -19,7 +19,7 @@ from paper.models import Paper, Vote
 from paper.views import PaperViewSet
 from paper.serializers import PaperSerializer, HubPaperSerializer
 from user.filters import AuthorFilter
-from user.models import User, University, Author
+from user.models import User, University, Author, Major
 from user.permissions import UpdateAuthor
 from user.serializers import (
     AuthorSerializer,
@@ -27,7 +27,8 @@ from user.serializers import (
     UniversitySerializer,
     UserEditableSerializer,
     UserSerializer,
-    UserActions
+    UserActions,
+    MajorSerializer
 )
 
 from utils.http import RequestMethods
@@ -216,6 +217,14 @@ class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UniversitySerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('name', 'city', 'state', 'country')
+    permission_classes = [AllowAny]
+
+
+class MajorViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Major.objects.all()
+    serializer_class = MajorSerializer
+    filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
+    search_fields = ('major', 'major_category')
     permission_classes = [AllowAny]
 
 

@@ -2,6 +2,7 @@ import decimal
 
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.contrib.postgres.fields import ArrayField, JSONField
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.dispatch import receiver
@@ -131,6 +132,13 @@ class University(models.Model):
         ordering = ['name']
 
 
+class Major(models.Model):
+    # FOD1P is a census id
+    FOD1P = models.IntegerField()
+    major = models.CharField(max_length=128)
+    major_category = models.CharField(max_length=64)
+
+
 class ProfileImageStorage(S3Boto3Storage):
     def __init__(self):
         super(ProfileImageStorage, self).__init__()
@@ -187,6 +195,18 @@ class Author(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True
+    )
+    education = ArrayField(
+        JSONField(
+            blank=True,
+            null=True
+        ),
+        blank=True,
+        null=True
+    )
+    headline = JSONField(
+        blank=True,
+        null=True
     )
     facebook = models.CharField(
         max_length=255,
