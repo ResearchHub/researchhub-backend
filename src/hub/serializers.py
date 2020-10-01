@@ -16,14 +16,11 @@ class SimpleHubSerializer(serializers.ModelSerializer):
 
 
 class HubSerializer(serializers.ModelSerializer):
-    user_is_subscribed = serializers.SerializerMethodField()
-
     class Meta:
         fields = [
             'id',
             'name',
             'is_locked',
-            'user_is_subscribed',
             'subscriber_count',
             'paper_count',
             'discussion_count',
@@ -32,14 +29,7 @@ class HubSerializer(serializers.ModelSerializer):
             'hub_image',
             'category'
         ]
-        read_only_fields = [
-            'user_is_subscribed'
-        ]
         model = Hub
-
-    def get_user_is_subscribed(self, obj):
-        user = get_user_from_request(self.context)
-        return user in obj.subscribers.all()
 
 
 class HubCategorySerializer(serializers.ModelSerializer):
