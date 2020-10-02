@@ -13,10 +13,11 @@ class Command(BaseCommand):
             category_name (str): The name of the category we're updating to.
 
         """
-        hub = Hub.objects.get(name=hub_name)
-        category = HubCategory.objects.get(category_name=category_name)
-        hub.category = category
-        hub.save()
+        if Hub.objects.filter(name=hub_name).exists():
+            hub = Hub.objects.get(name=hub_name)
+            category = HubCategory.objects.get(category_name=category_name)
+            hub.category = category
+            hub.save()
 
     def handle(self, *args, **options):
         categories_and_hubs = {

@@ -83,5 +83,6 @@ class Command(BaseCommand):
         ]
 
         for hub_name in hubs_to_delete:
-            hub = Hub.objects.get(name=hub_name)
-            hub.delete()
+            if Hub.objects.filter(name=hub_name).exists():
+                hub = Hub.objects.get(name=hub_name)
+                hub.delete()
