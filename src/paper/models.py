@@ -44,6 +44,14 @@ HELP_TEXT_IS_REMOVED = (
 
 
 class Paper(models.Model):
+    REGULAR = 'REGULAR'
+    PRE_REGISTRATION = 'PRE_REGISTRATION'
+
+    PAPER_TYPE_CHOICES = [
+        (REGULAR, REGULAR),
+        (PRE_REGISTRATION, PRE_REGISTRATION)
+    ]
+
     CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS['PROGRESS']
     CREATED_LOCATION_CHOICES = [
         (CREATED_LOCATION_PROGRESS, 'Progress')
@@ -106,6 +114,11 @@ class Paper(models.Model):
         default=None,
         null=True,
         blank=True
+    )
+    paper_type = models.CharField(
+        choices=PAPER_TYPE_CHOICES,
+        max_length=32,
+        default=REGULAR
     )
 
     # User generated
