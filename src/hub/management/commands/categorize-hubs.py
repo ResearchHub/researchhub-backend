@@ -108,8 +108,6 @@ class Command(BaseCommand):
                 'sociology',
                 'psychology',
                 'political science',
-                'social and information networks',
-                'populations and evolution',
                 'geography',
                 'legal',
                 'economics',
