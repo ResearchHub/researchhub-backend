@@ -150,7 +150,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 ).order_by(F('hub_rep').desc(nulls_last=True))
         elif leaderboard_type == 'authors':
             serializerClass = AuthorSerializer
-            items = Author.objects.filter(authored_papers__isnull=False).order_by('-author_score')
+            items = Author.objects.order_by('-author_score')
 
         page = self.paginate_queryset(items)
         serializer = serializerClass(
