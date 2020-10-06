@@ -47,10 +47,7 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
         return author.orcid_id
 
     def get_total_score(self, author):
-        try:
-            return author.total_score
-        except Exception:
-            return None
+        return author.author_score
 
 
 class AuthorEditableSerializer(rest_framework_serializers.ModelSerializer):
