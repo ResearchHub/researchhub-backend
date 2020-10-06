@@ -262,7 +262,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
         authors = Author.objects.filter(id=pk)
         if authors:
             author = authors.first()
-            authored_papers = author.authored_papers.all()
+            authored_papers = author.authored_papers.all().order_by('-score')
             page = self.paginate_queryset(authored_papers)
             serializer = PaperSerializer(page, many=True)
             return self.get_paginated_response(serializer.data)

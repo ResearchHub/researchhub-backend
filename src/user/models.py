@@ -261,11 +261,16 @@ class Author(models.Model):
 
     def calculate_score(self):
         aggregated_score = self.authored_papers.aggregate(total_score=Sum('score'))
-        paper_count = self.authored_papers.count()
+        aggregated_discussion_count = self.authored_papers.aggregate(total_score=Sum('discussion_count'))
+        paper_count = self.authored_papers.count() or 0
         paper_scores = 0
         if aggregated_score['total_score']:
             paper_scores = aggregated_score['total_score']
-        return paper_scores + paper_count
+        
+        if aggregated_discussion_count['total_score']:
+            paper_scores += 2 * aggregated_discussion_count['total_score']
+
+        return paper_scores + paper_count / 10
 
 
 class Action(DefaultModel):
