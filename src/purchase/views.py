@@ -38,6 +38,7 @@ from utils.throttles import THROTTLE_CLASSES
 from utils.http import http_request, RequestMethods
 from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfAllowed
 from user.models import User
+from user.serializers import UserSerializer
 
 from researchhub.settings import ASYNC_SERVICE_HOST
 
@@ -257,7 +258,9 @@ class SupportViewSet(viewsets.ModelViewSet):
                     object_id=support.id,
                     amount=amount,
                 )
-        return Response(status=200)
+        sender_data = UserSerializer(sender).data
+        response_data = {'user': sender_data, **data}
+        return Response(response_data, status=200)
 
 
 class StripeViewSet(viewsets.ModelViewSet):
