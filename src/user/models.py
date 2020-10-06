@@ -262,7 +262,7 @@ class Author(models.Model):
     def calculate_score(self):
         aggregated_score = self.authored_papers.aggregate(total_score=Sum('score'))
         aggregated_discussion_count = self.authored_papers.aggregate(total_score=Sum('discussion_count'))
-        paper_count = self.authored_papers.count() or 0
+        paper_count = self.authored_papers.count()
         paper_scores = 0
         if aggregated_score['total_score']:
             paper_scores = aggregated_score['total_score']

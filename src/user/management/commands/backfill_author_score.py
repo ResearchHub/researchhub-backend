@@ -12,8 +12,7 @@ class Command(BaseCommand):
         authorset = Author.objects.all().filter(author_score__gt=0)
         total_authors = authorset.count()
         for i, author in enumerate(authorset):
-            if i % 10000 == 0:
-                print('{} / {}'.format(i, total_authors))
+            print('{} / {}'.format(i, total_authors))
             score = author.calculate_score()
             author.author_score = score
             author.save()
