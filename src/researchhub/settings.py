@@ -21,6 +21,7 @@ DEVELOPMENT = 'development' in APP_ENV
 PRODUCTION = 'production' in APP_ENV
 STAGING = 'staging' in APP_ENV
 CELERY_WORKER = os.environ.get('CELERY_WORKER', False)
+ELASTIC_APM_OFF = os.environ.get('ELASTIC_APM_OFF', False)
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -614,30 +615,31 @@ if not CELERY_WORKER and not TESTING:
         'elasticapm.contrib.django.middleware.TracingMiddleware',
     ] + MIDDLEWARE
 
-ELASTIC_APM = {
-    # Set required service name. Allowed characters:
-    # # a-z, A-Z, 0-9, -, _, and space
-    'SERVICE_NAME': f'researchhub-{APP_ENV}',
+if not ELASTIC_APM_OFF:
+    ELASTIC_APM = {
+        # Set required service name. Allowed characters:
+        # # a-z, A-Z, 0-9, -, _, and space
+        'SERVICE_NAME': f'researchhub-{APP_ENV}',
 
-    # Use if APM Server requires a token
-    'SECRET_TOKEN': os.environ.get('ELASTIC_APM_SECRET_TOKEN', ''),
+        # Use if APM Server requires a token
+        'SECRET_TOKEN': os.environ.get('ELASTIC_APM_SECRET_TOKEN', ''),
 
-    # Set custom APM Server URL (default: http://localhost:8200)
-    'SERVER_URL': 'https://d11bb2079f694eb996ddcfe6edb848f7.apm.us-west-2.aws.cloud.es.io:443',  # noqa
+        # Set custom APM Server URL (default: http://localhost:8200)
+        'SERVER_URL': 'https://d11bb2079f694eb996ddcfe6edb848f7.apm.us-west-2.aws.cloud.es.io:443',  # noqa
 
-    'ENVIRONMENT': APP_ENV,
-    'DJANGO_AUTOINSERT_MIDDLEWARE': False,
-    'DISABLE_SEND': CELERY_WORKER or TESTING,
-    'PROCESSORS': (
-        'utils.elastic_apm.filter_processor',
-        'elasticapm.processors.sanitize_stacktrace_locals',
-        'elasticapm.processors.sanitize_http_request_cookies',
-        'elasticapm.processors.sanitize_http_headers',
-        'elasticapm.processors.sanitize_http_wsgi_env',
-        'elasticapm.processors.sanitize_http_request_querystring',
-        'elasticapm.processors.sanitize_http_request_body',
-    ),
-}
+        'ENVIRONMENT': APP_ENV,
+        'DJANGO_AUTOINSERT_MIDDLEWARE': False,
+        'DISABLE_SEND': CELERY_WORKER or TESTING,
+        'PROCESSORS': (
+            'utils.elastic_apm.filter_processor',
+            'elasticapm.processors.sanitize_stacktrace_locals',
+            'elasticapm.processors.sanitize_http_request_cookies',
+            'elasticapm.processors.sanitize_http_headers',
+            'elasticapm.processors.sanitize_http_wsgi_env',
+            'elasticapm.processors.sanitize_http_request_querystring',
+            'elasticapm.processors.sanitize_http_request_body',
+        ),
+    }
 
 # Twitter
 
