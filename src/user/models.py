@@ -1,6 +1,7 @@
 import decimal
 
 from django.db import models
+from django.db.models import Sum
 from django.contrib.auth.models import AbstractUser
 from django.contrib.postgres.fields import ArrayField, JSONField
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -177,6 +178,7 @@ class Author(models.Model):
         blank=True,
         storage=fs
     )
+    author_score = models.IntegerField(default=0)
     university = models.ForeignKey(
         University,
         on_delete=models.SET_NULL,
@@ -256,6 +258,14 @@ class Author(models.Model):
         if self.university is not None:
             return self.university
         return None
+
+    def calculate_score(self):
+        aggregated_score = self.authored_papers.aggregate(total_score=Sum('score'))
+        paper_count = self.authored_papers.count()
+        paper_scores = 0
+        if aggregated_score['total_score']:
+            paper_scores = aggregated_score['total_score']
+        return paper_scores + paper_count
 
 
 class Action(DefaultModel):
