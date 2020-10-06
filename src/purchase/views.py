@@ -37,7 +37,7 @@ from purchase.serializers import (
 from utils.throttles import THROTTLE_CLASSES
 from utils.http import http_request, RequestMethods
 from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfAllowed
-from user.models import User
+from user.models import User, Author
 from user.serializers import UserSerializer
 
 from researchhub.settings import ASYNC_SERVICE_HOST
@@ -221,7 +221,7 @@ class SupportViewSet(viewsets.ModelViewSet):
         payment_type = data['payment_type']
         sender_id = data['user_id']
         recipient_id = data['recipient_id']
-        recipient = User.objects.get(id=recipient_id)
+        recipient = Author.objects.get(id=recipient_id)
         amount = data['amount']
         content_type_str = data['content_type']
         content_type = ContentType.objects.get(model=content_type_str)
@@ -258,7 +258,7 @@ class SupportViewSet(viewsets.ModelViewSet):
 
                 # Adding balance to recipient
                 Balance.objects.create(
-                    user=recipient,
+                    user=recipient.user,
                     content_type=source_type,
                     object_id=support.id,
                     amount=amount,
