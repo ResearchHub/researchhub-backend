@@ -12,6 +12,8 @@ class Command(BaseCommand):
         authorset = Author.objects.all()
         total_authors = authorset.count()
         for i, author in enumerate(authorset):
+            if i < 370099:
+                continue
             print('{} / {}'.format(i, total_authors))
             score = author.calculate_score()
             author.author_score = score
