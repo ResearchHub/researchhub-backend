@@ -76,6 +76,15 @@ class Support(models.Model):
         (MONTHLY, MONTHLY)
     ]
 
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE
+    )
+    object_id = models.PositiveIntegerField()
+    item = GenericForeignKey(
+        'content_type',
+        'object_id'
+    )
     payment_type = models.CharField(
         choices=payment_type_choices,
         max_length=16

@@ -223,6 +223,9 @@ class SupportViewSet(viewsets.ModelViewSet):
         recipient_id = data['recipient_id']
         recipient = User.objects.get(id=recipient_id)
         amount = data['amount']
+        content_type_str = data['content_type']
+        content_type = ContentType.objects.get(model=content_type_str)
+        object_id = data['object_id']
 
         # User check
         if sender.id != sender_id:
@@ -238,7 +241,9 @@ class SupportViewSet(viewsets.ModelViewSet):
             support = Support.objects.create(
                 payment_type=payment_type,
                 duration=payment_option,
-                amount=amount
+                amount=amount,
+                content_type=content_type,
+                object_id=object_id
             )
             source_type = ContentType.objects.get_for_model(support)
 

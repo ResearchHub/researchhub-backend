@@ -4,6 +4,8 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
+traitlets = "==4.3.3"
+ipython = "==7.16.1"
 
 [packages]
 django = "~=2.2"
@@ -32,7 +34,7 @@ django-silk = "*"
 django-dbbackup = "*"
 celery = {extras = ["redis"],version = "~=4.4.7"}
 django-celery-beat = "*"
-ipdb = "*"
+ipdb = "==0.13.2"
 habanero = "*"
 celery-redbeat = "*"
 channels = "*"
