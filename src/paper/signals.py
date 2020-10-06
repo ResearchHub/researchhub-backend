@@ -39,6 +39,10 @@ def recalc_paper_votes(
     new_score = paper.calculate_score()
     paper.calculate_hot_score()
     paper.score = new_score
+    for author in paper.authors.all():
+        score = author.calculate_score()
+        author.author_score = score
+        author.save()
     paper.save()
 
 
