@@ -19,7 +19,7 @@ from paper.models import Paper, Vote
 from paper.views import PaperViewSet
 from paper.serializers import PaperSerializer, HubPaperSerializer
 from user.filters import AuthorFilter
-from user.models import User, University, Author
+from user.models import User, University, Author, Major
 from user.permissions import UpdateAuthor
 from user.serializers import (
     AuthorSerializer,
@@ -27,7 +27,8 @@ from user.serializers import (
     UniversitySerializer,
     UserEditableSerializer,
     UserSerializer,
-    UserActions
+    UserActions,
+    MajorSerializer
 )
 
 from utils.http import RequestMethods
@@ -149,25 +150,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 ).order_by(F('hub_rep').desc(nulls_last=True))
         elif leaderboard_type == 'authors':
             serializerClass = AuthorSerializer
-            authors = Author.objects.filter(authored_papers__isnull=False)
-            upvotes = Count(
-                'authored_papers__vote',
-                filter=Q(authored_papers__vote__vote_type=Vote.UPVOTE)
-            )
-            downvotes = Count(
-                'authored_papers__vote',
-                filter=Q(authored_papers__vote__vote_type=Vote.DOWNVOTE)
-            )
-            if hub_id and hub_id != 0:
-                authors = authors.filter(authored_papers__hubs=hub_id)
-
-            authors = authors.annotate(
-                paper_count=Count('authored_papers'),
-                score=upvotes-downvotes
-            )
-
-            items = authors.annotate(total_score=F('paper_count') + F('score'))
-            items = items.order_by('-total_score')
+            items = Author.objects.order_by('-author_score')
 
         page = self.paginate_queryset(items)
         serializer = serializerClass(
@@ -216,6 +199,14 @@ class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UniversitySerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('name', 'city', 'state', 'country')
+    permission_classes = [AllowAny]
+
+
+class MajorViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Major.objects.all()
+    serializer_class = MajorSerializer
+    filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
+    search_fields = ('major', 'major_category')
     permission_classes = [AllowAny]
 
 
@@ -271,7 +262,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
         authors = Author.objects.filter(id=pk)
         if authors:
             author = authors.first()
-            authored_papers = author.authored_papers.all()
+            authored_papers = author.authored_papers.all().order_by('-score')
             page = self.paginate_queryset(authored_papers)
             serializer = PaperSerializer(page, many=True)
             return self.get_paginated_response(serializer.data)

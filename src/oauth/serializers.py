@@ -76,15 +76,19 @@ class SocialLoginSerializer(serializers.Serializer):
         request = self._get_request()
 
         if not view:
-            raise serializers.ValidationError(
+            error = serializers.ValidationError(
                 _("View is not defined, pass it as a context variable")
             )
+            sentry.log_error(error)
+            raise error
 
         adapter_class = getattr(view, 'adapter_class', None)
         if not adapter_class:
-            raise serializers.ValidationError(
+            error = serializers.ValidationError(
                 _("Define adapter_class in view")
             )
+            sentry.log_error(error)
+            raise error
 
         adapter = adapter_class(request)
         app = adapter.get_provider().get_app(request)

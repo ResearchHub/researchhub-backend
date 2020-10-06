@@ -108,6 +108,12 @@ router.register(
 )
 
 router.register(
+    r'major',
+    user.views.MajorViewSet,
+    basename='major'
+)
+
+router.register(
     r'email_recipient',
     mailing_list.views.EmailRecipientViewSet,
     basename='email_recipient'
