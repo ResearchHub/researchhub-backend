@@ -9,11 +9,9 @@ class Command(BaseCommand):
     """
 
     def handle(self, *args, **options):
-        authorset = Author.objects.all()
+        authorset = Author.objects.all().filter(author_score__gte=0)
         total_authors = authorset.count()
         for i, author in enumerate(authorset):
-            if i < 370099:
-                continue
             print('{} / {}'.format(i, total_authors))
             score = author.calculate_score()
             author.author_score = score
