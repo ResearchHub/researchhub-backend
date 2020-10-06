@@ -153,7 +153,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             query = Q()
 
         user = self.request.user
-        queryset = self.queryset.filter(paper_type=Paper.REGULAR)
+        queryset = self.queryset
         if user.is_staff:
             return queryset
         if prefetch:
