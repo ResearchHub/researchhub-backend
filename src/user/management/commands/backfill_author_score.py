@@ -9,7 +9,7 @@ class Command(BaseCommand):
     """
 
     def handle(self, *args, **options):
-        authorset = Author.objects.all().filter(author_score__gte=0)
+        authorset = Author.objects.all().filter(author_score__gt=0)
         total_authors = authorset.count()
         for i, author in enumerate(authorset):
             print('{} / {}'.format(i, total_authors))
