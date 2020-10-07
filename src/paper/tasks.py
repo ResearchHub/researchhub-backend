@@ -372,11 +372,12 @@ def handle_duplicate_doi(new_paper, doi):
     new_paper.delete()
 
 
-@periodic_task(
-    run_every=crontab(minute='*/30'),
-    priority=2,
-    options={'queue': APP_ENV}
-)
+# @periodic_task(
+#     run_every=crontab(minute='*/30'),
+#     priority=2,
+#     options={'queue': APP_ENV}
+# )
+# TODO: Remove this completely?
 def celery_preload_hub_papers():
     # hub_ids = Hub.objects.values_list('id', flat=True)
     hub_ids = [0]
