@@ -14,10 +14,22 @@ from django.db.models import (
 )
 from django.db.models.functions import Cast
 
-from purchase.models import Purchase, AggregatePurchase
+from purchase.models import Purchase, AggregatePurchase, Wallet, Support
 from analytics.serializers import PaperEventSerializer
 from paper.serializers import BasePaperSerializer
 from analytics.models import PaperEvent, INTERACTIONS
+
+
+class WalletSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Wallet
+        fields = '__all__'
+
+
+class SupportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Support
+        fields = '__all__'
 
 
 class PurchaseSerializer(serializers.ModelSerializer):

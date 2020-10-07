@@ -20,15 +20,25 @@ from paper.utils import (
     invalidate_newest_cache,
     invalidate_most_discussed_cache,
 )
-from purchase.models import Purchase, Balance, AggregatePurchase
+from purchase.models import (
+    Purchase,
+    Balance,
+    AggregatePurchase,
+    Wallet,
+    Support
+)
+
 from purchase.serializers import (
     PurchaseSerializer,
-    AggregatePurchaseSerializer
+    AggregatePurchaseSerializer,
+    WalletSerializer,
+    SupportSerializer
 )
 from utils.throttles import THROTTLE_CLASSES
 from utils.http import http_request, RequestMethods
 from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfAllowed
-from user.models import User
+from user.models import User, Author
+from user.serializers import UserSerializer
 
 from researchhub.settings import ASYNC_SERVICE_HOST
 
@@ -192,3 +202,82 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class SupportViewSet(viewsets.ModelViewSet):
+    queryset = Support.objects.all()
+    serializer_class = SupportSerializer
+    permission_classes = [
+        IsAuthenticated,
+        CreateOrUpdateOrReadOnly,
+        CreateOrUpdateIfAllowed
+    ]
+    throttle_classes = THROTTLE_CLASSES
+
+    def create(self, request):
+        sender = request.user
+        data = request.data
+        payment_option = data['payment_option']
+        payment_type = data['payment_type']
+        sender_id = data['user_id']
+        recipient_id = data['recipient_id']
+        recipient = Author.objects.get(id=recipient_id)
+        amount = data['amount']
+        content_type_str = data['content_type']
+        content_type = ContentType.objects.get(model=content_type_str)
+        object_id = data['object_id']
+
+        # User check
+        if sender.id != sender_id:
+            return Response(status=400)
+
+        # Balance check
+        sender_balance = sender.get_balance()
+        decimal_amount = decimal.Decimal(amount)
+        if sender_balance - decimal_amount < 0:
+            return Response('Insufficient Funds', status=402)
+
+        with transaction.atomic():
+            support = Support.objects.create(
+                payment_type=payment_type,
+                duration=payment_option,
+                amount=amount,
+                content_type=content_type,
+                object_id=object_id
+            )
+            source_type = ContentType.objects.get_for_model(support)
+
+            if payment_type == Support.RSC_OFF_CHAIN:
+                # Subtracting balance from user
+                Balance.objects.create(
+                    user=sender,
+                    content_type=source_type,
+                    object_id=support.id,
+                    amount=f'-{amount}',
+                )
+
+                # Adding balance to recipient
+                Balance.objects.create(
+                    user=recipient.user,
+                    content_type=source_type,
+                    object_id=support.id,
+                    amount=amount,
+                )
+        sender_data = UserSerializer(sender).data
+        response_data = {'user': sender_data, **data}
+        return Response(response_data, status=200)
+
+
+class StripeViewSet(viewsets.ModelViewSet):
+    queryset = Wallet.objects.all()
+    serializer_class = WalletSerializer
+    permission_classes = []
+    throttle_classes = []
+
+    @action(
+        detail=False,
+        methods='post'
+    )
+    def onboard_stripe_account(self, request):
+        user = request.user
+        pass

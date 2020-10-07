@@ -203,6 +203,7 @@ class Author(models.Model):
             blank=True,
             null=True
         ),
+        default=list,
         blank=True,
         null=True
     )
