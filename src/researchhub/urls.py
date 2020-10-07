@@ -96,6 +96,12 @@ router.register(
 )
 
 router.register(
+    r'hub_category',
+    hub.views.HubCategoryViewSet,
+    basename='hub_category'
+)
+
+router.register(
     r'university',
     user.views.UniversityViewSet,
     basename='university'
