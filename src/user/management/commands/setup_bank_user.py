@@ -29,7 +29,7 @@ class Command(BaseCommand):
         }
 
         distribution = Distribution.objects.create(
-            amount=BALANCE,
+            amount=0,
             distribution_type='SIGN_UP',
             proof_item_content_type=proof_content_type,
             proof_item_object_id=user_id,
