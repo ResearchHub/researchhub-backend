@@ -249,6 +249,9 @@ class PaperSerializer(BasePaperSerializer):
                 )
 
                 # Now add m2m values properly
+                if validated_data['paper_type'] == Paper.PRE_REGISTRATION:
+                    paper.authors.add(user.author_profile)
+
                 # TODO: Do we still need add authors from the request content?
                 paper.authors.add(*authors)
                 self._add_orcid_authors(paper)
