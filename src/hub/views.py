@@ -99,7 +99,6 @@ class HubViewSet(viewsets.ModelViewSet):
             score += paper_count
             qs = self.queryset.annotate(
                 score=score,
-                paper_count=paper_count
             ).order_by('-score')
             return qs
         else:
@@ -114,6 +113,7 @@ class HubViewSet(viewsets.ModelViewSet):
         hub = self.get_object()
         try:
             hub.subscribers.add(request.user)
+            hub.subscriber_count += 1
             hub.save()
 
             if hub.is_locked and (
@@ -134,6 +134,7 @@ class HubViewSet(viewsets.ModelViewSet):
         hub = self.get_object()
         try:
             hub.subscribers.remove(request.user)
+            hub.subscriber_count -= 1
             hub.save()
             return self._get_hub_serialized_response(hub, 200)
         except Exception as e:
