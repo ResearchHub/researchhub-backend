@@ -426,6 +426,8 @@ def celery_preload_hub_papers():
                     end_date,
                     ordering,
                     hub_id,
+                    {},
+                    {},
                     cache_key
                 )
                 preload_hub_papers(*args)

@@ -32,7 +32,7 @@ from django.dispatch import receiver
 
 from mailchimp_marketing import Client
 
-from oauth.serializers import *
+from oauth.serializers import SocialLoginSerializer
 from oauth.adapters import GoogleOAuth2AdapterIdToken
 from oauth.helpers import complete_social_login
 from oauth.exceptions import LoginError

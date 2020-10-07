@@ -1,3 +1,4 @@
+import stripe
 import json
 import hashlib
 from datetime import datetime
@@ -7,6 +8,94 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from utils.models import PaidStatusModelMixin
+
+
+class Wallet(models.Model):
+    user = models.OneToOneField(
+        'user.User',
+        related_name='wallet',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    eth_address = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True
+    )
+    btc_address = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True
+    )
+    rsc_address = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True
+    )
+
+    @property
+    def stripe_acc(self):
+        return f'acc_{self.user.id}_{self.user.username}'
+
+    def connect_stripe_account(self):
+        # TODO: Connect with josh on this
+        refresh_url = ''
+        return_url = ''
+
+        stripe.AccountLink.create(
+            account=self.stripe_acc,
+            refresh_url=refresh_url,
+            return_url=return_url,
+            type='account_onboarding'
+        )
+
+
+class Support(models.Model):
+    STRIPE = 'STRIPE'
+    PAYPAL = 'PAYPAL'
+    ETH = 'ETH'
+    BTC = 'BTC'
+    RSC_ON_CHAIN = 'RSC_ON_CHAIN'
+    RSC_OFF_CHAIN = 'RSC_OFF_CHAIN'
+
+    SINGLE = 'SINGLE'
+    MONTHLY = 'MONTHLY'
+
+    payment_type_choices = [
+        (STRIPE, STRIPE),
+        (PAYPAL, PAYPAL),
+        (ETH, ETH),
+        (BTC, BTC),
+        (RSC_ON_CHAIN, RSC_ON_CHAIN),
+        (RSC_OFF_CHAIN, RSC_OFF_CHAIN),
+    ]
+
+    duration_choices = [
+        (SINGLE, SINGLE),
+        (MONTHLY, MONTHLY)
+    ]
+
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE
+    )
+    object_id = models.PositiveIntegerField()
+    item = GenericForeignKey(
+        'content_type',
+        'object_id'
+    )
+    payment_type = models.CharField(
+        choices=payment_type_choices,
+        max_length=16
+    )
+    duration = models.CharField(
+        choices=duration_choices,
+        max_length=8
+    )
+    amount = models.CharField(
+        max_length=255
+    )
 
 
 class AggregatePurchase(PaidStatusModelMixin):
