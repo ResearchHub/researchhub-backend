@@ -292,7 +292,8 @@ class SupportViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def get_support_users(self, request, pk=None):
-        supported_paper = self.queryset.get(id=pk)
+        paper = Paper.objects.get(id=pk)
+        supported_paper = self.queryset.get(object_id=paper.id)
         user_ids = Balance.objects.filter(
             object_id=supported_paper.id
         ).distinct(
