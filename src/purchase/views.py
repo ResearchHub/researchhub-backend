@@ -290,6 +290,20 @@ class SupportViewSet(viewsets.ModelViewSet):
         response_data = {'user': sender_data, **data}
         return Response(response_data, status=200)
 
+    @action(detail=True, methods=['get'])
+    def get_support_users(self, request, pk=None):
+        supported_paper = self.queryset.get(id=pk)
+        user_ids = Balance.objects.filter(
+            object_id=supported_paper.id
+        ).distinct(
+            'user'
+        ).values_list(
+            'user', flat=True
+        )
+        users = User.objects.filter(id__in=user_ids)
+        user_data = UserSerializer(users, many=True).data
+        return Response(user_data, status=200)
+
 
 class StripeViewSet(viewsets.ModelViewSet):
     queryset = Wallet.objects.all()
