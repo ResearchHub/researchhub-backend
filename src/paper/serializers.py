@@ -317,7 +317,20 @@ class PaperSerializer(BasePaperSerializer):
                     for hub in new_hubs:
                         hub.paper_count += 1
                         hub.save()
-                paper.authors.add(*authors)
+                
+                if authors:
+                    current_authors = paper.authors.all()
+                    remove_authors = []
+                    for author in current_authors:
+                        if author not in authors:
+                            remove_authors.append(author)
+                    
+                    new_authors = []
+                    for author in authors:
+                        if author not in current_authors:
+                            new_authors.append(author)
+                    paper.authors.remove(*remove_authors)
+                    paper.authors.add(*new_authors)
 
                 if file:
                     self._add_file(paper, file)
