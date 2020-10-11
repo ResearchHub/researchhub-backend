@@ -818,8 +818,8 @@ class PaperViewSet(viewsets.ModelViewSet):
         return self.get_queryset(
             prefetch=False
         ).filter(
-            hubs=hub_id
-            ).prefetch_related(
+            hubs__id__in=[int(hub_id)]
+        ).prefetch_related(
             *self.prefetch_lookups()
         )
 
