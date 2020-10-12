@@ -35,6 +35,7 @@ from purchase.serializers import (
     WalletSerializer,
     SupportSerializer
 )
+from purchase.tasks import send_support_email
 from utils.throttles import THROTTLE_CLASSES
 from utils.http import http_request, RequestMethods
 from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfAllowed
@@ -251,19 +252,39 @@ class SupportViewSet(viewsets.ModelViewSet):
 
             if payment_type == Support.RSC_OFF_CHAIN:
                 # Subtracting balance from user
-                Balance.objects.create(
+                sender_bal = Balance.objects.create(
                     user=sender,
                     content_type=source_type,
                     object_id=support.id,
                     amount=f'-{amount}',
                 )
+                send_support_email(
+                    sender.email,
+                    amount,
+                    sender_bal.created_date,
+                    payment_type,
+                    'sender'
+                )
 
                 # Adding balance to recipient
-                Balance.objects.create(
-                    user=recipient.user,
+                recipient_user = recipient.user
+                recipient_bal = Balance.objects.create(
+                    user=recipient_user,
                     content_type=source_type,
                     object_id=support.id,
                     amount=amount,
+                )
+
+                send_support_email.apply_async(
+                    (
+                        recipient_user.email,
+                        amount,
+                        recipient_bal.created_date,
+                        payment_type,
+                        'recipient'
+                    ),
+                    priority=6,
+                    countdown=2,
                 )
             elif payment_type == Support.STRIPE:
                 recipient_stripe_acc = recipient.wallet.stripe_acc

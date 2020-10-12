@@ -1,0 +1,77 @@
+{% load inlinecss %}
+{% load l10n %}
+<html>
+  <link rel="stylesheet" href="../stylesheets/support_receipt.css">  
+  <head>
+      <meta charset="UTF-8">
+      <title></title>
+      <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+  </head>
+  {% inlinecss "support_receipt.css" %}
+  <body>
+    <div class="email-container">
+      <div class="email-header">
+        <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
+        <div class="header">
+          Receipt From Researchhub
+        </div>
+      </div>
+      <div class="content">
+        <div class="column-left">
+          {%if recipient %}
+            <h4 class="column-headers"> Amount Received </h4>
+          {% else %}
+            <h4 class="column-headers"> Amount Paid </h4>
+          {% endif %}
+          <div>{{amount}}</div>
+        </div>
+        <div class="column-center">
+          <h4 class="column-headers"> Date Paid </h4>
+          <div>{{date}}</div>
+        </div>
+        <div class="column-right">
+          <h4 class="column-headers"> Payment Method </h4>
+          <div>{{method}}</div>
+        </div>
+        <br/>
+      </div>
+      <div class="summary">
+        <div class="summary-header"> Summary </div>
+        <div class="row">
+          {%if recipient %}
+            <div>
+              Payment From
+            </div>
+          {% else %}
+            <div>
+              Payment To
+            </div>
+          {% endif %}
+          <div class="summary-right">
+            {{email}}
+          </div>
+        </div>
+        <div class="border"></div>
+        <div class="row">
+          {%if recipient %}
+            <div>
+              Amount Received
+            </div>
+          {% else %}
+            <div>
+              Amount Paid
+            </div>
+          {% endif %}
+          <div class="summary-right">
+            {{amount}}
+          </div>
+        </div>
+      </div>
+    <br/>
+    <div class="footer">
+      <a href="{{opt_out}}">Unsubscribe or change how frequently I get updated</a>
+    </div>
+  </body>
+</html>
+
+{% endinlinecss %}
