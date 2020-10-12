@@ -27,7 +27,14 @@ from bullet_point.models import BulletPoint
 from google_analytics.signals import get_event_hit_response
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
-from paper.models import AdditionalFile, Figure, Flag, Paper, Vote
+from paper.models import (
+    AdditionalFile,
+    Figure,
+    Flag,
+    Paper,
+    Vote,
+    FeaturedPaper
+)
 from paper.tasks import preload_hub_papers
 from paper.permissions import (
     CreatePaper,
@@ -48,6 +55,7 @@ from paper.serializers import (
     PaperSerializer,
     PaperReferenceSerializer,
     PaperVoteSerializer,
+    FeaturedPaperSerializer,
 )
 from paper.utils import (
     clean_abstract,
@@ -770,11 +778,6 @@ class PaperViewSet(viewsets.ModelViewSet):
 
             if cache_hit and page_number == 1:
                 return Response(cache_hit)
-                # cache_hit_hub, cache_hit_papers = cache_hit
-                # page = self.paginate_queryset(cache_hit_papers)
-                # return self.get_paginated_response(
-                #     {'data': cache_hit_hub, 'no_results': False}
-                # )
 
         papers = self._get_filtered_papers(hub_id)
         order_papers = self.calculate_paper_ordering(
@@ -790,6 +793,54 @@ class PaperViewSet(viewsets.ModelViewSet):
         return self.get_paginated_response(
             {'data': serializer_data, 'no_results': False}
         )
+
+    @action(detail=False, methods=['post'])
+    def set_featured_papers(self, request):
+        orderings = request.data['ordering']
+        for ordering in orderings:
+            ordinal = ordering['ordinal']
+            paper_id = ordering['paper_id']
+            FeaturedPaper.objects.create(
+                ordinal=ordinal,
+                paper_id=paper_id,
+                user=request.user
+            )
+
+        return Response(orderings, status=200)
+
+    @action(detail=False, methods=['patch', 'put'])
+    def update_featured_papers(self, request):
+        orderings = request.data['ordering']
+        for ordering in orderings:
+            featured_id = ordering['featured_id']
+            ordinal = ordering['ordinal']
+            paper_id = ordering['paper_id']
+            featured = FeaturedPaper.objects.get(
+                id=featured_id
+            )
+
+            featured.ordinal = ordinal
+            featured.paper_id = paper_id
+            featured.save()
+
+        return Response(orderings, status=200)
+
+    @action(detail=True, methods=['delete'])
+    def delete_featured_paper(self, request, pk=None):
+        featured = FeaturedPaper.objects.get(id=pk)
+        res = featured.delete()
+        return Response(res, status=200)
+
+    @action(detail=True, methods=['get'])
+    def get_featured_papers(self, request, pk=None):
+        papers = FeaturedPaper.objects.filter(
+            user=pk
+        ).order_by(
+            'ordinal'
+        )
+        serializer = FeaturedPaperSerializer(papers, many=True)
+        data = serializer.data
+        return Response(data, status=200)
 
     def _set_hub_paper_ordering(self, request):
         ordering = request.query_params.get('ordering', None)
