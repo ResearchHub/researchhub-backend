@@ -10,7 +10,14 @@ from discussion.serializers import ThreadSerializer
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
-from paper.models import AdditionalFile, Flag, Paper, Vote, Figure
+from paper.models import (
+    AdditionalFile,
+    Flag,
+    Paper,
+    Vote,
+    Figure,
+    FeaturedPaper
+)
 from paper.tasks import download_pdf, add_references, add_orcid_authors
 from paper.utils import (
     check_pdf_title,
@@ -479,6 +486,14 @@ class HubPaperSerializer(BasePaperSerializer):
 
     def get_references(self, paper):
         return None
+
+
+class FeaturedPaperSerializer(serializers.ModelSerializer):
+    paper = PaperSerializer()
+
+    class Meta:
+        fields = '__all__'
+        model = FeaturedPaper
 
 
 class PaperReferenceSerializer(serializers.ModelSerializer):
