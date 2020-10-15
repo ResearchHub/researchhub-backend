@@ -797,16 +797,22 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def set_featured_papers(self, request):
         orderings = request.data['ordering']
+        featured_papers = []
         for ordering in orderings:
             ordinal = ordering['ordinal']
             paper_id = ordering['paper_id']
-            FeaturedPaper.objects.create(
-                ordinal=ordinal,
-                paper_id=paper_id,
-                user=request.user
+            featured_papers.append(
+                FeaturedPaper(
+                    ordinal=ordinal,
+                    paper_id=paper_id,
+                    user=request.user
+                )
             )
+        FeaturedPaper.objects.bulk_create(featured_papers)
+        serializer = FeaturedPaperSerializer(featured_papers, many=True)
+        data = serializer.data
 
-        return Response(orderings, status=200)
+        return Response(data, status=200)
 
     @action(detail=False, methods=['patch', 'put'])
     def update_featured_papers(self, request):
