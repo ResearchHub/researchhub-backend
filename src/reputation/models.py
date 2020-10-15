@@ -156,3 +156,29 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
 
     class Meta:
         ordering = ['-updated_date']
+
+
+class DistributionAmount(models.Model):
+    pass
+
+
+class Contribution(models.Model):
+    PAPER = 'PAPER'
+    SUBMITTER = 'SUBMITTER'
+    CURATOR = 'CURATOR'
+    COMMENTER = 'COMMENTER'
+
+    contribution_choices = [
+        (PAPER, PAPER),
+        (SUBMITTER, SUBMITTER),
+        (CURATOR, CURATOR),
+        (COMMENTER, COMMENTER)
+    ]
+
+    contribution_type = models.CharField(
+        max_length=16,
+        choices=contribution_choices
+    )
+
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
