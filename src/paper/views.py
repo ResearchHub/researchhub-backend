@@ -70,6 +70,7 @@ from paper.utils import (
 from researchhub.lib import get_paper_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
+from user.models import Author
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.sentry import log_error
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -839,8 +840,9 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def get_featured_papers(self, request, pk=None):
+        user = Author.objects.get(id=pk).user
         papers = FeaturedPaper.objects.filter(
-            user=pk
+            user=user
         ).order_by(
             'ordinal'
         )
