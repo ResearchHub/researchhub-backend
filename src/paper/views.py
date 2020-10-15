@@ -880,9 +880,13 @@ class FeaturedPaperViewSet(viewsets.ModelViewSet):
         ).order_by(
             'ordinal'
         )
-        serializer = self.serializer_class(papers, many=True)
-        data = serializer.data
-        return Response(data, status=200)
+
+        page = self.paginate_queryset(papers)
+        if page is not None:
+            serializer = self.serializer_class(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        return Response(status=400)
 
     def _set_hub_paper_ordering(self, request):
         ordering = request.query_params.get('ordering', None)
