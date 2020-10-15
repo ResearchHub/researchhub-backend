@@ -311,17 +311,39 @@ class SupportViewSet(viewsets.ModelViewSet):
         response_data = {'user': sender_data, **data}
         return Response(response_data, status=200)
 
-    @action(detail=True, methods=['get'])
-    def get_support_users(self, request, pk=None):
-        paper = Paper.objects.get(id=pk)
-        supported_paper = self.queryset.filter(object_id=paper.id).first()
-        user_ids = Balance.objects.filter(
-            object_id=supported_paper.id
-        ).distinct(
-            'user'
-        ).values_list(
-            'user', flat=True
-        )
+    def list(self, request):
+        paper_id = request.query_params.get('paper_id')
+        user_id = request.query_params.get('user_id')
+        if paper_id:
+            paper = Paper.objects.get(id=paper_id)
+            supported_paper = self.queryset.filter(object_id=paper.id).first()
+
+            user_ids = Balance.objects.filter(
+                object_id=supported_paper.id
+            ).distinct(
+                'user'
+            ).values_list(
+                'user', flat=True
+            )
+        elif user_id:
+            user_type = ContentType.objects.get_for_model(User)
+            support_ids = Support.objects.filter(
+                content_type=user_type,
+                object_id=user_id
+            ).values_list(
+                'id'
+            )
+
+            support_type = ContentType.objects.get_for_model(Support)
+            user_ids = Balance.objects.filter(
+                object_id__in=support_ids,
+                content_type=support_type
+            ).values_list(
+                'user'
+            )
+        else:
+            return Response('No query param included', status=400)
+
         users = User.objects.filter(id__in=user_ids)
         user_data = UserSerializer(users, many=True).data
         return Response(user_data, status=200)
