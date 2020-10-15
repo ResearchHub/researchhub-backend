@@ -795,8 +795,45 @@ class PaperViewSet(viewsets.ModelViewSet):
             {'data': serializer_data, 'no_results': False}
         )
 
-    @action(detail=False, methods=['post'])
-    def set_featured_papers(self, request):
+    def _set_hub_paper_ordering(self, request):
+        ordering = request.query_params.get('ordering', None)
+        # TODO send correct ordering from frontend
+        if ordering == 'top_rated':
+            ordering = '-score'
+        elif ordering == 'most_discussed':
+            ordering = '-discussed'
+        elif ordering == 'newest':
+            ordering = '-uploaded_date'
+        elif ordering == 'hot':
+            ordering = '-hot_score'
+        else:
+            ordering = '-score'
+        return ordering
+
+    def _get_filtered_papers(self, hub_id):
+        # hub_id = 0 is the homepage
+        # we aren't on a specific hub so don't filter by that hub_id
+        if int(hub_id) == 0:
+            return self.get_queryset(
+                prefetch=False
+            ).prefetch_related(
+                *self.prefetch_lookups()
+            )
+        return self.get_queryset(
+            prefetch=False
+        ).filter(
+            hubs=hub_id
+            ).prefetch_related(
+            *self.prefetch_lookups()
+        )
+
+
+class FeaturedPaperViewSet(viewsets.ModelViewSet):
+    queryset = FeaturedPaper.objects.all()
+    serializer_class = FeaturedPaperSerializer
+    throttle_classes = THROTTLE_CLASSES
+
+    def create(self, request):
         orderings = request.data['ordering']
         featured_papers = []
         for ordering in orderings:
@@ -810,13 +847,12 @@ class PaperViewSet(viewsets.ModelViewSet):
                 )
             )
         FeaturedPaper.objects.bulk_create(featured_papers)
-        serializer = FeaturedPaperSerializer(featured_papers, many=True)
+        serializer = self.serializer_class(featured_papers, many=True)
         data = serializer.data
 
         return Response(data, status=200)
 
-    @action(detail=False, methods=['patch', 'put'])
-    def update_featured_papers(self, request):
+    def update(self, request):
         orderings = request.data['ordering']
         for ordering in orderings:
             featured_id = ordering['featured_id']
@@ -832,21 +868,19 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         return Response(orderings, status=200)
 
-    @action(detail=True, methods=['delete'])
-    def delete_featured_paper(self, request, pk=None):
-        featured = FeaturedPaper.objects.get(id=pk)
+    def destroy(self, request, pk=None):
+        featured = self.queryset.get(id=pk)
         res = featured.delete()
         return Response(res, status=200)
 
-    @action(detail=True, methods=['get'])
-    def get_featured_papers(self, request, pk=None):
+    def retrieve(self, request, pk=None):
         user = Author.objects.get(id=pk).user
-        papers = FeaturedPaper.objects.filter(
+        papers = self.queryset.filter(
             user=user
         ).order_by(
             'ordinal'
         )
-        serializer = FeaturedPaperSerializer(papers, many=True)
+        serializer = self.serializer_class(papers, many=True)
         data = serializer.data
         return Response(data, status=200)
 
