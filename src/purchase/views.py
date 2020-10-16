@@ -248,7 +248,7 @@ class SupportViewSet(viewsets.ModelViewSet):
                 amount=amount,
                 content_type=content_type,
                 object_id=object_id,
-                user=sender,
+                sender=sender,
                 recipient=recipient_user
             )
             source_type = ContentType.objects.get_for_model(support)
