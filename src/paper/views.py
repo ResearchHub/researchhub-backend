@@ -852,7 +852,7 @@ class FeaturedPaperViewSet(viewsets.ModelViewSet):
 
         return Response(data, status=200)
 
-    def update(self, request):
+    def update(self, request, pk=None):
         orderings = request.data['ordering']
         for ordering in orderings:
             featured_id = ordering['featured_id']
