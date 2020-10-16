@@ -836,9 +836,20 @@ class FeaturedPaperViewSet(viewsets.ModelViewSet):
     def create(self, request):
         orderings = request.data['ordering']
         featured_papers = []
+        featured_papers_old = []
         for ordering in orderings:
+            featured_id = ordering.get('featured_id')
             ordinal = ordering['ordinal']
             paper_id = ordering['paper_id']
+            if featured_id:
+                featured = FeaturedPaper.objects.get(
+                    id=featured_id
+                )
+                featured.ordinal = ordinal
+                featured.paper_id = paper_id
+                featured.save()
+                featured_papers_old.append(featured)
+
             featured_papers.append(
                 FeaturedPaper(
                     ordinal=ordinal,
@@ -847,27 +858,13 @@ class FeaturedPaperViewSet(viewsets.ModelViewSet):
                 )
             )
         FeaturedPaper.objects.bulk_create(featured_papers)
-        serializer = self.serializer_class(featured_papers, many=True)
+        serializer = self.serializer_class(
+            featured_papers + featured_papers_old,
+            many=True
+        )
         data = serializer.data
 
         return Response(data, status=200)
-
-    @action(detail=False, methods=['put', 'patch'])
-    def set(self, request):
-        orderings = request.data['ordering']
-        for ordering in orderings:
-            featured_id = ordering['featured_id']
-            ordinal = ordering['ordinal']
-            paper_id = ordering['paper_id']
-            featured = FeaturedPaper.objects.get(
-                id=featured_id
-            )
-
-            featured.ordinal = ordinal
-            featured.paper_id = paper_id
-            featured.save()
-
-        return Response(orderings, status=200)
 
     def destroy(self, request, pk=None):
         featured = self.queryset.get(id=pk)
