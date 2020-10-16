@@ -316,7 +316,12 @@ class SupportViewSet(viewsets.ModelViewSet):
         author_id = request.query_params.get('author_id')
         if paper_id:
             paper = Paper.objects.get(id=paper_id)
-            supported_paper = self.queryset.filter(object_id=paper.id).first()
+            supported_papers = self.queryset.filter(object_id=paper.id)
+
+            if supported_papers.exists():
+                supported_paper = supported_papers.first()
+            else:
+                return Response(status=200)
 
             user_ids = Balance.objects.filter(
                 object_id=supported_paper.id
