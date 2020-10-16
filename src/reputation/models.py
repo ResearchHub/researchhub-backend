@@ -179,6 +179,25 @@ class Contribution(models.Model):
         max_length=16,
         choices=contribution_choices
     )
+    user = models.ForeignKey(
+        User,
+        related_name='contributions',
+        on_delete=models.SET_NULL,
+        null=True
+    )
+    paper = models.ForeignKey(
+        'paper.Paper',
+        related_name='contributions',
+        on_delete=models.SET_NULL,
+        null=True
+    )
+    ordinal = models.PositiveIntegerField()
+    object_id = models.PositiveIntegerField()
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.SET_NULL,
+        null=True
+    )
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
