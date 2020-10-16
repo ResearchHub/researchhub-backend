@@ -313,7 +313,7 @@ class SupportViewSet(viewsets.ModelViewSet):
 
     def list(self, request):
         paper_id = request.query_params.get('paper_id')
-        user_id = request.query_params.get('user_id')
+        author_id = request.query_params.get('author_id')
         if paper_id:
             paper = Paper.objects.get(id=paper_id)
             supported_paper = self.queryset.filter(object_id=paper.id).first()
@@ -325,11 +325,12 @@ class SupportViewSet(viewsets.ModelViewSet):
             ).values_list(
                 'user', flat=True
             )
-        elif user_id:
+        elif author_id:
+            user = Author.objects.get('author_id').user
             user_type = ContentType.objects.get_for_model(User)
             support_ids = Support.objects.filter(
                 content_type=user_type,
-                object_id=user_id
+                object_id=user.id
             ).values_list(
                 'id'
             )
