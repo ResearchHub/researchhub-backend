@@ -331,7 +331,7 @@ class SupportViewSet(viewsets.ModelViewSet):
                 'user', flat=True
             )
         elif author_id:
-            user = Author.objects.get('author_id').user
+            user = Author.objects.get(id=author_id).user
             user_type = ContentType.objects.get_for_model(User)
             support_ids = Support.objects.filter(
                 content_type=user_type,
