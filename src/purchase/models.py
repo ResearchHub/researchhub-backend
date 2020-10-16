@@ -72,6 +72,16 @@ class Support(models.Model):
         (MONTHLY, MONTHLY)
     ]
 
+    sender = models.ForeignKey(
+        'user.User',
+        on_delete=models.CASCADE,
+        related_name='supported_works'
+    )
+    recipient = models.ForeignKey(
+        'user.User',
+        on_delete=models.CASCADE,
+        related_name='supported_by'
+    )
     content_type = models.ForeignKey(
         ContentType,
         on_delete=models.CASCADE

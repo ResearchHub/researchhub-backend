@@ -224,6 +224,7 @@ class SupportViewSet(viewsets.ModelViewSet):
         sender_id = data['user_id']
         recipient_id = data['recipient_id']
         recipient = Author.objects.get(id=recipient_id)
+        recipient_user = recipient.user
         amount = data['amount']
         content_type_str = data['content_type']
         content_type = ContentType.objects.get(model=content_type_str)
@@ -246,7 +247,9 @@ class SupportViewSet(viewsets.ModelViewSet):
                 duration=payment_option,
                 amount=amount,
                 content_type=content_type,
-                object_id=object_id
+                object_id=object_id,
+                user=sender,
+                recipient=recipient_user
             )
             source_type = ContentType.objects.get_for_model(support)
 
@@ -267,7 +270,6 @@ class SupportViewSet(viewsets.ModelViewSet):
                 )
 
                 # Adding balance to recipient
-                recipient_user = recipient.user
                 recipient_bal = Balance.objects.create(
                     user=recipient_user,
                     content_type=source_type,
@@ -312,6 +314,7 @@ class SupportViewSet(viewsets.ModelViewSet):
         return Response(response_data, status=200)
 
     def list(self, request):
+        # TODO: Clean this up
         paper_id = request.query_params.get('paper_id')
         author_id = request.query_params.get('author_id')
         if paper_id:
@@ -332,10 +335,8 @@ class SupportViewSet(viewsets.ModelViewSet):
             )
         elif author_id:
             user = Author.objects.get(id=author_id).user
-            user_type = ContentType.objects.get_for_model(User)
-            support_ids = Support.objects.filter(
-                content_type=user_type,
-                object_id=user.id
+            support_ids = self.queryset.filter(
+                recipient=user
             ).values_list(
                 'id'
             )
