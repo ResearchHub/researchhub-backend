@@ -832,6 +832,9 @@ class FeaturedPaperViewSet(viewsets.ModelViewSet):
     queryset = FeaturedPaper.objects.all()
     serializer_class = FeaturedPaperSerializer
     throttle_classes = THROTTLE_CLASSES
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    search_fields = ['paper__title', 'user__id']
+    filterset_fields = ['paper__title']
 
     def create(self, request):
         user = request.user
