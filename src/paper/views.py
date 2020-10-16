@@ -834,9 +834,12 @@ class FeaturedPaperViewSet(viewsets.ModelViewSet):
     throttle_classes = THROTTLE_CLASSES
 
     def create(self, request):
+        user = request.user
         orderings = request.data['ordering']
         featured_papers = []
         featured_papers_old = []
+
+        self.queryset.filter(user=user).delete()
         for ordering in orderings:
             featured_id = ordering.get('featured_id')
             ordinal = ordering['ordinal']
@@ -854,7 +857,7 @@ class FeaturedPaperViewSet(viewsets.ModelViewSet):
                 FeaturedPaper(
                     ordinal=ordinal,
                     paper_id=paper_id,
-                    user=request.user
+                    user=user
                 )
             )
         FeaturedPaper.objects.bulk_create(featured_papers)
