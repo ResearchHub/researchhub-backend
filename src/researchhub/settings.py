@@ -592,7 +592,7 @@ CHANNEL_LAYERS = {
 
 if PRODUCTION:
     ASYNC_SERVICE_HOST = (
-        'http://ec2-34-219-51-163.us-west-2.compute.amazonaws.com'
+        'http://async.researchhub.com'
     )
 elif STAGING:
     ASYNC_SERVICE_HOST = (
