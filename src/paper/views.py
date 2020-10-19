@@ -73,7 +73,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     queryset = Paper.objects.all()
     serializer_class = PaperSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
-    search_fields = ('title', 'doi')
+    search_fields = ('title', 'doi', 'paper_title')
     filter_class = PaperFilter
     throttle_classes = THROTTLE_CLASSES
     ordering = ('-uploaded_date')
