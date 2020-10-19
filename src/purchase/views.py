@@ -352,8 +352,12 @@ class SupportViewSet(viewsets.ModelViewSet):
             return Response('No query param included', status=400)
 
         users = User.objects.filter(id__in=user_ids)
-        user_data = UserSerializer(users, many=True).data
-        return Response(user_data, status=200)
+        page = self.paginate_queryset(users)
+        if page is not None:
+            serializer = UserSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        return Response(status=400)
 
 
 class StripeViewSet(viewsets.ModelViewSet):
