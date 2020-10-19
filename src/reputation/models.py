@@ -163,13 +163,15 @@ class DistributionAmount(models.Model):
 
 
 class Contribution(models.Model):
-    PAPER = 'PAPER'
+    # PAPER = 'PAPER'
     SUBMITTER = 'SUBMITTER'
+    AUTHOR = 'AUTHOR'
     CURATOR = 'CURATOR'
     COMMENTER = 'COMMENTER'
 
     contribution_choices = [
-        (PAPER, PAPER),
+        # (PAPER, PAPER),
+        (AUTHOR, AUTHOR),
         (SUBMITTER, SUBMITTER),
         (CURATOR, CURATOR),
         (COMMENTER, COMMENTER)
