@@ -4,7 +4,7 @@ from .models import Paper
 
 class PaperFilter(filters.FilterSet):
     hubs_id__in = filters.Filter(field_name="hubs", lookup_expr='in')
-    authors_id__in = filters.Filter(name="authors", lookup_type='in')
+    authors_id__in = filters.Filter(field_name="authors", lookup_expr='in')
 
     class Meta:
         model = Paper
