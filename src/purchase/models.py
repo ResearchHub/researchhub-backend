@@ -11,7 +11,7 @@ from utils.models import PaidStatusModelMixin
 
 
 class Wallet(models.Model):
-    user = models.OneToOneField(
+    author = models.OneToOneField(
         'user.Author',
         related_name='wallet',
         on_delete=models.CASCADE,
