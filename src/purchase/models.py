@@ -12,25 +12,20 @@ from utils.models import PaidStatusModelMixin
 
 class Wallet(models.Model):
     user = models.OneToOneField(
-        'user.User',
+        'user.Author',
         related_name='wallet',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True
+        on_delete=models.CASCADE,
     )
     eth_address = models.CharField(
         max_length=255,
-        blank=True,
         null=True
     )
     btc_address = models.CharField(
         max_length=255,
-        blank=True,
         null=True
     )
     rsc_address = models.CharField(
         max_length=255,
-        blank=True,
         null=True
     )
 
@@ -39,7 +34,6 @@ class Wallet(models.Model):
         return f'acc_{self.user.id}_{self.user.username}'
 
     def connect_stripe_account(self):
-        # TODO: Connect with josh on this
         refresh_url = ''
         return_url = ''
 

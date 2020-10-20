@@ -1,3 +1,4 @@
+import stripe
 import decimal
 import json
 
@@ -280,4 +281,14 @@ class StripeViewSet(viewsets.ModelViewSet):
     )
     def onboard_stripe_account(self, request):
         user = request.user
-        pass
+        refresh_url = ''
+        return_url = ''
+
+        account_links = stripe.AccountLink.create(
+            account=user.author.wallet.stripe_acc,
+            refresh_url=refresh_url,
+            return_url=return_url,
+            type='account_onboarding'
+        )
+        print(account_links)
+        return Response(account_links, status=200)
