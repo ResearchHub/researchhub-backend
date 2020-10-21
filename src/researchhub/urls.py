@@ -161,6 +161,12 @@ router.register(
     basename='support'
 )
 
+router.register(
+    r'stripe',
+    purchase.views.StripeViewSet,
+    basename='stripe'
+)
+
 router.register(r'user', user.views.UserViewSet)
 
 router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
