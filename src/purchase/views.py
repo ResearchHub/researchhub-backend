@@ -326,5 +326,5 @@ class StripeViewSet(viewsets.ModelViewSet):
         if acc['charges_enabled']:
             wallet.stripe_verified = True
             wallet.save()
-            return Response('Verified', status=200)
-        return Response('Incomplete', status=200)
+            return Response(True, status=200)
+        return Response(False, status=200)
