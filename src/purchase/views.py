@@ -283,7 +283,7 @@ class StripeViewSet(viewsets.ModelViewSet):
         user = request.user
         wallet = user.author_profile.wallet
 
-        if not wallet.stripe_acc:
+        if not wallet.stripe_acc or not wallet.stripe_verified:
             acc = stripe.Account.create(
                 type='express',
                 country='US',  # This is where our business resides
@@ -297,8 +297,8 @@ class StripeViewSet(viewsets.ModelViewSet):
             wallet.stripe_acc = acc['id']
             wallet.save()
 
-        refresh_url = 'http://18605c329dfa.ngrok.io'
-        return_url = 'http://18605c329dfa.ngrok.io'
+        refresh_url = request.data['refresh_url']
+        return_url = request.data['return_url']
 
         try:
             account_links = stripe.AccountLink.create(
@@ -312,3 +312,19 @@ class StripeViewSet(viewsets.ModelViewSet):
             print(e)
             return Response(status=400)
         return Response(account_links, status=200)
+
+    @action(
+        detail=True,
+        methods=['get']
+    )
+    def verify_stripe_account(self, request, pk=None):
+        user = User.objects.get(id=pk)
+        wallet = user.author_profile.wallet
+        stripe_id = wallet.stripe_acc
+        acc = stripe.Account.retrieve(stripe_id)
+
+        if acc['charges_enabled']:
+            wallet.stripe_verified = True
+            wallet.save()
+            return Response('Verified', status=200)
+        return Response('Incomplete', status=200)
