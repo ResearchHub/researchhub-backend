@@ -28,10 +28,10 @@ class Wallet(models.Model):
         max_length=255,
         null=True
     )
-
-    @property
-    def stripe_acc(self):
-        return f'acc_{self.user.id}_{self.user.username}'
+    stripe_acc = models.CharField(
+        max_length=255,
+        null=True
+    )
 
     def connect_stripe_account(self):
         refresh_url = ''

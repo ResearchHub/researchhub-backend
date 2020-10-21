@@ -277,18 +277,38 @@ class StripeViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods='post'
+        methods=['post']
     )
     def onboard_stripe_account(self, request):
         user = request.user
-        refresh_url = ''
-        return_url = ''
+        wallet = user.author_profile.wallet
 
-        account_links = stripe.AccountLink.create(
-            account=user.author.wallet.stripe_acc,
-            refresh_url=refresh_url,
-            return_url=return_url,
-            type='account_onboarding'
-        )
-        print(account_links)
+        if not wallet.stripe_acc:
+            acc = stripe.Account.create(
+                type='express',
+                country='US',  # This is where our business resides
+                email=user.email,
+                capabilities={
+                    "card_payments": {"requested": True},
+                    "transfers": {"requested": True},
+                },
+            )
+
+            wallet.stripe_acc = acc['id']
+            wallet.save()
+
+        refresh_url = 'http://18605c329dfa.ngrok.io'
+        return_url = 'http://18605c329dfa.ngrok.io'
+
+        try:
+            account_links = stripe.AccountLink.create(
+                account=wallet.stripe_acc,
+                refresh_url=refresh_url,
+                return_url=return_url,
+                type='account_onboarding'
+            )
+            print(account_links)
+        except Exception as e:
+            print(e)
+            return Response(status=400)
         return Response(account_links, status=200)

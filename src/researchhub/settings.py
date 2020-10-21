@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
+import stripe
 import os
 import requests
 import sys
@@ -680,3 +681,6 @@ SIFT_REST_API_KEY = os.environ.get('SIFT_REST_API_KEY', keys.SIFT_REST_API_KEY)
 AMPLITUDE_API_KEY = os.environ.get('AMPLITUDE_API_KEY', keys.AMPLITUDE_API_KEY)
 
 GEOIP_PATH = os.path.join(BASE_DIR, 'analytics')
+
+# Stripe
+stripe.api_key = os.environ.get('STRIPE_API_KEY', keys.STRIPE_API_KEY)
