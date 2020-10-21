@@ -32,6 +32,7 @@ class Wallet(models.Model):
         max_length=255,
         null=True
     )
+    stripe_verified = models.BooleanField(default=False)
 
     def connect_stripe_account(self):
         refresh_url = ''
