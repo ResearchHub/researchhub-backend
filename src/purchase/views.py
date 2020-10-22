@@ -307,10 +307,8 @@ class StripeViewSet(viewsets.ModelViewSet):
                 return_url=return_url,
                 type='account_onboarding'
             )
-            print(account_links)
         except Exception as e:
-            print(e)
-            return Response(status=400)
+            return Response(e, status=400)
         return Response(account_links, status=200)
 
     @action(
@@ -318,8 +316,8 @@ class StripeViewSet(viewsets.ModelViewSet):
         methods=['get']
     )
     def verify_stripe_account(self, request, pk=None):
-        user = User.objects.get(id=pk)
-        wallet = user.author_profile.wallet
+        author = Author.objects.get(id=pk)
+        wallet = author.wallet
         stripe_id = wallet.stripe_acc
         acc = stripe.Account.retrieve(stripe_id)
 
