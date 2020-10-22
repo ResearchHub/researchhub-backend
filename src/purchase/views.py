@@ -266,13 +266,20 @@ class SupportViewSet(viewsets.ModelViewSet):
                     amount=amount,
                 )
             elif payment_type == Support.STRIPE:
+                recipient_stripe_acc = recipient.wallet.stripe_acc
+                if not recipient_stripe_acc:
+                    return Response(
+                        'Author has not created a Stripe Account',
+                        status=403
+                    )
+
                 payment_intent = stripe.PaymentIntent.create(
                     payment_method_types=['card'],
                     amount=decimal_amount,
                     currency='usd',
                     application_fee_amount=0,
                     transfer_data={
-                        'destination': recipient.wallet.stripe_acc
+                        'destination': recipient_stripe_acc
                     }
                 )
                 support.proof = payment_intent
