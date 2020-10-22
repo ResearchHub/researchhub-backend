@@ -9,12 +9,14 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Sum, Q, F, Count
+from django.contrib.contenttypes.models import ContentType
 
 from discussion.models import Thread
 from discussion.serializers import (
     ThreadSerializer
 )
 
+from reputation.models import Distribution
 from paper.models import Paper, Vote
 from paper.views import PaperViewSet
 from paper.serializers import PaperSerializer, HubPaperSerializer
@@ -42,18 +44,45 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserEditableSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+    filter_backends = (DjangoFilterBackend,)
+    filterset_fields = ['referral_code', 'invited_by']
+
+    def get_serializer_class(self):
+        if self.request.GET.get('referral_code') or self.request.GET.get('invited_by'):
+            return UserSerializer
+        else:
+            return self.serializer_class
 
     def get_serializer_context(self):
-        return {'get_subscribed': True, 'get_balance': True}
+        return {'get_subscribed': True, 'get_balance': True, 'user': self.request.user}
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff:
+        if self.request.GET.get('referral_code') or self.request.GET.get('invited_by'):
+            return User.objects.all()
+        elif user.is_staff:
             return User.objects.all()
         elif user.is_authenticated:
             return User.objects.filter(id=user.id)
         else:
             return User.objects.none()
+    @action(
+        detail=False,
+        methods=[RequestMethods.GET],
+    )
+    def referral_rsc(self, request):
+        """
+        Gets the amount of RSC earned from referrals
+        """
+
+        distributions = Distribution.objects.filter(
+            proof_item_content_type=ContentType.objects.get_for_model(User),
+            proof_item_object_id=request.user.id
+        ).exclude(recipient=request.user.id).aggregate(rsc_earned=Sum('amount'))
+
+        amount = distributions.get('rsc_earned') or 0
+
+        return Response({'amount': amount})
 
     @action(
         detail=False,

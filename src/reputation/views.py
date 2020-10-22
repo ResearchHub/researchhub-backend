@@ -80,7 +80,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         # TODO: Do we really need the user on this list? Can we make some
         # changes on the frontend so that we don't need to pass the user here?
         resp = super().list(request)
-        resp.data['user'] = UserSerializer(request.user).data
+        resp.data['user'] = UserSerializer(request.user, context={'user': request.user}).data
         return resp
 
     def _create_balance_record(self, withdrawal, amount):
