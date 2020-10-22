@@ -3,6 +3,7 @@ import json
 import hashlib
 from datetime import datetime
 
+from django.contrib.postgres.fields import JSONField
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -91,6 +92,7 @@ class Support(models.Model):
     amount = models.CharField(
         max_length=255
     )
+    proof = JSONField(null=True)
 
 
 class AggregatePurchase(PaidStatusModelMixin):
