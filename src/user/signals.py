@@ -1,10 +1,12 @@
 # TODO: Fix the celery task on cloud deploys
+from time import time
 
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 
+from reputation import distributions
 from bullet_point.models import BulletPoint
 from discussion.models import Comment, Reply, Thread
 from notification.models import Notification
@@ -14,6 +16,7 @@ from researchhub.settings import TESTING
 from summary.models import Summary
 from user.models import Action, Author
 from user.tasks import link_author_to_papers, link_paper_to_authors
+from reputation.distributor import Distributor
 
 
 @receiver(post_save, sender=Author, dispatch_uid='link_author_to_papers')
@@ -84,6 +87,27 @@ def create_action(sender, instance, created, **kwargs):
         else:
             user = instance.created_by
 
+        # If we're creating an action for the first time, check if we've been referred
+        if user.invited_by and not Action.objects.filter(user=user).exists():
+            timestamp = time()
+            referred = Distributor(
+                distributions.Referral,
+                user,
+                user.invited_by,
+                timestamp,
+                None,
+            )
+            referred.distribute()
+
+            referrer = Distributor(
+                distributions.Referral,
+                user.invited_by,
+                user.invited_by,
+                timestamp,
+                None,
+            )
+            referrer.distribute()
+
         display = True
         if sender == PaperVote:
             display = False
@@ -104,6 +128,7 @@ def create_action(sender, instance, created, **kwargs):
             hubs = get_related_hubs(instance)
         action.hubs.add(*hubs)
         create_notification(sender, instance, created, action, **kwargs)
+
         return action
 
 
