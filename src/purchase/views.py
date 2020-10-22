@@ -233,10 +233,11 @@ class SupportViewSet(viewsets.ModelViewSet):
             return Response(status=400)
 
         # Balance check
-        sender_balance = sender.get_balance()
-        decimal_amount = decimal.Decimal(amount)
-        if sender_balance - decimal_amount < 0:
-            return Response('Insufficient Funds', status=402)
+        if payment_type == Support.RSC_OFF_CHAIN:
+            sender_balance = sender.get_balance()
+            decimal_amount = decimal.Decimal(amount)
+            if sender_balance - decimal_amount < 0:
+                return Response('Insufficient Funds', status=402)
 
         with transaction.atomic():
             support = Support.objects.create(
@@ -264,6 +265,20 @@ class SupportViewSet(viewsets.ModelViewSet):
                     object_id=support.id,
                     amount=amount,
                 )
+            elif payment_type == Support.STRIPE:
+                payment_intent = stripe.PaymentIntent.create(
+                    payment_method_types=['card'],
+                    amount=decimal_amount,
+                    currency='usd',
+                    application_fee_amount=0,
+                    transfer_data={
+                        'destination': recipient.wallet.stripe_acc
+                    }
+                )
+                support.proof = payment_intent
+                support.save()
+                data['client_secret'] = payment_intent['client_secret']
+
         sender_data = UserSerializer(sender).data
         response_data = {'user': sender_data, **data}
         return Response(response_data, status=200)
@@ -321,7 +336,8 @@ class StripeViewSet(viewsets.ModelViewSet):
         stripe_id = wallet.stripe_acc
         acc = stripe.Account.retrieve(stripe_id)
 
-        if acc['charges_enabled']:
+        # if acc['charges_enabled']:
+        if acc['details_submitted']:
             wallet.stripe_verified = True
             wallet.save()
             return Response(True, status=200)
