@@ -219,6 +219,7 @@ class SupportViewSet(viewsets.ModelViewSet):
     @action(
         detail=False,
         methods=["get"],
+        permission_classes=[CreateOrUpdateOrReadOnly]
     )
     def get_supported(self, request):
         paper_id = request.query_params.get('paper_id')
@@ -361,6 +362,7 @@ class SupportViewSet(viewsets.ModelViewSet):
         sender_data = UserSerializer(sender).data
         response_data = {'user': sender_data, **data}
         return Response(response_data, status=200)
+
 
 class StripeViewSet(viewsets.ModelViewSet):
     queryset = Wallet.objects.all()

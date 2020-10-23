@@ -99,7 +99,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
                 Contribution.CURATOR,
                 {'app_label': 'bullet_point', 'model': 'bulletpoint'},
                 request.user.id,
-                paper.id,
+                paper,
                 bullet_id
             ),
             priority=2,

@@ -1,3 +1,6 @@
+import math
+import datetime
+
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from django.contrib.contenttypes.models import ContentType
@@ -100,6 +103,40 @@ def distribute_round_robin(paper_id):
     priority=5
 )
 def distribute_weekly_rewards():
+    reward_dis = RewardDistributor()
+    today = datetime.datetime.today()
+    time_delta = datetime.timedelta(days=7)
+    last_week = today - time_delta
     last_distribution_amount = DistributionAmount.objects.last()
-    total_reward_amount = last_distribution_amount.amount or DEFAULT_REWARD
 
+    total_reward_amount = DEFAULT_REWARD
+    if last_distribution_amount:
+        total_reward_amount = last_distribution_amount.amount
+
+    starting_date = datetime.datetime(
+        year=today.year,
+        month=today.month,
+        day=last_week.day,
+        hour=0,
+        minute=0,
+        second=0
+    )
+
+    weekly_contributions = Contribution.objects.filter(
+        created_date__gte=starting_date,
+        created_date__lt=today
+    )
+    if not weekly_contributions.exists():
+        return
+
+    paper_ids = weekly_contributions.values_list('paper')
+    papers = Paper.objects.filter(id__in=[paper_ids])
+    papers, prob_dist = reward_dis.get_papers_prob_dist(papers)
+
+    reward_distribution = prob_dist * total_reward_amount
+
+    for paper, reward in zip(papers, reward_distribution):
+        contributions = weekly_contributions.filter(paper=paper)
+        amount = math.floor(reward / contributions.count())
+        for contribution in contributions:
+            reward_dis.generate_distribution(contribution, amount=amount)

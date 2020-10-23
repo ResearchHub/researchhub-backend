@@ -9,7 +9,7 @@ from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 
 from reputation.exceptions import ReputationDistributorError
-from reputation.models import Distribution
+from reputation.models import Distribution, Contribution
 from reputation.distributions import Distribution as dist
 from reputation.serializers import get_model_serializer
 from purchase.models import Balance
@@ -131,36 +131,43 @@ class RewardDistributor:
     def get_weekly_papers(self):
         pass
 
-    def get_weekly_papers_prob_distribution(self):
-        papers = self.get_weekly_papers().order_by('id')
-        weekly_total_score = papers.aggregate(score_sum=Sum('score'))
+    def get_papers_prob_dist(self, items):
+        papers = items.order_by('id')
+        weekly_total_score = papers.aggregate(
+            score_sum=Sum('score')
+        )['score_sum']
         prob_dist = papers.annotate(
             p=Cast(
                 Func(
                     Sum('score'),
                     function='ABS'
-                )/weekly_total_score,
+                )/float(weekly_total_score),
                 FloatField()
             )
         ).values_list(
             'p',
             flat=True
         )
-        return prob_dist
+        return papers, np.array(prob_dist)
 
     def get_random_item(self, items, p=None):
         # Uniform distribution if p is none
         item = np.random.choice(items, p=p)
         return item
 
-    def generate_distribution(item, amount=1):
+    def generate_distribution(self, item, amount=1):
         from paper.models import Paper, Vote
         from user.models import User, Author
-        from bulletpoint.models import BulletPoint
+        from bullet_point.models import BulletPoint
         from summary.models import Summary
-        from discussion.models import Thread
+        from discussion.models import Thread, Comment, Reply
 
         item_type = type(item)
+        if item_type is Contribution:
+            content_type = item.content_type
+            item = content_type.get_object_for_this_type(id=item.object_id)
+            item_type = type(item)
+
         if item_type is Paper:
             recipient = item.uploaded_by
         elif item_type is BulletPoint:
@@ -173,10 +180,10 @@ class RewardDistributor:
             recipient = item
         elif item_type is Author:
             recipient = item.user
-        elif item_type is Thread:
+        elif item_type in (Thread, Comment, Reply):
             recipient = item.created_by
         else:
-            raise Exception('Missing instance type')
+            raise Exception(f'Missing instance type: {str(item)}')
 
         distributor = Distributor(
             dist('REWARD', amount),
@@ -196,6 +203,3 @@ class RewardDistributor:
         # )
 
         return distribution
-
-
-

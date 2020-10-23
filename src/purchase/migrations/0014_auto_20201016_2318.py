@@ -24,4 +24,14 @@ class Migration(migrations.Migration):
             field=models.ForeignKey(default=3, on_delete=django.db.models.deletion.CASCADE, related_name='supported_by', to=settings.AUTH_USER_MODEL),
             preserve_default=False,
         ),
+        migrations.AddField(
+            model_name='support',
+            name='proof',
+            field=django.contrib.postgres.fields.jsonb.JSONField(null=True),
+        ),
+        migrations.AddField(
+            model_name='wallet',
+            name='stripe_acc',
+            field=models.CharField(max_length=255, null=True),
+        ),
     ]
