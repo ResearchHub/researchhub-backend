@@ -10,10 +10,4 @@ class Migration(migrations.Migration):
         ('user', '0046_auto_20201019_2132'),
     ]
 
-    operations = [
-        migrations.AlterField(
-            model_name='user',
-            name='referral_code',
-            field=models.CharField(default=uuid.uuid4, max_length=36),
-        ),
-    ]
+    operations = []
