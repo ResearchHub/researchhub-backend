@@ -84,6 +84,10 @@ SummaryFlagged = Distribution(
     'SUMMARY_FLAGGED', -5
 )
 
+Referral = Distribution(
+    'REFERRAL', 125
+)
+
 DISTRIBUTION_TYPE_CHOICES = [
     (
         FlagPaper.name,
@@ -153,4 +157,8 @@ DISTRIBUTION_TYPE_CHOICES = [
         CreateSummary.name,
         CreateSummary.name
     ),
+    (
+        Referral.name,
+        Referral.name
+    )
 ]
