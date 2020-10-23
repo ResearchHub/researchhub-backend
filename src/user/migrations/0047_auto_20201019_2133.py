@@ -14,6 +14,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='user',
             name='referral_code',
-            field=models.CharField(default=uuid.uuid4, max_length=36, unique=True),
+            field=models.CharField(default=uuid.uuid4, max_length=36),
         ),
     ]
