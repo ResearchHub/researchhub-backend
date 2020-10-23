@@ -16,6 +16,7 @@ from discussion.models import Thread, Comment, Reply
 from hub.models import Hub
 from mailing_list.models import EmailRecipient
 from paper.models import Paper
+from purchase.models import Wallet
 from researchhub.settings import BASE_FRONTEND_URL, TESTING
 from summary.models import Summary
 from utils.models import DefaultModel
@@ -120,11 +121,12 @@ def attach_author_and_email_preference(
     **kwargs
 ):
     if created:
-        Author.objects.create(
+        author = Author.objects.create(
             user=instance,
             first_name=instance.first_name,
             last_name=instance.last_name,
         )
+        Wallet.objects.create(author=author)
 
 
 class University(models.Model):
