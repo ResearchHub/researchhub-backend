@@ -159,7 +159,8 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
 
 
 class DistributionAmount(models.Model):
-    pass
+    created_date = models.DateTimeField(auto_now_add=True)
+    amount = models.IntegerField()
 
 
 class Contribution(models.Model):

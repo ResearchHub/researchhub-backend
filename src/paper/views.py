@@ -832,6 +832,7 @@ class FeaturedPaperViewSet(viewsets.ModelViewSet):
     queryset = FeaturedPaper.objects.all()
     serializer_class = FeaturedPaperSerializer
     throttle_classes = THROTTLE_CLASSES
+    permission_classes = [IsAuthenticatedOrReadOnly]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     search_fields = ['paper__title', 'user__id']
     filterset_fields = ['paper__title']
@@ -880,38 +881,6 @@ class FeaturedPaperViewSet(viewsets.ModelViewSet):
             return self.get_paginated_response(serializer.data)
 
         return Response(status=400)
-
-    def _set_hub_paper_ordering(self, request):
-        ordering = request.query_params.get('ordering', None)
-        # TODO send correct ordering from frontend
-        if ordering == 'top_rated':
-            ordering = '-score'
-        elif ordering == 'most_discussed':
-            ordering = '-discussed'
-        elif ordering == 'newest':
-            ordering = '-uploaded_date'
-        elif ordering == 'hot':
-            ordering = '-hot_score'
-        else:
-            ordering = '-score'
-        return ordering
-
-    def _get_filtered_papers(self, hub_id):
-        # hub_id = 0 is the homepage
-        # we aren't on a specific hub so don't filter by that hub_id
-        if int(hub_id) == 0:
-            return self.get_queryset(
-                prefetch=False
-            ).prefetch_related(
-                *self.prefetch_lookups()
-            )
-        return self.get_queryset(
-            prefetch=False
-        ).filter(
-            hubs__id__in=[int(hub_id)]
-        ).prefetch_related(
-            *self.prefetch_lookups()
-        )
 
 
 class AdditionalFileViewSet(viewsets.ModelViewSet):
@@ -1074,6 +1043,11 @@ def update_or_create_vote(request, user, paper, vote_type):
     vote = create_vote(user, paper, vote_type)
 
     events_api.track_content_vote(user, vote, request)
+    create_contribution.apply_async(
+        (Contribution.CURATOR, user.id, paper.id, vote.id),
+        priority=3,
+        countdown=10
+    )
     return get_vote_response(vote, 201)
 
 

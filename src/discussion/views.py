@@ -320,9 +320,9 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
         cache_key = get_cache_key(None, 'paper', paper_id)
         cache.delete(cache_key)
-
+        discussion_id = response.data['id']
         create_contribution.apply_async(
-            (Contribution.COMMENTER, request.user.id, paper_id, paper_id),
+            (Contribution.COMMENTER, request.user.id, paper_id, discussion_id),
             priority=2,
             countdown=10
         )
@@ -463,13 +463,14 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
 
         response = super().create(request, *args, **kwargs)
         response = self.get_self_upvote_response(request, response, Comment)
+        discussion_id = response.data['id']
         self.sift_track_create_content_comment(request, response, Comment)
 
         paper_id = get_paper_id_from_path(request)
         hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
 
         create_contribution.apply_async(
-            (Contribution.COMMENTER, request.user.id, paper_id, paper_id),
+            (Contribution.COMMENTER, request.user.id, paper_id, discussion_id),
             priority=3,
             countdown=10
         )
@@ -557,9 +558,10 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
 
         response = super().create(request, *args, **kwargs)
         paper_id = get_paper_id_from_path(request)
+        discussion_id = response.data['id']
         self.sift_track_create_content_comment(request, response, Reply)
         create_contribution.apply_async(
-            (Contribution.COMMENTER, request.user.id, paper_id, paper_id),
+            (Contribution.COMMENTER, request.user.id, paper_id, discussion_id),
             priority=3,
             countdown=10
         )
@@ -661,6 +663,11 @@ def update_or_create_vote(request, user, item, vote_type):
 
     vote = create_vote(user, item, vote_type)
     events_api.track_content_vote(user, vote, request)
+    create_contribution.apply_async(
+        (Contribution.CURATOR, user.id, vote.paper.id, vote.id),
+        priority=3,
+        countdown=10
+    )
     return get_vote_response(vote, 201)
 
 

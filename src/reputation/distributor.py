@@ -1,4 +1,9 @@
+import numpy as np
+
 from django.db import transaction, models
+from django.db.models import FloatField, Func
+from django.db.models.functions import Cast
+from django.db.models.aggregates import Sum
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 
@@ -105,3 +110,49 @@ class Distributor:
             object_id=distribution.id,
             amount=self.distribution.amount  # db converts integer to string
         )
+
+
+class RewardDistributor:
+    prob_keys = (
+        'SUBMITTER',
+        'AUTHOR',
+        'CURATOR',
+        'COMMENTER'
+    )
+    prob_by_key = {
+        'SUBMITTER': 0.05,
+        'AUTHOR': 0.45,
+        'CURATOR': 0.2,
+        'COMMENTER': 0.3
+    }
+
+    def get_weekly_papers(self):
+        pass
+
+    def get_weekly_papers_prob_distribution(self):
+        papers = self.get_weekly_papers().order_by('id')
+        weekly_total_score = papers.aggregate(score_sum=Sum('score'))
+        prob_dist = papers.annotate(
+            p=Cast(
+                Func(
+                    Sum('score'),
+                    function='ABS'
+                )/weekly_total_score,
+                FloatField()
+            )
+        ).values_list(
+            'p',
+            flat=True
+        )
+        return prob_dist
+
+    def get_random_item(self, items, p=None):
+        # Uniform distribution if p is none
+        item = np.random.choice(items, p=p)
+        return item
+
+
+
+
+
+
