@@ -18,6 +18,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='user',
             name='referral_code',
-            field=models.CharField(default=uuid.UUID('47fe5829-aac6-4b0c-bd18-70ad66585db7'), max_length=36),
+            field=models.CharField(default=uuid.uuid4, max_length=36),
         ),
     ]
