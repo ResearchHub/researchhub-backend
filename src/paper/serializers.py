@@ -281,7 +281,13 @@ class PaperSerializer(BasePaperSerializer):
                 events_api.track_content_paper(user, paper, request)
 
                 create_contribution.apply_async(
-                    (Contribution.SUBMITTER, user.id, paper_id, paper_id),
+                    (
+                        Contribution.SUBMITTER,
+                        {'app_label': 'paper', 'model': 'paper'},
+                        user.id,
+                        paper_id,
+                        paper_id
+                    ),
                     priority=2,
                     countdown=10
                 )

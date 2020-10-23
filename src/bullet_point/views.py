@@ -34,6 +34,8 @@ from utils.http import DELETE, POST, PATCH, PUT
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
+from reputation.models import Contribution
+from reputation.tasks import create_contribution
 from researchhub.lib import ActionableViewSet, get_paper_id_from_path
 from .filters import BulletPointFilter
 
@@ -89,7 +91,21 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
             if paper is None:
                 return Response('Missing required field `paper`', status=400)
             request.data['paper'] = paper
-        return super().create(request, *args, **kwargs)
+
+        response = super().create(request, *args, **kwargs)
+        bullet_id = response.data['id']
+        create_contribution.apply_async(
+            (
+                Contribution.CURATOR,
+                {'app_label': 'bullet_point', 'model': 'bulletpoint'},
+                request.user.id,
+                paper.id,
+                bullet_id
+            ),
+            priority=2,
+            countdown=10
+        )
+        return response
 
     def update(self, request, *args, **kwargs):
         if (

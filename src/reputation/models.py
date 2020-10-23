@@ -166,6 +166,7 @@ class DistributionAmount(models.Model):
 class Contribution(models.Model):
     # PAPER = 'PAPER'
     SUBMITTER = 'SUBMITTER'
+    UPVOTER = 'UPVOTER'
     AUTHOR = 'AUTHOR'
     CURATOR = 'CURATOR'
     COMMENTER = 'COMMENTER'
@@ -174,6 +175,7 @@ class Contribution(models.Model):
         # (PAPER, PAPER),
         (AUTHOR, AUTHOR),
         (SUBMITTER, SUBMITTER),
+        (UPVOTER, UPVOTER),
         (CURATOR, CURATOR),
         (COMMENTER, COMMENTER)
     ]

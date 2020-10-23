@@ -1044,7 +1044,13 @@ def update_or_create_vote(request, user, paper, vote_type):
 
     events_api.track_content_vote(user, vote, request)
     create_contribution.apply_async(
-        (Contribution.CURATOR, user.id, paper.id, vote.id),
+        (
+            Contribution.UPVOTER,
+            {'app_label': 'paper', 'model': 'vote'},
+            user.id,
+            paper.id,
+            vote.id
+        ),
         priority=3,
         countdown=10
     )

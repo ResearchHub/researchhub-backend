@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 from django.db import transaction, models
 from django.db.models import FloatField, Func
@@ -9,6 +10,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from reputation.exceptions import ReputationDistributorError
 from reputation.models import Distribution
+from reputation.distributions import Distribution as dist
 from reputation.serializers import get_model_serializer
 from purchase.models import Balance
 from user.models import User
@@ -151,8 +153,49 @@ class RewardDistributor:
         item = np.random.choice(items, p=p)
         return item
 
+    def generate_distribution(item, amount=1):
+        from paper.models import Paper, Vote
+        from user.models import User, Author
+        from bulletpoint.models import BulletPoint
+        from summary.models import Summary
+        from discussion.models import Thread
 
+        item_type = type(item)
+        if item_type is Paper:
+            recipient = item.uploaded_by
+        elif item_type is BulletPoint:
+            recipient = item.created_by
+        elif item_type is Summary:
+            recipient = item.proposed_by
+        elif item_type is Vote:
+            recipient = item.created_by
+        elif item_type is User:
+            recipient = item
+        elif item_type is Author:
+            recipient = item.user
+        elif item_type is Thread:
+            recipient = item.created_by
+        else:
+            raise Exception('Missing instance type')
 
+        distributor = Distributor(
+            dist('REWARD', amount),
+            recipient,
+            item,
+            time.time()
+        )
+        distribution = distributor.distribute()
+        # proof = Distributor.generate_proof(item)
+        # distribution = Distribution(
+        #     recipient=recipient,
+        #     amount=amount,
+        #     distribution_type='REWARD',
+        #     proof=proof,
+        #     proof_item_content_type=get_content_type_for_model(item),
+        #     proof_item_object_id=item.id
+        # )
+
+        return distribution
 
 
 

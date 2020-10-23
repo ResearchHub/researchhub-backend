@@ -4,28 +4,29 @@ from django.contrib.contenttypes.models import ContentType
 
 from researchhub.celery import app
 from paper.models import Paper
-from reputation.models import Contribution
-from reputation.distributor import RewardDistributor, Distributor
+from reputation.models import Contribution, DistributionAmount
+from reputation.distributor import RewardDistributor
+
+DEFAULT_REWARD = 1000000
 
 
 @app.task
-def create_contribution(contribution_type, user_id, paper_id, object_id):
+def create_contribution(
+    contribution_type,
+    instance_type,
+    user_id,
+    paper_id,
+    object_id
+):
+    content_type = ContentType.objects.get(
+        **instance_type
+    )
     if contribution_type == Contribution.SUBMITTER:
-        content_type = ContentType.objects.get(
-            app_label='paper',
-            model='paper'
-        )
-
         create_author_contribution(
             Contribution.AUTHOR,
             user_id,
             paper_id,
             object_id
-        )
-    else:
-        content_type = ContentType.objects.get(
-            app_label='user',
-            model='user'
         )
 
     previous_contributions = Contribution.objects.filter(
@@ -90,18 +91,15 @@ def distribute_round_robin(paper_id):
         *paper.threads.all()
     ]
     item = reward_dis.get_random_item(items)
-    distribution = Distribution(
-
-    )
-    distributor = Distributor(
-
-    )
+    reward_dis.generate_distribution(item, amount=1)
     return items
 
 
-# @periodic_task(
-#     run_every=crontab(minute='0', hour='0', week='monday'),
-#     priority=5
-# )
-# def distribute_weekly_rewards():
-#     pass
+@periodic_task(
+    run_every=crontab(minute='0', hour='0', day_of_week='sunday'),
+    priority=5
+)
+def distribute_weekly_rewards():
+    last_distribution_amount = DistributionAmount.objects.last()
+    total_reward_amount = last_distribution_amount.amount or DEFAULT_REWARD
+

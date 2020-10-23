@@ -322,7 +322,13 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         cache.delete(cache_key)
         discussion_id = response.data['id']
         create_contribution.apply_async(
-            (Contribution.COMMENTER, request.user.id, paper_id, discussion_id),
+            (
+                Contribution.COMMENTER,
+                {'app_label': 'discussion', 'model': 'thread'},
+                request.user.id,
+                paper_id,
+                discussion_id
+            ),
             priority=2,
             countdown=10
         )
@@ -470,7 +476,13 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
         hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
 
         create_contribution.apply_async(
-            (Contribution.COMMENTER, request.user.id, paper_id, discussion_id),
+            (
+                Contribution.COMMENTER,
+                {'app_label': 'discussion', 'model': 'comment'},
+                request.user.id,
+                paper_id,
+                discussion_id
+            ),
             priority=3,
             countdown=10
         )
@@ -561,7 +573,13 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
         discussion_id = response.data['id']
         self.sift_track_create_content_comment(request, response, Reply)
         create_contribution.apply_async(
-            (Contribution.COMMENTER, request.user.id, paper_id, discussion_id),
+            (
+                Contribution.COMMENTER,
+                {'app_label': 'discussion', 'model': 'reply'},
+                request.user.id,
+                paper_id,
+                discussion_id
+            ),
             priority=3,
             countdown=10
         )
@@ -663,11 +681,12 @@ def update_or_create_vote(request, user, item, vote_type):
 
     vote = create_vote(user, item, vote_type)
     events_api.track_content_vote(user, vote, request)
-    create_contribution.apply_async(
-        (Contribution.CURATOR, user.id, vote.paper.id, vote.id),
-        priority=3,
-        countdown=10
-    )
+    # Do we want to create contributions for people who upvote discussions?
+    # create_contribution.apply_async(
+    #     (Contribution.UPVOTER, {}, user.id, vote.paper.id, vote.id),
+    #     priority=3,
+    #     countdown=10
+    # )
     return get_vote_response(vote, 201)
 
 

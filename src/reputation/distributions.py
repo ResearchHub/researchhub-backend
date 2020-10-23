@@ -153,4 +153,8 @@ DISTRIBUTION_TYPE_CHOICES = [
         CreateSummary.name,
         CreateSummary.name
     ),
+    (
+        'REWARD',
+        'REWARD'
+    )
 ]
