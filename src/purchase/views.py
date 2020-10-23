@@ -216,6 +216,55 @@ class SupportViewSet(viewsets.ModelViewSet):
     ]
     throttle_classes = THROTTLE_CLASSES
 
+    @action(
+        detail=False,
+        methods=["get"],
+    )
+    def get_supported(self, request):
+        paper_id = request.query_params.get('paper_id')
+        author_id = request.query_params.get('author_id')
+        if paper_id:
+            paper = Paper.objects.get(id=paper_id)
+            supported_papers = self.queryset.filter(object_id=paper.id)
+
+            if supported_papers.exists():
+                supported_paper = supported_papers.first()
+            else:
+                return Response({'results': []}, status=200)
+
+            user_ids = Balance.objects.filter(
+                object_id=supported_paper.id
+            ).distinct(
+                'user'
+            ).values_list(
+                'user', flat=True
+            )
+        elif author_id:
+            user = Author.objects.get(id=author_id).user
+            support_ids = self.queryset.filter(
+                recipient=user
+            ).values_list(
+                'id'
+            )
+
+            support_type = ContentType.objects.get_for_model(Support)
+            user_ids = Balance.objects.filter(
+                object_id__in=support_ids,
+                content_type=support_type
+            ).values_list(
+                'user'
+            )
+        else:
+            return Response({'message': 'No query param included'}, status=400)
+
+        users = User.objects.filter(id__in=user_ids)
+        page = self.paginate_queryset(users)
+        if page is not None:
+            serializer = UserSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        return Response({'message': 'Error'}, status=400)
+
     def create(self, request):
         sender = request.user
         data = request.data
@@ -298,7 +347,7 @@ class SupportViewSet(viewsets.ModelViewSet):
 
                 payment_intent = stripe.PaymentIntent.create(
                     payment_method_types=['card'],
-                    amount=decimal_amount,
+                    amount=amount * 100, # The amount in cents
                     currency='usd',
                     application_fee_amount=0,
                     transfer_data={
@@ -312,53 +361,6 @@ class SupportViewSet(viewsets.ModelViewSet):
         sender_data = UserSerializer(sender).data
         response_data = {'user': sender_data, **data}
         return Response(response_data, status=200)
-
-    def list(self, request):
-        # TODO: Clean this up
-        paper_id = request.query_params.get('paper_id')
-        author_id = request.query_params.get('author_id')
-        if paper_id:
-            paper = Paper.objects.get(id=paper_id)
-            supported_papers = self.queryset.filter(object_id=paper.id)
-
-            if supported_papers.exists():
-                supported_paper = supported_papers.first()
-            else:
-                return Response(status=200)
-
-            user_ids = Balance.objects.filter(
-                object_id=supported_paper.id
-            ).distinct(
-                'user'
-            ).values_list(
-                'user', flat=True
-            )
-        elif author_id:
-            user = Author.objects.get(id=author_id).user
-            support_ids = self.queryset.filter(
-                recipient=user
-            ).values_list(
-                'id'
-            )
-
-            support_type = ContentType.objects.get_for_model(Support)
-            user_ids = Balance.objects.filter(
-                object_id__in=support_ids,
-                content_type=support_type
-            ).values_list(
-                'user'
-            )
-        else:
-            return Response('No query param included', status=400)
-
-        users = User.objects.filter(id__in=user_ids)
-        page = self.paginate_queryset(users)
-        if page is not None:
-            serializer = UserSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        return Response(status=400)
-
 
 class StripeViewSet(viewsets.ModelViewSet):
     queryset = Wallet.objects.all()
