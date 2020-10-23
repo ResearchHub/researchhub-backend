@@ -105,7 +105,7 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
         ]
 
     def get_balance(self, obj):
-        if not self.read_only:
+        if not self.read_only and self.context.get('user') and self.context['user'].id == obj.id:
             return obj.get_balance()
 
     def get_subscribed(self, obj):

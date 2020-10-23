@@ -30,6 +30,7 @@ class SocialLoginSerializer(serializers.Serializer):
     code = serializers.CharField(required=False, allow_blank=True)
     credential = serializers.CharField(required=False, allow_blank=True)
     uuid = serializers.CharField(required=False, allow_blank=True)
+    referral_code = serializers.CharField(required=False, allow_blank=True)
 
     def _get_request(self):
         request = self.context.get('request')
@@ -206,6 +207,18 @@ class SocialLoginSerializer(serializers.Serializer):
             visits = WebsiteVisits.objects.get(uuid=attrs['uuid'])
             visits.user = attrs['user']
             visits.save()
+        except Exception as e:
+            print(e)
+            sentry.log_error(e)
+            pass
+
+        try:
+            referral_code = attrs.get('referral_code')
+            referral_user = User.objects.get(referral_code=referral_code)
+            user = attrs['user']
+            if referral_code and not user.invited_by and referral_user.id != user.id:
+                user.invited_by = referral_user
+                user.save()
         except Exception as e:
             print(e)
             sentry.log_error(e)

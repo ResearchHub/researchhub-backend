@@ -46,10 +46,13 @@ class Distributor:
     @staticmethod
     def generate_proof(db_record, timestamp):
         serializer = get_model_serializer(type(db_record))
+        obj = serializer(db_record).data
+        if obj.get('password'):
+            del obj['password']
         proof = {
             'timestamp': timestamp,
             'table': db_record._meta.db_table,
-            'record': serializer(db_record).data
+            'record': obj
         }
         return proof
 
