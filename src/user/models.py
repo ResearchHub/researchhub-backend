@@ -1,4 +1,5 @@
 import decimal
+import uuid
 
 from django.db import models
 from django.db.models import Sum
@@ -39,6 +40,14 @@ class User(AbstractUser):
     )
     moderator = models.BooleanField(default=False)
     is_suspended = models.BooleanField(default=False)
+    referral_code = models.CharField(max_length=36, default=uuid.uuid4, unique=True)
+    invited_by = models.ForeignKey(
+        'self',
+        related_name='invitee',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
 
     def __str__(self):
         return '{} / {}'.format(

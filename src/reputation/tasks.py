@@ -1,12 +1,16 @@
+<<<<<<< HEAD
 import math
 import datetime
 
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
+=======
+>>>>>>> fd7a681644061a4941793ceed48d700c31d39af6
 from django.contrib.contenttypes.models import ContentType
 
 from researchhub.celery import app
 from paper.models import Paper
+<<<<<<< HEAD
 from reputation.models import Contribution, DistributionAmount
 from reputation.distributor import RewardDistributor
 
@@ -25,28 +29,60 @@ def create_contribution(
         **instance_type
     )
     if contribution_type == Contribution.SUBMITTER:
+=======
+from reputation.models import Contribution
+
+
+@app.task
+def create_contribution(contribution_type, user_id, paper_id, object_id):
+    if contribution_type == Contribution.PAPER:
+        content_type = ContentType.objects.get(
+            app_label='paper',
+            model='paper'
+        )
+
+>>>>>>> fd7a681644061a4941793ceed48d700c31d39af6
         create_author_contribution(
             Contribution.AUTHOR,
             user_id,
             paper_id,
             object_id
         )
+<<<<<<< HEAD
+=======
+    else:
+        content_type = ContentType.objects.get(
+            app_label='user',
+            model='user'
+        )
+>>>>>>> fd7a681644061a4941793ceed48d700c31d39af6
 
     previous_contributions = Contribution.objects.filter(
         contribution_type=contribution_type,
         content_type=content_type,
+<<<<<<< HEAD
         paper_id=paper_id
+=======
+>>>>>>> fd7a681644061a4941793ceed48d700c31d39af6
     ).order_by(
         'ordinal'
     )
 
     ordinal = 0
     if previous_contributions.exists():
+<<<<<<< HEAD
         ordinal = previous_contributions.last().ordinal + 1
 
     Contribution.objects.create(
         contribution_type=contribution_type,
         user_id=user_id,
+=======
+        ordinal = previous_contributions.last().ordinal
+
+    Contribution.objects.create(
+        contribution_type=contribution_type,
+        user=user_id,
+>>>>>>> fd7a681644061a4941793ceed48d700c31d39af6
         ordinal=ordinal,
         paper_id=paper_id,
         content_type=content_type,
@@ -81,6 +117,7 @@ def create_author_contribution(
             Contribution(**data)
         )
     Contribution.objects.bulk_create(contributions)
+<<<<<<< HEAD
 
 
 @app.task
@@ -140,3 +177,5 @@ def distribute_weekly_rewards():
         amount = math.floor(reward / contributions.count())
         for contribution in contributions:
             reward_dis.generate_distribution(contribution, amount=amount)
+=======
+>>>>>>> fd7a681644061a4941793ceed48d700c31d39af6

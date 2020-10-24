@@ -333,6 +333,12 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
             countdown=10
         )
 
+        create_contribution.apply_async(
+            (Contribution.COMMENTER, request.user.id, paper_id, paper_id),
+            priority=2,
+            countdown=10
+        )
+
         invalidate_trending_cache(hubs)
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)

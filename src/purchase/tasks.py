@@ -9,8 +9,6 @@ from researchhub.settings import APP_ENV
 from paper.utils import invalidate_trending_cache
 from utils.message import send_email_message
 
-PAPER_CONTENT_TYPE = ContentType.objects.get(app_label='paper', model='paper')
-
 
 @periodic_task(
     run_every=crontab(hour='*/2'),
@@ -18,6 +16,7 @@ PAPER_CONTENT_TYPE = ContentType.objects.get(app_label='paper', model='paper')
     options={'queue': APP_ENV}
 )
 def update_purchases():
+    PAPER_CONTENT_TYPE = ContentType.objects.get(app_label='paper', model='paper')
     purchases = Purchase.objects.filter(boost_time__gt=0)
     for purchase in purchases:
         purchase.boost_time = purchase.get_boost_time()

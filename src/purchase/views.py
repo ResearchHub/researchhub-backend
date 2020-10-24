@@ -363,7 +363,6 @@ class SupportViewSet(viewsets.ModelViewSet):
         response_data = {'user': sender_data, **data}
         return Response(response_data, status=200)
 
-
 class StripeViewSet(viewsets.ModelViewSet):
     queryset = Wallet.objects.all()
     serializer_class = WalletSerializer
