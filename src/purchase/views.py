@@ -218,7 +218,7 @@ class SupportViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=["get"],
+        methods=['get'],
         permission_classes=[CreateOrUpdateOrReadOnly]
     )
     def get_supported(self, request):
@@ -311,12 +311,16 @@ class SupportViewSet(viewsets.ModelViewSet):
                     object_id=support.id,
                     amount=f'-{amount}',
                 )
-                send_support_email(
-                    sender.email,
-                    amount,
-                    sender_bal.created_date,
-                    payment_type,
-                    'sender'
+                send_support_email.apply_async(
+                    (
+                        sender.email,
+                        amount,
+                        sender_bal.created_date,
+                        payment_type,
+                        'sender'
+                    ),
+                    priority=6,
+                    countdown=2
                 )
 
                 # Adding balance to recipient
@@ -348,7 +352,7 @@ class SupportViewSet(viewsets.ModelViewSet):
 
                 payment_intent = stripe.PaymentIntent.create(
                     payment_method_types=['card'],
-                    amount=amount * 100, # The amount in cents
+                    amount=amount * 100,  # The amount in cents
                     currency='usd',
                     application_fee_amount=0,
                     transfer_data={
@@ -362,6 +366,7 @@ class SupportViewSet(viewsets.ModelViewSet):
         sender_data = UserSerializer(sender).data
         response_data = {'user': sender_data, **data}
         return Response(response_data, status=200)
+
 
 class StripeViewSet(viewsets.ModelViewSet):
     queryset = Wallet.objects.all()
