@@ -388,8 +388,8 @@ class StripeViewSet(viewsets.ModelViewSet):
                 country='US',  # This is where our business resides
                 email=user.email,
                 capabilities={
-                    "card_payments": {"requested": True},
-                    "transfers": {"requested": True},
+                    'card_payments': {'requested': True},
+                    'transfers': {'requested': True},
                 },
             )
 
