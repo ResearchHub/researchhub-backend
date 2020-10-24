@@ -15,4 +15,9 @@ class Migration(migrations.Migration):
             name='stripe_acc',
             field=models.CharField(max_length=255, null=True),
         ),
+        migrations.AddField(
+            model_name='wallet',
+            name='stripe_verified',
+            field=models.BooleanField(default=False),
+        ),
     ]
