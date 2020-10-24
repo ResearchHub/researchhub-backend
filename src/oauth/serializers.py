@@ -30,7 +30,11 @@ class SocialLoginSerializer(serializers.Serializer):
     code = serializers.CharField(required=False, allow_blank=True)
     credential = serializers.CharField(required=False, allow_blank=True)
     uuid = serializers.CharField(required=False, allow_blank=True)
-    referral_code = serializers.CharField(required=False, allow_blank=True)
+    referral_code = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True
+    )
 
     def _get_request(self):
         request = self.context.get('request')
