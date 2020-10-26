@@ -395,6 +395,9 @@ class StripeViewSet(viewsets.ModelViewSet):
 
             wallet.stripe_acc = acc['id']
             wallet.save()
+        elif wallet:
+            account_links = stripe.Account.create_login_link(wallet.stripe_acc)
+            return Response(account_links, status=200)
 
         refresh_url = request.data['refresh_url']
         return_url = request.data['return_url']
@@ -420,9 +423,15 @@ class StripeViewSet(viewsets.ModelViewSet):
         stripe_id = wallet.stripe_acc
         acc = stripe.Account.retrieve(stripe_id)
 
-        # if acc['charges_enabled']:
-        if acc['details_submitted']:
+        if acc['charges_enabled']:
             wallet.stripe_verified = True
             wallet.save()
             return Response(True, status=200)
-        return Response(False, status=200)
+        account_links = stripe.Account.create_login_link(stripe_id)
+        return Response(
+            {
+                'reason': 'Please complete verification via Stripe Dashboard',
+                **account_links
+            },
+            status=200
+        )
