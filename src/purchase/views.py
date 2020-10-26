@@ -224,40 +224,23 @@ class SupportViewSet(viewsets.ModelViewSet):
     def get_supported(self, request):
         paper_id = request.query_params.get('paper_id')
         author_id = request.query_params.get('author_id')
+
         if paper_id:
-            paper = Paper.objects.get(id=paper_id)
-            supported_papers = self.queryset.filter(object_id=paper.id)
-
-            if supported_papers.exists():
-                supported_paper = supported_papers.first()
-            else:
-                return Response({'results': []}, status=200)
-
-            user_ids = Balance.objects.filter(
-                object_id=supported_paper.id
-            ).distinct(
-                'user'
-            ).values_list(
-                'user', flat=True
+            paper_type = ContentType.objects.get(model='paper')
+            supports = self.queryset.filter(
+                content_type=paper_type,
+                object_id=paper_id
             )
         elif author_id:
-            user = Author.objects.get(id=author_id).user
-            support_ids = self.queryset.filter(
-                recipient=user
-            ).values_list(
-                'id'
-            )
-
-            support_type = ContentType.objects.get_for_model(Support)
-            user_ids = Balance.objects.filter(
-                object_id__in=support_ids,
-                content_type=support_type
-            ).values_list(
-                'user'
+            author_type = ContentType.objects.get(model='author')
+            supports = self.queryset.filter(
+                content_type=author_type,
+                object_id=author_id
             )
         else:
             return Response({'message': 'No query param included'}, status=400)
 
+        user_ids = supports.values_list('sender', flat=True)
         users = User.objects.filter(id__in=user_ids)
         page = self.paginate_queryset(users)
         if page is not None:
