@@ -42,7 +42,7 @@ from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfAllowed
 from user.models import User, Author
 from user.serializers import UserSerializer
 
-from researchhub.settings import ASYNC_SERVICE_HOST
+from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
 
 
 class PurchaseViewSet(viewsets.ModelViewSet):
@@ -410,7 +410,12 @@ class StripeViewSet(viewsets.ModelViewSet):
             wallet.stripe_verified = True
             wallet.save()
             return Response(True, status=200)
-        account_links = stripe.Account.create_login_link(stripe_id)
+
+        redirect = f'{BASE_FRONTEND_URL}/user/{pk}/stripe?verify_stripe=true'
+        account_links = stripe.Account.create_login_link(
+            stripe_id,
+            redirect_url=redirect
+        )
         return Response(
             {
                 'reason': 'Please complete verification via Stripe Dashboard',
