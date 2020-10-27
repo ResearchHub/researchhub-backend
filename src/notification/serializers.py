@@ -24,6 +24,7 @@ class NotificationSerializer(serializers.ModelSerializer):
             'recipient',
             'created_date',
             'updated_date',
+            'extra'
         ]
 
     def get_action(self, obj):

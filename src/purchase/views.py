@@ -37,11 +37,12 @@ from purchase.serializers import (
     WalletSerializer,
     SupportSerializer
 )
+from notification.models import Notification
 from purchase.tasks import send_support_email
 from utils.throttles import THROTTLE_CLASSES
 from utils.http import http_request, RequestMethods
 from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfAllowed
-from user.models import User, Author
+from user.models import User, Author, Action
 from user.serializers import UserSerializer
 
 from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
@@ -466,16 +467,17 @@ class StripeViewSet(viewsets.ModelViewSet):
         return Response(status=200)
 
     def _send_stripe_notification(self, user, status, message, **kwargs):
-        room = f'notification_{user.id}'
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            room,
-            {
-                'type': 'send_notification',
-                'notification_type': 'stripe',
-                'direct': True,
-                'status': status,
-                'message': message,
-                **kwargs
-            }
+        user_id = user.id
+        user_type = ContentType.objects.get(model='user')
+        action = Action.objects.create(
+            user=user,
+            content_type=user_type,
+            object_id=user_id,
         )
+        notification = Notification.objects.create(
+            recipient=user,
+            action_user=user,
+            action=action
+        )
+
+        notification.send_notification()
