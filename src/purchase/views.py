@@ -361,7 +361,8 @@ class StripeViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=['post']
+        methods=['post'],
+        permission_classes=[IsAuthenticated]
     )
     def onboard_stripe_account(self, request):
         user = request.user
@@ -470,7 +471,8 @@ class StripeViewSet(viewsets.ModelViewSet):
         async_to_sync(channel_layer.group_send)(
             room,
             {
-                'type': 'stripe',
+                'type': 'send_notification',
+                'notification_type': 'stripe',
                 'status': status,
                 'message': message,
                 **kwargs
