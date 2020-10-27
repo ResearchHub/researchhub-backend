@@ -473,6 +473,7 @@ class StripeViewSet(viewsets.ModelViewSet):
             {
                 'type': 'send_notification',
                 'notification_type': 'stripe',
+                'direct': True,
                 'status': status,
                 'message': message,
                 **kwargs

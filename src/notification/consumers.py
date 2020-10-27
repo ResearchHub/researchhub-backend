@@ -39,8 +39,9 @@ class NotificationConsumer(WebsocketConsumer):
                 self.channel_name
             )
 
-    def send_notification(self, event, direct=False):
+    def send_notification(self, event):
         # Send message to webSocket (Frontend)
+        direct = event.get('direct')
         if direct:
             self.send(text_data=json.dumps(event))
         else:
