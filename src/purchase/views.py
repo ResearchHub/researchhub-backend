@@ -477,7 +477,12 @@ class StripeViewSet(viewsets.ModelViewSet):
         notification = Notification.objects.create(
             recipient=user,
             action_user=user,
-            action=action
+            action=action,
+            extra={
+                'status': status,
+                'message': message,
+                **kwargs
+            }
         )
 
         notification.send_notification()

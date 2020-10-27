@@ -317,6 +317,8 @@ class UserActions:
             creator = item.proposed_by
         elif isinstance(item, Paper):
             creator = item.uploaded_by
+        elif isinstance(item, User):
+            creator = item
         else:
             creator = item.created_by
         if creator is not None:

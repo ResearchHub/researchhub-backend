@@ -40,6 +40,7 @@ class NotificationConsumer(WebsocketConsumer):
             )
 
     def send_notification(self, event):
+        print(event)
         # Send message to webSocket (Frontend)
         notification_type = event['notification_type']
         notification_id = event['id']
