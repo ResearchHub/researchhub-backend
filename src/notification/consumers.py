@@ -39,14 +39,17 @@ class NotificationConsumer(WebsocketConsumer):
                 self.channel_name
             )
 
-    def send_notification(self, event):
+    def send_notification(self, event, direct=False):
         # Send message to webSocket (Frontend)
-        notification_type = event['notification_type']
-        notification_id = event['id']
-        notification = Notification.objects.get(id=notification_id)
-        serialized_data = NotificationSerializer(notification).data
-        data = {
-            'notification_type': notification_type,
-            'data': serialized_data
-        }
-        self.send(text_data=json.dumps(data))
+        if direct:
+            self.send(text_data=json.dumps(event))
+        else:
+            notification_type = event['notification_type']
+            notification_id = event['id']
+            notification = Notification.objects.get(id=notification_id)
+            serialized_data = NotificationSerializer(notification).data
+            data = {
+                'notification_type': notification_type,
+                'data': serialized_data
+            }
+            self.send(text_data=json.dumps(data))

@@ -2,6 +2,8 @@ import stripe
 import decimal
 import json
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.core.cache import cache
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -422,4 +424,55 @@ class StripeViewSet(viewsets.ModelViewSet):
                 **account_links
             },
             status=200
+        )
+
+    @action(detail=False, methods=['post'])
+    def stripe_account_updated(self, request):
+        data = request.data
+        acc_id = data['account']
+        acc_obj = data['data']['object']
+        charges_enabled = acc_obj['charges_enabled']
+        wallet = self.queryset.get(stripe_acc=acc_id)
+        user = wallet.author.user
+
+        if charges_enabled:
+            wallet.stripe_verified = charges_enabled
+            wallet.save()
+            message = 'Your Stripe Account has been verified'
+            self._send_stripe_notification(user, 'verified', message)
+            return Response(status=200)
+
+        requirements = acc_obj['requirements']
+        reason = requirements['disabled_reason']
+
+        if reason == 'requirements.pending_verification':
+            message = 'Your Stripe Account is pending verification'
+            self._send_stripe_notification(user, 'pending', message)
+        else:
+            errors = requirements['errors']
+            message = ''
+            for error in errors:
+                error_reason = error['reason']
+                message += f'{error_reason}\n'
+            account_links = stripe.Account.create_login_link(acc_id)
+            self._send_stripe_notification(
+                user,
+                'incomplete',
+                message,
+                **account_links
+            )
+
+        return Response(status=200)
+
+    def _send_stripe_notification(self, user, status, message, **kwargs):
+        room = f'notification_{user.id}'
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            room,
+            {
+                'type': 'stripe',
+                'status': status,
+                'message': message,
+                **kwargs
+            }
         )
