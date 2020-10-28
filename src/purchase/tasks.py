@@ -33,7 +33,7 @@ def update_purchases():
 
 
 @app.task
-def send_support_email(email, amount, date, payment_type, email_type):
+def send_support_email(profile_url, sender_name, recipient_name, email, amount, date, payment_type, email_type, paper_data):
     if payment_type == Support.STRIPE:
         payment_type = 'Stripe'
     elif payment_type == Support.PAYPAL:
@@ -53,7 +53,11 @@ def send_support_email(email, amount, date, payment_type, email_type):
         'date': date,
         'method': payment_type,
         'email': email,
-        'recipient': email_type == 'recipient'
+        'recipient': email_type == 'recipient',
+        'sender_name': sender_name,
+        'recipient_name': recipient_name,
+        'paper': paper_data,
+        'user_profile': profile_url,
     }
 
     if email_type == 'sender':

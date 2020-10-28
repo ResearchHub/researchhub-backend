@@ -289,7 +289,18 @@ class SupportViewSet(viewsets.ModelViewSet):
             )
             source_type = ContentType.objects.get_for_model(support)
 
-            if payment_type == Support.RSC_OFF_CHAIN:
+            if payment_type == Support.RSC_OFF_CHAIN or payment_type == Support.STRIPE:
+                paper_data = {}
+                if content_type_str == 'paper':
+                    paper = Paper.objects.get(id=object_id)
+                    paper_data['title'] = paper.title
+                    paper_summary = f'From Paper: {paper.summary}' if paper.summary else ''
+                    paper_data['summary'] = paper_summary
+                    paper_data['uploaded_by'] = paper.uploaded_by.full_name()
+                    paper_data['discussion_count'] = paper.discussion_count
+                    paper_data['paper_type'] = ''.join(paper.paper_type.split('_')).capitalize()
+                    paper_data['url'] = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}'
+
                 # Subtracting balance from user
                 sender_bal = Balance.objects.create(
                     user=sender,
@@ -299,11 +310,15 @@ class SupportViewSet(viewsets.ModelViewSet):
                 )
                 send_support_email.apply_async(
                     (
+                        f'{BASE_FRONTEND_URL}/user/{recipient_user.author_profile.id}/overview',
+                        sender.full_name(),
+                        recipient_user.full_name(),
                         sender.email,
                         amount,
-                        sender_bal.created_date,
+                        sender_bal.created_date.strftime('%m/%d/%Y'),
                         payment_type,
-                        'sender'
+                        'sender',
+                        paper_data
                     ),
                     priority=6,
                     countdown=2
@@ -319,11 +334,15 @@ class SupportViewSet(viewsets.ModelViewSet):
 
                 send_support_email.apply_async(
                     (
+                        f'{BASE_FRONTEND_URL}/user/{sender.author_profile.id}/overview',
+                        sender.full_name(),
+                        recipient_user.full_name(),
                         recipient_user.email,
                         amount,
-                        recipient_bal.created_date,
+                        recipient_bal.created_date.strftime('%m/%d/%Y'),
                         payment_type,
-                        'recipient'
+                        'recipient',
+                        paper_data
                     ),
                     priority=6,
                     countdown=2,

@@ -6,12 +6,9 @@ body {
 
 .email-container {
   width: 600px;
-  border: none;
   margin: 0px auto;
+  padding: 35px;
   background-color: #FFFFFF;
-  box-sizing: border-box;
-  border-radius: 5px;
-  border: 1px solid #DDDDDD;
 }
 
 .notification-wrapper {
@@ -28,7 +25,6 @@ body {
 }
 
 .email-header {
-  padding: 16px;
   padding-bottom: 0;
   text-align: center;
 }
@@ -39,16 +35,34 @@ body {
 }
 
 .header {
-  display: flex;
-  text-transform: uppercase;
+  display: block;
+  border-top: 1px solid #ddd;
   border-bottom: 1px solid #ddd;
   font-size: 20px;
-  padding-top: 20px;
-  padding-bottom: 5px;
+  margin-top: 25px;
+  margin-bottom: 20px;
+  padding-top: 35px;
+  padding-bottom: 35px;
   font-weight: 500;
   letter-spacing: 0.6px;
   box-sizing: border-box;
-  font-weight: bold;
+  line-height: 23px;
+  text-align: left;
+  color: #241F3A;
+}
+
+.header-message {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;  
+  opacity: 0.8;
+  margin: 20px 0px 0px 0px;
+}
+
+.header-link {
+  display: contents;
+  text-decoration: underline;
+  color: inherit;
 }
 
 .count-wrapper {
@@ -158,7 +172,7 @@ body {
 }
 
 .content {
-  display: flex
+  display: flex;
 }
 
 .column { 
@@ -167,29 +181,97 @@ body {
 }
 
 .column-left {
-  padding: 10px;
   float: left;
-  width: 33.333%;
-  margin-bottom: 10px;
-}
-
-.column-right {
-  padding: 10px;
-  float: right;
-  width: 33.333%;
-  margin-bottom: 10px;
+  width: 175px;
 }
 
 .column-center {
-  padding: 10px;
   display: inline-block;
-  width: 33.333%;
-  margin-bottom: 10px;
 }
 
 .column-headers { 
-  color: #A7A7A7;
-  margin-bottom: -0.5px;
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 26px;
+  margin: 15px 0px;
+  color: #241F3A;
+}
+
+.column-values {
+  display: flex;
+  font-weight: normal;
+  font-size: 14px;
+  line-height: 26px;
+  opacity: 0.7;
+  margin: 15px 0px;
+  color: #241F3A;
+}
+
+.coin-logo {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  margin: auto 6px auto 0px;
+}
+
+.paper-info {
+  display: grid;
+  background-color: #FAFAFA;
+  color: #241F3A;
+  margin: 20px 0px;
+  padding: 20px;
+  border: 2px solid #F0F0F0;
+  border-radius: 5px;
+  text-decoration: none;
+}
+
+.paper-title {
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 19px;
+  margin: 0px 0px 8px 0px;
+}
+
+.paper-summary {
+  font-size: 14px;
+  line-height: 28px;
+  opacity: 0.5;
+}
+
+.paper-footer {
+  display: flex;
+  font-size: 12px;
+  margin-top: 13px;
+}
+
+.comments-logo, .wip-logo {
+  height: 14px;
+  margin: auto 6px auto 0px;
+}
+
+.paper-comments {
+  display: flex;
+  margin: auto 0px;
+  opacity: 0.5;
+}
+
+.paper-status {
+  display: flex;
+  margin: auto 0px auto auto;
+}
+
+.email-action-container {
+  width: 100%;
+  margin: 10px 0px;
+  display: inline-flex;
+}
+
+.email-action-button {
+  font-size: 14;
+  color: #FFFFFF;
+  background-color: #3971FF;
+  padding: 12px 20px;
+  border-radius: 4px;
 }
 
 .summary {
@@ -237,14 +319,22 @@ body {
 
 .footer {
   font-size: 12px;
-  color: #aaa;
   padding: 10px;
   text-align: center;
-  cursor: pointer;
+  background-color: #282936;
+  width: 650px;
+  margin: auto;
+  height: 16px;
 }
 
-.footer:hover {
-  color: rgb(78, 83, 255);
+.footer-link {
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  padding: 10px;
+}
+
+.footer-link:hover {
+  color: rgba(255, 255, 255, 1);
   text-decoration: underline;
 }
 

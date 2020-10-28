@@ -9,5 +9,6 @@ class NotificationFrequencies:
 
 
 base_email_context = {
-    'opt_out': BASE_FRONTEND_URL + '/email/opt-out/'
+    'opt_out': BASE_FRONTEND_URL + '/email/opt-out/',
+    'update_subscription': BASE_FRONTEND_URL + '/user/settings/'
 }
