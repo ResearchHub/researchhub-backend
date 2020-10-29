@@ -272,7 +272,7 @@ class Balance(models.Model):
 
     # TODO: why is this a char field?
     amount = models.CharField(max_length=255)
-    testnet_amount = models.CharField(max_length=255)
+    testnet_amount = models.CharField(max_length=255, default=0, null=True, blank=True)
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
