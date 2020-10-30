@@ -1,5 +1,6 @@
 import math
 import datetime
+import pytz
 
 from celery.decorators import periodic_task
 from django.contrib.contenttypes.models import ContentType
@@ -105,7 +106,7 @@ def distribute_round_robin(paper_id):
 )
 def distribute_rewards():
     # Checks if rewards should be distributed, given time config
-    today = datetime.datetime.today()
+    today = datetime.datetime.now(tz=pytz.utc)
     reward_time_hour, reward_time_day, reward_time_week = list(
         map(int, REWARD_TIME.split(' '))
     )
@@ -137,7 +138,13 @@ def distribute_rewards():
     else:
         last_distribution = last_distribution.last()
 
-    starting_date = last_distribution.distributed_date
+    last_distributed = DistributionAmount.objects.filter(
+        distributed=True
+    )
+    if last_distributed.exists():
+        starting_date = last_distributed.last().distributed_date
+    else:
+        starting_date = last_distribution.created_date
 
     # last_week = today - time_delta
     # starting_date = datetime.datetime(
@@ -158,6 +165,7 @@ def distribute_rewards():
         created_date__gt=starting_date,
         created_date__lte=today
     )
+
     if not weekly_contributions.exists():
         return
 
