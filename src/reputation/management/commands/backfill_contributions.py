@@ -8,6 +8,7 @@ from django.core.management.base import BaseCommand
 from django.contrib.contenttypes.models import ContentType
 
 from reputation.models import DistributionAmount, Contribution
+from reputation.tasks import create_contribution
 from user.models import Action
 
 
@@ -52,47 +53,79 @@ class Command(BaseCommand):
             month=10,
             day=29,
             hour=0,
-            minute=0
+            minute=0,
+            second=0
         )
 
         last_dist = DistributionAmount.objects.last()
         if not last_dist:
             dist = DistributionAmount.objects.create(
-                distributed=True,
+                distributed=False,
                 amount=1000000
             )
-            dist.distributed_date = first_distribution_date
-            dist.save()
+            DistributionAmount.objects.filter(
+                id=dist.id
+            ).update(
+                created_date=first_distribution_date,
+                distributed_date=first_distribution_date
+            )
 
         actions = Action.objects.filter(
             created_date__gte=first_distribution_date
         )
         for action in actions.iterator():
             content_type = action.content_type
-            obj_id = action.obj_id
+            user = action.user
+            obj_id = action.object_id
             if content_type in contribution_content_types:
-                if content_type is paper_content:
+                if content_type == paper_content:
                     choice = Contribution.SUBMITTER
-                    paper = content_type.model_class().objects.get(id=obj_id)
-                elif content_type is paper_vote_content:
+                    instance_type = {
+                        'app_label': 'paper',
+                        'model': 'paper'
+                    }
+                elif content_type == paper_vote_content:
                     choice = Contribution.UPVOTER
-                elif content_type is thread_content:
+                    instance_type = {
+                        'app_label': 'paper',
+                        'model': 'vote'
+                    }
+                elif content_type == thread_content:
                     choice = Contribution.COMMENTER
-                elif content_type is comment_content:
+                    instance_type = {
+                        'app_label': 'discussion',
+                        'model': 'thread'
+                    }
+                elif content_type == comment_content:
                     choice = Contribution.COMMENTER
-                elif content_type is reply_content:
+                    instance_type = {
+                        'app_label': 'discussion',
+                        'model': 'comment'
+                    }
+                elif content_type == reply_content:
                     choice = Contribution.COMMENTER
-                elif content_type is bullet_content:
+                    instance_type = {
+                        'app_label': 'discussion',
+                        'model': 'reply'
+                    }
+                elif content_type == bullet_content:
                     choice = Contribution.CURATOR
+                    instance_type = {
+                        'app_label': 'bullet_point',
+                        'model': 'bulletpoint'
+                    }
 
-                paper = content_type.model_class().objects.get(
-                    id=obj_id
-                ).paper
+                if content_type == paper_content:
+                    paper = content_type.model_class().objects.get(id=obj_id)
+                else:
+                    paper = content_type.model_class().objects.get(
+                        id=obj_id
+                    ).paper
 
-                Contribution.objects.create(
-                    contribution_type=choice,
-                    user=action.user,
-                    content_type=content_type,
-                    object_id=obj_id,
-                    paper=paper
+                create_contribution(
+                    choice,
+                    instance_type,
+                    user.id,
+                    paper.id,
+                    obj_id
                 )
