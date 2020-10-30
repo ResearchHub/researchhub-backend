@@ -23,7 +23,6 @@ class Wallet(models.Model):
     )
     btc_address = models.CharField(
         max_length=255,
-        blank=True,
         null=True
     )
     rsc_address = models.CharField(

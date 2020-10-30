@@ -297,6 +297,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
+        Contribution.objects.filter(paper=paper).delete()
         paper.delete()
         return Response('Paper was deleted.', status=200)
 

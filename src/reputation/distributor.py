@@ -189,7 +189,7 @@ class RewardDistributor:
             raise Exception(f'Missing instance type: {str(item)}')
 
         distributor = Distributor(
-            dist('REWARD', amount),
+            dist('REWARD', amount, False),
             recipient,
             item,
             time.time()

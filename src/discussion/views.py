@@ -166,6 +166,12 @@ class ActionMixin:
         item = self.get_object()
         item.is_removed = True
         item.save()
+
+        content_type = get_content_type_for_model(item)
+        Contribution.objects.filter(
+            content_type=content_type,
+            object_id=item.id
+        ).delete()
         return Response(
             self.get_serializer(instance=item).data,
             status=200
