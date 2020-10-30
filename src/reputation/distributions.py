@@ -1,7 +1,8 @@
 class Distribution:
-    def __init__(self, name, amount):
+    def __init__(self, name, amount, give_rep=True):
         self._name = name
         self._amount = amount
+        self._give_rep = give_rep
 
     @property
     def name(self):
@@ -10,6 +11,10 @@ class Distribution:
     @property
     def amount(self):
         return self._amount
+    
+    @property
+    def gives_rep(self):
+        return self._give_rep
 
 
 FlagPaper = Distribution(
@@ -85,7 +90,7 @@ SummaryFlagged = Distribution(
 )
 
 Referral = Distribution(
-    'REFERRAL', 125
+    'REFERRAL', 125, False
 )
 
 DISTRIBUTION_TYPE_CHOICES = [
