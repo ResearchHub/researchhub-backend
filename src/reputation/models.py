@@ -196,12 +196,16 @@ class Contribution(models.Model):
         on_delete=models.SET_NULL,
         null=True
     )
-    ordinal = models.PositiveIntegerField()
-    object_id = models.PositiveIntegerField()
     content_type = models.ForeignKey(
         ContentType,
         on_delete=models.SET_NULL,
         null=True
+    )
+    ordinal = models.PositiveIntegerField()
+    object_id = models.PositiveIntegerField()
+    item = GenericForeignKey(
+        'content_type',
+        'object_id',
     )
 
     created_date = models.DateTimeField(auto_now_add=True)
