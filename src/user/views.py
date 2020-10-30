@@ -66,7 +66,6 @@ class UserViewSet(viewsets.ModelViewSet):
             return User.objects.filter(id=user.id)
         else:
             return User.objects.none()
-
     @action(
         detail=False,
         methods=[RequestMethods.GET],
@@ -160,23 +159,22 @@ class UserViewSet(viewsets.ModelViewSet):
             if hub_id and hub_id != 0:
                 items = User.objects.filter(
                     is_active=True
-                ).order_by('-reputation')
-                # ).annotate(
-                #     hub_rep=Sum(
-                #         'reputation_records__amount',
-                #         filter=Q(
-                #             **time_filter,
-                #             reputation_records__hubs__in=[hub_id]
-                #         )
-                #     )
-                # ).order_by(F('hub_rep').desc(nulls_last=True))
+                ).annotate(
+                    hub_rep=Sum(
+                        'reputation_records__amount',
+                        filter=Q(
+                            **time_filter,
+                            reputation_records__hubs__in=[hub_id]
+                        )
+                    )
+                ).order_by(F('hub_rep').desc(nulls_last=True))
             else:
                 items = User.objects.filter(
                     is_active=True
                 ).annotate(
                     hub_rep=Sum(
                         'reputation_records__amount',
-                        filter=Q(**time_filter)
+                        filter=Q(**time_filter) & ~Q(reputation_records__distribution_type='REFERRAL')
                     )
                 ).order_by(F('hub_rep').desc(nulls_last=True))
         elif leaderboard_type == 'authors':
