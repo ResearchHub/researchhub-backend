@@ -16,3 +16,5 @@ SIFT_ACCOUNT_ID = os.environ.get('SIFT_ACCOUNT_ID', '')
 SIFT_REST_API_KEY = os.environ.get('SIFT_REST_API_KEY', '')
 
 AMPLITUDE_API_KEY = os.environ.get('AMPLITUDE_API_KEY', '')
+
+STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
