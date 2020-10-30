@@ -465,6 +465,7 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
     def get_queryset(self):
         thread_id = get_thread_id_from_path(self.request)
         is_removed = self.request.query_params.get('is_removed', False)
+
         comments = Comment.objects.filter(
             parent=thread_id,
             is_removed=is_removed
