@@ -1,3 +1,4 @@
+import datetime
 import stripe
 import decimal
 import json
@@ -286,30 +287,13 @@ class SupportViewSet(viewsets.ModelViewSet):
             )
             source_type = ContentType.objects.get_for_model(support)
 
-            if payment_type == Support.RSC_OFF_CHAIN or payment_type == Support.STRIPE:
+            if payment_type == Support.RSC_OFF_CHAIN:
                 # Subtracting balance from user
                 sender_bal = Balance.objects.create(
                     user=sender,
                     content_type=source_type,
                     object_id=support.id,
                     amount=f'-{amount}',
-                )
-
-                send_support_email.apply_async(
-                    (
-                        f'{BASE_FRONTEND_URL}/user/{recipient.id}/overview',
-                        sender.full_name(),
-                        recipient_user.full_name(),
-                        sender.email,
-                        amount,
-                        sender_bal.created_date.strftime('%m/%d/%Y'),
-                        payment_type,
-                        'sender',
-                        content_type_str,
-                        object_id
-                    ),
-                    priority=6,
-                    countdown=2
                 )
 
                 # Adding balance to recipient
@@ -320,21 +304,11 @@ class SupportViewSet(viewsets.ModelViewSet):
                     amount=amount,
                 )
 
-                send_support_email.apply_async(
-                    (
-                        f'{BASE_FRONTEND_URL}/user/{sender.author_profile.id}/overview',
-                        sender.full_name(),
-                        recipient_user.full_name(),
-                        recipient_user.email,
-                        amount,
-                        recipient_bal.created_date.strftime('%m/%d/%Y'),
-                        payment_type,
-                        'recipient',
-                        content_type_str,
-                        object_id
-                    ),
-                    priority=6,
-                    countdown=2,
+                sender_balance_date = sender_bal.created_date.strftime(
+                    '%m/%d/%Y'
+                )
+                recipient_balance_date = recipient_bal.created_date.strftime(
+                    '%m/%d/%Y'
                 )
             elif payment_type == Support.STRIPE:
                 recipient_stripe_acc = recipient.wallet.stripe_acc
@@ -356,7 +330,46 @@ class SupportViewSet(viewsets.ModelViewSet):
                 support.proof = payment_intent
                 support.save()
                 data['client_secret'] = payment_intent['client_secret']
+                sender_balance_date = datetime.datetime.now().strftime(
+                    '%m/%d/%Y'
+                )
+                recipient_balance_date = datetime.datetime.now().strftime(
+                    '%m/%d/%Y'
+                )
 
+        send_support_email.apply_async(
+            (
+                f'{BASE_FRONTEND_URL}/user/{recipient.id}/overview',
+                sender.full_name(),
+                recipient_user.full_name(),
+                sender.email,
+                amount,
+                sender_balance_date,
+                payment_type,
+                'sender',
+                content_type_str,
+                object_id
+            ),
+            priority=6,
+            countdown=2
+        )
+
+        send_support_email.apply_async(
+            (
+                f'{BASE_FRONTEND_URL}/user/{sender.author_profile.id}/overview',
+                sender.full_name(),
+                recipient_user.full_name(),
+                recipient_user.email,
+                amount,
+                recipient_balance_date,
+                payment_type,
+                'recipient',
+                content_type_str,
+                object_id
+            ),
+            priority=6,
+            countdown=2,
+        )
         sender_data = UserSerializer(sender).data
         response_data = {'user': sender_data, **data}
         return Response(response_data, status=200)
@@ -453,7 +466,6 @@ class StripeViewSet(viewsets.ModelViewSet):
         if capability_type != 'transfers' or status == 'pending':
             return Response(status=200)
 
-        print(data)
         wallet = self.queryset.get(stripe_acc=acc_id)
         user = wallet.author.user
         if status == 'active' and not wallet.stripe_verified:

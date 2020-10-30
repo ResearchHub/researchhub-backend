@@ -58,11 +58,13 @@ def send_support_email(
         paper_data['summary'] = paper_summary
         paper_data['uploaded_by'] = paper.uploaded_by.full_name()
         paper_data['discussion_count'] = paper.discussion_count
-        paper_data['paper_type'] = ''.join(paper.paper_type.split('_')).capitalize()
+        paper_data['paper_type'] = ''.join(
+            paper.paper_type.split('_')
+        ).capitalize()
         paper_data['url'] = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}'
 
     if payment_type == Support.STRIPE:
-        payment_type = 'Stripe'
+        payment_type = 'USD'
     elif payment_type == Support.PAYPAL:
         payment_type = 'Paypal'
     elif payment_type == Support.ETH:
