@@ -16,4 +16,5 @@ class Command(BaseCommand):
             try:
                 has_wallet = author.wallet
             except Exception as e:
+                print(e)
                 Wallet.objects.create(author=author)
