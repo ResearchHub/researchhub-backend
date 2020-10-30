@@ -160,15 +160,16 @@ class UserViewSet(viewsets.ModelViewSet):
             if hub_id and hub_id != 0:
                 items = User.objects.filter(
                     is_active=True
-                ).annotate(
-                    hub_rep=Sum(
-                        'reputation_records__amount',
-                        filter=Q(
-                            **time_filter,
-                            reputation_records__hubs__in=[hub_id]
-                        )
-                    )
-                ).order_by(F('hub_rep').desc(nulls_last=True))
+                ).order_by('-reputation')
+                # ).annotate(
+                #     hub_rep=Sum(
+                #         'reputation_records__amount',
+                #         filter=Q(
+                #             **time_filter,
+                #             reputation_records__hubs__in=[hub_id]
+                #         )
+                #     )
+                # ).order_by(F('hub_rep').desc(nulls_last=True))
             else:
                 items = User.objects.filter(
                     is_active=True
