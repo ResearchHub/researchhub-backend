@@ -356,6 +356,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         paper_id = get_paper_id_from_path(self.request)
 
         source = self.request.query_params.get('source')
+        is_removed = self.request.query_params.get('is_removed', False)
 
         if source and source == 'twitter':
             try:
@@ -381,6 +382,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
                 paper=paper_id
             )
 
+        threads = threads.filter(is_removed=is_removed)
         threads = threads.annotate(
             score=upvotes-downvotes
         )
@@ -443,8 +445,10 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
 
     def get_queryset(self):
         thread_id = get_thread_id_from_path(self.request)
+        is_removed = self.request.query_params.get('is_removed', False)
         comments = Comment.objects.filter(
-            parent=thread_id
+            parent=thread_id,
+            is_removed=is_removed
         ).order_by('-score', '-created_date')
         return comments
 
@@ -529,10 +533,12 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
 
     def get_queryset(self):
         comment_id = get_comment_id_from_path(self.request)
+        is_removed = self.request.query_params.get('is_removed', False)
         comment = Comment.objects.first()
         replies = Reply.objects.filter(
             content_type=get_content_type_for_model(comment),
-            object_id=comment_id
+            object_id=comment_id,
+            is_remove=is_removed
         ).order_by('created_date')
         return replies
 
