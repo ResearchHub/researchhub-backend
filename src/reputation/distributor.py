@@ -94,10 +94,11 @@ class Distributor:
         )
 
         with transaction.atomic():
-            # updates at the SQL level and does not call save() or emit signals
-            users.update(
-                reputation=models.F('reputation') + self.distribution.amount
-            )
+            if self.distribution.gives_rep:
+                # updates at the SQL level and does not call save() or emit signals
+                users.update(
+                    reputation=models.F('reputation') + self.distribution.amount
+                )
             self._record_balance(record)
 
     def _record_balance(self, distribution):
