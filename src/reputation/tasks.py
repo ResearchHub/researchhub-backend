@@ -100,7 +100,7 @@ def distribute_round_robin(paper_id):
 
 @periodic_task(
     run_every=REWARD_SCHEDULE,
-    priority=5,
+    priority=3,
     options={'queue': APP_ENV}
 )
 def distribute_rewards():
@@ -114,41 +114,42 @@ def distribute_rewards():
         week = today.isocalendar()[1]
         if week % reward_time_week != 0:
             return
-        time_delta = datetime.timedelta(weeks=reward_time_week)
+        # time_delta = datetime.timedelta(weeks=reward_time_week)
     elif reward_time_day:
         day = today.day
         if day % reward_time_day != 0:
             return
-        time_delta = datetime.timedelta(days=reward_time_day)
+        # time_delta = datetime.timedelta(days=reward_time_day)
     elif reward_time_hour:
         hour = today.hour
         if hour % reward_time_hour != 0:
             return
-        time_delta = datetime.timedelta(hours=reward_time_hour)
+        # time_delta = datetime.timedelta(hours=reward_time_hour)
     else:
         return
 
     # Reward distribution logic
+    last_distribution = DistributionAmount.objects.last()
+    starting_date = last_distribution.distributed_date
 
+    # last_week = today - time_delta
+    # starting_date = datetime.datetime(
+    #     year=last_week.year,
+    #     month=last_week.month,
+    #     day=last_week.day,
+    #     hour=last_week.hour,
+    #     minute=last_week.minute,
+    #     second=last_week.second
+    # )
     reward_dis = RewardDistributor()
-    last_week = today - time_delta
-    last_distribution_amount = DistributionAmount.objects.last()
-    starting_date = datetime.datetime(
-        year=last_week.year,
-        month=last_week.month,
-        day=last_week.day,
-        hour=last_week.hour,
-        minute=last_week.minute,
-        second=last_week.second
-    )
 
     total_reward_amount = DEFAULT_REWARD
-    if last_distribution_amount:
-        total_reward_amount = last_distribution_amount.amount
+    if last_distribution:
+        total_reward_amount = last_distribution.amount
 
     weekly_contributions = Contribution.objects.filter(
-        created_date__gte=starting_date,
-        created_date__lt=today
+        created_date__gt=starting_date,
+        created_date__lte=today
     )
     if not weekly_contributions.exists():
         return
@@ -175,3 +176,6 @@ def distribute_rewards():
         for qs in contributions:
             for contribution in qs.iterator():
                 reward_dis.generate_distribution(contribution, amount=amount)
+
+    last_distribution.distributed = True
+    last_distribution.save()
