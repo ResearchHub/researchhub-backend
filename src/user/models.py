@@ -16,6 +16,7 @@ from discussion.models import Thread, Comment, Reply
 from hub.models import Hub
 from mailing_list.models import EmailRecipient
 from paper.models import Paper
+from purchase.models import Wallet
 from researchhub.settings import BASE_FRONTEND_URL, TESTING
 from summary.models import Summary
 from utils.models import DefaultModel
@@ -30,6 +31,7 @@ class User(AbstractUser):
     upload_tutorial_complete = models.BooleanField(default=False)
     has_seen_first_coin_modal = models.BooleanField(default=False)
     has_seen_orcid_connect_modal = models.BooleanField(default=False)
+    has_seen_stripe_modal = models.BooleanField(default=False)
     agreed_to_terms = models.BooleanField(default=False)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -39,7 +41,11 @@ class User(AbstractUser):
     )
     moderator = models.BooleanField(default=False)
     is_suspended = models.BooleanField(default=False)
-    referral_code = models.CharField(max_length=36, default=uuid.uuid4, unique=True)
+    referral_code = models.CharField(
+        max_length=36,
+        default=uuid.uuid4,
+        unique=True
+    )
     invited_by = models.ForeignKey(
         'self',
         related_name='invitee',
@@ -47,6 +53,9 @@ class User(AbstractUser):
         null=True,
         blank=True
     )
+
+    def full_name(self):
+        return self.first_name + ' ' + self.last_name
 
     def __str__(self):
         return '{} / {}'.format(
@@ -93,6 +102,10 @@ class User(AbstractUser):
         self.has_seen_orcid_connect_modal = has_seen
         self.save()
 
+    def set_has_seen_stripe_modal(self, has_seen):
+        self.has_seen_stripe_modal = has_seen
+        self.save()
+
     def set_suspended(self, is_suspended):
         if self.is_suspended != is_suspended:
             self.is_suspended = is_suspended
@@ -120,11 +133,12 @@ def attach_author_and_email_preference(
     **kwargs
 ):
     if created:
-        Author.objects.create(
+        author = Author.objects.create(
             user=instance,
             first_name=instance.first_name,
             last_name=instance.last_name,
         )
+        Wallet.objects.create(author=author)
 
 
 class University(models.Model):

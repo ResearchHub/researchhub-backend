@@ -13,6 +13,8 @@ from .permissions import ProposeSummaryEdit, UpdateOrDeleteSummaryEdit
 from .serializers import SummarySerializer
 from paper.models import Paper
 from paper.utils import get_cache_key
+from reputation.models import Contribution
+from reputation.tasks import create_contribution
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
@@ -59,7 +61,19 @@ class SummaryViewSet(viewsets.ModelViewSet):
                 request.user
             )
         self._invalidate_paper_cache(paper_id)
-        return Response(SummarySerializer(summary).data, status=201)
+        data = SummarySerializer(summary).data
+        create_contribution.apply_async(
+            (
+                Contribution.CURATOR,
+                {'app_label': 'summary', 'model': 'summary'},
+                request.user.id,
+                paper_id,
+                summary.id
+            ),
+            priority=2,
+            countdown=10
+        )
+        return Response(data, status=201)
 
     @action(
         detail=False,

@@ -10,7 +10,14 @@ from discussion.serializers import ThreadSerializer
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
-from paper.models import AdditionalFile, Flag, Paper, Vote, Figure
+from paper.models import (
+    AdditionalFile,
+    Flag,
+    Paper,
+    Vote,
+    Figure,
+    FeaturedPaper
+)
 from paper.tasks import download_pdf, add_references, add_orcid_authors
 from paper.utils import (
     check_pdf_title,
@@ -22,6 +29,8 @@ from paper.utils import (
 )
 from summary.serializers import SummarySerializer
 from researchhub.lib import get_paper_id_from_path
+from reputation.models import Contribution
+from reputation.tasks import create_contribution
 from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
 from utils.arxiv import Arxiv
@@ -239,6 +248,7 @@ class PaperSerializer(BasePaperSerializer):
                 if paper is None:
                     paper = super(PaperSerializer, self).create(validated_data)
 
+                paper_id = paper.id
                 paper_title = paper.paper_title or ''
                 self._check_pdf_title(paper, paper_title, file)
 
@@ -269,6 +279,18 @@ class PaperSerializer(BasePaperSerializer):
 
                 self._add_references(paper)
                 events_api.track_content_paper(user, paper, request)
+
+                create_contribution.apply_async(
+                    (
+                        Contribution.SUBMITTER,
+                        {'app_label': 'paper', 'model': 'paper'},
+                        user.id,
+                        paper_id,
+                        paper_id
+                    ),
+                    priority=2,
+                    countdown=10
+                )
 
                 return paper
         except IntegrityError as e:
@@ -317,14 +339,14 @@ class PaperSerializer(BasePaperSerializer):
                     for hub in new_hubs:
                         hub.paper_count += 1
                         hub.save()
-                
+
                 if authors:
                     current_authors = paper.authors.all()
                     remove_authors = []
                     for author in current_authors:
                         if author not in authors:
                             remove_authors.append(author)
-                    
+
                     new_authors = []
                     for author in authors:
                         if author not in current_authors:
@@ -470,6 +492,14 @@ class HubPaperSerializer(BasePaperSerializer):
 
     def get_references(self, paper):
         return None
+
+
+class FeaturedPaperSerializer(serializers.ModelSerializer):
+    paper = PaperSerializer()
+
+    class Meta:
+        fields = '__all__'
+        model = FeaturedPaper
 
 
 class PaperReferenceSerializer(serializers.ModelSerializer):

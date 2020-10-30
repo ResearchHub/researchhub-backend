@@ -1,3 +1,4 @@
+import stripe
 import decimal
 import json
 
@@ -34,13 +35,14 @@ from purchase.serializers import (
     WalletSerializer,
     SupportSerializer
 )
+from notification.models import Notification
+from purchase.tasks import send_support_email
 from utils.throttles import THROTTLE_CLASSES
 from utils.http import http_request, RequestMethods
 from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfAllowed
-from user.models import User, Author
+from user.models import User, Author, Action
 from user.serializers import UserSerializer
-
-from researchhub.settings import ASYNC_SERVICE_HOST
+from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
 
 
 class PurchaseViewSet(viewsets.ModelViewSet):
@@ -214,6 +216,39 @@ class SupportViewSet(viewsets.ModelViewSet):
     ]
     throttle_classes = THROTTLE_CLASSES
 
+    @action(
+        detail=False,
+        methods=['get'],
+        permission_classes=[CreateOrUpdateOrReadOnly]
+    )
+    def get_supported(self, request):
+        paper_id = request.query_params.get('paper_id')
+        author_id = request.query_params.get('author_id')
+
+        if paper_id:
+            paper_type = ContentType.objects.get(model='paper')
+            supports = self.queryset.filter(
+                content_type=paper_type,
+                object_id=paper_id
+            )
+        elif author_id:
+            author_type = ContentType.objects.get(model='author')
+            supports = self.queryset.filter(
+                content_type=author_type,
+                object_id=author_id
+            )
+        else:
+            return Response({'message': 'No query param included'}, status=400)
+
+        user_ids = supports.values_list('sender', flat=True)
+        users = User.objects.filter(id__in=user_ids)
+        page = self.paginate_queryset(users)
+        if page is not None:
+            serializer = UserSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        return Response({'message': 'Error'}, status=400)
+
     def create(self, request):
         sender = request.user
         data = request.data
@@ -222,6 +257,7 @@ class SupportViewSet(viewsets.ModelViewSet):
         sender_id = data['user_id']
         recipient_id = data['recipient_id']
         recipient = Author.objects.get(id=recipient_id)
+        recipient_user = recipient.user
         amount = data['amount']
         content_type_str = data['content_type']
         content_type = ContentType.objects.get(model=content_type_str)
@@ -232,10 +268,11 @@ class SupportViewSet(viewsets.ModelViewSet):
             return Response(status=400)
 
         # Balance check
-        sender_balance = sender.get_balance()
-        decimal_amount = decimal.Decimal(amount)
-        if sender_balance - decimal_amount < 0:
-            return Response('Insufficient Funds', status=402)
+        if payment_type == Support.RSC_OFF_CHAIN:
+            sender_balance = sender.get_balance()
+            decimal_amount = decimal.Decimal(amount)
+            if sender_balance - decimal_amount < 0:
+                return Response('Insufficient Funds', status=402)
 
         with transaction.atomic():
             support = Support.objects.create(
@@ -243,26 +280,83 @@ class SupportViewSet(viewsets.ModelViewSet):
                 duration=payment_option,
                 amount=amount,
                 content_type=content_type,
-                object_id=object_id
+                object_id=object_id,
+                sender=sender,
+                recipient=recipient_user
             )
             source_type = ContentType.objects.get_for_model(support)
 
-            if payment_type == Support.RSC_OFF_CHAIN:
+            if payment_type == Support.RSC_OFF_CHAIN or payment_type == Support.STRIPE:
                 # Subtracting balance from user
-                Balance.objects.create(
+                sender_bal = Balance.objects.create(
                     user=sender,
                     content_type=source_type,
                     object_id=support.id,
                     amount=f'-{amount}',
                 )
 
+                send_support_email.apply_async(
+                    (
+                        f'{BASE_FRONTEND_URL}/user/{recipient.id}/overview',
+                        sender.full_name(),
+                        recipient_user.full_name(),
+                        sender.email,
+                        amount,
+                        sender_bal.created_date.strftime('%m/%d/%Y'),
+                        payment_type,
+                        'sender',
+                        content_type_str,
+                        object_id
+                    ),
+                    priority=6,
+                    countdown=2
+                )
+
                 # Adding balance to recipient
-                Balance.objects.create(
-                    user=recipient.user,
+                recipient_bal = Balance.objects.create(
+                    user=recipient_user,
                     content_type=source_type,
                     object_id=support.id,
                     amount=amount,
                 )
+
+                send_support_email.apply_async(
+                    (
+                        f'{BASE_FRONTEND_URL}/user/{sender.author_profile.id}/overview',
+                        sender.full_name(),
+                        recipient_user.full_name(),
+                        recipient_user.email,
+                        amount,
+                        recipient_bal.created_date.strftime('%m/%d/%Y'),
+                        payment_type,
+                        'recipient',
+                        content_type_str,
+                        object_id
+                    ),
+                    priority=6,
+                    countdown=2,
+                )
+            elif payment_type == Support.STRIPE:
+                recipient_stripe_acc = recipient.wallet.stripe_acc
+                if not recipient_stripe_acc:
+                    return Response(
+                        'Author has not created a Stripe Account',
+                        status=403
+                    )
+
+                payment_intent = stripe.PaymentIntent.create(
+                    payment_method_types=['card'],
+                    amount=amount * 100,  # The amount in cents
+                    currency='usd',
+                    application_fee_amount=0,
+                    transfer_data={
+                        'destination': recipient_stripe_acc
+                    }
+                )
+                support.proof = payment_intent
+                support.save()
+                data['client_secret'] = payment_intent['client_secret']
+
         sender_data = UserSerializer(sender).data
         response_data = {'user': sender_data, **data}
         return Response(response_data, status=200)
@@ -276,8 +370,150 @@ class StripeViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods='post'
+        methods=['post'],
+        permission_classes=[IsAuthenticated]
     )
     def onboard_stripe_account(self, request):
         user = request.user
-        pass
+        wallet = user.author_profile.wallet
+
+        if not wallet.stripe_acc or not wallet.stripe_verified:
+            acc = stripe.Account.create(
+                type='express',
+                country='US',  # This is where our business resides
+                email=user.email,
+                capabilities={
+                    'card_payments': {'requested': True},
+                    'transfers': {'requested': True},
+                },
+            )
+
+            wallet.stripe_acc = acc['id']
+            wallet.save()
+        elif wallet:
+            account_links = stripe.Account.create_login_link(wallet.stripe_acc)
+            return Response(account_links, status=200)
+
+        refresh_url = request.data['refresh_url']
+        return_url = request.data['return_url']
+
+        try:
+            account_links = stripe.AccountLink.create(
+                account=wallet.stripe_acc,
+                refresh_url=refresh_url,
+                return_url=return_url,
+                type='account_onboarding'
+            )
+        except Exception as e:
+            return Response(e, status=400)
+        return Response(account_links, status=200)
+
+    @action(
+        detail=True,
+        methods=['get']
+    )
+    def verify_stripe_account(self, request, pk=None):
+        author = Author.objects.get(id=pk)
+        wallet = author.wallet
+        stripe_id = wallet.stripe_acc
+        acc = stripe.Account.retrieve(stripe_id)
+
+        redirect = f'{BASE_FRONTEND_URL}/user/{pk}/stripe?verify_stripe=true'
+        account_links = stripe.Account.create_login_link(
+            stripe_id,
+            redirect_url=redirect
+        )
+
+        if acc['charges_enabled']:
+            wallet.stripe_verified = True
+            wallet.save()
+            return Response({**account_links}, status=200)
+
+        return Response(
+            {
+                'reason': 'Please complete verification via Stripe Dashboard',
+                **account_links
+            },
+            status=200
+        )
+
+    @action(detail=False, methods=['post'])
+    def stripe_capability_updated(self, request):
+        data = request.data
+        acc_id = data['account']
+        acc_obj = data['data']['object']
+        status = acc_obj['status']
+        capability_type = acc_obj['id']
+        requirements = acc_obj['requirements']
+        currently_due = requirements['currently_due']
+
+        id_due = 'individual.id_number' in currently_due
+        id_verf_due = 'individual.verification.document' in currently_due
+
+        if capability_type != 'transfers' or status == 'pending':
+            return Response(status=200)
+
+        print(data)
+        wallet = self.queryset.get(stripe_acc=acc_id)
+        user = wallet.author.user
+        if status == 'active' and not wallet.stripe_verified:
+            account_links = stripe.Account.create_login_link(acc_id)
+            wallet.stripe_verified = True
+            wallet.save()
+            self._send_stripe_notification(
+                user,
+                status,
+                'Your Stripe account has been verified',
+                **account_links
+            )
+        elif status == 'active' and wallet.stripe_verified:
+            return Response(status=200)
+
+        if not id_due and not id_verf_due and not len(currently_due) <= 2:
+            return Response(status=200)
+
+        try:
+            account_links = stripe.Account.create_login_link(acc_id)
+        except Exception as e:
+            return Response(e, status=200)
+
+        message = ''
+        if id_due:
+            message = """
+                Social Security Number or other
+                government identification
+            """
+        elif id_verf_due:
+            message = """
+                Documents pertaining to government
+                identification
+            """
+
+        self._send_stripe_notification(
+            user,
+            status,
+            message,
+            **account_links
+        )
+        return Response(status=200)
+
+    def _send_stripe_notification(self, user, status, message, **kwargs):
+        user_id = user.id
+        user_type = ContentType.objects.get(model='user')
+        action = Action.objects.create(
+            user=user,
+            content_type=user_type,
+            object_id=user_id,
+        )
+        notification = Notification.objects.create(
+            recipient=user,
+            action_user=user,
+            action=action,
+            extra={
+                'status': status,
+                'message': message,
+                **kwargs
+            }
+        )
+
+        notification.send_notification()

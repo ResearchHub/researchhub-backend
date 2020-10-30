@@ -27,7 +27,14 @@ from bullet_point.models import BulletPoint
 from google_analytics.signals import get_event_hit_response
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
-from paper.models import AdditionalFile, Figure, Flag, Paper, Vote
+from paper.models import (
+    AdditionalFile,
+    Figure,
+    Flag,
+    Paper,
+    Vote,
+    FeaturedPaper
+)
 from paper.tasks import preload_hub_papers
 from paper.permissions import (
     CreatePaper,
@@ -48,6 +55,7 @@ from paper.serializers import (
     PaperSerializer,
     PaperReferenceSerializer,
     PaperVoteSerializer,
+    FeaturedPaperSerializer,
 )
 from paper.utils import (
     clean_abstract,
@@ -60,6 +68,9 @@ from paper.utils import (
     invalidate_most_discussed_cache,
 )
 from researchhub.lib import get_paper_id_from_path
+from reputation.models import Contribution
+from reputation.tasks import create_contribution
+from user.models import Author
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.sentry import log_error
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -768,11 +779,6 @@ class PaperViewSet(viewsets.ModelViewSet):
 
             if cache_hit and page_number == 1:
                 return Response(cache_hit)
-                # cache_hit_hub, cache_hit_papers = cache_hit
-                # page = self.paginate_queryset(cache_hit_papers)
-                # return self.get_paginated_response(
-                #     {'data': cache_hit_hub, 'no_results': False}
-                # )
 
         papers = self._get_filtered_papers(hub_id)
         order_papers = self.calculate_paper_ordering(
@@ -820,6 +826,61 @@ class PaperViewSet(viewsets.ModelViewSet):
         ).prefetch_related(
             *self.prefetch_lookups()
         )
+
+
+class FeaturedPaperViewSet(viewsets.ModelViewSet):
+    queryset = FeaturedPaper.objects.all()
+    serializer_class = FeaturedPaperSerializer
+    throttle_classes = THROTTLE_CLASSES
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    search_fields = ['paper__title', 'user__id']
+    filterset_fields = ['paper__title']
+
+    def create(self, request):
+        user = request.user
+        orderings = request.data['ordering']
+        featured_papers = []
+
+        self.queryset.filter(user=user).delete()
+        for ordering in orderings:
+            ordinal = ordering['ordinal']
+            paper_id = ordering['paper_id']
+            featured_papers.append(
+                FeaturedPaper(
+                    ordinal=ordinal,
+                    paper_id=paper_id,
+                    user=user
+                )
+            )
+        FeaturedPaper.objects.bulk_create(featured_papers)
+        serializer = self.serializer_class(
+            featured_papers,
+            many=True
+        )
+        data = serializer.data
+
+        return Response(data, status=200)
+
+    def destroy(self, request, pk=None):
+        featured = self.queryset.get(id=pk)
+        res = featured.delete()
+        return Response(res, status=200)
+
+    def retrieve(self, request, pk=None):
+        user = Author.objects.get(id=pk).user
+        papers = self.queryset.filter(
+            user=user
+        ).order_by(
+            'ordinal'
+        )
+
+        page = self.paginate_queryset(papers)
+        if page is not None:
+            serializer = self.serializer_class(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        return Response(status=400)
 
 
 class AdditionalFileViewSet(viewsets.ModelViewSet):
@@ -982,6 +1043,18 @@ def update_or_create_vote(request, user, paper, vote_type):
     vote = create_vote(user, paper, vote_type)
 
     events_api.track_content_vote(user, vote, request)
+
+    create_contribution.apply_async(
+        (
+            Contribution.UPVOTER,
+            {'app_label': 'paper', 'model': 'vote'},
+            user.id,
+            paper.id,
+            vote.id
+        ),
+        priority=3,
+        countdown=10
+    )
     return get_vote_response(vote, 201)
 
 

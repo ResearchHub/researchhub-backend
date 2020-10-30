@@ -3,6 +3,7 @@ import json
 import hashlib
 from datetime import datetime
 
+from django.contrib.postgres.fields import JSONField
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -11,16 +12,13 @@ from utils.models import PaidStatusModelMixin
 
 
 class Wallet(models.Model):
-    user = models.OneToOneField(
-        'user.User',
+    author = models.OneToOneField(
+        'user.Author',
         related_name='wallet',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True
+        on_delete=models.CASCADE,
     )
     eth_address = models.CharField(
         max_length=255,
-        blank=True,
         null=True
     )
     btc_address = models.CharField(
@@ -30,16 +28,15 @@ class Wallet(models.Model):
     )
     rsc_address = models.CharField(
         max_length=255,
-        blank=True,
         null=True
     )
-
-    @property
-    def stripe_acc(self):
-        return f'acc_{self.user.id}_{self.user.username}'
+    stripe_acc = models.CharField(
+        max_length=255,
+        null=True
+    )
+    stripe_verified = models.BooleanField(default=False)
 
     def connect_stripe_account(self):
-        # TODO: Connect with josh on this
         refresh_url = ''
         return_url = ''
 
@@ -76,6 +73,16 @@ class Support(models.Model):
         (MONTHLY, MONTHLY)
     ]
 
+    sender = models.ForeignKey(
+        'user.User',
+        on_delete=models.CASCADE,
+        related_name='supported_works'
+    )
+    recipient = models.ForeignKey(
+        'user.User',
+        on_delete=models.CASCADE,
+        related_name='supported_by'
+    )
     content_type = models.ForeignKey(
         ContentType,
         on_delete=models.CASCADE
@@ -96,6 +103,7 @@ class Support(models.Model):
     amount = models.CharField(
         max_length=255
     )
+    proof = JSONField(null=True)
 
 
 class AggregatePurchase(PaidStatusModelMixin):

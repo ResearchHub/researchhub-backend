@@ -11,7 +11,7 @@ class Distribution:
     @property
     def amount(self):
         return self._amount
-    
+
     @property
     def gives_rep(self):
         return self._give_rep
@@ -161,6 +161,10 @@ DISTRIBUTION_TYPE_CHOICES = [
     (
         CreateSummary.name,
         CreateSummary.name
+    ),
+    (
+        'REWARD',
+        'REWARD'
     ),
     (
         Referral.name,
