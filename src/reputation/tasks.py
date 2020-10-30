@@ -129,7 +129,14 @@ def distribute_rewards():
         return
 
     # Reward distribution logic
-    last_distribution = DistributionAmount.objects.last()
+    last_distribution = DistributionAmount.objects.filter(
+        distributed=False
+    )
+    if not last_distribution.exists():
+        last_distribution = DistributionAmount.objects.create()
+    else:
+        last_distribution = last_distribution.last()
+
     starting_date = last_distribution.distributed_date
 
     # last_week = today - time_delta
