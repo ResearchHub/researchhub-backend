@@ -66,6 +66,7 @@ class UserViewSet(viewsets.ModelViewSet):
             return User.objects.filter(id=user.id)
         else:
             return User.objects.none()
+
     @action(
         detail=False,
         methods=[RequestMethods.GET],
@@ -219,6 +220,17 @@ class UserViewSet(viewsets.ModelViewSet):
         user = request.user
         user = User.objects.get(pk=user.id)
         user.set_has_seen_orcid_connect_modal(True)
+        serialized = UserSerializer(user)
+        return Response(serialized.data, status=200)
+
+    @action(
+        detail=False,
+        methods=[RequestMethods.PATCH],
+    )
+    def has_seen_stripe_modal(self, request):
+        user = request.user
+        user = User.objects.get(pk=user.id)
+        user.set_has_seen_stripe_modal(True)
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
 

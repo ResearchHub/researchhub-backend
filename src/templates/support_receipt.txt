@@ -1,0 +1,31 @@
+Receipt From Researchhub
+
+{%if recipient %}
+Amount Received
+{% else %}
+Amount Paid
+{% endif %}
+{{amount}}
+
+Date Paid
+{{date}}
+
+Payment Method
+{{method}
+
+Summary
+{%if recipient %}
+Payment From
+{% else %}
+Payment To
+{% endif %}
+{{email}}
+
+{%if recipient %}
+Amount Received
+{% else %}
+Amount Paid
+{% endif %}
+{{amount}}
+
+{{opt_out}} Unsubscribe or change how frequently I get updated

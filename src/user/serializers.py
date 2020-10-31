@@ -28,6 +28,7 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
     reputation = rest_framework_serializers.SerializerMethodField()
     orcid_id = rest_framework_serializers.SerializerMethodField()
     total_score = rest_framework_serializers.SerializerMethodField()
+    wallet = rest_framework_serializers.SerializerMethodField()
 
     class Meta:
         model = Author
@@ -35,7 +36,8 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
             'university',
             'reputation',
             'orcid_id',
-            'total_score'
+            'total_score',
+            'wallet'
         ]
 
     def get_reputation(self, obj):
@@ -48,6 +50,10 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
 
     def get_total_score(self, author):
         return author.author_score
+
+    def get_wallet(self, obj):
+        from purchase.serializers import WalletSerializer
+        return WalletSerializer(obj.wallet).data
 
 
 class AuthorEditableSerializer(rest_framework_serializers.ModelSerializer):
@@ -311,6 +317,8 @@ class UserActions:
             creator = item.proposed_by
         elif isinstance(item, Paper):
             creator = item.uploaded_by
+        elif isinstance(item, User):
+            creator = item
         else:
             creator = item.created_by
         if creator is not None:

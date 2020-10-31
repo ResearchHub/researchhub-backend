@@ -1,9 +1,16 @@
+import numpy as np
+import time
+
 from django.db import transaction, models
+from django.db.models import FloatField, Func
+from django.db.models.functions import Cast
+from django.db.models.aggregates import Sum
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 
 from reputation.exceptions import ReputationDistributorError
-from reputation.models import Distribution
+from reputation.models import Distribution, Contribution
+from reputation.distributions import Distribution as dist
 from reputation.serializers import get_model_serializer
 from purchase.models import Balance
 from user.models import User
@@ -109,3 +116,84 @@ class Distributor:
             object_id=distribution.id,
             amount=self.distribution.amount  # db converts integer to string
         )
+
+
+class RewardDistributor:
+    prob_keys = (
+        'SUBMITTER',
+        'AUTHOR',
+        'UPVOTER'
+        'CURATOR',
+        'COMMENTER',
+    )
+    prob_by_key = {
+        'SUBMITTER': 0.1,
+        'UPVOTER': 0.2,
+        'AUTHOR': 0.4,
+        'CURATOR': 0.15,
+        'COMMENTER': 0.15
+    }
+
+    def get_papers_prob_dist(self, items):
+        papers = items.order_by('id')
+        weekly_total_score = papers.aggregate(
+            score_sum=Sum('score')
+        )['score_sum']
+        prob_dist = papers.annotate(
+            p=Cast(
+                Func(
+                    Sum('score'),
+                    function='ABS'
+                )/float(weekly_total_score),
+                FloatField()
+            )
+        ).values_list(
+            'p',
+            flat=True
+        )
+        return papers, np.array(prob_dist)
+
+    def get_random_item(self, items, p=None):
+        # Uniform distribution if p is none
+        item = np.random.choice(items, p=p)
+        return item
+
+    def generate_distribution(self, item, amount=1):
+        from paper.models import Paper, Vote
+        from user.models import User, Author
+        from bullet_point.models import BulletPoint
+        from summary.models import Summary
+        from discussion.models import Thread, Comment, Reply
+
+        item_type = type(item)
+        if item_type is Contribution:
+            content_type = item.content_type
+            item = content_type.get_object_for_this_type(id=item.object_id)
+            item_type = type(item)
+
+        if item_type is Paper:
+            recipient = item.uploaded_by
+        elif item_type is BulletPoint:
+            recipient = item.created_by
+        elif item_type is Summary:
+            recipient = item.proposed_by
+        elif item_type is Vote:
+            recipient = item.created_by
+        elif item_type is User:
+            recipient = item
+        elif item_type is Author:
+            recipient = item.user
+        elif item_type in (Thread, Comment, Reply):
+            recipient = item.created_by
+        else:
+            raise Exception(f'Missing instance type: {str(item)}')
+
+        distributor = Distributor(
+            dist('REWARD', amount, False),
+            recipient,
+            item,
+            time.time()
+        )
+        distribution = distributor.distribute()
+
+        return distribution
