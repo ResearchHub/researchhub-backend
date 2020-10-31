@@ -9,7 +9,7 @@ from hub.serializers import HubSerializer
 from paper.models import Vote as PaperVote, Paper
 from user.models import Action, Author, University, User, Major
 from summary.models import Summary
-
+from purchase.serializers import WalletSerializer
 
 class UniversitySerializer(rest_framework_serializers.ModelSerializer):
     class Meta:
@@ -52,8 +52,10 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
         return author.author_score
 
     def get_wallet(self, obj):
-        from purchase.serializers import WalletSerializer
-        return WalletSerializer(obj.wallet).data
+        try:
+            return WalletSerializer(obj.wallet).data
+        except Exception as error:
+            sentry.log_error(error)
 
 
 class AuthorEditableSerializer(rest_framework_serializers.ModelSerializer):
