@@ -9,7 +9,6 @@ from mailing_list.models import EmailRecipient
 
 
 def is_valid_email(email):
-    return True
     if TESTING:
         return True
 
