@@ -108,6 +108,11 @@ def distribute_round_robin(paper_id):
 def distribute_rewards():
     # Checks if rewards should be distributed, given time config
     today = datetime.datetime.now(tz=pytz.utc)
+
+    # Date check
+    if today.year == 2020 and today.month == 11 and today.day == 1:
+        return
+
     reward_time_hour, reward_time_day, reward_time_week = list(
         map(int, REWARD_TIME.split(' '))
     )
