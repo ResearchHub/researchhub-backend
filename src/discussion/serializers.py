@@ -263,8 +263,8 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
         return obj.comments.count()
     
     def get_paper_slug(self, obj):
-        print(obj.paper.slug)
-        return obj.paper.slug
+        if obj.paper:
+            return obj.paper.slug
 
 
 class SimpleThreadSerializer(ThreadSerializer):
