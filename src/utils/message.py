@@ -4,7 +4,7 @@ from django.template.loader import render_to_string
 from sentry_sdk import capture_exception
 
 from researchhub.settings import EMAIL_WHITELIST
-from researchhub.settings import PRODUCTION, DEVELOPMENT, TESTING
+from researchhub.settings import PRODUCTION, TESTING
 from mailing_list.models import EmailRecipient
 
 

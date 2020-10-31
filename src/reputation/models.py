@@ -156,3 +156,59 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
 
     class Meta:
         ordering = ['-updated_date']
+
+
+class DistributionAmount(models.Model):
+    created_date = models.DateTimeField(auto_now_add=True)
+    distributed_date = models.DateTimeField(auto_now=True)
+    amount = models.IntegerField(default=1000000)
+    distributed = models.BooleanField(default=False)
+
+
+class Contribution(models.Model):
+    # PAPER = 'PAPER'
+    SUBMITTER = 'SUBMITTER'
+    UPVOTER = 'UPVOTER'
+    AUTHOR = 'AUTHOR'
+    CURATOR = 'CURATOR'
+    COMMENTER = 'COMMENTER'
+
+    contribution_choices = [
+        # (PAPER, PAPER),
+        (AUTHOR, AUTHOR),
+        (SUBMITTER, SUBMITTER),
+        (UPVOTER, UPVOTER),
+        (CURATOR, CURATOR),
+        (COMMENTER, COMMENTER)
+    ]
+
+    contribution_type = models.CharField(
+        max_length=16,
+        choices=contribution_choices
+    )
+    user = models.ForeignKey(
+        User,
+        related_name='contributions',
+        on_delete=models.SET_NULL,
+        null=True
+    )
+    paper = models.ForeignKey(
+        'paper.Paper',
+        related_name='contributions',
+        on_delete=models.SET_NULL,
+        null=True
+    )
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.SET_NULL,
+        null=True
+    )
+    ordinal = models.PositiveIntegerField()
+    object_id = models.PositiveIntegerField()
+    item = GenericForeignKey(
+        'content_type',
+        'object_id',
+    )
+
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)

@@ -10,10 +10,12 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
+import stripe
 import os
 import requests
 import sys
 import sentry_sdk
+from celery.task.schedules import crontab
 from sentry_sdk.integrations.django import DjangoIntegration
 
 APP_ENV = os.environ.get('APP_ENV') or 'development'
@@ -680,3 +682,20 @@ SIFT_REST_API_KEY = os.environ.get('SIFT_REST_API_KEY', keys.SIFT_REST_API_KEY)
 AMPLITUDE_API_KEY = os.environ.get('AMPLITUDE_API_KEY', keys.AMPLITUDE_API_KEY)
 
 GEOIP_PATH = os.path.join(BASE_DIR, 'analytics')
+
+# Stripe
+stripe.api_key = os.environ.get('STRIPE_API_KEY', keys.STRIPE_API_KEY)
+
+# Reward Distribution
+REWARD_TIME = os.environ.get('REWARD_TIME', '0 0 1')  # Defaults weekly
+
+reward_time_hour, reward_time_day, reward_time_week = list(
+    map(int, REWARD_TIME.split(' '))
+)
+
+if reward_time_week:
+    REWARD_SCHEDULE = crontab(minute='0', hour='0', day_of_week='sunday')
+elif reward_time_day:
+    REWARD_SCHEDULE = crontab(minute='0', hour='0')
+elif reward_time_hour:
+    REWARD_SCHEDULE = crontab(minute='0', hour='*')

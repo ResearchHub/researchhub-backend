@@ -60,6 +60,12 @@ router.register(
 )
 
 router.register(
+    r'paper/featured_papers',
+    paper.views.FeaturedPaperViewSet,
+    basename='featured_papers'
+)
+
+router.register(
     r'paper/([0-9]+)/additional_file',
     paper.views.AdditionalFileViewSet,
     basename='additional_files'
@@ -159,6 +165,12 @@ router.register(
     r'support',
     purchase.views.SupportViewSet,
     basename='support'
+)
+
+router.register(
+    r'stripe',
+    purchase.views.StripeViewSet,
+    basename='stripe'
 )
 
 router.register(r'user', user.views.UserViewSet)
