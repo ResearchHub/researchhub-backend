@@ -110,7 +110,7 @@ def distribute_rewards():
     today = datetime.datetime.now(tz=pytz.utc)
 
     # Date check
-    if today.year == 2020 and today.month == 11 and today.day == 1:
+    if today.year == 2020 and today.month == 11 and today.day < 7:
         return
 
     reward_time_hour, reward_time_day, reward_time_week = list(
