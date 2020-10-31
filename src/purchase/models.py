@@ -35,17 +35,6 @@ class Wallet(models.Model):
     )
     stripe_verified = models.BooleanField(default=False)
 
-    def connect_stripe_account(self):
-        refresh_url = ''
-        return_url = ''
-
-        stripe.AccountLink.create(
-            account=self.stripe_acc,
-            refresh_url=refresh_url,
-            return_url=return_url,
-            type='account_onboarding'
-        )
-
 
 class Support(models.Model):
     STRIPE = 'STRIPE'
