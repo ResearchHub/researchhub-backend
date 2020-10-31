@@ -184,7 +184,7 @@ def distribute_rewards():
             filtered_contributions = weekly_contributions.filter(
                 paper=paper,
                 contribution_type=contribution_type
-            )
+            ).distinct('user')
             contribution_count += filtered_contributions.count()
             contributions.append(filtered_contributions)
 
