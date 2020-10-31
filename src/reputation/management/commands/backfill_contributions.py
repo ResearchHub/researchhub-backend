@@ -115,17 +115,24 @@ class Command(BaseCommand):
                         'model': 'bulletpoint'
                     }
 
-                if content_type == paper_content:
-                    paper = content_type.model_class().objects.get(id=obj_id)
-                else:
-                    paper = content_type.model_class().objects.get(
-                        id=obj_id
-                    ).paper
+                try:
+                    if content_type == paper_content:
+                        paper = content_type.model_class().objects.get(
+                            id=obj_id
+                        )
+                    else:
+                        paper = content_type.model_class().objects.get(
+                            id=obj_id
+                        ).paper
 
-                create_contribution(
-                    choice,
-                    instance_type,
-                    user.id,
-                    paper.id,
-                    obj_id
-                )
+                    create_contribution(
+                        choice,
+                        instance_type,
+                        user.id,
+                        paper.id,
+                        obj_id
+                    )
+                except Exception as e:
+                    # Don't create contributions if there is an error
+                    # such as a paper no longer exists
+                    print(e)
