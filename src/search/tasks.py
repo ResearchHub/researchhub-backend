@@ -4,6 +4,7 @@ from paper.utils import download_pdf
 from researchhub.celery import app
 from utils.orcid import orcid_api
 from user.models import Author
+from purchase.models import Wallet
 
 VALID_LICENSES = []
 
@@ -98,6 +99,9 @@ def get_or_create_orcid_author(orcid_id, first_name, last_name, paper):
             'first_name': first_name,
             'last_name': last_name,
         }
+    )
+    wallet, _ = Wallet.models.get_or_create(
+        author=author
     )
     if paper is not None:
         paper.authors.add(author)

@@ -10,8 +10,6 @@ import twitter
 
 from datetime import datetime, timedelta, timezone
 from subprocess import call
-from celery.decorators import periodic_task
-from celery.task.schedules import crontab
 
 from django.apps import apps
 from django.core.cache import cache
@@ -20,9 +18,9 @@ from django.db import IntegrityError
 from django.http.request import HttpRequest
 from rest_framework.request import Request
 from discussion.models import Thread, Comment
+from purchase.models import Wallet
 from researchhub.celery import app
 from researchhub.settings import (
-    APP_ENV,
     TWITTER_CONSUMER_KEY,
     TWITTER_CONSUMER_SECRET,
     TWITER_ACCESS_TOKEN,
@@ -96,6 +94,8 @@ def add_orcid_authors(paper_id):
             logging.info('Did not find paper identifier to give to ORCID API')
 
     paper.authors.add(*orcid_authors)
+    for author in paper.authors.iterator():
+        Wallet.objects.create(author=author)
     logging.info(f'Finished adding orcid authors to paper {paper.id}')
 
 
