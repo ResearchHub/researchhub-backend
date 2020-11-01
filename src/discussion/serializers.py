@@ -210,6 +210,7 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     user_vote = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
+    paper_slug = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -231,6 +232,7 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
             'user_flag',
             'was_edited',
             'plain_text',
+            'paper_slug'
         ]
         read_only_fields = [
             'is_public',
@@ -259,6 +261,10 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
 
     def get_comment_count(self, obj):
         return obj.comments.count()
+    
+    def get_paper_slug(self, obj):
+        if obj.paper:
+            return obj.paper.slug
 
 
 class SimpleThreadSerializer(ThreadSerializer):
