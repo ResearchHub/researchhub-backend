@@ -11,7 +11,7 @@ from user.models import Author
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        authors = Author.objects.iterator()
+        authors = Author.objects.filter(wallet__isnull=True).iterator()
         for author in authors:
             try:
                 has_wallet = author.wallet
