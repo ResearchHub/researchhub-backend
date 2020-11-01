@@ -290,7 +290,7 @@ class Author(models.Model):
         paper_scores = 0
         if aggregated_score['total_score']:
             paper_scores = aggregated_score['total_score']
-        
+
         if aggregated_discussion_count['total_score']:
             paper_scores += 2 * aggregated_discussion_count['total_score']
 
