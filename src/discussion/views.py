@@ -405,7 +405,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         threads = threads.annotate(
             score=upvotes-downvotes
         )
-        return threads
+        return threads.prefetch_related('paper')
 
     @action(
         detail=True,
