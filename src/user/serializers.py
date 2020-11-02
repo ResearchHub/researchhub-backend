@@ -56,8 +56,8 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
         try:
             return WalletSerializer(obj.wallet).data
         except Exception as error:
-            sentry.log_error(error)
-
+            # sentry.log_error(error)
+            pass
 
 class AuthorEditableSerializer(rest_framework_serializers.ModelSerializer):
     university = rest_framework_serializers.PrimaryKeyRelatedField(
