@@ -322,7 +322,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 created_by=None
             ).filter(
                 created_by=user
-            ).prefetch_related('paper', 'comments')
+            ).prefetch_related('paper', 'comments').order_by('-id')
             page = self.paginate_queryset(user_discussions)
             serializer = ThreadSerializer(page, many=True)
             return self.get_paginated_response(serializer.data)
