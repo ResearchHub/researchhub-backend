@@ -56,21 +56,21 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             valid, message = self._check_withdrawal_interval(user)
         if valid:
             try:
-                with transaction.atomic():
-                    response = super().create(request)
-                    withdrawal_id = response.data['id']
-                    withdrawal = Withdrawal.objects.get(pk=withdrawal_id)
-                    ending_balance_record = self._create_balance_record(
-                        withdrawal,
-                        starting_balance
-                    )
-                    self._pay_withdrawal(
-                        withdrawal,
-                        starting_balance,
-                        ending_balance_record.id
-                    )
-                    serialized = WithdrawalSerializer(withdrawal)
-                    return Response(serialized.data, status=201)
+                # with transaction.atomic():
+                response = super().create(request)
+                withdrawal_id = response.data['id']
+                withdrawal = Withdrawal.objects.get(pk=withdrawal_id)
+                ending_balance_record = self._create_balance_record(
+                    withdrawal,
+                    starting_balance
+                )
+                self._pay_withdrawal(
+                    withdrawal,
+                    starting_balance,
+                    ending_balance_record.id
+                )
+                serialized = WithdrawalSerializer(withdrawal)
+                return Response(serialized.data, status=201)
             except Exception as e:
                 return Response(str(e), status=400)
         else:
