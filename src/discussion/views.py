@@ -571,8 +571,8 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
         replies = Reply.objects.filter(
             content_type=get_content_type_for_model(comment),
             object_id=comment_id,
-            is_remove=is_removed
-        ).order_by('created_date')
+            is_removed=is_removed
+        )
         return replies
 
     def create(self, request, *args, **kwargs):
