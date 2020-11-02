@@ -247,7 +247,7 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
         if self.context.get('depth', 3) <= 0:
             return []
         comments_queryset = self.get_children_annotated(obj).order_by(
-            *self.context.get('ordering', ['-created_date'])
+            *self.context.get('ordering', ['id'])
         )[:PAGINATION_PAGE_SIZE]
         comment_serializer = CommentSerializer(
             comments_queryset,
