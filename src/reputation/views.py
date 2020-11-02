@@ -1,4 +1,5 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
+import pytz
 import logging
 
 from django.contrib.contenttypes.models import ContentType
@@ -12,6 +13,7 @@ from purchase.models import Balance
 from reputation.exceptions import WithdrawalError
 from reputation.lib import (
     WITHDRAWAL_MINIMUM,
+    WITHDRAWAL_PER_TWO_WEEKS,
     PendingWithdrawal
 )
 from reputation.models import Withdrawal
@@ -54,6 +56,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             valid, message = self._check_agreed_to_terms(user, request)
         if valid:
             valid, message = self._check_withdrawal_interval(user)
+        if valid:
+            valid, message = self._check_withdrawal_time_limit(request.data.get('to_address'), user)
         if valid:
             try:
                 # with transaction.atomic():
@@ -111,6 +115,36 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             logging.error(error)
             sentry.log_error(error, error.message)
             raise e
+
+    def _check_withdrawal_time_limit(self, to_address, user):
+        last_withdrawal_address = Withdrawal.objects.filter(to_address=to_address).last()
+        last_withdrawal_user = Withdrawal.objects.filter(user=user).last()
+        now = datetime.now(pytz.utc)
+        if last_withdrawal_address:
+            address_timedelta = now - last_withdrawal_address.created_date
+        else:
+            address_timedelta = now - user.created_date
+
+        if last_withdrawal_user:
+            user_timedelta = now - last_withdrawal_user.created_date
+        else:
+            user_timedelta = now - user.created_date
+
+        user_two_weeks_delta = now - user.created_date
+
+        if user_two_weeks_delta < timedelta(days=14):
+            message = (
+                "You're account is new, please wait 2 weeks before withdrawing."
+            )
+            return (False, message)
+
+        if address_timedelta < timedelta(days=14) or user_timedelta < timedelta(days=14):
+            message = (
+                "You're limited to 1 withdrawal every 2 weeks."
+            )
+            return (False, message)
+        
+        return (True, None)
 
     def _check_meets_withdrawal_minimum(self, balance):
         # Withdrawal amount is full balance for now

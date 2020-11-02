@@ -7,7 +7,7 @@ from researchhub.settings import ASYNC_SERVICE_HOST, WEB3_SHARED_SECRET
 from utils.http import http_request, RequestMethods
 
 WITHDRAWAL_MINIMUM = 150
-
+WITHDRAWAL_PER_TWO_WEEKS = 1
 
 class PendingWithdrawal:
     def __init__(self, withdrawal, starting_balance, balance_record_id):
