@@ -33,6 +33,7 @@ from bullet_point.serializers import (
 from utils.http import DELETE, POST, PATCH, PUT
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
+from utils.siftscience import events_api, decisions_api
 
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
@@ -140,6 +141,19 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         bullet_point = self.get_object()
         bullet_point.is_removed = True
         bullet_point.save(update_fields=['is_removed'])
+
+        content_id = f'{type(bullet_point).__name__}_{bullet_point.id}'
+        user = request.user
+        events_api.track_flag_content(
+            bullet_point.created_by,
+            content_id,
+            user.id
+        )
+        decisions_api.apply_bad_content_decision(
+            bullet_point.created_by,
+            content_id
+        )
+
         return Response(
             self.get_serializer(instance=bullet_point).data,
             status=200

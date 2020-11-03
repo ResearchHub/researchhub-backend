@@ -72,7 +72,7 @@ from utils import sentry
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from utils.permissions import CreateOrUpdateIfAllowed
-from utils.siftscience import events_api
+from utils.siftscience import events_api, decisions_api
 
 
 class ActionMixin:
@@ -166,6 +166,18 @@ class ActionMixin:
         item = self.get_object()
         item.is_removed = True
         item.save()
+
+        content_id = f'{type(item).__name__}_{item.id}'
+        user = request.user
+        events_api.track_flag_content(
+            item.created_by,
+            content_id,
+            user.id
+        )
+        decisions_api.apply_bad_content_decision(
+            item.created_by,
+            content_id
+        )
 
         content_type = get_content_type_for_model(item)
         Contribution.objects.filter(
