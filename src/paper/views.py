@@ -75,7 +75,7 @@ from utils.http import GET, POST, check_url_contains_pdf
 from utils.sentry import log_error
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
-from utils.siftscience import events_api
+from utils.siftscience import events_api, decisions_api
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -293,6 +293,18 @@ class PaperViewSet(viewsets.ModelViewSet):
         cache.delete(cache_key)
         hub_ids = paper.hubs.values_list('id', flat=True)
 
+        content_id = f'{type(paper).__name__}_{paper.id}'
+        user = request.user
+        events_api.track_flag_content(
+            paper.uploaded_by,
+            content_id,
+            user.id
+        )
+        decisions_api.apply_bad_content_decision(
+            paper.uploaded_by,
+            content_id
+        )
+
         invalidate_trending_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
@@ -313,6 +325,18 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper.pdf_url = None
         paper.figures.all().delete()
         paper.save()
+
+        content_id = f'{type(paper).__name__}_{paper.id}'
+        user = request.user
+        events_api.track_flag_content(
+            paper.uploaded_by,
+            content_id,
+            user.id
+        )
+        decisions_api.apply_bad_content_decision(
+            paper.uploaded_by,
+            content_id
+        )
 
         cache_key = get_cache_key(request, 'paper')
         cache.delete(cache_key)

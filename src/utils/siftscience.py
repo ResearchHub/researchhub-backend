@@ -51,6 +51,22 @@ def unlabel_user(user_id):
         print(e.api_error_message)
 
 
+class DecisionsApi:    
+    def apply_bad_content_decision(self, user, content_id):
+        applyDecisionRequest = {
+            'decision_id': 'content_looks_bad_content_abuse',
+            'source': 'AUTOMATED_RULE',
+            'description': 'Auto flag of moderator-removed content',
+        }
+
+        try:
+            response = client.apply_content_decision(str(user.id), content_id, applyDecisionRequest)
+            print(response.body)
+        except sift.client.ApiException as e:
+            sentry.log_error(e)
+            print(e.api_error_message)
+
+
 class EventsApi:
 
     def create_meta_properties(self, request, exclude_ip=False):
@@ -301,7 +317,7 @@ class EventsApi:
         properties = {
             '$user_id': str(user.id),
             '$content_id': content_id,
-            '$flagged_by': referer_id
+            '$flagged_by': str(referer_id),
         }
 
         try:
@@ -322,3 +338,5 @@ class EventsApi:
 
 
 events_api = EventsApi()
+
+decisions_api = DecisionsApi()
