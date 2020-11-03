@@ -831,7 +831,7 @@ class Vote(models.Model):
     created_date = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_date = models.DateTimeField(auto_now=True, db_index=True)
     vote_type = models.IntegerField(choices=VOTE_TYPE_CHOICES)
-    is_removed = models.BooleanField(default=False)
+    is_removed = models.BooleanField(default=False, blank=True, null=True)
 
     class Meta:
         constraints = [
