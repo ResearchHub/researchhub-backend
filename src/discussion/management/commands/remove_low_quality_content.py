@@ -6,10 +6,21 @@ from user.models import User
 from discussion.models import Thread
 import uuid
 
+from utils.siftscience import decisions_api, events_api
+
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        low_threads = Thread.objects.annotate(text_len=Length('plain_text')).filter(text_len__lte=10)
+        low_threads = Thread.objects.annotate(text_len=Length('plain_text')).filter(text_len__lte=10, is_removed=False)
+        thread_count = low_threads.count()
         for i, thread in enumerate(low_threads):
+            print('{} / {}'.format(i, thread_count))
             thread.is_removed = True
+            content_id = f'{type(thread).__name__}_{thread.id}'
+            decisions_api.apply_bad_content_decision(thread.created_by, content_id)
+            events_api.track_flag_content(
+                thread.created_by,
+                content_id,
+                1,
+            )
             thread.save()
