@@ -63,8 +63,14 @@
             <h4 class="column-values"> {{ recipient_name }} </h4>
           {% endif %}
           <h4 class="column-values"> 
-            <img class="coin-logo" src="https://www.researchhub.com/static/icons/coin-filled.png" />
-            {{amount}} {{method}}{{ amount|pluralize }} 
+            {% if method == "ResearchHub Coin" %}
+              <img class="coin-logo" src="https://www.researchhub.com/static/icons/coin-filled.png" />
+              {{amount}} {{method}}
+            {% elif method == "USD" or method == "Paypal" %}
+              ${{amount}} 
+            {% else %}
+              {{amount}} {{method}}
+            {% endif %} 
           </h4>
           <h4 class="column-values">{{date}}</h4>
           <h4 class="column-values">{{method}}</h4>
