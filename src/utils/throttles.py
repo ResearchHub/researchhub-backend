@@ -21,6 +21,7 @@ class UserCaptchaThrottle(UserRateThrottle):
                 and (request.user.email is not None)
                 and request.user.email.endswith('@quantfive.org')
             )
+            or (request.user.moderator)
         ):
             return True
 
