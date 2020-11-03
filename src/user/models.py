@@ -41,6 +41,7 @@ class User(AbstractUser):
     )
     moderator = models.BooleanField(default=False)
     is_suspended = models.BooleanField(default=False)
+    probable_spammer = models.BooleanField(default=False)
     referral_code = models.CharField(
         max_length=36,
         default=uuid.uuid4,

@@ -208,6 +208,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'researchhub.middleware.detect_spam.DetectSpam',
 ]
 
 # if not TESTING:
@@ -699,3 +700,6 @@ elif reward_time_day:
     REWARD_SCHEDULE = crontab(minute='0', hour='0')
 elif reward_time_hour:
     REWARD_SCHEDULE = crontab(minute='0', hour='*')
+
+
+GEOIP_PATH = BASE_DIR + '/utils'
