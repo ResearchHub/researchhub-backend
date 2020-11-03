@@ -474,7 +474,7 @@ class HubPaperSerializer(BasePaperSerializer):
         # bullet_points = paper.bullet_points.filter(
         #     ordinal__isnull=False
         # ).order_by('ordinal')[:3]
-        return BulletPointTextOnlySerializer(paper.bullet_points, many=True).data
+        return BulletPointTextOnlySerializer(paper.bullet_points.order_by('ordinal'), many=True).data
 
     # def get_uploaded_by(self, paper):
     #     serializer_context = {'request': self.context.get('request'), 'no_balance': True}
