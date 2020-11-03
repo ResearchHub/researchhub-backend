@@ -76,16 +76,18 @@ def doi_updated(update_fields):
 @receiver(pre_save, sender=Reply, dispatch_uid='create_reply_handle_spam')
 @receiver(pre_save, sender=Thread, dispatch_uid='create_thread_handle_spam')
 @receiver(pre_save, sender=Paper, dispatch_uid='paper_handle_spam')
+@receiver(pre_save, sender=PaperVote, dispatch_uid='paper_vote_action')
 def handle_spam(sender, instance, **kwargs):
     # If user is a probable spammer, mark all of their content as is_removed
     
     if sender == Paper:
         user = instance.uploaded_by
-    elif sender in (Comment, Reply, Thread, BulletPoint):
+    elif sender in (Comment, Reply, Thread, BulletPoint, PaperVote):
         user = instance.created_by
     elif sender in (Summary,):
         user = instance.proposed_by
-    if user.probable_spammer:
+
+    if user and user.probable_spammer:
         instance.is_removed = True
 
 
