@@ -203,13 +203,14 @@ class Purchase(PaidStatusModelMixin):
     def get_boost_time(self, amount=None):
         day_multiplier = 60 * 60 * 24
         previous_boost_time = 0
-        previous_boosts = self.item.purchases.exclude(id=self.id)
-        if previous_boosts.exists():
-            previous_boost_amounts = previous_boosts.values_list(
-                'amount',
-                flat=True
-            )
-            previous_boost_time += sum(map(float, previous_boost_amounts))
+        if self.item.purchases:
+            previous_boosts = self.item.purchases.exclude(id=self.id)
+            if previous_boosts.exists():
+                previous_boost_amounts = previous_boosts.values_list(
+                    'amount',
+                    flat=True
+                )
+                previous_boost_time += sum(map(float, previous_boost_amounts))
 
         if amount:
             boost_time = float(amount) + previous_boost_time
