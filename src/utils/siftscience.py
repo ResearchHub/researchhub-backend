@@ -61,10 +61,9 @@ class DecisionsApi:
 
         try:
             response = client.apply_content_decision(str(user.id), content_id, applyDecisionRequest)
-            print(response.body)
         except sift.client.ApiException as e:
             sentry.log_error(e)
-            print(e.api_error_message)
+            print(e)
 
 
 class EventsApi:
