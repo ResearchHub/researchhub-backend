@@ -1,7 +1,7 @@
 # TODO: Fix the celery task on cloud deploys
 from time import time
 
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import post_save, post_delete, pre_save
 from django.dispatch import receiver
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
@@ -64,6 +64,29 @@ def doi_updated(update_fields):
     if update_fields is not None:
         return 'doi' in update_fields
     return False
+
+
+@receiver(
+    pre_save,
+    sender=BulletPoint,
+    dispatch_uid='create_bullet_point_handle_spam'
+)
+@receiver(pre_save, sender=Summary, dispatch_uid='create_summary_handle_spam')
+@receiver(pre_save, sender=Comment, dispatch_uid='create_comment_handle_spam')
+@receiver(pre_save, sender=Reply, dispatch_uid='create_reply_handle_spam')
+@receiver(pre_save, sender=Thread, dispatch_uid='create_thread_handle_spam')
+@receiver(pre_save, sender=Paper, dispatch_uid='paper_handle_spam')
+def handle_spam(sender, instance, **kwargs):
+    # If user is a probable spammer, mark all of their content as is_removed
+    
+    if sender == Paper:
+        user = instance.uploaded_by
+    elif sender in (Comment, Reply, Thread, BulletPoint):
+        user = instance.created_by
+    elif sender in (Summary,):
+        user = instance.proposed_by
+    if user.probable_spammer:
+        instance.is_removed = True
 
 
 @receiver(
