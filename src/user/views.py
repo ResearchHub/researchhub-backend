@@ -22,7 +22,7 @@ from paper.views import PaperViewSet
 from paper.serializers import PaperSerializer, HubPaperSerializer
 from user.filters import AuthorFilter
 from user.models import User, University, Author, Major
-from user.permissions import UpdateAuthor
+from user.permissions import UpdateAuthor, Censor
 from user.serializers import (
     AuthorSerializer,
     AuthorEditableSerializer,
@@ -66,6 +66,22 @@ class UserViewSet(viewsets.ModelViewSet):
             return User.objects.filter(id=user.id)
         else:
             return User.objects.none()
+    
+    @action(
+        detail=True,
+        methods=[DELETE, PATCH, PUT],
+        permission_classes=[IsAuthenticated, Censor]
+    )
+    def censor(self, request, pk=None):
+        author_id = request.data.get('authorId')
+        user_to_censor = User.objects.get(author_profile_id__=author_id)
+        user_to_censor.probable_spammer = True
+        user_to_censor.save()
+
+        return Response(
+            {'message': 'User is Censored'},
+            status=200
+        )
 
     @action(
         detail=False,
