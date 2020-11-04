@@ -31,9 +31,8 @@ def handle_spam_user(
     update_fields,
     **kwargs
 ):
-    print(update_fields)
     if instance.probable_spammer:
-        handle_spam_user_task(instance.id)
+        handle_spam_user_task.apply_async((instance.id,), priority=3)
 
 @receiver(post_save, sender=Author, dispatch_uid='link_author_to_papers')
 def queue_link_author_to_papers(sender, instance, created, **kwargs):

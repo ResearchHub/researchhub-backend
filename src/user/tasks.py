@@ -14,12 +14,18 @@ from discussion.models import (
     Comment, Reply, Thread, Vote as DiscussionVote
 )
 from paper.models import Paper
-from user.models import Action, Author
+from hub.models import Hub
+from user.models import Action, Author, User
+from paper.tasks import censored_paper_cleanup
+from paper.utils import reset_cache
 
 @app.task
 def handle_spam_user_task(user_id):
     user = User.objects.get(id=user_id)
     user.papers.update(is_removed=True)
+    user.paper_votes.update(is_removed=True)
+    hub_ids = list(Hub.objects.filter(papers__in=list(user.papers.values_list(flat=True))).values_list(flat=True).distinct())
+    reset_cache(hub_ids, {}, None)
     for paper in user.papers.all():
         censored_paper_cleanup(paper.id)
 

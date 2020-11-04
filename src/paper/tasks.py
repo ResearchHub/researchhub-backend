@@ -50,9 +50,17 @@ def censored_paper_cleanup(paper_id):
     paper.votes.update(is_removed=True)
     for vote in paper.votes.all():
         user = vote.created_by
-        user.probable_spammer = True
-        user.is_suspended = True
-        user.save()
+        save_user = False
+        if not user.probable_spammer:
+            user.probable_spammer = True
+            save_user = True
+        
+        if not user.is_suspended:
+            user.is_suspended = True
+            save_user = True
+
+        if save_user:
+            user.save()
 
     uploaded_by = paper.uploaded_by
     save_user = False

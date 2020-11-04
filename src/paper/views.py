@@ -311,7 +311,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             paper.uploaded_by,
             content_id
         )
-        
+
         Contribution.objects.filter(paper=paper).delete()
         paper.is_removed = True
         paper.save()
