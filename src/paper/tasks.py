@@ -445,11 +445,14 @@ def preload_hub_papers(
     ordering,
     hub_id,
     synchronous=False,
+    meta=None,
 ):
     from paper.serializers import HubPaperSerializer
     from paper.views import PaperViewSet
     paper_view = PaperViewSet()
     http_req = HttpRequest()
+    if meta:
+        http_req.META = meta
     paper_view.request = Request(http_req)
     papers = paper_view._get_filtered_papers(hub_id)
     order_papers = paper_view.calculate_paper_ordering(
