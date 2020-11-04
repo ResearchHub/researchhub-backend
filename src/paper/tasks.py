@@ -54,7 +54,6 @@ def censored_paper_cleanup(paper_id):
         if not user.probable_spammer:
             user.probable_spammer = True
             save_user = True
-        
         if not user.is_suspended:
             user.is_suspended = True
             save_user = True

@@ -39,7 +39,7 @@ from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from datetime import timedelta
 from django.utils import timezone
-
+from utils.siftscience import events_api, decisions_api
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -78,6 +78,8 @@ class UserViewSet(viewsets.ModelViewSet):
         user_to_censor = User.objects.get(author_profile__id=author_id)
         user_to_censor.probable_spammer = True
         user_to_censor.save()
+
+        decisions_api.apply_bad_user_decision(user_to_censor)
 
         return Response(
             {'message': 'User is Censored'},
