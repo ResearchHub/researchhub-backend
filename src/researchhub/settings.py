@@ -708,8 +708,8 @@ elif reward_time_hour:
     REWARD_SCHEDULE = crontab(minute='0', hour='*')
 
 
-GEOIP_PATH = BASE_DIR + '/utils'
+# GEOIP_PATH = BASE_DIR + '/utils'
 
-from django.contrib.gis.geoip2 import GeoIP2
+# from django.contrib.gis.geoip2 import GeoIP2
 
-geo_ip = GeoIP2()
+# geo_ip = GeoIP2()

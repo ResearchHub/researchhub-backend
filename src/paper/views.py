@@ -296,7 +296,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper = self.get_object()
         cache_key = get_cache_key(request, 'paper')
         cache.delete(cache_key)
-        hub_ids = paper.hubs.values_list('id', flat=True)
+        hub_ids = list(paper.hubs.values_list('id', flat=True))
 
         content_id = f'{type(paper).__name__}_{paper.id}'
         user = request.user
@@ -309,14 +309,16 @@ class PaperViewSet(viewsets.ModelViewSet):
             paper.uploaded_by,
             content_id
         )
+        
+        Contribution.objects.filter(paper=paper).delete()
+        paper.is_removed = True
+        paper.save()
 
         context = self.get_serializer_context()
         reset_cache(hub_ids, context, request.META)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
-        Contribution.objects.filter(paper=paper).delete()
-        paper.delete()
         return Response('Paper was deleted.', status=200)
 
     @action(
@@ -349,7 +351,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         serializer_data = serializer.data
         reset_paper_cache(cache_key, serializer_data)
 
-        hub_ids = paper.hubs.values_list('id', flat=True)
+        hub_ids = list(paper.hubs.values_list('id', flat=True))
 
         context = self.get_serializer_context()
         reset_cache(hub_ids, context, request.META)
