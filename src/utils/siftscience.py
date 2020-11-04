@@ -55,7 +55,8 @@ class DecisionsApi:
     def apply_bad_content_decision(self, user, content_id):
         applyDecisionRequest = {
             'decision_id': 'content_looks_bad_content_abuse',
-            'source': 'AUTOMATED_RULE',
+            'source': 'MANUAL_REVIEW',
+            'analyst': 'analyst@researchhub.com',
             'description': 'Auto flag of moderator-removed content',
         }
 
@@ -100,28 +101,33 @@ class EventsApi:
         track_type = '$update_account' if update else '$create_account'
 
         try:
-            response = client.track(track_type, properties)
+            response = client.track(track_type, properties, return_score=True, abuse_types=['account_abuse'])
             print(response.body)
+            return response.body
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e.api_error_message)
 
     def track_account(self, user, request, update=False):
         meta = self.create_meta_properties(request, exclude_ip=True)
-        self.celery_track_account.apply_async(
+        celery_response = self.celery_track_account.apply(
                 (user.id, meta, update),
                 priority=4,
                 countdown=10,
             )
+        tracked_account = celery_response.get()
+        return tracked_account
 
     def track_login(self, user, login_status, request):
         # https://sift.com/developers/docs/python/events-api/reserved-events/login
         meta = self.create_meta_properties(request)
-        self.celery_track_login.apply_async(
+        celery_response = self.celery_track_login.apply(
             (user.id, meta, login_status),
             priority=4,
             countdown=10
         )
+        tracked_login = celery_response.get()
+        return tracked_login
 
     @staticmethod
     @app.task
@@ -137,8 +143,9 @@ class EventsApi:
         }
 
         try:
-            response = client.track('$login', properties)
+            response = client.track('$login', properties, return_score=True, abuse_types=['account_abuse'])
             print(response.body)
+            return response.body
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e.api_error_message)
@@ -152,7 +159,7 @@ class EventsApi:
         update=False
     ):
         meta = self.create_meta_properties(request)
-        self.celery_track_content_comment.apply_async(
+        celery_response = self.celery_track_content_comment.apply(
             (
                 user.id,
                 comment.id,
@@ -164,6 +171,8 @@ class EventsApi:
             priority=4,
             countdown=10
         )
+        tracked_comment = celery_response.get()
+        return tracked_comment
 
     @staticmethod
     @app.task
@@ -210,19 +219,22 @@ class EventsApi:
         track_type = '$update_content' if update else '$create_content'
 
         try:
-            response = client.track(track_type, comment_properties)
+            response = client.track(track_type, comment_properties, return_score=True, abuse_types=['content_abuse'])
             print(response.body)
+            return response.body
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e.api_error_message)
 
     def track_content_paper(self, user, paper, request, update=False):
         meta = self.create_meta_properties(request)
-        self.celery_track_content_paper.apply_async(
+        celery_response = self.celery_track_content_paper.apply(
             (user.id, paper.id, meta, update),
             priority=4,
             countdown=10,
         )
+        tracked_paper = celery_response.get()
+        return tracked_paper
 
     @staticmethod
     @app.task
@@ -255,8 +267,9 @@ class EventsApi:
         track_type = '$update_content' if update else '$create_content'
 
         try:
-            response = client.track(track_type, post_properties)
+            response = client.track(track_type, post_properties, return_score=True, abuse_types=['content_abuse'])
             print(response.body)
+            return response.body
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e.api_error_message)
@@ -264,7 +277,7 @@ class EventsApi:
     def track_content_vote(self, user, vote, request, update=False):
         meta = self.create_meta_properties(request)
         vote_type = vote.__module__.split('.')[0]
-        self.celery_track_content_vote.apply_async(
+        celery_response =self.celery_track_content_vote.apply(
             (
                 user.id,
                 vote.id,
@@ -275,6 +288,8 @@ class EventsApi:
             priority=4,
             countdown=10
         )
+        tracked_vote = celery_response.get()
+        return tracked_vote
 
     @staticmethod
     @app.task
@@ -305,8 +320,9 @@ class EventsApi:
         track_type = '$update_content' if update else '$create_content'
 
         try:
-            response = client.track(track_type, review_properties)
+            response = client.track(track_type, review_properties, return_score=True, abuse_types=['content_abuse'])
             print(response.body)
+            return response.body
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e.api_error_message)
