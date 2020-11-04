@@ -8,7 +8,7 @@ echo $start
 # pipenv lock --requirements > requirements.txt
 
 echo "Deploying to production"
-eb deploy production-2
+eb deploy backend-production
 
 echo "Deploying to production"
 eb deploy production-worker-2
