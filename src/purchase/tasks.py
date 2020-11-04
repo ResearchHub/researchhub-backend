@@ -34,7 +34,7 @@ def update_purchases():
 
     hub_ids = []
     context = {}
-    reset_cache(hub_ids, context, request.META)
+    reset_cache(hub_ids, context, {})
 
 
 @app.task

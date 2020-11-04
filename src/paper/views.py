@@ -810,7 +810,8 @@ class PaperViewSet(viewsets.ModelViewSet):
                     end_date,
                     ordering,
                     hub_id,
-                    synchronous=True
+                    synchronous=True,
+                    meta=request.META,
                 )
 
             cache_hit = cache.get_or_set(
