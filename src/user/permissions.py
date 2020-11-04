@@ -11,3 +11,10 @@ class UpdateAuthor(AuthorizationBasedPermission):
         ) or (request.method == RequestMethods.DELETE):
             return request.user == obj.user
         return True
+
+class Censor(AuthorizationBasedPermission):
+    message = 'Need to be a moderator to censor users.'
+
+    def is_authorized(self, request, view, obj):
+        return request.user.moderator
+    

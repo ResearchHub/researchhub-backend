@@ -10,6 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Sum, Q, F, Count
 from django.contrib.contenttypes.models import ContentType
+from utils.http import DELETE, POST, PATCH, PUT
 
 from discussion.models import Thread
 from discussion.serializers import (
@@ -22,7 +23,7 @@ from paper.views import PaperViewSet
 from paper.serializers import PaperSerializer, HubPaperSerializer
 from user.filters import AuthorFilter
 from user.models import User, University, Author, Major
-from user.permissions import UpdateAuthor
+from user.permissions import UpdateAuthor, Censor
 from user.serializers import (
     AuthorSerializer,
     AuthorEditableSerializer,
@@ -38,7 +39,7 @@ from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from datetime import timedelta
 from django.utils import timezone
-
+from utils.siftscience import events_api, decisions_api
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -66,6 +67,25 @@ class UserViewSet(viewsets.ModelViewSet):
             return User.objects.filter(id=user.id)
         else:
             return User.objects.none()
+    
+    @action(
+        detail=False,
+        methods=[POST],
+        permission_classes=[IsAuthenticated, Censor]
+    )
+    def censor(self, request, pk=None):
+        author_id = request.data.get('authorId')
+        user_to_censor = User.objects.get(author_profile__id=author_id)
+        user_to_censor.probable_spammer = True
+        user_to_censor.save()
+
+        user = request.user
+        decisions_api.apply_bad_user_decision(user_to_censor, user)
+
+        return Response(
+            {'message': 'User is Censored'},
+            status=200
+        )
 
     @action(
         detail=False,
@@ -159,7 +179,9 @@ class UserViewSet(viewsets.ModelViewSet):
             serializerClass = UserSerializer
             if hub_id and hub_id != 0:
                 items = User.objects.filter(
-                    is_active=True
+                    is_active=True,
+                    is_suspended=False,
+                    probable_spammer=False,
                 ).annotate(
                     hub_rep=Sum(
                         'reputation_records__amount',
@@ -171,7 +193,9 @@ class UserViewSet(viewsets.ModelViewSet):
                 ).order_by(F('hub_rep').desc(nulls_last=True))
             else:
                 items = User.objects.filter(
-                    is_active=True
+                    is_active=True,
+                    is_suspended=False,
+                    probable_spammer=False,
                 ).annotate(
                     hub_rep=Sum(
                         'reputation_records__amount',

@@ -37,7 +37,7 @@ class Vote(models.Model):
         object_id_field='proof_item_object_id',
         content_type_field='proof_item_content_type'
     )
-    created_by = models.ForeignKey('user.User', on_delete=models.CASCADE)
+    created_by = models.ForeignKey('user.User', on_delete=models.CASCADE, related_name='discussion_votes')
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     vote_type = models.IntegerField(choices=VOTE_TYPE_CHOICES)
@@ -109,7 +109,7 @@ class BaseComment(models.Model):
         'user.User',
         on_delete=models.SET_NULL,
         blank=True,
-        null=True
+        null=True,
     )
     created_date = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_date = models.DateTimeField(auto_now=True)

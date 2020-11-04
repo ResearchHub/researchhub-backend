@@ -35,7 +35,7 @@ from paper.models import (
     Vote,
     FeaturedPaper
 )
-from paper.tasks import preload_hub_papers
+from paper.tasks import preload_hub_papers, censored_paper_cleanup
 from paper.permissions import (
     CreatePaper,
     UpdateOrDeleteAdditionalFile,
@@ -302,19 +302,26 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         content_id = f'{type(paper).__name__}_{paper.id}'
         user = request.user
+        content_creator = paper.uploaded_by
         events_api.track_flag_content(
-            paper.uploaded_by,
+            content_creator,
             content_id,
             user.id
         )
         decisions_api.apply_bad_content_decision(
-            paper.uploaded_by,
-            content_id
+            content_creator,
+            content_id,
+            user
         )
-        
+        decisions_api.apply_bad_user_decision(
+            content_creator,
+            user
+        )
+
         Contribution.objects.filter(paper=paper).delete()
         paper.is_removed = True
         paper.save()
+        censored_paper_cleanup.apply_async((paper.id,), priority=3)
 
         context = self.get_serializer_context()
         reset_cache(hub_ids, context, request.META)
@@ -338,14 +345,20 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         content_id = f'{type(paper).__name__}_{paper.id}'
         user = request.user
+        content_creator = paper.uploaded_by
         events_api.track_flag_content(
-            paper.uploaded_by,
+            content_creator,
             content_id,
             user.id
         )
         decisions_api.apply_bad_content_decision(
-            paper.uploaded_by,
-            content_id
+            content_creator,
+            content_id,
+            user
+        )
+        decisions_api.apply_bad_user_decision(
+            content_creator,
+            user
         )
 
         cache_key = get_cache_key(request, 'paper')
