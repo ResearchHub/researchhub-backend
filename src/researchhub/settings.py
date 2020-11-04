@@ -208,7 +208,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'researchhub.middleware.detect_spam.DetectSpam',
+    # 'researchhub.middleware.detect_spam.DetectSpam',
 ]
 
 # if not TESTING:
@@ -249,6 +249,12 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
         'utils.renderers.PlainTextRenderer',
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '50/minute',
+    }
 }
 
 
@@ -702,4 +708,8 @@ elif reward_time_hour:
     REWARD_SCHEDULE = crontab(minute='0', hour='*')
 
 
-GEOIP_PATH = BASE_DIR + '/utils'
+# GEOIP_PATH = BASE_DIR + '/utils'
+
+# from django.contrib.gis.geoip2 import GeoIP2
+
+# geo_ip = GeoIP2()

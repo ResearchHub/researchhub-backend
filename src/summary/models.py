@@ -43,6 +43,7 @@ class Summary(models.Model):
         on_delete=models.SET_NULL
     )
     approved_date = models.DateTimeField(default=None, null=True, blank=True)
+    is_removed = models.BooleanField(default=False)
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)

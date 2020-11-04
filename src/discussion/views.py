@@ -57,7 +57,7 @@ from discussion.permissions import (
 from paper.models import Paper
 from paper.utils import (
     get_cache_key,
-    invalidate_trending_cache,
+    reset_cache,
     invalidate_top_rated_cache,
     invalidate_newest_cache,
     invalidate_most_discussed_cache,
@@ -335,7 +335,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
             is_thread=True
         )
         paper_id = get_paper_id_from_path(request)
-        hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
+        hubs = list(Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True))
         cache_key = get_cache_key(None, 'paper', paper_id)
         cache.delete(cache_key)
         discussion_id = response.data['id']
@@ -351,7 +351,8 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
             countdown=10
         )
 
-        invalidate_trending_cache(hubs)
+        context = self.get_serializer_context()
+        reset_cache(hubs, context, request.META)
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)
         invalidate_most_discussed_cache(hubs)
@@ -510,7 +511,8 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
             countdown=10
         )
 
-        invalidate_trending_cache(hubs)
+        context = self.get_serializer_context()
+        reset_cache(hubs, context, request.META)
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)
         invalidate_most_discussed_cache(hubs)

@@ -9,7 +9,7 @@ from researchhub.settings import AMPLITUDE_API_KEY
 from user.models import User
 from utils.sentry import log_info
 
-
+geo = GeoIP2()
 class Amplitude:
     api_key = AMPLITUDE_API_KEY
     api_url = 'https://api.amplitude.com/2/httpapi'
@@ -48,7 +48,6 @@ class Amplitude:
         event_data['user_properties'] = user_properties
 
         if ip is not None:
-            geo = GeoIP2()
             try:
                 geo_info = geo.city(ip)
                 event_data['ip'] = ip

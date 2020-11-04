@@ -17,7 +17,7 @@ from rest_framework.permissions import (
 from paper.models import Paper
 from paper.utils import (
     get_cache_key,
-    invalidate_trending_cache,
+    reset_cache,
     invalidate_top_rated_cache,
     invalidate_newest_cache,
     invalidate_most_discussed_cache,
@@ -115,7 +115,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             paper.calculate_hot_score()
             cache_key = get_cache_key(None, 'paper', pk=object_id)
             cache.delete(cache_key)
-            invalidate_trending_cache([])
+            # invalidate_trending_cache([])
             invalidate_top_rated_cache([])
             invalidate_most_discussed_cache([])
             invalidate_newest_cache([])

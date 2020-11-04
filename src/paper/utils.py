@@ -8,7 +8,7 @@ from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
-from datetime import datetime
+from datetime import datetime, timezone
 from habanero import Crossref
 from manubot.cite.csl_item import CSL_Item
 from bs4 import BeautifulSoup
@@ -528,6 +528,30 @@ def merge_paper_bulletpoints(original_paper, new_paper):
                 new_bullet_point.save()
             else:
                 new_bullet_point.delete()
+
+
+def reset_paper_cache(cache_key, data):
+    cache.set(cache_key, data, timeout=60*60*24*7)
+
+
+def reset_cache(hub_ids, context, meta):
+    from paper.tasks import preload_hub_papers
+
+    hub_ids.append(0)
+    for hub in hub_ids:
+        start_date = 0
+        end_date = 0
+
+        preload_hub_papers.apply_async(
+            (
+                1,
+                start_date,
+                end_date,
+                '-hot_score',
+                hub,
+            ),
+            priority=10
+        )
 
 
 def get_cache_key(request, subtype, pk=None):
