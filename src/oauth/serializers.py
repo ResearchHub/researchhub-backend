@@ -244,8 +244,7 @@ class SocialLoginSerializer(serializers.Serializer):
             try:
                 country = geo.country(ip)
                 if country.get('country_code') == 'ID':
-                    request.user.probable_spammer = True
-                    request.user.save()
+                    request.user.set_probable_spammer()
             except Exception as e:
                 print(e)
                 sentry.log_error(e)
