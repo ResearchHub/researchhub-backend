@@ -79,7 +79,8 @@ class UserViewSet(viewsets.ModelViewSet):
         user_to_censor.probable_spammer = True
         user_to_censor.save()
 
-        decisions_api.apply_bad_user_decision(user_to_censor)
+        user = request.user
+        decisions_api.apply_bad_user_decision(user_to_censor, user)
 
         return Response(
             {'message': 'User is Censored'},

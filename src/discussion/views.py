@@ -169,14 +169,20 @@ class ActionMixin:
 
         content_id = f'{type(item).__name__}_{item.id}'
         user = request.user
+        content_creator = item.created_by
         events_api.track_flag_content(
-            item.created_by,
+            content_creator,
             content_id,
             user.id
         )
         decisions_api.apply_bad_content_decision(
-            item.created_by,
-            content_id
+            content_creator,
+            content_id,
+            user
+        )
+        decisions_api.apply_bad_user_decision(
+            content_creator,
+            user
         )
 
         content_type = get_content_type_for_model(item)

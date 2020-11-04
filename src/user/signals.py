@@ -116,7 +116,7 @@ def handle_spam(sender, instance, **kwargs):
         if len(thread.plain_text) <= 25 or duplicate_thread:
             thread.is_removed = True
             content_id = f'{type(thread).__name__}_{thread.id}'
-            decisions_api.apply_bad_content_decision(thread.created_by, content_id)
+            decisions_api.apply_bad_content_decision(thread.created_by, content_id, None)
             events_api.track_flag_content(
                 thread.created_by,
                 content_id,

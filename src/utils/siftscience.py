@@ -52,32 +52,32 @@ def unlabel_user(user_id):
 
 
 class DecisionsApi:
-    def apply_bad_user_decision(self, user):
+    def apply_bad_user_decision(self, content_creator, reporter):
         applyDecisionRequest = {
             'decision_id': 'looks_bad_content_abuse',
             'source': 'MANUAL_REVIEW',
-            'analyst': 'analyst@researchhub.com',
+            'analyst': reporter.email if reporter else 'analyst@researchhub.com',
             'description': 'User looks risky for content abuse',
             'reason': 'User looks risky for content abuse',
         }
 
         try:
-            response = client.apply_user_decision(str(user.id), applyDecisionRequest)
+            response = client.apply_user_decision(str(content_creator.id), applyDecisionRequest)
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e)
 
-    def apply_bad_content_decision(self, user, content_id):
+    def apply_bad_content_decision(self, content_creator, content_id, reporter):
         applyDecisionRequest = {
             'decision_id': 'content_looks_bad_content_abuse',
             'source': 'MANUAL_REVIEW',
-            'analyst': 'analyst@researchhub.com',
+            'analyst': reporter.email if reporter else 'analyst@researchhub.com',
             'description': 'Auto flag of moderator-removed content',
             'reason': 'Auto flag of moderator-removed content',
         }
 
         try:
-            response = client.apply_content_decision(str(user.id), content_id, applyDecisionRequest)
+            response = client.apply_content_decision(str(content_creator.id), content_id, applyDecisionRequest)
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e)
