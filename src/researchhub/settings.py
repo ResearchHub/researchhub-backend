@@ -208,7 +208,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'researchhub.middleware.detect_spam.DetectSpam',
+    # 'researchhub.middleware.detect_spam.DetectSpam',
 ]
 
 # if not TESTING:

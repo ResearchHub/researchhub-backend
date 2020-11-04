@@ -11,7 +11,7 @@ class DetectSpam(object):
     def __call__(self, request):
         # if 'google' in request.path_info:
         #     setattr(request, '_dont_enforce_csrf_checks', True)
-        
+
         response = self.get_response(request)
 
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
