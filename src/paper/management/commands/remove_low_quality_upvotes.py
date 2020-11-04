@@ -11,7 +11,7 @@ from utils.siftscience import decisions_api, events_api
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        votes = Vote.objects.filter(created_by__probable_spammer=True)
+        votes = Vote.objects.filter(created_by__probable_spammer=True, is_removed=False)
         count = votes.count()
         for i, vote in enumerate(votes):
             print('{} / {}'.format(i, count))
@@ -23,5 +23,5 @@ class Command(BaseCommand):
                 content_id,
                 1,
             )
-            thread.save()
+            vote.save()
  
