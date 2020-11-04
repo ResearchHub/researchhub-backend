@@ -17,6 +17,7 @@ from summary.models import Summary
 from user.models import Action, Author
 from user.tasks import link_author_to_papers, link_paper_to_authors
 from reputation.distributor import Distributor
+from utils.siftscience import events_api, decisions_api
 
 
 @receiver(post_save, sender=Author, dispatch_uid='link_author_to_papers')
@@ -90,6 +91,18 @@ def handle_spam(sender, instance, **kwargs):
     if user and user.probable_spammer:
         instance.is_removed = True
 
+    if sender in (Thread,):
+        thread = instance
+
+        if len(thread.plain_text) <= 25:
+            thread.is_removed = True
+            content_id = f'{type(thread).__name__}_{thread.id}'
+            decisions_api.apply_bad_content_decision(thread.created_by, content_id)
+            events_api.track_flag_content(
+                thread.created_by,
+                content_id,
+                1,
+            )
 
 @receiver(
     post_save,
