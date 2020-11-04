@@ -58,7 +58,6 @@ from paper.models import Paper
 from paper.utils import (
     get_cache_key,
     reset_cache,
-    invalidate_trending_cache,
     invalidate_top_rated_cache,
     invalidate_newest_cache,
     invalidate_most_discussed_cache,

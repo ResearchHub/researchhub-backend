@@ -33,7 +33,7 @@ def update_purchases():
             paper.calculate_hot_score()
 
     hub_ids = []
-    context = self.get_serializer_context()
+    context = {}
     reset_cache(hub_ids, context, request.META)
 
 
