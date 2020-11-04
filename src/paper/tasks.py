@@ -49,11 +49,11 @@ def censored_paper_cleanup(paper_id):
         for vote in paper.votes.all():
             user = vote.created_by
             user.set_probable_spammer()
-            user.set_is_suspended()
+            user.set_suspended()
 
         uploaded_by = paper.uploaded_by
         uploaded_by.set_probable_spammer()
-        uploaded_by.set_is_suspended()
+        uploaded_by.set_suspended()
 
 @app.task
 def download_pdf(paper_id):

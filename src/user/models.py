@@ -113,9 +113,9 @@ class User(AbstractUser):
             self.probable_spammer = probable_spammer
             self.save(update_fields=['probable_spammer'])
             if probable_spammer:
-                handle_spam_user_task.apply_async((instance.id,), priority=3)
+                handle_spam_user_task.apply_async((self.id,), priority=3)
 
-    def set_suspended(self, is_suspended):
+    def set_suspended(self, is_suspended=True):
         if self.is_suspended != is_suspended:
             self.is_suspended = is_suspended
             self.save(update_fields=['is_suspended'])
