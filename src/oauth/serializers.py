@@ -213,7 +213,6 @@ class SocialLoginSerializer(serializers.Serializer):
             visits.save()
         except Exception as e:
             print(e)
-            sentry.log_error(e)
             pass
 
         try:
