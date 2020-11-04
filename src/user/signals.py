@@ -14,11 +14,26 @@ from paper.models import Paper, Vote as PaperVote
 from discussion.models import Vote as DisVote
 from researchhub.settings import TESTING
 from summary.models import Summary
-from user.models import Action, Author
-from user.tasks import link_author_to_papers, link_paper_to_authors
+from user.models import Action, Author, User
+from user.tasks import link_author_to_papers, link_paper_to_authors, handle_spam_user_task
 from reputation.distributor import Distributor
 from utils.siftscience import events_api, decisions_api
 
+@receiver(
+    post_save,
+    sender=User,
+    dispatch_uid='handle_spam_user'
+)
+def handle_spam_user(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
+    # TODO: move this to overriding the save method of the model instead of post_save here
+    if instance.probable_spammer:
+        handle_spam_user_task.apply_async((instance.id,), priority=3)
 
 @receiver(post_save, sender=Author, dispatch_uid='link_author_to_papers')
 def queue_link_author_to_papers(sender, instance, created, **kwargs):
@@ -101,7 +116,7 @@ def handle_spam(sender, instance, **kwargs):
         if len(thread.plain_text) <= 25 or duplicate_thread:
             thread.is_removed = True
             content_id = f'{type(thread).__name__}_{thread.id}'
-            decisions_api.apply_bad_content_decision(thread.created_by, content_id)
+            decisions_api.apply_bad_content_decision(thread.created_by, content_id, None)
             events_api.track_flag_content(
                 thread.created_by,
                 content_id,
