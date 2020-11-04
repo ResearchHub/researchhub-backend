@@ -179,7 +179,6 @@ class SocialLoginSerializer(serializers.Serializer):
         except Exception as e:
             error = LoginError(e, 'Login failed')
             sentry.log_info(error, error=e)
-            import pdb; pdb.set_trace()
             # if login:
             #     deleted = self._delete_user_account(login.user, error=e)
             #     if deleted and retry < 3:
@@ -232,7 +231,7 @@ class SocialLoginSerializer(serializers.Serializer):
             sentry.log_error(e)
             pass
 
-        
+
         request = self._get_request()
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:
@@ -244,8 +243,7 @@ class SocialLoginSerializer(serializers.Serializer):
             try:
                 country = geo.country(ip)
                 if country.get('country_code') == 'ID':
-                    request.user.probable_spammer = True
-                    request.user.save()
+                    request.user.set_probable_spammer()
             except Exception as e:
                 print(e)
                 sentry.log_error(e)

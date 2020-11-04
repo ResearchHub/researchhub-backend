@@ -19,21 +19,6 @@ from user.tasks import link_author_to_papers, link_paper_to_authors, handle_spam
 from reputation.distributor import Distributor
 from utils.siftscience import events_api, decisions_api
 
-@receiver(
-    post_save,
-    sender=User,
-    dispatch_uid='handle_spam_user'
-)
-def handle_spam_user(
-    sender,
-    instance,
-    created,
-    update_fields,
-    **kwargs
-):
-    if instance.probable_spammer:
-        handle_spam_user_task.apply_async((instance.id,), priority=3)
-
 @receiver(post_save, sender=Author, dispatch_uid='link_author_to_papers')
 def queue_link_author_to_papers(sender, instance, created, **kwargs):
     """Runs a queued task to link the new ORCID author to existing papers."""

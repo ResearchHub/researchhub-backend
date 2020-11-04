@@ -1,1 +1,1 @@
-celery worker -A researchhub --loglevel=INFO
+celery worker -A researchhub --loglevel=INFO -B

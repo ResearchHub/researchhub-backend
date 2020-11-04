@@ -19,6 +19,7 @@ from paper.models import Paper
 from purchase.models import Wallet
 from researchhub.settings import BASE_FRONTEND_URL, TESTING
 from summary.models import Summary
+from user.tasks import handle_spam_user_task
 from utils.models import DefaultModel
 
 
@@ -106,6 +107,13 @@ class User(AbstractUser):
     def set_has_seen_stripe_modal(self, has_seen):
         self.has_seen_stripe_modal = has_seen
         self.save()
+
+    def set_probable_spammer(self, probable_spammer=True):
+        if self.probable_spammer != probable_spammer:
+            self.probable_spammer = probable_spammer
+            self.save(update_fields=['probable_spammer'])
+            if probable_spammer:
+                handle_spam_user_task.apply_async((instance.id,), priority=3)
 
     def set_suspended(self, is_suspended):
         if self.is_suspended != is_suspended:
