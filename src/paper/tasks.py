@@ -42,38 +42,18 @@ from utils.http import check_url_contains_pdf
 
 @app.task
 def censored_paper_cleanup(paper_id):
-    if paper_id is None:
-        return
-
     Paper = apps.get_model('paper.Paper')
-    paper = Paper.objects.get(id=paper_id)
-    paper.votes.update(is_removed=True)
-    for vote in paper.votes.all():
-        user = vote.created_by
-        save_user = False
-        if not user.probable_spammer:
-            user.probable_spammer = True
-            save_user = True
-        if not user.is_suspended:
-            user.is_suspended = True
-            save_user = True
+    paper = Paper.objects.filter(id=paper_id).first()
+    if paper:
+        paper.votes.update(is_removed=True)
+        for vote in paper.votes.all():
+            user = vote.created_by
+            user.set_probable_spammer()
+            user.set_suspended()
 
-        if save_user:
-            user.save()
-
-    uploaded_by = paper.uploaded_by
-    save_user = False
-    if not uploaded_by.probable_spammer:
-        uploaded_by.probable_spammer = True
-        save_user = True
-    
-    if not uploaded_by.is_suspended:
-        uploaded_by.is_suspended = True
-        save_user = True
-
-    if save_user:
-        uploaded_by.save()
-
+        uploaded_by = paper.uploaded_by
+        uploaded_by.set_probable_spammer()
+        uploaded_by.set_suspended()
 
 @app.task
 def download_pdf(paper_id):
@@ -524,7 +504,7 @@ def preload_hub_papers(
         cache_pk = f'{hub_id}_{ordering}_week'
     else:
         cache_pk = f'{hub_id}_{ordering}_today'
-    
+
     cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
     if cache_key_hub:
         cache.set(
