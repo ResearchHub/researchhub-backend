@@ -51,13 +51,29 @@ def unlabel_user(user_id):
         print(e.api_error_message)
 
 
-class DecisionsApi:    
+class DecisionsApi:
+    def apply_bad_user_decision(self, user):
+        applyDecisionRequest = {
+            'decision_id': 'looks_bad_content_abuse',
+            'source': 'MANUAL_REVIEW',
+            'analyst': 'analyst@researchhub.com',
+            'description': 'User looks risky for content abuse',
+            'reason': 'User looks risky for content abuse',
+        }
+
+        try:
+            response = client.apply_user_decision(str(user.id), applyDecisionRequest)
+        except sift.client.ApiException as e:
+            sentry.log_error(e)
+            print(e)
+
     def apply_bad_content_decision(self, user, content_id):
         applyDecisionRequest = {
             'decision_id': 'content_looks_bad_content_abuse',
             'source': 'MANUAL_REVIEW',
             'analyst': 'analyst@researchhub.com',
             'description': 'Auto flag of moderator-removed content',
+            'reason': 'Auto flag of moderator-removed content',
         }
 
         try:
