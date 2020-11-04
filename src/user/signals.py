@@ -153,6 +153,9 @@ def create_action(sender, instance, created, **kwargs):
             display = False
         else:
             display = True
+        
+        if sender != DisVote and instance.is_removed:
+            display = False
 
         action = Action.objects.create(
             item=instance,
