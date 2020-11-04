@@ -804,26 +804,12 @@ class PaperViewSet(viewsets.ModelViewSet):
                 cache_pk = f'{hub_id}_{ordering}_today'
 
             cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
-
-            def execute_celery_hub_precalc():
-                return preload_hub_papers(
-                    page_number,
-                    start_date,
-                    end_date,
-                    ordering,
-                    hub_id,
-                    synchronous=True,
-                    meta=request.META,
-                )
-
-            cache_hit = cache.get_or_set(
-                cache_key_hub,
-                execute_celery_hub_precalc,
-                timeout=60*40
-            )
-
+            cache_hit = cache.get(cache_key_hub)
+            
             if cache_hit and page_number == 1:
                 return Response(cache_hit)
+            else:
+                reset_cache([hub_id], context, request.META)
 
         papers = self._get_filtered_papers(hub_id)
         order_papers = self.calculate_paper_ordering(
