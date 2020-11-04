@@ -213,12 +213,16 @@ class HubViewSet(viewsets.ModelViewSet):
         if pk == '0':
             actions = Action.objects.filter(
                 user__isnull=False,
+                user__is_suspended=False,
+                user__probable_spammer=False,
                 content_type__model__in=models,
                 display=True,
             ).order_by('-created_date').prefetch_related('item')
         else:
             actions = Action.objects.filter(hubs=pk).filter(
                 user__isnull=False,
+                user__is_suspended=False,
+                user__probable_spammer=False,
                 content_type__model__in=models,
                 display=True
             ).order_by('-created_date').prefetch_related('item')
