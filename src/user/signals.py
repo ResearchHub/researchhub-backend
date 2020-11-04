@@ -31,6 +31,7 @@ def handle_spam_user(
     update_fields,
     **kwargs
 ):
+    # TODO: move this to overriding the save method of the model instead of post_save here
     if instance.probable_spammer:
         handle_spam_user_task.apply_async((instance.id,), priority=3)
 
