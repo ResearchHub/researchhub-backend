@@ -7,7 +7,7 @@ from researchhub.celery import app
 from mailing_list.lib import base_email_context
 from purchase.models import Purchase, Support
 from researchhub.settings import APP_ENV, BASE_FRONTEND_URL
-from paper.utils import invalidate_trending_cache
+from paper.utils import invalidate_trending_cache, reset_cache
 from utils.message import send_email_message
 
 
@@ -33,7 +33,8 @@ def update_purchases():
             paper.calculate_hot_score()
 
     hub_ids = []
-    invalidate_trending_cache(hub_ids)
+    context = self.get_serializer_context()
+    reset_cache(hub_ids, context, request.META)
 
 
 @app.task
