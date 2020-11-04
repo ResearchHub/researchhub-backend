@@ -62,7 +62,6 @@ from paper.utils import (
     get_csl_item,
     get_pdf_location_for_csl_item,
     get_cache_key,
-    invalidate_trending_cache,
     invalidate_top_rated_cache,
     invalidate_newest_cache,
     invalidate_most_discussed_cache,
