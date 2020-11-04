@@ -76,8 +76,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def censor(self, request, pk=None):
         author_id = request.data.get('authorId')
         user_to_censor = User.objects.get(author_profile__id=author_id)
-        user_to_censor.probable_spammer = True
-        user_to_censor.save()
+        user_to_censor.set_probable_spammer()
 
         user = request.user
         decisions_api.apply_bad_user_decision(user_to_censor, user)
