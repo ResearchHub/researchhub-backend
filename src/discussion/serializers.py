@@ -68,9 +68,9 @@ class VoteMixin:
                 'votes__vote_type',
                 filter=Q(votes__vote_type=Vote.DOWNVOTE)
             )
-            return obj.children.annotate(score=upvotes - downvotes)
+            return obj.children.filter(is_removed=False).annotate(score=upvotes - downvotes)
         else:
-            return obj.children
+            return obj.children.filter(is_removed=False)
 
     def get_user_vote(self, obj):
         vote = None

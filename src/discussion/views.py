@@ -158,8 +158,7 @@ class ActionMixin:
         methods=['put', 'patch', 'delete'],
         permission_classes=[
             IsAuthenticated,
-            CensorDiscussion,
-            CreateOrUpdateIfAllowed
+            CensorDiscussion
         ]
     )
     def censor(self, request, pk=None):
