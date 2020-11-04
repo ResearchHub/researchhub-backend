@@ -62,10 +62,12 @@ from paper.utils import (
     get_csl_item,
     get_pdf_location_for_csl_item,
     get_cache_key,
+    reset_cache,
     invalidate_trending_cache,
     invalidate_top_rated_cache,
     invalidate_newest_cache,
     invalidate_most_discussed_cache,
+    reset_cache
 )
 from researchhub.lib import get_paper_id_from_path
 from reputation.models import Contribution
@@ -179,8 +181,8 @@ class PaperViewSet(viewsets.ModelViewSet):
             response = super().create(*args, **kwargs)
             request = args[0]
             hub_ids = list(request.POST['hubs'])
-            invalidate_trending_cache(hub_ids)
-            invalidate_newest_cache(hub_ids)
+            context = self.get_serializer_context()
+            reset_cache(hub_ids, context, request.META)
             return response
         except IntegrityError as e:
             return self._get_integrity_error_response(e)
@@ -250,7 +252,8 @@ class PaperViewSet(viewsets.ModelViewSet):
             self._send_created_location_ga_event(instance, request.user)
 
         hub_ids = request.data.get('hubs', [])
-        invalidate_trending_cache(hub_ids)
+        context = self.get_serializer_context()
+        reset_cache(hub_ids, context, request.META)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -305,7 +308,8 @@ class PaperViewSet(viewsets.ModelViewSet):
             content_id
         )
 
-        invalidate_trending_cache(hub_ids)
+        context = self.get_serializer_context()
+        reset_cache(hub_ids, context, request.META)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -342,7 +346,8 @@ class PaperViewSet(viewsets.ModelViewSet):
         cache.delete(cache_key)
         hub_ids = paper.hubs.values_list('id', flat=True)
 
-        invalidate_trending_cache(hub_ids)
+        context = self.get_serializer_context()
+        reset_cache(hub_ids, context, request.META)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -497,7 +502,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     )
     def upvote(self, request, pk=None):
         paper = self.get_object()
-        hub_ids = paper.hubs.values_list('id', flat=True)
+        hub_ids = list(paper.hubs.values_list('id', flat=True))
         user = request.user
 
         vote_exists = find_vote(user, paper, Vote.UPVOTE)
@@ -509,7 +514,8 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(request, user, paper, Vote.UPVOTE)
 
-        invalidate_trending_cache(hub_ids)
+        context = self.get_serializer_context()
+        reset_cache(hub_ids, context, request.META)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -539,7 +545,8 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(request, user, paper, Vote.DOWNVOTE)
 
-        invalidate_trending_cache(hub_ids)
+        context = self.get_serializer_context()
+        reset_cache(hub_ids, context, request.META)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -783,6 +790,8 @@ class PaperViewSet(viewsets.ModelViewSet):
             else:
                 cache_pk = f'{hub_id}_{ordering}_today'
 
+            cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
+
             def execute_celery_hub_precalc():
                 return preload_hub_papers(
                     page_number,
@@ -790,12 +799,9 @@ class PaperViewSet(viewsets.ModelViewSet):
                     end_date,
                     ordering,
                     hub_id,
-                    request.META,
-                    context,
-                    None
+                    synchronous=True
                 )
 
-            cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
             cache_hit = cache.get_or_set(
                 cache_key_hub,
                 execute_celery_hub_precalc,

@@ -444,15 +444,12 @@ def preload_hub_papers(
     end_date,
     ordering,
     hub_id,
-    meta,
-    context,
-    cache_key,
+    synchronous=False,
 ):
     from paper.serializers import HubPaperSerializer
     from paper.views import PaperViewSet
     paper_view = PaperViewSet()
     http_req = HttpRequest()
-    http_req.META = meta
     paper_view.request = Request(http_req)
     papers = paper_view._get_filtered_papers(hub_id)
     order_papers = paper_view.calculate_paper_ordering(
@@ -462,18 +459,39 @@ def preload_hub_papers(
         end_date
     )
 
+    context = {}
+    context['user_no_balance'] = True
+
     page = paper_view.paginate_queryset(order_papers)
     serializer = HubPaperSerializer(page, many=True, context=context)
     serializer_data = serializer.data
     paginated_response = paper_view.get_paginated_response(
         {'data': serializer_data, 'no_results': False}
     )
-    return paginated_response.data
 
-    if cache_key:
+    if synchronous:
+        time_difference = end_date - start_date
+    else:
+        now = datetime.now()
+        time_difference = now - now
+    cache_pk = ''
+    if time_difference.days > 365:
+        cache_pk = f'{hub_id}_{ordering}_all_time'
+    elif time_difference.days == 365:
+        cache_pk = f'{hub_id}_{ordering}_year'
+    elif time_difference.days == 30 or time_difference.days == 31:
+        cache_pk = f'{hub_id}_{ordering}_month'
+    elif time_difference.days == 7:
+        cache_pk = f'{hub_id}_{ordering}_week'
+    else:
+        cache_pk = f'{hub_id}_{ordering}_today'
+    
+    cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
+    if cache_key_hub:
         cache.set(
-            cache_key,
-            (serializer_data, order_papers[:15]),
-            timeout=60*10
+            cache_key_hub,
+            paginated_response.data,
+            timeout=60*40
         )
-    return (serializer_data, order_papers[:15])
+
+    return paginated_response.data
