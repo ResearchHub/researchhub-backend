@@ -179,10 +179,11 @@ class SocialLoginSerializer(serializers.Serializer):
         except Exception as e:
             error = LoginError(e, 'Login failed')
             sentry.log_info(error, error=e)
-            if login:
-                deleted = self._delete_user_account(login.user, error=e)
-                if deleted and retry < 3:
-                    return self.validate(attrs, retry=retry+1)
+            import pdb; pdb.set_trace()
+            # if login:
+            #     deleted = self._delete_user_account(login.user, error=e)
+            #     if deleted and retry < 3:
+            #         return self.validate(attrs, retry=retry+1)
             sentry.log_error(error, base_error=e)
             raise serializers.ValidationError(_("Incorrect value"))
 

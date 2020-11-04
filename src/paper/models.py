@@ -131,6 +131,7 @@ class Paper(models.Model):
     )
     uploaded_by = models.ForeignKey(
         'user.User',
+        related_name='papers',
         on_delete=models.SET_NULL,
         blank=True,
         null=True
