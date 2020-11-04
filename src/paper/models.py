@@ -510,8 +510,8 @@ class Paper(models.Model):
             celery_extract_twitter_comments(self.id)
 
     def calculate_score(self):
-        upvotes = self.votes.filter(vote_type=Vote.UPVOTE).count()
-        downvotes = self.votes.filter(vote_type=Vote.DOWNVOTE).count()
+        upvotes = self.votes.filter(vote_type=Vote.UPVOTE, is_removed=False).count()
+        downvotes = self.votes.filter(vote_type=Vote.DOWNVOTE, is_removed=False).count()
         score = upvotes - downvotes
         return score
 
