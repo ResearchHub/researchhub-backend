@@ -11,7 +11,7 @@ from utils.siftscience import decisions_api, events_api
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        low_threads = Thread.objects.annotate(text_len=Length('plain_text')).filter(text_len__lte=22, is_removed=False)
+        low_threads = Thread.objects.annotate(text_len=Length('plain_text')).filter(text_len__lte=25, is_removed=False)
         thread_count = low_threads.count()
         for i, thread in enumerate(low_threads):
             print('{} / {}'.format(i, thread_count))
