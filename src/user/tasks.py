@@ -16,6 +16,13 @@ from discussion.models import (
 from paper.models import Paper
 from user.models import Action, Author
 
+@app.task
+def handle_spam_user_task(user_id):
+    user = User.objects.get(id=user_id)
+    user.papers.update(is_removed=True)
+    for paper in user.papers.all():
+        censored_paper_cleanup(paper.id)
+
 
 @app.task
 def link_author_to_papers(author_id, orcid_account_id):

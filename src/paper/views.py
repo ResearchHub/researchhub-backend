@@ -35,7 +35,7 @@ from paper.models import (
     Vote,
     FeaturedPaper
 )
-from paper.tasks import preload_hub_papers
+from paper.tasks import preload_hub_papers, censored_paper_cleanup
 from paper.permissions import (
     CreatePaper,
     UpdateOrDeleteAdditionalFile,
@@ -315,6 +315,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         Contribution.objects.filter(paper=paper).delete()
         paper.is_removed = True
         paper.save()
+        censored_paper_cleanup.apply_async((paper.id,), priority=3)
 
         context = self.get_serializer_context()
         reset_cache(hub_ids, context, request.META)
