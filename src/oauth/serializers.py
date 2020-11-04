@@ -24,6 +24,8 @@ from utils import sentry
 from utils.siftscience import events_api
 from analytics.models import WebsiteVisits
 
+from django.contrib.gis.geoip2 import GeoIP2
+geo = GeoIP2()
 
 class SocialLoginSerializer(serializers.Serializer):
     access_token = serializers.CharField(required=False, allow_blank=True)
@@ -66,6 +68,7 @@ class SocialLoginSerializer(serializers.Serializer):
         :returns: A populated instance of the
             `allauth.socialaccount.SocialLoginView` instance
         """
+
         request = self._get_request()
         social_login = adapter.complete_login(
             request,
@@ -73,6 +76,7 @@ class SocialLoginSerializer(serializers.Serializer):
             token,
             response=response
         )
+
         social_login.token = token
         return social_login
 
@@ -226,5 +230,23 @@ class SocialLoginSerializer(serializers.Serializer):
             print(e)
             sentry.log_error(e)
             pass
+
+        
+        request = self._get_request()
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+
+        if request.user.is_authenticated and not request.user.probable_spammer:
+            try:
+                country = geo.country(ip)
+                if country.get('country_code') == 'ID':
+                    request.user.probable_spammer = True
+                    request.user.save()
+            except Exception as e:
+                print(e)
+                sentry.log_error(e)
 
         return attrs
