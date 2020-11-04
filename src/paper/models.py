@@ -382,7 +382,7 @@ class Paper(models.Model):
                         Extract('created_date', 'epoch'),
                         output_field=models.IntegerField()
                     )
-                )['avg']
+                )['avg'] or 0
 
                 avg_hrs = (
                     vote_avg_epoch - ALGO_START_UNIX
