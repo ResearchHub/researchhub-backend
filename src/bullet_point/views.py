@@ -144,14 +144,20 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
 
         content_id = f'{type(bullet_point).__name__}_{bullet_point.id}'
         user = request.user
+        content_creator = bullet_point.created_by
         events_api.track_flag_content(
-            bullet_point.created_by,
+            content_creator,
             content_id,
             user.id
         )
         decisions_api.apply_bad_content_decision(
-            bullet_point.created_by,
-            content_id
+            content_creator,
+            content_id,
+            user
+        )
+        decisions_api.apply_bad_user_decision(
+            content_creator,
+            user
         )
 
         return Response(
