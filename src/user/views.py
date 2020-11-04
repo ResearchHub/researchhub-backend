@@ -10,6 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Sum, Q, F, Count
 from django.contrib.contenttypes.models import ContentType
+from utils.http import DELETE, POST, PATCH, PUT
 
 from discussion.models import Thread
 from discussion.serializers import (
@@ -68,13 +69,13 @@ class UserViewSet(viewsets.ModelViewSet):
             return User.objects.none()
     
     @action(
-        detail=True,
-        methods=[DELETE, PATCH, PUT],
+        detail=False,
+        methods=[POST],
         permission_classes=[IsAuthenticated, Censor]
     )
     def censor(self, request, pk=None):
         author_id = request.data.get('authorId')
-        user_to_censor = User.objects.get(author_profile_id__=author_id)
+        user_to_censor = User.objects.get(author_profile__id=author_id)
         user_to_censor.probable_spammer = True
         user_to_censor.save()
 
@@ -175,7 +176,9 @@ class UserViewSet(viewsets.ModelViewSet):
             serializerClass = UserSerializer
             if hub_id and hub_id != 0:
                 items = User.objects.filter(
-                    is_active=True
+                    is_active=True,
+                    is_suspended=False,
+                    probable_spammer=False,
                 ).annotate(
                     hub_rep=Sum(
                         'reputation_records__amount',
@@ -187,7 +190,9 @@ class UserViewSet(viewsets.ModelViewSet):
                 ).order_by(F('hub_rep').desc(nulls_last=True))
             else:
                 items = User.objects.filter(
-                    is_active=True
+                    is_active=True,
+                    is_suspended=False,
+                    probable_spammer=False,
                 ).annotate(
                     hub_rep=Sum(
                         'reputation_records__amount',
