@@ -62,12 +62,12 @@ from paper.utils import (
     get_csl_item,
     get_pdf_location_for_csl_item,
     get_cache_key,
-    reset_cache,
     invalidate_trending_cache,
     invalidate_top_rated_cache,
     invalidate_newest_cache,
     invalidate_most_discussed_cache,
-    reset_cache
+    reset_cache,
+    reset_paper_cache
 )
 from researchhub.lib import get_paper_id_from_path
 from reputation.models import Contribution
@@ -235,7 +235,10 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         cache_key = get_cache_key(request, 'paper')
-        cache.delete(cache_key)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        serializer_data = serializer.data
+        reset_paper_cache(cache_key, serializer_data)
 
         # TODO: This needs improvement so we guarantee that we are tracking
         # file created location when a file is actually being added and not
@@ -251,7 +254,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             instance = self.get_object()
             self._send_created_location_ga_event(instance, request.user)
 
-        hub_ids = request.data.get('hubs', [])
+        hub_ids = request.data.getlist('hubs', [])
         context = self.get_serializer_context()
         reset_cache(hub_ids, context, request.META)
         invalidate_top_rated_cache(hub_ids)
@@ -343,7 +346,10 @@ class PaperViewSet(viewsets.ModelViewSet):
         )
 
         cache_key = get_cache_key(request, 'paper')
-        cache.delete(cache_key)
+        serializer = self.get_serializer(paper)
+        serializer_data = serializer.data
+        reset_paper_cache(cache_key, serializer_data)
+
         hub_ids = paper.hubs.values_list('id', flat=True)
 
         context = self.get_serializer_context()
@@ -520,7 +526,10 @@ class PaperViewSet(viewsets.ModelViewSet):
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
         cache_key_paper = get_cache_key(request, 'paper')
-        cache.delete(cache_key_paper)
+        serializer = self.get_serializer(paper)
+        serializer_data = serializer.data
+        reset_paper_cache(cache_key_paper, serializer_data)
+
         return response
 
     @action(
@@ -533,7 +542,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     )
     def downvote(self, request, pk=None):
         paper = self.get_object()
-        hub_ids = paper.hubs.values_list('id', flat=True)
+        hub_ids = list(paper.hubs.values_list('id', flat=True))
         user = request.user
 
         vote_exists = find_vote(user, paper, Vote.DOWNVOTE)
@@ -551,7 +560,10 @@ class PaperViewSet(viewsets.ModelViewSet):
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
         cache_key_paper = get_cache_key(request, 'paper')
-        cache.delete(cache_key_paper)
+        serializer = self.get_serializer(paper)
+        serializer_data = serializer.data
+        reset_paper_cache(cache_key_paper, serializer_data)
+
         return response
 
     @action(
