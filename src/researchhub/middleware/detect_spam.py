@@ -1,12 +1,11 @@
-from django.contrib.gis.geoip2 import GeoIP2
 from utils import sentry
+from researchhub.settings import geo_ip
 
 class DetectSpam(object):
     """Middleware for disabling CSRF in an specified app name.
     """
 
     def __init__(self, get_response):
-        self.g = GeoIP2()
         self.get_response = get_response
 
     def __call__(self, request):
@@ -23,7 +22,7 @@ class DetectSpam(object):
 
         if request.user.is_authenticated and not request.user.probable_spammer:
             try:
-                country = self.g.country(ip)
+                country = geo_ip.country(ip)
                 if country.get('country_code') == 'ID':
                     request.user.probable_spammer = True
                     request.user.save()
