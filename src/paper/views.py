@@ -107,8 +107,10 @@ class PaperViewSet(viewsets.ModelViewSet):
             Prefetch(
                 'bullet_points',
                 queryset=BulletPoint.objects.filter(
-                    is_head=True
-                )
+                    is_head=True,
+                    is_removed=False,
+                    ordinal__isnull=False
+                ).order_by('ordinal')
             ),
             'summary',
             'summary__previous',
