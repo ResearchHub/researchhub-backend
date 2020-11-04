@@ -841,13 +841,16 @@ class PaperViewSet(viewsets.ModelViewSet):
         if int(hub_id) == 0:
             return self.get_queryset(
                 prefetch=False
+            ).filter(
+                is_removed=False
             ).prefetch_related(
                 *self.prefetch_lookups()
             )
         return self.get_queryset(
             prefetch=False
         ).filter(
-            hubs__id__in=[int(hub_id)]
+            hubs__id__in=[int(hub_id)],
+            is_removed=False,
         ).prefetch_related(
             *self.prefetch_lookups()
         )
