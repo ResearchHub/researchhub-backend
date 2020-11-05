@@ -15,7 +15,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         three_days_ago = timezone.now().date() - timedelta(days=3)
-        papers = Paper.objects.filter(doi__isnull=True, uploaded_date__gte=three_days_ago)
+        papers = Paper.objects.filter(doi__isnull=True, uploaded_date__gte=three_days_ago, is_removed=False)
         count = papers.count()
         for i, paper in enumerate(papers):
             if paper.id == 832969:
