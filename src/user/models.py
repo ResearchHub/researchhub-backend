@@ -20,6 +20,7 @@ from purchase.models import Wallet
 from researchhub.settings import BASE_FRONTEND_URL, TESTING
 from summary.models import Summary
 from user.tasks import handle_spam_user_task
+from utils.throttles import UserSustainedRateThrottle
 from utils.models import DefaultModel
 
 
@@ -113,11 +114,16 @@ class User(AbstractUser):
 
     def set_probable_spammer(self, probable_spammer=True):
         if self.probable_spammer != probable_spammer:
+            capcha_throttle = UserSustainedRateThrottle()
+            capcha_throttle.lock(self, "probably_spam")
+
             self.probable_spammer = probable_spammer
             self.spam_updated_date = timezone.now()
             self.save(update_fields=['probable_spammer', 'spam_updated_date'])
+
             if probable_spammer:
                 handle_spam_user_task.apply_async((self.id,), priority=3)
+
 
     def set_suspended(self, is_suspended=True):
         if self.is_suspended != is_suspended:
