@@ -11,7 +11,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         three_days_ago = timezone.now().date() - timedelta(days=3)
-        objects = User.objects.filter(created_date__lte=three_days_ago, is_suspended=True)
+        objects = User.objects.filter(created_date__lte=three_days_ago, probable_spammer=True)
         count = objects.count()
         for i, user in enumerate(objects):
             print('{} / {}'.format(i, count))
