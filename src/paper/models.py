@@ -1,4 +1,5 @@
 import math
+import requests
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
@@ -468,6 +469,20 @@ class Paper(models.Model):
             )
         else:
             celery_extract_pdf_preview(self.id)
+    
+    def check_doi(self):
+        if not self.doi:
+            self.is_removed = True
+
+        r = requests.get('https://doi.org/{}'.format(self.doi))
+        if r.status_code >= 200 and r.status_code < 300:
+            self.is_removed = False
+        else:
+            self.is_removed = True
+
+        self.save()
+        return self.is_removed
+
 
     def extract_meta_data(
         self,

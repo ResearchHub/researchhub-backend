@@ -437,6 +437,7 @@ class PaperSerializer(BasePaperSerializer):
 
     def _check_pdf_title(self, paper, title, file):
         if type(file) is str:
+            paper.check_doi()
             # For now, don't do anything if file is a url
             return
         else:
