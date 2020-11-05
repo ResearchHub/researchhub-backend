@@ -7,6 +7,8 @@ from django.db.models import Q
 
 from celery.decorators import periodic_task
 from django.contrib.contenttypes.models import ContentType
+from datetime import timedelta
+from django.utils import timezone
 
 from researchhub.settings import REWARD_SCHEDULE, REWARD_TIME, APP_ENV
 from researchhub.celery import app
@@ -224,3 +226,91 @@ def distribute_rewards():
 
     last_distribution.distributed = True
     last_distribution.save()
+
+def reward_calculation(distribute):
+    # Checks if rewards should be distributed, given time config
+    today = datetime.datetime.now(tz=pytz.utc)
+
+    reward_time_hour, reward_time_day, reward_time_week = list(
+        map(int, REWARD_TIME.split(' '))
+    )
+
+    if reward_time_week:
+        week = today.isocalendar()[1]
+        if week % reward_time_week != 0:
+            return
+        # time_delta = datetime.timedelta(weeks=reward_time_week)
+    elif reward_time_day:
+        day = today.day
+        if day % reward_time_day != 0:
+            return
+        # time_delta = datetime.timedelta(days=reward_time_day)
+    elif reward_time_hour:
+        hour = today.hour
+        if hour % reward_time_hour != 0:
+            return
+        # time_delta = datetime.timedelta(hours=reward_time_hour)
+    else:
+        return
+
+    # Reward distribution logic
+    last_distribution = DistributionAmount.objects.filter(
+        distributed=False
+    )
+    if not last_distribution.exists():
+        last_distribution = None
+    else:
+        last_distribution = last_distribution.last()
+
+    last_distributed = DistributionAmount.objects.filter(
+        distributed=True
+    )
+    if last_distributed.exists():
+        starting_date = last_distributed.last().distributed_date
+    else:
+        if last_distribution:
+            starting_date = last_distribution.created_date
+        else:
+            starting_date = timezone.now().date() - timedelta(days=7)
+
+    reward_dis = RewardDistributor()
+
+    total_reward_amount = DEFAULT_REWARD
+    if last_distribution:
+        total_reward_amount = last_distribution.amount
+
+    weekly_contributions = Contribution.objects.filter(
+        created_date__gt=starting_date,
+        created_date__lte=today,
+        paper__is_removed=False,
+        user__probable_spammer=False,
+        user__is_suspended=False
+    )
+
+    if not weekly_contributions.exists():
+        return
+
+    paper_ids = weekly_contributions.values_list('paper')
+    papers = Paper.objects.filter(id__in=[paper_ids])
+    papers, prob_dist = reward_dis.get_papers_prob_dist(papers)
+
+    reward_distribution = prob_dist * total_reward_amount
+
+    total_rewards = {}
+    for paper, reward in zip(papers, reward_distribution):
+        contribution_count = 0
+        contributions = []
+        for contribution_tuple in Contribution.contribution_choices:
+            contribution_type = contribution_tuple[0]
+            filtered_contributions = weekly_contributions.filter(
+                paper=paper,
+                contribution_type=contribution_type
+            ).distinct('user')
+            contribution_count += filtered_contributions.count()
+            contributions.append(filtered_contributions)
+
+        amount = math.floor(reward / contribution_count)
+        for qs in contributions:
+            for contribution in qs.iterator():
+                print(contribution)
+                # reward_dis.generate_distribution(contribution, amount=amount)
