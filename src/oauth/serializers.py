@@ -232,7 +232,7 @@ class SocialLoginSerializer(serializers.Serializer):
             sentry.log_error(e)
             pass
 
-        
+
         request = self._get_request()
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:

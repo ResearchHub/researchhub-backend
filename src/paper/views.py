@@ -80,7 +80,7 @@ from utils.siftscience import events_api, decisions_api
 
 
 class PaperViewSet(viewsets.ModelViewSet):
-    queryset = Paper.objects.all()
+    queryset = Paper.objects.filter(is_removed=False)
     serializer_class = PaperSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('title', 'doi', 'paper_title')
@@ -878,7 +878,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 
 
 class FeaturedPaperViewSet(viewsets.ModelViewSet):
-    queryset = FeaturedPaper.objects.all()
+    queryset = FeaturedPaper.objects.filter(paper__is_removed=False, user__is_suspended=False)
     serializer_class = FeaturedPaperSerializer
     throttle_classes = THROTTLE_CLASSES
     permission_classes = [IsAuthenticatedOrReadOnly]
@@ -919,7 +919,8 @@ class FeaturedPaperViewSet(viewsets.ModelViewSet):
     def retrieve(self, request, pk=None):
         user = Author.objects.get(id=pk).user
         papers = self.queryset.filter(
-            user=user
+            user=user,
+            is_removed=False,
         ).order_by(
             'ordinal'
         )
