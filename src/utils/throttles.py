@@ -9,6 +9,22 @@ THROTTLE_RATES = {
 
 class UserCaptchaThrottle(UserRateThrottle):
 
+    def get_user_ident(self, user):
+        return user.pk
+
+    def fmt_cache_key(self, ident):
+        return self.cache_format % {
+            'scope': self.scope,
+            'ident': ident
+        }
+
+    def get_cache_key(self, request, view):
+        if request.user.is_authenticated:
+            ident = self.get_user_ident(request.user)
+        else:
+            ident = self.get_ident(request)
+        return self.fmt_cache_key(ident)
+
     def get_rate(self):
         return THROTTLE_RATES[self.scope]
 
@@ -40,17 +56,27 @@ class UserCaptchaThrottle(UserRateThrottle):
         while self.history and self.history[-1] <= self.now - self.duration:
             self.history.pop()
         if len(self.history) >= self.num_requests:
-            # Log to db
             if not self.locked:
-                throt, created = Throttle.objects.get_or_create(throttle_key=self.key)
-                throt.locked = True
-                throt.ident = self.get_ident(request)
-                if request.user.is_authenticated:
-                    throt.user = request.user
-                throt.save()
+                self.lock(request.user, self.get_ident(request), self.key)
             return self.throttle_failure()
         else:
             return self.throttle_success()
+
+    # Log to db and cache
+    def lock(self, user, ident, key=None):
+        if key is None:
+            if user.is_authenticated:
+                key = self.fmt_cache_key(self.get_user_ident(user))
+            else:
+                key = self.fmt_cache_key(ident)
+
+        self.cache.set(key + '_locked', True, None)
+        throt, created = Throttle.objects.get_or_create(throttle_key=key)
+        throt.locked = True
+        throt.ident = ident
+        if user.is_authenticated:
+            throt.user = user
+        throt.save()
 
     def throttle_success(self):
         self.history.insert(0, self.now)
@@ -58,8 +84,6 @@ class UserCaptchaThrottle(UserRateThrottle):
         return True
 
     def throttle_failure(self):
-        if not self.locked:
-            self.cache.set(self.key + '_locked', True, None)
         return False
 
     def captcha_complete(self, request):
