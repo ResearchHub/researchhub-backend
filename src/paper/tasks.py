@@ -258,7 +258,7 @@ def celery_extract_meta_data(paper_id, title, check_title):
         if not similar_title:
             return
 
-        doi = best_matching_result.get('DOI', None)
+        doi = best_matching_result.get('DOI', paper.doi)
         url = best_matching_result.get('URL', None)
         publish_date = best_matching_result['created']['date-time']
         publish_date = datetime.strptime(publish_date, date_format).date()
@@ -274,6 +274,10 @@ def celery_extract_meta_data(paper_id, title, check_title):
 
         paper_cache_key = get_cache_key(None, 'paper', pk=paper_id)
         cache.delete(paper_cache_key)
+
+        if not paper.doi:
+            paper.is_removed = True
+
         paper.save()
     except (UniqueViolation, IntegrityError) as e:
         sentry.log_info(e)
