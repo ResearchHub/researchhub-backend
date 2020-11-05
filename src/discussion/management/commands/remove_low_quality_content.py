@@ -17,10 +17,14 @@ class Command(BaseCommand):
             print('{} / {}'.format(i, thread_count))
             thread.is_removed = True
             content_id = f'{type(thread).__name__}_{thread.id}'
-            decisions_api.apply_bad_content_decision(thread.created_by, content_id, None)
-            events_api.track_flag_content(
-                thread.created_by,
-                content_id,
-                1,
-            )
+            try:
+                decisions_api.apply_bad_content_decision(thread.created_by, content_id, None)
+                events_api.track_flag_content(
+                    thread.created_by,
+                    content_id,
+                    1,
+                )
+            except Exception as e:
+                print(e)
+                pass
             thread.save()
