@@ -96,6 +96,7 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
             'updated_date',
             'upload_tutorial_complete',
             'hub_rep',
+            'probable_spammer',
         ]
         read_only_fields = [
             'id',
