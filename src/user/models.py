@@ -28,6 +28,7 @@ class User(AbstractUser):
     User objects have the following fields by default:
         https://docs.djangoproject.com/en/2.2/ref/contrib/auth/#django.contrib.auth.models.User
     """
+    country_code = models.CharField(max_length=4, null=True, blank=True)
     reputation = models.IntegerField(default=100)
     upload_tutorial_complete = models.BooleanField(default=False)
     has_seen_first_coin_modal = models.BooleanField(default=False)
