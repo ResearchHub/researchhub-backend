@@ -278,6 +278,9 @@ class ActionMixin:
             headers=headers
         )
 
+    def get_tracked_content_score(self, tracked_content):
+        return round(tracked_content['score_response']['scores']['content_abuse']['score'] * 100, 1)
+
     def sift_track_create_content_comment(
         self,
         request,
@@ -286,12 +289,16 @@ class ActionMixin:
         is_thread=False
     ):
         item = model.objects.get(pk=response.data['id'])
-        events_api.track_content_comment(
+        tracked_comment = events_api.track_content_comment(
             item.created_by,
             item,
             request,
             is_thread=is_thread
         )
+        comment_risk_score = self.get_tracked_content_score(tracked_comment)
+        item.sift_risk_score = comment_risk_score
+        item.save(update_fields=['sift_risk_score'])
+
 
     def sift_track_update_content_comment(
         self,
@@ -301,13 +308,16 @@ class ActionMixin:
         is_thread=False
     ):
         item = model.objects.get(pk=response.data['id'])
-        events_api.track_content_comment(
+        tracked_comment = events_api.track_content_comment(
             item.created_by,
             item,
             request,
             is_thread=is_thread,
             update=True
         )
+        comment_risk_score = self.get_tracked_content_score(tracked_comment)
+        item.sift_risk_score = comment_risk_score
+        item.save(update_fields=['sift_risk_score'])
 
 
 class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
