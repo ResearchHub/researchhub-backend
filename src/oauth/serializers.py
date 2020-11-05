@@ -240,11 +240,14 @@ class SocialLoginSerializer(serializers.Serializer):
         else:
             ip = request.META.get('REMOTE_ADDR')
 
-        if request.user.is_authenticated and not request.user.probable_spammer:
+        user = attrs['user']
+        if user.is_authenticated and not user.probable_spammer:
             try:
                 country = geo.country(ip)
+                user.country_code = country.get('country_code')
+                user.save()
                 if country.get('country_code') in ['ID', 'IN']:
-                    request.user.set_probable_spammer()
+                    user.set_probable_spammer()
             except Exception as e:
                 print(e)
                 sentry.log_error(e)
