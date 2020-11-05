@@ -17,7 +17,7 @@ class Command(BaseCommand):
             print('{} / {}'.format(i, count))
             user.probable_spam = False
             user.is_suspended = False
-            user.votes.update(is_removed=False)
+            user.paper_votes.update(is_removed=False)
             user.papers.update(is_removed=False)
             Thread.objects.filter(created_by=user).update(is_removed=True)
             Comment.objects.filter(created_by=user).update(is_removed=True)
