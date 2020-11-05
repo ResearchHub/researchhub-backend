@@ -117,7 +117,7 @@ class EventsApi:
         track_type = '$update_account' if update else '$create_account'
 
         try:
-            response = client.track(track_type, properties, return_score=True, abuse_types=['account_abuse'])
+            response = client.track(track_type, properties, return_score=True)
             print(response.body)
             return response.body
         except sift.client.ApiException as e:
@@ -159,7 +159,7 @@ class EventsApi:
         }
 
         try:
-            response = client.track('$login', properties, return_score=True, abuse_types=['account_abuse'])
+            response = client.track('$login', properties, return_score=True)
             print(response.body)
             return response.body
         except sift.client.ApiException as e:
@@ -235,7 +235,7 @@ class EventsApi:
         track_type = '$update_content' if update else '$create_content'
 
         try:
-            response = client.track(track_type, comment_properties, return_score=True, abuse_types=['content_abuse'])
+            response = client.track(track_type, comment_properties, return_score=True)
             print(response.body)
             return response.body
         except sift.client.ApiException as e:
@@ -283,7 +283,7 @@ class EventsApi:
         track_type = '$update_content' if update else '$create_content'
 
         try:
-            response = client.track(track_type, post_properties, return_score=True, abuse_types=['content_abuse'])
+            response = client.track(track_type, post_properties, return_score=True)
             print(response.body)
             return response.body
         except sift.client.ApiException as e:
@@ -336,7 +336,7 @@ class EventsApi:
         track_type = '$update_content' if update else '$create_content'
 
         try:
-            response = client.track(track_type, review_properties, return_score=True, abuse_types=['content_abuse'])
+            response = client.track(track_type, review_properties, return_score=True)
             print(response.body)
             return response.body
         except sift.client.ApiException as e:
