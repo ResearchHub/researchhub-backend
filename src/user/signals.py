@@ -112,16 +112,6 @@ def handle_spam(sender, instance, **kwargs):
         duplicate_thread = False
         if thread.plain_text:
             duplicate_thread = Thread.objects.filter(plain_text=thread.plain_text.strip(), paper=thread.paper).count() > 1
-
-        if len(thread.plain_text) <= 25 or duplicate_thread:
-            thread.is_removed = True
-            content_id = f'{type(thread).__name__}_{thread.id}'
-            decisions_api.apply_bad_content_decision(thread.created_by, content_id, None)
-            events_api.track_flag_content(
-                thread.created_by,
-                content_id,
-                1,
-            )
         
         if duplicate_thread:
             thread.created_by.probable_spammer = True
@@ -146,6 +136,22 @@ def create_action(sender, instance, created, **kwargs):
         elif sender == Paper:
             user = instance.uploaded_by
         else:
+            if sender == Thread:
+                thread = instance
+                duplicate_thread = False
+
+                if thread.plain_text:
+                    duplicate_thread = Thread.objects.filter(plain_text=thread.plain_text.strip(), paper=thread.paper).count() > 1
+                    
+                if len(thread.plain_text) <= 25 or duplicate_thread:
+                    thread.is_removed = True
+                    content_id = f'{type(thread).__name__}_{thread.id}'
+                    decisions_api.apply_bad_content_decision(thread.created_by, content_id, None)
+                    events_api.track_flag_content(
+                        thread.created_by,
+                        content_id,
+                        1,
+                    )
             user = instance.created_by
 
         # If we're creating an action for the first time, check if we've been referred
