@@ -17,6 +17,9 @@ class Command(BaseCommand):
             print('{} / {}'.format(i, thread_count))
             thread.is_removed = True
             content_id = f'{type(thread).__name__}_{thread.id}'
+
+            if not thread.created_by:
+                import pdb; pdb.set_trace()
             try:
                 decisions_api.apply_bad_content_decision(thread.created_by, content_id, None)
                 events_api.track_flag_content(
