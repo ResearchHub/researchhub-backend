@@ -43,6 +43,8 @@ class User(AbstractUser):
     moderator = models.BooleanField(default=False)
     is_suspended = models.BooleanField(default=False)
     probable_spammer = models.BooleanField(default=False)
+    suspended_updated_date = models.DateTimeField(null=True)
+    spam_updated_date = models.DateTimeField(null=True)
     referral_code = models.CharField(
         max_length=36,
         default=uuid.uuid4,
@@ -111,14 +113,16 @@ class User(AbstractUser):
     def set_probable_spammer(self, probable_spammer=True):
         if self.probable_spammer != probable_spammer:
             self.probable_spammer = probable_spammer
-            self.save(update_fields=['probable_spammer'])
+            self.spam_updated_date = timezone.now()
+            self.save(update_fields=['probable_spammer', 'spam_updated_date'])
             if probable_spammer:
                 handle_spam_user_task.apply_async((self.id,), priority=3)
 
     def set_suspended(self, is_suspended=True):
         if self.is_suspended != is_suspended:
             self.is_suspended = is_suspended
-            self.save(update_fields=['is_suspended'])
+            self.suspended_updated_date = timezone.now()
+            self.save(update_fields=['is_suspended', 'suspended_updated_date'])
 
     def get_balance(self):
         user_balance = self.balances.all()

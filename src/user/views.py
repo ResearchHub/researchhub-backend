@@ -67,7 +67,7 @@ class UserViewSet(viewsets.ModelViewSet):
             return User.objects.filter(id=user.id)
         else:
             return User.objects.none()
-    
+
     @action(
         detail=False,
         methods=[POST],
