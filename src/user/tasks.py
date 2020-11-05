@@ -27,15 +27,15 @@ def handle_spam_user_task(user_id):
     User = apps.get_model('user.User')
     user = User.objects.filter(id=user_id).first()
     if user:
-        user.papers.update(is_removed=True)
+        # user.papers.update(is_removed=True)
         user.paper_votes.update(is_removed=True)
         hub_ids = list(Hub.objects.filter(papers__in=list(user.papers.values_list(flat=True))).values_list(flat=True).distinct())
         Thread.objects.filter(created_by=user).update(is_removed=True)
         Comment.objects.filter(created_by=user).update(is_removed=True)
         Reply.objects.filter(created_by=user).update(is_removed=True)
         reset_cache(hub_ids, {}, None)
-        for paper in user.papers.all():
-            censored_paper_cleanup(paper.id)
+        # for paper in user.papers.all():
+            # censored_paper_cleanup(paper.id)
 
 @app.task
 def link_author_to_papers(author_id, orcid_account_id):
