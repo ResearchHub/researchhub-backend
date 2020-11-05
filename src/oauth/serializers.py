@@ -221,11 +221,12 @@ class SocialLoginSerializer(serializers.Serializer):
 
         try:
             referral_code = attrs.get('referral_code')
-            referral_user = User.objects.get(referral_code=referral_code)
-            user = attrs['user']
-            if referral_code and not user.invited_by and referral_user.id != user.id:
-                user.invited_by = referral_user
-                user.save()
+            if referral_code:
+                referral_user = User.objects.get(referral_code=referral_code)
+                user = attrs['user']
+                if referral_code and not user.invited_by and referral_user.id != user.id:
+                    user.invited_by = referral_user
+                    user.save()
         except Exception as e:
             print(e)
             sentry.log_error(e)
