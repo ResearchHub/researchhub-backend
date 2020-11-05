@@ -5,6 +5,7 @@ from django.db.models.signals import post_save, post_delete, pre_save
 from django.dispatch import receiver
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
+from django.contrib.admin.options import get_content_type_for_model
 
 from reputation import distributions
 from bullet_point.models import BulletPoint
@@ -157,7 +158,13 @@ def create_action(sender, instance, created, **kwargs):
             user = instance.created_by
 
         # If we're creating an action for the first time, check if we've been referred
-        if user.invited_by and not Action.objects.filter(user=user).exists():
+        referral_content_types = [
+            get_content_type_for_model(Thread),
+            get_content_type_for_model(Reply),
+            get_content_type_for_model(Comment),
+            get_content_type_for_model(Paper)
+        ]
+        if user.invited_by and not Action.objects.filter(user=user, content_type__in=referral_content_types).exists() and sender in [Thread, Reply, Comment, Paper]:
             timestamp = time()
             referred = Distributor(
                 distributions.Referral,
