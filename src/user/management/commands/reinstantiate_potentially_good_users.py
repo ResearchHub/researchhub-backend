@@ -22,3 +22,4 @@ class Command(BaseCommand):
             Thread.objects.filter(created_by=user).update(is_removed=True)
             Comment.objects.filter(created_by=user).update(is_removed=True)
             Reply.objects.filter(created_by=user).update(is_removed=True)
+            user.save()
