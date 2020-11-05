@@ -15,7 +15,7 @@ class Command(BaseCommand):
         count = objects.count()
         for i, user in enumerate(objects):
             print('{} / {}'.format(i, count))
-            user.probable_spam = False
+            user.probable_spammer = False
             user.is_suspended = False
             user.paper_votes.update(is_removed=False)
             user.papers.update(is_removed=False)
