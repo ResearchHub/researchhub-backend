@@ -44,6 +44,11 @@ from utils.http import check_url_contains_pdf
 def censored_paper_cleanup(paper_id):
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.filter(id=paper_id).first()
+
+    if not paper.is_removed:
+        paper.is_removed = True
+        paper.save()
+
     if paper:
         paper.votes.update(is_removed=True)
         for vote in paper.votes.all():
