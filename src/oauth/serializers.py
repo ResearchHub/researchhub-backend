@@ -21,7 +21,7 @@ from researchhub.settings import GOOGLE_REDIRECT_URL, GOOGLE_YOLO_REDIRECT_URL
 from user.models import Author, User
 from user.utils import merge_author_profiles
 from utils import sentry
-from utils.siftscience import events_api, get_tracked_content_score
+from utils.siftscience import events_api, update_content_risk_score
 from analytics.models import WebsiteVisits
 
 from django.contrib.gis.geoip2 import GeoIP2
@@ -176,10 +176,7 @@ class SocialLoginSerializer(serializers.Serializer):
                     '$failure',
                     request
                 )
-                if tracked_login:
-                    login_risk_score = get_tracked_content_score(tracked_login)
-                    login_user.sift_risk_score = login_risk_score
-                    login_user.save(update_fields=['sift_risk_score'])
+                update_content_risk_score(login_user, tracked_login)
                 raise LoginError(None, 'Account is suspended')
         except Exception as e:
             error = LoginError(e, 'Login failed')
@@ -216,10 +213,7 @@ class SocialLoginSerializer(serializers.Serializer):
         login_user = login.account.user
         attrs['user'] = login_user
         tracked_login = events_api.track_login(login_user, '$success', request)
-        if tracked_login:
-            login_risk_score = get_tracked_content_score(tracked_login)
-            login_user.sift_risk_score = login_risk_score
-            login_user.save(update_fields=['sift_risk_score'])
+        update_content_risk_score(login_user, tracked_login)
 
         try:
             visits = WebsiteVisits.objects.get(uuid=attrs['uuid'])
