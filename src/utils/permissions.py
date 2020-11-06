@@ -14,7 +14,7 @@ class CreateOrUpdateIfAllowed(BasePermission):
             (request.method not in SAFE_METHODS)
             and request.user.is_authenticated
         ):
-            return request.user.is_active and (not request.user.is_suspended)
+            return request.user.is_active and (not request.user.is_suspended) and (not request.user.probable_spammer)
         return True
 
 
