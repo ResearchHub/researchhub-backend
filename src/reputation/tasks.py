@@ -387,7 +387,7 @@ def reward_calculation(distribute):
             breakdown_rewards[key].get('UPVOTER_CONTRIBUTIONS') or 0,
             breakdown_rewards[key].get('SUBMITTED_UPVOTE_COUNT') or 0,
             breakdown_rewards[key].get('COMMENTER_CONTRIBUTIONS') or 0,
-            ' --- '.join(all_papers_uploaded)
+            '\n\n'.join(all_papers_uploaded)
         )
         headers += line
     
