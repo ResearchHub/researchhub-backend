@@ -329,13 +329,13 @@ def reward_calculation(distribute):
                 distributor = reward_dis.generate_distribution(contribution, amount=amount, distribute=False)
 
                 if not distribute and distributor:
-                    total_key = distributor.recipient.email + '-total'
+                    total_key = distributor.recipient.email
                     if total_rewards.get(total_key):
                         total_rewards[total_key] += amount
                     else:
                         total_rewards[total_key] = amount
 
-                    breakdown_key = distributor.recipient.email + '-breakdown'
+                    breakdown_key = distributor.recipient.email
                     if breakdown_rewards.get(breakdown_key):
                         if breakdown_rewards[breakdown_key].get(contribution.contribution_type):
                             breakdown_rewards[breakdown_key][contribution.contribution_type] += amount
