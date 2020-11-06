@@ -7,6 +7,9 @@ class ReadOnly(BasePermission):
     def has_permission(self, request, view):
         return request.method in SAFE_METHODS
 
+class UserNotSpammer(BasePermission):
+    def has_permission(self, request, view):
+        return not request.user.probable_spammer
 
 class CreateOrUpdateIfAllowed(BasePermission):
     def has_permission(self, request, view):
