@@ -358,25 +358,39 @@ def reward_calculation(distribute):
                     breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] += paper.score
                 else:
                     breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] = paper.score
+
+                if breakdown_rewards[paper.uploaded_by.email].get('PAPERS_UPLOADED'):
+                    breakdown_rewards[paper.uploaded_by.email]['PAPERS_UPLOADED'].append((paper.id, paper.slug))
+                else:
+                    breakdown_rewards[paper.uploaded_by.email]['PAPERS_UPLOADED'] = [(paper.id, paper.slug)]
             else:
                 breakdown_rewards[paper.uploaded_by.email] = {}
                 breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] = paper.score
+                breakdown_rewards[paper.uploaded_by.email]['PAPERS_UPLOADED'] = [(paper.id, paper.slug)]
 
-    headers = 'email,rsc amount,submissions,upvotes,upvotes on submissions,comments\n'
+    headers = 'email,Bonus RSC Amount,Paper Submissions,Upvotes,Upvotes on Submissions,Comments,Papers Uploaded,Papers Voted On\n'
 
     total_sorted = {k: v for k, v in sorted(total_rewards.items(), key=lambda item: item[1], reverse=True)}
     for key in total_sorted:
-        line = '{},{},{},{},{},{}\n'.format(
+
+        base_paper_string = 'https://www.researchhub.com/paper/'
+        all_papers_uploaded = []
+        for paper in breakdown_rewards[key].get('PAPERS_UPLOADED'):
+            paper_url = base_paper_string + '{}/{}'.format(paper[0], paper[1])
+            all_papers_uploaded.append(paper_url)
+
+        line = '{},{},{},{},{},{},{}\n'.format(
             key,
             total_sorted[key],
             breakdown_rewards[key].get('SUBMITTER_CONTRIBUTIONS') or 0,
             breakdown_rewards[key].get('UPVOTER_CONTRIBUTIONS') or 0,
             breakdown_rewards[key].get('SUBMITTED_UPVOTE_COUNT') or 0,
-            breakdown_rewards[key].get('COMMENTER_CONTRIBUTIONS') or 0
+            breakdown_rewards[key].get('COMMENTER_CONTRIBUTIONS') or 0,
+            ' --- '.join(all_papers_uploaded)
         )
         headers += line
     
-    text_file = open("rsc_distribution.txt", "w")
+    text_file = open("rsc_distribution.csv", "w")
     text_file.write(headers)
     text_file.close()
 
