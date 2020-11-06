@@ -243,12 +243,15 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
         ]
         model = Thread
 
+    def _comments_query(self, obj):
+        return self.get_children_annotated(obj).order_by(
+            *self.context.get('ordering', ['id'])
+        )
+
     def get_comments(self, obj):
         if self.context.get('depth', 3) <= 0:
             return []
-        comments_queryset = self.get_children_annotated(obj).order_by(
-            *self.context.get('ordering', ['id'])
-        )[:PAGINATION_PAGE_SIZE]
+        comments_queryset = self._comments_query(obj)[:PAGINATION_PAGE_SIZE]
         comment_serializer = CommentSerializer(
             comments_queryset,
             many=True,
@@ -260,8 +263,8 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
         return comment_serializer.data
 
     def get_comment_count(self, obj):
-        return obj.comments.count()
-    
+        return self._comments_query(obj).count()
+
     def get_paper_slug(self, obj):
         if obj.paper:
             return obj.paper.slug

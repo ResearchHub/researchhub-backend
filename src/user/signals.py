@@ -113,10 +113,10 @@ def handle_spam(sender, instance, **kwargs):
         duplicate_thread = False
         if thread.plain_text:
             duplicate_thread = Thread.objects.filter(plain_text=thread.plain_text.strip(), paper=thread.paper).count() > 1
-        
+
         if len(thread.plain_text) <= 25 or duplicate_thread:
             thread.is_removed = True
-        
+
         if duplicate_thread:
             thread.created_by.probable_spammer = True
             thread.created_by.save()
@@ -146,7 +146,7 @@ def create_action(sender, instance, created, **kwargs):
 
                 if thread.plain_text:
                     duplicate_thread = Thread.objects.filter(plain_text=thread.plain_text.strip(), paper=thread.paper).count() > 1
-                    
+
                 if thread.is_removed:
                     content_id = f'{type(thread).__name__}_{thread.id}'
                     decisions_api.apply_bad_content_decision(thread.created_by, content_id, None)
@@ -191,7 +191,7 @@ def create_action(sender, instance, created, **kwargs):
             display = False
         else:
             display = True
-        
+
         if sender != DisVote and instance.is_removed:
             display = False
 

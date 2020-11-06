@@ -70,7 +70,7 @@ class AnalyticAdminPanel(admin.ModelAdmin):
     def get_unique_users(self, group):
         users = group['user_id'].unique().tolist()
         user_emails = User.objects.filter(
-            id__in=users
+            id__in=users,
         ).values_list(
             'email', flat=True
         )

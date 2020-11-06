@@ -242,7 +242,7 @@ class SupportViewSet(viewsets.ModelViewSet):
             return Response({'message': 'No query param included'}, status=400)
 
         user_ids = supports.values_list('sender', flat=True)
-        users = User.objects.filter(id__in=user_ids)
+        users = User.objects.filter(id__in=user_ids, is_suspended=False)
         page = self.paginate_queryset(users)
         if page is not None:
             serializer = UserSerializer(page, many=True)

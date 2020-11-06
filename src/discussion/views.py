@@ -163,8 +163,8 @@ class ActionMixin:
     )
     def censor(self, request, pk=None):
         item = self.get_object()
-        item.is_removed = True
-        item.save()
+        item.remove_nested()
+        item.update_discussion_count()
 
         content_id = f'{type(item).__name__}_{item.id}'
         user = request.user
@@ -527,7 +527,7 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
         )
 
         context = self.get_serializer_context()
-        reset_cache(hubs, context, request.META)
+        reset_cache([*hubs], context, request.META)
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)
         invalidate_most_discussed_cache(hubs)

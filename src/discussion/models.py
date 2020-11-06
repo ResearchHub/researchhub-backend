@@ -4,8 +4,10 @@ from django.contrib.contenttypes.fields import (
 )
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
+from django.core.cache import cache
 from django.db import models
 
+from paper.utils import get_cache_key
 from researchhub.lib import CREATED_LOCATIONS
 
 HELP_TEXT_WAS_EDITED = (
@@ -188,6 +190,34 @@ class BaseComment(models.Model):
             score = upvotes - downvotes
             return score
 
+    def update_discussion_count(self):
+        paper = self.paper
+        if paper:
+            new_dis_count = paper.get_discussion_count()
+            paper.calculate_hot_score()
+
+            # TODO shouldn't this factor removing?
+            if paper.discussion_count < new_dis_count:
+                for hub in paper.hubs.all():
+                    hub.discussion_count += 1
+                    hub.save()
+
+            paper.discussion_count = new_dis_count
+            paper.save()
+
+            cache_key = get_cache_key(None, 'paper', self.paper.id)
+            cache.delete(cache_key)
+
+            return new_dis_count
+        return 0
+
+    def remove_nested(self):
+        if self.is_removed == False:
+            self.is_removed = True
+            self.save(update_fields=['is_removed'])
+        if len(self.children) > 0:
+            for c in self.children:
+                c.remove_nested()
 
 class Thread(BaseComment):
     title = models.CharField(max_length=255, null=True, blank=True)
@@ -208,11 +238,11 @@ class Thread(BaseComment):
 
     @property
     def children(self):
-        return self.comments.all()
+        return self.comments.filter(is_removed=False)
 
     @property
     def comment_count_indexing(self):
-        return len(self.comments.all())
+        return len(self.comments.filter(is_removed=False))
 
     @property
     def paper_indexing(self):
@@ -274,7 +304,7 @@ class Reply(BaseComment):
 
     @property
     def children(self):
-        return self.replies.all()
+        return self.replies.filter(is_removed=False)
 
     def get_comment_of_reply(self):
         obj = self
@@ -355,7 +385,7 @@ class Comment(BaseComment):
 
     @property
     def children(self):
-        return self.replies.all()
+        return self.replies.filter(is_removed=False)
 
     @property
     def owners(self):

@@ -42,7 +42,7 @@ from django.utils import timezone
 from utils.siftscience import events_api, decisions_api
 
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all()
+    queryset = User.objects.filter(is_suspended=False)
     serializer_class = UserEditableSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     filter_backends = (DjangoFilterBackend,)
@@ -60,7 +60,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if self.request.GET.get('referral_code') or self.request.GET.get('invited_by'):
-            return User.objects.all()
+            return User.objects.filter(is_suspended=False)
         elif user.is_staff:
             return User.objects.all()
         elif user.is_authenticated:
@@ -165,13 +165,15 @@ class UserViewSet(viewsets.ModelViewSet):
                     is_public=False,
                 ).filter(
                     **time_filter,
-                    hubs__in=[hub_id]
+                    hubs__in=[hub_id],
+                    is_removed=False
                 ).order_by('-score')
             else:
                 items = Paper.objects.exclude(
                     is_public=False
                 ).filter(
-                    **time_filter
+                    **time_filter,
+                    is_removed=False
                 ).order_by(
                     '-score'
                 )
@@ -204,7 +206,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 ).order_by(F('hub_rep').desc(nulls_last=True))
         elif leaderboard_type == 'authors':
             serializerClass = AuthorSerializer
-            items = Author.objects.order_by('-author_score')
+            items = Author.objects.filter(user__is_suspended=False).order_by('-author_score')
 
         page = self.paginate_queryset(items)
         serializer = serializerClass(
@@ -327,7 +329,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
         authors = Author.objects.filter(id=pk)
         if authors:
             author = authors.first()
-            authored_papers = author.authored_papers.all().order_by('-score')
+            authored_papers = author.authored_papers.filter(is_removed=False).order_by('-score')
             page = self.paginate_queryset(authored_papers)
             serializer = PaperSerializer(page, many=True)
             return self.get_paginated_response(serializer.data)
@@ -345,7 +347,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
             user_discussions = Thread.objects.exclude(
                 created_by=None
             ).filter(
-                created_by=user
+                created_by=user,
+                is_removed=False,
             ).prefetch_related('paper', 'comments').order_by('-id')
             page = self.paginate_queryset(user_discussions)
             serializer = ThreadSerializer(page, many=True)
@@ -366,7 +369,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
             user_paper_uploads = Paper.objects.exclude(
                 uploaded_by=None
             ).filter(
-                uploaded_by=user
+                uploaded_by=user,
+                is_removed=False,
             ).prefetch_related(
                 *prefetch_lookups
             )
