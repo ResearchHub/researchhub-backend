@@ -55,6 +55,13 @@ def get_tracked_content_score(tracked_content):
     return round(tracked_content['score_response']['scores']['content_abuse']['score'] * 100, 1)
 
 
+def update_content_risk_score(item, tracked_content):
+    if tracked_content:
+        content_risk_score = get_tracked_content_score(tracked_content)
+        item.sift_risk_score = content_risk_score
+        item.save(update_fields=['sift_risk_score'])
+
+
 class DecisionsApi:
     def apply_bad_user_decision(self, content_creator, reporter):
         applyDecisionRequest = {
