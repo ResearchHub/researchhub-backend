@@ -297,7 +297,8 @@ def reward_calculation(distribute):
     papers = Paper.objects.filter(id__in=[paper_ids])
     papers, prob_dist = reward_dis.get_papers_prob_dist(papers)
 
-    reward_distribution = prob_dist * total_reward_amount
+    # reward_distribution = prob_dist * total_reward_amount
+    reward_distribution = total_reward_amount / weekly_contributions.count()
 
     total_rewards = {}
     breakdown_rewards = {}
