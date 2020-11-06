@@ -166,20 +166,6 @@ class RewardDistributor:
         from discussion.models import Thread, Comment, Reply
 
         item_type = type(item)
-        if item_type is Contribution:
-            content_type = item.content_type
-            try:
-                item = content_type.get_object_for_this_type(id=item.object_id)
-                item_type = type(item)
-            except Exception as e:
-                print(e)
-                return Distributor(
-                    dist('REWARD', 0, False),
-                    recipient,
-                    item,
-                    time.time()
-                )
-
         if item_type is Paper:
             recipient = item.uploaded_by
         elif item_type is BulletPoint:
@@ -196,6 +182,20 @@ class RewardDistributor:
             recipient = item.created_by
         else:
             raise Exception(f'Missing instance type: {str(item)}')
+
+        if item_type is Contribution:
+            content_type = item.content_type
+            try:
+                item = content_type.get_object_for_this_type(id=item.object_id)
+                item_type = type(item)
+            except Exception as e:
+                print(e)
+                return Distributor(
+                    dist('REWARD', 0, False),
+                    recipient,
+                    item,
+                    time.time()
+                )
 
         distributor = Distributor(
             dist('REWARD', amount, False),
