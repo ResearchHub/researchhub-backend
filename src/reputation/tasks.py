@@ -352,10 +352,15 @@ def reward_calculation(distribute):
                         breakdown_rewards[breakdown_key][contribution.contribution_type] = amount
                         breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] = 1
 
-        if paper.uploaded_by and breakdown_rewards[paper.uploaded_by.email].get('SUBMITTED_UPVOTE_COUNT'):
-            breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] += paper.score
-        elif paper.uploaded_by:
-            breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] = paper.score
+        if paper.uploaded_by:
+            if breakdown_rewards.get(paper.uploaded_by.email):
+                if breakdown_rewards[paper.uploaded_by.email].get('SUBMITTED_UPVOTE_COUNT'):
+                    breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] += paper.score
+                else:
+                    breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] = paper.score
+            else:
+                breakdown_rewards[paper.uploaded_by.email] = {}
+                breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] = paper.score
 
     headers = 'email,rsc amount,submissions,upvotes,upvotes on submissions,comments\n'
 
