@@ -358,10 +358,13 @@ def reward_calculation(distribute):
             key,
             total_sorted[key],
             breakdown_rewards[key].get('SUBMITTER_CONTRIBUTIONS') or 0,
-            breakdown_rewards[key].get('UPVOTES_CONTRIBUTIONS') or 0,
+            breakdown_rewards[key].get('UPVOTER_CONTRIBUTIONS') or 0,
             breakdown_rewards[key].get('AUTHOR_CONTRIBUTIONS') or 0,
             breakdown_rewards[key].get('COMMENTER_CONTRIBUTIONS') or 0
         )
         headers += line
     
-    print(headers)
+    text_file = open("rsc_distribution.txt", "w")
+    text_file.write(headers)
+    text_file.close()
+
