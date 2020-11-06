@@ -13,6 +13,21 @@ from django.urls import path
 from .models import User, Action
 
 
+class CustomUserAdmin(UserAdmin):
+    fieldsets = UserAdmin.fieldsets + (
+            ('Labels', {'fields': ('probable_spammer', 'is_suspended')}),
+    )
+
+    def save_model(self, request, obj, form, change):
+        user = request.user
+        changed_spam_status = 'probable_spammer' in form.changed_data
+        changed_suspended_status = 'is_suspended' in form.changed_data
+        if changed_spam_status or changed_suspended_status:
+            user.set_probable_spammer(obj.probable_spammer)  
+            user.set_suspended(obj.is_suspended) 
+        super().save_model(request, obj, form, change)
+
+
 class AnalyticModel(models.Model):
 
     class Meta:
@@ -186,4 +201,4 @@ class AnalyticAdminPanel(admin.ModelAdmin):
 
 
 admin.site.register(AnalyticModel, AnalyticAdminPanel)
-admin.site.register(User, UserAdmin)
+admin.site.register(User, CustomUserAdmin)
