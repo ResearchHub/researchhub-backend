@@ -4,7 +4,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from datetime import timedelta
 from django.utils import timezone
 from rest_framework import viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, permission_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -15,18 +15,17 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 
 from .models import Hub, HubCategory
-from .permissions import CreateHub, IsSubscribed, IsNotSubscribed
+from .permissions import CreateHub, IsSubscribed, IsNotSubscribed, CensorHub
 from .serializers import HubSerializer, HubCategorySerializer
 from .filters import HubFilter
 from user.models import Action
 from user.serializers import UserActions
-from utils.http import PATCH, POST, PUT, GET
+from utils.http import PATCH, POST, PUT, GET, DELETE
 from utils.message import send_email_message
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
-from paper.models import Vote
-from paper.utils import get_cache_key
-
+from paper.models import Vote, Paper
+from paper.utils import get_cache_key, reset_cache
 
 class CustomPageLimitPagination(PageNumberPagination):
     page_size_query_param = 'page_limit'
@@ -34,7 +33,7 @@ class CustomPageLimitPagination(PageNumberPagination):
 
 
 class HubViewSet(viewsets.ModelViewSet):
-    queryset = Hub.objects.all()
+    queryset = Hub.objects.filter(is_removed=False)
     serializer_class = HubSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter,)
     permission_classes = [
@@ -106,6 +105,25 @@ class HubViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
+        methods=[PUT, PATCH, DELETE],
+        permission_classes=[CensorHub]
+    )
+    def censor(self, request, pk=None):
+        hub = self.get_object()
+        hub.is_removed = True
+        hub.save()
+
+        # Remove Papers with no other hubs
+        Paper.objects.annotate(cnt=Count('hubs', filter=Q(hubs__is_removed=False))).filter(cnt__lte=1, hubs__id=hub.id).update(is_removed=True)
+
+        reset_cache([hub.id], {}, None)
+        return Response(
+            self.get_serializer(instance=hub).data,
+            status=200
+        )
+
+    @action(
+        detail=True,
         methods=[POST, PUT, PATCH],
         permission_classes=[IsAuthenticated & IsNotSubscribed]
     )
@@ -160,7 +178,7 @@ class HubViewSet(viewsets.ModelViewSet):
             return Response(error.detail, status=400)
 
         subject = 'Researchhub Hub Invitation'
-        hub = Hub.objects.get(id=pk)
+        hub = Hub.objects.filter(is_removed=False).get(id=pk)
 
         base_url = request.META['HTTP_ORIGIN']
 

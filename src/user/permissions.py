@@ -17,4 +17,4 @@ class Censor(AuthorizationBasedPermission):
 
     def is_authorized(self, request, view, obj):
         return request.user.moderator
-    
+

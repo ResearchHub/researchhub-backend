@@ -11,6 +11,7 @@ class SimpleHubSerializer(serializers.ModelSerializer):
             'name',
             'is_locked',
             'slug',
+            'is_removed',
         ]
         model = Hub
 
@@ -27,7 +28,8 @@ class HubSerializer(serializers.ModelSerializer):
             'slug',
             'description',
             'hub_image',
-            'category'
+            'category',
+            'is_removed',
         ]
         model = Hub
 
