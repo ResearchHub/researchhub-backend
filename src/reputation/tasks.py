@@ -300,7 +300,11 @@ def reward_calculation(distribute):
     reward_distribution = prob_dist * total_reward_amount
 
     total_rewards = {}
+    count = 0
+    total_count = papers.count()
     for paper, reward in zip(papers, reward_distribution):
+        count += 1
+        print('{} / {}'.format(count, total_count))
         contribution_count = 0
         contributions = []
         for contribution_tuple in Contribution.contribution_choices:
