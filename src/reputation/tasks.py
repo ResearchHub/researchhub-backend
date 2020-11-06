@@ -300,6 +300,7 @@ def reward_calculation(distribute):
     reward_distribution = prob_dist * total_reward_amount
 
     total_rewards = {}
+    breakdown_rewards = {}
     count = 0
     total_count = papers.count()
     for paper, reward in zip(papers, reward_distribution):
@@ -330,13 +331,15 @@ def reward_calculation(distribute):
                         total_rewards[total_key] = amount
 
                     breakdown_key = distributor.recipient.email + '-breakdown'
-                    if total_rewards.get(breakdown_key):
-                        if total_rewards[breakdown_key].get(contribution.contribution_type):
-                            total_rewards[breakdown_key][contribution.contribution_type] += amount
+                    if breakdown_rewards.get(breakdown_key):
+                        if breakdown_rewards[breakdown_key].get(contribution.contribution_type):
+                            breakdown_rewards[breakdown_key][contribution.contribution_type] += amount
                         else:
-                            total_rewards[breakdown_key][contribution.contribution_type] = amount
+                            breakdown_rewards[breakdown_key][contribution.contribution_type] = amount
                     else:
-                        total_rewards[breakdown_key] = {}
-                        total_rewards[breakdown_key][contribution.contribution_type] = amount
-        
-    print(total_rewards)
+                        breakdown_rewards[breakdown_key] = {}
+                        breakdown_rewards[breakdown_key][contribution.contribution_type] = amount
+
+    print({k: v for k, v in sorted(total_rewards.items(), key=lambda item: item[1], reverse=True)})
+    print('--------------------------')
+    print(breakdown_rewards)
