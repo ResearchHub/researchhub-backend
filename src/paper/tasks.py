@@ -279,15 +279,7 @@ def celery_extract_meta_data(paper_id, title, check_title):
         paper_cache_key = get_cache_key(None, 'paper', pk=paper_id)
         cache.delete(paper_cache_key)
 
-        if not paper.doi:
-            paper.is_removed = True
-
-        r = requests.get('https://doi.org/{}'.format(paper.doi))
-        if r.status_code >= 200 and r.status_code < 300:
-            paper.is_removed = False
-        else:
-            paper.is_removed = True
-
+        paper.check_doi()
         paper.save()
     except (UniqueViolation, IntegrityError) as e:
         sentry.log_info(e)
