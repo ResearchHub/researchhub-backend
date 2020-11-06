@@ -96,7 +96,8 @@ def send_hub_digest(frequency):
     )
 
     users = Hub.objects.filter(
-        subscribers__isnull=False
+        subscribers__isnull=False,
+        is_removed=False,
     ).values_list('subscribers', flat=True)
 
     # TODO find best by hub and then in mem sort for each user? more efficient?

@@ -2,6 +2,9 @@ from django.db import models
 
 from slugify import slugify
 
+HELP_TEXT_IS_REMOVED = (
+    'Hides the hub because it is not allowed.'
+)
 
 def get_default_hub_category():
     """Get or create a default value for the hub categories"""
@@ -54,6 +57,11 @@ class Hub(models.Model):
     subscriber_count = models.IntegerField(default=0)
     paper_count = models.IntegerField(default=0)
     discussion_count = models.IntegerField(default=0)
+
+    is_removed = models.BooleanField(
+        default=False,
+        help_text=HELP_TEXT_IS_REMOVED
+    )
 
     def __str__(self):
         return '{}, locked: {}'.format(self.name, self.is_locked)

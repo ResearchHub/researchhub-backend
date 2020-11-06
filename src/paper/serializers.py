@@ -92,7 +92,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
                 hub_id = hub_id.id
 
             try:
-                hub = Hub.objects.get(pk=hub_id)
+                hub = Hub.objects.filter(is_removed=False).get(pk=hub_id)
                 valid_hubs.append(hub)
             except Hub.DoesNotExist:
                 print(f'Hub with id {hub_id} was not found.')
