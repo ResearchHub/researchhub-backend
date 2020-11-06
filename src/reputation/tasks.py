@@ -322,7 +322,7 @@ def reward_calculation(distribute):
                 total_rewards
                 distributor = reward_dis.generate_distribution(contribution, amount=amount, distribute=False)
 
-                if not distribute:
+                if not distribute and distributor:
                     total_key = distributor.recipient.email + '-total'
                     if total_rewards.get(total_key):
                         total_rewards[total_key] += amount
