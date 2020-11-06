@@ -124,7 +124,6 @@ class User(AbstractUser):
         if probable_spammer:
             handle_spam_user_task.apply_async((self.id,), priority=3)
 
-
     def set_suspended(self, is_suspended=True):
         if self.is_suspended != is_suspended:
             self.is_suspended = is_suspended
