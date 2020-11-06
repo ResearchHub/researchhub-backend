@@ -43,7 +43,6 @@ HELP_TEXT_IS_REMOVED = (
     'Hides the paper because it is not allowed.'
 )
 
-
 class Paper(models.Model):
     REGULAR = 'REGULAR'
     PRE_REGISTRATION = 'PRE_REGISTRATION'
@@ -64,6 +63,8 @@ class Paper(models.Model):
         default=True,
         help_text=HELP_TEXT_IS_PUBLIC
     )
+
+    # TODO clean this up to use SoftDeleteable mixin in utils
     is_removed = models.BooleanField(
         default=False,
         help_text=HELP_TEXT_IS_REMOVED
@@ -469,7 +470,7 @@ class Paper(models.Model):
             )
         else:
             celery_extract_pdf_preview(self.id)
-    
+
     def check_doi(self):
         if not self.doi:
             self.is_removed = True
@@ -752,6 +753,7 @@ class MetadataRetrievalAttempt(models.Model):
         CROSSREF_QUERY: populate_metadata_from_crossref,
     }
 
+    # TODO use mixin here
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now_add=True)
     paper = models.ForeignKey(
