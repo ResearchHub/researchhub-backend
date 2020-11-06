@@ -357,10 +357,10 @@ def reward_calculation(distribute):
         line = '{},{},{},{},{},{}\n'.format(
             key,
             total_sorted[key],
-            breakdown_rewards[key]['SUBMITTER_CONTRIBUTIONS'] or 0,
-            breakdown_rewards[key]['UPVOTES_CONTRIBUTIONS'] or 0,
-            breakdown_rewards[key]['AUTHOR_CONTRIBUTIONS'] or 0,
-            breakdown_rewards[key]['COMMENTER_CONTRIBUTIONS'] or 0
+            breakdown_rewards[key].get(['SUBMITTER_CONTRIBUTIONS']) or 0,
+            breakdown_rewards[key].get(['UPVOTES_CONTRIBUTIONS']) or 0,
+            breakdown_rewards[key].get(['AUTHOR_CONTRIBUTIONS']) or 0,
+            breakdown_rewards[key].get(['COMMENTER_CONTRIBUTIONS']) or 0
         )
         headers += line
     
