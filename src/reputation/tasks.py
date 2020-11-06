@@ -346,11 +346,18 @@ def reward_calculation(distribute):
                             breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] += 1
                         else:
                             breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] = 1
+                            
                     else:
                         breakdown_rewards[breakdown_key] = {}
                         breakdown_rewards[breakdown_key][contribution.contribution_type] = amount
                         breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] = 1
-    headers = 'email,rsc amount,submissions,upvotes,authored,comments\n'
+
+        if paper.uploaded_by and breakdown_rewards[paper.uploaded_by.email].get('SUBMITTED_UPVOTE_COUNT'):
+            breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] += paper.score
+        elif paper.uploaded_by:
+            breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] = paper.score
+
+    headers = 'email,rsc amount,submissions,upvotes,upvotes on submissions,comments\n'
 
     total_sorted = {k: v for k, v in sorted(total_rewards.items(), key=lambda item: item[1], reverse=True)}
     for key in total_sorted:
@@ -359,7 +366,7 @@ def reward_calculation(distribute):
             total_sorted[key],
             breakdown_rewards[key].get('SUBMITTER_CONTRIBUTIONS') or 0,
             breakdown_rewards[key].get('UPVOTER_CONTRIBUTIONS') or 0,
-            breakdown_rewards[key].get('AUTHOR_CONTRIBUTIONS') or 0,
+            breakdown_rewards[key].get('SUBMITTED_UPVOTE_COUNT') or 0,
             breakdown_rewards[key].get('COMMENTER_CONTRIBUTIONS') or 0
         )
         headers += line
