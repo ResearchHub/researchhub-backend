@@ -448,8 +448,9 @@ class PaperSerializer(BasePaperSerializer):
     def _check_title_in_pdf(self, paper, title, file):
         title_in_pdf = check_pdf_title(title, file)
         if not title_in_pdf:
-            e = Exception('Title not in pdf')
-            sentry.log_info(e)
+            paper.check_doi()
+            # e = Exception('Title not in pdf')
+            # sentry.log_info(e)
             return
         else:
             paper.extract_meta_data(title=title, use_celery=True)
