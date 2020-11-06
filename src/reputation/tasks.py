@@ -375,7 +375,8 @@ def reward_calculation(distribute):
 
         base_paper_string = 'https://www.researchhub.com/paper/'
         all_papers_uploaded = []
-        for paper in breakdown_rewards[key].get('PAPERS_UPLOADED'):
+        uploaded = breakdown_rewards[key].get('PAPERS_UPLOADED', [])
+        for paper in uploaded:
             paper_url = base_paper_string + '{}/{}'.format(paper[0], paper[1])
             all_papers_uploaded.append(paper_url)
 
