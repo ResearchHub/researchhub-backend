@@ -221,6 +221,7 @@ class Paper(models.Model):
     )
 
     slug = models.SlugField(max_length=1024)
+    sift_risk_score = models.FloatField(null=True, blank=True)
 
     class Meta:
         ordering = ['-paper_publish_date']
