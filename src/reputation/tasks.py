@@ -322,8 +322,6 @@ def reward_calculation(distribute):
             contribution_count += filtered_contributions.count()
             contributions.append(filtered_contributions)
 
-        if contribution_count == 0:
-            import pdb; pdb.set_trace()
         amount = math.floor(reward / contribution_count)
         for qs in contributions:
             for contribution in qs.iterator():
@@ -343,10 +341,27 @@ def reward_calculation(distribute):
                             breakdown_rewards[breakdown_key][contribution.contribution_type] += amount
                         else:
                             breakdown_rewards[breakdown_key][contribution.contribution_type] = amount
+
+                        if breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS']:
+                            breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] += 1
+                        else:
+                            breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] = 1
                     else:
                         breakdown_rewards[breakdown_key] = {}
                         breakdown_rewards[breakdown_key][contribution.contribution_type] = amount
+                        breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] = 1
+    headers = 'email,rsc amount,submissions,upvotes,authored,comments\n'
 
-    print({k: v for k, v in sorted(total_rewards.items(), key=lambda item: item[1], reverse=True)})
-    print('--------------------------')
-    print(breakdown_rewards)
+    total_sorted = {k: v for k, v in sorted(total_rewards.items(), key=lambda item: item[1], reverse=True)}
+    for key in total_sorted:
+        line = '{},{},{},{},{},{}\n'.format(
+            key,
+            total_sorted[key],
+            breakdown_rewards[key]['SUBMITTER_CONTRIBUTIONS'] or 0,
+            breakdown_rewards[key]['UPVOTES_CONTRIBUTIONS'] or 0,
+            breakdown_rewards[key]['AUTHOR_CONTRIBUTIONS'] or 0,
+            breakdown_rewards[key]['COMMENTER_CONTRIBUTIONS'] or 0
+        )
+        headers += line
+    
+    print(headers)
