@@ -310,6 +310,8 @@ def reward_calculation(distribute):
         contributions = []
         for contribution_tuple in Contribution.contribution_choices:
             contribution_type = contribution_tuple[0]
+            if contribution_type == 'CURATOR':
+                continue
             filtered_contributions = weekly_contributions.filter(
                 paper=paper,
                 contribution_type=contribution_type
