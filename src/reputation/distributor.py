@@ -158,7 +158,7 @@ class RewardDistributor:
         item = np.random.choice(items, p=p)
         return item
 
-    def generate_distribution(self, item, amount=1):
+    def generate_distribution(self, item, amount=1, distribute=True):
         from paper.models import Paper, Vote
         from user.models import User, Author
         from bullet_point.models import BulletPoint
@@ -194,6 +194,10 @@ class RewardDistributor:
             item,
             time.time()
         )
-        distribution = distributor.distribute()
+
+        if distribute:
+            distribution = distributor.distribute()
+        else:
+            distribution = distributor
 
         return distribution
