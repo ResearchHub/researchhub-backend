@@ -168,8 +168,17 @@ class RewardDistributor:
         item_type = type(item)
         if item_type is Contribution:
             content_type = item.content_type
-            item = content_type.get_object_for_this_type(id=item.object_id)
-            item_type = type(item)
+            try:
+                item = content_type.get_object_for_this_type(id=item.object_id)
+                item_type = type(item)
+            except Exception as e:
+                print(e)
+                return Distributor(
+                    dist('REWARD', 0, False),
+                    recipient,
+                    item,
+                    time.time()
+                )
 
         if item_type is Paper:
             recipient = item.uploaded_by
