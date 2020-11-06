@@ -51,6 +51,10 @@ def unlabel_user(user_id):
         print(e.api_error_message)
 
 
+def get_tracked_content_score(tracked_content):
+    return round(tracked_content['score_response']['scores']['content_abuse']['score'] * 100, 1)
+
+
 class DecisionsApi:
     def apply_bad_user_decision(self, content_creator, reporter):
         applyDecisionRequest = {
