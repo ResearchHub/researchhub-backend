@@ -342,7 +342,7 @@ def reward_calculation(distribute):
                         else:
                             breakdown_rewards[breakdown_key][contribution.contribution_type] = amount
 
-                        if breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS']:
+                        if breakdown_rewards[breakdown_key].get([contribution.contribution_type + '_CONTRIBUTIONS']):
                             breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] += 1
                         else:
                             breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] = 1
