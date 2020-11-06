@@ -258,7 +258,10 @@ def reward_calculation(distribute):
         distributed=False
     )
     if not last_distribution.exists():
-        last_distribution = None
+        if distribute:
+            last_distribution = DistributionAmount.objects.create()
+        else:
+            last_distribution = None
     else:
         last_distribution = last_distribution.last()
 
@@ -312,5 +315,24 @@ def reward_calculation(distribute):
         amount = math.floor(reward / contribution_count)
         for qs in contributions:
             for contribution in qs.iterator():
-                print(contribution)
-                # reward_dis.generate_distribution(contribution, amount=amount)
+                total_rewards
+                distributor = reward_dis.generate_distribution(contribution, amount=amount, distribute=False)
+
+                if not distribute:
+                    total_key = distributor.recipient.email + '-total'
+                    if total_rewards.get(total_key):
+                        total_rewards[total_key] += amount
+                    else:
+                        total_rewards[total_key] = amount
+
+                    breakdown_key = distributor.recipient.email + '-breakdown'
+                    if total_rewards.get(breakdown_key):
+                        if total_rewards[breakdown_key].get(contribution.contribution_type):
+                            total_rewards[breakdown_key][contribution.contribution_type] += amount
+                        else:
+                            total_rewards[breakdown_key][contribution.contribution_type] = amount
+                    else:
+                        total_rewards[breakdown_key] = {}
+                        total_rewards[breakdown_key][contribution.contribution_type] = amount
+        
+    print(total_rewards)
