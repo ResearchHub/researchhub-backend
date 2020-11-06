@@ -288,7 +288,7 @@ def reward_calculation(distribute):
         paper__is_removed=False,
         user__probable_spammer=False,
         user__is_suspended=False
-    )
+    ).exclude(contribution_type='CURATOR')
 
     if not weekly_contributions.exists():
         return
@@ -310,8 +310,6 @@ def reward_calculation(distribute):
         contributions = []
         for contribution_tuple in Contribution.contribution_choices:
             contribution_type = contribution_tuple[0]
-            if contribution_type == 'CURATOR':
-                continue
             filtered_contributions = weekly_contributions.filter(
                 paper=paper,
                 contribution_type=contribution_type
@@ -319,6 +317,8 @@ def reward_calculation(distribute):
             contribution_count += filtered_contributions.count()
             contributions.append(filtered_contributions)
 
+        if contribution_count == 0:
+            import pdb; pdb.set_trace()
         amount = math.floor(reward / contribution_count)
         for qs in contributions:
             for contribution in qs.iterator():
