@@ -290,7 +290,7 @@ def reward_calculation(distribute):
     if not weekly_contributions.exists():
         return
 
-    paper_ids = weekly_contributions.values_list('paper')
+    paper_ids = weekly_contributions.values_list('paper').distinct()
     papers = Paper.objects.filter(id__in=[paper_ids])
     papers, prob_dist = reward_dis.get_papers_prob_dist(papers)
 
