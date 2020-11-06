@@ -59,6 +59,7 @@ class User(AbstractUser):
         null=True,
         blank=True
     )
+    sift_risk_score = models.FloatField(null=True, blank=True)
 
     def full_name(self):
         return self.first_name + ' ' + self.last_name

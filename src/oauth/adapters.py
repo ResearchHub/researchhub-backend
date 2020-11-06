@@ -10,7 +10,7 @@ from google.auth.transport import requests
 
 from user.models import Author
 from user.utils import merge_author_profiles
-from utils.siftscience import events_api
+from utils.siftscience import events_api, get_tracked_content_score
 
 
 class SocialAccountAdapter(DefaultSocialAccountAdapter):
@@ -24,7 +24,11 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         else:
             saved_user = super().save_user(request, sociallogin, form)
 
-        events_api.track_account(saved_user, request)
+        tracked_account = events_api.track_account(saved_user, request)
+        if tracked_account:
+            account_risk_score = get_tracked_content_score(tracked_account)
+            saved_user.sift_risk_score = account_risk_score
+            saved_user.save(update_fields=['sift_risk_score'])
         return saved_user
 
     def _generate_temporary_username(self, sociallogin):
