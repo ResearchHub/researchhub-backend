@@ -176,7 +176,7 @@ def distribute_rewards():
         user__is_suspended=False
     ).exclude(
         contribution_type='CURATOR',
-        user__email='pdj7@georgetown.edu'
+        user__email__in=('pdj7@georgetown.edu', 'lightning.lu7@gmail.com', 'barmstrong@gmail.com',)
     )
 
 
