@@ -188,6 +188,7 @@ def distribute_rewards():
         user__is_suspended=False
     ).exclude(
         Q(contribution_type='CURATOR') |
+        Q(contribution_type='UPVOTER') |
         Q(
             user__email__in=(
                 'pdj7@georgetown.edu',
@@ -316,6 +317,7 @@ def reward_calculation(distribute):
         user__is_suspended=False
     ).exclude(
         Q(contribution_type='CURATOR') |
+        Q(contribution_type='UPVOTER') |
         Q(
             user__email__in=(
                 'pdj7@georgetown.edu',
@@ -343,6 +345,7 @@ def reward_calculation(distribute):
     breakdown_rewards = {}
     count = 0
     total_count = papers.count()
+    # import pdb; pdb.set_trace()
     for paper, reward in zip(papers, reward_distribution):
         count += 1
         print('{} / {}'.format(count, total_count))
