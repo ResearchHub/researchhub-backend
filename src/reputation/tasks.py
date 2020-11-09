@@ -342,7 +342,8 @@ def reward_calculation(distribute):
         amount = math.floor(reward / contribution_count)
         for qs in contributions:
             for contribution in qs.iterator():
-                total_rewards
+                if contribution.user.email == 'pdj7@georgetown.edu':
+                    import pdb; pdb.set_trace()
                 distributor = reward_dis.generate_distribution(contribution, amount=amount, distribute=False)
 
                 if not distribute and distributor:
@@ -363,7 +364,6 @@ def reward_calculation(distribute):
                             breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] += 1
                         else:
                             breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] = 1
-                            
                     else:
                         breakdown_rewards[breakdown_key] = {}
                         breakdown_rewards[breakdown_key][contribution.contribution_type] = amount
@@ -407,8 +407,7 @@ def reward_calculation(distribute):
             "\"" + '\n\n'.join(all_papers_uploaded) + "\""
         )
         headers += line
-    
+
     text_file = open("rsc_distribution.csv", "w")
     text_file.write(headers)
     text_file.close()
-
