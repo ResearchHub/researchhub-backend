@@ -1,6 +1,7 @@
 import math
 import datetime
 import pytz
+import numpy as np
 
 from celery.decorators import periodic_task
 from django.contrib.contenttypes.models import ContentType
@@ -169,15 +170,23 @@ def distribute_rewards():
 
     weekly_contributions = Contribution.objects.filter(
         created_date__gt=starting_date,
-        created_date__lte=today
-    )
+        created_date__lte=today,
+        paper__is_removed=False,
+        user__probable_spammer=False,
+        user__is_suspended=False
+    ).exclude(contribution_type='CURATOR')
+
 
     if not weekly_contributions.exists():
         return
 
-    paper_ids = weekly_contributions.values_list('paper')
+    paper_ids = weekly_contributions.values_list('paper').distinct()
     papers = Paper.objects.filter(id__in=[paper_ids])
     papers, prob_dist = reward_dis.get_papers_prob_dist(papers)
+
+    # Making all papers equal weight
+    prob_dist = np.empty(papers.count())
+    prob_dist.fill(1 / papers.count())
 
     reward_distribution = prob_dist * total_reward_amount
 
