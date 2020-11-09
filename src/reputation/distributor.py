@@ -137,8 +137,8 @@ class RewardDistributor:
     def get_papers_prob_dist(self, items):
         papers = items.order_by('id')
         weekly_total_score = papers.aggregate(
-            score_sum=Sum('score')
-        )['score_sum']
+            total_sum=Sum('score') + Sum('discussion_count')
+        )['total_sum']
         prob_dist = papers.annotate(
             p=Cast(
                 Func(
