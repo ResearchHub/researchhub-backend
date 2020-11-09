@@ -300,6 +300,108 @@ class EventsApi:
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e.api_error_message)
+    
+    def track_content_summary(self, user, summary, request, update=False):
+        meta = self.create_meta_properties(request)
+        celery_response = self.celery_track_content_summary.apply(
+            (user.id, summary.id, meta, update),
+            priority=4,
+            countdown=10,
+        )
+        tracked_summary = celery_response.get()
+        return tracked_summary
+
+    @staticmethod
+    @app.task
+    def celery_track_content_summary(user_id, summary_id, meta, update):
+        User = apps.get_model('user.User')
+        user = User.objects.get(id=user_id)
+        Summary = apps.get_model('summary.Summary')
+        summary = Summary.objects.get(id=summary_id)
+
+        root_content_id = ''
+        if summary.paper is not None:
+            root_content_id = (
+                f'{type(summary.paper).__name__}_{summary.paper.id}'
+            )
+
+        comment_properties = {
+            # Required fields
+            '$user_id': str(user.id),
+            # must be unique across all content types
+            '$content_id': f'{type(summary).__name__}_{summary.id}',
+
+            # Recommended fields
+            '$status': '$active',
+
+            # Required $comment object
+            '$comment': {
+                '$body': summary.summary_plain_text,
+                '$contact_email': user.email,
+                '$root_content_id': root_content_id,
+            }
+        }
+
+        track_type = '$update_content' if update else '$create_content'
+
+        try:
+            response = client.track(track_type, comment_properties, return_score=True)
+            print(response.body)
+            return response.body
+        except sift.client.ApiException as e:
+            sentry.log_error(e)
+            print(e.api_error_message)
+
+    def track_content_bullet_point(self, user, bullet_point, request, update=False):
+        meta = self.create_meta_properties(request)
+        celery_response = self.celery_track_content_bullet_point.apply(
+            (user.id, bullet_point.id, meta, update),
+            priority=4,
+            countdown=10,
+        )
+        tracked_bullet_point = celery_response.get()
+        return tracked_bullet_point
+
+    @staticmethod
+    @app.task
+    def celery_track_content_bullet_point(user_id, bullet_point_id, meta, update):
+        User = apps.get_model('user.User')
+        user = User.objects.get(id=user_id)
+        BulletPoint = apps.get_model('bullet_point.BulletPoint')
+        bullet_point = BulletPoint.objects.get(id=bullet_point_id)
+
+        root_content_id = ''
+        if bullet_point.paper is not None:
+            root_content_id = (
+                f'{type(bullet_point.paper).__name__}_{bullet_point.paper.id}'
+            )
+
+        comment_properties = {
+            # Required fields
+            '$user_id': str(user.id),
+            # must be unique across all content types
+            '$content_id': f'{type(bullet_point).__name__}_{bullet_point.id}',
+
+            # Recommended fields
+            '$status': '$active',
+
+            # Required $comment object
+            '$comment': {
+                '$body': bullet_point.plain_text,
+                '$contact_email': user.email,
+                '$root_content_id': root_content_id,
+            }
+        }
+
+        track_type = '$update_content' if update else '$create_content'
+
+        try:
+            response = client.track(track_type, comment_properties, return_score=True)
+            print(response.body)
+            return response.body
+        except sift.client.ApiException as e:
+            sentry.log_error(e)
+            print(e.api_error_message)
 
     def track_content_vote(self, user, vote, request, update=False):
         meta = self.create_meta_properties(request)
