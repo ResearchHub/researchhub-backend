@@ -228,9 +228,17 @@ def distribute_rewards():
     last_distribution.distributed = True
     last_distribution.save()
 
+
 def reward_calculation(distribute):
     # Checks if rewards should be distributed, given time config
     today = datetime.datetime.now(tz=pytz.utc)
+    static_date = datetime.datetime(
+        year=2020,
+        month=11,
+        day=8,
+        hour=23,
+        minute=59,
+    )
 
     reward_time_hour, reward_time_day, reward_time_week = list(
         map(int, REWARD_TIME.split(' '))
@@ -285,11 +293,20 @@ def reward_calculation(distribute):
 
     weekly_contributions = Contribution.objects.filter(
         created_date__gt=starting_date,
-        created_date__lte=today,
+        created_date__lte=static_date,
         paper__is_removed=False,
         user__probable_spammer=False,
         user__is_suspended=False
-    ).exclude(contribution_type='CURATOR')
+    ).exclude(
+        Q(contribution_type='CURATOR') |
+        Q(
+            user__email__in=(
+                'pdj7@georgetown.edu',
+                'lightning.lu7@gmail.com',
+                'barmstrong@gmail.com',
+            )
+        )
+    )
 
     if not weekly_contributions.exists():
         return
