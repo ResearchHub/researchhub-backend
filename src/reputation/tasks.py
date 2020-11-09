@@ -177,6 +177,8 @@ def distribute_rewards():
     total_reward_amount = DEFAULT_REWARD
     if last_distribution:
         total_reward_amount = last_distribution.amount
+    reward_amount = total_reward_amount * .95
+    upvote_reward_amount = total_reward_amount - reward_amount
 
     weekly_contributions = Contribution.objects.filter(
         created_date__gt=starting_date,
@@ -186,6 +188,7 @@ def distribute_rewards():
         user__is_suspended=False
     ).exclude(
         Q(contribution_type='CURATOR') |
+        Q(contribution_type='UPVOTER') |
         Q(
             user__email__in=(
                 'pdj7@georgetown.edu',
@@ -202,17 +205,18 @@ def distribute_rewards():
     papers = Paper.objects.filter(id__in=[paper_ids])
     papers, prob_dist = reward_dis.get_papers_prob_dist(papers)
 
-    # Making all papers equal weight
-    prob_dist = np.empty(papers.count())
-    prob_dist.fill(1 / papers.count())
+    reward_distribution = prob_dist * reward_amount
+    contribution_types = (
+        Contribution.AUTHOR,
+        Contribution.SUBMITTER,
+        Contribution.COMMENTER,
+    )
 
-    reward_distribution = prob_dist * total_reward_amount
-
+    # Generating paper rewards (non upvotes)
     for paper, reward in zip(papers, reward_distribution):
         contribution_count = 0
         contributions = []
-        for contribution_tuple in Contribution.contribution_choices:
-            contribution_type = contribution_tuple[0]
+        for contribution_type in contribution_types:
             filtered_contributions = weekly_contributions.filter(
                 paper=paper,
                 contribution_type=contribution_type
@@ -224,6 +228,17 @@ def distribute_rewards():
         for qs in contributions:
             for contribution in qs.iterator():
                 reward_dis.generate_distribution(contribution, amount=amount)
+
+    # Generating upvote rewards
+    upvoters = weekly_contributions.filter(
+        contribution_type=Contribution.UPVOTER
+    )
+    upvote_count = upvoters.count()
+    upvote_amount = math.floor(upvote_reward_amount / upvote_count)
+    if upvote_count > upvote_reward_amount:
+        upvote_amount = 1
+    for upvoter in upvoters.iterator():
+        reward_dis.generate_distribution(upvoter, amount=upvote_amount)
 
     last_distribution.distributed = True
     last_distribution.save()
@@ -291,6 +306,9 @@ def reward_calculation(distribute):
     if last_distribution:
         total_reward_amount = last_distribution.amount
 
+    reward_amount = total_reward_amount * .95
+    upvote_reward_amount = total_reward_amount - reward_amount
+
     weekly_contributions = Contribution.objects.filter(
         created_date__gt=starting_date,
         created_date__lte=static_date,
@@ -299,6 +317,7 @@ def reward_calculation(distribute):
         user__is_suspended=False
     ).exclude(
         Q(contribution_type='CURATOR') |
+        Q(contribution_type='UPVOTER') |
         Q(
             user__email__in=(
                 'pdj7@georgetown.edu',
@@ -315,23 +334,24 @@ def reward_calculation(distribute):
     papers = Paper.objects.filter(id__in=[paper_ids])
     papers, prob_dist = reward_dis.get_papers_prob_dist(papers)
 
-    # Making all papers equal weight
-    prob_dist = np.empty(papers.count())
-    prob_dist.fill(1 / papers.count())
-
-    reward_distribution = prob_dist * total_reward_amount
+    reward_distribution = prob_dist * reward_amount
+    contribution_types = (
+        Contribution.AUTHOR,
+        Contribution.SUBMITTER,
+        Contribution.COMMENTER,
+    )
 
     total_rewards = {}
     breakdown_rewards = {}
     count = 0
     total_count = papers.count()
+    # import pdb; pdb.set_trace()
     for paper, reward in zip(papers, reward_distribution):
         count += 1
         print('{} / {}'.format(count, total_count))
         contribution_count = 0
         contributions = []
-        for contribution_tuple in Contribution.contribution_choices:
-            contribution_type = contribution_tuple[0]
+        for contribution_type in contribution_types:
             filtered_contributions = weekly_contributions.filter(
                 paper=paper,
                 contribution_type=contribution_type
@@ -382,6 +402,41 @@ def reward_calculation(distribute):
                 breakdown_rewards[paper.uploaded_by.email] = {}
                 breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] = paper.score
                 breakdown_rewards[paper.uploaded_by.email]['PAPERS_UPLOADED'] = [(paper.id, paper.slug)]
+
+    # Generating upvote rewards
+    # TODO: CSV stuff here
+    upvote_contrib = Contribution.UPVOTER
+    upvoters = weekly_contributions.filter(
+        contribution_type=Contribution.UPVOTER
+    )
+    upvote_count = upvoters.count()
+    upvote_amount = math.floor(upvote_reward_amount / upvote_count)
+    if upvote_count > upvote_reward_amount:
+        upvote_amount = 1
+    for upvoter in upvoters.iterator():
+        distributor = reward_dis.generate_distribution(upvoter, amount=upvote_amount, distribute=False)
+        if not distribute and distributor:
+            total_key = distributor.recipient.email
+            if total_rewards.get(total_key):
+                total_rewards[total_key] += amount
+            else:
+                total_rewards[total_key] = amount
+
+            breakdown_key = distributor.recipient.email
+            if breakdown_rewards.get(breakdown_key):
+                if breakdown_rewards[breakdown_key].get(upvote_contrib):
+                    breakdown_rewards[breakdown_key][upvote_contrib] += amount
+                else:
+                    breakdown_rewards[breakdown_key][upvote_contrib] = amount
+
+                if breakdown_rewards[breakdown_key].get(upvote_contrib + '_CONTRIBUTIONS'):
+                    breakdown_rewards[breakdown_key][upvote_contrib + '_CONTRIBUTIONS'] += 1
+                else:
+                    breakdown_rewards[breakdown_key][upvote_contrib + '_CONTRIBUTIONS'] = 1
+            else:
+                breakdown_rewards[breakdown_key] = {}
+                breakdown_rewards[breakdown_key][upvote_contrib] = amount
+                breakdown_rewards[breakdown_key][upvote_contrib + '_CONTRIBUTIONS'] = 1
 
     headers = 'email,Bonus RSC Amount,Paper Submissions,Upvotes,Upvotes on Submissions,Comments,Papers Uploaded,Papers Voted On\n'
 
