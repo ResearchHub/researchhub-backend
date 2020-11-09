@@ -174,7 +174,10 @@ def distribute_rewards():
         paper__is_removed=False,
         user__probable_spammer=False,
         user__is_suspended=False
-    ).exclude(contribution_type='CURATOR')
+    ).exclude(
+        contribution_type='CURATOR',
+        user__email='pdj7@georgetown.edu'
+    )
 
 
     if not weekly_contributions.exists():
