@@ -182,7 +182,7 @@ def distribute_rewards():
         user__probable_spammer=False,
         user__is_suspended=False
     ).exclude(
-        Q(contribution_type='CURATOR') | ,
+        Q(contribution_type='CURATOR') |
         Q(
             user__email__in=(
                 'pdj7@georgetown.edu',
