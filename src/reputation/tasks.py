@@ -3,6 +3,8 @@ import datetime
 import pytz
 import numpy as np
 
+from django.db.models import Q
+
 from celery.decorators import periodic_task
 from django.contrib.contenttypes.models import ContentType
 
@@ -180,11 +182,13 @@ def distribute_rewards():
         user__probable_spammer=False,
         user__is_suspended=False
     ).exclude(
-        contribution_type='CURATOR',
-        user__email__in=(
-            'pdj7@georgetown.edu',
-            'lightning.lu7@gmail.com',
-            'barmstrong@gmail.com',
+        Q(contribution_type='CURATOR') | ,
+        Q(
+            user__email__in=(
+                'pdj7@georgetown.edu',
+                'lightning.lu7@gmail.com',
+                'barmstrong@gmail.com',
+            )
         )
     )
 
