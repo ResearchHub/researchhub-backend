@@ -410,6 +410,7 @@ def reward_calculation(distribute):
         contribution_type=Contribution.UPVOTER
     )
     upvote_count = upvoters.count()
+    import pdb; pdb.set_trace()
     upvote_amount = math.floor(upvote_reward_amount / upvote_count)
     if upvote_count > upvote_reward_amount:
         upvote_amount = 1
