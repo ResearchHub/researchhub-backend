@@ -11,6 +11,7 @@ from researchhub.celery import app
 from paper.models import Paper
 from reputation.models import Contribution, DistributionAmount
 from reputation.distributor import RewardDistributor
+from utils.sentry import log_info
 
 DEFAULT_REWARD = 1000000
 
@@ -109,15 +110,19 @@ def distribute_round_robin(paper_id):
 def distribute_rewards():
     # Checks if rewards should be distributed, given time config
     today = datetime.datetime.now(tz=pytz.utc)
-
-    # Date check
-    if today.year == 2020 and today.month == 11 and today.day < 7:
-        return
+    static_date = datetime.datetime(
+        year=2020,
+        month=11,
+        day=8,
+        hour=23,
+        minute=59,
+    )
 
     reward_time_hour, reward_time_day, reward_time_week = list(
         map(int, REWARD_TIME.split(' '))
     )
 
+    log_info('Distributing rewards')
     if reward_time_week:
         week = today.isocalendar()[1]
         if week % reward_time_week != 0:
@@ -170,15 +175,18 @@ def distribute_rewards():
 
     weekly_contributions = Contribution.objects.filter(
         created_date__gt=starting_date,
-        created_date__lte=today,
+        created_date__lte=static_date,
         paper__is_removed=False,
         user__probable_spammer=False,
         user__is_suspended=False
     ).exclude(
         contribution_type='CURATOR',
-        user__email__in=('pdj7@georgetown.edu', 'lightning.lu7@gmail.com', 'barmstrong@gmail.com',)
+        user__email__in=(
+            'pdj7@georgetown.edu',
+            'lightning.lu7@gmail.com',
+            'barmstrong@gmail.com',
+        )
     )
-
 
     if not weekly_contributions.exists():
         return
