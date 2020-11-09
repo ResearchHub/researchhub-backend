@@ -188,7 +188,6 @@ def distribute_rewards():
         user__is_suspended=False
     ).exclude(
         Q(contribution_type='CURATOR') |
-        Q(contribution_type='UPVOTER') |
         Q(
             user__email__in=(
                 'pdj7@georgetown.edu',
@@ -201,7 +200,11 @@ def distribute_rewards():
     if not weekly_contributions.exists():
         return
 
-    paper_ids = weekly_contributions.values_list('paper').distinct()
+    paper_ids = weekly_contributions.exclude(
+        Q(contribution_type='UPVOTER')
+    ).values_list(
+        'paper'
+    ).distinct()
     papers = Paper.objects.filter(id__in=[paper_ids])
     papers, prob_dist = reward_dis.get_papers_prob_dist(papers)
 
@@ -317,7 +320,6 @@ def reward_calculation(distribute):
         user__is_suspended=False
     ).exclude(
         Q(contribution_type='CURATOR') |
-        Q(contribution_type='UPVOTER') |
         Q(
             user__email__in=(
                 'pdj7@georgetown.edu',
@@ -330,7 +332,11 @@ def reward_calculation(distribute):
     if not weekly_contributions.exists():
         return
 
-    paper_ids = weekly_contributions.values_list('paper').distinct()
+    paper_ids = weekly_contributions.exclude(
+        Q(contribution_type='UPVOTER')
+    ).values_list(
+        'paper'
+    ).distinct()
     papers = Paper.objects.filter(id__in=[paper_ids])
     papers, prob_dist = reward_dis.get_papers_prob_dist(papers)
 
@@ -345,7 +351,7 @@ def reward_calculation(distribute):
     breakdown_rewards = {}
     count = 0
     total_count = papers.count()
-    # import pdb; pdb.set_trace()
+
     for paper, reward in zip(papers, reward_distribution):
         count += 1
         print('{} / {}'.format(count, total_count))
@@ -410,7 +416,6 @@ def reward_calculation(distribute):
         contribution_type=Contribution.UPVOTER
     )
     upvote_count = upvoters.count()
-    import pdb; pdb.set_trace()
     upvote_amount = math.floor(upvote_reward_amount / upvote_count)
     if upvote_count > upvote_reward_amount:
         upvote_amount = 1
