@@ -342,8 +342,6 @@ def reward_calculation(distribute):
         amount = math.floor(reward / contribution_count)
         for qs in contributions:
             for contribution in qs.iterator():
-                if contribution.user.email == 'pdj7@georgetown.edu':
-                    import pdb; pdb.set_trace()
                 distributor = reward_dis.generate_distribution(contribution, amount=amount, distribute=False)
 
                 if not distribute and distributor:

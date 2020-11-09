@@ -193,6 +193,9 @@ class RewardDistributor:
         else:
             raise Exception(f'Missing instance type: {str(item_type)}')
 
+        if recipient.email == 'pdj7@georgetown.edu':
+            import pdb; pdb.set_trace()
+
         distributor = Distributor(
             dist('REWARD', amount, False),
             recipient,
