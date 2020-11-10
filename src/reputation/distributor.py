@@ -2,7 +2,7 @@ import numpy as np
 import time
 
 from django.db import transaction, models
-from django.db.models import FloatField, Func
+from django.db.models import FloatField, Func, Q, Count
 from django.db.models.functions import Cast
 from django.db.models.aggregates import Sum
 from django.contrib.admin.options import get_content_type_for_model
@@ -137,12 +137,12 @@ class RewardDistributor:
     def get_papers_prob_dist(self, items):
         papers = items.order_by('id')
         weekly_total_score = papers.aggregate(
-            total_sum=Sum('score') + Sum('discussion_count')
+            total_sum=Sum('score') + Count('threads__votes', filter=Q(threads__votes__vote_type=1))
         )['total_sum']
         prob_dist = papers.annotate(
             p=Cast(
                 Func(
-                    Sum('score'),
+                    Sum('score') + Count('threads__votes', filter=Q(threads__votes__vote_type=1)),
                     function='ABS'
                 )/float(weekly_total_score),
                 FloatField()
