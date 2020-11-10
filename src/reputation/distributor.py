@@ -321,6 +321,9 @@ class RewardDistributor:
             sentry.log_error(error)
             raise error
 
+        if not recipient:
+            return
+
         if recipient.email in excluded_recipients:
             return
 
