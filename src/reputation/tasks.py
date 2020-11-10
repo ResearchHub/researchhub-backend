@@ -371,24 +371,17 @@ def reward_calculation(distribute):
 
         for qs in contributions:
             for contribution in qs.iterator():
-                distributor = reward_dis.generate_distribution(contribution, amount=0, distribute=False)
 
-                if not distribute and distributor:
-                    breakdown_key = distributor.recipient.email
-                    if breakdown_rewards.get(breakdown_key):
-                        # if breakdown_rewards[breakdown_key].get(contribution.contribution_type):
-                        #     breakdown_rewards[breakdown_key][contribution.contribution_type] += amount
-                        # else:
-                        #     breakdown_rewards[breakdown_key][contribution.contribution_type] = amount
+                breakdown_key = distributor.recipient.email
+                if breakdown_rewards.get(breakdown_key):
 
-                        if breakdown_rewards[breakdown_key].get(contribution.contribution_type + '_CONTRIBUTIONS'):
-                            breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] += 1
-                        else:
-                            breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] = 1
+                    if breakdown_rewards[breakdown_key].get(contribution.contribution_type + '_CONTRIBUTIONS'):
+                        breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] += 1
                     else:
-                        breakdown_rewards[breakdown_key] = {}
-                        # breakdown_rewards[breakdown_key][contribution.contribution_type] = 0
                         breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] = 1
+                else:
+                    breakdown_rewards[breakdown_key] = {}
+                    breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] = 1
 
         if paper.uploaded_by:
             if breakdown_rewards.get(paper.uploaded_by.email):
@@ -449,6 +442,7 @@ def reward_calculation(distribute):
         comment_upvote_count = breakdown_rewards[key].get('UPVOTE_COMMENT_COUNT', 0)
 
         amount = ((upload_upvote_count + comment_upvote_count) / (total_paper_scores + total_comment_scores)) * reward_amount
+        # distributor = reward_dis.generate_distribution(contribution, amount=0, distribute=False)
 
         if total_rewards.get(key):
             total_rewards[key] += amount
