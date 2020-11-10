@@ -191,10 +191,8 @@ class UserViewSet(viewsets.ModelViewSet):
                         'reputation_records__amount',
                         filter=Q(
                             **time_filter,
-                            reputation_records__hubs__in=[hub_id]
-                        ).exclude(
-                            Q(reputation_records__distribution_type='REFERRAL') | Q(reputation_records__distribution_type='REWARD')
-                        )
+                            reputation_records__hubs__in=[hub_id],
+                        ) & ~Q(reputation_records__distribution_type__in=['REFERRAL', 'REWARD']),
                     )
                 ).order_by(F('hub_rep').desc(nulls_last=True))
             else:
@@ -205,7 +203,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 ).annotate(
                     hub_rep=Sum(
                         'reputation_records__amount',
-                        filter=Q(**time_filter) & ~Q(reputation_records__distribution_type='REFERRAL')
+                        filter=Q(**time_filter) & ~Q(reputation_records__distribution_type__in=['REFERRAL', 'REWARD'])
                     )
                 ).order_by(F('hub_rep').desc(nulls_last=True))
         elif leaderboard_type == 'authors':
