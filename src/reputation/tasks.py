@@ -559,9 +559,12 @@ def new_reward_calculation(distribute):
         for paper in uploaded:
             paper_url = base_paper_string + '{}/{}'.format(paper[0], paper[1])
             papers_list.append(paper_url)
-
+        
+        user = User.objects.get(email=key)
+        author_profile = user.author_profile
+        name = author_profile.first_name + ' ' + author_profile.last_name
         line = '{},{},{},{},{},{},{},{}\n'.format(
-            key,
+            name,
             total_sorted[key],
             uploaded_paper_count.get(key, 0),
             paper_votes_count.get(key, 0),
