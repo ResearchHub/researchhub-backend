@@ -438,7 +438,7 @@ def new_reward_calculation(distribute):
         print('{} / {}'.format(i, count))
         score = obj.calculate_score()
         comment_score += score
-        user_key = threads.created_by.email
+        user_key = obj.created_by.email
         if user_key in comment_votes_count:
             comment_votes_count[user_key] += score
         else:
