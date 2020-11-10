@@ -14,7 +14,6 @@ from django.utils import timezone
 from researchhub.settings import REWARD_SCHEDULE, REWARD_TIME, APP_ENV
 from researchhub.celery import app
 from paper.models import Paper, Vote as PaperVote
-from user.models import User
 from discussion.models import Vote as DiscussionVote, Thread, Reply, Comment
 from reputation.models import Contribution, DistributionAmount
 from reputation.distributor import RewardDistributor
@@ -567,7 +566,7 @@ def new_reward_calculation(distribute):
         for paper in uploaded:
             paper_url = base_paper_string + '{}/{}'.format(paper[0], paper[1])
             papers_list.append(paper_url)
-        
+        from user.models import User
         user = User.objects.get(email=key)
         author_profile = user.author_profile
         name = author_profile.first_name + ' ' + author_profile.last_name
