@@ -225,13 +225,18 @@ class RewardDistributor:
         item = np.random.choice(items, p=p)
         return item
 
-    def generate_distribution(self, item, amount=1, distribute=True):
+    def generate_distribution(self, item, amount=1, distribute=True, extra={}):
         from paper.models import Paper, Vote as PaperVote
         from user.models import User, Author
         from bullet_point.models import BulletPoint
         from summary.models import Summary
         from discussion.models import Thread, Comment, Reply, Vote as DisVote
 
+        excluded_recipients = (
+            'pdj7@georgetown.edu',
+            'lightning.lu7@gmail.com',
+            'barmstrong@gmail.com',
+        )
         item_type = type(item)
 
         if item_type is Contribution:
@@ -248,50 +253,76 @@ class RewardDistributor:
             data = {
                 'amount': amount,
                 'paper_submissions': 1,
-                'papers_uploaded': item.id
+                'papers_uploaded': item.id,
+                **extra
             }
         elif item_type is BulletPoint:
             recipient = item.created_by
             data = {
                 'amount': amount,
-                'bulletpoints': 1
+                'bulletpoints': 1,
+                **extra
             }
         elif item_type is Summary:
             recipient = item.proposed_by
             data = {
                 'amount': amount,
-                'summaries': 1
+                'summaries': 1,
+                **extra
             }
         elif item_type is PaperVote:
-            # recipient = item.created_by
-            recipient = item.paper.uploaded_by
+            recipient = item.created_by
             data = {
-                'amount': amount,
+                'amount': 0,
                 'upvotes': 1,
-                'upvotes_on_submissions_1': recipient
+                **extra
             }
+            self.generate_distribution(
+                item.paper,
+                amount=amount,
+                distribute=distribute,
+                extra={'paper_submissions': 0}
+            )
         elif item_type is DisVote:
-            recipient = item.item.created_by
+            recipient = item.created_by
+            secondary_recipient = item.item.created_by
             data = {
-                'amount': amount,
-                'upvotes_on_comments_1': recipient
+                'amount': 0,
+                'upvotes_on_comments_1': (secondary_recipient, amount),
+                **extra
             }
+            self.generate_distribution(
+                item.item,
+                amount=amount,
+                distribute=distribute,
+                extra={'comments': 0}
+            )
         elif item_type is User:
             recipient = item
-            data = {'amount': amount}
+            data = {
+                'amount': amount,
+                **extra
+            }
         elif item_type is Author:
             recipient = item.user
-            data = {'amount': amount}
+            data = {
+                'amount': amount,
+                **extra
+            }
         elif item_type in (Thread, Comment, Reply):
             recipient = item.created_by
             data = {
                 'amount': amount,
-                'comments': 1
+                'comments': 1,
+                **extra
             }
         else:
             error = Exception(f'Missing instance type: {str(item_type)}')
             sentry.log_error(error)
             raise error
+
+        if recipient.email in excluded_recipients:
+            return
 
         distributor = Distributor(
             dist('REWARD', amount, False),

@@ -612,8 +612,9 @@ def new_reward_calculation(distribute=False):
     #             distribute=distribute
     #         )
 
-    last_distribution.distributed = True
-    last_distribution.save()
+    if distribute:
+        last_distribution.distributed = True
+        last_distribution.save()
 
     data = [item[1] for item in reward_dis.data.items()]
     df = pd.DataFrame(data)
