@@ -311,7 +311,6 @@ class PaperSerializer(BasePaperSerializer):
         hubs = validated_data.pop('hubs', [None])
         file = validated_data.pop('file', None)
 
-        import ipdb; ipdb.set_trace()
         try:
             with transaction.atomic():
                 self._add_url(file, validated_data)
