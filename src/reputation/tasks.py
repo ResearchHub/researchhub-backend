@@ -330,7 +330,7 @@ def new_reward_calculation(distribute):
     upvote_reward_amount = total_reward_amount - score_reward_amount
     IGNORE_USERS = (
         'pdj7@georgetown.edu',
-        # 'lightning.lu7@gmail.com',
+        'lightning.lu7@gmail.com',
         'barmstrong@gmail.com',
     )
 
@@ -376,7 +376,7 @@ def new_reward_calculation(distribute):
             score = -1
 
         total_score += score
-        if not obj.paper.uploaded_by:
+        if not obj.paper.uploaded_by or obj.paper.uploaded_by.email in IGNORE_USERS:
             continue
         user_key = obj.paper.uploaded_by.email
         if user_key in paper_voted_on_count:
@@ -439,6 +439,8 @@ def new_reward_calculation(distribute):
         score = obj.calculate_score()
         comment_score += score
         user_key = obj.created_by.email
+        if user_key in IGNORE_USERS:
+            continue
         if user_key in comment_votes_count:
             comment_votes_count[user_key] += score
         else:
@@ -460,6 +462,8 @@ def new_reward_calculation(distribute):
         score = obj.calculate_score()
         comment_score += score
         user_key = replies.created_by.email
+        if user_key in IGNORE_USERS:
+            continue
         if user_key in comment_votes_count:
             comment_votes_count[user_key] += score
         else:
@@ -482,6 +486,8 @@ def new_reward_calculation(distribute):
         score = obj.calculate_score()
         comment_score += score
         user_key = comments.created_by.email
+        if user_key in IGNORE_USERS:
+            continue
         if user_key in comment_votes_count:
             comment_votes_count[user_key] += score
         else:
