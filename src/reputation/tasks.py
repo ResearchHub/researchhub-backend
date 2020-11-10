@@ -546,24 +546,36 @@ def new_reward_calculation(distribute=False):
         upvote_contributions = all_contributions.filter(
             contribution_type=Contribution.UPVOTER
         )
+        main_contributions_count = main_contributions.count()
+        upvote_contributions_count = upvote_contributions.count()
+
         main_reward_pool = reward_pool * 0.95
         upvote_reward_pool = reward_pool - main_reward_pool
-        main_reward_amount = math.floor(
-            main_reward_pool / (main_contributions.count() or 1)
-        )
-        upvote_reward_amount = math.floor(
-            upvote_reward_pool / (upvote_contributions.count() or 1)
-        )
 
-        if not main_contributions.exists():
+        if not main_contributions_count:
+            upvote_reward_amount = math.floor(
+                reward_pool / upvote_contributions_count
+            )
             print(f'No main contributions for {paper.id}')
-        if not upvote_contributions.exists():
+        else:
+            upvote_reward_amount = math.floor(
+                upvote_reward_pool / (upvote_contributions_count or 1)
+            )
+
+        if not upvote_contributions_count:
+            main_reward_amount = math.floor(
+                reward_pool / main_contributions_count
+            )
             print(f'No upvote contributions for {paper.id}')
+        else:
+            main_reward_amount = math.floor(
+                main_reward_pool / (main_contributions_count or 1)
+            )
 
         for main_contribution in main_contributions:
             distributor = reward_dis.generate_distribution(
                 main_contribution,
-                amount=main_reward_pool,
+                amount=main_reward_amount,
                 distribute=distribute
             )
             # recipient = distributor.recipient
@@ -571,7 +583,7 @@ def new_reward_calculation(distribute=False):
         for upvote_contribution in upvote_contributions:
             distributor = reward_dis.generate_distribution(
                 upvote_contribution,
-                amount=upvote_reward_pool,
+                amount=upvote_reward_amount,
                 distribute=distribute
             )
             # recipient = distributor.recipient
