@@ -267,7 +267,14 @@ def set_or_increment(queryset, hashes, all_users, attributes):
 def new_reward_calculation(distribute):
     # Checks if rewards should be distributed, given time config
     today = datetime.datetime.now(tz=pytz.utc)
-    static_date = datetime.datetime(
+    static_start_date = datetime.datetime(
+        year=2020,
+        month=10,
+        day=29,
+        hour=0,
+        minute=0,
+    )
+    static_end_date = datetime.datetime(
         year=2020,
         month=11,
         day=8,
@@ -342,8 +349,8 @@ def new_reward_calculation(distribute):
         is_removed=False,
         uploaded_by__probable_spammer=False,
         uploaded_by__is_suspended=False,
-        uploaded_date__gt=starting_date,
-        uploaded_date__lte=static_date,
+        uploaded_date__gt=static_start_date,
+        uploaded_date__lte=static_end_date,
     ).exclude(
         Q(
             uploaded_by__email__in=IGNORE_USERS
@@ -371,8 +378,8 @@ def new_reward_calculation(distribute):
         paper__is_removed=False,
         created_by__probable_spammer=False,
         created_by__is_suspended=False,
-        created_date__gt=starting_date,
-        created_date__lte=static_date,
+        created_date__gt=static_start_date,
+        created_date__lte=static_end_date,
     ).exclude(
         Q(
             created_by__email__in=IGNORE_USERS
@@ -413,8 +420,8 @@ def new_reward_calculation(distribute):
         paper__is_removed=False,
         created_by__probable_spammer=False,
         created_by__is_suspended=False,
-        created_date__gt=starting_date,
-        created_date__lte=static_date,
+        created_date__gt=static_start_date,
+        created_date__lte=static_end_date,
     ).exclude(
         Q(
             created_by__email__in=IGNORE_USERS
@@ -429,8 +436,8 @@ def new_reward_calculation(distribute):
         parent__paper__is_removed=False,
         created_by__probable_spammer=False,
         created_by__is_suspended=False,
-        created_date__gt=starting_date,
-        created_date__lte=static_date,
+        created_date__gt=static_start_date,
+        created_date__lte=static_end_date,
     ).exclude(
         Q(
             created_by__email__in=IGNORE_USERS
@@ -442,8 +449,8 @@ def new_reward_calculation(distribute):
         is_removed=False,
         created_by__probable_spammer=False,
         created_by__is_suspended=False,
-        created_date__gt=starting_date,
-        created_date__lte=static_date,
+        created_date__gt=static_start_date,
+        created_date__lte=static_end_date,
     ).exclude(
         Q(
             created_by__email__in=IGNORE_USERS
