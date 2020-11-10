@@ -385,6 +385,7 @@ def new_reward_calculation(distribute):
 
     count = paper_votes.count()
     total_score = 0
+    total_paper_scores = 0
     for i, obj in enumerate(paper_votes):
         print('{} / {}'.format(i, count))
         score = 1
@@ -394,6 +395,7 @@ def new_reward_calculation(distribute):
             score = -1
 
         total_score += score
+        total_paper_scores += score
         if not obj.paper.uploaded_by or obj.paper.uploaded_by.email in IGNORE_USERS:
             continue
         user_key = obj.paper.uploaded_by.email
@@ -522,20 +524,19 @@ def new_reward_calculation(distribute):
         if user_key not in all_users:
             all_users[user_key] = True
 
-    # total_count = uploaded_.count()
-    total_paper_scores = paper_votes.filter(vote_type=1).count()
     total_comment_scores = comment_score
-    headers = 'Total Upvotes: {}, Total Paper Upvotes: {}, Total Comment Upvotes: {}\n'.format(total_paper_scores + total_comment_scores, total_paper_scores, total_comment_scores,)
+    headers = 'Total Upvotes: {}, Total Paper Upvotes: {}, Total Comment Upvotes: {}\n'.format(total_score, total_paper_scores, total_comment_scores,)
     headers += 'email,Bonus RSC Amount,Paper Submissions,Upvotes,Upvotes on Submissions,Comments,Upvotes on Comments,Papers Uploaded\n'
 
     total_rewards = {}
     total_comment_count = (threads.count() + replies.count() + comments.count()) or 1
 
+    import pdb; pdb.set_trace()
     for key in all_users:
         upload_vote_count = paper_voted_on_count.get(key, 0)
         comment_upvote_count = comment_votes_count.get(key, 0)
         votes_count = paper_votes_count.get(key, 0) + comment_upvotes_count.get(key, 0)
-        upvoted_amount = math.floor(((upload_vote_count + comment_upvote_count) / (total_paper_scores + total_comment_scores)) * score_reward_amount)
+        upvoted_amount = math.floor(((upload_vote_count + comment_upvote_count) / (total_score)) * score_reward_amount)
         upvotes_amount = math.floor(votes_count / total_score * upvote_reward_amount)
         reward_amount = upvoted_amount + upvotes_amount
 
