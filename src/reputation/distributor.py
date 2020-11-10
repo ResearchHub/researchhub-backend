@@ -138,15 +138,40 @@ class RewardDistributor:
         'COMMENTER': 0.15
     }
 
-    def get_papers_prob_dist(self, items):
+    def __init__(self):
+        self.data = {}
+
+    def log_data(self, user, key, incr=1):
+        email = user.email
+        if email not in self.data:
+            self.data[email] = {
+                'paper_submissions': 0,
+                'upvotes': 0,
+                'upvotes_on_submissions': 0,
+                'comments': 0,
+                'upvotes_on_comments': 0,
+                'summaries': 0,
+                'bulletpoints': 0,
+                'papers_uploaded': []
+            }
+        else:
+            self.data[email][key] += incr
+
+    def get_papers_prob_dist(self, items, uniform=False):
         papers = items.order_by('id')
+        if uniform:
+            paper_count = papers.count()
+            p = 1.0 / paper_count
+            prob_dist = [p] * paper_count
+            return papers, np.array(prob_dist)
+
         weekly_total_score = papers.aggregate(
-            total_sum=Sum('score') + Count('threads__votes', filter=Q(threads__votes__vote_type=1, threads__is_removed=False))
+            total_sum=Sum('score')
         )['total_sum']
         prob_dist = papers.annotate(
             p=Cast(
                 Func(
-                    Sum('score') + Count('threads__votes', filter=Q(threads__votes__vote_type=1, threads__is_removed=False)),
+                    Sum('score'),
                     function='ABS'
                 )/float(weekly_total_score),
                 FloatField()
@@ -163,11 +188,11 @@ class RewardDistributor:
         return item
 
     def generate_distribution(self, item, amount=1, distribute=True):
-        from paper.models import Paper, Vote
+        from paper.models import Paper, Vote as PaperVote
         from user.models import User, Author
         from bullet_point.models import BulletPoint
         from summary.models import Summary
-        from discussion.models import Thread, Comment, Reply
+        from discussion.models import Thread, Comment, Reply, Vote as DisVote
 
         item_type = type(item)
 
@@ -182,18 +207,25 @@ class RewardDistributor:
 
         if item_type is Paper:
             recipient = item.uploaded_by
+            key = 'paper_submissions'
         elif item_type is BulletPoint:
             recipient = item.created_by
+            key = 'bulletpoints'
         elif item_type is Summary:
             recipient = item.proposed_by
-        elif item_type is Vote:
+            key = 'summaries'
+        elif item_type is PaperVote:
             recipient = item.created_by
+            key = 'upvotes_on_submissions'
+        elif item_type is DisVote:
+            key = 'upvotes_on_comments'
         elif item_type is User:
             recipient = item
         elif item_type is Author:
             recipient = item.user
         elif item_type in (Thread, Comment, Reply):
             recipient = item.created_by
+            key = 'comments'
         else:
             error = Exception(f'Missing instance type: {str(item_type)}')
             sentry.log_error(error)
@@ -205,6 +237,7 @@ class RewardDistributor:
             item,
             time.time()
         )
+        self.log_data(recipient, key)
 
         if distribute:
             distribution = distributor.distribute()

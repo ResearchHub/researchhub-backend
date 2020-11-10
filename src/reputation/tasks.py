@@ -521,6 +521,7 @@ def new_reward_calculation(distribute=False):
     if not weekly_contributions.exists():
         return
 
+    data = {}
     paper_ids = weekly_contributions.distinct(
         'paper'
     ).values_list(
@@ -529,3 +530,34 @@ def new_reward_calculation(distribute=False):
     )
     papers = Paper.objects.filter(id__in=paper_ids)
     papers, prob_dist = reward_dis.get_papers_prob_dist(papers, uniform=True)
+    # The amount of coins given per paper
+    reward_distributions = total_reward_amount * prob_dist
+
+    # Distributing tokens for each contributor in each paper
+    for paper, reward_pool in zip(papers, reward_distributions):
+        all_contributions = weekly_contributions.filter(paper=paper)
+        main_contributions = all_contributions.exclude(
+            contribution_type=Contribution.UPVOTER
+        )
+        upvote_contributions = all_contributions.filter(
+            contribution_type=Contribution.UPVOTER
+        )
+        main_reward_amount = reward_pool * 0.95
+        upvote_reward_amount = reward_pool - main_reward_amount
+
+        for main_contribution in main_contributions:
+            distributor = reward_dis.generate_distribution(
+                main_contribution,
+                amount=main_reward_amount,
+                distribute=distribute
+            )
+            recipient = distributor.recipient
+            contribution_type = main_contribution.content_type
+
+        for upvote_contribution in upvote_contributions:
+            distributor = reward_dis.generate_distribution(
+                upvote_contribution,
+                amount=upvote_reward_amount,
+                distribute=distribute
+            )
+            recipient = distributor.recipient
