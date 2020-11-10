@@ -335,7 +335,13 @@ def reward_calculation(distribute):
     paper_ids = weekly_contributions.values_list(
         'paper'
     ).distinct()
-    papers = Paper.objects.filter(id__in=[paper_ids])
+    papers = Paper.objects.filter(id__in=[paper_ids]).exclude(
+        user__email__in=(
+            'pdj7@georgetown.edu',
+            'lightning.lu7@gmail.com',
+            'barmstrong@gmail.com',
+        )
+    )
     papers, prob_dist = reward_dis.get_papers_prob_dist(papers)
 
     reward_distribution = prob_dist * reward_amount
