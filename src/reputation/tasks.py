@@ -532,7 +532,6 @@ def new_reward_calculation(distribute=False):
     papers, prob_dist = reward_dis.get_papers_prob_dist(papers, uniform=True)
     # The amount of coins given per paper
     reward_distributions = total_reward_amount * prob_dist
-    import pdb; pdb.set_trace()
 
     # Distributing tokens for each contributor in each paper
     i = 0
@@ -547,8 +546,14 @@ def new_reward_calculation(distribute=False):
         upvote_contributions = all_contributions.filter(
             contribution_type=Contribution.UPVOTER
         )
-        main_reward_amount = math.floor(reward_pool * 0.95)
-        upvote_reward_amount = math.floor(reward_pool - main_reward_amount)
+        main_reward_pool = reward_pool * 0.95
+        upvote_reward_pool = reward_pool - main_reward_pool
+        main_reward_amount = math.floor(
+            main_reward_pool / main_contributions.count()
+        )
+        upvote_reward_amount = math.floor(
+            upvote_reward_pool / upvote_contributions.count()
+        )
 
         for main_contribution in main_contributions:
             distributor = reward_dis.generate_distribution(
