@@ -141,10 +141,15 @@ class RewardDistributor:
     def __init__(self):
         self.data = {}
 
-    def log_data(self, user, key, incr=1):
+    def log_data(self, user, data):
+        if not user:
+            print(data)
+            return
+
         email = user.email
         if email not in self.data:
             self.data[email] = {
+                'amount': 0,
                 'paper_submissions': 0,
                 'upvotes': 0,
                 'upvotes_on_submissions': 0,
@@ -154,8 +159,24 @@ class RewardDistributor:
                 'bulletpoints': 0,
                 'papers_uploaded': []
             }
-        else:
-            self.data[email][key] += incr
+        for key, incr in data.items():
+            bucket = self.data[email]
+            if key == 'papers_uploaded':
+                bucket[key].append(incr)
+            elif key == 'upvotes_on_submissions_1':
+                new_key = incr
+                secondary_data = {
+                    'upvotes_on_submissions': 1
+                }
+                self.log_data(new_key, secondary_data)
+            elif key == 'upvotes_on_comments_1':
+                new_key = incr
+                secondary_data = {
+                    'upvotes_on_comments': 1
+                }
+                self.log_data(new_key, secondary_data)
+            else:
+                bucket[key] += incr
 
     def get_papers_prob_dist(self, items, uniform=False):
         papers = items.order_by('id')
@@ -207,25 +228,38 @@ class RewardDistributor:
 
         if item_type is Paper:
             recipient = item.uploaded_by
-            key = 'paper_submissions'
+            data = {
+                'amount': amount,
+                'paper_submissions': 1,
+                'papers_uploaded': item.id
+            }
         elif item_type is BulletPoint:
             recipient = item.created_by
-            key = 'bulletpoints'
+            data = {'amount': amount, 'bulletpoints': 1}
         elif item_type is Summary:
             recipient = item.proposed_by
-            key = 'summaries'
+            data = {'amount': amount, 'summaries': 1}
         elif item_type is PaperVote:
             recipient = item.created_by
-            key = 'upvotes_on_submissions'
+            data = {
+                'amount': amount,
+                'upvotes': 1,
+                'upvotes_on_submissions_1': item.paper.uploaded_by
+            }
         elif item_type is DisVote:
-            key = 'upvotes_on_comments'
+            data = {
+                'amount': amount,
+                'upvotes_on_comments_1': item.item.created_by
+            }
         elif item_type is User:
             recipient = item
+            data = {'amount': amount}
         elif item_type is Author:
             recipient = item.user
+            data = {'amount': amount}
         elif item_type in (Thread, Comment, Reply):
             recipient = item.created_by
-            key = 'comments'
+            data = {'amount': amount, 'comments': 1}
         else:
             error = Exception(f'Missing instance type: {str(item_type)}')
             sentry.log_error(error)
@@ -237,7 +271,7 @@ class RewardDistributor:
             item,
             time.time()
         )
-        self.log_data(recipient, key)
+        self.log_data(recipient, data)
 
         if distribute:
             distribution = distributor.distribute()

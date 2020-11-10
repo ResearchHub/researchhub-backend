@@ -521,7 +521,6 @@ def new_reward_calculation(distribute=False):
     if not weekly_contributions.exists():
         return
 
-    data = {}
     paper_ids = weekly_contributions.distinct(
         'paper'
     ).values_list(
@@ -551,8 +550,7 @@ def new_reward_calculation(distribute=False):
                 amount=main_reward_amount,
                 distribute=distribute
             )
-            recipient = distributor.recipient
-            contribution_type = main_contribution.content_type
+            # recipient = distributor.recipient
 
         for upvote_contribution in upvote_contributions:
             distributor = reward_dis.generate_distribution(
@@ -560,4 +558,6 @@ def new_reward_calculation(distribute=False):
                 amount=upvote_reward_amount,
                 distribute=distribute
             )
-            recipient = distributor.recipient
+            # recipient = distributor.recipient
+
+    import pdb; pdb.set_trace()
