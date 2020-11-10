@@ -527,6 +527,7 @@ def new_reward_calculation(distribute=False):
     if not weekly_contributions.exists():
         return
 
+    contribution_count = weekly_contributions.count()
     paper_upvotes = weekly_contributions.filter(
         content_type=paper_vote,
         paper__uploaded_by__isnull=False
@@ -539,7 +540,8 @@ def new_reward_calculation(distribute=False):
     reward_amount = math.floor(
         total_reward_amount / total_upvotes
     )
-    for i, contribution in enumerate(weekly_contributions.iteartor()):
+    for i, contribution in enumerate(weekly_contributions.iterator()):
+        print(f'{i}/{contribution_count}')
         reward_dis.generate_distribution(
             contribution,
             amount=reward_amount,
