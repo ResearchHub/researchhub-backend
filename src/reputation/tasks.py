@@ -336,7 +336,7 @@ def reward_calculation(distribute):
         'paper'
     ).distinct()
     papers = Paper.objects.filter(id__in=[paper_ids]).exclude(
-        user__email__in=(
+        uploaded_by__email__in=(
             'pdj7@georgetown.edu',
             'lightning.lu7@gmail.com',
             'barmstrong@gmail.com',
