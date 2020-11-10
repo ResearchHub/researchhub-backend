@@ -14,6 +14,7 @@ from django.utils import timezone
 from researchhub.settings import REWARD_SCHEDULE, REWARD_TIME, APP_ENV
 from researchhub.celery import app
 from paper.models import Paper, Vote as PaperVote
+from user.models import User
 from discussion.models import Vote as DiscussionVote, Thread, Reply, Comment
 from reputation.models import Contribution, DistributionAmount
 from reputation.distributor import RewardDistributor
