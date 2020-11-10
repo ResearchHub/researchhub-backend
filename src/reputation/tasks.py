@@ -4,7 +4,7 @@ import pytz
 import numpy as np
 
 
-from django.db.models import Q
+from django.db.models import Q, Sum, Count
 
 from celery.decorators import periodic_task
 from django.contrib.contenttypes.models import ContentType
@@ -323,7 +323,7 @@ def reward_calculation(distribute):
         Q(
             user__email__in=(
                 'pdj7@georgetown.edu',
-                'lightning.lu7@gmail.com',
+                # 'lightning.lu7@gmail.com',
                 'barmstrong@gmail.com',
             )
         )
@@ -351,6 +351,7 @@ def reward_calculation(distribute):
     breakdown_rewards = {}
     count = 0
     total_count = papers.count()
+    total_upvotes = 0
 
     for paper, reward in zip(papers, reward_distribution):
         count += 1
@@ -365,6 +366,7 @@ def reward_calculation(distribute):
             contribution_count += filtered_contributions.count()
             contributions.append(filtered_contributions)
 
+        total_upvotes += contribution_count
         amount = math.floor(reward / contribution_count)
         for qs in contributions:
             for contribution in qs.iterator():
@@ -424,27 +426,40 @@ def reward_calculation(distribute):
         if not distribute and distributor:
             total_key = distributor.recipient.email
             if total_rewards.get(total_key):
-                total_rewards[total_key] += amount
+                total_rewards[total_key] += upvote_amount
             else:
-                total_rewards[total_key] = amount
+                total_rewards[total_key] = upvote_amount
 
             breakdown_key = distributor.recipient.email
             if breakdown_rewards.get(breakdown_key):
                 if breakdown_rewards[breakdown_key].get(upvote_contrib):
-                    breakdown_rewards[breakdown_key][upvote_contrib] += amount
+                    breakdown_rewards[breakdown_key][upvote_contrib] += upvote_amount
                 else:
-                    breakdown_rewards[breakdown_key][upvote_contrib] = amount
+                    breakdown_rewards[breakdown_key][upvote_contrib] = upvote_amount
 
                 if breakdown_rewards[breakdown_key].get(upvote_contrib + '_CONTRIBUTIONS'):
                     breakdown_rewards[breakdown_key][upvote_contrib + '_CONTRIBUTIONS'] += 1
                 else:
                     breakdown_rewards[breakdown_key][upvote_contrib + '_CONTRIBUTIONS'] = 1
+                
+                if breakdown_rewards[breakdown_key].get('UPVOTE_COMMENT_COUNT'):
+                    breakdown_rewards[breakdown_key]['UPVOTE_COMMENT_COUNT'] += 1
+                else:
+                    breakdown_rewards[breakdown_key]['UPVOTE_COMMENT_COUNT'] = 1
             else:
                 breakdown_rewards[breakdown_key] = {}
-                breakdown_rewards[breakdown_key][upvote_contrib] = amount
+                breakdown_rewards[breakdown_key][upvote_contrib] = upvote_amount
                 breakdown_rewards[breakdown_key][upvote_contrib + '_CONTRIBUTIONS'] = 1
+                breakdown_rewards[breakdown_key]['UPVOTE_COMMENT_COUNT'] = 1
 
-    headers = 'email,Bonus RSC Amount,Paper Submissions,Upvotes,Upvotes on Submissions,Comments,Papers Uploaded,Papers Voted On\n'
+    total_paper_scores = papers.aggregate(
+        total_sum=Sum('score')
+    )['total_sum']
+    total_comment_scores = papers.aggregate(
+        total_sum=Count('threads__votes', filter=Q(threads__votes__vote_type=1))
+    )['total_sum']
+    headers = 'Total Upvotes: {}, Total Paper Upvotes: {}, Total Comment Upvotes: {}\n'.format(total_paper_scores + total_comment_scores, total_paper_scores, total_comment_scores,)
+    headers += 'email,Bonus RSC Amount,Paper Submissions,Upvotes,Upvotes on Submissions,Comments,Upvotes on Comments,Papers Uploaded\n'
 
     total_sorted = {k: v for k, v in sorted(total_rewards.items(), key=lambda item: item[1], reverse=True)}
     for key in total_sorted:
@@ -456,13 +471,14 @@ def reward_calculation(distribute):
             paper_url = base_paper_string + '{}/{}'.format(paper[0], paper[1])
             all_papers_uploaded.append(paper_url)
 
-        line = '{},{},{},{},{},{},{}\n'.format(
+        line = '{},{},{},{},{},{},{},{}\n'.format(
             key,
             total_sorted[key],
             breakdown_rewards[key].get('SUBMITTER_CONTRIBUTIONS') or 0,
             breakdown_rewards[key].get('UPVOTER_CONTRIBUTIONS') or 0,
             breakdown_rewards[key].get('SUBMITTED_UPVOTE_COUNT') or 0,
             breakdown_rewards[key].get('COMMENTER_CONTRIBUTIONS') or 0,
+            breakdown_rewards[key].get('UPVOTE_COMMENT_COUNT') or 0,
             "\"" + '\n\n'.join(all_papers_uploaded) + "\""
         )
         headers += line
