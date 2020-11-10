@@ -438,7 +438,7 @@ def reward_calculation(distribute):
                     breakdown_rewards[breakdown_key]['UPVOTE_COMMENT_COUNT'] = 1
 
     for key in breakdown_rewards:
-        upload_upvote_count = breakdown_rewards[key]['SUBMITTED_UPVOTE_COUNT']
+        upload_upvote_count = breakdown_rewards[key].get('SUBMITTED_UPVOTE_COUNT', 0)
         comment_upvote_count = breakdown_rewards[key].get('UPVOTE_COMMENT_COUNT', 0)
 
         amount = ((upload_upvote_count + comment_upvote_count) / (total_paper_scores + total_comment_scores)) * reward_amount
