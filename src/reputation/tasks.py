@@ -532,6 +532,7 @@ def new_reward_calculation(distribute=False):
     papers, prob_dist = reward_dis.get_papers_prob_dist(papers, uniform=True)
     # The amount of coins given per paper
     reward_distributions = total_reward_amount * prob_dist
+    import pdb; pdb.set_trace()
 
     # Distributing tokens for each contributor in each paper
     i = 0
