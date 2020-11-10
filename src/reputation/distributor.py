@@ -189,12 +189,27 @@ class RewardDistributor:
             return papers, np.array(prob_dist)
 
         weekly_total_score = papers.aggregate(
-            total_sum=Sum('score')
+            total_sum=(
+                Sum('score') +
+                Count(
+                    'threads__votes',
+                    filter=Q(
+                        threads__votes__vote_type=1,
+                        threads__is_removed=False)
+                )
+            )
         )['total_sum']
         prob_dist = papers.annotate(
             p=Cast(
                 Func(
-                    Sum('score'),
+                    Sum('score') +
+                    Count(
+                        'threads__votes',
+                        filter=Q(
+                            threads__votes__vote_type=1,
+                            threads__is_removed=False
+                        )
+                    ),
                     function='ABS'
                 )/float(weekly_total_score),
                 FloatField()
