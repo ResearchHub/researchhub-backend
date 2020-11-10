@@ -522,71 +522,79 @@ def new_reward_calculation(distribute=False):
     if not weekly_contributions.exists():
         return
 
-    paper_ids = weekly_contributions.distinct(
-        'paper'
-    ).values_list(
-        'paper',
-        flat=True
-    )
-    papers = Paper.objects.filter(id__in=paper_ids)
-    papers, prob_dist = reward_dis.get_papers_prob_dist(papers, uniform=False)
-    # The amount of coins given per paper
-    reward_distributions = total_reward_amount * prob_dist
-
-    # Distributing tokens for each contributor in each paper
-    i = 0
-    count = papers.count()
-    for paper, reward_pool in zip(papers, reward_distributions):
-        print(f'{i + 1}/{count}')
-        i += 1
-        all_contributions = weekly_contributions.filter(paper=paper)
-        main_contributions = all_contributions.exclude(
-            contribution_type=Contribution.UPVOTER
+    for i, contribution in enumerate(weekly_contributions.iterator()):
+        print(f'{i}')
+        reward_dis.generate_distribution(
+            contribution,
+            amount=1,
+            distribute=distribute
         )
-        upvote_contributions = all_contributions.filter(
-            contribution_type=Contribution.UPVOTER
-        )
-        main_contributions_count = main_contributions.count()
-        upvote_contributions_count = upvote_contributions.count()
 
-        main_reward_pool = reward_pool * 0.95
-        upvote_reward_pool = reward_pool - main_reward_pool
+    # paper_ids = weekly_contributions.distinct(
+    #     'paper'
+    # ).values_list(
+    #     'paper',
+    #     flat=True
+    # )
+    # papers = Paper.objects.filter(id__in=paper_ids)
+    # papers, prob_dist = reward_dis.get_papers_prob_dist(papers, uniform=False)
+    # # The amount of coins given per paper
+    # reward_distributions = total_reward_amount * prob_dist
 
-        if not main_contributions_count:
-            upvote_reward_amount = math.floor(
-                reward_pool / upvote_contributions_count
-            )
-            print(f'No main contributions for {paper.id}')
-        else:
-            upvote_reward_amount = math.floor(
-                upvote_reward_pool / (upvote_contributions_count or 1)
-            )
+    # # Distributing tokens for each contributor in each paper
+    # i = 0
+    # count = papers.count()
+    # for paper, reward_pool in zip(papers, reward_distributions):
+    #     print(f'{i + 1}/{count}')
+    #     i += 1
+    #     all_contributions = weekly_contributions.filter(paper=paper)
+    #     main_contributions = all_contributions.exclude(
+    #         contribution_type=Contribution.UPVOTER
+    #     )
+    #     upvote_contributions = all_contributions.filter(
+    #         contribution_type=Contribution.UPVOTER
+    #     )
+    #     main_contributions_count = main_contributions.count()
+    #     upvote_contributions_count = upvote_contributions.count()
 
-        if not upvote_contributions_count:
-            main_reward_amount = math.floor(
-                reward_pool / main_contributions_count
-            )
-            print(f'No upvote contributions for {paper.id}')
-        else:
-            main_reward_amount = math.floor(
-                main_reward_pool / (main_contributions_count or 1)
-            )
+    #     main_reward_pool = reward_pool * 0.95
+    #     upvote_reward_pool = reward_pool - main_reward_pool
 
-        for main_contribution in main_contributions:
-            distributor = reward_dis.generate_distribution(
-                main_contribution,
-                amount=main_reward_amount,
-                distribute=distribute
-            )
-            # recipient = distributor.recipient
+    #     if not main_contributions_count:
+    #         upvote_reward_amount = math.floor(
+    #             reward_pool / upvote_contributions_count
+    #         )
+    #         print(f'No main contributions for {paper.id}')
+    #     else:
+    #         upvote_reward_amount = math.floor(
+    #             upvote_reward_pool / (upvote_contributions_count or 1)
+    #         )
 
-        for upvote_contribution in upvote_contributions:
-            distributor = reward_dis.generate_distribution(
-                upvote_contribution,
-                amount=upvote_reward_amount,
-                distribute=distribute
-            )
-            # recipient = distributor.recipient
+    #     if not upvote_contributions_count:
+    #         main_reward_amount = math.floor(
+    #             reward_pool / main_contributions_count
+    #         )
+    #         print(f'No upvote contributions for {paper.id}')
+    #     else:
+    #         main_reward_amount = math.floor(
+    #             main_reward_pool / (main_contributions_count or 1)
+    #         )
+
+    #     for main_contribution in main_contributions:
+    #         distributor = reward_dis.generate_distribution(
+    #             main_contribution,
+    #             amount=main_reward_amount,
+    #             distribute=distribute
+    #         )
+    #         # recipient = distributor.recipient
+
+    #     for upvote_contribution in upvote_contributions:
+    #         distributor = reward_dis.generate_distribution(
+    #             upvote_contribution,
+    #             amount=upvote_reward_amount,
+    #             distribute=distribute
+    #         )
+    #         # recipient = distributor.recipient
 
     data = [item[1] for item in reward_dis.data.items()]
     df = pd.DataFrame(data)
