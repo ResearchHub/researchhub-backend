@@ -263,16 +263,18 @@ class RewardDistributor:
                 'summaries': 1
             }
         elif item_type is PaperVote:
-            recipient = item.created_by
+            # recipient = item.created_by
+            recipient = item.paper.uploaded_by
             data = {
                 'amount': amount,
                 'upvotes': 1,
-                'upvotes_on_submissions_1': item.paper.uploaded_by
+                'upvotes_on_submissions_1': recipient
             }
         elif item_type is DisVote:
+            recipient = item.item.created_by
             data = {
                 'amount': amount,
-                'upvotes_on_comments_1': item.item.created_by
+                'upvotes_on_comments_1': recipient
             }
         elif item_type is User:
             recipient = item
