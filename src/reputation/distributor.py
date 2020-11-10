@@ -191,7 +191,9 @@ class RewardDistributor:
         elif item_type in (Thread, Comment, Reply):
             recipient = item.created_by
         else:
-            raise Exception(f'Missing instance type: {str(item_type)}')
+            error = Exception(f'Missing instance type: {str(item_type)}')
+            sentry.log_error(error)
+            raise error
 
         distributor = Distributor(
             dist('REWARD', amount, False),

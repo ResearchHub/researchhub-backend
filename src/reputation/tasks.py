@@ -539,6 +539,9 @@ def new_reward_calculation(distribute):
 
         total_rewards[key] = reward_amount
         item = Contribution.objects.filter(user__email=key).last()
+        if not item.exists():
+            from user.models import User
+            item = User.objects.get(email=key)
         reward_dis.generate_distribution(item, amount=reward_amount, distribute=True)
 
     total_sorted = {k: v for k, v in sorted(total_rewards.items(), key=lambda item: item[1], reverse=True)}
