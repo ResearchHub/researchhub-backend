@@ -255,7 +255,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             instance = self.get_object()
             self._send_created_location_ga_event(instance, request.user)
 
-        hub_ids = request.data.getlist('hubs', [])
+        hub_ids = request.data.get('hubs', [])
         context = self.get_serializer_context()
         reset_cache(hub_ids, context, request.META)
         invalidate_top_rated_cache(hub_ids)
