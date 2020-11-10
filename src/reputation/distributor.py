@@ -1,5 +1,9 @@
+import datetime
+import pytz
 import numpy as np
 import time
+
+import utils.sentry as sentry
 
 from django.db import transaction, models
 from django.db.models import FloatField, Func, Q, Count
@@ -9,12 +13,12 @@ from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 
 from reputation.exceptions import ReputationDistributorError
-from reputation.models import Distribution, Contribution
+from reputation.models import Distribution, Contribution, DistributionAmount
 from reputation.distributions import Distribution as dist
 from reputation.serializers import get_model_serializer
 from purchase.models import Balance
 from user.models import User
-import utils.sentry as sentry
+from researchhub.settings import REWARD_TIME
 
 
 class Distributor:
@@ -208,3 +212,45 @@ class RewardDistributor:
             distribution = distributor
 
         return distribution
+
+    def get_last_distributions(self, distribute):
+        last_distribution = DistributionAmount.objects.filter(
+            distributed=False
+        )
+        if not last_distribution.exists():
+            if distribute:
+                last_distribution = DistributionAmount.objects.create()
+            else:
+                last_distribution = None
+        else:
+            last_distribution = last_distribution.last()
+
+        last_distributed = DistributionAmount.objects.filter(
+            distributed=True
+        )
+        return last_distributed, last_distribution
+
+    def is_scheduled(self):
+        today = datetime.datetime.now(tz=pytz.utc)
+        reward_time_hour, reward_time_day, reward_time_week = list(
+            map(int, REWARD_TIME.split(' '))
+        )
+        if reward_time_week:
+            week = today.isocalendar()[1]
+            if week % reward_time_week != 0:
+                return False
+            # time_delta = datetime.timedelta(weeks=reward_time_week)
+        elif reward_time_day:
+            day = today.day
+            if day % reward_time_day != 0:
+                return False
+            # time_delta = datetime.timedelta(days=reward_time_day)
+        elif reward_time_hour:
+            hour = today.hour
+            if hour % reward_time_hour != 0:
+                return False
+            # time_delta = datetime.timedelta(hours=reward_time_hour)
+        else:
+            return False
+
+        return True

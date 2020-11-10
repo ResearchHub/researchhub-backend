@@ -463,3 +463,69 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     text_file = open("rsc_distribution.csv", "w")
     text_file.write(headers)
     text_file.close()
+
+
+@app.task
+def new_reward_calculation(distribute=False):
+    # Checks if rewards should be distributed, given time config
+    reward_dis = RewardDistributor()
+    static_date = datetime.datetime(
+        year=2020,
+        month=11,
+        day=8,
+        hour=23,
+        minute=59,
+    )
+
+    is_scheduled = reward_dis.is_scheduled()
+    if not is_scheduled:
+        return
+
+    exclusions = [
+        Q(contribution_type='CURATOR') |
+        Q(
+            user__email__in=(
+                'pdj7@georgetown.edu',
+                'lightning.lu7@gmail.com',
+                'barmstrong@gmail.com',
+            )
+        )
+    ]
+
+    # Reward distribution logic
+    last_distributed, last_distribution = reward_dis.get_last_distributions(
+        distribute
+    )
+    if last_distributed.exists():
+        starting_date = last_distributed.last().distributed_date
+    else:
+        if last_distribution:
+            starting_date = last_distribution.created_date
+        else:
+            starting_date = timezone.now().date() - timedelta(days=7)
+
+    total_reward_amount = DEFAULT_REWARD
+    if last_distribution:
+        total_reward_amount = last_distribution.amount
+
+    weekly_contributions = Contribution.objects.filter(
+        created_date__gt=starting_date,
+        created_date__lte=static_date,
+        paper__is_removed=False,
+        user__probable_spammer=False,
+        user__is_suspended=False
+    ).exclude(
+        *exclusions
+    )
+
+    if not weekly_contributions.exists():
+        return
+
+    paper_ids = weekly_contributions.distinct(
+        'paper'
+    ).values_list(
+        'paper',
+        flat=True
+    )
+    papers = Paper.objects.filter(id__in=paper_ids)
+    papers, prob_dist = reward_dis.get_papers_prob_dist(papers, uniform=True)
