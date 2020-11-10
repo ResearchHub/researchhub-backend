@@ -549,10 +549,10 @@ def new_reward_calculation(distribute=False):
         main_reward_pool = reward_pool * 0.95
         upvote_reward_pool = reward_pool - main_reward_pool
         main_reward_amount = math.floor(
-            main_reward_pool / main_contributions.count()
+            main_reward_pool / (main_contributions.count() or 1)
         )
         upvote_reward_amount = math.floor(
-            upvote_reward_pool / upvote_contributions.count()
+            upvote_reward_pool / (upvote_contributions.count() or 1)
         )
 
         for main_contribution in main_contributions:
