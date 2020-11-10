@@ -372,7 +372,7 @@ def reward_calculation(distribute):
         for qs in contributions:
             for contribution in qs.iterator():
 
-                breakdown_key = distributor.recipient.email
+                breakdown_key = contribution.user.email
                 if breakdown_rewards.get(breakdown_key):
 
                     if breakdown_rewards[breakdown_key].get(contribution.contribution_type + '_CONTRIBUTIONS'):
