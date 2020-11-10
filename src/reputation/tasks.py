@@ -406,7 +406,6 @@ def reward_calculation(distribute):
     upvoters = weekly_contributions.filter(
         contribution_type=Contribution.UPVOTER
     )
-    import pdb; pdb.set_trace()
     upvote_count = upvoters.count()
     upvote_amount = math.floor(upvote_reward_amount / upvote_count)
     if upvote_count > upvote_reward_amount:
@@ -434,14 +433,15 @@ def reward_calculation(distribute):
                         breakdown_rewards[breakdown_key]['UPVOTE_COMMENT_COUNT'] = 1
                 elif contribution.content_type.app_label == 'paper':
                     if contribution.paper.uploaded_by:
-                        if breakdown_rewards.get(contribution.paper.uploaded_by.email):
-                            if breakdown_rewards[paper.uploaded_by.email].get('SUBMITTED_UPVOTE_COUNT'):
-                                breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] += 1
+                        contribution_key = contribution.paper.uploaded_by.email
+                        if breakdown_rewards.get(contribution_key):
+                            if breakdown_rewards[contribution_key].get('SUBMITTED_UPVOTE_COUNT'):
+                                breakdown_rewards[contribution_key]['SUBMITTED_UPVOTE_COUNT'] += 1
                             else:
-                                breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] = 1
+                                breakdown_rewards[contribution_key]['SUBMITTED_UPVOTE_COUNT'] = 1
                         else:
-                            breakdown_rewards[paper.uploaded_by.email] = {}
-                            breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] = 1
+                            breakdown_rewards[contribution_key] = {}
+                            breakdown_rewards[contribution_key]['SUBMITTED_UPVOTE_COUNT'] = 1
             else:
                 breakdown_rewards[breakdown_key] = {}
                 breakdown_rewards[breakdown_key][upvote_contrib] = upvote_amount
