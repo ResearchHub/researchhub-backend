@@ -252,10 +252,16 @@ class RewardDistributor:
             }
         elif item_type is BulletPoint:
             recipient = item.created_by
-            data = {'amount': amount, 'bulletpoints': 1}
+            data = {
+                'amount': amount,
+                'bulletpoints': 1
+            }
         elif item_type is Summary:
             recipient = item.proposed_by
-            data = {'amount': amount, 'summaries': 1}
+            data = {
+                'amount': amount,
+                'summaries': 1
+            }
         elif item_type is PaperVote:
             recipient = item.created_by
             data = {
@@ -276,7 +282,10 @@ class RewardDistributor:
             data = {'amount': amount}
         elif item_type in (Thread, Comment, Reply):
             recipient = item.created_by
-            data = {'amount': amount, 'comments': 1}
+            data = {
+                'amount': amount,
+                'comments': 1
+            }
         else:
             error = Exception(f'Missing instance type: {str(item_type)}')
             sentry.log_error(error)
