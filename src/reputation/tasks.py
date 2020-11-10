@@ -2,6 +2,7 @@ import math
 import datetime
 import pytz
 import numpy as np
+import pandas as pd
 
 
 from django.db.models import Q, Sum, Count
@@ -537,6 +538,7 @@ def new_reward_calculation(distribute=False):
     count = papers.count()
     for paper, reward_pool in zip(papers, reward_distributions):
         print(f'{i + 1}/{count}')
+        i += 1
         all_contributions = weekly_contributions.filter(paper=paper)
         main_contributions = all_contributions.exclude(
             contribution_type=Contribution.UPVOTER
@@ -544,8 +546,8 @@ def new_reward_calculation(distribute=False):
         upvote_contributions = all_contributions.filter(
             contribution_type=Contribution.UPVOTER
         )
-        main_reward_amount = reward_pool * 0.95
-        upvote_reward_amount = reward_pool - main_reward_amount
+        main_reward_amount = math.floor(reward_pool * 0.95)
+        upvote_reward_amount = math.floor(reward_pool - main_reward_amount)
 
         for main_contribution in main_contributions:
             distributor = reward_dis.generate_distribution(
@@ -563,4 +565,6 @@ def new_reward_calculation(distribute=False):
             )
             # recipient = distributor.recipient
 
-    import pdb; pdb.set_trace()
+    data = [item[1] for item in reward_dis.data.items()]
+    df = pd.DataFrame(data)
+    df.to_csv('pd_rsc_dist.csv')
