@@ -361,7 +361,7 @@ class PaperSerializer(BasePaperSerializer):
 
                 if request:
                     tracked_paper = events_api.track_content_paper(
-                        user,
+                        request.user,
                         paper,
                         request,
                         update=True

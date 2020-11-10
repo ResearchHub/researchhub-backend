@@ -482,7 +482,8 @@ class Paper(models.Model):
         else:
             self.is_removed = True
 
-        self.save(update_fields['is_removed'])
+        # self.save(update_fields['is_removed'])
+        self.save()
         return self.is_removed
 
 
