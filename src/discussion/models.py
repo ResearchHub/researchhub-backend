@@ -185,8 +185,8 @@ class BaseComment(models.Model):
         if hasattr(self, 'score'):
             return self.score
         else:
-            upvotes = self.votes.filter(vote_type=Vote.UPVOTE).count()
-            downvotes = self.votes.filter(vote_type=Vote.DOWNVOTE).count()
+            upvotes = self.votes.filter(vote_type=Vote.UPVOTE, created_by__is_suspended=False, created_by__probable_spammer=False).count()
+            downvotes = self.votes.filter(vote_type=Vote.DOWNVOTE, created_by__is_suspended=False, created_by__probable_spammer=False).count()
             score = upvotes - downvotes
             return score
 
