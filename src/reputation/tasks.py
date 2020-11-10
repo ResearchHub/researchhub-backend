@@ -332,6 +332,8 @@ def new_reward_calculation(distribute):
         'pdj7@georgetown.edu',
         'lightning.lu7@gmail.com',
         'barmstrong@gmail.com',
+        'mcburniewill@gmail.com',
+        'younggarrett210@gmail.com'
     )
 
     all_users = {}
