@@ -335,6 +335,7 @@ def new_reward_calculation(distribute):
     )
 
     all_users = {}
+    all_papers_uploaded = {}
     papers_uploaded = Paper.objects.filter(
         is_removed=False,
         uploaded_by__probable_spammer=False,
@@ -346,6 +347,21 @@ def new_reward_calculation(distribute):
             uploaded_by__email__in=IGNORE_USERS
         )
     )
+
+    count = papers_uploaded.count()
+    for i, obj in enumerate(papers_uploaded):
+        print('{} / {}'.format(i, count))
+        paper = (obj.id, obj.slug)
+        if not obj.uploaded_by or obj.uploaded_by.email in IGNORE_USERS:
+            continue
+        user_key = obj.uploaded_by.email
+        if user_key in all_papers_uploaded:
+            all_papers_uploaded[user_key].append(paper)
+        else:
+            all_papers_uploaded[user_key] = [paper]
+        
+        if user_key not in all_users:
+            all_users[user_key] = True
     uploaded_paper_count = {}
     set_or_increment(papers_uploaded, uploaded_paper_count, all_users, ['uploaded_by', 'email'])
 
@@ -526,11 +542,11 @@ def new_reward_calculation(distribute):
     for key in total_sorted:
 
         base_paper_string = 'https://www.researchhub.com/paper/'
-        all_papers_uploaded = []
-        uploaded = []
+        papers_list = []
+        uploaded = all_papers_uploaded.get(key, [])
         for paper in uploaded:
             paper_url = base_paper_string + '{}/{}'.format(paper[0], paper[1])
-            all_papers_uploaded.append(paper_url)
+            papers_list.append(paper_url)
 
         line = '{},{},{},{},{},{},{},{}\n'.format(
             key,
@@ -540,267 +556,7 @@ def new_reward_calculation(distribute):
             paper_voted_on_count.get(key, 0),
             discussion_count.get(key, 0),
             comment_votes_count.get(key, 0),
-            "\"" + '\n\n'.join(all_papers_uploaded) + "\""
-        )
-        headers += line
-
-    text_file = open("rsc_distribution.csv", "w")
-    text_file.write(headers)
-    text_file.close()
-
-
-def reward_calculation(distribute):
-    # Checks if rewards should be distributed, given time config
-    today = datetime.datetime.now(tz=pytz.utc)
-    static_date = datetime.datetime(
-        year=2020,
-        month=11,
-        day=8,
-        hour=23,
-        minute=59,
-    )
-
-    reward_time_hour, reward_time_day, reward_time_week = list(
-        map(int, REWARD_TIME.split(' '))
-    )
-
-    if reward_time_week:
-        week = today.isocalendar()[1]
-        if week % reward_time_week != 0:
-            return
-        # time_delta = datetime.timedelta(weeks=reward_time_week)
-    elif reward_time_day:
-        day = today.day
-        if day % reward_time_day != 0:
-            return
-        # time_delta = datetime.timedelta(days=reward_time_day)
-    elif reward_time_hour:
-        hour = today.hour
-        if hour % reward_time_hour != 0:
-            return
-        # time_delta = datetime.timedelta(hours=reward_time_hour)
-    else:
-        return
-
-    # Reward distribution logic
-    last_distribution = DistributionAmount.objects.filter(
-        distributed=False
-    )
-    if not last_distribution.exists():
-        if distribute:
-            last_distribution = DistributionAmount.objects.create()
-        else:
-            last_distribution = None
-    else:
-        last_distribution = last_distribution.last()
-
-    last_distributed = DistributionAmount.objects.filter(
-        distributed=True
-    )
-    if last_distributed.exists():
-        starting_date = last_distributed.last().distributed_date
-    else:
-        if last_distribution:
-            starting_date = last_distribution.created_date
-        else:
-            starting_date = timezone.now().date() - timedelta(days=7)
-
-    reward_dis = RewardDistributor()
-
-    total_reward_amount = DEFAULT_REWARD
-    if last_distribution:
-        total_reward_amount = last_distribution.amount
-
-    reward_amount = total_reward_amount * .95
-    upvote_reward_amount = total_reward_amount - reward_amount
-
-    papers_uploaded = Paper.objects.filter(
-        is_removed=False,
-        uploaded_by__probable_spammer=False,
-        uploaded_by__is_suspended=False,
-        uploaded_date__gt=starting_date,
-        uploaded_date__lte=static_date,
-    ).exclude(
-        Q(
-            user__email__in=(
-                'pdj7@georgetown.edu',
-                # 'lightning.lu7@gmail.com',
-                'barmstrong@gmail.com',
-            )
-        )
-    )
-
-    weekly_contributions = Contribution.objects.filter(
-        created_date__gt=starting_date,
-        created_date__lte=static_date,
-        paper__is_removed=False,
-        user__probable_spammer=False,
-        user__is_suspended=False
-    ).exclude(
-        Q(contribution_type='CURATOR') |
-        Q(
-            user__email__in=(
-                'pdj7@georgetown.edu',
-                # 'lightning.lu7@gmail.com',
-                'barmstrong@gmail.com',
-            )
-        )
-    )
-
-    if not weekly_contributions.exists():
-        return
-
-    paper_ids = weekly_contributions.values_list(
-        'paper'
-    ).distinct()
-    papers = Paper.objects.filter(id__in=[paper_ids]).exclude(
-        uploaded_by__email__in=(
-            'pdj7@georgetown.edu',
-            # 'lightning.lu7@gmail.com',
-            'barmstrong@gmail.com',
-        )
-    )
-    papers, prob_dist = reward_dis.get_papers_prob_dist(papers)
-
-    reward_distribution = prob_dist * reward_amount
-    contribution_types = (
-        Contribution.AUTHOR,
-        Contribution.SUBMITTER,
-        Contribution.COMMENTER,
-    )
-
-    total_rewards = {}
-    breakdown_rewards = {}
-    count = 0
-    total_count = papers.count()
-    total_paper_scores = papers.aggregate(
-        total_sum=Sum('score')
-    )['total_sum']
-    total_comment_scores = papers.aggregate(
-        total_sum=Count('threads__votes', filter=Q(threads__votes__vote_type=1, threads__is_removed=False))
-    )['total_sum']
-
-    for paper in papers:
-        count += 1
-        print('{} / {}'.format(count, total_count))
-        contribution_count = 0
-        contributions = []
-        for contribution_type in contribution_types:
-            filtered_contributions = weekly_contributions.filter(
-                paper=paper,
-                contribution_type=contribution_type
-            ).distinct('user')
-            contribution_count += filtered_contributions.count()
-            contributions.append(filtered_contributions)
-
-        for qs in contributions:
-            for contribution in qs.iterator():
-
-                breakdown_key = contribution.user.email
-                if breakdown_rewards.get(breakdown_key):
-
-                    if breakdown_rewards[breakdown_key].get(contribution.contribution_type + '_CONTRIBUTIONS'):
-                        breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] += 1
-                    else:
-                        breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] = 1
-                else:
-                    breakdown_rewards[breakdown_key] = {}
-                    breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] = 1
-
-
-        if paper.uploaded_by:
-            if breakdown_rewards.get(paper.uploaded_by.email):
-                if breakdown_rewards[paper.uploaded_by.email].get('PAPERS_UPLOADED'):
-                    breakdown_rewards[paper.uploaded_by.email]['PAPERS_UPLOADED'].append((paper.id, paper.slug))
-                else:
-                    breakdown_rewards[paper.uploaded_by.email]['PAPERS_UPLOADED'] = [(paper.id, paper.slug)]
-            else:
-                breakdown_rewards[paper.uploaded_by.email] = {}
-                breakdown_rewards[paper.uploaded_by.email]['PAPERS_UPLOADED'] = [(paper.id, paper.slug)]
-
-    # Generating upvote rewards
-    # TODO: CSV stuff here
-    upvote_contrib = Contribution.UPVOTER
-    upvoters = weekly_contributions.filter(
-        contribution_type=Contribution.UPVOTER
-    )
-    upvote_count = upvoters.count()
-    upvote_amount = math.floor(upvote_reward_amount / upvote_count)
-    if upvote_count > upvote_reward_amount:
-        upvote_amount = 1
-    for contribution in upvoters.iterator():
-        distributor = reward_dis.generate_distribution(contribution, amount=upvote_amount, distribute=False)
-        if not distribute and distributor:
-            total_key = distributor.recipient.email
-            if total_rewards.get(total_key):
-                total_rewards[total_key] += upvote_amount
-            else:
-                total_rewards[total_key] = upvote_amount
-
-            breakdown_key = distributor.recipient.email
-            if breakdown_rewards.get(breakdown_key):
-                if breakdown_rewards[breakdown_key].get(upvote_contrib + '_CONTRIBUTIONS'):
-                    breakdown_rewards[breakdown_key][upvote_contrib + '_CONTRIBUTIONS'] += 1
-                else:
-                    breakdown_rewards[breakdown_key][upvote_contrib + '_CONTRIBUTIONS'] = 1
-                
-                if contribution.content_type.app_label == 'discussion':
-                    if breakdown_rewards[breakdown_key].get('UPVOTE_COMMENT_COUNT'):
-                        breakdown_rewards[breakdown_key]['UPVOTE_COMMENT_COUNT'] += 1
-                    else:
-                        breakdown_rewards[breakdown_key]['UPVOTE_COMMENT_COUNT'] = 1
-                elif contribution.content_type.app_label == 'paper':
-                    if contribution.paper.uploaded_by:
-                        contribution_key = contribution.paper.uploaded_by.email
-                        if breakdown_rewards.get(contribution_key):
-                            if breakdown_rewards[contribution_key].get('SUBMITTED_UPVOTE_COUNT'):
-                                breakdown_rewards[contribution_key]['SUBMITTED_UPVOTE_COUNT'] += 1
-                            else:
-                                breakdown_rewards[contribution_key]['SUBMITTED_UPVOTE_COUNT'] = 1
-                        else:
-                            breakdown_rewards[contribution_key] = {}
-                            breakdown_rewards[contribution_key]['SUBMITTED_UPVOTE_COUNT'] = 1
-            else:
-                breakdown_rewards[breakdown_key] = {}
-                breakdown_rewards[breakdown_key][upvote_contrib] = upvote_amount
-                breakdown_rewards[breakdown_key][upvote_contrib + '_CONTRIBUTIONS'] = 1
-                if contribution.content_type == 'discussion':
-                    breakdown_rewards[breakdown_key]['UPVOTE_COMMENT_COUNT'] = 1
-
-    for key in breakdown_rewards:
-        upload_upvote_count = breakdown_rewards[key].get('SUBMITTED_UPVOTE_COUNT', 0)
-        comment_upvote_count = breakdown_rewards[key].get('UPVOTE_COMMENT_COUNT', 0)
-
-        amount = math.floor(((upload_upvote_count + comment_upvote_count) / (total_paper_scores + total_comment_scores)) * reward_amount)
-        # distributor = reward_dis.generate_distribution(contribution, amount=0, distribute=False)
-
-        if total_rewards.get(key):
-            total_rewards[key] += amount
-        else:
-            total_rewards[key] = amount
-
-    headers = 'Total Upvotes: {}, Total Paper Upvotes: {}, Total Comment Upvotes: {}\n'.format(total_paper_scores + total_comment_scores, total_paper_scores, total_comment_scores,)
-    headers += 'email,Bonus RSC Amount,Paper Submissions,Upvotes,Upvotes on Submissions,Comments,Upvotes on Comments,Papers Uploaded\n'
-
-    total_sorted = {k: v for k, v in sorted(total_rewards.items(), key=lambda item: item[1], reverse=True)}
-    for key in total_sorted:
-
-        base_paper_string = 'https://www.researchhub.com/paper/'
-        all_papers_uploaded = []
-        uploaded = breakdown_rewards[key].get('PAPERS_UPLOADED', [])
-        for paper in uploaded:
-            paper_url = base_paper_string + '{}/{}'.format(paper[0], paper[1])
-            all_papers_uploaded.append(paper_url)
-
-        line = '{},{},{},{},{},{},{},{}\n'.format(
-            key,
-            total_sorted[key],
-            breakdown_rewards[key].get('SUBMITTER_CONTRIBUTIONS') or 0,
-            breakdown_rewards[key].get('UPVOTER_CONTRIBUTIONS') or 0,
-            breakdown_rewards[key].get('SUBMITTED_UPVOTE_COUNT') or 0,
-            breakdown_rewards[key].get('COMMENTER_CONTRIBUTIONS') or 0,
-            breakdown_rewards[key].get('UPVOTE_COMMENT_COUNT') or 0,
-            "\"" + '\n\n'.join(all_papers_uploaded) + "\""
+            "\"" + '\n\n'.join(papers_list) + "\""
         )
         headers += line
 
