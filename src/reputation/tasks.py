@@ -406,6 +406,7 @@ def reward_calculation(distribute):
     upvoters = weekly_contributions.filter(
         contribution_type=Contribution.UPVOTER
     )
+    import pdb; pdb.set_trace()
     upvote_count = upvoters.count()
     upvote_amount = math.floor(upvote_reward_amount / upvote_count)
     if upvote_count > upvote_reward_amount:
