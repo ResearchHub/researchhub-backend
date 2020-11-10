@@ -145,7 +145,6 @@ class RewardDistributor:
         if not user:
             # This usually happens when a user votes or comments
             # on a paper that was uploaded not uploaded by a user
-            print(data)
             return
 
         email = user.email

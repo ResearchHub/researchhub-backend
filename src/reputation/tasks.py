@@ -555,10 +555,15 @@ def new_reward_calculation(distribute=False):
             upvote_reward_pool / (upvote_contributions.count() or 1)
         )
 
+        if not main_contributions.exists():
+            print(f'No main contributions for {paper.id}')
+        if not upvote_contributions.exists():
+            print(f'No upvote contributions for {paper.id}')
+
         for main_contribution in main_contributions:
             distributor = reward_dis.generate_distribution(
                 main_contribution,
-                amount=main_reward_amount,
+                amount=main_reward_pool,
                 distribute=distribute
             )
             # recipient = distributor.recipient
@@ -566,7 +571,7 @@ def new_reward_calculation(distribute=False):
         for upvote_contribution in upvote_contributions:
             distributor = reward_dis.generate_distribution(
                 upvote_contribution,
-                amount=upvote_reward_amount,
+                amount=upvote_reward_pool,
                 distribute=distribute
             )
             # recipient = distributor.recipient
