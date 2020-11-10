@@ -519,8 +519,11 @@ def new_reward_calculation(distribute):
         votes_count = paper_votes_count.get(key, 0) + comment_upvotes_count.get(key, 0)
         upvoted_amount = math.floor(((upload_vote_count + comment_upvote_count) / (total_paper_scores + total_comment_scores)) * score_reward_amount)
         upvotes_amount = math.floor(votes_count / total_score * upvote_reward_amount)
+        reward_amount = upvoted_amount + upvotes_amount
 
-        total_rewards[key] = upvoted_amount + upvotes_amount
+        total_rewards[key] = reward_amount
+        item = Contribution.objects.filter(user__email=key).last()
+        reward_dis.generate_distribution(item, amount=reward_amount, distribute=True)
 
     total_sorted = {k: v for k, v in sorted(total_rewards.items(), key=lambda item: item[1], reverse=True)}
     for key in total_sorted:
