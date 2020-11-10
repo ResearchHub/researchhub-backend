@@ -192,6 +192,8 @@ class UserViewSet(viewsets.ModelViewSet):
                         filter=Q(
                             **time_filter,
                             reputation_records__hubs__in=[hub_id]
+                        ).exclude(
+                            Q(reputation_records__distribution_type='REFERRAL') | Q(reputation_records__distribution_type='REWARD')
                         )
                     )
                 ).order_by(F('hub_rep').desc(nulls_last=True))
