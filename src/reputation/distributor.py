@@ -137,12 +137,12 @@ class RewardDistributor:
     def get_papers_prob_dist(self, items):
         papers = items.order_by('id')
         weekly_total_score = papers.aggregate(
-            total_sum=Sum('score') + Count('threads__votes', filter=Q(threads__votes__vote_type=1))
+            total_sum=Sum('score') + Count('threads__votes', filter=Q(threads__votes__vote_type=1, threads__is_removed=False))
         )['total_sum']
         prob_dist = papers.annotate(
             p=Cast(
                 Func(
-                    Sum('score') + Count('threads__votes', filter=Q(threads__votes__vote_type=1)),
+                    Sum('score') + Count('threads__votes', filter=Q(threads__votes__vote_type=1, threads__is_removed=False)),
                     function='ABS'
                 )/float(weekly_total_score),
                 FloatField()
