@@ -532,7 +532,6 @@ def new_reward_calculation(distribute):
     total_rewards = {}
     total_comment_count = (threads.count() + replies.count() + comments.count()) or 1
 
-    import pdb; pdb.set_trace()
     for key in all_users:
         upload_vote_count = paper_voted_on_count.get(key, 0)
         comment_upvote_count = comment_votes_count.get(key, 0)
