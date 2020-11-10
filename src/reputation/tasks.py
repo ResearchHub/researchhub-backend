@@ -323,7 +323,7 @@ def reward_calculation(distribute):
         Q(
             user__email__in=(
                 'pdj7@georgetown.edu',
-                # 'lightning.lu7@gmail.com',
+                'lightning.lu7@gmail.com',
                 'barmstrong@gmail.com',
             )
         )
