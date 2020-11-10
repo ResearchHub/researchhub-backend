@@ -323,7 +323,7 @@ def reward_calculation(distribute):
         Q(
             user__email__in=(
                 'pdj7@georgetown.edu',
-                'lightning.lu7@gmail.com',
+                # 'lightning.lu7@gmail.com',
                 'barmstrong@gmail.com',
             )
         )
@@ -338,7 +338,7 @@ def reward_calculation(distribute):
     papers = Paper.objects.filter(id__in=[paper_ids]).exclude(
         uploaded_by__email__in=(
             'pdj7@georgetown.edu',
-            'lightning.lu7@gmail.com',
+            # 'lightning.lu7@gmail.com',
             'barmstrong@gmail.com',
         )
     )
@@ -362,7 +362,7 @@ def reward_calculation(distribute):
         total_sum=Count('threads__votes', filter=Q(threads__votes__vote_type=1, threads__is_removed=False))
     )['total_sum']
 
-    for paper, reward in zip(papers, reward_distribution):
+    for paper in papers:
         count += 1
         print('{} / {}'.format(count, total_count))
         contribution_count = 0
@@ -389,20 +389,15 @@ def reward_calculation(distribute):
                     breakdown_rewards[breakdown_key] = {}
                     breakdown_rewards[breakdown_key][contribution.contribution_type + '_CONTRIBUTIONS'] = 1
 
+
         if paper.uploaded_by:
             if breakdown_rewards.get(paper.uploaded_by.email):
-                if breakdown_rewards[paper.uploaded_by.email].get('SUBMITTED_UPVOTE_COUNT'):
-                    breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] += paper.score
-                else:
-                    breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] = paper.score
-
                 if breakdown_rewards[paper.uploaded_by.email].get('PAPERS_UPLOADED'):
                     breakdown_rewards[paper.uploaded_by.email]['PAPERS_UPLOADED'].append((paper.id, paper.slug))
                 else:
                     breakdown_rewards[paper.uploaded_by.email]['PAPERS_UPLOADED'] = [(paper.id, paper.slug)]
             else:
                 breakdown_rewards[paper.uploaded_by.email] = {}
-                breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] = paper.score
                 breakdown_rewards[paper.uploaded_by.email]['PAPERS_UPLOADED'] = [(paper.id, paper.slug)]
 
     # Generating upvote rewards
@@ -411,6 +406,7 @@ def reward_calculation(distribute):
     upvoters = weekly_contributions.filter(
         contribution_type=Contribution.UPVOTER
     )
+    import pdb; pdb.set_trace()
     upvote_count = upvoters.count()
     upvote_amount = math.floor(upvote_reward_amount / upvote_count)
     if upvote_count > upvote_reward_amount:
@@ -431,11 +427,21 @@ def reward_calculation(distribute):
                 else:
                     breakdown_rewards[breakdown_key][upvote_contrib + '_CONTRIBUTIONS'] = 1
                 
-                if contribution.content_type == 'discussion':
+                if contribution.content_type.app_label == 'discussion':
                     if breakdown_rewards[breakdown_key].get('UPVOTE_COMMENT_COUNT'):
                         breakdown_rewards[breakdown_key]['UPVOTE_COMMENT_COUNT'] += 1
                     else:
                         breakdown_rewards[breakdown_key]['UPVOTE_COMMENT_COUNT'] = 1
+                elif contribution.content_type.app_label == 'paper':
+                    if contribution.paper.uploaded_by:
+                        if breakdown_rewards.get(contribution.paper.uploaded_by.email):
+                            if breakdown_rewards[paper.uploaded_by.email].get('SUBMITTED_UPVOTE_COUNT'):
+                                breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] += 1
+                            else:
+                                breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] = 1
+                        else:
+                            breakdown_rewards[paper.uploaded_by.email] = {}
+                            breakdown_rewards[paper.uploaded_by.email]['SUBMITTED_UPVOTE_COUNT'] = 1
             else:
                 breakdown_rewards[breakdown_key] = {}
                 breakdown_rewards[breakdown_key][upvote_contrib] = upvote_amount
@@ -447,7 +453,7 @@ def reward_calculation(distribute):
         upload_upvote_count = breakdown_rewards[key].get('SUBMITTED_UPVOTE_COUNT', 0)
         comment_upvote_count = breakdown_rewards[key].get('UPVOTE_COMMENT_COUNT', 0)
 
-        amount = ((upload_upvote_count + comment_upvote_count) / (total_paper_scores + total_comment_scores)) * reward_amount
+        amount = math.floor(((upload_upvote_count + comment_upvote_count) / (total_paper_scores + total_comment_scores)) * reward_amount)
         # distributor = reward_dis.generate_distribution(contribution, amount=0, distribute=False)
 
         if total_rewards.get(key):
