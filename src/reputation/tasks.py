@@ -394,10 +394,11 @@ def new_reward_calculation(distribute):
         else:
             score = -1
 
-        total_score += score
-        total_paper_scores += score
         if not obj.paper.uploaded_by or obj.paper.uploaded_by.email in IGNORE_USERS:
             continue
+        
+        total_score += score
+        total_paper_scores += score
         user_key = obj.paper.uploaded_by.email
         if user_key in paper_voted_on_count:
             paper_voted_on_count[user_key] += score
