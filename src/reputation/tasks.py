@@ -563,8 +563,10 @@ def new_reward_calculation(distribute):
         user = User.objects.get(email=key)
         author_profile = user.author_profile
         name = author_profile.first_name + ' ' + author_profile.last_name
-        line = '{},{},{},{},{},{},{},{}\n'.format(
+        author_url = 'https://www.researchhub.com/user/{}'.format(author_profile.id)
+        line = '{},{},{},{},{},{},{},{},{}\n'.format(
             name,
+            author_url,
             total_sorted[key],
             uploaded_paper_count.get(key, 0),
             paper_votes_count.get(key, 0),
