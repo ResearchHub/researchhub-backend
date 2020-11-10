@@ -533,7 +533,10 @@ def new_reward_calculation(distribute=False):
     reward_distributions = total_reward_amount * prob_dist
 
     # Distributing tokens for each contributor in each paper
+    i = 0
+    count = papers.count()
     for paper, reward_pool in zip(papers, reward_distributions):
+        print(f'{i + 1}/{count}')
         all_contributions = weekly_contributions.filter(paper=paper)
         main_contributions = all_contributions.exclude(
             contribution_type=Contribution.UPVOTER

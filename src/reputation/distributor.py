@@ -143,12 +143,15 @@ class RewardDistributor:
 
     def log_data(self, user, data):
         if not user:
+            # This usually happens when a user votes or comments
+            # on a paper that was uploaded not uploaded by a user
             print(data)
             return
 
         email = user.email
         if email not in self.data:
             self.data[email] = {
+                'email': email,
                 'amount': 0,
                 'paper_submissions': 0,
                 'upvotes': 0,
