@@ -529,7 +529,7 @@ def new_reward_calculation(distribute=False):
         flat=True
     )
     papers = Paper.objects.filter(id__in=paper_ids)
-    papers, prob_dist = reward_dis.get_papers_prob_dist(papers, uniform=True)
+    papers, prob_dist = reward_dis.get_papers_prob_dist(papers, uniform=False)
     # The amount of coins given per paper
     reward_distributions = total_reward_amount * prob_dist
 
