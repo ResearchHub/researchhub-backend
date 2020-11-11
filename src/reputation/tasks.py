@@ -542,7 +542,7 @@ def new_reward_calculation(distribute=False):
     main_reward_amount = math.floor(
         (total_reward_amount * 0.95) / total_upvotes
     )
-    residual_reward_amount = math.floor(
+    residual_reward_amount = math.ceil(
         (total_reward_amount * 0.05) / residual_count
     )
 
@@ -564,7 +564,7 @@ def new_reward_calculation(distribute=False):
 
         if residual:
             print('carrying over residual')
-            residual_reward_amount = math.floor(
+            residual_reward_amount = math.ceil(
                 (residual + total_reward_amount * 0.05) / (residual_count - i)
             )
 
