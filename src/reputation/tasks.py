@@ -557,7 +557,7 @@ def new_reward_calculation(distribute=False):
         else:
             reward_dis.generate_distribution(
                 contribution,
-                amount=residual_reward_amount,
+                amount=main_reward_amount,
                 distribute=distribute
             )
 
