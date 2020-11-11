@@ -269,7 +269,7 @@ class RewardDistributor:
         elif item_type is PaperVote:
             recipient = item.created_by
             data = {
-                'amount': 0,
+                'amount': residual_amount,
                 'upvotes': 1,
                 **extra
             }
@@ -285,7 +285,7 @@ class RewardDistributor:
         elif item_type is DisVote:
             recipient = item.created_by
             data = {
-                'amount': 0,
+                'amount': residual_amount,
                 **extra
             }
             self.generate_distribution(
