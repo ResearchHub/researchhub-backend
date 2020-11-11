@@ -546,6 +546,11 @@ def new_reward_calculation(distribute=False):
     )
     for i, contribution in enumerate(paper_upvotes.iterator()):
         print(f'{i}/{contribution_count}')
+        if contribution.content_type in (paper_vote or discussion_vote):
+            reward_amount = main_reward_amount
+        else:
+            reward_amount = residual_reward_amount
+
         reward_dis.generate_distribution(
             contribution,
             amount=reward_amount,
