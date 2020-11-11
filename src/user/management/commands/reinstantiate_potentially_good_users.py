@@ -10,7 +10,7 @@ import uuid
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        three_days_ago = timezone.now().date() - timedelta(days=3)
+        three_days_ago = timezone.now().date() - timedelta(days=11)
         objects = User.objects.filter(created_date__lte=three_days_ago, probable_spammer=True)
         count = objects.count()
         for i, user in enumerate(objects):
