@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.contrib.contenttypes.models import ContentType
-from datetime import timedelta
+from datetime import timedelta, datetime
 from django.utils import timezone
 
 from user.models import User
@@ -10,8 +10,15 @@ import uuid
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        three_days_ago = timezone.now().date() - timedelta(days=11)
-        objects = User.objects.filter(created_date__lte=three_days_ago, probable_spammer=True)
+        # three_days_ago = timezone.now().date() - timedelta(days=3)
+        static_start_date = datetime(
+            year=2020,
+            month=10,
+            day=29,
+            hour=0,
+            minute=0,
+        )
+        objects = User.objects.filter(created_date__lte=static_start_date, probable_spammer=True)
         count = objects.count()
         for i, user in enumerate(objects):
             print('{} / {}'.format(i, count))
