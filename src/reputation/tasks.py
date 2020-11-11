@@ -549,23 +549,23 @@ def new_reward_calculation(distribute=False):
     for i, contribution in enumerate(weekly_contributions.iterator()):
         print(f'{i}/{contribution_count}')
         if contribution.content_type in (paper_vote, discussion_vote):
-            success, dis, residual = reward_dis.generate_distribution(
+            dis, residual = reward_dis.generate_distribution(
                 contribution,
                 amount=main_reward_amount,
                 residual_amount=residual_reward_amount,
                 distribute=distribute
             )
         else:
-            success, dis, residual = reward_dis.generate_distribution(
+            dis, residual = reward_dis.generate_distribution(
                 contribution,
                 amount=residual_reward_amount,
                 distribute=distribute
             )
 
-        if not success:
+        if residual:
             print('carrying over residual')
             residual_reward_amount = math.floor(
-                (residual + total_reward_amount * 0.05) / (residual_count - i)
+                (residual + total_reward_amount * 0.05) / residual_count
             )
 
     if distribute:

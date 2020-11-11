@@ -228,6 +228,7 @@ class RewardDistributor:
         from summary.models import Summary
         from discussion.models import Thread, Comment, Reply, Vote as DisVote
 
+        residual = 0
         excluded_recipients = (
             'pdj7@georgetown.edu',
             'lightning.lu7@gmail.com',
@@ -273,7 +274,7 @@ class RewardDistributor:
                 'upvotes': 1,
                 **extra
             }
-            self.generate_distribution(
+            _, r = self.generate_distribution(
                 item.paper,
                 amount=amount,
                 distribute=distribute,
@@ -282,13 +283,14 @@ class RewardDistributor:
                     'upvotes_on_submissions': 1,
                 }
             )
+            residual += r
         elif item_type is DisVote:
             recipient = item.created_by
             data = {
                 'amount': residual_amount,
                 **extra
             }
-            self.generate_distribution(
+            _, r = self.generate_distribution(
                 item.item,
                 amount=amount,
                 distribute=distribute,
@@ -297,6 +299,7 @@ class RewardDistributor:
                     'upvotes_on_comments': 1
                 }
             )
+            residual += r
         elif item_type is User:
             recipient = item
             data = {
@@ -321,11 +324,11 @@ class RewardDistributor:
             sentry.log_error(error)
             raise error
 
-        # if not recipient:
-        #     return False, None, amount
+        if not recipient:
+            return None, amount
 
         if recipient.email in excluded_recipients:
-            return False, None, amount
+            return None, amount
 
         distributor = Distributor(
             dist('REWARD', amount, False),
@@ -341,7 +344,7 @@ class RewardDistributor:
         else:
             distribution = distributor
 
-        return True, distribution, 0
+        return distribution, residual
 
     def get_last_distributions(self, distribute):
         last_distribution = DistributionAmount.objects.filter(
