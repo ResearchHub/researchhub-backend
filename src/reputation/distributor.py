@@ -160,7 +160,7 @@ class RewardDistributor:
                 'summaries': 0,
                 'bulletpoints': 0,
                 'papers_uploaded': [],
-                'reason': None
+                'reason': ''
             }
         for key, incr in data.items():
             bucket = self.data[email]
@@ -326,7 +326,7 @@ class RewardDistributor:
             item,
             time.time()
         )
-        data['reason'] = item_type
+        data['reason'] = str(item_type)
         self.log_data(recipient, data)
 
         if distribute:
