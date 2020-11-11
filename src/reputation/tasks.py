@@ -480,6 +480,7 @@ def new_reward_calculation(distribute=False):
     #     hour=23,
     #     minute=59,
     # )
+
     # Checks if rewards should be distributed, given time config
     reward_dis = RewardDistributor()
 
@@ -563,7 +564,7 @@ def new_reward_calculation(distribute=False):
 
         if not success:
             residual_reward_amount = math.floor(
-                (residual + total_reward_amount * 0.05) / residual_count
+                (residual + total_reward_amount * 0.05) / (residual_count - i)
             )
 
     if distribute:
