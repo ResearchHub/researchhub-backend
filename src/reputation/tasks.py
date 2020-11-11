@@ -536,11 +536,15 @@ def new_reward_calculation(distribute=False):
         content_type=discussion_vote
     )
     total_upvotes = paper_upvotes.count() + discussion_upvotes.count()
+    residiual_count = contribution_count - total_upvotes
 
-    reward_amount = math.floor(
-        total_reward_amount / total_upvotes
+    main_reward_amount = math.floor(
+        (total_reward_amount * 0.95) / total_upvotes
     )
-    for i, contribution in enumerate(weekly_contributions.iterator()):
+    residual_reward_amount = math.ceil(
+        (total_reward_amount - main_reward_amount / residiual_count
+    )
+    for i, contribution in enumerate(paper_upvotes.iterator()):
         print(f'{i}/{contribution_count}')
         reward_dis.generate_distribution(
             contribution,
