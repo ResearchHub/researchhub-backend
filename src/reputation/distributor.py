@@ -165,18 +165,6 @@ class RewardDistributor:
             bucket = self.data[email]
             if key == 'papers_uploaded':
                 bucket[key].append(incr)
-            elif key == 'upvotes_on_submissions_1':
-                new_key = incr
-                secondary_data = {
-                    'upvotes_on_submissions': 1
-                }
-                self.log_data(new_key, secondary_data)
-            elif key == 'upvotes_on_comments_1':
-                new_key = incr
-                secondary_data = {
-                    'upvotes_on_comments': 1
-                }
-                self.log_data(new_key, secondary_data)
             else:
                 bucket[key] += incr
 
@@ -281,21 +269,25 @@ class RewardDistributor:
                 item.paper,
                 amount=amount,
                 distribute=distribute,
-                extra={'paper_submissions': 0}
+                extra={
+                    'paper_submissions': 0,
+                    'upvotes_on_submissions': 1,
+                }
             )
         elif item_type is DisVote:
             recipient = item.created_by
-            secondary_recipient = item.item.created_by
             data = {
                 'amount': 0,
-                'upvotes_on_comments_1': (secondary_recipient, amount),
                 **extra
             }
             self.generate_distribution(
                 item.item,
                 amount=amount,
                 distribute=distribute,
-                extra={'comments': 0}
+                extra={
+                    'comments': 0,
+                    'upvotes_on_comments': 1
+                }
             )
         elif item_type is User:
             recipient = item
