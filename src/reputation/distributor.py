@@ -322,10 +322,10 @@ class RewardDistributor:
             raise error
 
         if not recipient:
-            return
+            return False, None, amount
 
         if recipient.email in excluded_recipients:
-            return
+            return False, None, amount
 
         distributor = Distributor(
             dist('REWARD', amount, False),
@@ -341,7 +341,7 @@ class RewardDistributor:
         else:
             distribution = distributor
 
-        return distribution
+        return True, distribution, 0
 
     def get_last_distributions(self, distribute):
         last_distribution = DistributionAmount.objects.filter(
