@@ -565,7 +565,7 @@ def new_reward_calculation(distribute=False):
         if residual:
             print('carrying over residual')
             residual_reward_amount = math.floor(
-                (residual + total_reward_amount * 0.05) / residual_count
+                (residual + total_reward_amount * 0.05) / (residual_count - i)
             )
 
     if distribute:
