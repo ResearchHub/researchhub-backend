@@ -536,14 +536,15 @@ def new_reward_calculation(distribute=False):
         content_type=discussion_vote
     )
     total_upvotes = paper_upvotes.count() + discussion_upvotes.count()
-    residiual_count = contribution_count - total_upvotes
+    residual_count = contribution_count - total_upvotes
 
     main_reward_amount = math.floor(
         (total_reward_amount * 0.95) / total_upvotes
     )
     residual_reward_amount = math.ceil(
-        (total_reward_amount - main_reward_amount) / residiual_count
+        (total_reward_amount - main_reward_amount) / residual_count
     )
+    import pdb; pdb.set_trace()
     for i, contribution in enumerate(weekly_contributions.iterator()):
         print(f'{i}/{contribution_count}')
         if contribution.content_type in (paper_vote, discussion_vote):
