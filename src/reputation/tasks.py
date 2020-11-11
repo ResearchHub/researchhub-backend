@@ -544,7 +544,7 @@ def new_reward_calculation(distribute=False):
     residual_reward_amount = math.ceil(
         (total_reward_amount - main_reward_amount) / residiual_count
     )
-    for i, contribution in enumerate(paper_upvotes.iterator()):
+    for i, contribution in enumerate(weekly_contributions.iterator()):
         print(f'{i}/{contribution_count}')
         if contribution.content_type in (paper_vote, discussion_vote):
             reward_amount = main_reward_amount
