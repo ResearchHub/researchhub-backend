@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Sum
 
 from slugify import slugify
 
@@ -86,14 +87,23 @@ class Hub(models.Model):
                 self.slug = self.slug + '-' + str(self.slug_index)
         return self.slug
 
+    def get_discussion_count(self):
+        return self.papers.filter(is_removed=False).aggregate(disc=Sum('discussion_count'))['disc']
+
+    def get_paper_count(self):
+        return self.papers.filter(is_removed=False).count()
+
+    def get_subscribers_count(self):
+        return self.subscribers.filter(is_suspended=False).count()
+
     @property
     def paper_count_indexing(self):
-        return self.papers.count()
+        return self.get_paper_count()
 
     @property
     def subscriber_count_indexing(self):
-        return self.subscribers.count()
+        return self.get_subscribers_count()
 
     def unlock(self):
         self.is_locked = False
-        self.save()
+        self.save(update_fields=['is_locked'])

@@ -46,9 +46,14 @@ class SummaryViewSet(viewsets.ModelViewSet):
             paper_id=paper_id,
             approved=True
         ).order_by('-approved_date')
-        summary = SummarySerializer(summary_queryset, many=True).data
 
-        return Response(summary, status=200)
+        page = self.paginate_queryset(summary_queryset)
+        if page is not None:
+            serializer = SummarySerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(page, many=True)
+        return Response(serializer.data, status=200)
 
     @transaction.atomic
     def create(self, request):
