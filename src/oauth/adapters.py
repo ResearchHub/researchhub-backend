@@ -24,8 +24,14 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         else:
             saved_user = super().save_user(request, sociallogin, form)
 
+        import pdb; pdb.set_trace()
         tracked_account = events_api.track_account(saved_user, request)
         update_content_risk_score(saved_user, tracked_account)
+        if saved_user.sift_risk_score >= 75:
+            saved_user.set_probable_spammer()
+
+        if saved_user.sift_risk_score >= 85:
+            saved_user.set_suspended()
         return saved_user
 
     def _generate_temporary_username(self, sociallogin):
