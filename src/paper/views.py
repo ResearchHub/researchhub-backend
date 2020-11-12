@@ -172,11 +172,11 @@ class PaperViewSet(viewsets.ModelViewSet):
         if user.is_staff:
             return queryset
         if prefetch:
-            return queryset.filter(query).prefetch_related(
+            return queryset.prefetch_related(
                 *self.prefetch_lookups()
             )
         else:
-            return queryset.filter(query)
+            return queryset
 
     def create(self, *args, **kwargs):
         try:
