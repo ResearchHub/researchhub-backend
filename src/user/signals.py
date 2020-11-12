@@ -67,12 +67,9 @@ def queue_link_paper_to_authors(
     if created or doi_updated(update_fields):
         if instance.doi is not None:
             try:
-                if not TESTING:
-                    link_paper_to_authors.apply_async(
-                        (instance.id,)
-                    )
-                else:
-                    link_paper_to_authors(instance.id)
+                link_paper_to_authors.apply_async(
+                    (instance.id,)
+                )
             except SocialAccount.DoesNotExist:
                 pass
 

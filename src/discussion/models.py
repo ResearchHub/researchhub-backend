@@ -196,17 +196,15 @@ class BaseComment(models.Model):
             new_dis_count = paper.get_discussion_count()
             paper.calculate_hot_score()
 
-            # TODO shouldn't this factor removing?
-            if paper.discussion_count < new_dis_count:
-                for hub in paper.hubs.all():
-                    hub.discussion_count += 1
-                    hub.save()
-
             paper.discussion_count = new_dis_count
-            paper.save()
+            paper.save(update_fields=['discussion_count'])
 
             cache_key = get_cache_key(None, 'paper', self.paper.id)
             cache.delete(cache_key)
+
+            for h in paper.hubs.all():
+                h.discussion_count = h.get_discussion_count()
+                h.save(update_fields=['discussion_count'])
 
             return new_dis_count
         return 0
