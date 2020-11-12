@@ -26,7 +26,7 @@ class Command(BaseCommand):
             user.is_suspended = False
             user.paper_votes.update(is_removed=False)
             user.papers.update(is_removed=False)
-            Thread.objects.filter(created_by=user).update(is_removed=True)
-            Comment.objects.filter(created_by=user).update(is_removed=True)
-            Reply.objects.filter(created_by=user).update(is_removed=True)
+            Thread.objects.filter(created_by=user).update(is_removed=False)
+            Comment.objects.filter(created_by=user).update(is_removed=False)
+            Reply.objects.filter(created_by=user).update(is_removed=False)
             user.save()
