@@ -87,6 +87,7 @@ class BulletPoint(models.Model):
     ordinal = models.IntegerField(default=None, null=True)
     ordinal_is_locked = models.BooleanField(default=False)
     bullet_type = models.CharField(choices=BULLETPOINT_CHOICES, max_length=16)
+    sift_risk_score = models.FloatField(null=True, blank=True)
 
     def __str__(self):
         return '%s: %s' % (self.created_by, self.plain_text)
