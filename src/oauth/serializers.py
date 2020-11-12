@@ -245,10 +245,10 @@ class SocialLoginSerializer(serializers.Serializer):
 
         user = attrs['user']
         if user.sift_risk_score >= 75:
-            saved_user.set_probable_spammer()
+            user.set_probable_spammer()
 
         if user.sift_risk_score >= 85:
-            saved_user.set_suspended()
+            user.set_suspended()
 
         if user.is_authenticated and not user.probable_spammer:
             try:
