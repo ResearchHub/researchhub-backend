@@ -22,6 +22,7 @@ from summary.models import Summary
 from user.tasks import handle_spam_user_task
 from utils.throttles import UserSustainedRateThrottle
 from utils.models import DefaultModel
+from utils.siftscience import decisions_api
 
 
 class User(AbstractUser):
@@ -130,6 +131,9 @@ class User(AbstractUser):
             self.is_suspended = is_suspended
             self.suspended_updated_date = timezone.now()
             self.save(update_fields=['is_suspended', 'suspended_updated_date'])
+
+        if is_suspended:
+            decisions_api.apply_bad_user_decision(self)
 
     def get_balance(self):
         user_balance = self.balances.all()

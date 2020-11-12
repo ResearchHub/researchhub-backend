@@ -63,7 +63,7 @@ def update_content_risk_score(item, tracked_content):
 
 
 class DecisionsApi:
-    def apply_bad_user_decision(self, content_creator, reporter):
+    def apply_bad_user_decision(self, content_creator, reporter=None):
         applyDecisionRequest = {
             'decision_id': 'looks_bad_content_abuse',
             'source': 'MANUAL_REVIEW',
