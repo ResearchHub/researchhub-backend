@@ -255,7 +255,7 @@ class SocialLoginSerializer(serializers.Serializer):
                 country = geo.country(ip)
                 user.country_code = country.get('country_code')
                 user.save()
-                if country.get('country_code') in ['ID', 'IN']:
+                if country.get('country_code') in ['ID']:
                     user.set_probable_spammer()
             except Exception as e:
                 print(e)
