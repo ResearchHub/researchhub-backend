@@ -214,6 +214,11 @@ class SocialLoginSerializer(serializers.Serializer):
         attrs['user'] = login_user
         tracked_login = events_api.track_login(login_user, '$success', request)
         update_content_risk_score(login_user, tracked_login)
+        if saved_user.sift_risk_score >= 75:
+            saved_user.set_probable_spammer()
+
+        if saved_user.sift_risk_score >= 85:
+            saved_user.set_suspended()
 
         try:
             visits = WebsiteVisits.objects.get(uuid=attrs['uuid'])
