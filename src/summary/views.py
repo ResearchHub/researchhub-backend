@@ -48,10 +48,10 @@ class SummaryViewSet(viewsets.ModelViewSet):
 
         page = self.paginate_queryset(summary_queryset)
         if page is not None:
-            serializer = SummarySerializer(summary_queryset, many=True)
+            serializer = SummarySerializer(page, many=True)
             return self.get_paginated_response(serializer.data)
 
-        serializer = self.get_serializer(summary_queryset, many=True)
+        serializer = self.get_serializer(page, many=True)
         return Response(serializer.data, status=200)
 
     @transaction.atomic
