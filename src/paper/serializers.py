@@ -237,7 +237,6 @@ class PaperSerializer(BasePaperSerializer):
                 self._add_raw_authors(validated_data)
 
                 paper = None
-
                 # TODO: Replace this with proper metadata handling
                 if 'https://arxiv.org/abs/' in validated_data.get('url', ''):
                     arxiv_id = validated_data['url'].split('abs/')[1]
@@ -248,6 +247,7 @@ class PaperSerializer(BasePaperSerializer):
                 if paper is None:
                     paper = super(PaperSerializer, self).create(validated_data)
 
+                paper.check_doi()
                 paper_id = paper.id
                 paper_title = paper.paper_title or ''
                 self._check_pdf_title(paper, paper_title, file)
@@ -278,7 +278,11 @@ class PaperSerializer(BasePaperSerializer):
                     )
 
                 self._add_references(paper)
-                tracked_paper = events_api.track_content_paper(user, paper, request)
+                tracked_paper = events_api.track_content_paper(
+                    user,
+                    paper,
+                    request
+                )
                 update_content_risk_score(paper, tracked_paper)
 
                 create_contribution.apply_async(
@@ -439,7 +443,6 @@ class PaperSerializer(BasePaperSerializer):
 
     def _check_pdf_title(self, paper, title, file):
         if type(file) is str:
-            paper.check_doi()
             # For now, don't do anything if file is a url
             return
         else:
@@ -448,7 +451,6 @@ class PaperSerializer(BasePaperSerializer):
     def _check_title_in_pdf(self, paper, title, file):
         title_in_pdf = check_pdf_title(title, file)
         if not title_in_pdf:
-            paper.check_doi()
             # e = Exception('Title not in pdf')
             # sentry.log_info(e)
             return
