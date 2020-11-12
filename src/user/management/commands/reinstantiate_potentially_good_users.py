@@ -18,7 +18,7 @@ class Command(BaseCommand):
             hour=0,
             minute=0,
         )
-        objects = User.objects.filter(created_date__lte=static_start_date, probable_spammer=True)
+        objects = User.objects.filter(created_date__lte=static_start_date)
         count = objects.count()
         for i, user in enumerate(objects):
             print('{} / {}'.format(i, count))
