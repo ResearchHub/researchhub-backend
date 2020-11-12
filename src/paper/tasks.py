@@ -40,6 +40,7 @@ from paper.utils import (
 from utils import sentry
 from utils.http import check_url_contains_pdf
 
+
 @app.task
 def censored_paper_cleanup(paper_id):
     Paper = apps.get_model('paper.Paper')
