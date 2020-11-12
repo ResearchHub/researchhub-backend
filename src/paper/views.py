@@ -80,7 +80,7 @@ from utils.siftscience import events_api, decisions_api
 
 
 class PaperViewSet(viewsets.ModelViewSet):
-    queryset = Paper.objects.filter(is_removed=False)
+    queryset = Paper.objects.filter()
     serializer_class = PaperSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('title', 'doi', 'paper_title')
@@ -161,21 +161,22 @@ class PaperViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self, prefetch=True):
-        query = Q(is_public=True)
         query_params = self.request.query_params
+        queryset = self.queryset
         if query_params.get('make_public') or query_params.get('all'):
-            query = Q()
+            pass
+        else:
+            queryset = self.queryset.filter(is_removed=False)
 
         user = self.request.user
-        queryset = self.queryset
         if user.is_staff:
             return queryset
         if prefetch:
-            return queryset.filter(query).prefetch_related(
+            return queryset.prefetch_related(
                 *self.prefetch_lookups()
             )
         else:
-            return queryset.filter(query)
+            return queryset
 
     def create(self, *args, **kwargs):
         try:
