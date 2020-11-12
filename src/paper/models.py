@@ -476,9 +476,9 @@ class Paper(models.Model):
 
     def check_doi(self):
         for journal_host in journal_hosts:
-            if self.url and journal_host not in self.url:
+            if self.url and journal_host in self.url:
                 return
-            if self.pdf_url and journal_host not in self.pdf_url:
+            if self.pdf_url and journal_host in self.pdf_url:
                 return
 
         if not self.doi:
