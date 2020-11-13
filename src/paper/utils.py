@@ -1,3 +1,4 @@
+import io
 import requests
 
 import fitz
@@ -408,7 +409,6 @@ def fitz_extract_figures(file_path):
 
 
 def clean_pdf(file):
-    import pdb; pdb.set_trace()
     researchgate_1 = 'ResearchGate'
     researchgate_2 = 'Some of the authors of this publication are also working on these related projects'
     researchgate_3 = 'CITATIONS'
@@ -433,7 +433,8 @@ def clean_pdf(file):
 
         if found_items >= 3:
             doc.deletePage(0)
-            doc.save(file.name)
+            pdf_bytes = io.BytesIO(doc.write())
+            file.file = pdf_bytes
     except Exception as e:
         print(e)
     finally:
