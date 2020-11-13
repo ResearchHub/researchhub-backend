@@ -238,9 +238,6 @@ class PaperViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         cache_key = get_cache_key(request, 'paper')
         instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        serializer_data = serializer.data
-        reset_paper_cache(cache_key, serializer_data)
 
         # TODO: This needs improvement so we guarantee that we are tracking
         # file created location when a file is actually being added and not
@@ -258,6 +255,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         hub_ids = request.data.get('hubs', [])
         context = self.get_serializer_context()
+        reset_paper_cache(cache_key, response.data)
         reset_cache(hub_ids, context, request.META)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
