@@ -72,8 +72,8 @@ class Hub(models.Model):
         self.slugify()
         return super(Hub, self).save(*args, **kwargs)
     
-    def get_subscriber_count(self, obj):
-        return obj.subscriber_count
+    def get_subscriber_count(self):
+        return self.subscriber_count
 
     def slugify(self):
         if not self.slug:
@@ -91,7 +91,7 @@ class Hub(models.Model):
         return self.slug
 
     def get_discussion_count(self):
-        return self.papers.filter(is_removed=False).aggregate(disc=Sum('discussion_count'))['disc']
+        return self.papers.filter(is_removed=False).aggregate(disc=Sum('discussion_count'))['disc'] or 0
 
     def get_paper_count(self):
         return self.papers.filter(is_removed=False).count()
