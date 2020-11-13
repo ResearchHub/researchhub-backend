@@ -9,10 +9,11 @@ from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
-from datetime import datetime, timezone
+from datetime import datetime
 from habanero import Crossref
 from manubot.cite.csl_item import CSL_Item
 from bs4 import BeautifulSoup
+from utils import sentry
 
 from paper.lib import (
     journal_hosts,
@@ -436,7 +437,7 @@ def clean_pdf(file):
             pdf_bytes = io.BytesIO(doc.write())
             file.file = pdf_bytes
     except Exception as e:
-        print(e)
+        sentry.log_error(e)
     finally:
         file.seek(0)
 
