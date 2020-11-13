@@ -22,6 +22,7 @@ from user.serializers import UserSerializer
 from utils import sentry
 from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer
 from utils.throttles import THROTTLE_CLASSES
+from researchhub.settings import WEB3_RSC_ADDRESS
 
 
 class WithdrawalViewSet(viewsets.ModelViewSet):
@@ -61,10 +62,14 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             valid, message = self._check_withdrawal_time_limit(request.data.get('to_address'), user)
         if valid:
             try:
-                # with transaction.atomic():
-                response = super().create(request)
-                withdrawal_id = response.data['id']
-                withdrawal = Withdrawal.objects.get(pk=withdrawal_id)
+                to_address = request.data['to_address']
+                amount = request.data['amount']
+                withdrawal = Withdrawal.objects.create(
+                    user=user,
+                    token_address=WEB3_RSC_ADDRESS,
+                    to_address=to_address,
+                    amount=amount
+                )
                 ending_balance_record = self._create_balance_record(
                     withdrawal,
                     starting_balance
