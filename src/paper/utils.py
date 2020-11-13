@@ -1,3 +1,4 @@
+import io
 import requests
 
 import fitz
@@ -8,10 +9,11 @@ from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
-from datetime import datetime, timezone
+from datetime import datetime
 from habanero import Crossref
 from manubot.cite.csl_item import CSL_Item
 from bs4 import BeautifulSoup
+from utils import sentry
 
 from paper.lib import (
     journal_hosts,
@@ -407,11 +409,45 @@ def fitz_extract_figures(file_path):
     fitz_extract_xobj(file_path)
 
 
+def clean_pdf(file):
+    researchgate_1 = 'ResearchGate'
+    researchgate_2 = 'Some of the authors of this publication are also working on these related projects'
+    researchgate_3 = 'CITATIONS'
+    researchgate_4 = 'READS'
+
+    researchgate_strings = (
+        researchgate_1,
+        researchgate_2,
+        researchgate_3,
+        researchgate_4
+    )
+    try:
+        doc = fitz.open(stream=file.read(), filetype='pdf')
+        if doc.pageCount <= 1:
+            return
+
+        found_items = 0
+        first_page = doc[0]
+        for researchgate_str in researchgate_strings:
+            if first_page.searchFor(researchgate_str):
+                found_items += 1
+
+        if found_items >= 3:
+            doc.deletePage(0)
+            pdf_bytes = io.BytesIO(doc.write())
+            file.file = pdf_bytes
+    except Exception as e:
+        sentry.log_error(e)
+    finally:
+        file.seek(0)
+
+
 def check_pdf_title(input_title, file):
     if not input_title or not file:
         return False
 
     try:
+        clean_pdf(file)
         doc = fitz.open(stream=file.read(), filetype='pdf')
         doc_metadata = doc.metadata
         doc_title = doc_metadata.get('title') or ''
@@ -421,7 +457,10 @@ def check_pdf_title(input_title, file):
         normalized_pdf_title = doc_title.lower()
 
         # Checks if the title matches the pdf's metadata first
-        similar = check_similarity(normalized_pdf_title, normalized_input_title)
+        similar = check_similarity(
+            normalized_pdf_title,
+            normalized_input_title
+        )
 
         if similar:
             return True
