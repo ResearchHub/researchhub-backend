@@ -71,6 +71,9 @@ class Hub(models.Model):
         self.name = self.name.lower()
         self.slugify()
         return super(Hub, self).save(*args, **kwargs)
+    
+    def get_subscriber_count(self, obj):
+        return obj.subscriber_count
 
     def slugify(self):
         if not self.slug:
