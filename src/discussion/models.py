@@ -146,7 +146,6 @@ class BaseComment(models.Model):
     endorsement = GenericRelation(Endorsement)
     plain_text = models.TextField(default='', blank=True)
     source = models.CharField(default='researchhub', max_length=32, null=True)
-    sift_risk_score = models.FloatField(null=True, blank=True)
 
     class Meta:
         abstract = True

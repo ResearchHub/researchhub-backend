@@ -35,7 +35,7 @@ from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
 from utils.arxiv import Arxiv
 from utils.http import get_user_from_request, check_url_contains_pdf
-from utils.siftscience import events_api, update_content_risk_score
+from utils.siftscience import events_api, update_user_risk_score
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 
 
@@ -284,7 +284,7 @@ class PaperSerializer(BasePaperSerializer):
                     paper,
                     request
                 )
-                update_content_risk_score(paper, tracked_paper)
+                update_user_risk_score(user, tracked_paper)
 
                 create_contribution.apply_async(
                     (
@@ -370,7 +370,7 @@ class PaperSerializer(BasePaperSerializer):
                         request,
                         update=True
                     )
-                    update_content_risk_score(paper, tracked_paper)
+                    update_user_risk_score(request.user, tracked_paper)
                 return paper
         except Exception as e:
             error = PaperSerializerError(e, 'Failed to update paper')

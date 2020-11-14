@@ -54,7 +54,6 @@ class Summary(models.Model):
         null=True,
         blank=True
     )
-    sift_risk_score = models.FloatField(null=True, blank=True)
 
     def __str__(self):
         return 'Summary: {}, Paper: {}'.format(self.id, self.paper.title)

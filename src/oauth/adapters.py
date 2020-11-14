@@ -10,7 +10,7 @@ from google.auth.transport import requests
 
 from user.models import Author
 from user.utils import merge_author_profiles
-from utils.siftscience import events_api, update_content_risk_score
+from utils.siftscience import events_api, update_user_risk_score
 
 
 class SocialAccountAdapter(DefaultSocialAccountAdapter):
@@ -25,12 +25,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             saved_user = super().save_user(request, sociallogin, form)
 
         tracked_account = events_api.track_account(saved_user, request)
-        update_content_risk_score(saved_user, tracked_account)
-        if saved_user.sift_risk_score >= 75:
-            saved_user.set_probable_spammer()
-
-        if saved_user.sift_risk_score >= 85:
-            saved_user.set_suspended()
+        update_user_risk_score(saved_user, tracked_account)
         return saved_user
 
     def _generate_temporary_username(self, sociallogin):
