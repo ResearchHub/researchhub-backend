@@ -55,11 +55,20 @@ def get_tracked_content_score(tracked_content):
     return round(tracked_content['score_response']['scores']['content_abuse']['score'] * 100, 1)
 
 
-def update_content_risk_score(item, tracked_content):
+def update_user_risk_score(user, tracked_content):
     if tracked_content:
         content_risk_score = get_tracked_content_score(tracked_content)
-        item.sift_risk_score = content_risk_score
-        item.save(update_fields=['sift_risk_score'])
+        user.sift_risk_score = content_risk_score
+        user.save(update_fields=['sift_risk_score'])
+        check_user_risk(user)
+
+
+def check_user_risk(user):
+    if user.sift_risk_score > 75:
+        user.set_probable_spammer()
+    if user.sift_risk_score > 90:
+        user.set_suspended()
+        decisions_api.apply_bad_user_decision(user)
 
 
 class DecisionsApi:
@@ -73,7 +82,7 @@ class DecisionsApi:
         }
 
         try:
-            response = client.apply_user_decision(str(content_creator.id), applyDecisionRequest)
+            client.apply_user_decision(str(content_creator.id), applyDecisionRequest)
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e)
@@ -88,14 +97,13 @@ class DecisionsApi:
         }
 
         try:
-            response = client.apply_content_decision(str(content_creator.id), content_id, applyDecisionRequest)
+            client.apply_content_decision(str(content_creator.id), content_id, applyDecisionRequest)
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e)
 
 
 class EventsApi:
-
     def create_meta_properties(self, request, exclude_ip=False):
         user_agent = request.META.get('HTTP_USER_AGENT', '')
         properties = {

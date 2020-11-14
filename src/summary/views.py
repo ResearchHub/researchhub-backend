@@ -17,8 +17,7 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
-from utils.siftscience import events_api, update_content_risk_score
-
+from utils.siftscience import events_api, update_user_risk_score
 # TODO: Add flagging actions and permissions
 
 
@@ -149,7 +148,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
         )
             
         tracked_summary = events_api.track_content_summary(user, new_summary, request, update=bool(previous_summary))
-        update_content_risk_score(new_summary, tracked_summary)
+        update_user_risk_score(user, tracked_summary)
 
         return new_summary
 

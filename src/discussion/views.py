@@ -72,7 +72,7 @@ from utils import sentry
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from utils.permissions import CreateOrUpdateIfAllowed
-from utils.siftscience import events_api, decisions_api, update_content_risk_score
+from utils.siftscience import events_api, decisions_api, update_user_risk_score
 
 
 class ActionMixin:
@@ -292,8 +292,7 @@ class ActionMixin:
             request,
             is_thread=is_thread
         )
-        update_content_risk_score(item, tracked_comment)
-
+        update_user_risk_score(item.created_by, tracked_comment)
 
     def sift_track_update_content_comment(
         self,
@@ -310,7 +309,7 @@ class ActionMixin:
             is_thread=is_thread,
             update=True
         )
-        update_content_risk_score(item, tracked_comment)
+        update_user_risk_score(item.created_by, tracked_comment)
 
 
 class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
