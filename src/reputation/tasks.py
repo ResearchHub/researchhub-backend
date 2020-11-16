@@ -430,8 +430,9 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
                 distribute=True
             )
 
-    last_distribution.distributed = True
-    last_distribution.save()
+    if distribute:
+        last_distribution.distributed = True
+        last_distribution.save()
 
     total_sorted = {k: v for k, v in sorted(total_rewards.items(), key=lambda item: item[1], reverse=True)}
     for key in total_sorted:
