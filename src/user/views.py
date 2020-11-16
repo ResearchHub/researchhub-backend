@@ -23,7 +23,7 @@ from paper.models import Paper, Vote
 from paper.views import PaperViewSet
 from paper.serializers import PaperSerializer, HubPaperSerializer
 from user.filters import AuthorFilter
-from user.models import User, University, Author, Major
+from user.models import User, University, Author, Major, Verification
 from user.permissions import UpdateAuthor, Censor
 from user.serializers import (
     AuthorSerializer,
@@ -32,7 +32,8 @@ from user.serializers import (
     UserEditableSerializer,
     UserSerializer,
     UserActions,
-    MajorSerializer
+    MajorSerializer,
+    VerificationSerializer
 )
 
 from utils.http import RequestMethods
@@ -67,7 +68,7 @@ class UserViewSet(viewsets.ModelViewSet):
         elif user.is_authenticated:
             return User.objects.filter(id=user.id)
         else:
-            return User.objects.none()
+            return User.objects.none()        
 
     @action(
         detail=False,
@@ -277,6 +278,25 @@ class MajorViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('major', 'major_category')
     permission_classes = [AllowAny]
+
+
+class VerificationViewSet(viewsets.ModelViewSet):
+    queryset = Verification.objects.all()
+    serializer_class = VerificationSerializer
+
+    @action(
+        detail=False,
+        methods=['post'],
+    )
+    def bulk_upload(self, request):
+        images = request.data.getlist('images')
+        for image in images:
+            Verification.objects.create(
+                file=image,
+                user=request.user,
+            )
+        
+        return Response({'message': 'Verification was uploaded!'})
 
 
 class AuthorViewSet(viewsets.ModelViewSet):

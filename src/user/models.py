@@ -165,6 +165,22 @@ def attach_author_and_email_preference(
         Wallet.objects.create(author=author)
 
 
+class Verification(models.Model):
+    user = models.ForeignKey(
+        User,
+        related_name='verification',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
+    file = models.FileField(
+        upload_to='uploads/verification/%Y/%m/%d',
+        default=None,
+        null=True,
+        blank=True
+    )
+
+
 class University(models.Model):
     name = models.CharField(max_length=255)
     country = models.CharField(max_length=255)
