@@ -123,7 +123,7 @@ def distribute_rewards(
     paper_vote = ContentType.objects.get_for_model(PaperVote)
     discussion_vote = ContentType.objects.get_for_model(DisVote)
 
-    if end_date is not None:
+    if end_date is None:
         end_date = datetime.datetime.now(tz=pytz.utc)
 
     # Checks if rewards should be distributed, given time config
@@ -162,6 +162,7 @@ def distribute_rewards(
     if last_distribution:
         total_reward_amount = last_distribution.amount
 
+    import pdb; pdb.set_trace()
     weekly_contributions = Contribution.objects.filter(
         created_date__gt=starting_date,
         created_date__lte=end_date,
