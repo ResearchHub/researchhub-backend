@@ -177,6 +177,8 @@ router.register(r'user', user.views.UserViewSet)
 
 router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
 
+router.register(r'user_verification', user.views.VerificationViewSet)
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
