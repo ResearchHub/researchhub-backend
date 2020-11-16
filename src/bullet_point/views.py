@@ -12,6 +12,7 @@ from rest_framework.response import Response
 
 from bullet_point.models import (
     BulletPoint,
+    Vote,
     create_endorsement,
     create_flag,
     retrieve_endorsement,
@@ -28,12 +29,18 @@ from bullet_point.permissions import (
 from bullet_point.serializers import (
     BulletPointSerializer,
     EndorsementSerializer,
-    FlagSerializer
+    FlagSerializer,
+    BulletPointVoteSerializer
 )
 from utils.http import DELETE, POST, PATCH, PUT
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
-from utils.siftscience import events_api, decisions_api, update_user_risk_score
+
+from utils.siftscience import (
+    events_api,
+    decisions_api,
+    update_user_risk_score
+)
 
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
@@ -95,7 +102,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
 
         response = super().create(request, *args, **kwargs)
         bullet_id = response.data['id']
-    
+
         bullet_point = BulletPoint.objects.get(pk=response.data['id'])
         tracked_bullet_point = events_api.track_content_bullet_point(
             bullet_point.created_by,
@@ -215,7 +222,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
             )
             bullet_point.remove_from_head()
             bullet_point.save()
-            
+
             tracked_bullet_point = events_api.track_content_bullet_point(
                 head_bullet_point.created_by,
                 head_bullet_point,
@@ -338,11 +345,105 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
 
         return Response('Success', status=status.HTTP_200_OK)
 
-    def upvote(self, *args, **kwargs):
-        pass
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[
+            CreateOrUpdateIfAllowed
+        ]
+    )
+    def upvote(self, request, pk=None):
+        item = self.get_object()
+        user = request.user
 
-    def downvote(self, *args, **kwargs):
-        pass
+        vote_exists = find_vote(user, item, Vote.UPVOTE)
 
-    def user_vote(self, *args, **kwargs):
-        pass
+        if vote_exists:
+            return Response(
+                'This vote already exists',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        response = update_or_create_vote(request, user, item, Vote.UPVOTE)
+        return response
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[
+            CreateOrUpdateIfAllowed
+        ]
+    )
+    def downvote(self, request, pk=None):
+        item = self.get_object()
+        user = request.user
+
+        vote_exists = find_vote(user, item, Vote.DOWNVOTE)
+
+        if vote_exists:
+            return Response(
+                'This vote already exists',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        response = update_or_create_vote(request, user, item, Vote.DOWNVOTE)
+        return response
+
+
+def create_vote(user, bulletpoint, vote_type):
+    vote = Vote(
+        created_by=user,
+        bulletpoint=bulletpoint,
+        vote_type=vote_type
+    )
+    vote.save()
+    return vote
+
+
+def find_vote(user, bulletpoint, vote_type):
+    vote = Vote.objects.filter(
+        bulletpoint=bulletpoint,
+        created_by=user,
+        vote_type=vote_type
+    )
+    if vote:
+        return True
+    return False
+
+
+def retrieve_vote(user, bulletpoint):
+    try:
+        return Vote.objects.get(
+            bulletpoint=bulletpoint,
+            created_by=user.id
+        )
+    except Vote.DoesNotExist:
+        return None
+
+
+def get_vote_response(vote, status_code):
+    serializer = BulletPointVoteSerializer(vote)
+    return Response(serializer.data, status=status_code)
+
+
+def update_or_create_vote(request, user, bulletpoint, vote_type):
+    vote = retrieve_vote(user, bulletpoint)
+
+    if vote:
+        vote.vote_type = vote_type
+        vote.save(update_fields=['updated_date', 'vote_type'])
+        events_api.track_content_vote(user, vote, request)
+        return get_vote_response(vote, 200)
+
+    vote = create_vote(user, bulletpoint, vote_type)
+    events_api.track_content_vote(user, vote, request)
+    create_contribution.apply_async(
+        (
+            Contribution.UPVOTER,
+            {'app_label': 'bullet_point', 'model': 'vote'},
+            user.id,
+            bulletpoint.paper.id,
+            vote.id
+        ),
+        priority=3,
+        countdown=10
+    )
+    return get_vote_response(vote, 201)
