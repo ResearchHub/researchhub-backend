@@ -7,9 +7,16 @@ from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from discussion.lib import check_is_discussion_item
 from hub.serializers import HubSerializer
 from paper.models import Vote as PaperVote, Paper
-from user.models import Action, Author, University, User, Major
+from user.models import Action, Author, University, User, Major, Verification
 from summary.models import Summary
 from utils import sentry
+
+
+class VerificationSerializer(rest_framework_serializers.ModelSerializer):
+    class Meta:
+        model = Verification
+        fields = '__all__'
+
 
 class UniversitySerializer(rest_framework_serializers.ModelSerializer):
     class Meta:
