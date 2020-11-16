@@ -162,10 +162,12 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         decisions_api.apply_bad_content_decision(
             content_creator,
             content_id,
+            'MANUAL_REVIEW',
             user
         )
         decisions_api.apply_bad_user_decision(
             content_creator,
+            'MANUAL_REVIEW',
             user
         )
 
