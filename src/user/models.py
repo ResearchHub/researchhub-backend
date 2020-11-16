@@ -166,10 +166,10 @@ def attach_author_and_email_preference(
 
 
 class Verification(models.Model):
-    user = models.OneToOneField(
+    user = models.ForeignKey(
         User,
         related_name='verification',
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         null=True,
         blank=True
     )
