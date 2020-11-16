@@ -1,13 +1,15 @@
 import rest_framework.serializers as serializers
 
-from .models import Summary
+from .models import Summary, Vote
 from user.serializers import UserSerializer
+from utils.http import get_user_from_request
 
 
 class PreviousSummarySerializer(serializers.ModelSerializer):
     class Meta:
         fields = '__all__'
         model = Summary
+
 
 class SummarySerializer(serializers.ModelSerializer):
     proposed_by = UserSerializer(
@@ -16,6 +18,8 @@ class SummarySerializer(serializers.ModelSerializer):
     )
     previous__summary = serializers.SerializerMethodField()
     paper_title = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
 
     class Meta:
         fields = '__all__'
@@ -30,3 +34,34 @@ class SummarySerializer(serializers.ModelSerializer):
             return previous['summary']
         else:
             return None
+
+    def get_score(self, obj):
+        return obj.calculate_score()
+
+    def get_user_vote(self, obj):
+        user = get_user_from_request(self.context)
+        if user:
+            vote = obj.votes.filter(created_by=user)
+            if vote.exists():
+                return SummaryVoteSerializer(vote.last()).data
+            return False
+        return False
+
+
+class SummaryVoteSerializer(serializers.ModelSerializer):
+    summary = serializers.SerializerMethodField()
+
+    class Meta:
+        fields = [
+            'created_by',
+            'created_date',
+            'vote_type',
+            'summary',
+        ]
+        model = Vote
+
+    def get_summary(self, obj):
+        if self.context.get('include_summary_data', False):
+            serializer = SummarySerializer(obj.summary)
+            return serializer.data
+        return None

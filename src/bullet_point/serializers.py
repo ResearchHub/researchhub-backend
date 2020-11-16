@@ -1,7 +1,8 @@
 from rest_framework import serializers
 
-from bullet_point.models import BulletPoint, Endorsement, Flag
+from bullet_point.models import BulletPoint, Endorsement, Flag, Vote
 from user.serializers import UserSerializer
+from utils.http import get_user_from_request
 
 
 class EndorsementSerializer(serializers.ModelSerializer):
@@ -51,6 +52,8 @@ class BulletPointSerializer(serializers.ModelSerializer):
         default=serializers.CurrentUserDefault()
     )
     editors = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
     endorsements = EndorsementSerializer(read_only=True, many=True)
     flags = FlagSerializer(read_only=True, many=True)
 
@@ -81,6 +84,18 @@ class BulletPointSerializer(serializers.ModelSerializer):
     def get_editors(self, obj):
         return UserSerializer(obj.editors, many=True).data
 
+    def get_score(self, obj):
+        return obj.calculate_score()
+
+    def get_user_vote(self, obj):
+        user = get_user_from_request(self.context)
+        if user:
+            vote = obj.votes.filter(created_by=user)
+            if vote.exists():
+                return BulletPointVoteSerializer(vote.last()).data
+            return False
+        return False
+
 
 class BulletPointTextOnlySerializer(serializers.ModelSerializer):
     paper = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
@@ -96,3 +111,22 @@ class BulletPointTextOnlySerializer(serializers.ModelSerializer):
             'text',
         ]
         read_only_fields = fields
+
+
+class BulletPointVoteSerializer(serializers.ModelSerializer):
+    bullet_point = serializers.SerializerMethodField()
+
+    class Meta:
+        fields = [
+            'created_by',
+            'created_date',
+            'vote_type',
+            'bullet_point',
+        ]
+        model = Vote
+
+    def get_bullet_point(self, obj):
+        if self.context.get('include_bullet_data', False):
+            serializer = BulletPointSerializer(obj.bulletpoint)
+            return serializer.data
+        return None
