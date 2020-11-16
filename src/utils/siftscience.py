@@ -67,15 +67,14 @@ def check_user_risk(user):
     if user.sift_risk_score > 75:
         user.set_probable_spammer()
     if user.sift_risk_score > 90:
-        user.set_suspended()
-        decisions_api.apply_bad_user_decision(user)
+        user.set_suspended(is_manual=False)
 
 
 class DecisionsApi:
-    def apply_bad_user_decision(self, content_creator, reporter=None):
+    def apply_bad_user_decision(self, content_creator, source='AUTOMATED_RULE', reporter=None):
         applyDecisionRequest = {
             'decision_id': 'looks_bad_content_abuse',
-            'source': 'MANUAL_REVIEW',
+            'source': source,
             'analyst': reporter.email if reporter else 'analyst@researchhub.com',
             'description': 'User looks risky for content abuse',
             'reason': 'User looks risky for content abuse',
@@ -87,10 +86,10 @@ class DecisionsApi:
             sentry.log_error(e)
             print(e)
 
-    def apply_bad_content_decision(self, content_creator, content_id, reporter):
+    def apply_bad_content_decision(self, content_creator, content_id, source='AUTOMATED_RULE', reporter=None):
         applyDecisionRequest = {
             'decision_id': 'content_looks_bad_content_abuse',
-            'source': 'MANUAL_REVIEW',
+            'source': source,
             'analyst': reporter.email if reporter else 'analyst@researchhub.com',
             'description': 'Auto flag of moderator-removed content',
             'reason': 'Auto flag of moderator-removed content',
