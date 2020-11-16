@@ -72,7 +72,11 @@ from utils import sentry
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from utils.permissions import CreateOrUpdateIfAllowed
-from utils.siftscience import events_api, decisions_api, update_content_risk_score
+from utils.siftscience import (
+    events_api,
+    decisions_api,
+    update_content_risk_score
+)
 
 
 class ActionMixin:
@@ -293,7 +297,6 @@ class ActionMixin:
             is_thread=is_thread
         )
         update_content_risk_score(item, tracked_comment)
-
 
     def sift_track_update_content_comment(
         self,
@@ -716,12 +719,19 @@ def update_or_create_vote(request, user, item, vote_type):
 
     vote = create_vote(user, item, vote_type)
     events_api.track_content_vote(user, vote, request)
-    # Do we want to create contributions for people who upvote discussions?
-    # create_contribution.apply_async(
-    #     (Contribution.UPVOTER, {}, user.id, vote.paper.id, vote.id),
-    #     priority=3,
-    #     countdown=10
-    # )
+
+    paper_id = vote.paper.id
+    create_contribution.apply_async(
+        (
+            Contribution.UPVOTER,
+            {'app_label': 'discussion', 'model': 'vote'},
+            user.id,
+            paper_id,
+            vote.id
+        ),
+        priority=3,
+        countdown=10
+    )
     return get_vote_response(vote, 201)
 
 
