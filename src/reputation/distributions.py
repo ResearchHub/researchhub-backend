@@ -90,7 +90,7 @@ SummaryFlagged = Distribution(
 )
 
 Referral = Distribution(
-    'REFERRAL', 125, False
+    'REFERRAL', 50, False
 )
 
 DISTRIBUTION_TYPE_CHOICES = [
