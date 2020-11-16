@@ -284,6 +284,20 @@ class VerificationViewSet(viewsets.ModelViewSet):
     queryset = Verification.objects.all()
     serializer_class = VerificationSerializer
 
+    @action(
+        detail=False,
+        methods=['post'],
+    )
+    def bulk_upload(self, request):
+        images = request.data.getlist('images')
+        for image in images:
+            Verification.objects.create(
+                file=image,
+                user=request.user,
+            )
+        
+        return Response({'message': 'Verification was uploaded!'})
+
 
 class AuthorViewSet(viewsets.ModelViewSet):
     queryset = Author.objects.all()
