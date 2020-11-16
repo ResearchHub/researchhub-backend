@@ -360,7 +360,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         print('{} / {}'.format(i, count))
         score = obj.calculate_score()
         comment_score += score
-        user_key = replies.created_by.email
+        user_key = obj.created_by.email
         if user_key in IGNORE_USERS:
             continue
         if user_key in comment_votes_count:
@@ -384,7 +384,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         print('{} / {}'.format(i, count))
         score = obj.calculate_score()
         comment_score += score
-        user_key = comments.created_by.email
+        user_key = obj.created_by.email
         if user_key in IGNORE_USERS:
             continue
         if user_key in comment_votes_count:
