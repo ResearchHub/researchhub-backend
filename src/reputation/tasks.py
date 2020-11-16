@@ -162,7 +162,6 @@ def distribute_rewards(
     if last_distribution:
         total_reward_amount = last_distribution.amount
 
-    import pdb; pdb.set_trace()
     weekly_contributions = Contribution.objects.filter(
         created_date__gt=starting_date,
         created_date__lte=end_date,
