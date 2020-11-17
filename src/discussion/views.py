@@ -179,10 +179,6 @@ class ActionMixin:
             content_id,
             user
         )
-        decisions_api.apply_bad_user_decision(
-            content_creator,
-            user
-        )
 
         content_type = get_content_type_for_model(item)
         Contribution.objects.filter(
