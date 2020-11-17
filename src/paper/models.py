@@ -484,18 +484,19 @@ class Paper(models.Model):
             if self.pdf_url and journal_host in self.pdf_url:
                 return
 
-        has_doi = self.doi.startswith(DOI_IDENTIFIER)
-        has_arxiv = self.doi.startswith(ARXIV_IDENTIFIER)
+        doi = self.doi or ''
+        has_doi = doi.startswith(DOI_IDENTIFIER)
+        has_arxiv = doi.startswith(ARXIV_IDENTIFIER)
 
         # For pdf uploads, checks if doi has an arxiv identifer
         if has_arxiv:
             return
 
-        if not self.doi:
+        if not doi:
             self.is_removed = True
 
         res = requests.get(
-            'https://doi.org/api/handles/{}'.format(self.doi),
+            'https://doi.org/api/handles/{}'.format(doi),
             headers=requests.utils.default_headers()
         )
         if res.status_code >= 200 and res.status_code < 300 and has_doi:
