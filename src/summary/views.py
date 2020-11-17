@@ -213,6 +213,28 @@ class SummaryViewSet(viewsets.ModelViewSet):
         response = update_or_create_vote(request, user, item, Vote.DOWNVOTE)
         return response
 
+    @action(
+        detail=False,
+        methods=['get'],
+    )
+    def check_user_vote(self, request):
+        summary_ids = request.query_params['summary_ids'].split(',')
+        user = request.user
+        response = {}
+
+        if user.is_authenticated:
+            votes = Vote.objects.filter(
+                summary__id__in=summary_ids,
+                created_by=user
+            )
+
+            for vote in votes.iterator():
+                summary_id = vote.summary_id
+                data = SummaryVoteSerializer(instance=vote).data
+                response[summary_id] = data
+
+        return Response(response, status=status.HTTP_200_OK)
+
 
 def create_vote(user, summary, vote_type):
     vote = Vote(
