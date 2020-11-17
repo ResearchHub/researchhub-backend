@@ -264,6 +264,7 @@ class UserActions:
                     f'Instance of type {type(item)} is not supported'
                 )
 
+            is_removed = False
             paper = None
             if isinstance(item, Paper):
                 paper = item
@@ -278,6 +279,9 @@ class UserActions:
                 data['paper_title'] = paper.title
                 data['paper_official_title'] = paper.paper_title
                 data['slug'] = paper.slug
+
+            if paper.is_removed:
+                is_removed = True
 
             if isinstance(item, Thread):
                 thread = item
@@ -321,7 +325,8 @@ class UserActions:
                     data['comment_id'] = comment.id
                 data['reply_id'] = item.id
 
-            self.serialized.append(data)
+            if not is_removed:
+                self.serialized.append(data)
 
     def _get_serialized_creator(self, item):
         if isinstance(item, Summary):
