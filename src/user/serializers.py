@@ -280,8 +280,8 @@ class UserActions:
                 data['paper_official_title'] = paper.paper_title
                 data['slug'] = paper.slug
 
-            if paper.is_removed:
-                is_removed = True
+                if paper.is_removed:
+                    is_removed = True
 
             if isinstance(item, Thread):
                 thread = item
