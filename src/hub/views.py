@@ -159,7 +159,7 @@ class HubViewSet(viewsets.ModelViewSet):
         try:
             hub.subscribers.remove(request.user)
             hub.subscriber_count = hub.get_subscriber_count()
-            hub.save(update_fields='subscriber_count')
+            hub.save(update_fields=['subscriber_count'])
             return self._get_hub_serialized_response(hub, 200)
         except Exception as e:
             return Response(str(e), status=400)
