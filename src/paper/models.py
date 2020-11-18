@@ -36,6 +36,8 @@ from utils.arxiv import Arxiv
 from utils.crossref import Crossref
 from utils.semantic_scholar import SemanticScholar
 
+DOI_IDENTIFIER = '10.'
+ARXIV_IDENTIFIER = 'arXiv:'
 HOT_SCORE_WEIGHT = 5
 HELP_TEXT_IS_PUBLIC = (
     'Hides the paper from the public.'
@@ -474,17 +476,29 @@ class Paper(models.Model):
             celery_extract_pdf_preview(self.id)
 
     def check_doi(self):
+        # For url uploads, checks if url is in allowed hosts
         for journal_host in journal_hosts:
             if self.url and journal_host in self.url:
                 return
             if self.pdf_url and journal_host in self.pdf_url:
                 return
 
-        if not self.doi:
+        doi = self.doi or ''
+        has_doi = doi.startswith(DOI_IDENTIFIER)
+        has_arxiv = doi.startswith(ARXIV_IDENTIFIER)
+
+        # For pdf uploads, checks if doi has an arxiv identifer
+        if has_arxiv:
+            return
+
+        if not doi:
             self.is_removed = True
 
-        r = requests.get('https://doi.org/{}'.format(self.doi))
-        if r.status_code >= 200 and r.status_code < 300:
+        res = requests.get(
+            'https://doi.org/api/handles/{}'.format(doi),
+            headers=requests.utils.default_headers()
+        )
+        if res.status_code >= 200 and res.status_code < 300 and has_doi:
             self.is_removed = False
         else:
             self.is_removed = True

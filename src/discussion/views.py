@@ -180,11 +180,6 @@ class ActionMixin:
             'MANUAL_REVIEW',
             user
         )
-        decisions_api.apply_bad_user_decision(
-            content_creator,
-            'MANUAL_REVIEW',
-            user
-        )
 
         content_type = get_content_type_for_model(item)
         Contribution.objects.filter(
