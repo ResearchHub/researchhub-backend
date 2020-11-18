@@ -110,11 +110,17 @@ class HubViewSet(viewsets.ModelViewSet):
     )
     def censor(self, request, pk=None):
         hub = self.get_object()
-        hub.is_removed = True
-        hub.save()
 
         # Remove Papers with no other hubs
         Paper.objects.annotate(cnt=Count('hubs', filter=Q(hubs__is_removed=False))).filter(cnt__lte=1, hubs__id=hub.id).update(is_removed=True)
+
+        # Update Hub
+        hub.is_removed = True
+
+        hub.paper_count = hub.get_paper_count()
+        hub.discussion_count = hub.get_discussion_count()
+
+        hub.save(update_fields=['is_removed', 'paper_count', 'discussion_count'])
 
         reset_cache([hub.id], {}, None)
         return Response(
@@ -131,8 +137,8 @@ class HubViewSet(viewsets.ModelViewSet):
         hub = self.get_object()
         try:
             hub.subscribers.add(request.user)
-            hub.subscriber_count += 1
-            hub.save()
+            hub.subscriber_count = hub.get_subscriber_count()
+            hub.save(update_fields=['subscriber_count'])
 
             if hub.is_locked and (
                 len(hub.subscribers.all()) > Hub.UNLOCK_AFTER
@@ -152,8 +158,8 @@ class HubViewSet(viewsets.ModelViewSet):
         hub = self.get_object()
         try:
             hub.subscribers.remove(request.user)
-            hub.subscriber_count -= 1
-            hub.save()
+            hub.subscriber_count = hub.get_subscriber_count()
+            hub.save(update_fields=['subscriber_count'])
             return self._get_hub_serialized_response(hub, 200)
         except Exception as e:
             return Response(str(e), status=400)

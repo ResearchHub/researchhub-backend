@@ -80,7 +80,7 @@ from utils.siftscience import events_api, decisions_api
 
 
 class PaperViewSet(viewsets.ModelViewSet):
-    queryset = Paper.objects.filter(is_removed=False)
+    queryset = Paper.objects.filter()
     serializer_class = PaperSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('title', 'doi', 'paper_title')
@@ -161,21 +161,22 @@ class PaperViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self, prefetch=True):
-        query = Q(is_public=True)
         query_params = self.request.query_params
+        queryset = self.queryset
         if query_params.get('make_public') or query_params.get('all'):
-            query = Q()
+            pass
+        else:
+            queryset = self.queryset.filter(is_removed=False)
 
         user = self.request.user
-        queryset = self.queryset
         if user.is_staff:
             return queryset
         if prefetch:
-            return queryset.filter(query).prefetch_related(
+            return queryset.prefetch_related(
                 *self.prefetch_lookups()
             )
         else:
-            return queryset.filter(query)
+            return queryset
 
     def create(self, *args, **kwargs):
         try:
@@ -237,9 +238,6 @@ class PaperViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         cache_key = get_cache_key(request, 'paper')
         instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        serializer_data = serializer.data
-        reset_paper_cache(cache_key, serializer_data)
 
         # TODO: This needs improvement so we guarantee that we are tracking
         # file created location when a file is actually being added and not
@@ -255,8 +253,9 @@ class PaperViewSet(viewsets.ModelViewSet):
             instance = self.get_object()
             self._send_created_location_ga_event(instance, request.user)
 
-        hub_ids = request.data.getlist('hubs', [])
+        hub_ids = request.data.get('hubs', [])
         context = self.get_serializer_context()
+        reset_paper_cache(cache_key, response.data)
         reset_cache(hub_ids, context, request.META)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
@@ -311,10 +310,12 @@ class PaperViewSet(viewsets.ModelViewSet):
         decisions_api.apply_bad_content_decision(
             content_creator,
             content_id,
+            'MANUAL_REVIEW',
             user
         )
         decisions_api.apply_bad_user_decision(
             content_creator,
+            'MANUAL_REVIEW',
             user
         )
 
@@ -354,10 +355,12 @@ class PaperViewSet(viewsets.ModelViewSet):
         decisions_api.apply_bad_content_decision(
             content_creator,
             content_id,
+            'MANUAL_REVIEW',
             user
         )
         decisions_api.apply_bad_user_decision(
             content_creator,
+            'MANUAL_REVIEW',
             user
         )
 

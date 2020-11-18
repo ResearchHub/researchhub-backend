@@ -22,6 +22,7 @@ from summary.models import Summary
 from user.tasks import handle_spam_user_task
 from utils.throttles import UserSustainedRateThrottle
 from utils.models import DefaultModel
+from utils.siftscience import decisions_api
 
 
 class User(AbstractUser):
@@ -125,11 +126,15 @@ class User(AbstractUser):
         if probable_spammer:
             handle_spam_user_task.apply_async((self.id,), priority=3)
 
-    def set_suspended(self, is_suspended=True):
+    def set_suspended(self, is_suspended=True, is_manual=True):
         if self.is_suspended != is_suspended:
             self.is_suspended = is_suspended
             self.suspended_updated_date = timezone.now()
             self.save(update_fields=['is_suspended', 'suspended_updated_date'])
+
+        if is_suspended:
+            source = 'MANUAL_REVIEW' if is_manual else 'AUTOMATED_RULE'
+            decisions_api.apply_bad_user_decision(self, source)
 
     def get_balance(self):
         user_balance = self.balances.all()
@@ -159,6 +164,22 @@ def attach_author_and_email_preference(
             last_name=instance.last_name,
         )
         Wallet.objects.create(author=author)
+
+
+class Verification(models.Model):
+    user = models.ForeignKey(
+        User,
+        related_name='verification',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
+    file = models.FileField(
+        upload_to='uploads/verification/%Y/%m/%d',
+        default=None,
+        null=True,
+        blank=True
+    )
 
 
 class University(models.Model):

@@ -67,12 +67,9 @@ def queue_link_paper_to_authors(
     if created or doi_updated(update_fields):
         if instance.doi is not None:
             try:
-                if not TESTING:
-                    link_paper_to_authors.apply_async(
-                        (instance.id,)
-                    )
-                else:
-                    link_paper_to_authors(instance.id)
+                link_paper_to_authors.apply_async(
+                    (instance.id,)
+                )
             except SocialAccount.DoesNotExist:
                 pass
 
@@ -149,7 +146,7 @@ def create_action(sender, instance, created, **kwargs):
 
                 if thread.is_removed:
                     content_id = f'{type(thread).__name__}_{thread.id}'
-                    decisions_api.apply_bad_content_decision(thread.created_by, content_id, None)
+                    decisions_api.apply_bad_content_decision(thread.created_by, content_id)
                     events_api.track_flag_content(
                         thread.created_by,
                         content_id,

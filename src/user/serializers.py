@@ -7,9 +7,16 @@ from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from discussion.lib import check_is_discussion_item
 from hub.serializers import HubSerializer
 from paper.models import Vote as PaperVote, Paper
-from user.models import Action, Author, University, User, Major
+from user.models import Action, Author, University, User, Major, Verification
 from summary.models import Summary
 from utils import sentry
+
+
+class VerificationSerializer(rest_framework_serializers.ModelSerializer):
+    class Meta:
+        model = Verification
+        fields = '__all__'
+
 
 class UniversitySerializer(rest_framework_serializers.ModelSerializer):
     class Meta:
@@ -257,6 +264,7 @@ class UserActions:
                     f'Instance of type {type(item)} is not supported'
                 )
 
+            is_removed = False
             paper = None
             if isinstance(item, Paper):
                 paper = item
@@ -271,6 +279,9 @@ class UserActions:
                 data['paper_title'] = paper.title
                 data['paper_official_title'] = paper.paper_title
                 data['slug'] = paper.slug
+
+                if paper.is_removed:
+                    is_removed = True
 
             if isinstance(item, Thread):
                 thread = item
@@ -314,7 +325,8 @@ class UserActions:
                     data['comment_id'] = comment.id
                 data['reply_id'] = item.id
 
-            self.serialized.append(data)
+            if not is_removed:
+                self.serialized.append(data)
 
     def _get_serialized_creator(self, item):
         if isinstance(item, Summary):
