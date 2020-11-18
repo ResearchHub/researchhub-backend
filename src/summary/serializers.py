@@ -40,7 +40,7 @@ class SummarySerializer(serializers.ModelSerializer):
 
     def get_user_vote(self, obj):
         user = get_user_from_request(self.context)
-        if user and not user.is_anonymous:
+        if user and user.is_authenticated:
             vote = obj.votes.filter(created_by=user)
             if vote.exists():
                 return SummaryVoteSerializer(vote.last()).data
