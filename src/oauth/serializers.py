@@ -21,7 +21,7 @@ from researchhub.settings import GOOGLE_REDIRECT_URL, GOOGLE_YOLO_REDIRECT_URL
 from user.models import Author, User
 from user.utils import merge_author_profiles
 from utils import sentry
-from utils.siftscience import events_api, update_content_risk_score
+from utils.siftscience import events_api, update_user_risk_score, check_user_risk
 from analytics.models import WebsiteVisits
 
 from django.contrib.gis.geoip2 import GeoIP2
@@ -176,7 +176,7 @@ class SocialLoginSerializer(serializers.Serializer):
                     '$failure',
                     request
                 )
-                update_content_risk_score(login_user, tracked_login)
+                update_user_risk_score(login_user, tracked_login)
                 raise LoginError(None, 'Account is suspended')
         except Exception as e:
             error = LoginError(e, 'Login failed')
@@ -213,7 +213,7 @@ class SocialLoginSerializer(serializers.Serializer):
         login_user = login.account.user
         attrs['user'] = login_user
         tracked_login = events_api.track_login(login_user, '$success', request)
-        update_content_risk_score(login_user, tracked_login)
+        update_user_risk_score(login_user, tracked_login)
 
         try:
             visits = WebsiteVisits.objects.get(uuid=attrs['uuid'])
@@ -245,12 +245,14 @@ class SocialLoginSerializer(serializers.Serializer):
             ip = request.META.get('REMOTE_ADDR')
 
         user = attrs['user']
+        check_user_risk(user)
+
         if user.is_authenticated and not user.probable_spammer:
             try:
                 country = geo.country(ip)
                 user.country_code = country.get('country_code')
                 user.save()
-                if country.get('country_code') in ['ID', 'IN']:
+                if country.get('country_code') in ['ID']:
                     user.set_probable_spammer()
             except Exception as e:
                 print(e)

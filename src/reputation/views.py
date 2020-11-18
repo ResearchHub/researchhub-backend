@@ -22,6 +22,7 @@ from user.serializers import UserSerializer
 from utils import sentry
 from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer
 from utils.throttles import THROTTLE_CLASSES
+from researchhub.settings import WEB3_RSC_ADDRESS
 
 
 class WithdrawalViewSet(viewsets.ModelViewSet):
@@ -61,19 +62,20 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             valid, message = self._check_withdrawal_time_limit(request.data.get('to_address'), user)
         if valid:
             try:
-                # with transaction.atomic():
-                response = super().create(request)
-                withdrawal_id = response.data['id']
-                withdrawal = Withdrawal.objects.get(pk=withdrawal_id)
-                ending_balance_record = self._create_balance_record(
-                    withdrawal,
-                    starting_balance
+                to_address = request.data['to_address']
+                amount = request.data['amount']
+                withdrawal = Withdrawal.objects.create(
+                    user=user,
+                    token_address=WEB3_RSC_ADDRESS,
+                    to_address=to_address,
+                    amount=amount
                 )
                 self._pay_withdrawal(
                     withdrawal,
                     starting_balance,
-                    ending_balance_record.id
+                    amount
                 )
+
                 serialized = WithdrawalSerializer(withdrawal)
                 return Response(serialized.data, status=201)
             except Exception as e:
@@ -94,18 +96,25 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             user=withdrawal.user,
             content_type=source_type,
             object_id=withdrawal.id,
-            amount=f'-{amount}',
+            amount=f'{amount}',
         )
         return balance_record
 
-    def _pay_withdrawal(self, withdrawal, starting_balance, balance_record_id):
+    def _pay_withdrawal(self, withdrawal, starting_balance, amount):
         try:
+            ending_balance_record = self._create_balance_record(
+                withdrawal,
+                0,
+            )
             pending_withdrawal = PendingWithdrawal(
                 withdrawal,
                 starting_balance,
-                balance_record_id
+                ending_balance_record.id,
+                amount
             )
             pending_withdrawal.complete_token_transfer()
+            ending_balance_record.amount = f'-{amount}'
+            ending_balance_record.save()
         except Exception as e:
             logging.error(e)
             withdrawal.set_paid_failed()
@@ -172,12 +181,21 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
     def _check_withdrawal_interval(self, user):
         """
-        Returns True is the user's last withdrawal was more than 72 hours ago.
+        Returns True is the user's last withdrawal was more than 2 weeks ago.
         """
         if user.withdrawals.count() > 0:
-            time_ago = timezone.now() - timedelta(hours=72)
-            valid = user.withdrawals.last().created_date < time_ago
+            time_ago = timezone.now() - timedelta(weeks=2)
+            minutes_ago = timezone.now() - timedelta(minutes=10)
+            valid = user.withdrawals.last().created_date < minutes_ago
             if valid:
-                return (True, None)
-            return (False, 'Too soon to withdraw again')
+                valid = user.withdrawals.filter(paid_status='PAID').last().created_date < time_ago
+                if valid:
+                    return (True, None)
+                
+                time_since_withdrawal = user.withdrawals.last().created_date - time_ago
+                return (False, "The next time you're able to withdraw is in {} days".format(time_since_withdrawal.days))
+            else:
+                time_since_withdrawal = user.withdrawals.last().created_date - minutes_ago
+                minutes = int(round(time_since_withdrawal.seconds / 60, 0))
+                return (False, "The next time you're able to withdraw is in {} minutes".format(minutes))
         return (True, None)

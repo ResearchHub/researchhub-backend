@@ -1,4 +1,3 @@
-832969
 '''
 Remove papers without doi uploaded in the past 3 days
 '''

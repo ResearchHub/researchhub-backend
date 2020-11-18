@@ -17,7 +17,7 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
-
+from utils.siftscience import events_api, update_user_risk_score
 # TODO: Add flagging actions and permissions
 
 
@@ -45,9 +45,14 @@ class SummaryViewSet(viewsets.ModelViewSet):
             paper_id=paper_id,
             approved=True
         ).order_by('-approved_date')
-        summary = SummarySerializer(summary_queryset, many=True).data
 
-        return Response(summary, status=200)
+        page = self.paginate_queryset(summary_queryset)
+        if page is not None:
+            serializer = SummarySerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(page, many=True)
+        return Response(serializer.data, status=200)
 
     @transaction.atomic
     def create(self, request):
@@ -141,6 +146,9 @@ class SummaryViewSet(viewsets.ModelViewSet):
             previous=previous_summary,
             created_location=created_location
         )
+            
+        tracked_summary = events_api.track_content_summary(user, new_summary, request, update=bool(previous_summary))
+        update_user_risk_score(user, tracked_summary)
 
         return new_summary
 

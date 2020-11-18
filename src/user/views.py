@@ -23,7 +23,7 @@ from paper.models import Paper, Vote
 from paper.views import PaperViewSet
 from paper.serializers import PaperSerializer, HubPaperSerializer
 from user.filters import AuthorFilter
-from user.models import User, University, Author, Major
+from user.models import User, University, Author, Major, Verification
 from user.permissions import UpdateAuthor, Censor
 from user.serializers import (
     AuthorSerializer,
@@ -32,7 +32,8 @@ from user.serializers import (
     UserEditableSerializer,
     UserSerializer,
     UserActions,
-    MajorSerializer
+    MajorSerializer,
+    VerificationSerializer
 )
 
 from utils.http import RequestMethods
@@ -67,7 +68,7 @@ class UserViewSet(viewsets.ModelViewSet):
         elif user.is_authenticated:
             return User.objects.filter(id=user.id)
         else:
-            return User.objects.none()
+            return User.objects.none()        
 
     @action(
         detail=False,
@@ -80,9 +81,6 @@ class UserViewSet(viewsets.ModelViewSet):
         user_to_censor.set_probable_spammer()
         user_to_censor.set_suspended()
         handle_spam_user_task(user_to_censor.id)
-
-        user = request.user
-        decisions_api.apply_bad_user_decision(user_to_censor, user)
 
         return Response(
             {'message': 'User is Censored'},
@@ -191,8 +189,8 @@ class UserViewSet(viewsets.ModelViewSet):
                         'reputation_records__amount',
                         filter=Q(
                             **time_filter,
-                            reputation_records__hubs__in=[hub_id]
-                        )
+                            reputation_records__hubs__in=[hub_id],
+                        ) & ~Q(reputation_records__distribution_type__in=['REFERRAL', 'REWARD']),
                     )
                 ).order_by(F('hub_rep').desc(nulls_last=True))
             else:
@@ -203,7 +201,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 ).annotate(
                     hub_rep=Sum(
                         'reputation_records__amount',
-                        filter=Q(**time_filter) & ~Q(reputation_records__distribution_type='REFERRAL')
+                        filter=Q(**time_filter) & ~Q(reputation_records__distribution_type__in=['REFERRAL', 'REWARD'])
                     )
                 ).order_by(F('hub_rep').desc(nulls_last=True))
         elif leaderboard_type == 'authors':
@@ -277,6 +275,25 @@ class MajorViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('major', 'major_category')
     permission_classes = [AllowAny]
+
+
+class VerificationViewSet(viewsets.ModelViewSet):
+    queryset = Verification.objects.all()
+    serializer_class = VerificationSerializer
+
+    @action(
+        detail=False,
+        methods=['post'],
+    )
+    def bulk_upload(self, request):
+        images = request.data.getlist('images')
+        for image in images:
+            Verification.objects.create(
+                file=image,
+                user=request.user,
+            )
+        
+        return Response({'message': 'Verification was uploaded!'})
 
 
 class AuthorViewSet(viewsets.ModelViewSet):

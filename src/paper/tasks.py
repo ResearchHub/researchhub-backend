@@ -40,6 +40,7 @@ from paper.utils import (
 from utils import sentry
 from utils.http import check_url_contains_pdf
 
+
 @app.task
 def censored_paper_cleanup(paper_id):
     Paper = apps.get_model('paper.Paper')
@@ -113,7 +114,7 @@ def add_orcid_authors(paper_id):
 
     paper.authors.add(*orcid_authors)
     for author in paper.authors.iterator():
-        Wallet.objects.create(author=author)
+        Wallet.objects.get_or_create(author=author)
     logging.info(f'Finished adding orcid authors to paper {paper.id}')
 
 

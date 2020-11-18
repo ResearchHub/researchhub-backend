@@ -55,47 +55,54 @@ def get_tracked_content_score(tracked_content):
     return round(tracked_content['score_response']['scores']['content_abuse']['score'] * 100, 1)
 
 
-def update_content_risk_score(item, tracked_content):
+def update_user_risk_score(user, tracked_content):
     if tracked_content:
         content_risk_score = get_tracked_content_score(tracked_content)
-        item.sift_risk_score = content_risk_score
-        item.save(update_fields=['sift_risk_score'])
+        user.sift_risk_score = content_risk_score
+        user.save(update_fields=['sift_risk_score'])
+        check_user_risk(user)
+
+
+def check_user_risk(user):
+    if user.sift_risk_score > 75:
+        user.set_probable_spammer()
+    if user.sift_risk_score > 90:
+        user.set_suspended(is_manual=False)
 
 
 class DecisionsApi:
-    def apply_bad_user_decision(self, content_creator, reporter):
+    def apply_bad_user_decision(self, content_creator, source='AUTOMATED_RULE', reporter=None):
         applyDecisionRequest = {
             'decision_id': 'looks_bad_content_abuse',
-            'source': 'MANUAL_REVIEW',
+            'source': source,
             'analyst': reporter.email if reporter else 'analyst@researchhub.com',
             'description': 'User looks risky for content abuse',
             'reason': 'User looks risky for content abuse',
         }
 
         try:
-            response = client.apply_user_decision(str(content_creator.id), applyDecisionRequest)
+            client.apply_user_decision(str(content_creator.id), applyDecisionRequest)
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e)
 
-    def apply_bad_content_decision(self, content_creator, content_id, reporter):
+    def apply_bad_content_decision(self, content_creator, content_id, source='AUTOMATED_RULE', reporter=None):
         applyDecisionRequest = {
             'decision_id': 'content_looks_bad_content_abuse',
-            'source': 'MANUAL_REVIEW',
+            'source': source,
             'analyst': reporter.email if reporter else 'analyst@researchhub.com',
             'description': 'Auto flag of moderator-removed content',
             'reason': 'Auto flag of moderator-removed content',
         }
 
         try:
-            response = client.apply_content_decision(str(content_creator.id), content_id, applyDecisionRequest)
+            client.apply_content_decision(str(content_creator.id), content_id, applyDecisionRequest)
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e)
 
 
 class EventsApi:
-
     def create_meta_properties(self, request, exclude_ip=False):
         user_agent = request.META.get('HTTP_USER_AGENT', '')
         properties = {
@@ -295,6 +302,108 @@ class EventsApi:
 
         try:
             response = client.track(track_type, post_properties, return_score=True)
+            print(response.body)
+            return response.body
+        except sift.client.ApiException as e:
+            sentry.log_error(e)
+            print(e.api_error_message)
+    
+    def track_content_summary(self, user, summary, request, update=False):
+        meta = self.create_meta_properties(request)
+        celery_response = self.celery_track_content_summary.apply(
+            (user.id, summary.id, meta, update),
+            priority=4,
+            countdown=10,
+        )
+        tracked_summary = celery_response.get()
+        return tracked_summary
+
+    @staticmethod
+    @app.task
+    def celery_track_content_summary(user_id, summary_id, meta, update):
+        User = apps.get_model('user.User')
+        user = User.objects.get(id=user_id)
+        Summary = apps.get_model('summary.Summary')
+        summary = Summary.objects.get(id=summary_id)
+
+        root_content_id = ''
+        if summary.paper is not None:
+            root_content_id = (
+                f'{type(summary.paper).__name__}_{summary.paper.id}'
+            )
+
+        comment_properties = {
+            # Required fields
+            '$user_id': str(user.id),
+            # must be unique across all content types
+            '$content_id': f'{type(summary).__name__}_{summary.id}',
+
+            # Recommended fields
+            '$status': '$active',
+
+            # Required $comment object
+            '$comment': {
+                '$body': summary.summary_plain_text,
+                '$contact_email': user.email,
+                '$root_content_id': root_content_id,
+            }
+        }
+
+        track_type = '$update_content' if update else '$create_content'
+
+        try:
+            response = client.track(track_type, comment_properties, return_score=True)
+            print(response.body)
+            return response.body
+        except sift.client.ApiException as e:
+            sentry.log_error(e)
+            print(e.api_error_message)
+
+    def track_content_bullet_point(self, user, bullet_point, request, update=False):
+        meta = self.create_meta_properties(request)
+        celery_response = self.celery_track_content_bullet_point.apply(
+            (user.id, bullet_point.id, meta, update),
+            priority=4,
+            countdown=10,
+        )
+        tracked_bullet_point = celery_response.get()
+        return tracked_bullet_point
+
+    @staticmethod
+    @app.task
+    def celery_track_content_bullet_point(user_id, bullet_point_id, meta, update):
+        User = apps.get_model('user.User')
+        user = User.objects.get(id=user_id)
+        BulletPoint = apps.get_model('bullet_point.BulletPoint')
+        bullet_point = BulletPoint.objects.get(id=bullet_point_id)
+
+        root_content_id = ''
+        if bullet_point.paper is not None:
+            root_content_id = (
+                f'{type(bullet_point.paper).__name__}_{bullet_point.paper.id}'
+            )
+
+        comment_properties = {
+            # Required fields
+            '$user_id': str(user.id),
+            # must be unique across all content types
+            '$content_id': f'{type(bullet_point).__name__}_{bullet_point.id}',
+
+            # Recommended fields
+            '$status': '$active',
+
+            # Required $comment object
+            '$comment': {
+                '$body': bullet_point.plain_text,
+                '$contact_email': user.email,
+                '$root_content_id': root_content_id,
+            }
+        }
+
+        track_type = '$update_content' if update else '$create_content'
+
+        try:
+            response = client.track(track_type, comment_properties, return_score=True)
             print(response.body)
             return response.body
         except sift.client.ApiException as e:

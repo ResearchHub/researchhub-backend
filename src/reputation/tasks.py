@@ -133,7 +133,8 @@ def set_or_increment(queryset, hashes, all_users, attributes):
 )
 def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     from user.models import User
-
+    
+    return True
     if end_date is None:
         end_date = datetime.datetime.now(tz=pytz.utc)
 

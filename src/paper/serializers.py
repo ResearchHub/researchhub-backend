@@ -35,7 +35,7 @@ from user.models import Author
 from user.serializers import AuthorSerializer, UserSerializer
 from utils.arxiv import Arxiv
 from utils.http import get_user_from_request, check_url_contains_pdf
-from utils.siftscience import events_api, update_content_risk_score
+from utils.siftscience import events_api, update_user_risk_score
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 
 
@@ -72,10 +72,8 @@ class BasePaperSerializer(serializers.ModelSerializer):
         data = self._transform_to_dict(data)
         data = self._copy_data(data)
 
-        # TODO: Refactor below
-
         valid_authors = []
-        for author_id in data['authors']:
+        for author_id in data.get('authors', []):
             if isinstance(author_id, Author):
                 author_id = author_id.id
 
@@ -87,7 +85,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
         data['authors'] = valid_authors
 
         valid_hubs = []
-        for hub_id in data['hubs']:
+        for hub_id in data.get('hubs', []):
             if isinstance(hub_id, Hub):
                 hub_id = hub_id.id
 
@@ -221,8 +219,11 @@ class BasePaperSerializer(serializers.ModelSerializer):
 class PaperSerializer(BasePaperSerializer):
 
     def create(self, validated_data):
-        request = self.context['request']
-        user = request.user
+        request = self.context.get('request', None)
+        if request:
+            user = request.user
+        else:
+            user = None
         validated_data['uploaded_by'] = user
 
         # Prepare validated_data by removing m2m and file for now
@@ -237,7 +238,6 @@ class PaperSerializer(BasePaperSerializer):
                 self._add_raw_authors(validated_data)
 
                 paper = None
-
                 # TODO: Replace this with proper metadata handling
                 if 'https://arxiv.org/abs/' in validated_data.get('url', ''):
                     arxiv_id = validated_data['url'].split('abs/')[1]
@@ -248,6 +248,7 @@ class PaperSerializer(BasePaperSerializer):
                 if paper is None:
                     paper = super(PaperSerializer, self).create(validated_data)
 
+                paper.check_doi()
                 paper_id = paper.id
                 paper_title = paper.paper_title or ''
                 self._check_pdf_title(paper, paper_title, file)
@@ -267,8 +268,8 @@ class PaperSerializer(BasePaperSerializer):
                 self._add_orcid_authors(paper)
                 paper.hubs.add(*hubs)
                 for hub in hubs:
-                    hub.paper_count += 1
-                    hub.save()
+                    hub.paper_count = hub.get_paper_count()
+                    hub.save(update_fields=['paper_count'])
 
                 try:
                     self._add_file(paper, file)
@@ -278,8 +279,12 @@ class PaperSerializer(BasePaperSerializer):
                     )
 
                 self._add_references(paper)
-                tracked_paper = events_api.track_content_paper(user, paper, request)
-                update_content_risk_score(paper, tracked_paper)
+                tracked_paper = events_api.track_content_paper(
+                    user,
+                    paper,
+                    request
+                )
+                update_user_risk_score(user, tracked_paper)
 
                 create_contribution.apply_async(
                     (
@@ -305,7 +310,7 @@ class PaperSerializer(BasePaperSerializer):
             raise error
 
     def update(self, instance, validated_data):
-        request = self.context['request']
+        request = self.context.get('request', None)
         authors = validated_data.pop('authors', [None])
         hubs = validated_data.pop('hubs', [None])
         file = validated_data.pop('file', None)
@@ -335,11 +340,11 @@ class PaperSerializer(BasePaperSerializer):
                     paper.hubs.remove(*remove_hubs)
                     paper.hubs.add(*hubs)
                     for hub in remove_hubs:
-                        hub.paper_count -= 1
-                        hub.save()
+                        hub.paper_count = hub.get_paper_count()
+                        hub.save(update_fields=['paper_count'])
                     for hub in new_hubs:
-                        hub.paper_count += 1
-                        hub.save()
+                        hub.paper_count = hub.get_paper_count()
+                        hub.save(update_fields=['paper_count'])
 
                 if authors:
                     current_authors = paper.authors.all()
@@ -358,14 +363,14 @@ class PaperSerializer(BasePaperSerializer):
                 if file:
                     self._add_file(paper, file)
 
-                user = request.user
-                tracked_paper = events_api.track_content_paper(
-                    user,
-                    paper,
-                    request,
-                    update=True
-                )
-                update_content_risk_score(paper, tracked_paper)
+                if request:
+                    tracked_paper = events_api.track_content_paper(
+                        request.user,
+                        paper,
+                        request,
+                        update=True
+                    )
+                    update_user_risk_score(request.user, tracked_paper)
                 return paper
         except Exception as e:
             error = PaperSerializerError(e, 'Failed to update paper')
@@ -439,7 +444,6 @@ class PaperSerializer(BasePaperSerializer):
 
     def _check_pdf_title(self, paper, title, file):
         if type(file) is str:
-            paper.check_doi()
             # For now, don't do anything if file is a url
             return
         else:
@@ -448,7 +452,6 @@ class PaperSerializer(BasePaperSerializer):
     def _check_title_in_pdf(self, paper, title, file):
         title_in_pdf = check_pdf_title(title, file)
         if not title_in_pdf:
-            paper.check_doi()
             # e = Exception('Title not in pdf')
             # sentry.log_info(e)
             return
