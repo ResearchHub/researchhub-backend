@@ -100,11 +100,17 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
                 return Response('Missing required field `paper`', status=400)
             request.data['paper'] = paper
 
+        context = self.get_serializer_context()
         response = super().create(request, *args, **kwargs)
         bullet_id = response.data['id']
 
         bullet_point = BulletPoint.objects.get(pk=response.data['id'])
         update_or_create_vote(request, request.user, bullet_point, Vote.UPVOTE)
+        response.data = BulletPointSerializer(
+            bullet_point,
+            context=context
+        ).data
+
         tracked_bullet_point = events_api.track_content_bullet_point(
             bullet_point.created_by,
             bullet_point,
