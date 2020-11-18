@@ -33,7 +33,7 @@ from bullet_point.serializers import (
 from utils.http import DELETE, POST, PATCH, PUT
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
-from utils.siftscience import events_api, decisions_api, update_content_risk_score
+from utils.siftscience import events_api, decisions_api, update_user_risk_score
 
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
@@ -102,7 +102,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
             bullet_point,
             request,
         )
-        update_content_risk_score(bullet_point, tracked_bullet_point)
+        update_user_risk_score(bullet_point.created_by, tracked_bullet_point)
 
         create_contribution.apply_async(
             (
@@ -162,10 +162,12 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         decisions_api.apply_bad_content_decision(
             content_creator,
             content_id,
+            'MANUAL_REVIEW',
             user
         )
         decisions_api.apply_bad_user_decision(
             content_creator,
+            'MANUAL_REVIEW',
             user
         )
 
@@ -220,7 +222,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
                 request,
                 update=True
             )
-            update_content_risk_score(head_bullet_point, tracked_bullet_point)
+            update_user_risk_score(head_bullet_point.created_by, tracked_bullet_point)
 
         serialized = self.get_serializer(instance=head_bullet_point)
         return Response(serialized.data, status=status.HTTP_201_CREATED)

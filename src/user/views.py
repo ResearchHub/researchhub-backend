@@ -82,9 +82,6 @@ class UserViewSet(viewsets.ModelViewSet):
         user_to_censor.set_suspended()
         handle_spam_user_task(user_to_censor.id)
 
-        user = request.user
-        decisions_api.apply_bad_user_decision(user_to_censor, user)
-
         return Response(
             {'message': 'User is Censored'},
             status=200

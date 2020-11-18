@@ -55,47 +55,54 @@ def get_tracked_content_score(tracked_content):
     return round(tracked_content['score_response']['scores']['content_abuse']['score'] * 100, 1)
 
 
-def update_content_risk_score(item, tracked_content):
+def update_user_risk_score(user, tracked_content):
     if tracked_content:
         content_risk_score = get_tracked_content_score(tracked_content)
-        item.sift_risk_score = content_risk_score
-        item.save(update_fields=['sift_risk_score'])
+        user.sift_risk_score = content_risk_score
+        user.save(update_fields=['sift_risk_score'])
+        check_user_risk(user)
+
+
+def check_user_risk(user):
+    if user.sift_risk_score > 75:
+        user.set_probable_spammer()
+    if user.sift_risk_score > 90:
+        user.set_suspended(is_manual=False)
 
 
 class DecisionsApi:
-    def apply_bad_user_decision(self, content_creator, reporter=None):
+    def apply_bad_user_decision(self, content_creator, source='AUTOMATED_RULE', reporter=None):
         applyDecisionRequest = {
             'decision_id': 'looks_bad_content_abuse',
-            'source': 'MANUAL_REVIEW',
+            'source': source,
             'analyst': reporter.email if reporter else 'analyst@researchhub.com',
             'description': 'User looks risky for content abuse',
             'reason': 'User looks risky for content abuse',
         }
 
         try:
-            response = client.apply_user_decision(str(content_creator.id), applyDecisionRequest)
+            client.apply_user_decision(str(content_creator.id), applyDecisionRequest)
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e)
 
-    def apply_bad_content_decision(self, content_creator, content_id, reporter):
+    def apply_bad_content_decision(self, content_creator, content_id, source='AUTOMATED_RULE', reporter=None):
         applyDecisionRequest = {
             'decision_id': 'content_looks_bad_content_abuse',
-            'source': 'MANUAL_REVIEW',
+            'source': source,
             'analyst': reporter.email if reporter else 'analyst@researchhub.com',
             'description': 'Auto flag of moderator-removed content',
             'reason': 'Auto flag of moderator-removed content',
         }
 
         try:
-            response = client.apply_content_decision(str(content_creator.id), content_id, applyDecisionRequest)
+            client.apply_content_decision(str(content_creator.id), content_id, applyDecisionRequest)
         except sift.client.ApiException as e:
             sentry.log_error(e)
             print(e)
 
 
 class EventsApi:
-
     def create_meta_properties(self, request, exclude_ip=False):
         user_agent = request.META.get('HTTP_USER_AGENT', '')
         properties = {

@@ -126,14 +126,15 @@ class User(AbstractUser):
         if probable_spammer:
             handle_spam_user_task.apply_async((self.id,), priority=3)
 
-    def set_suspended(self, is_suspended=True):
+    def set_suspended(self, is_suspended=True, is_manual=True):
         if self.is_suspended != is_suspended:
             self.is_suspended = is_suspended
             self.suspended_updated_date = timezone.now()
             self.save(update_fields=['is_suspended', 'suspended_updated_date'])
 
         if is_suspended:
-            decisions_api.apply_bad_user_decision(self)
+            source = 'MANUAL_REVIEW' if is_manual else 'AUTOMATED_RULE'
+            decisions_api.apply_bad_user_decision(self, source)
 
     def get_balance(self):
         user_balance = self.balances.all()
