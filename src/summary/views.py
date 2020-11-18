@@ -61,6 +61,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
     def create(self, request):
         paper_id = request.data.get('paper')
         summary = self._create_summary(request)
+        context = self.get_serializer_context()
 
         if self._user_can_direct_edit(request.user):
             self._approve_and_add_summary_to_paper(
@@ -69,8 +70,8 @@ class SummaryViewSet(viewsets.ModelViewSet):
                 request.user
             )
         self._invalidate_paper_cache(paper_id)
-        data = SummarySerializer(summary).data
         update_or_create_vote(request, request.user, summary, Vote.UPVOTE)
+        data = SummarySerializer(summary, context=context).data
         create_contribution.apply_async(
             (
                 Contribution.CURATOR,
