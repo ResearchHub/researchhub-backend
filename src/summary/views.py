@@ -70,6 +70,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
             )
         self._invalidate_paper_cache(paper_id)
         data = SummarySerializer(summary).data
+        self.upvote(request, pk=summary.id)
         create_contribution.apply_async(
             (
                 Contribution.CURATOR,
