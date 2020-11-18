@@ -48,11 +48,13 @@ class SummaryViewSet(viewsets.ModelViewSet):
         ).order_by('-approved_date')
 
         page = self.paginate_queryset(summary_queryset)
+        context = self.get_serializer_context()
+        
         if page is not None:
-            serializer = SummarySerializer(page, many=True)
+            serializer = SummarySerializer(page, context=context, many=True)
             return self.get_paginated_response(serializer.data)
 
-        serializer = self.get_serializer(page, many=True)
+        serializer = self.get_serializer(page, context=context, many=True)
         return Response(serializer.data, status=200)
 
     @transaction.atomic
