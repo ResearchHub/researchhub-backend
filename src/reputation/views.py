@@ -189,10 +189,11 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             valid = user.withdrawals.last().created_date < minutes_ago
             if valid:
                 last_withdrawal = user.withdrawals.filter(paid_status='PAID').last()
-                if last_withdrawal:
-                    valid = last_withdrawal.created_date < time_ago
-                    if valid:
-                        return (True, None)
+                if not last_withdrawal:
+                    return (True, None)
+                valid = last_withdrawal.created_date < time_ago
+                if valid:
+                    return (True, None)
                 
                 time_since_withdrawal = user.withdrawals.last().created_date - time_ago
                 return (False, "The next time you're able to withdraw is in {} days".format(time_since_withdrawal.days))
