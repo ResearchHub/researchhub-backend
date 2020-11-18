@@ -104,7 +104,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         bullet_id = response.data['id']
 
         bullet_point = BulletPoint.objects.get(pk=response.data['id'])
-        self.upvote(request, pk=bullet_point.id)
+        update_or_create_vote(request, request.user, bullet_point, Vote.UPVOTE)
         tracked_bullet_point = events_api.track_content_bullet_point(
             bullet_point.created_by,
             bullet_point,
