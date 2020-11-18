@@ -2,7 +2,7 @@ import numpy as np
 import time
 
 from django.db import transaction, models
-from django.db.models import FloatField, Func
+from django.db.models import FloatField, Func, Q, Count
 from django.db.models.functions import Cast
 from django.db.models.aggregates import Sum
 from django.contrib.admin.options import get_content_type_for_model
@@ -137,12 +137,12 @@ class RewardDistributor:
     def get_papers_prob_dist(self, items):
         papers = items.order_by('id')
         weekly_total_score = papers.aggregate(
-            score_sum=Sum('score')
-        )['score_sum']
+            total_sum=Sum('score') + Count('threads__votes', filter=Q(threads__votes__vote_type=1, threads__is_removed=False))
+        )['total_sum']
         prob_dist = papers.annotate(
             p=Cast(
                 Func(
-                    Sum('score'),
+                    Sum('score') + Count('threads__votes', filter=Q(threads__votes__vote_type=1, threads__is_removed=False)),
                     function='ABS'
                 )/float(weekly_total_score),
                 FloatField()
@@ -158,7 +158,7 @@ class RewardDistributor:
         item = np.random.choice(items, p=p)
         return item
 
-    def generate_distribution(self, item, amount=1):
+    def generate_distribution(self, item, amount=1, distribute=True):
         from paper.models import Paper, Vote
         from user.models import User, Author
         from bullet_point.models import BulletPoint
@@ -166,10 +166,15 @@ class RewardDistributor:
         from discussion.models import Thread, Comment, Reply
 
         item_type = type(item)
+
         if item_type is Contribution:
             content_type = item.content_type
-            item = content_type.get_object_for_this_type(id=item.object_id)
-            item_type = type(item)
+            try:
+                item = content_type.get_object_for_this_type(id=item.object_id)
+                item_type = type(item)
+            except Exception as e:
+                print(e)
+                return None
 
         if item_type is Paper:
             recipient = item.uploaded_by
@@ -186,7 +191,9 @@ class RewardDistributor:
         elif item_type in (Thread, Comment, Reply):
             recipient = item.created_by
         else:
-            raise Exception(f'Missing instance type: {str(item)}')
+            error = Exception(f'Missing instance type: {str(item_type)}')
+            sentry.log_error(error)
+            raise error
 
         distributor = Distributor(
             dist('REWARD', amount, False),
@@ -194,6 +201,10 @@ class RewardDistributor:
             item,
             time.time()
         )
-        distribution = distributor.distribute()
+
+        if distribute:
+            distribution = distributor.distribute()
+        else:
+            distribution = distributor
 
         return distribution
