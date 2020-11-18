@@ -10,7 +10,7 @@ from django.http import JsonResponse, HttpRequest
 from django.shortcuts import render
 from django.urls import path
 
-from .models import User, Action
+from .models import User, Action, Verification
 
 
 class CustomUserAdmin(UserAdmin):
@@ -202,3 +202,4 @@ class AnalyticAdminPanel(admin.ModelAdmin):
 
 admin.site.register(AnalyticModel, AnalyticAdminPanel)
 admin.site.register(User, CustomUserAdmin)
+admin.site.register(Verification)

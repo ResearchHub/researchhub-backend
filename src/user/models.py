@@ -181,6 +181,9 @@ class Verification(models.Model):
         blank=True
     )
 
+    def __str__(self):
+        return 'User: {}'.format(self.user.email)
+
 
 class University(models.Model):
     name = models.CharField(max_length=255)
