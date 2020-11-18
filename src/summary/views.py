@@ -232,8 +232,11 @@ class SummaryViewSet(viewsets.ModelViewSet):
             )
 
             for vote in votes.iterator():
-                summary_id = vote.summary_id
+                summary = vote.summary
+                summary_id = summary.id
                 data = SummaryVoteSerializer(instance=vote).data
+                score = SummarySerializer().get_score(summary)
+                data['score'] = score
                 response[summary_id] = data
 
         return Response(response, status=status.HTTP_200_OK)
