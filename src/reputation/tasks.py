@@ -110,6 +110,7 @@ def distribute_round_robin(paper_id):
     options={'queue': APP_ENV}
 )
 def distribute_rewards():
+    return True
     # Checks if rewards should be distributed, given time config
     today = datetime.datetime.now(tz=pytz.utc)
     static_date = datetime.datetime(
