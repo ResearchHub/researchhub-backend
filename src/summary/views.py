@@ -49,7 +49,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
 
         page = self.paginate_queryset(summary_queryset)
         context = self.get_serializer_context()
-        
+
         if page is not None:
             serializer = SummarySerializer(page, context=context, many=True)
             return self.get_paginated_response(serializer.data)
@@ -70,7 +70,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
             )
         self._invalidate_paper_cache(paper_id)
         data = SummarySerializer(summary).data
-        self.upvote(request, pk=summary.id)
+        update_or_create_vote(request, request.user, summary, Vote.UPVOTE)
         create_contribution.apply_async(
             (
                 Contribution.CURATOR,
