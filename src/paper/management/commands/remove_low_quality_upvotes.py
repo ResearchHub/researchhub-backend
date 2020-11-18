@@ -17,7 +17,7 @@ class Command(BaseCommand):
             print('{} / {}'.format(i, count))
             vote.is_removed = True
             content_id = f'{type(vote).__name__}_{vote.id}'
-            decisions_api.apply_bad_content_decision(vote.created_by, content_id, None)
+            decisions_api.apply_bad_content_decision(vote.created_by, content_id)
             events_api.track_flag_content(
                 vote.created_by,
                 content_id,

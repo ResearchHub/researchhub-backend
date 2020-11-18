@@ -21,7 +21,7 @@ class Command(BaseCommand):
             if not thread.created_by:
                 continue
             try:
-                decisions_api.apply_bad_content_decision(thread.created_by, content_id, None)
+                decisions_api.apply_bad_content_decision(thread.created_by, content_id)
                 events_api.track_flag_content(
                     thread.created_by,
                     content_id,
