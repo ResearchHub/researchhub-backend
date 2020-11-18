@@ -17,7 +17,7 @@ def check_doi_in_works(doi, works):
 def get_orcid_names(data):
     name = data['person']['name']
     first_name = name['given-names']['value']
-    last_name = name['family-name']['value']
+    last_name = name['family-name'] and name['family-name']['value'] or ''
     return first_name, last_name
 
 

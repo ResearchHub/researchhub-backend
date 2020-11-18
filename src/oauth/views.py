@@ -185,6 +185,8 @@ def orcid_connect(request):
         }
     except Exception as e:
         data = str(e)
+        sentry.log_error(e)
+        print(e)
 
     return Response(data, status=status)
 
