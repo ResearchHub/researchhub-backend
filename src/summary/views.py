@@ -251,19 +251,18 @@ class SummaryViewSet(viewsets.ModelViewSet):
         user = request.user
         response = {}
 
-        if user.is_authenticated:
-            votes = Vote.objects.filter(
-                summary__id__in=summary_ids,
-                created_by=user
-            )
+        summaries = self.queryset.filter(id__in=summary_ids)
+        for summary in summaries.iterator():
+            data = {}
+            if not user.is_anonymous:
+                user_vote = summary.votes.filter(created_by=user)
+                if user_vote.exists():
+                    vote = user_vote.last()
+                    data = SummaryVoteSerializer(instance=vote).data
 
-            for vote in votes.iterator():
-                summary = vote.summary
-                summary_id = summary.id
-                data = SummaryVoteSerializer(instance=vote).data
-                score = SummarySerializer().get_score(summary)
-                data['score'] = score
-                response[summary_id] = data
+            score = SummarySerializer().get_score(summary)
+            data['score'] = score
+            response[summary.id] = data
 
         return Response(response, status=status.HTTP_200_OK)
 
