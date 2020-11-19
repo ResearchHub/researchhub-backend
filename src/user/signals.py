@@ -8,17 +8,20 @@ from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.contrib.admin.options import get_content_type_for_model
 
 from reputation import distributions
-from bullet_point.models import BulletPoint
+from bullet_point.models import BulletPoint, Vote as BulletPointVote
 from discussion.models import Comment, Reply, Thread
 from notification.models import Notification
 from paper.models import Paper, Vote as PaperVote
 from discussion.models import Vote as DisVote
 from researchhub.settings import TESTING
-from summary.models import Summary
+from summary.models import Summary, Vote as SummaryVote
+from summary.serializers import SummaryVoteSerializer
+from bullet_point.serializers import BulletPointVoteSerializer
 from user.models import Action, Author, User
 from user.tasks import link_author_to_papers, link_paper_to_authors, handle_spam_user_task
 from reputation.distributor import Distributor
 from utils.siftscience import events_api, decisions_api
+
 
 @receiver(
     post_save,
@@ -118,6 +121,7 @@ def handle_spam(sender, instance, **kwargs):
             thread.created_by.probable_spammer = True
             thread.created_by.save()
 
+
 @receiver(
     post_save,
     sender=BulletPoint,
@@ -130,6 +134,8 @@ def handle_spam(sender, instance, **kwargs):
 @receiver(post_save, sender=Paper, dispatch_uid='paper_upload_action')
 @receiver(post_save, sender=PaperVote, dispatch_uid='paper_vote_action')
 @receiver(post_save, sender=DisVote, dispatch_uid='discussion_vote_action')
+@receiver(post_save, sender=BulletPointVote, dispatch_uid='summary_vote_action')
+@receiver(post_save, sender=SummaryVote, dispatch_uid='bulletpoint_vote_action')
 def create_action(sender, instance, created, **kwargs):
     if created:
         if sender == Summary:
@@ -182,9 +188,8 @@ def create_action(sender, instance, created, **kwargs):
             referrer.distribute()
 
         display = True
-        if sender == PaperVote:
-            display = False
-        elif sender == DisVote:
+        votes = (PaperVote, DisVote, BulletPointVote, SummaryVote)
+        if sender in votes:
             display = False
         else:
             display = True
@@ -198,9 +203,10 @@ def create_action(sender, instance, created, **kwargs):
             display=display
         )
 
+        hubs = []
         if sender == Paper:
             hubs = instance.hubs.all()
-        else:
+        elif sender != BulletPointVote and sender != SummaryVote:
             hubs = get_related_hubs(instance)
         action.hubs.add(*hubs)
         create_notification(sender, instance, created, action, **kwargs)
@@ -223,6 +229,7 @@ def create_notification(sender, instance, created, action, **kwargs):
         return
 
     if created:
+        extra = {}
         for recipient in action.item.users_to_notify:
             recipient_exists = True
             if sender == Summary:
@@ -231,6 +238,22 @@ def create_notification(sender, instance, created, action, **kwargs):
             elif sender == Paper:
                 creator = instance.uploaded_by
                 paper = instance
+            elif sender == BulletPointVote:
+                paper = instance.bulletpoint.paper
+                creator = instance.created_by
+                context = {'include_bullet_data': True}
+                extra = BulletPointVoteSerializer(
+                    instance,
+                    context=context
+                ).data
+            elif sender == SummaryVote:
+                paper = instance.summary.paper
+                creator = instance.created_by
+                context = {'include_summary_data': True}
+                extra = SummaryVoteSerializer(
+                    instance,
+                    context=context
+                ).data
             else:
                 creator = instance.created_by
                 paper = instance.paper
@@ -246,6 +269,7 @@ def create_notification(sender, instance, created, action, **kwargs):
                     recipient=recipient,
                     action_user=creator,
                     action=action,
+                    extra={**extra}
                 )
                 if not TESTING:
                     notification.send_notification()
