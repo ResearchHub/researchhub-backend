@@ -73,6 +73,11 @@ class Paper(models.Model):
         default=False,
         help_text=HELP_TEXT_IS_REMOVED
     )
+
+    is_removed_by_user = models.BooleanField(
+        default=False,
+        help_text=HELP_TEXT_IS_REMOVED
+    )
     score = models.IntegerField(default=0, db_index=True)
     discussion_count = models.IntegerField(default=0, db_index=True)
     hot_score = models.IntegerField(default=0, db_index=True)
@@ -239,7 +244,7 @@ class Paper(models.Model):
 
     @property
     def is_hidden(self):
-        return (not self.is_public) or self.is_removed
+        return (not self.is_public) or self.is_removed or self.is_removed_by_user
 
     @property
     def owners(self):
