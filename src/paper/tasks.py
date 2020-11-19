@@ -7,9 +7,15 @@ import re
 import requests
 import shutil
 import twitter
+import urllib.request
+import feedparser
+import time
 
 from datetime import datetime, timedelta, timezone
 from subprocess import call
+
+from celery.decorators import periodic_task
+from celery.task.schedules import crontab
 
 from django.apps import apps
 from django.core.cache import cache
@@ -110,7 +116,7 @@ def add_orcid_authors(paper_id):
 
         if len(orcid_authors) < 1:
             print('No authors to add')
-            logging.info('Did not find paper identifier to give to ORCID API')
+            logging.info('Did not find paper identifier to give to OR+cat:CID API')
 
     paper.authors.add(*orcid_authors)
     for author in paper.authors.iterator():
@@ -476,7 +482,7 @@ def preload_hub_papers(
     if meta:
         http_req.META = meta
     else:
-        http_req.META = {'SERVER_NAME': 'localhost', 'SERVER_PORT': 80}
+        http_req.META = {'SERVER_NAME': 'localhost', 'SERVER_POR+cat:T': 80}
     paper_view.request = Request(http_req)
     papers = paper_view._get_filtered_papers(hub_id)
     order_papers = paper_view.calculate_paper_ordering(
@@ -522,3 +528,127 @@ def preload_hub_papers(
         )
 
     return paginated_response.data
+
+
+# ARXIV Download Constants
+RESULTS_PER_ITERATION = 50 # default is 10, if this goes too high like >=100 it seems to fail too often
+WAIT_TIME = 3 # The docs recommend 3 seconds between queries
+RETRY_WAIT = 8
+RETRY_MAX = 20 # It fails a lot so retry a bunch
+BASE_URL = 'http://export.arxiv.org/api/query?'
+
+# Pull Daily (arxiv updates 20:00 EST)
+@periodic_task(run_every=crontab(minute='45', hour='1'), priority=8)
+def pull_papers(start=0):
+
+    Paper = apps.get_model('paper.Paper')
+    Summary = apps.get_model('summary.Summary')
+
+    # Namespaces don't quite work with the feedparser, so hack them in
+    feedparser.namespaces._base.Namespace.supported_namespaces['http://a9.com/-/spec/opensearch/1.1/'] = 'opensearch'
+    feedparser.namespaces._base.Namespace.supported_namespaces['http://arxiv.org/schemas/atom'] = 'arxiv'
+
+    # Code Inspired from https://static.arxiv.org/static/arxiv.marxdown/0.1/help/api/examples/python_arXiv_parsing_example.txt
+    # Original Author: Julius B. Lucks
+
+    # All categories
+    search_query = "cat:astro-ph+OR+cat:astro-ph.CO+OR+cat:astro-ph.EP+OR+cat:astro-ph.GA+OR+cat:astro-ph.HE+OR+cat:astro-ph.IM+OR+cat:astro-ph.SR+OR+cat:cond-mat.dis-nn+OR+cat:cond-mat.mes-hall+OR+cat:cond-mat.mtrl-sci+OR+cat:cond-mat.other+OR+cat:cond-mat.quant-gas+OR+cat:cond-mat.soft+OR+cat:cond-mat.stat-mech+OR+cat:cond-mat.str-el+OR+cat:cond-mat.supr-con+OR+cat:cs.AI+OR+cat:cs.AR+OR+cat:cs.CC+OR+cat:cs.CE+OR+cat:cs.CG+OR+cat:cs.CL+OR+cat:cs.CR+OR+cat:cs.CV+OR+cat:cs.CY+OR+cat:cs.DB+OR+cat:cs.DC+OR+cat:cs.DL+OR+cat:cs.DM+OR+cat:cs.DS+OR+cat:cs.ET+OR+cat:cs.FL+OR+cat:cs.GL+OR+cat:cs.GR+OR+cat:cs.GT+OR+cat:cs.HC+OR+cat:cs.IR+OR+cat:cs.IT+OR+cat:cs.LG+OR+cat:cs.LO+OR+cat:cs.MA+OR+cat:cs.MM+OR+cat:cs.MS+OR+cat:cs.NA+OR+cat:cs.NE+OR+cat:cs.NI+OR+cat:cs.OH+OR+cat:cs.OS+OR+cat:cs.PF+OR+cat:cs.PL+OR+cat:cs.RO+OR+cat:cs.SC+OR+cat:cs.SD+OR+cat:cs.SE+OR+cat:cs.SI+OR+cat:cs.SY+OR+cat:econ.EM+OR+cat:eess.AS+OR+cat:eess.IV+OR+cat:eess.SP+OR+cat:gr-qc+OR+cat:hep-ex+OR+cat:hep-lat+OR+cat:hep-ph+OR+cat:hep-th+OR+cat:math.AC+OR+cat:math.AG+OR+cat:math.AP+OR+cat:math.AT+OR+cat:math.CA+OR+cat:math.CO+OR+cat:math.CT+OR+cat:math.CV+OR+cat:math.DG+OR+cat:math.DS+OR+cat:math.FA+OR+cat:math.GM+OR+cat:math.GN+OR+cat:math.GR+OR+cat:math.GT+OR+cat:math.HO+OR+cat:math.IT+OR+cat:math.KT+OR+cat:math.LO+OR+cat:math.MG+OR+cat:math.MP+OR+cat:math.NA+OR+cat:math.NT+OR+cat:math.OA+OR+cat:math.OC+OR+cat:math.PR+OR+cat:math.QA+OR+cat:math.RA+OR+cat:math.RT+OR+cat:math.SG+OR+cat:math.SP+OR+cat:math.ST+OR+cat:math-ph+OR+cat:nlin.AO+OR+cat:nlin.CD+OR+cat:nlin.CG+OR+cat:nlin.PS+OR+cat:nlin.SI+OR+cat:nucl-ex+OR+cat:nucl-th+OR+cat:physics.acc-ph+OR+cat:physics.ao-ph+OR+cat:physics.app-ph+OR+cat:physics.atm-clus+OR+cat:physics.atom-ph+OR+cat:physics.bio-ph+OR+cat:physics.chem-ph+OR+cat:physics.class-ph+OR+cat:physics.comp-ph+OR+cat:physics.data-an+OR+cat:physics.ed-ph+OR+cat:physics.flu-dyn+OR+cat:physics.gen-ph+OR+cat:physics.geo-ph+OR+cat:physics.hist-ph+OR+cat:physics.ins-det+OR+cat:physics.med-ph+OR+cat:physics.optics+OR+cat:physics.plasm-ph+OR+cat:physics.pop-ph+OR+cat:physics.soc-ph+OR+cat:physics.space-ph+OR+cat:q-bio.BM+OR+cat:q-bio.CB+OR+cat:q-bio.GN+OR+cat:q-bio.MN+OR+cat:q-bio.NC+OR+cat:q-bio.OT+OR+cat:q-bio.PE+OR+cat:q-bio.QM+OR+cat:q-bio.SC+OR+cat:q-bio.TO+OR+cat:q-fin.CP+OR+cat:q-fin.EC+OR+cat:q-fin.GN+OR+cat:q-fin.MF+OR+cat:q-fin.PM+OR+cat:q-fin.PR+OR+cat:q-fin.RM+OR+cat:q-fin.ST+OR+cat:q-fin.TR+OR+cat:quant-ph+OR+cat:stat.AP+OR+cat:stat.CO+OR+cat:stat.ME+OR+cat:stat.ML+OR+cat:stat.OT+OR+cat:stat.TH"
+    sortBy = "submittedDate"
+    sortOrder = "descending"
+
+    i = start
+    num_retries = 0
+    while True:
+        print("Entries: %i - %i" % (i, i+RESULTS_PER_ITERATION))
+
+        query = 'search_query=%s&start=%i&max_results=%i&sortBy=%s&sortOrder=%s&' % (
+                search_query,
+                i,
+                RESULTS_PER_ITERATION,
+                sortBy,
+                sortOrder)
+
+        with urllib.request.urlopen(BASE_URL+query) as url:
+            # If failed to fetch and we're not at the end retry until the limit
+            if url.getcode() != 200:
+                if num_retries < RETRY_MAX and i < int(feed.feed.opensearch_totalresults):
+                    num_retries += 1
+                    time.sleep(RETRY_WAIT)
+                    continue
+                else:
+                    return
+
+            response = url.read()
+            feed = feedparser.parse(response)
+
+            if i == start:
+                print("total results", feed.feed.opensearch_totalresults)
+                print("last updated", feed.feed.updated)
+
+            # If no results and we're at the end or we've hit the retry limit give up
+            if len(feed.entries) == 0:
+                if num_retries < RETRY_MAX and i < int(feed.feed.opensearch_totalresults):
+                    num_retries += 1
+                    time.sleep(RETRY_WAIT)
+                    continue
+                else:
+                    return
+
+            # Run through each entry, and print out information
+            for entry in feed.entries:
+                num_retries = 0
+                paper, created = Paper.objects.get_or_create(url=entry.id)
+
+                if created:
+                    paper.alternate_ids = {'arxiv': entry.id.split('/abs/')[-1]}
+
+                    paper.title = entry.title
+                    paper.abstract = entry.summary
+                    paper.paper_publish_date = entry.published.split('T')[0]
+                    paper.raw_authors = {'main_author': entry.author}
+
+                    try:
+                        paper.raw_authors['main_author'] += ' (%s)' % entry.arxiv_affiliation
+                    except AttributeError:
+                        pass
+
+                    try:
+                        paper.raw_authors['other_authors'] = [author.name for author in entry.authors]
+                    except AttributeError:
+                        pass
+
+                    for link in entry.links:
+                        try:
+                            if link.title == 'pdf':
+                                paper.pdf_url = link.href
+                            if link.title == 'doi':
+                                paper.doi = link.href.split('doi.org/')[-1]
+                        except AttributeError:
+                            pass
+
+                    paper.save()
+
+                    # If not published in the past week we're done
+                    if Paper.objects.get(pk=paper.id).paper_publish_date < datetime.now().date() - timedelta(days=7):
+                        return
+
+                    # Arxiv Journal Ref
+                    # try:
+                        # journal_ref = entry.arxiv_journal_ref
+                    # except AttributeError:
+                        # journal_ref = 'No journal ref found'
+
+                    # Arxiv Comment
+                    # try:
+                        # comment = entry.arxiv_comment
+                    # except AttributeError:
+                        # comment = 'No comment found'
+
+                    # Arxiv Categories
+                    # all_categories = [t['term'] for t in entry.tags]
+
+        # Rate limit
+        time.sleep(WAIT_TIME)
+
+        i += RESULTS_PER_ITERATION
+
