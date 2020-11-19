@@ -171,6 +171,12 @@ class BulletPoint(models.Model):
         self.ordinal_is_locked = locked
         self.save()
 
+    def calculate_score(self):
+        upvotes = self.votes.filter(vote_type=Vote.UPVOTE).count()
+        downvotes = self.votes.filter(vote_type=Vote.DOWNVOTE).count()
+        score = upvotes - downvotes
+        return score
+
 
 class Endorsement(models.Model):
     bullet_point = models.ForeignKey(
@@ -250,3 +256,44 @@ def retrieve_flag(user, bullet_point):
         bullet_point=bullet_point,
         created_by=user
     )
+
+
+class Vote(models.Model):
+    UPVOTE = 1
+    DOWNVOTE = 2
+    VOTE_TYPE_CHOICES = [
+        (UPVOTE, 'Upvote'),
+        (DOWNVOTE, 'Downvote'),
+    ]
+    bulletpoint = models.ForeignKey(
+        BulletPoint,
+        on_delete=models.CASCADE,
+        related_name='votes',
+        related_query_name='vote'
+    )
+    created_by = models.ForeignKey(
+        'user.User',
+        on_delete=models.CASCADE,
+        related_name='bulletpoint_votes',
+        related_query_name='bulletpoint_vote'
+    )
+    created_date = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_date = models.DateTimeField(auto_now=True, db_index=True)
+    vote_type = models.IntegerField(choices=VOTE_TYPE_CHOICES)
+    is_removed = models.BooleanField(default=False, null=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['bulletpoint', 'created_by'],
+                name='unique_bulletpoint_vote'
+            )
+        ]
+
+    def __str__(self):
+        return '{} - {}'.format(self.created_by, self.vote_type)
+
+    @property
+    def users_to_notify(self):
+        bulletpoint_author = self.bulletpoint.created_by
+        return [bulletpoint_author]

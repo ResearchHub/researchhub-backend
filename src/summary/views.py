@@ -7,10 +7,11 @@ from rest_framework.permissions import (
 )
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework import status
 
-from .models import Summary
+from .models import Summary, Vote
 from .permissions import ProposeSummaryEdit, UpdateOrDeleteSummaryEdit
-from .serializers import SummarySerializer
+from .serializers import SummarySerializer, SummaryVoteSerializer
 from paper.models import Paper
 from paper.utils import get_cache_key
 from reputation.models import Contribution
@@ -47,17 +48,20 @@ class SummaryViewSet(viewsets.ModelViewSet):
         ).order_by('-approved_date')
 
         page = self.paginate_queryset(summary_queryset)
+        context = self.get_serializer_context()
+
         if page is not None:
-            serializer = SummarySerializer(page, many=True)
+            serializer = SummarySerializer(page, context=context, many=True)
             return self.get_paginated_response(serializer.data)
 
-        serializer = self.get_serializer(page, many=True)
+        serializer = self.get_serializer(page, context=context, many=True)
         return Response(serializer.data, status=200)
 
     @transaction.atomic
     def create(self, request):
         paper_id = request.data.get('paper')
         summary = self._create_summary(request)
+        context = self.get_serializer_context()
 
         if self._user_can_direct_edit(request.user):
             self._approve_and_add_summary_to_paper(
@@ -66,7 +70,8 @@ class SummaryViewSet(viewsets.ModelViewSet):
                 request.user
             )
         self._invalidate_paper_cache(paper_id)
-        data = SummarySerializer(summary).data
+        update_or_create_vote(request, request.user, summary, Vote.UPVOTE)
+        data = SummarySerializer(summary, context=context).data
         create_contribution.apply_async(
             (
                 Contribution.CURATOR,
@@ -146,7 +151,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
             previous=previous_summary,
             created_location=created_location
         )
-            
+
         tracked_summary = events_api.track_content_summary(user, new_summary, request, update=bool(previous_summary))
         update_user_risk_score(user, tracked_summary)
 
@@ -169,3 +174,131 @@ class SummaryViewSet(viewsets.ModelViewSet):
         paper.update_summary(summary)
         paper.save()
         self._invalidate_paper_cache(paper_id)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[
+            CreateOrUpdateIfAllowed
+        ]
+    )
+    def upvote(self, request, pk=None):
+        item = self.get_object()
+        user = request.user
+
+        vote_exists = find_vote(user, item, Vote.UPVOTE)
+
+        if vote_exists:
+            return Response(
+                'This vote already exists',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        response = update_or_create_vote(request, user, item, Vote.UPVOTE)
+        return response
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[
+            CreateOrUpdateIfAllowed
+        ]
+    )
+    def downvote(self, request, pk=None):
+        item = self.get_object()
+        user = request.user
+
+        vote_exists = find_vote(user, item, Vote.DOWNVOTE)
+
+        if vote_exists:
+            return Response(
+                'This vote already exists',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        response = update_or_create_vote(request, user, item, Vote.DOWNVOTE)
+        return response
+
+    @action(
+        detail=False,
+        methods=['get'],
+    )
+    def check_user_vote(self, request):
+        summary_ids = request.query_params['summary_ids'].split(',')
+        user = request.user
+        response = {}
+
+        if user.is_authenticated:
+            votes = Vote.objects.filter(
+                summary__id__in=summary_ids,
+                created_by=user
+            )
+
+            for vote in votes.iterator():
+                summary = vote.summary
+                summary_id = summary.id
+                data = SummaryVoteSerializer(instance=vote).data
+                score = SummarySerializer().get_score(summary)
+                data['score'] = score
+                response[summary_id] = data
+
+        return Response(response, status=status.HTTP_200_OK)
+
+
+def create_vote(user, summary, vote_type):
+    vote = Vote(
+        created_by=user,
+        summary=summary,
+        vote_type=vote_type
+    )
+    vote.save()
+    return vote
+
+
+def find_vote(user, summary, vote_type):
+    vote = Vote.objects.filter(
+        summary=summary,
+        created_by=user,
+        vote_type=vote_type
+    )
+    if vote:
+        return True
+    return False
+
+
+def retrieve_vote(user, summary):
+    try:
+        return Vote.objects.get(
+            summary=summary,
+            created_by=user.id
+        )
+    except Vote.DoesNotExist:
+        return None
+
+
+def get_vote_response(vote, status_code):
+    serializer = SummaryVoteSerializer(vote)
+    return Response(serializer.data, status=status_code)
+
+
+def update_or_create_vote(request, user, summary, vote_type):
+    vote = retrieve_vote(user, summary)
+
+    if vote:
+        vote.vote_type = vote_type
+        vote.save(update_fields=['updated_date', 'vote_type'])
+        events_api.track_content_vote(user, vote, request)
+        return get_vote_response(vote, 200)
+
+    vote = create_vote(user, summary, vote_type)
+    events_api.track_content_vote(user, vote, request)
+    create_contribution.apply_async(
+        (
+            Contribution.UPVOTER,
+            {'app_label': 'summary', 'model': 'vote'},
+            user.id,
+            summary.paper.id,
+            vote.id
+        ),
+        priority=3,
+        countdown=10
+    )
+    return get_vote_response(vote, 201)
