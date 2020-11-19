@@ -866,7 +866,8 @@ class PaperViewSet(viewsets.ModelViewSet):
             return self.get_queryset(
                 prefetch=False
             ).filter(
-                is_removed=False
+                is_removed=False,
+                is_removed_by_user=False,
             ).prefetch_related(
                 *self.prefetch_lookups()
             )
@@ -875,6 +876,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         ).filter(
             hubs__id__in=[int(hub_id)],
             is_removed=False,
+            is_removed_by_user=False,
         ).prefetch_related(
             *self.prefetch_lookups()
         )
