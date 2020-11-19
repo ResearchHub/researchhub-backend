@@ -63,14 +63,20 @@ class SummaryViewSet(viewsets.ModelViewSet):
         summary = self._create_summary(request)
         context = self.get_serializer_context()
 
+        created = None
         if self._user_can_direct_edit(request.user):
-            self._approve_and_add_summary_to_paper(
+            created = self._approve_and_add_summary_to_paper(
                 paper_id,
                 summary,
                 request.user
             )
         self._invalidate_paper_cache(paper_id)
         update_or_create_vote(request, request.user, summary, Vote.UPVOTE)
+
+        # TODO: Return old summary?
+        # if created is not None and not created:
+        #     summary = summary.paper.summary
+
         data = SummarySerializer(summary, context=context).data
         create_contribution.apply_async(
             (
@@ -152,7 +158,12 @@ class SummaryViewSet(viewsets.ModelViewSet):
             created_location=created_location
         )
 
-        tracked_summary = events_api.track_content_summary(user, new_summary, request, update=bool(previous_summary))
+        tracked_summary = events_api.track_content_summary(
+            user,
+            new_summary,
+            request,
+            update=bool(previous_summary)
+        )
         update_user_risk_score(user, tracked_summary)
 
         return new_summary
@@ -167,13 +178,27 @@ class SummaryViewSet(viewsets.ModelViewSet):
     def _approve_and_add_summary_to_paper(self, paper_id, summary, user):
         summary.approve(by=user)
         summary.save()
-        self._update_paper_summary(paper_id, summary)
+        return self._update_paper_summary(user, paper_id, summary)
 
-    def _update_paper_summary(self, paper_id, summary):
+    def _update_paper_summary(self, user, paper_id, summary):
         paper = Paper.objects.get(id=paper_id)
-        paper.update_summary(summary)
-        paper.save()
-        self._invalidate_paper_cache(paper_id)
+        first_summary = paper.summary is None
+        user_is_author = user in paper.authors.all()
+        user_is_submitter = user == paper.uploaded_by
+        user_is_moderator = user.moderator
+        edit_conditions = (
+            first_summary,
+            user_is_author,
+            user_is_submitter,
+            user_is_moderator
+        )
+
+        if any(edit_conditions):
+            paper.update_summary(summary)
+            paper.save()
+            self._invalidate_paper_cache(paper_id)
+            return True
+        return False
 
     @action(
         detail=True,
