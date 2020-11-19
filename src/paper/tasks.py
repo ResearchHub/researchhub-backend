@@ -284,7 +284,6 @@ def celery_extract_meta_data(paper_id, title, check_title):
         paper.save()
     except (UniqueViolation, IntegrityError) as e:
         sentry.log_info(e)
-        handle_duplicate_doi(paper, doi)
     except Exception as e:
         sentry.log_info(e)
 
