@@ -263,14 +263,16 @@ def celery_extract_meta_data(paper_id, title, check_title):
         if not similar_title:
             return
 
-        doi = best_matching_result.get('DOI', paper.doi)
+        if not paper.doi:
+            doi = best_matching_result.get('DOI', paper.doi)
+            paper.doi = doi
+
         url = best_matching_result.get('URL', None)
         publish_date = best_matching_result['created']['date-time']
         publish_date = datetime.strptime(publish_date, date_format).date()
         tagline = best_matching_result.get('abstract', '')
         tagline = re.sub(r'<[^<]+>', '', tagline)  # Removing any jat xml tags
 
-        paper.doi = doi
         paper.url = url
         paper.paper_publish_date = publish_date
 
