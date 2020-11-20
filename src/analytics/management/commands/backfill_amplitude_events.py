@@ -69,7 +69,8 @@ class Command(BaseCommand):
                         'event_type': 'create_comment',
                         'time': int(comment.created_date.timestamp()),
                         'user_properties': user_properties,
-                        'insert_id': f'comment_{comment.id}'
+                        'insert_id': f'comment_{comment.id}',
+                        'is_removed': comment.is_removed,
                     }
                     events.append(hit)
 
@@ -96,7 +97,8 @@ class Command(BaseCommand):
                         'event_type': 'create_reply',
                         'time': int(reply.created_date.timestamp()),
                         'user_properties': user_properties,
-                        'insert_id': f'reply_{reply.id}'
+                        'insert_id': f'reply_{reply.id}',
+                        'is_removed': reply.is_removed,
                     }
                     events.append(hit)
 
@@ -123,7 +125,8 @@ class Command(BaseCommand):
                         'event_type': 'create_thread',
                         'time': int(thread.created_date.timestamp()),
                         'user_properties': user_properties,
-                        'insert_id': f'thread_{thread.id}'
+                        'insert_id': f'thread_{thread.id}',
+                        'is_removed': thread.is_removed,
                     }
                     events.append(hit)
 
@@ -177,7 +180,8 @@ class Command(BaseCommand):
                         'event_type': 'create_paper',
                         'time': int(paper.uploaded_date.timestamp()),
                         'user_properties': user_properties,
-                        'insert_id': f'paper_{paper.id}'
+                        'insert_id': f'paper_{paper.id}',
+                        'is_removed': paper.is_removed,
                     }
                     events.append(hit)
 
