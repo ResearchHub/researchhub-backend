@@ -132,6 +132,7 @@ def set_or_increment(queryset, hashes, all_users, attributes):
     options={'queue': APP_ENV}
 )
 def distribute_rewards(starting_date=None, end_date=None, distribute=True):
+    return True
     from user.models import User
     
     if end_date is None:
