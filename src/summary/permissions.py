@@ -7,7 +7,7 @@ class ProposeSummaryEdit(RuleBasedPermission):
 
     def satisfies_rule(self, request):
         if request.method == RequestMethods.POST:
-            return request.user.reputation >= 1
+            return request.user.reputation >= 1 and not request.user.probable_spammer and not request.user.is_suspended
         return True
 
 

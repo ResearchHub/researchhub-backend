@@ -53,19 +53,19 @@ class FlagDiscussionComment(RuleBasedPermission):
     message = 'Not enough reputation to flag comment.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 1
+        return request.user.reputation >= 1 and not request.user.is_suspended
 
 class FlagDiscussionReply(RuleBasedPermission):
     message = 'Not enough reputation to flag reply.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 1
+        return request.user.reputation >= 1 and not request.user.is_suspended
 
 class FlagDiscussionThread(RuleBasedPermission):
     message = 'Not enough reputation to flag thread.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 1
+        return request.user.reputation >= 1 and not request.user.is_suspended
 
 class Vote(AuthorizationBasedPermission):
     message = 'Can not vote on own content'
@@ -79,37 +79,37 @@ class UpvoteDiscussionComment(RuleBasedPermission):
     message = 'Not enough reputation to upvote comment.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 1
+        return request.user.reputation >= 1 and not request.user.is_suspended
 
 class UpvoteDiscussionReply(RuleBasedPermission):
     message = 'Not enough reputation to upvote reply.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 1
+        return request.user.reputation >= 1 and not request.user.is_suspended
 
 class UpvoteDiscussionThread(RuleBasedPermission):
     message = 'Not enough reputation to upvote thread.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 1
+        return request.user.reputation >= 1 and not request.user.is_suspended
 
 class DownvoteDiscussionComment(RuleBasedPermission):
     message = 'Not enough reputation to upvote comment.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 25
+        return request.user.reputation >= 25 and not request.user.is_suspended
 
 class DownvoteDiscussionReply(RuleBasedPermission):
     message = 'Not enough reputation to upvote reply.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 25
+        return request.user.reputation >= 25 and not request.user.is_suspended
 
 class DownvoteDiscussionThread(RuleBasedPermission):
     message = 'Not enough reputation to upvote thread.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 25
+        return request.user.reputation >= 25 and not request.user.is_suspended
 
 class Endorse(AuthorizationBasedPermission):
 

@@ -392,7 +392,7 @@ def is_eligible_for_discussion_vote(recipient, voter):
 
 def is_eligible_user(user):
     if user is not None:
-        return user.is_active
+        return user.is_active and not user.is_suspended
     return False
 
 
