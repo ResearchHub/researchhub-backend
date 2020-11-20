@@ -565,6 +565,7 @@ RESULTS_PER_ITERATION = 50 # default is 10, if this goes too high like >=100 it 
 WAIT_TIME = 3 # The docs recommend 3 seconds between queries
 RETRY_WAIT = 8
 RETRY_MAX = 20 # It fails a lot so retry a bunch
+NUM_DUP_STOP = 30 # Number of dups to hit before determining we're done
 BASE_URL = 'http://export.arxiv.org/api/query?'
 
 # Pull Daily (arxiv updates 20:00 EST)
@@ -588,6 +589,7 @@ def pull_papers(start=0):
 
     i = start
     num_retries = 0
+    dups = 0
     while True:
         print("Entries: %i - %i" % (i, i+RESULTS_PER_ITERATION))
 
@@ -676,6 +678,12 @@ def pull_papers(start=0):
 
                     # Arxiv Categories
                     # all_categories = [t['term'] for t in entry.tags]
+                else:
+                    # if we've reach the max dups then we're done
+                    if dups > NUM_DUP_STOP:
+                        return
+                    else:
+                        dups += 1
 
         # Rate limit
         time.sleep(WAIT_TIME)
