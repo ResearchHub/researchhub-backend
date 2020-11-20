@@ -10,6 +10,8 @@ from user.models import User
 from utils.sentry import log_info
 
 geo = GeoIP2()
+
+
 class Amplitude:
     api_key = AMPLITUDE_API_KEY
     api_url = 'https://api.amplitude.com/2/httpapi'
@@ -26,13 +28,20 @@ class Amplitude:
             user = User.objects.get(id=user_id)
             user_email = user.email
 
+            invited_by = user.invited_by
+            if invited_by:
+                invited_by_id = invited_by.id
+            else:
+                invited_by_id = None
+
             user_properties = {
                 'email': user_email,
                 'first_name': user.first_name,
                 'last_name': user.last_name,
                 'reputation': user.reputation,
                 'is_suspended': user.is_suspended,
-                'probable_spammer': user.probable_spammer
+                'probable_spammer': user.probable_spammer,
+                'invited_by_id': invited_by_id
             }
             user_id = f'{user_email}_{user_id}'
 
