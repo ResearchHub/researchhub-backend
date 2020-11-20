@@ -286,7 +286,7 @@ class Command(BaseCommand):
                     'event_type': 'user_signup',
                     'time': int(user.date_joined.timestamp()),
                     'user_properties': user_properties,
-                    'insert_id': f'bulletpoint_{user.id}'
+                    'insert_id': f'user_{user.id}'
                 }
                 events.append(hit)
 
