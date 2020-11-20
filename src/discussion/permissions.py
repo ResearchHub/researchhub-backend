@@ -17,19 +17,19 @@ class CreateDiscussionComment(RuleBasedPermission):
     message = 'Not enough reputation to create comment.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 1 and not request.user.is_suspended
+        return request.user.reputation >= 1
 
 class CreateDiscussionReply(RuleBasedPermission):
     message = 'Not enough reputation to create reply.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 1 and not request.user.is_suspended
+        return request.user.reputation >= 1
 
 class CreateDiscussionThread(RuleBasedPermission):
     message = 'Not enough reputation to create thread.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 1 and not request.user.is_suspended
+        return request.user.reputation >= 1
 
 class UpdateDiscussionComment(AuthorizationBasedPermission):
     message = 'Action not permitted.'
