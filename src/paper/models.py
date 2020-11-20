@@ -79,10 +79,10 @@ class Paper(models.Model):
         help_text=HELP_TEXT_IS_REMOVED
     )
     bullet_low_quality = models.BooleanField(
-        default=True
+        default=False
     )
     summary_low_quality = models.BooleanField(
-        default=True
+        default=False
     )
     score = models.IntegerField(default=0, db_index=True)
     discussion_count = models.IntegerField(default=0, db_index=True)
