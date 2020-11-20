@@ -20,6 +20,8 @@ class Command(BaseCommand):
             'first_name': user.first_name,
             'last_name': user.last_name,
             'reputation': user.reputation,
+            'is_suspended': user.is_suspended,
+            'probable_spammer': user.probable_spammer
         }
         return user_properties
 

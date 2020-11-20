@@ -31,6 +31,8 @@ class Amplitude:
                 'first_name': user.first_name,
                 'last_name': user.last_name,
                 'reputation': user.reputation,
+                'is_suspended': user.is_suspended,
+                'probable_spammer': user.probable_spammer
             }
             user_id = f'{user_email}_{user_id}'
 
@@ -42,6 +44,8 @@ class Amplitude:
                 'email': '',
                 'first_name': 'Anonymous',
                 'reputation': 0,
+                'is_suspended': False,
+                'probable_spammer': False
             }
             event_data['user_id'] = '_Anonymous_'
 
