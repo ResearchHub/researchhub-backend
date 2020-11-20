@@ -15,13 +15,20 @@ API_URL = 'https://api.amplitude.com/2/httpapi'
 class Command(BaseCommand):
     def get_user_props(self, user, user_email):
         # Makes one less db call if user email is passed in
+        invited_by = user.invited_by
+        if invited_by:
+            invited_by_id = invited_by.id
+        else:
+            invited_by_id = None
+
         user_properties = {
             'email': user_email,
             'first_name': user.first_name,
             'last_name': user.last_name,
             'reputation': user.reputation,
             'is_suspended': user.is_suspended,
-            'probable_spammer': user.probable_spammer
+            'probable_spammer': user.probable_spammer,
+            'invited_by_id': invited_by_id
         }
         return user_properties
 
