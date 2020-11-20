@@ -35,7 +35,7 @@ from paper.models import (
     Vote,
     FeaturedPaper
 )
-from paper.tasks import preload_hub_papers, censored_paper_cleanup
+from paper.tasks import censored_paper_cleanup
 from paper.permissions import (
     CreatePaper,
     UpdateOrDeleteAdditionalFile,
