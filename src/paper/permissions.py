@@ -7,14 +7,14 @@ class CreatePaper(RuleBasedPermission):
     message = 'Not enough reputation to upload paper.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 1
+        return request.user.reputation >= 1 and not request.user.is_suspended
 
 
 class UpdatePaper(RuleBasedPermission):
     message = 'Not enough reputation to upload paper.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 1
+        return request.user.reputation >= 1 and not request.user.is_suspended
 
 
 class FlagPaper(RuleBasedPermission):
@@ -30,14 +30,14 @@ class UpvotePaper(RuleBasedPermission):
     message = 'Not enough reputation to upvote paper.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 1
+        return request.user.reputation >= 1 and not request.user.is_suspended
 
 
 class DownvotePaper(RuleBasedPermission):
     message = 'Not enough reputation to upvote paper.'
 
     def satisfies_rule(self, request):
-        return request.user.reputation >= 25
+        return request.user.reputation >= 25 and not request.user.is_suspended
 
 
 class IsModeratorOrVerifiedAuthor(AuthorizationBasedPermission):
