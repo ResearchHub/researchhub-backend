@@ -16,6 +16,9 @@ from subprocess import call
 
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
+from celery.utils.log import get_task_logger
+
+logger = get_task_logger(__name__)
 
 from django.apps import apps
 from django.core.cache import cache
@@ -539,8 +542,9 @@ NUM_DUP_STOP = 30 # Number of dups to hit before determining we're done
 BASE_URL = 'http://export.arxiv.org/api/query?'
 
 # Pull Daily (arxiv updates 20:00 EST)
-@periodic_task(run_every=crontab(minute='32', hour='0'), priority=8)
+@periodic_task(run_every=crontab(minute='05', hour='1'), priority=8)
 def pull_papers(start=0):
+    logger.info('Pulling Papers')
 
     Paper = apps.get_model('paper.Paper')
     Summary = apps.get_model('summary.Summary')
@@ -561,7 +565,7 @@ def pull_papers(start=0):
     num_retries = 0
     dups = 0
     while True:
-        print("Entries: %i - %i" % (i, i+RESULTS_PER_ITERATION))
+        logger.info("Entries: %i - %i" % (i, i+RESULTS_PER_ITERATION))
 
         query = 'search_query=%s&start=%i&max_results=%i&sortBy=%s&sortOrder=%s&' % (
                 search_query,
@@ -584,8 +588,8 @@ def pull_papers(start=0):
             feed = feedparser.parse(response)
 
             if i == start:
-                print("total results", feed.feed.opensearch_totalresults)
-                print("last updated", feed.feed.updated)
+                logger.info(f'Total results: {feed.feed.opensearch_totalresults}')
+                logger.info(f'Last updated: {feed.feed.updated}')
 
             # If no results and we're at the end or we've hit the retry limit give up
             if len(feed.entries) == 0:
