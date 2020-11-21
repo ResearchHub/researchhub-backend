@@ -539,7 +539,7 @@ NUM_DUP_STOP = 30 # Number of dups to hit before determining we're done
 BASE_URL = 'http://export.arxiv.org/api/query?'
 
 # Pull Daily (arxiv updates 20:00 EST)
-@periodic_task(run_every=crontab(minute='45', hour='1'), priority=8)
+@periodic_task(run_every=crontab(minute='32', hour='0'), priority=8)
 def pull_papers(start=0):
 
     Paper = apps.get_model('paper.Paper')
