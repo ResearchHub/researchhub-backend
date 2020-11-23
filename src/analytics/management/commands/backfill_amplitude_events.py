@@ -160,7 +160,7 @@ class Command(BaseCommand):
                         'event_type': 'create_discussion_vote',
                         'time': int(vote.created_date.timestamp()),
                         'user_properties': user_properties,
-                        'insert_id': f'vote_{vote.id}'
+                        'insert_id': f'dis_vote_{vote.id}'
                     }
                     events.append(hit)
 
@@ -215,7 +215,7 @@ class Command(BaseCommand):
                         'event_type': 'create_paper_vote',
                         'time': int(vote.created_date.timestamp()),
                         'user_properties': user_properties,
-                        'insert_id': f'vote_{vote.id}'
+                        'insert_id': f'paper_vote_{vote.id}'
                     }
                     events.append(hit)
 
