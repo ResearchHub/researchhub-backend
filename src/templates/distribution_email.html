@@ -20,14 +20,18 @@
             <br/><br/>
             You have earned a total of {{ reward_amount|intcomma }} ResearchCoin{{ reward_amount|pluralize }} this week. Share your earnings along with your referral link below!
             <div class="share-links">
-              <a title="Share on Twitter" class="twitter-group social-sharing" href="{{ action_link }}">
-                Share on Twitter 
-                <img class="twitter-button" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/Twitter_Social_Icon_Circle_Color.png">
+              <a title="Share on Twitter" class="twitter-group social-sharing" href="{{ action_links.twitter }}">
+                <div class="share-button-text">
+                  Share on Twitter
+                </div> 
+                <img class="social-button" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/Twitter_Social_Icon_Circle_Color.png">
                 </img>
               </a>
-              <a class="facebook-group social-sharing" href="https://www.facebook.com/sharer/sharer.php?{{ referral_link }}">
-                Share on Facebook
-                <img class="twitter-button" src=""></img>
+              <a class="facebook-group social-sharing" href="{{ action_links.facebook }}">
+                <div class="share-button-text">
+                  Share on Facebook
+                </div>
+                <img class="social-button" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/f_logo_RGB-Blue_250.png"></img>
               </a>
             </div>  
           </p>

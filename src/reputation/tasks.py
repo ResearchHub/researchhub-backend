@@ -134,7 +134,7 @@ def set_or_increment(queryset, hashes, all_users, attributes):
     options={'queue': APP_ENV}
 )
 def distribute_rewards(starting_date=None, end_date=None, distribute=True):
-    return True
+    # return True
     from user.models import User
     
     if end_date is None:
@@ -434,6 +434,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
             )
             user = User.objects.get(email=key)
             uploaded_papers_email_data = get_uploaded_papers_email_data(papers_uploaded)
+            action_links = get_action_links(user, reward_amount)
             content_stats = {
                 'reward_amount': reward_amount,
                 'uploaded_paper_count': uploaded_paper_count.get(key, 0),
@@ -442,7 +443,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
                 'total_comment_votes': total_comment_scores,
                 'total_votes_given': upload_vote_count,
                 'uploaded_papers': uploaded_papers_email_data,
-                'action_link': f"https://twitter.com/intent/tweet?url=&text=I%27ve%20earned%20{'{:,}'.format(reward_amount)}%20RSC%20this%20week%20on%20ResearchHub%2C%20an%20up%20and%20coming%20collaboration%20platform%20for%20scientists!%20Join%20me%20%26%20help%20contribute%20content%20here%3A%20"
+                'action_links': action_links,
             }
             send_distribution_email(user, content_stats)
 
@@ -481,6 +482,14 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     text_file = open("rsc_distribution.csv", "w")
     text_file.write(headers)
     text_file.close()
+
+
+def get_action_links(user, reward_amount):
+    action_links = {
+        'twitter': f"https://twitter.com/intent/tweet?url=&text=I%27ve%20earned%20{'{:,}'.format(reward_amount)}%20RSC%20this%20week%20on%20ResearchHub%2C%20an%20up%20and%20coming%20collaboration%20platform%20for%20scientists!%20Join%20me%20%26%20help%20contribute%20content%20here%3A%20",
+        'facebook': f'https://www.facebook.com/sharer/sharer.php?{user.referral_code}',
+    }
+    return action_links
 
 
 def get_author_full_name(user):
@@ -523,7 +532,7 @@ def send_distribution_email(user, content_stats):
         'total_comment_votes': content_stats['total_comment_votes'],
         'total_votes_given': content_stats['total_votes_given'],
         'uploaded_papers': content_stats['uploaded_papers'],
-        'action_link': content_stats['action_link'],
+        'action_links': content_stats['action_links'],
     }
     
     subject = 'Notification From ResearchHub'
