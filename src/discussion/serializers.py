@@ -106,6 +106,7 @@ class VoteSerializer(serializers.ModelSerializer):
 
     class Meta:
         fields = [
+            'id',
             'content_type',
             'created_by',
             'created_date',

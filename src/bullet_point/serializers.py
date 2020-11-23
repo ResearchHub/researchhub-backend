@@ -118,6 +118,7 @@ class BulletPointVoteSerializer(serializers.ModelSerializer):
 
     class Meta:
         fields = [
+            'id',
             'created_by',
             'created_date',
             'vote_type',
