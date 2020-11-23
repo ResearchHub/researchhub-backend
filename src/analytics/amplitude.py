@@ -19,6 +19,7 @@ class Amplitude:
     def build_hit(self, request, data):
         hit = {}
         event_data = data.copy()
+
         user_id = data.get('user_id', request.user.id)
         ip, is_routable = get_client_ip(request)
 
