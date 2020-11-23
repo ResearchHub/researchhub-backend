@@ -442,7 +442,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
                 'total_comment_votes': total_comment_scores,
                 'total_votes_given': upload_vote_count,
                 'uploaded_papers': uploaded_papers_email_data,
-                'action_link': f"https://twitter.com/intent/tweet?url=https%3A%2F%2Fwww.researchhub.com&text=I've%20earned%20{'{:,}'.format(reward_amount)}%20ResearchCoins%20this%20week!%20Come%20see%20how%20you%20can%20make%20an%20impact%20on%20the%20scientific%20research%20community%20at",
+                'action_link': f"https://twitter.com/intent/tweet?url=&text=I%27ve%20earned%20{'{:,}'.format(reward_amount)}%20RSC%20this%20week%20on%20ResearchHub%2C%20an%20up%20and%20coming%20collaboration%20platform%20for%20scientists!%20Join%20me%20%26%20help%20contribute%20content%20here%3A%20"
             }
             send_distribution_email(user, content_stats)
 
