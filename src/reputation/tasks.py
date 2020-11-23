@@ -11,13 +11,15 @@ from django.contrib.contenttypes.models import ContentType
 from datetime import timedelta
 from django.utils import timezone
 
-from researchhub.settings import REWARD_SCHEDULE, REWARD_TIME, APP_ENV
+from researchhub.settings import REWARD_SCHEDULE, REWARD_TIME, APP_ENV, BASE_FRONTEND_URL
 from researchhub.celery import app
-from paper.models import Paper, Vote as PaperVote
+from paper.models import Paper, Vote as PaperVote, Figure
 from discussion.models import Vote as DiscussionVote, Thread, Reply, Comment
 from reputation.models import Contribution, DistributionAmount
 from reputation.distributor import RewardDistributor
 from utils.sentry import log_info
+from utils.message import send_email_message
+from mailing_list.lib import base_email_context
 
 DEFAULT_REWARD = 1000000
 
@@ -430,6 +432,19 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
                 amount=reward_amount,
                 distribute=True
             )
+            user = User.objects.get(email=key)
+            uploaded_papers_email_data = get_uploaded_papers_email_data(papers_uploaded)
+            content_stats = {
+                'reward_amount': reward_amount,
+                'uploaded_paper_count': uploaded_paper_count.get(key, 0),
+                'total_paper_votes': total_paper_scores,
+                'discussion_count': discussion_count.get(key, 0),
+                'total_comment_votes': total_comment_scores,
+                'total_votes_given': upload_vote_count,
+                'uploaded_papers': uploaded_papers_email_data,
+                'action_link': f"https://twitter.com/intent/tweet?url=https%3A%2F%2Fwww.researchhub.com&text=I've%20earned%20{'{:,}'.format(reward_amount)}%20ResearchCoins%20this%20week!%20Come%20see%20how%20you%20can%20make%20an%20impact%20on%20the%20scientific%20research%20community%20at",
+            }
+            send_distribution_email(user, content_stats)
 
     if distribute:
         last_distribution.distributed = True
@@ -466,3 +481,56 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     text_file = open("rsc_distribution.csv", "w")
     text_file.write(headers)
     text_file.close()
+
+
+def get_author_full_name(user):
+    author_profile = user.author_profile
+    user_name = author_profile.first_name
+    if author_profile.last_name:
+        user_name += ' ' + author_profile.last_name
+    return user_name
+
+
+def get_uploaded_papers_email_data(papers_uploaded):
+    uploaded_papers = []
+    for paper in papers_uploaded:
+        paper_data = {}
+        paper_data['title'] = paper.title
+        paper_data['summary'] = f'From Paper: {paper.summary.summary_plain_text}' if paper.summary else ''
+        paper_data['uploaded_by'] = get_author_full_name(paper.uploaded_by)
+        paper_data['discussion_count'] = paper.discussion_count
+        paper_data['vote_count'] = paper.calculate_score()
+        paper_data['paper_type'] = ''.join(paper.paper_type.split('_')).capitalize()
+        paper_data['url'] = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}'
+        paper_preview_list = Figure.objects.filter(paper=paper.id, figure_type=Figure.PREVIEW).order_by('created_date')
+        if paper_preview_list.exists():
+            paper_preview = paper_preview_list.last()
+            paper_data['preview'] = paper_preview.file.url
+        paper_data['hubs'] = [hub.name for hub in paper.hubs.all()]
+        uploaded_papers.append(paper_data)
+    return uploaded_papers
+
+
+
+def send_distribution_email(user, content_stats):
+    context = {
+        **base_email_context,
+        'user_name': get_author_full_name(user),
+        'reward_amount': content_stats['reward_amount'],
+        'uploaded_paper_count': content_stats['uploaded_paper_count'],
+        'total_paper_votes': content_stats['total_paper_votes'],
+        'discussion_count': content_stats['discussion_count'],
+        'total_comment_votes': content_stats['total_comment_votes'],
+        'total_votes_given': content_stats['total_votes_given'],
+        'uploaded_papers': content_stats['uploaded_papers'],
+        'action_link': content_stats['action_link'],
+    }
+    
+    subject = 'Notification From ResearchHub'
+    send_email_message(
+        user.email,
+        'distribution_email.txt',
+        subject,
+        context,
+        html_template='distribution_email.html'
+    )
