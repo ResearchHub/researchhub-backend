@@ -42,7 +42,7 @@ body {
   margin-top: 25px;
   margin-bottom: 20px;
   padding-top: 35px;
-  padding-bottom: 35px;
+  padding-bottom: 20px;
   font-weight: 500;
   letter-spacing: 0.6px;
   box-sizing: border-box;
@@ -67,35 +67,37 @@ body {
 
 .share-links {
   display: flex;
-  text-align: center;
-  justify-content: center;
-  align-items: center;
-  margin-top: 16px;
+  margin-top: 35px;
 }
 
-.twitter-button {
+.social-button {
   height: 30px;
   width: 30px;
+  margin-left: 3px;
 }
 
 .social-sharing {
   padding: 8px;
   color: #fff;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
   font-size: 14px;
   border-radius: 4px;
+  text-decoration: none;
+}
+
+.share-button-text {
+  margin: auto;
 }
 
 .facebook-group {
-  background: #4267B2;
+  background: rgb(24, 119, 242);
+  margin-right: auto;
 }
 
 .twitter-group {
   background: #1DA1F2;
   margin-right: 24px;
+  margin-left: auto;
 }
 
 .count-wrapper {
