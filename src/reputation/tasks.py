@@ -487,7 +487,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
 def get_action_links(user, reward_amount):
     action_links = {
         'twitter': f"https://twitter.com/intent/tweet?url=&text=I%27ve%20earned%20{'{:,}'.format(reward_amount)}%20RSC%20this%20week%20on%20ResearchHub%2C%20an%20up%20and%20coming%20collaboration%20platform%20for%20scientists!%20Join%20me%20%26%20help%20contribute%20content%20here%3A%20",
-        'facebook': f'https://www.facebook.com/sharer/sharer.php?{user.referral_code}',
+        'facebook': f'https://www.facebook.com/sharer/sharer.php?u=https://www.researchhub.com/referral/{user.referral_code}',
     }
     return action_links
 
