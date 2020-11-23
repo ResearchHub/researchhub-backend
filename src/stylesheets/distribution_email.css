@@ -67,12 +67,35 @@ body {
 
 .share-links {
   display: flex;
-  float: right;
+  text-align: center;
+  justify-content: center;
+  align-items: center;
+  margin-top: 16px;
 }
 
 .twitter-button {
   height: 30px;
   width: 30px;
+}
+
+.social-sharing {
+  padding: 8px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  font-size: 14px;
+  border-radius: 4px;
+}
+
+.facebook-group {
+  background: #4267B2;
+}
+
+.twitter-group {
+  background: #1DA1F2;
+  margin-right: 24px;
 }
 
 .count-wrapper {

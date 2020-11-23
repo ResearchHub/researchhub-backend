@@ -14,17 +14,22 @@
       <div class="email-header">
         <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
         <div class="header">
-          You've earned some RSC!
-          <div class="share-links">
-            <a title="Share on Twitter" href="{{ action_link }}">
-              <img class="twitter-button" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/Twitter_Social_Icon_Circle_Color.png">
-              </img>
-            </a>
-          </div>
+          You've earned RSC!
           <p class="header-message">
             Dear {{ user_name }},
             <br/><br/>
-            You have earned a total of {{ reward_amount|intcomma }} ResearchCoin{{ reward_amount|pluralize }} this week. Here is your summary:
+            You have earned a total of {{ reward_amount|intcomma }} ResearchCoin{{ reward_amount|pluralize }} this week. Share your earnings along with your referral link below!
+            <div class="share-links">
+              <a title="Share on Twitter" class="twitter-group social-sharing" href="{{ action_link }}">
+                Share on Twitter 
+                <img class="twitter-button" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/Twitter_Social_Icon_Circle_Color.png">
+                </img>
+              </a>
+              <a class="facebook-group social-sharing" href="https://www.facebook.com/sharer/sharer.php?{{ referral_link }}">
+                Share on Facebook
+                <img class="twitter-button" src=""></img>
+              </a>
+            </div>  
           </p>
         </div>
       </div>
