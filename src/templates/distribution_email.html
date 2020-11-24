@@ -1,0 +1,112 @@
+{% load inlinecss %}
+{% load l10n %}
+{% load humanize %}
+<html>
+  <link rel="stylesheet" href="../stylesheets/distribution_email.css">  
+  <head>
+      <meta charset="UTF-8">
+      <title></title>
+      <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+  </head>
+  {% inlinecss "distribution_email.css" %}
+  <body>
+    <div class="email-container">
+      <div class="email-header">
+        <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
+        <div class="header">
+          You've earned RSC!
+          <p class="header-message">
+            Dear {{ user_name }},
+            <br/><br/>
+            You have earned a total of {{ reward_amount|intcomma }} ResearchCoin{{ reward_amount|pluralize }} this week. Share your earnings along with your referral link below!
+            <div class="share-links">
+              <a title="Share on Twitter" class="twitter-group social-sharing" href="{{ action_links.twitter }}">
+                <div class="share-button-text">
+                  Share on Twitter
+                </div> 
+                <img class="social-button" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/Twitter_Social_Icon_Circle_Color.png">
+                </img>
+              </a>
+              <a class="facebook-group social-sharing" href="{{ action_links.facebook }}">
+                <div class="share-button-text">
+                  Share on Facebook
+                </div>
+                <img class="social-button" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/f_logo_RGB-Blue_250.png"></img>
+              </a>
+            </div>  
+          </p>
+        </div>
+      </div>
+      <div class="content">
+        <div class="column-left">
+          <h4 class="column-headers"> Papers uploaded </h4>
+          <h4 class="column-headers"> Comments made </h4>
+          <h4 class="column-headers"> Upvotes given </h4>
+        </div>
+        <div class="column-center">
+          <h4 class="column-values"> {{ uploaded_paper_count }} </h4>
+          <h4 class="column-values">{{ discussion_count }}</h4>
+          <h4 class="column-values"> {{ total_votes_given }} </h4>
+        </div>
+        <div class="column-right">
+          <h4 class="column-headers"> Upvotes on papers </h4>
+          <h4 class="column-headers"> Upvotes on comments </h4>
+        </div>
+        <div class="column-center">
+          <h4 class="column-values"> {{ total_paper_votes }} </h4>
+          <h4 class="column-values">{{ total_comment_votes }}</h4>
+        </div>
+      </div>
+      {% if uploaded_papers %}
+        <div class="papers-message">
+          <h4>Papers You Uploaded</h4>
+        </div>
+        {% for paper in uploaded_papers %}
+          <a href="{{ paper.url }}" class="paper">
+            <div class="paper-votes-container">
+              <div class="paper-votes-pill"> 
+                {{ paper.vote_count }}
+              </div>
+            </div>
+            <div class="paper-info-container">
+              <div class="paper-info-body">
+                <div class="paper-info-text">
+                  <div class="paper-title"> 
+                    {{ paper.title }} 
+                  </div>
+                  <div class="paper-summary">
+                    {% if paper.summary %}
+                      {{ paper.summary }}
+                    {% endif %}
+                  </div>
+                  <div class="paper-author">
+                    Submitted by {{ paper.uploaded_by }}
+                  </div>
+                </div>
+                <div class="paper-preview-container">
+                  <img class="paper-preview" src="{{ paper.preview }}"/>
+                </div>
+              </div>
+              <div class="paper-footer">
+                <div class="paper-hubs">
+                  {% for hub in paper.hubs %}
+                    <div class="paper-hub">
+                      {{ hub|upper }}
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          </a>
+        {% endfor %}
+      {% endif %}
+    </div>
+    <div class="footer">
+      <a class="footer-link" href="{{opt_out}}">Unsubscribe from this list</a>
+      <a class="footer-link" href="{{update_subscription}}">Update subscription preferences</a>
+    </div>
+    <div style="display: none">{% now "U" %}</div>
+  </body>
+</html>
+
+{% endinlinecss %}

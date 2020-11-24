@@ -138,6 +138,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.sites',
     'django.contrib.staticfiles',
+    'django.contrib.humanize',
     'django_filters',
 
     # https://github.com/django-extensions/django-extensions
