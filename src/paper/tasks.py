@@ -546,7 +546,7 @@ def task_test():
     logger.info('Minute Tick')
 
 # Pull Daily (arxiv updates 20:00 EST)
-@periodic_task(run_every=crontab(minute='53', hour='20'), priority=8)
+@periodic_task(run_every=crontab(minute='45', hour='1'), priority=8)
 def pull_papers(start=0):
     logger.info('Pulling Papers')
 
