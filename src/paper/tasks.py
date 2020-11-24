@@ -571,8 +571,12 @@ RETRY_MAX = 20 # It fails a lot so retry a bunch
 NUM_DUP_STOP = 30 # Number of dups to hit before determining we're done
 BASE_URL = 'http://export.arxiv.org/api/query?'
 
+@periodic_task(run_every=crontab(), priority=9)
+def task_test():
+    logger.info('Minute Tick')
+
 # Pull Daily (arxiv updates 20:00 EST)
-@periodic_task(run_every=crontab(minute='37', hour='20'), priority=8)
+@periodic_task(run_every=crontab(minute='53', hour='20'), priority=8)
 def pull_papers(start=0):
     logger.info('Pulling Papers')
 
