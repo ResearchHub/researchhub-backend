@@ -153,6 +153,33 @@ def distribute_for_create_summary(
         distributor.distribute()
 
 
+@receiver(post_save, sender=SummaryVote, dispatch_uid='summary_vote')
+def distribute_for_bullet_point_vote(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
+    timestamp = time()
+    voter = instance.created_by
+    recipient = instance.summary.proposed
+
+    if created and is_eligible_for_summary_vote(recipient, voter):
+        hubs = instance.summary.paper.hubs
+        distribution = get_summary_vote_item_distribution(instance)
+
+        distributor = Distributor(
+            distribution,
+            recipient,
+            instance,
+            timestamp,
+            hubs
+        )
+
+        distributor.distribute()
+
+
 def is_eligible_for_create_summary(created, user):
     return (
         created
@@ -167,6 +194,28 @@ def is_eligible_for_create_first_summary(created, update_fields, summary):
         and check_approved_updated(update_fields)
         and summary.is_first_paper_summary
     )
+
+
+def is_eligible_for_summary_vote(recipient, voter):
+    """
+    Returns True if the recipient is eligible to receive an award.
+
+    Checks to ensure recipient is not also the voter.
+    """
+    if voter is None:
+        return True
+    return (recipient != voter) and is_eligible_user(recipient)
+
+
+def get_summary_vote_item_distribution(instance):
+    vote_type = instance.vote_type
+
+    if vote_type == SummaryVote.UPVOTE:
+        return distributions.SummaryUpvoted
+    elif vote_type == SummaryVote.DOWNVOTE:
+        return distributions.SummaryDownvoted
+    else:
+        raise TypeError('No vote type for summary instance')
 
 
 def check_approved_updated(update_fields):
@@ -218,58 +267,49 @@ def distribute_for_bullet_point_vote(
     update_fields,
     **kwargs
 ):
-    pass
-    """Distributes reputation to the creator of the item voted on."""
-    # timestamp = time()
-    # distributor = None
-    # try:
-    #     recipient = instance.item.created_by
-    # except Exception as e:
-    #     error = ReputationSignalError(e, 'Invalid recipient')
-    #     print(error)
-    #     return
+    timestamp = time()
+    voter = instance.created_by
+    recipient = instance.bulletpoint.created_by
 
-    # voter = instance.created_by
+    if created and is_eligible_for_bulletpoint_vote(recipient, voter):
+        hubs = instance.bulletpoint.paper.hubs
+        distribution = get_bulletpoint_vote_item_distribution(instance)
 
-    # if (
-    #     created
-    #     or vote_type_updated(update_fields)
-    # ) and is_eligible_for_discussion_vote(recipient, voter):
-    #     hubs = None
-    #     if isinstance(instance.item, Comment):
-    #         hubs = instance.item.parent.paper.hubs
-    #     elif isinstance(instance.item, Reply):
-    #         try:
-    #             hubs = instance.item.parent.parent.paper.hubs
-    #         except Exception as e:
-    #             sentry.log_error(e)
-    #     elif isinstance(instance.item, Thread):
-    #         hubs = instance.item.paper.hubs
+        distributor = Distributor(
+            distribution,
+            recipient,
+            instance,
+            timestamp,
+            hubs
+        )
 
-    #     # TODO: This needs to be altered so that if the vote changes the
-    #     # original distribution is deleted if not yet withdrawn
-    #     try:
-    #         distribution = get_discussion_vote_item_distribution(instance)
-    #         distributor = Distributor(
-    #             distribution,
-    #             recipient,
-    #             instance,
-    #             timestamp,
-    #             hubs.all()
-    #         )
-    #     except TypeError as e:
-    #         error = ReputationSignalError(
-    #             e,
-    #             'Failed to distribute for discussion vote'
-    #         )
-    #         print(error)
-
-    # if distributor is not None:
-    #     distributor.distribute()
+        distributor.distribute()
 
 
 def is_eligible_for_create_bullet_point(user):
     return is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
+
+
+def is_eligible_for_bulletpoint_vote(recipient, voter):
+    """
+    Returns True if the recipient is eligible to receive an award.
+
+    Checks to ensure recipient is not also the voter.
+    """
+    if voter is None:
+        return True
+    return (recipient != voter) and is_eligible_user(recipient)
+
+
+def get_bulletpoint_vote_item_distribution(instance):
+    vote_type = instance.vote_type
+
+    if vote_type == BulletPointVote.UPVOTE:
+        return distributions.BulletPointUpvoted
+    elif vote_type == BulletPointVote.DOWNVOTE:
+        return distributions.BulletPointDownvoted
+    else:
+        raise TypeError('No vote type for bulletpoint instance')
 
 
 def check_key_takeaway_interval(bullet_point, recipient):
