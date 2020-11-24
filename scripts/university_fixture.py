@@ -22,13 +22,14 @@ data_path = './.ipynb/'
 
 # https://www.kaggle.com/theriley106/university-statistics
 # Data was grabbed from US-News: https://www.usnews.com
-raw_us_df = pd.read_json(data_path + 'schoolInfo.json', orient='columns')
+raw_us_df = pd.read_json('https://storage.googleapis.com/kagglesdsdata/datasets/10525/14746/schoolInfo.json?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=gcp-kaggle-com%40kaggle-161607.iam.gserviceaccount.com%2F20201124%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20201124T021632Z&X-Goog-Expires=259199&X-Goog-SignedHeaders=host&X-Goog-Signature=062f04e0f608efcd78058f2bc06d9e6c9e432ac0994ef2352c432fe3a625218d987862e59aa37067b1b055a004299f26109765356e4e76d59a1a015e21877e076f5b54dc81f00f3e06b249a3783f9640bff71bdf17361f46bde31f0a20d7148910e650a596694dfb47edaa0c1f5f382b358fd363b8f195209a936247487c6ed838aa78d4a519da5b64afb02ced56071080e259f40d24f6a4d64f18195257e3c04103d290dd017b1c3cc2e0857389ae965fd9f4edee8af0d42b8cb1a1fd765f1e391173c47d4bf6a0c84d6fa079be0ebfdbab89a0d218e4ccfc2e6086d4632fed761816322b3e9d44bbd5d7e70b4ab39583e0579de39a108770f05792cc92dfc6', orient='columns')
 
 
 # In[4]:
 
 
-raw_world_df = pd.read_csv(data_path + 'timesData.csv')
+# https://github.com/Hipo/university-domains-list
+raw_world_df = pd.read_json('https://raw.githubusercontent.com/Hipo/university-domains-list/master/world_universities_and_domains.json')
 
 
 # In[5]:
@@ -89,8 +90,8 @@ cleaned_us_df
 # In[8]:
 
 
-cleaned_world_df = raw_world_df.drop_duplicates(subset=['university_name'])
-cleaned_world_df = cleaned_world_df.sort_values(by=['university_name'])
+cleaned_world_df = raw_world_df.drop_duplicates(subset=['name'])
+cleaned_world_df = cleaned_world_df.sort_values(by=['name'])
 cleaned_world_df
 
 
@@ -113,7 +114,7 @@ oriented_world_df = orient_df_to_index(cleaned_world_df)
 
 def convert_world_school(school):
     item = {}
-    item['name'] = school['university_name'].strip()
+    item['name'] = school['name'].strip()
     item['country'] = school['country'].strip()
     return item
 
@@ -204,9 +205,9 @@ len(merged_schools)
 
 def convert_to_fixture(schools):
     fixture = []
-    for s in schools:
+    for i, s in enumerate(schools):
         item = {}
-        item['pk'] = schools.index(s) + 10
+        item['pk'] = i + 10
         item['model'] = 'user.University'
         item['fields'] = s
         item['fields']['created_date'] = str(datetime.datetime.now(tz=datetime.timezone.utc))
