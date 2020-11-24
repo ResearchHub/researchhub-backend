@@ -128,14 +128,9 @@ def set_or_increment(queryset, hashes, all_users, attributes):
     return hashes
 
 
-@periodic_task(
-    run_every=REWARD_SCHEDULE,
-    priority=3,
-    options={'queue': APP_ENV}
-)
 def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     from user.models import User
-    
+
     if end_date is None:
         end_date = datetime.datetime.now(tz=pytz.utc)
 
@@ -440,8 +435,8 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
                     'reward_amount': reward_amount,
                     'uploaded_paper_count': uploaded_paper_count.get(key, 0),
                     'total_paper_votes': votes_count,
-                    'discussion_count': comment_upvote_count.get(key, 0),
-                    'total_comment_votes': total_comment_scores,
+                    'discussion_count': comment_upvote_count,
+                    'total_comment_votes': comment_upvotes_count.get(key, 0),
                     'total_votes_given': upload_vote_count,
                     'uploaded_papers': uploaded_papers_email_data,
                     'action_links': action_links,
