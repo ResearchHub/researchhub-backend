@@ -3,7 +3,7 @@ import datetime
 import pytz
 import numpy as np
 
-
+from django.db import transaction
 from django.db.models import Q, Sum, Count
 
 from celery.decorators import periodic_task
@@ -412,39 +412,41 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     total_rewards = {}
 
     for key in all_users:
-        upload_vote_count = paper_voted_on_count.get(key, 0)
-        comment_upvote_count = comment_votes_count.get(key, 0)
-        votes_count = paper_votes_count.get(key, 0) + comment_upvotes_count.get(key, 0)
-        upvoted_amount = math.floor(((upload_vote_count + comment_upvote_count) / (total_score)) * score_reward_amount)
-        upvotes_amount = math.floor(votes_count / total_score * upvote_reward_amount)
-        reward_amount = upvoted_amount + upvotes_amount
+        with transaction.atomic():
+            upload_vote_count = paper_voted_on_count.get(key, 0)
+            comment_upvote_count = comment_votes_count.get(key, 0)
+            votes_count = paper_votes_count.get(key, 0) + comment_upvotes_count.get(key, 0)
+            upvoted_amount = math.floor(((upload_vote_count + comment_upvote_count) / (total_score)) * score_reward_amount)
+            upvotes_amount = math.floor(votes_count / total_score * upvote_reward_amount)
+            reward_amount = upvoted_amount + upvotes_amount
 
-        total_rewards[key] = reward_amount
-        if distribute:
-            item = Contribution.objects.filter(user__email=key)
-            if not item.exists():
-                item = User.objects.get(email=key)
-            else:
-                item = item.last()
-            reward_dis.generate_distribution(
-                item,
-                amount=reward_amount,
-                distribute=True
-            )
-            user = User.objects.get(email=key)
-            uploaded_papers_email_data = get_uploaded_papers_email_data(papers_uploaded)
-            action_links = get_action_links(user, reward_amount)
-            content_stats = {
-                'reward_amount': reward_amount,
-                'uploaded_paper_count': uploaded_paper_count.get(key, 0),
-                'total_paper_votes': total_paper_scores,
-                'discussion_count': discussion_count.get(key, 0),
-                'total_comment_votes': total_comment_scores,
-                'total_votes_given': upload_vote_count,
-                'uploaded_papers': uploaded_papers_email_data,
-                'action_links': action_links,
-            }
-            send_distribution_email(user, content_stats)
+            total_rewards[key] = reward_amount
+            if distribute:
+                item = Contribution.objects.filter(user__email=key)
+                if not item.exists():
+                    item = User.objects.get(email=key)
+                else:
+                    item = item.last()
+                reward_dis.generate_distribution(
+                    item,
+                    amount=reward_amount,
+                    distribute=True
+                )
+                user = User.objects.get(email=key)
+                papers = papers_uploaded.filter(uploaded_by__email=key)
+                uploaded_papers_email_data = get_uploaded_papers_email_data(papers)
+                action_links = get_action_links(user, reward_amount)
+                content_stats = {
+                    'reward_amount': reward_amount,
+                    'uploaded_paper_count': uploaded_paper_count.get(key, 0),
+                    'total_paper_votes': votes_count,
+                    'discussion_count': comment_upvote_count.get(key, 0),
+                    'total_comment_votes': total_comment_scores,
+                    'total_votes_given': upload_vote_count,
+                    'uploaded_papers': uploaded_papers_email_data,
+                    'action_links': action_links,
+                }
+                send_distribution_email(user, content_stats)
 
     if distribute:
         last_distribution.distributed = True
@@ -520,7 +522,6 @@ def get_uploaded_papers_email_data(papers_uploaded):
     return uploaded_papers
 
 
-
 def send_distribution_email(user, content_stats):
     context = {
         **base_email_context,
@@ -534,7 +535,7 @@ def send_distribution_email(user, content_stats):
         'uploaded_papers': content_stats['uploaded_papers'],
         'action_links': content_stats['action_links'],
     }
-    
+
     subject = 'Notification From ResearchHub'
     send_email_message(
         user.email,
