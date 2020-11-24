@@ -8,7 +8,8 @@ from django.utils import timezone
 from django.contrib.admin.options import get_content_type_for_model
 
 from bullet_point.models import (
-    BulletPoint
+    BulletPoint,
+    Vote as BulletPointVote
 )
 from discussion.lib import check_is_discussion_item
 from discussion.models import (
@@ -25,7 +26,7 @@ from reputation.distributor import Distributor
 import reputation.distributions as distributions
 from reputation.exceptions import ReputationSignalError
 from reputation.models import Distribution
-from summary.models import Summary
+from summary.models import Summary, Vote as SummaryVote
 from utils import sentry
 
 # TODO: "Suspend" user if their reputation becomes negative
@@ -207,6 +208,64 @@ def distribute_for_create_bullet_point(sender, instance, created, **kwargs):
             hubs.all()
         )
         distributor.distribute()
+
+
+@receiver(post_save, sender=BulletPointVote, dispatch_uid='bullet_point_vote')
+def distribute_for_bullet_point_vote(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
+    pass
+    """Distributes reputation to the creator of the item voted on."""
+    # timestamp = time()
+    # distributor = None
+    # try:
+    #     recipient = instance.item.created_by
+    # except Exception as e:
+    #     error = ReputationSignalError(e, 'Invalid recipient')
+    #     print(error)
+    #     return
+
+    # voter = instance.created_by
+
+    # if (
+    #     created
+    #     or vote_type_updated(update_fields)
+    # ) and is_eligible_for_discussion_vote(recipient, voter):
+    #     hubs = None
+    #     if isinstance(instance.item, Comment):
+    #         hubs = instance.item.parent.paper.hubs
+    #     elif isinstance(instance.item, Reply):
+    #         try:
+    #             hubs = instance.item.parent.parent.paper.hubs
+    #         except Exception as e:
+    #             sentry.log_error(e)
+    #     elif isinstance(instance.item, Thread):
+    #         hubs = instance.item.paper.hubs
+
+    #     # TODO: This needs to be altered so that if the vote changes the
+    #     # original distribution is deleted if not yet withdrawn
+    #     try:
+    #         distribution = get_discussion_vote_item_distribution(instance)
+    #         distributor = Distributor(
+    #             distribution,
+    #             recipient,
+    #             instance,
+    #             timestamp,
+    #             hubs.all()
+    #         )
+    #     except TypeError as e:
+    #         error = ReputationSignalError(
+    #             e,
+    #             'Failed to distribute for discussion vote'
+    #         )
+    #         print(error)
+
+    # if distributor is not None:
+    #     distributor.distribute()
 
 
 def is_eligible_for_create_bullet_point(user):

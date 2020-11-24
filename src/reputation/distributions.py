@@ -33,6 +33,12 @@ BulletPointCensored = Distribution(
 BulletPointFlagged = Distribution(
     'BULLET_POINT_FLAGGED', -2
 )
+BulletPointUpvoted = Distribution(
+    'BULLET_POINT_UPVOTED', 1
+)
+BulletPointDownvoted = Distribution(
+    'BULLET_POINT_DOWNVOTED', -1
+)
 
 CommentCensored = Distribution(
     'COMMENT_CENSORED', -2
@@ -88,7 +94,12 @@ SummaryRejected = Distribution(
 SummaryFlagged = Distribution(
     'SUMMARY_FLAGGED', -5
 )
-
+SummaryUpvoted = Distribution(
+    'SUMMARY_UPVOTED', 1
+)
+SummaryDownvoted = Distribution(
+    'SUMMARY_DOWNVOTED', -1
+)
 Referral = Distribution(
     'REFERRAL', 50, False
 )
@@ -109,6 +120,14 @@ DISTRIBUTION_TYPE_CHOICES = [
     (
         BulletPointFlagged.name,
         BulletPointFlagged.name
+    ),
+    (
+        BulletPointUpvoted.name,
+        BulletPointUpvoted.name
+    ),
+    (
+        BulletPointDownvoted.name,
+        BulletPointDownvoted.name
     ),
     (
         CommentCensored.name,
@@ -161,6 +180,14 @@ DISTRIBUTION_TYPE_CHOICES = [
     (
         CreateSummary.name,
         CreateSummary.name
+    ),
+    (
+        SummaryUpvoted.name,
+        SummaryUpvoted.name
+    ),
+    (
+        SummaryDownvoted.name,
+        SummaryDownvoted.name
     ),
     (
         'REWARD',
