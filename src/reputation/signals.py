@@ -154,7 +154,7 @@ def distribute_for_create_summary(
 
 
 @receiver(post_save, sender=SummaryVote, dispatch_uid='summary_vote')
-def distribute_for_bullet_point_vote(
+def distribute_for_summary_vote(
     sender,
     instance,
     created,
@@ -163,7 +163,7 @@ def distribute_for_bullet_point_vote(
 ):
     timestamp = time()
     voter = instance.created_by
-    recipient = instance.summary.proposed
+    recipient = instance.summary.proposed_by
 
     if created and is_eligible_for_summary_vote(recipient, voter):
         hubs = instance.summary.paper.hubs
@@ -174,7 +174,7 @@ def distribute_for_bullet_point_vote(
             recipient,
             instance,
             timestamp,
-            hubs
+            hubs.all()
         )
 
         distributor.distribute()
@@ -280,7 +280,7 @@ def distribute_for_bullet_point_vote(
             recipient,
             instance,
             timestamp,
-            hubs
+            hubs.all()
         )
 
         distributor.distribute()
