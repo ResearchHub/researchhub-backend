@@ -22,13 +22,14 @@ data_path = './.ipynb/'
 
 # https://www.kaggle.com/theriley106/university-statistics
 # Data was grabbed from US-News: https://www.usnews.com
-raw_us_df = pd.read_json(data_path + 'schoolInfo.json', orient='columns')
+raw_us_df = pd.read_json('https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/schoolInfo.json', orient='columns')
 
 
 # In[4]:
 
 
-raw_world_df = pd.read_csv(data_path + 'timesData.csv')
+# https://github.com/Hipo/university-domains-list
+raw_world_df = pd.read_json('https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/world_universities_and_domains.json')
 
 
 # In[5]:
@@ -89,8 +90,8 @@ cleaned_us_df
 # In[8]:
 
 
-cleaned_world_df = raw_world_df.drop_duplicates(subset=['university_name'])
-cleaned_world_df = cleaned_world_df.sort_values(by=['university_name'])
+cleaned_world_df = raw_world_df.drop_duplicates(subset=['name'])
+cleaned_world_df = cleaned_world_df.sort_values(by=['name'])
 cleaned_world_df
 
 
@@ -113,7 +114,7 @@ oriented_world_df = orient_df_to_index(cleaned_world_df)
 
 def convert_world_school(school):
     item = {}
-    item['name'] = school['university_name'].strip()
+    item['name'] = school['name'].strip()
     item['country'] = school['country'].strip()
     return item
 
@@ -204,9 +205,9 @@ len(merged_schools)
 
 def convert_to_fixture(schools):
     fixture = []
-    for s in schools:
+    for i, s in enumerate(schools):
         item = {}
-        item['pk'] = schools.index(s) + 10
+        item['pk'] = i + 10
         item['model'] = 'user.University'
         item['fields'] = s
         item['fields']['created_date'] = str(datetime.datetime.now(tz=datetime.timezone.utc))
