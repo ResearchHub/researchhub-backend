@@ -15,6 +15,8 @@ from researchhub.settings import REWARD_SCHEDULE, REWARD_TIME, APP_ENV, BASE_FRO
 from researchhub.celery import app
 from paper.models import Paper, Vote as PaperVote, Figure
 from discussion.models import Vote as DiscussionVote, Thread, Reply, Comment
+from bullet_point.models import BulletPoint
+from summary.models import Summary
 from reputation.models import Contribution, DistributionAmount
 from reputation.distributor import RewardDistributor
 from utils.sentry import log_info
@@ -148,29 +150,6 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     #     hour=23,
     #     minute=59,
     # )
-
-    # Checks if rewards should be distributed, given time config
-    reward_time_hour, reward_time_day, reward_time_week = list(
-        map(int, REWARD_TIME.split(' '))
-    )
-
-    if reward_time_week:
-        week = end_date.isocalendar()[1]
-        if week % reward_time_week != 0:
-            return
-        # time_delta = datetime.timedelta(weeks=reward_time_week)
-    elif reward_time_day:
-        day = end_date.day
-        if day % reward_time_day != 0:
-            return
-        # time_delta = datetime.timedelta(days=reward_time_day)
-    elif reward_time_hour:
-        hour = end_date.hour
-        if hour % reward_time_hour != 0:
-            return
-        # time_delta = datetime.timedelta(hours=reward_time_hour)
-    else:
-        return
 
     # Reward distribution logic
     last_distribution = DistributionAmount.objects.filter(
@@ -326,8 +305,27 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     )
     set_or_increment(replies, discussion_count, all_users, ['created_by', 'email'])
 
+    bulletpoints = BulletPoint.objects.filter(
+        created_by__probable_spammer=False,
+        created_by__is_suspended=False,
+        created_date__gt=starting_date,
+        created_date__lte=end_date,
+    )
+
+    summaries = Summary.objects.filter(
+        proposed_by__probable_spammer=False,
+        proposed_by__is_suspended=False,
+        created_date__gt=starting_date,
+        created_date__lte=end_date,
+    )
+
     comment_votes_count = {}
     comment_upvotes_count = {}
+    bulletpoint_votes_count = {}
+    bulletpoint_upvotes_count = {}
+    summary_votes_count = {}
+    summary_upvotes_count = {}
+
     count = threads.count()
     comment_score = 0
     for i, obj in enumerate(threads):
@@ -400,19 +398,78 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         if user_key not in all_users:
             all_users[user_key] = True
 
-    total_comment_scores = comment_score
+    count = bulletpoints.count()
+    bulletpoint_score = 0
+    for i, obj in enumerate(bulletpoints):
+        print('{} / {}'.format(i, count))
+        user_key = obj.created_by.email
+        score = obj.calculate_score()
+        bulletpoint_score += score
+        if user_key in IGNORE_USERS:
+            continue
+        if user_key in bulletpoint_votes_count:
+            bulletpoint_votes_count[user_key] += score
+        else:
+            bulletpoint_votes_count[user_key] = 1
+
+        for vote in obj.votes.all():
+            total_score += 1
+            user_upvote_key = vote.created_by.email
+            if user_upvote_key in bulletpoint_upvotes_count:
+                bulletpoint_upvotes_count[user_upvote_key] += 1
+            else:
+                bulletpoint_upvotes_count[user_upvote_key] = 1
+
+        if user_key not in all_users:
+            all_users[user_key] = True
+
+    count = summaries.count()
+    summary_score = 0
+    for i, obj in enumerate(summaries):
+        print('{} / {}'.format(i, count))
+        user_key = obj.proposed_by.email
+        score = obj.calculate_score()
+        summary_score += score
+        if user_key in IGNORE_USERS:
+            continue
+        if user_key in summary_votes_count:
+            summary_votes_count[user_key] += score
+        else:
+            summary_votes_count[user_key] = 1
+
+        for vote in obj.votes.all():
+            total_score += 1
+            user_upvote_key = vote.created_by.email
+            if user_upvote_key in summary_upvotes_count:
+                summary_upvotes_count[user_upvote_key] += 1
+            else:
+                summary_upvotes_count[user_upvote_key] = 1
+
+        if user_key not in all_users:
+            all_users[user_key] = True
+
     # headers = 'Total Upvotes: {}, Total Paper Upvotes: {}, Total Comment Upvotes: {}\n'.format(total_score, total_paper_scores, total_comment_scores,)
-    headers = 'email,name,Author URL,Bonus RSC Amount,Paper Submissions,Upvotes,Upvotes on Submissions,Comments,Upvotes on Comments,Papers Uploaded\n'
+    headers = 'email,name,Author URL,Bonus RSC Amount,Paper Submissions,Upvotes,Upvotes on Submissions,Comments,Upvotes on Comments,Upvotes on Bulletpoints,Upvotes on Summaries,Papers Uploaded\n'
 
     total_rewards = {}
 
     for key in all_users:
         with transaction.atomic():
             upload_vote_count = paper_voted_on_count.get(key, 0)
-            comment_upvote_count = comment_votes_count.get(key, 0)
-            votes_count = paper_votes_count.get(key, 0) + comment_upvotes_count.get(key, 0)
-            upvoted_amount = math.floor(((upload_vote_count + comment_upvote_count) / (total_score)) * score_reward_amount)
-            upvotes_amount = math.floor(votes_count / total_score * upvote_reward_amount)
+            comment_vote_count = comment_votes_count.get(key, 0)
+            bulletpoint_vote_count = bulletpoint_votes_count.get(key, 0)
+            summary_vote_count = summary_votes_count.get(key, 0)
+
+            vote_count = upload_vote_count + comment_vote_count + bulletpoint_vote_count + summary_vote_count
+
+            upvotes_count = (
+                paper_votes_count.get(key, 0) +
+                comment_upvotes_count.get(key, 0) +
+                bulletpoint_upvotes_count.get(key, 0) +
+                summary_upvotes_count.get(key, 0)
+            )
+            upvoted_amount = math.floor((vote_count / (total_score)) * score_reward_amount)
+            upvotes_amount = math.floor(upvotes_count / total_score * upvote_reward_amount)
             reward_amount = upvoted_amount + upvotes_amount
 
             total_rewards[key] = reward_amount
@@ -425,7 +482,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
                 reward_dis.generate_distribution(
                     item,
                     amount=reward_amount,
-                    distribute=True
+                    distribute=distribute
                 )
                 user = User.objects.get(email=key)
                 papers = papers_uploaded.filter(uploaded_by__email=key)
@@ -434,8 +491,8 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
                 content_stats = {
                     'reward_amount': reward_amount,
                     'uploaded_paper_count': uploaded_paper_count.get(key, 0),
-                    'total_paper_votes': votes_count,
-                    'discussion_count': comment_upvote_count,
+                    'total_paper_votes': upvotes_count,
+                    'discussion_count': comment_vote_count,
                     'total_comment_votes': comment_upvotes_count.get(key, 0),
                     'total_votes_given': upload_vote_count,
                     'uploaded_papers': uploaded_papers_email_data,
@@ -471,6 +528,8 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
             paper_voted_on_count.get(key, 0),
             discussion_count.get(key, 0),
             comment_votes_count.get(key, 0),
+            bulletpoint_votes_count.get(key, 0),
+            summary_votes_count.get(key, 0),
             "\"" + '\n\n'.join(papers_list) + "\""
         )
         headers += line
