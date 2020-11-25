@@ -518,7 +518,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         author_profile = user.author_profile
         name = author_profile.first_name + ' ' + author_profile.last_name
         author_url = 'https://www.researchhub.com/user/{}'.format(author_profile.id)
-        line = '{},{},{},{},{},{},{},{},{},{}\n'.format(
+        line = '{},{},{},{},{},{},{},{},{},{},{},{}\n'.format(
             user.email,
             name,
             author_url,
