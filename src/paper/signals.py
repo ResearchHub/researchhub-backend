@@ -54,8 +54,7 @@ def queue_extract_figures_from_pdf(
     update_fields,
     **kwargs
 ):
-    file_updated = check_file_updated(update_fields, instance.file)
-    if not created and file_updated and not instance.figures.all():
+    if not created and instance.figures.all().count() == 0:
         instance.extract_pdf_preview(use_celery=True)
         instance.extract_figures(use_celery=True)
 
