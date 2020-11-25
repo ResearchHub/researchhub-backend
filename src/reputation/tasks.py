@@ -460,13 +460,13 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
             bulletpoint_vote_count = bulletpoint_votes_count.get(key, 0)
             summary_vote_count = summary_votes_count.get(key, 0)
 
-            vote_count = upload_vote_count + comment_vote_count
+            vote_count = upload_vote_count + comment_vote_count + bulletpoint_upvotes_count.get(key, 0) + summary_upvotes_count.get(key, 0)
 
             upvotes_count = (
                 paper_votes_count.get(key, 0) +
                 comment_upvotes_count.get(key, 0) +
-                bulletpoint_upvotes_count.get(key, 0) +
-                summary_upvotes_count.get(key, 0)
+                bulletpoint_vote_count,
+                summary_vote_count
             )
             upvoted_amount = math.floor((vote_count / (total_score)) * score_reward_amount)
             upvotes_amount = math.floor(upvotes_count / total_score * upvote_reward_amount)
@@ -528,10 +528,10 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
             paper_voted_on_count.get(key, 0),
             discussion_count.get(key, 0),
             comment_votes_count.get(key, 0),
-            bulletpoint_upvotes_count.get(key, 0),
             bulletpoint_votes_count.get(key, 0),
-            summary_upvotes_count.get(key, 0),
+            bulletpoint_upvotes_count.get(key, 0),
             summary_votes_count.get(key, 0),
+            summary_upvotes_count.get(key, 0),
             "\"" + '\n\n'.join(papers_list) + "\""
         )
         headers += line
