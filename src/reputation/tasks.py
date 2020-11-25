@@ -465,7 +465,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
             upvotes_count = (
                 paper_votes_count.get(key, 0) +
                 comment_upvotes_count.get(key, 0) +
-                bulletpoint_vote_count,
+                bulletpoint_vote_count +
                 summary_vote_count
             )
             upvoted_amount = math.floor((vote_count / (total_score)) * score_reward_amount)
