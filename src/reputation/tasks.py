@@ -449,7 +449,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
             all_users[user_key] = True
 
     # headers = 'Total Upvotes: {}, Total Paper Upvotes: {}, Total Comment Upvotes: {}\n'.format(total_score, total_paper_scores, total_comment_scores,)
-    headers = 'email,name,Author URL,Bonus RSC Amount,Paper Submissions,Upvotes,Upvotes on Submissions,Comments,Upvotes on Comments,Upvotes on Bulletpoints,Upvotes on Summaries,Papers Uploaded\n'
+    headers = 'email,name,Author URL,Bonus RSC Amount,Paper Submissions,Upvotes,Upvotes on Submissions,Comments,Upvotes on Comments,Bulletpoint Upvotes,Upvotes on Bulletpoints,Upvotes on Summary,Summary Upvotes,Papers Uploaded\n'
 
     total_rewards = {}
 
@@ -460,7 +460,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
             bulletpoint_vote_count = bulletpoint_votes_count.get(key, 0)
             summary_vote_count = summary_votes_count.get(key, 0)
 
-            vote_count = upload_vote_count + comment_vote_count + bulletpoint_vote_count + summary_vote_count
+            vote_count = upload_vote_count + comment_vote_count
 
             upvotes_count = (
                 paper_votes_count.get(key, 0) +
@@ -518,7 +518,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         author_profile = user.author_profile
         name = author_profile.first_name + ' ' + author_profile.last_name
         author_url = 'https://www.researchhub.com/user/{}'.format(author_profile.id)
-        line = '{},{},{},{},{},{},{},{},{},{},{},{}\n'.format(
+        line = '{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n'.format(
             user.email,
             name,
             author_url,
@@ -528,7 +528,9 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
             paper_voted_on_count.get(key, 0),
             discussion_count.get(key, 0),
             comment_votes_count.get(key, 0),
+            bulletpoint_upvotes_count.get(key, 0),
             bulletpoint_votes_count.get(key, 0),
+            summary_upvotes_count.get(key, 0),
             summary_votes_count.get(key, 0),
             "\"" + '\n\n'.join(papers_list) + "\""
         )
