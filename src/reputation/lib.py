@@ -10,9 +10,8 @@ WITHDRAWAL_MINIMUM = 150
 WITHDRAWAL_PER_TWO_WEEKS = 1
 
 class PendingWithdrawal:
-    def __init__(self, withdrawal, starting_balance, balance_record_id, amount):
+    def __init__(self, withdrawal, balance_record_id, amount):
         self.withdrawal = withdrawal
-        self.balance_payout = starting_balance
         self.balance_record_id = balance_record_id
         self.amount = amount
 
@@ -24,7 +23,7 @@ class PendingWithdrawal:
     def _calculate_tokens_and_update_withdrawal_amount(self):
         token_payout, blank = ethereum.lib.convert_reputation_amount_to_token_amount(  # noqa: E501
             'RSC',
-            self.balance_payout
+            self.amount
         )
         self.withdrawal.amount = self.amount
         self.withdrawal.save()

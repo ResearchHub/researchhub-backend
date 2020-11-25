@@ -1,6 +1,7 @@
 from datetime import timedelta, datetime
 import pytz
 import logging
+import decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -51,9 +52,9 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             )
 
         user = request.user
-        starting_balance = user.get_balance()
+        amount = decimal.Decimal(request.data['amount'])
 
-        valid, message = self._check_meets_withdrawal_minimum(starting_balance)
+        valid, message = self._check_meets_withdrawal_minimum(amount)
         if valid:
             valid, message = self._check_agreed_to_terms(user, request)
         if valid:
@@ -63,7 +64,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         if valid:
             try:
                 to_address = request.data['to_address']
-                amount = request.data['amount']
                 withdrawal = Withdrawal.objects.create(
                     user=user,
                     token_address=WEB3_RSC_ADDRESS,
@@ -72,7 +72,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 )
                 self._pay_withdrawal(
                     withdrawal,
-                    starting_balance,
                     amount
                 )
 
@@ -100,7 +99,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         )
         return balance_record
 
-    def _pay_withdrawal(self, withdrawal, starting_balance, amount):
+    def _pay_withdrawal(self, withdrawal, amount):
         try:
             ending_balance_record = self._create_balance_record(
                 withdrawal,
@@ -108,7 +107,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             )
             pending_withdrawal = PendingWithdrawal(
                 withdrawal,
-                starting_balance,
                 ending_balance_record.id,
                 amount
             )
