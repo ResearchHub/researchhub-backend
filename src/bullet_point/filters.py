@@ -8,3 +8,4 @@ class BulletPointFilter(filters.FilterSet):
         model = BulletPoint
         fields = [field.name for field in model._meta.fields if not field.name == 'text']  # noqa: E501
         fields.append('ordinal__isnull')
+        fields.append('created_by__author_profile')
