@@ -1,6 +1,9 @@
 from django.core.cache import cache
 from django.db import transaction
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
+from rest_framework.filters import OrderingFilter
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import (
     IsAuthenticated,
     IsAuthenticatedOrReadOnly
@@ -25,6 +28,11 @@ from utils.siftscience import events_api, update_user_risk_score
 class SummaryViewSet(viewsets.ModelViewSet):
     queryset = Summary.objects.all()
     serializer_class = SummarySerializer
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ['proposed_by']
+    ordering = ['-created_date']
+    ordering_fields = ['created_date']
+    pagination_class = PageNumberPagination
 
     throttle_classes = THROTTLE_CLASSES
     permission_classes = [
