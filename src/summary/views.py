@@ -29,7 +29,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
     queryset = Summary.objects.all()
     serializer_class = SummarySerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter]
-    filterset_fields = ['proposed_by']
+    filterset_fields = ['proposed_by__author_profile']
     ordering = ['-created_date']
     ordering_fields = ['created_date']
     pagination_class = PageNumberPagination
