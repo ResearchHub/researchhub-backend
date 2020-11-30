@@ -53,17 +53,18 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         user = request.user
         amount = decimal.Decimal(request.data['amount'])
+        to_address = request.data.get('to_address')
 
         valid, message = self._check_meets_withdrawal_minimum(amount)
         if valid:
             valid, message = self._check_agreed_to_terms(user, request)
         if valid:
-            valid, message = self._check_withdrawal_interval(user)
+            valid, message = self._check_withdrawal_interval(user, to_address)
         if valid:
-            valid, message = self._check_withdrawal_time_limit(request.data.get('to_address'), user)
+            valid, message = self._check_withdrawal_time_limit(to_address, user)
         if valid:
             try:
-                to_address = request.data['to_address']
+                
                 withdrawal = Withdrawal.objects.create(
                     user=user,
                     token_address=WEB3_RSC_ADDRESS,
@@ -177,26 +178,37 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             return (True, None)
         return (False, 'User has not agreed to terms')
 
-    def _check_withdrawal_interval(self, user):
+    def _check_withdrawal_interval(self, user, to_address):
         """
         Returns True is the user's last withdrawal was more than 2 weeks ago.
         """
-        if user.withdrawals.count() > 0:
+        last_withdrawal_tx = Withdrawal.objects.filter(to_address=to_address).last()
+        if user.withdrawals.count() > 0 or last_withdrawal_tx:
             time_ago = timezone.now() - timedelta(weeks=2)
             minutes_ago = timezone.now() - timedelta(minutes=10)
-            valid = user.withdrawals.last().created_date < minutes_ago
+            last_withdrawal = user.withdrawals.last()
+            valid = True
+            if last_withdrawal:
+                valid = last_withdrawal.created_date < minutes_ago
+
             if valid:
                 last_withdrawal = user.withdrawals.filter(paid_status='PAID').last()
                 if not last_withdrawal:
                     return (True, None)
                 valid = last_withdrawal.created_date < time_ago
-                if valid:
+                last_withdrawal_tx_valid = True
+
+                if last_withdrawal_tx:
+                    last_withdrawal_tx_valid = last_withdrawal_tx.created_date < time_ago
+
+                if valid and last_withdrawal_tx:
                     return (True, None)
                 
-                time_since_withdrawal = user.withdrawals.last().created_date - time_ago
+                time_since_withdrawal = last_withdrawal.created_date - time_ago
                 return (False, "The next time you're able to withdraw is in {} days".format(time_since_withdrawal.days))
             else:
-                time_since_withdrawal = user.withdrawals.last().created_date - minutes_ago
+                time_since_withdrawal = last_withdrawal.created_date - minutes_ago
                 minutes = int(round(time_since_withdrawal.seconds / 60, 0))
                 return (False, "The next time you're able to withdraw is in {} minutes".format(minutes))
+
         return (True, None)
