@@ -1,13 +1,12 @@
 import pandas as pd
 import json
 import datetime
-from dateutil.rrule import rrule, MONTHLY
 
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.db import models
 from django.http import JsonResponse, HttpRequest
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.urls import path
 
 from .models import User, Action, Verification
@@ -200,6 +199,44 @@ class AnalyticAdminPanel(admin.ModelAdmin):
         return res
 
 
+class VerificationAdminPanel(admin.ModelAdmin):
+    model = Verification
+    change_form_template = 'verification_change_form.html'
+    # fieldsets = (
+    #     (None, {
+    #         'fields': ('user', )
+    #     }),
+    # )
+
+    def get_queryset(self, request):
+        unique = Verification.objects.distinct('user').values_list('id')
+        qs = super(VerificationAdminPanel, self).get_queryset(request)
+        qs = qs.filter(id__in=unique)
+        return qs
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        extra_context = extra_context or {}
+        extra_context['test_context'] = 'blah haha'
+        return super(VerificationAdminPanel, self).change_view(
+            request,
+            object_id,
+            form_url,
+            extra_context=extra_context,
+        )
+
+    def response_change(self, request, obj):
+        # import pdb; pdb.set_trace()
+        if '_approve' in request.POST:
+            # matching_names_except_this = self.get_queryset(request).filter(name=obj.name).exclude(pk=obj.id)
+            # matching_names_except_this.delete()
+            # obj.is_unique = True
+            # obj.save()
+            return redirect('.')
+        elif '_reject' in request.POST:
+            return redirect('..')
+        return super().response_change(request, obj)
+
+
 admin.site.register(AnalyticModel, AnalyticAdminPanel)
 admin.site.register(User, CustomUserAdmin)
-admin.site.register(Verification)
+admin.site.register(Verification, VerificationAdminPanel)

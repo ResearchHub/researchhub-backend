@@ -1,0 +1,14 @@
+{% extends 'admin/change_form.html' %}
+
+{% block field_sets %}
+	{{ block.super }}
+	<fieldset class="module aligned ">
+		<div class="form-row field-file"> {{ test_context }} </div>
+	</fieldset>
+{% endblock %}
+
+{% block submit_buttons_bottom %}
+    <input type="submit" value="Approve" name="_approve">
+    <input type="submit" value="Reject" name="_reject">
+    {{ block.super }}
+{% endblock %}
