@@ -750,6 +750,8 @@ class PaperViewSet(viewsets.ModelViewSet):
         return Response(data, status=status.HTTP_200_OK)
 
     def calculate_paper_ordering(self, papers, ordering, start_date, end_date):
+        if 'removed' in ordering:
+            order_papers = papers.filter(is_removed=True).order_by(ordering)
         if 'hot_score' in ordering:
             order_papers = papers.order_by(ordering)
         elif 'score' in ordering:
