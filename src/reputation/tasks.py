@@ -4,7 +4,7 @@ import pytz
 import numpy as np
 
 from django.db import transaction
-from django.db.models import Q, Sum, Count
+from django.db.models import Q, Sum, Count, F
 
 from celery.decorators import periodic_task
 from django.contrib.contenttypes.models import ContentType
@@ -230,7 +230,8 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     ).exclude(
         Q(
             created_by__email__in=IGNORE_USERS
-        )
+        ),
+        paper__uploaded_by=F('created_by')
     )
     paper_votes_count = {}
     set_or_increment(paper_votes, paper_votes_count, all_users, ['created_by', 'email'])
@@ -340,7 +341,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         else:
             comment_votes_count[user_key] = score
 
-        for vote in obj.votes.all():
+        for vote in obj.votes.exclude(paper__uploaded_by=F('created_by')):
             total_score += 1
             user_upvote_key = vote.created_by.email
             if user_upvote_key in comment_upvotes_count:
@@ -363,7 +364,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         else:
             comment_votes_count[user_key] = score
 
-        for vote in obj.votes.all():
+        for vote in obj.votes.exclude(paper__uploaded_by=F('created_by')):
             user_upvote_key = vote.created_by.email
             total_score += 1
             if user_upvote_key in comment_upvotes_count:
@@ -387,7 +388,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         else:
             comment_votes_count[user_key] = score
 
-        for vote in obj.votes.all():
+        for vote in obj.votes.exclude(paper__uploaded_by=F('created_by')):
             total_score += 1
             user_upvote_key = vote.created_by.email
             if user_upvote_key in comment_upvotes_count:
@@ -412,7 +413,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         else:
             bulletpoint_votes_count[user_key] = 1
 
-        for vote in obj.votes.all():
+        for vote in obj.votes.exclude(bulletpoint__paper__uploaded_by=F('created_by')):
             total_score += 1
             user_upvote_key = vote.created_by.email
             if user_upvote_key in bulletpoint_upvotes_count:
@@ -437,7 +438,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         else:
             summary_votes_count[user_key] = 1
 
-        for vote in obj.votes.all():
+        for vote in obj.votes.exclude(summary__paper__uploaded_by=F('created_by')):
             total_score += 1
             user_upvote_key = vote.created_by.email
             if user_upvote_key in summary_upvotes_count:
