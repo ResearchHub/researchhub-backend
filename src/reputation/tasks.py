@@ -331,7 +331,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     comment_score = 0
     for i, obj in enumerate(threads):
         print('{} / {}'.format(i, count))
-        score = obj.calculate_score()
+        score = obj.calculate_score() - 1
         comment_score += score
         user_key = obj.created_by.email
         if user_key in IGNORE_USERS:
@@ -354,7 +354,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     count = replies.count()
     for i, obj in enumerate(replies):
         print('{} / {}'.format(i, count))
-        score = obj.calculate_score()
+        score = obj.calculate_score() - 1
         comment_score += score
         user_key = obj.created_by.email
         if user_key in IGNORE_USERS:
@@ -378,7 +378,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     count = comments.count()
     for i, obj in enumerate(comments):
         print('{} / {}'.format(i, count))
-        score = obj.calculate_score()
+        score = obj.calculate_score() - 1
         comment_score += score
         user_key = obj.created_by.email
         if user_key in IGNORE_USERS:
@@ -404,7 +404,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     for i, obj in enumerate(bulletpoints):
         print('{} / {}'.format(i, count))
         user_key = obj.created_by.email
-        score = obj.calculate_score()
+        score = obj.calculate_score() - 1
         bulletpoint_score += score
         if user_key in IGNORE_USERS:
             continue
@@ -429,7 +429,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     for i, obj in enumerate(summaries):
         print('{} / {}'.format(i, count))
         user_key = obj.proposed_by.email
-        score = obj.calculate_score()
+        score = obj.calculate_score() - 1
         summary_score += score
         if user_key in IGNORE_USERS:
             continue
