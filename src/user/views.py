@@ -348,9 +348,16 @@ class AuthorViewSet(viewsets.ModelViewSet):
         authors = Author.objects.filter(id=pk)
         if authors:
             author = authors.first()
-            authored_papers = author.authored_papers.filter(is_removed=False).order_by('-score')
+            prefetch_lookups = PaperViewSet.prefetch_lookups(self)
+            authored_papers = author.authored_papers.filter(
+                is_removed=False
+            ).prefetch_related(
+                *prefetch_lookups,
+            ).order_by('-score')
+            context = self.get_serializer_context()
+            context['include_wallet'] = False
             page = self.paginate_queryset(authored_papers)
-            serializer = PaperSerializer(page, many=True)
+            serializer = PaperSerializer(page, many=True, context=context)
             return self.get_paginated_response(serializer.data)
         return Response(status=404)
 
@@ -361,6 +368,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
     def get_user_discussions(self, request, pk=None):
         authors = Author.objects.filter(id=pk)
         if authors:
+            context = self.get_serializer_context()
+            context['include_wallet'] = False
             author = authors.first()
             user = author.user
             user_discussions = Thread.objects.exclude(
@@ -368,9 +377,11 @@ class AuthorViewSet(viewsets.ModelViewSet):
             ).filter(
                 created_by=user,
                 is_removed=False,
-            ).prefetch_related('paper', 'comments').order_by('-id')
+            ).prefetch_related(
+                'paper', 'comments',
+            ).order_by('-id')
             page = self.paginate_queryset(user_discussions)
-            serializer = ThreadSerializer(page, many=True)
+            serializer = ThreadSerializer(page, many=True, context=context)
             return self.get_paginated_response(serializer.data)
         return Response(status=404)
 
@@ -394,8 +405,10 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 *prefetch_lookups
             )
 
+            context = self.get_serializer_context()
+            context['include_wallet'] = False
             page = self.paginate_queryset(user_paper_uploads)
-            serializer = PaperSerializer(page, many=True)
+            serializer = PaperSerializer(page, many=True, context=context)
             response = self.get_paginated_response(serializer.data)
 
             return response
