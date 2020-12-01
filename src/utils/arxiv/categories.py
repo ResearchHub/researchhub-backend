@@ -236,6 +236,29 @@ CATEGORIES = {
     'stat': STAT,
 }
 
+HUB_CATEGORIES = {
+    'cs': "Computer Science",
+    'econ': "Economics",
+    'eess': "Electrical Engineering",
+    'math': "Mathematics",
+    'astro-ph': "Astrophysics",
+    'cond-mat': "Physics",
+    'gr-qc': "Quantum Mechanics",
+    'hep-ex': "Physics",
+    'hep-lat': "Physics",
+    'hep-ph': "Physics",
+    'hep-th': "Physics",
+    'math-ph': "Physics",
+    'nlin': "Physics",
+    'nucl-ex': "Nuclear Physics",
+    'nucl-th': "Nuclear Physics",
+    'physics': "Physics",
+    'quant-ph': "Quantum Mechanics",
+    'q-bio': "Bioinformatics",
+    'q-fin': "Finance",
+    'stat': "Statistics",
+}
+
 
 def get_category_name(category):
     try:
@@ -243,3 +266,16 @@ def get_category_name(category):
         return CATEGORIES[prefix][category]
     except KeyError:
         return 'General'
+
+def get_general_hub_name(category):
+    try:
+        prefix = category.split('.')[0]
+        return HUB_CATEGORIES[prefix]
+    except KeyError:
+        return 'General'
+
+ARXIV_CATEGORIES = []
+for general_cat in CATEGORIES.values():
+    for spec_cat in general_cat.keys():
+        ARXIV_CATEGORIES.append(spec_cat)
+
