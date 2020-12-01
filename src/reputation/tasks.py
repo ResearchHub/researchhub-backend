@@ -336,13 +336,13 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         user_key = obj.created_by.email
         if user_key in IGNORE_USERS:
             continue
-        if user_key in comment_votes_count:
-            comment_votes_count[user_key] += score
-        else:
-            comment_votes_count[user_key] = score
 
         for vote in obj.votes.all():
             if vote.created_by != obj.paper.uploaded_by:
+                if user_key in comment_votes_count:
+                    comment_votes_count[user_key] += score
+                else:
+                    comment_votes_count[user_key] = score
                 total_score += 1
                 user_upvote_key = vote.created_by.email
                 if user_upvote_key in comment_upvotes_count:
@@ -360,13 +360,14 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         user_key = obj.created_by.email
         if user_key in IGNORE_USERS:
             continue
-        if user_key in comment_votes_count:
-            comment_votes_count[user_key] += score
-        else:
-            comment_votes_count[user_key] = score
 
         for vote in obj.votes.all():
             if vote.created_by != obj.paper.uploaded_by:
+                if user_key in comment_votes_count:
+                    comment_votes_count[user_key] += score
+                else:
+                    comment_votes_count[user_key] = score
+
                 user_upvote_key = vote.created_by.email
                 total_score += 1
                 if user_upvote_key in comment_upvotes_count:
@@ -385,13 +386,13 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         user_key = obj.created_by.email
         if user_key in IGNORE_USERS:
             continue
-        if user_key in comment_votes_count:
-            comment_votes_count[user_key] += score
-        else:
-            comment_votes_count[user_key] = score
 
         for vote in obj.votes.all():
             if vote.created_by != obj.paper.uploaded_by:
+                if user_key in comment_votes_count:
+                    comment_votes_count[user_key] += score
+                else:
+                    comment_votes_count[user_key] = score
                 total_score += 1
                 user_upvote_key = vote.created_by.email
                 if user_upvote_key in comment_upvotes_count:
@@ -411,12 +412,13 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         bulletpoint_score += score
         if user_key in IGNORE_USERS:
             continue
-        if user_key in bulletpoint_votes_count:
-            bulletpoint_votes_count[user_key] += score
-        else:
-            bulletpoint_votes_count[user_key] = 1
 
         for vote in obj.votes.exclude(bulletpoint__paper__uploaded_by=F('created_by')):
+            if user_key in bulletpoint_votes_count:
+                bulletpoint_votes_count[user_key] += score
+            else:
+                bulletpoint_votes_count[user_key] = 1
+
             total_score += 1
             user_upvote_key = vote.created_by.email
             if user_upvote_key in bulletpoint_upvotes_count:
@@ -436,12 +438,13 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         summary_score += score
         if user_key in IGNORE_USERS:
             continue
-        if user_key in summary_votes_count:
-            summary_votes_count[user_key] += score
-        else:
-            summary_votes_count[user_key] = 1
 
         for vote in obj.votes.exclude(summary__paper__uploaded_by=F('created_by')):
+            if user_key in summary_votes_count:
+                summary_votes_count[user_key] += score
+            else:
+                summary_votes_count[user_key] = 1
+
             total_score += 1
             user_upvote_key = vote.created_by.email
             if user_upvote_key in summary_upvotes_count:
