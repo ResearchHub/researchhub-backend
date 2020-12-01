@@ -40,7 +40,7 @@ from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 
 
 class BasePaperSerializer(serializers.ModelSerializer):
-    authors = AuthorSerializer(many=True, read_only=False, required=False)
+    authors = serializers.SerializerMethodField()
     bullet_points = serializers.SerializerMethodField()
     csl_item = serializers.SerializerMethodField()
     discussion = serializers.SerializerMethodField()
@@ -127,6 +127,16 @@ class BasePaperSerializer(serializers.ModelSerializer):
         data = data.copy()
         data['file'] = file
         return data
+
+    def get_authors(self, paper):
+        serializer = AuthorSerializer(
+            paper.authors.all(),
+            many=True,
+            read_only=False,
+            required=False,
+            context=self.context
+        )
+        return serializer.data
 
     def get_bullet_points(self, paper):
         return None

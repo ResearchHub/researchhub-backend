@@ -60,11 +60,15 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
 
     def get_wallet(self, obj):
         from purchase.serializers import WalletSerializer
+        if not self.context.get('include_wallet', True):
+            return
+
         try:
             return WalletSerializer(obj.wallet).data
         except Exception as error:
             # sentry.log_error(error)
             pass
+
 
 class AuthorEditableSerializer(rest_framework_serializers.ModelSerializer):
     university = rest_framework_serializers.PrimaryKeyRelatedField(
@@ -138,7 +142,7 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
 
 
 class MinimalUserSerializer(rest_framework_serializers.ModelSerializer):
-    author_profile = AuthorSerializer(read_only=True)
+    author_profile = rest_framework_serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -146,6 +150,14 @@ class MinimalUserSerializer(rest_framework_serializers.ModelSerializer):
             'id',
             'author_profile',
         ]
+
+    def get_author_profile(self, obj):
+        serializer = AuthorSerializer(
+            obj.author_profile,
+            read_only=True,
+            context=self.context
+        )
+        return serializer.data
 
 
 class UserEditableSerializer(rest_framework_serializers.ModelSerializer):
