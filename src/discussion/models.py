@@ -1,3 +1,7 @@
+from django.db.models import (
+    Count,
+    Q
+)
 from django.contrib.contenttypes.fields import (
     GenericForeignKey,
     GenericRelation
@@ -184,9 +188,16 @@ class BaseComment(models.Model):
         if hasattr(self, 'score'):
             return self.score
         else:
-            upvotes = self.votes.filter(vote_type=Vote.UPVOTE, created_by__is_suspended=False, created_by__probable_spammer=False).count()
-            downvotes = self.votes.filter(vote_type=Vote.DOWNVOTE, created_by__is_suspended=False, created_by__probable_spammer=False).count()
-            score = upvotes - downvotes
+            score = self.votes.filter(
+                created_by__is_suspended=False,
+                created_by__probable_spammer=False
+            ).aggregate(
+                score=Count(
+                    'id', filter=Q(vote_type=Vote.UPVOTE)
+                ) - Count(
+                    'id', filter=Q(vote_type=Vote.DOWNVOTE)
+                )
+            ).get('score', 0)
             return score
 
     def update_discussion_count(self):
