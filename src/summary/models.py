@@ -1,4 +1,8 @@
 from django.db import models
+from django.db.models import (
+    Count,
+    Q
+)
 from django.contrib.postgres.fields import JSONField
 from django.utils import timezone
 
@@ -97,9 +101,16 @@ class Summary(models.Model):
         )
 
     def calculate_score(self):
-        upvotes = self.votes.filter(vote_type=Vote.UPVOTE).count()
-        downvotes = self.votes.filter(vote_type=Vote.DOWNVOTE).count()
-        score = upvotes - downvotes
+        score = self.votes.filter(
+            created_by__is_suspended=False,
+            created_by__probable_spammer=False
+        ).aggregate(
+            score=Count(
+                'id', filter=Q(vote_type=Vote.UPVOTE)
+            ) - Count(
+                'id', filter=Q(vote_type=Vote.DOWNVOTE)
+            )
+        ).get('score', 0)
         return score
 
 
