@@ -341,7 +341,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         else:
             comment_votes_count[user_key] = score
 
-        for vote in obj.votes.exclude(item__paper__uploaded_by=F('created_by')):
+        for vote in obj.votes.exclude(paper__uploaded_by=F('created_by')):
             total_score += 1
             user_upvote_key = vote.created_by.email
             if user_upvote_key in comment_upvotes_count:
