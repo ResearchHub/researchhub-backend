@@ -244,6 +244,18 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
         ]
         model = Thread
 
+    def get_score(self, obj):
+        return obj.calculate_score()
+
+    def get_user_vote(self, obj):
+        user = get_user_from_request(self.context)
+        if user and not user.is_anonymous:
+            vote = obj.votes.filter(created_by=user)
+            if vote.exists():
+                return VoteSerializer(vote.last()).data
+            return False
+        return False
+
     def _comments_query(self, obj):
         return self.get_children_annotated(obj).order_by(
             *self.context.get('ordering', ['id'])
