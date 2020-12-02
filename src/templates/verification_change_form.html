@@ -3,7 +3,14 @@
 {% block field_sets %}
 	{{ block.super }}
 	<fieldset class="module aligned ">
-		<div class="form-row field-file"> {{ test_context }} </div>
+		<div class="form-row field-file"> 
+			<label for="id_file">Files:</label>
+				{{ images|safe }}
+		</div>
+		<div class="form-row field-user">
+			<label for="id_user">Academic Verification:</label>
+			{{ verified|safe }}
+		</div>
 	</fieldset>
 {% endblock %}
 
