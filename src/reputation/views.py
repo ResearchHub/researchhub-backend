@@ -115,6 +115,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             ending_balance_record.amount = f'-{amount}'
             ending_balance_record.save()
         except Exception as e:
+            import pdb; pdb.set_trace()
             logging.error(e)
             withdrawal.set_paid_failed()
             error = WithdrawalError(
@@ -126,7 +127,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             raise e
 
     def _check_withdrawal_time_limit(self, to_address, user):
-        last_withdrawal_address = Withdrawal.objects.filter(to_address=to_address).last()
+        last_withdrawal_address = Withdrawal.objects.filter(to_address__iexact=to_address).first()
         last_withdrawal_user = Withdrawal.objects.filter(user=user).last()
         now = datetime.now(pytz.utc)
         if last_withdrawal_address:
