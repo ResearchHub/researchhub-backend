@@ -233,7 +233,14 @@ class VerificationAdminPanel(admin.ModelAdmin):
         for i, verification in enumerate(verifications.iterator()):
             url = verification.file.url
             image_html = f"""
-                <p class="file-upload">Image: <a target="_blank" href="{url}">Image {i}</a>
+                <div style="display:inline-grid;">
+                    <span>
+                        <a href="{url}" target="_blank">
+                            <img src="{url}" style="max-width:300px;">
+                        </a>
+                    </span>
+                    <label for="id_file">Image {i + 1}</label>
+                </div>
             """
             images += image_html
 
