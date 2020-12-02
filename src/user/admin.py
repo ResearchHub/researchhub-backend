@@ -202,21 +202,50 @@ class AnalyticAdminPanel(admin.ModelAdmin):
 class VerificationAdminPanel(admin.ModelAdmin):
     model = Verification
     change_form_template = 'verification_change_form.html'
-    # fieldsets = (
-    #     (None, {
-    #         'fields': ('user', )
-    #     }),
-    # )
+    list_filter = ('user__author_profile__academic_verification',)
+    fieldsets = (
+        (None, {
+            'fields': ('user',)
+        }),
+    )
+
+    def user__academic_verification(self, obj):
+        return obj.user.author_profile.academic_verification
 
     def get_queryset(self, request):
-        unique = Verification.objects.distinct('user').values_list('id')
+        unique = Verification.objects.order_by(
+            'user_id',
+            'id'
+        ).distinct(
+            'user_id',
+        ).values_list(
+            'id'
+        )
         qs = super(VerificationAdminPanel, self).get_queryset(request)
         qs = qs.filter(id__in=unique)
         return qs
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
+        images = ''
+        obj = self.model.objects.get(id=object_id)
+        user = obj.user
+        verifications = self.model.objects.filter(user=user)
+        for i, verification in enumerate(verifications.iterator()):
+            url = verification.file.url
+            image_html = f"""
+                <p class="file-upload">Image: <a target="_blank" href="{url}">Image {i}</a>
+            """
+            images += image_html
+
+        if user.author_profile.academic_verification:
+            verified = """<img src="/static/admin/img/icon-yes.svg">"""
+        else:
+            verified = """<img src="/static/admin/img/icon-no.svg">"""
+
         extra_context = extra_context or {}
-        extra_context['test_context'] = 'blah haha'
+        extra_context['images'] = images
+        extra_context['verified'] = verified
+
         return super(VerificationAdminPanel, self).change_view(
             request,
             object_id,
@@ -225,15 +254,17 @@ class VerificationAdminPanel(admin.ModelAdmin):
         )
 
     def response_change(self, request, obj):
-        # import pdb; pdb.set_trace()
+        user = obj.user
         if '_approve' in request.POST:
-            # matching_names_except_this = self.get_queryset(request).filter(name=obj.name).exclude(pk=obj.id)
-            # matching_names_except_this.delete()
-            # obj.is_unique = True
-            # obj.save()
+            author_profile = user.author_profile
+            author_profile.academic_verification = True
+            author_profile.save()
             return redirect('.')
         elif '_reject' in request.POST:
-            return redirect('..')
+            author_profile = user.author_profile
+            author_profile.academic_verification = False
+            author_profile.save()
+            return redirect('.')
         return super().response_change(request, obj)
 
 
