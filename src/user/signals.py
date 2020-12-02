@@ -7,7 +7,6 @@ from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.contrib.admin.options import get_content_type_for_model
 
-from reputation import distributions
 from bullet_point.models import BulletPoint, Vote as BulletPointVote
 from discussion.models import Comment, Reply, Thread
 from notification.models import Notification
@@ -20,6 +19,7 @@ from bullet_point.serializers import BulletPointVoteSerializer
 from user.models import Action, Author, User
 from user.tasks import link_author_to_papers, link_paper_to_authors, handle_spam_user_task
 from reputation.distributor import Distributor
+from reputation import distributions
 from utils.siftscience import events_api, decisions_api
 
 

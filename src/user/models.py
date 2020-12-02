@@ -296,7 +296,7 @@ class Author(models.Model):
         null=True,
         blank=True
     )
-    academic_verification = models.BooleanField(default=False)
+    academic_verification = models.BooleanField(default=None, null=True)
 
     def __str__(self):
         university = self.university
