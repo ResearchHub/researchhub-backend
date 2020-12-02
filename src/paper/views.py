@@ -163,12 +163,12 @@ class PaperViewSet(viewsets.ModelViewSet):
     def get_queryset(self, prefetch=True):
         query_params = self.request.query_params
         queryset = self.queryset
-        if query_params.get('make_public') or query_params.get('all'):
+        ordering = self.request.query_params.get('ordering', None)
+        if query_params.get('make_public') or query_params.get('all') or (ordering and 'removed' in ordering):
             pass
         else:
             queryset = self.queryset.filter(is_removed=False)
         
-        ordering = self.request.query_params.get('ordering', None)
         if ordering == 'newest':
             queryset = queryset.filter(uploaded_by__isnull=False)
 
@@ -788,7 +788,8 @@ class PaperViewSet(viewsets.ModelViewSet):
             ).order_by(
                 ordering, ordering + '_secondary'
             )
-
+        elif 'removed' in ordering:
+            order_papers = papers.order_by('-uploaded_date')
         else:
             order_papers = papers.order_by(ordering)
 
@@ -811,7 +812,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         context = self.get_serializer_context()
         context['user_no_balance'] = True
 
-        if page_number == 1:
+        if page_number == 1 and 'removed' not in ordering:
             time_difference = end_date - start_date
             cache_pk = ''
             if time_difference.days > 365:
@@ -833,7 +834,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             else:
                 reset_cache([hub_id], context, request.META)
 
-        papers = self._get_filtered_papers(hub_id)
+        papers = self._get_filtered_papers(hub_id, ordering)
         order_papers = self.calculate_paper_ordering(
             papers,
             ordering,
@@ -851,7 +852,9 @@ class PaperViewSet(viewsets.ModelViewSet):
     def _set_hub_paper_ordering(self, request):
         ordering = request.query_params.get('ordering', None)
         # TODO send correct ordering from frontend
-        if ordering == 'top_rated':
+        if ordering == 'removed':
+            ordering = 'removed'
+        elif ordering == 'top_rated':
             ordering = '-score'
         elif ordering == 'most_discussed':
             ordering = '-discussed'
@@ -863,27 +866,44 @@ class PaperViewSet(viewsets.ModelViewSet):
             ordering = '-score'
         return ordering
 
-    def _get_filtered_papers(self, hub_id):
+    def _get_filtered_papers(self, hub_id, ordering):
         # hub_id = 0 is the homepage
         # we aren't on a specific hub so don't filter by that hub_id
         if int(hub_id) == 0:
-            return self.get_queryset(
+            qs = self.get_queryset(
                 prefetch=False
-            ).filter(
-                is_removed=False,
-                is_removed_by_user=False,
             ).prefetch_related(
                 *self.prefetch_lookups()
             )
-        return self.get_queryset(
-            prefetch=False
-        ).filter(
-            hubs__id__in=[int(hub_id)],
-            is_removed=False,
-            is_removed_by_user=False,
-        ).prefetch_related(
-            *self.prefetch_lookups()
-        )
+
+            if 'removed' in ordering:
+                qs = qs.filter(
+                    is_removed=True
+                )
+            else:
+                qs = qs.filter(
+                    is_removed=False,
+                    is_removed_by_user=False,
+                )
+        else:
+            qs = self.get_queryset(
+                prefetch=False
+            ).filter(
+                hubs__id__in=[int(hub_id)],
+            ).prefetch_related(
+                *self.prefetch_lookups()
+            )
+
+            if 'removed' in ordering:
+                qs = qs.filter(
+                    is_removed=True
+                )
+            else:
+                qs = qs.filter(
+                    is_removed=False,
+                    is_removed_by_user=False,
+                )
+        return qs
 
 
 class FeaturedPaperViewSet(viewsets.ModelViewSet):
