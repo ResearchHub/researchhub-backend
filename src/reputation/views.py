@@ -128,7 +128,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
     def _check_withdrawal_time_limit(self, to_address, user):
         last_withdrawal_address = Withdrawal.objects.filter(to_address__iexact=to_address).first()
-        last_withdrawal_user = Withdrawal.objects.filter(user=user).last()
+        last_withdrawal_user = Withdrawal.objects.filter(user=user).first()
         now = datetime.now(pytz.utc)
         if last_withdrawal_address:
             address_timedelta = now - last_withdrawal_address.created_date
