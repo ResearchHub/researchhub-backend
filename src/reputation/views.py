@@ -115,7 +115,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             ending_balance_record.amount = f'-{amount}'
             ending_balance_record.save()
         except Exception as e:
-            import pdb; pdb.set_trace()
             logging.error(e)
             withdrawal.set_paid_failed()
             error = WithdrawalError(
