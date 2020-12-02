@@ -127,8 +127,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             raise e
 
     def _check_withdrawal_time_limit(self, to_address, user):
-        last_withdrawal_address = Withdrawal.objects.filter(to_address__iexact=to_address).first()
-        last_withdrawal_user = Withdrawal.objects.filter(user=user).first()
+        last_withdrawal_address = Withdrawal.objects.filter(to_address__iexact=to_address).order_by('id').last()
+        last_withdrawal_user = Withdrawal.objects.filter(user=user).order_by('id').last()
         now = datetime.now(pytz.utc)
         if last_withdrawal_address:
             address_timedelta = now - last_withdrawal_address.created_date
@@ -183,17 +183,17 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         """
         Returns True is the user's last withdrawal was more than 2 weeks ago.
         """
-        last_withdrawal_tx = Withdrawal.objects.filter(to_address__iexact=to_address).first()
+        last_withdrawal_tx = Withdrawal.objects.filter(to_address__iexact=to_address).order_by('id').last()
         if user.withdrawals.count() > 0 or last_withdrawal_tx:
             time_ago = timezone.now() - timedelta(weeks=2)
             minutes_ago = timezone.now() - timedelta(minutes=10)
-            last_withdrawal = user.withdrawals.first()
+            last_withdrawal = user.withdrawals.order_by('id').last()
             valid = True
             if last_withdrawal:
                 valid = last_withdrawal.created_date < minutes_ago
 
             if valid:
-                last_withdrawal = user.withdrawals.filter(paid_status='PAID').first()
+                last_withdrawal = user.withdrawals.filter(paid_status='PAID').order_by('id').last()
                 if not last_withdrawal:
                     return (True, None)
                 valid = last_withdrawal.created_date < time_ago
