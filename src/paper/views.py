@@ -164,7 +164,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         query_params = self.request.query_params
         queryset = self.queryset
         ordering = self.request.query_params.get('ordering', None)
-        if query_params.get('make_public') or query_params.get('all') or 'removed' in ordering:
+        if query_params.get('make_public') or query_params.get('all') or (ordering and 'removed' in ordering):
             pass
         else:
             queryset = self.queryset.filter(is_removed=False)
