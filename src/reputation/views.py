@@ -183,17 +183,17 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         """
         Returns True is the user's last withdrawal was more than 2 weeks ago.
         """
-        last_withdrawal_tx = Withdrawal.objects.filter(to_address=to_address).last()
+        last_withdrawal_tx = Withdrawal.objects.filter(to_address__iexact=to_address).first()
         if user.withdrawals.count() > 0 or last_withdrawal_tx:
             time_ago = timezone.now() - timedelta(weeks=2)
             minutes_ago = timezone.now() - timedelta(minutes=10)
-            last_withdrawal = user.withdrawals.last()
+            last_withdrawal = user.withdrawals.first()
             valid = True
             if last_withdrawal:
                 valid = last_withdrawal.created_date < minutes_ago
 
             if valid:
-                last_withdrawal = user.withdrawals.filter(paid_status='PAID').last()
+                last_withdrawal = user.withdrawals.filter(paid_status='PAID').first()
                 if not last_withdrawal:
                     return (True, None)
                 valid = last_withdrawal.created_date < time_ago
