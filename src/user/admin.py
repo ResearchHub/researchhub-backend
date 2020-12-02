@@ -1,6 +1,7 @@
 import pandas as pd
 import json
 import datetime
+from time import time
 
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
@@ -10,6 +11,8 @@ from django.shortcuts import render, redirect
 from django.urls import path
 
 from .models import User, Action, Verification
+from reputation.distributor import Distributor
+from reputation import distributions
 
 
 class CustomUserAdmin(UserAdmin):
@@ -22,8 +25,8 @@ class CustomUserAdmin(UserAdmin):
         changed_spam_status = 'probable_spammer' in form.changed_data
         changed_suspended_status = 'is_suspended' in form.changed_data
         if changed_spam_status or changed_suspended_status:
-            user.set_probable_spammer(obj.probable_spammer)  
-            user.set_suspended(obj.is_suspended) 
+            user.set_probable_spammer(obj.probable_spammer)
+            user.set_suspended(obj.is_suspended)
         super().save_model(request, obj, form, change)
 
 
@@ -233,7 +236,7 @@ class VerificationAdminPanel(admin.ModelAdmin):
         for i, verification in enumerate(verifications.iterator()):
             url = verification.file.url
             image_html = f"""
-                <div style="display:inline-grid;">
+                <div style="display:inline-grid;padding:10px">
                     <span>
                         <a href="{url}" target="_blank">
                             <img src="{url}" style="max-width:300px;">
@@ -244,10 +247,13 @@ class VerificationAdminPanel(admin.ModelAdmin):
             """
             images += image_html
 
-        if user.author_profile.academic_verification:
+        is_verified = user.author_profile.academic_verification
+        if is_verified:
             verified = """<img src="/static/admin/img/icon-yes.svg">"""
-        else:
+        elif is_verified is False:
             verified = """<img src="/static/admin/img/icon-no.svg">"""
+        else:
+            verified = """<img src="/static/admin/img/icon-unknown.svg">"""
 
         extra_context = extra_context or {}
         extra_context['images'] = images
@@ -266,6 +272,7 @@ class VerificationAdminPanel(admin.ModelAdmin):
             author_profile = user.author_profile
             author_profile.academic_verification = True
             author_profile.save()
+            self.distribute_referral_reward(user)
             return redirect('.')
         elif '_reject' in request.POST:
             author_profile = user.author_profile
@@ -274,7 +281,29 @@ class VerificationAdminPanel(admin.ModelAdmin):
             return redirect('.')
         return super().response_change(request, obj)
 
+    def distribute_referral_reward(self, user):
+        timestamp = time()
+        referred = Distributor(
+            distributions.Referral,
+            user,
+            user.invited_by,
+            timestamp,
+            None,
+        )
+        referred.distribute()
+
+        referrer = Distributor(
+            distributions.Referral,
+            user.invited_by,
+            user.invited_by,
+            timestamp,
+            None,
+        )
+        referrer.distribute()
+
 
 admin.site.register(AnalyticModel, AnalyticAdminPanel)
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(Verification, VerificationAdminPanel)
+
+# Better filtering

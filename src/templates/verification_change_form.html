@@ -17,7 +17,9 @@
 {% endblock %}
 
 {% block submit_buttons_bottom %}
-    <input type="submit" value="Approve" name="_approve">
-    <input type="submit" value="Reject" name="_reject">
+	<div class="submit-row">
+	    <input type="submit" value="Approve" name="_approve">
+	    <input type="submit" value="Reject" name="_reject">
+	</div>
     {{ block.super }}
 {% endblock %}
