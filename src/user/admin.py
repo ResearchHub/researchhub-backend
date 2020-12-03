@@ -212,7 +212,6 @@ class VerificationFilter(SimpleListFilter):
             (True, 'Approved'),
             (False, 'Rejected'),
             ('unknown', 'Awaiting Verification')
-            # (None, 'Awaiting Verification')
         )
 
     def queryset(self, request, qs):
