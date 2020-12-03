@@ -216,6 +216,8 @@ class VerificationFilter(SimpleListFilter):
 
     def queryset(self, request, qs):
         value = self.value()
+        if not value:
+            return qs
         return qs.filter(user__author_profile__academic_verification=value)
 
 
