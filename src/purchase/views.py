@@ -119,6 +119,10 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             invalidate_top_rated_cache([])
             invalidate_most_discussed_cache([])
             invalidate_newest_cache([])
+        elif content_type_str == 'summary':
+            pass
+        elif content_type_str == 'bullet_point':
+            pass
 
         context = {
             'purchase_minimal_serialization': True

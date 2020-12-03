@@ -17,6 +17,8 @@ from django.db.models.functions import Cast
 from purchase.models import Purchase, AggregatePurchase, Wallet, Support
 from analytics.serializers import PaperEventSerializer
 from paper.serializers import BasePaperSerializer
+from summary.serializers import SummarySerializer
+from bullet_point.serializers import BulletPointSerializer
 from analytics.models import PaperEvent, INTERACTIONS
 
 
@@ -46,12 +48,26 @@ class PurchaseSerializer(serializers.ModelSerializer):
         if self.context.get('exclude_source', False):
             return None
 
+        model_class = purchase.content_type.model_class()
         if model_name == 'paper':
-            Paper = purchase.content_type.model_class()
-            paper = Paper.objects.get(id=purchase.object_id)
+            paper = model_class.objects.get(id=purchase.object_id)
             serializer = BasePaperSerializer(paper, context=self.context)
             data = serializer.data
             return data
+        elif model_name == 'summary':
+            summary = model_class.objects.get(id=purchase.object_id)
+            serializer = SummarySerializer(summary, context=self.context)
+            data = serializer.data
+            return data
+        elif model_name == 'bullet_point':
+            bulletpoint = model_class.objects.get(id=purchase.object_id)
+            serializer = BulletPointSerializer(
+                bulletpoint,
+                context=self.context
+            )
+            data = serializer.data
+            return data
+
         return None
 
     def get_end_date(self, purchase):
