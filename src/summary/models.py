@@ -4,10 +4,12 @@ from django.db.models import (
     Q,
     F
 )
+from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
 from django.utils import timezone
 from django.contrib.contenttypes.fields import GenericRelation
 
+from purchase.models import Purchase
 from researchhub.lib import CREATED_LOCATIONS
 
 
@@ -65,6 +67,13 @@ class Summary(models.Model):
         object_id_field='object_id',
         content_type_field='content_type',
         related_query_name='summaries'
+    )
+
+    purchases = GenericRelation(
+        Purchase,
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='summary'
     )
 
     def __str__(self):
@@ -125,6 +134,18 @@ class Summary(models.Model):
             )
         ).get('score', 0)
         return score
+
+    def get_promoted_score(self):
+        purchases = self.purchases.filter(
+            paid_status=Purchase.PAID,
+        )
+        if purchases.exists():
+            base_score = self.calculate_score()
+            boost_score = sum(
+                map(int, purchases.values_list('amount', flat=True))
+            )
+            return base_score + boost_score
+        return False
 
 
 class Vote(models.Model):
