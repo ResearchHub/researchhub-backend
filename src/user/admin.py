@@ -284,11 +284,15 @@ class VerificationAdminPanel(admin.ModelAdmin):
                 {user.id}: {user.email} / {user.first_name} {user.last_name}
             </p>
         """
-        referred_by = f"""
-            <p style="font-weight:bold;">
-                {referrer.id}: {referrer.email} / {referrer.first_name} {referrer.last_name}
-            </p>
-        """
+
+        if referrer:
+            referred_by = f"""
+                <p style="font-weight:bold;">
+                    {referrer.id}: {referrer.email} / {referrer.first_name} {referrer.last_name}
+                </p>
+            """
+        else:
+            referred_by = """<p> No Referrer </p>"""
 
         extra_context = extra_context or {}
         extra_context['images'] = images
