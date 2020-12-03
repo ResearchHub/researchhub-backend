@@ -13,6 +13,7 @@ import time
 
 from datetime import datetime, timedelta, timezone
 from subprocess import call
+from habanero import Crossref
 
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
@@ -25,6 +26,8 @@ from django.core.cache import cache
 from django.core.files import File
 from django.db import IntegrityError
 from django.http.request import HttpRequest
+from django.utils.text import slugify
+
 from rest_framework.request import Request
 from discussion.models import Thread, Comment
 from purchase.models import Wallet
@@ -49,6 +52,7 @@ from paper.utils import (
 from utils import sentry
 from utils.arxiv.categories import get_category_name, ARXIV_CATEGORIES, get_general_hub_name
 from utils.http import check_url_contains_pdf
+from utils.crossref import get_crossref_issued_date
 
 
 @app.task
@@ -680,3 +684,103 @@ def pull_papers(start=0):
 
         i += RESULTS_PER_ITERATION
 
+
+# Crossref Download Constants
+RESULTS_PER_ITERATION = 50
+WAIT_TIME = 2
+RETRY_WAIT = 8
+RETRY_MAX = 20
+NUM_DUP_STOP = 30
+
+# Pull Daily
+@periodic_task(run_every=crontab(minute=0, hour=12), priority=8)
+def pull_crossref_papers(start=0):
+    logger.info('Pulling Crossref Papers')
+
+    Paper = apps.get_model('paper.Paper')
+    Hub = apps.get_model('hub.Hub')
+
+    cr = Crossref()
+
+    num_retries = 0 
+    num_duplicates = 0
+
+    offset = 0
+    filters = {
+        'type': 'journal-article',
+        'from-pub-date': (datetime.now().date() - timedelta(days=1)).strftime('%Y-%m-%d'),
+        'until-pub-date': datetime.now().date().strftime('%Y-%m-%d'),
+    }
+
+    while True:
+        try:
+            results = cr.works(
+                filter=filters,
+                limit=RESULTS_PER_ITERATION,
+                sort='issued',
+                order='desc',
+                offset=offset,
+            )
+        except:
+            if num_retries < RETRY_MAX:
+                num_retries += 1
+                time.sleep(RETRY_WAIT)
+                continue
+            else:
+                return
+
+        if results['message']['total-results'] == 0 or len(results['message']['items']) == 0:
+            if num_retries < RETRY_MAX:
+                num_retries += 1
+                time.sleep(RETRY_WAIT)
+                continue
+            else:
+                return
+
+        for item in results['message']['items']:
+            num_retries = 0
+            paper, created = Paper.objects.get_or_create(doi=item['DOI'])
+            if created:
+                paper.title = item['title'][0]
+                paper.paper_title = item['title'][0]
+                paper.slug = slugify(item['title'][0])
+                paper.doi = item['DOI']
+                paper.url = item['URL']
+                paper.paper_publish_date = get_crossref_issued_date(item)
+                paper.retrieved_from_external_source = True
+                paper.external_source = item['source']
+                paper.publication_type = item['type']
+                if 'abstract' in item:
+                    paper.abstract = item['abstract']
+                if 'author' in item:
+                    paper.raw_authors = {}
+                    for i, author in enumerate(item['author']):
+                        author_name = []
+                        if 'given' in author:
+                            author_name.append(author['given'])
+                        if 'family' in author:
+                            author_name.append(author['family'])
+                        author_name = ' '.join(author_name)
+                        if author_name:
+                            if i == 0: 
+                                paper.raw_authors['main_author'] = author_name
+                            else:
+                                if 'other_authors' not in paper.raw_authors:
+                                    paper.raw_authors['other_authors'] = []
+                                else:
+                                    paper.raw_authors['other_authors'].append(author_name)
+                if 'link' in item and item['link']:
+                    paper.pdf_url = item['link'][0]['URL']
+                if 'subject' in item:
+                    for subject_name in item['subject']:
+                        hub = Hub.objects.filter(name__iexact=subject_name).first()
+                        if hub:
+                            paper.hubs.add(hub)
+                paper.save()
+            else:
+                if num_duplicates > NUM_DUP_STOP:
+                    return
+                num_duplicates += 1
+
+        offset += RESULTS_PER_ITERATION
+        time.sleep(WAIT_TIME)       
