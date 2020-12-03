@@ -329,5 +329,3 @@ class VerificationAdminPanel(admin.ModelAdmin):
 admin.site.register(AnalyticModel, AnalyticAdminPanel)
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(Verification, VerificationAdminPanel)
-
-# Better filtering
