@@ -211,13 +211,19 @@ class VerificationFilter(SimpleListFilter):
         return (
             (True, 'Approved'),
             (False, 'Rejected'),
-            (None, 'Awaiting Verification')
+            ('unknown', 'Awaiting Verification')
+            # (None, 'Awaiting Verification')
         )
 
     def queryset(self, request, qs):
         value = self.value()
+
         if not value:
             return qs
+
+        if value == 'unknown':
+            value = None
+
         return qs.filter(user__author_profile__academic_verification=value)
 
 
@@ -303,7 +309,7 @@ class VerificationAdminPanel(admin.ModelAdmin):
     def distribute_referral_reward(self, user):
         timestamp = time()
         referred = Distributor(
-            distributions.Referral,
+            distributions.ReferralApproved,
             user,
             user.invited_by,
             timestamp,
@@ -312,7 +318,7 @@ class VerificationAdminPanel(admin.ModelAdmin):
         referred.distribute()
 
         referrer = Distributor(
-            distributions.Referral,
+            distributions.ReferralApproved,
             user.invited_by,
             user.invited_by,
             timestamp,
