@@ -230,14 +230,12 @@ class VerificationAdminPanel(admin.ModelAdmin):
     model = Verification
     change_form_template = 'verification_change_form.html'
     list_filter = (VerificationFilter,)
-    fieldsets = (
-        (None, {
-            'fields': ('user',)
-        }),
-    )
-
-    def user__academic_verification(self, obj):
-        return obj.user.author_profile.academic_verification
+    exclude = ('user', 'file')
+    # fieldsets = (
+    #     (None, {
+    #         'fields': ('user',)
+    #     }),
+    # )
 
     def get_queryset(self, request):
         unique = Verification.objects.order_by(
@@ -256,7 +254,9 @@ class VerificationAdminPanel(admin.ModelAdmin):
         images = ''
         obj = self.model.objects.get(id=object_id)
         user = obj.user
+        referrer = user.invited_by
         verifications = self.model.objects.filter(user=user)
+
         for i, verification in enumerate(verifications.iterator()):
             url = verification.file.url
             image_html = f"""
@@ -279,9 +279,22 @@ class VerificationAdminPanel(admin.ModelAdmin):
         else:
             verified = """<img src="/static/admin/img/icon-unknown.svg">"""
 
+        user_html = f"""
+            <p style="font-weight:bold;">
+                {user.id}: {user.email} / {user.first_name} {user.last_name}
+            </p>
+        """
+        referred_by = f"""
+            <p style="font-weight:bold;">
+                {referrer.id}: {referrer.email} / {referrer.first_name} {referrer.last_name}
+            </p>
+        """
+
         extra_context = extra_context or {}
         extra_context['images'] = images
         extra_context['verified'] = verified
+        extra_context['user'] = user_html
+        extra_context['referred_by'] = referred_by
 
         return super(VerificationAdminPanel, self).change_view(
             request,
