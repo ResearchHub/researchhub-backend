@@ -3,6 +3,14 @@
 {% block field_sets %}
 	{{ block.super }}
 	<fieldset class="module aligned">
+		<div class="form-row field-user">
+			<label for="id_file">User:</label>
+			{{ user|safe }}
+			<label for="id_file">Referred By:</label>
+			{{ referred_by|safe }}
+		</div>
+	</fieldset>
+	<fieldset class="module aligned" style="padding: 10px;">
 		<label for="id_file">Files:</label>
 		{{ images|safe }}
 	</fieldset>
