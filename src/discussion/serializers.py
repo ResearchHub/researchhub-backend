@@ -100,6 +100,9 @@ class VoteMixin:
                     pass
         return flag
 
+    def get_promoted(self, obj):
+        return obj.get_promoted_score()
+
 
 class VoteSerializer(serializers.ModelSerializer):
     item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
@@ -128,6 +131,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
     user_flag = serializers.SerializerMethodField()
     thread_id = serializers.SerializerMethodField()
     paper_id = serializers.SerializerMethodField()
+    promoted = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -212,6 +216,7 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     user_flag = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     paper_slug = serializers.SerializerMethodField()
+    promoted = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -308,6 +313,7 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
     paper_id = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
+    promoted = serializers.SerializerMethodField()
 
     class Meta:
         fields = [

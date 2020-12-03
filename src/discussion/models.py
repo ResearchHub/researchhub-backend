@@ -7,12 +7,14 @@ from django.contrib.contenttypes.fields import (
     GenericForeignKey,
     GenericRelation
 )
+from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.core.cache import cache
 from django.db import models
 
 from paper.utils import get_cache_key
+from purchase.models import Purchase
 from researchhub.lib import CREATED_LOCATIONS
 
 HELP_TEXT_WAS_EDITED = (
@@ -156,6 +158,12 @@ class BaseComment(models.Model):
     endorsement = GenericRelation(Endorsement)
     plain_text = models.TextField(default='', blank=True)
     source = models.CharField(default='researchhub', max_length=32, null=True)
+    purchases = GenericRelation(
+        Purchase,
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='discussion'
+    )
 
     class Meta:
         abstract = True
@@ -231,12 +239,24 @@ class BaseComment(models.Model):
         return 0
 
     def remove_nested(self):
-        if self.is_removed == False:
+        if self.is_removed is False:
             self.is_removed = True
             self.save(update_fields=['is_removed'])
         if len(self.children) > 0:
             for c in self.children:
                 c.remove_nested()
+
+    def get_promoted_score(self):
+        purchases = self.purchases.filter(
+            paid_status=Purchase.PAID,
+        )
+        if purchases.exists():
+            base_score = self.calculate_score()
+            boost_score = sum(
+                map(int, purchases.values_list('amount', flat=True))
+            )
+            return base_score + boost_score
+        return False
 
 
 class Thread(BaseComment):
