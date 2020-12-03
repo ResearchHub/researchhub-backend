@@ -4,6 +4,7 @@ import datetime
 from time import time
 
 from django.contrib import admin
+from django.contrib.admin import SimpleListFilter
 from django.contrib.auth.admin import UserAdmin
 from django.db import models
 from django.http import JsonResponse, HttpRequest
@@ -202,10 +203,26 @@ class AnalyticAdminPanel(admin.ModelAdmin):
         return res
 
 
+class VerificationFilter(SimpleListFilter):
+    title = 'Academic Verification'
+    parameter_name = 'user__author_profile__academic_verification'
+
+    def lookups(self, request, model_admin):
+        return (
+            (True, 'Approved'),
+            (False, 'Rejected'),
+            (None, 'Awaiting Verification')
+        )
+
+    def queryset(self, request, qs):
+        value = self.value()
+        return qs.filter(user__author_profile__academic_verification=value)
+
+
 class VerificationAdminPanel(admin.ModelAdmin):
     model = Verification
     change_form_template = 'verification_change_form.html'
-    list_filter = ('user__author_profile__academic_verification',)
+    list_filter = (VerificationFilter,)
     fieldsets = (
         (None, {
             'fields': ('user',)
