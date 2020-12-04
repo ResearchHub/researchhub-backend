@@ -234,6 +234,12 @@ class Paper(models.Model):
         content_type_field='content_type',
         related_query_name='paper'
     )
+    purchases = GenericRelation(
+        'user.Action',
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='paper'
+    )
 
     slug = models.SlugField(max_length=1024)
 
