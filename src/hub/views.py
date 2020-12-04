@@ -250,10 +250,19 @@ class HubViewSet(viewsets.ModelViewSet):
 
         actions = actions.filter(
             (
-                Q(paper__is_removed=False) &
-                Q(content_type__model='paper')
-            ) | Q(content_type__model__in=models)
+                Q(papers__is_removed=False) |
+                Q(bullet_point__paper__is_removed=False) |
+                Q(threads__paper__is_removed=False) |
+                Q(summaries__paper__is_removed=False)
+            )
         ).order_by('-created_date')
+
+        # actions = actions.filter(
+        #     (
+        #         Q(paper__is_removed=False) &
+        #         Q(content_type__model='paper')
+        #     ) | Q(content_type__model__in=models)
+        # ).order_by('-created_date')
 
         page = self.paginate_queryset(actions)
         if page is not None:
