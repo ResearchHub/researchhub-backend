@@ -1,0 +1,31 @@
+{% extends 'admin/change_form.html' %}
+
+{% block field_sets %}
+	{{ block.super }}
+	<fieldset class="module aligned">
+		<div class="form-row field-user">
+			<label for="id_file">User:</label>
+			{{ user|safe }}
+			<label for="id_file">Referred By:</label>
+			{{ referred_by|safe }}
+		</div>
+	</fieldset>
+	<fieldset class="module aligned" style="padding: 10px;">
+		<label for="id_file">Files:</label>
+		{{ images|safe }}
+	</fieldset>
+	<fieldset class="module aligned">
+		<div class="form-row field-user">
+			<label for="id_user">Academic Verification:</label>
+			{{ verified|safe }}
+		</div>
+	</fieldset>
+{% endblock %}
+
+{% block submit_buttons_bottom %}
+	<div class="submit-row">
+	    <input type="submit" value="Approve" name="_approve">
+	    <input type="submit" value="Reject" name="_reject">
+	</div>
+    {{ block.super }}
+{% endblock %}

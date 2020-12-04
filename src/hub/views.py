@@ -227,7 +227,6 @@ class HubViewSet(viewsets.ModelViewSet):
         models = [
             'bulletpoint',
             'thread',
-            'paper',
             'comment',
             'reply',
             'summary'
@@ -235,21 +234,35 @@ class HubViewSet(viewsets.ModelViewSet):
 
         # PK == 0 indicates for now that we're on the homepage
         if pk == '0':
-            actions = Action.objects.filter(
-                user__isnull=False,
-                user__is_suspended=False,
-                user__probable_spammer=False,
-                content_type__model__in=models,
-                display=True,
-            ).order_by('-created_date').prefetch_related('item')
+            actions = Action.objects.prefetch_related('item')
         else:
-            actions = Action.objects.filter(hubs=pk).filter(
-                user__isnull=False,
-                user__is_suspended=False,
-                user__probable_spammer=False,
-                content_type__model__in=models,
-                display=True
-            ).order_by('-created_date').prefetch_related('item')
+            actions = Action.objects.filter(
+                hubs=pk
+            ).prefetch_related('item')
+
+        actions = actions.filter(
+            user__isnull=False,
+            user__is_suspended=False,
+            user__probable_spammer=False,
+            content_type__model__in=models+['paper'],
+            display=True
+        )
+
+        actions = actions.filter(
+            (
+                Q(papers__is_removed=False) |
+                Q(bullet_point__paper__is_removed=False) |
+                Q(threads__paper__is_removed=False) |
+                Q(summaries__paper__is_removed=False)
+            )
+        ).order_by('-created_date')
+
+        # actions = actions.filter(
+        #     (
+        #         Q(paper__is_removed=False) &
+        #         Q(content_type__model='paper')
+        #     ) | Q(content_type__model__in=models)
+        # ).order_by('-created_date')
 
         page = self.paginate_queryset(actions)
         if page is not None:

@@ -1,16 +1,19 @@
 import pandas as pd
 import json
 import datetime
-from dateutil.rrule import rrule, MONTHLY
+from time import time
 
 from django.contrib import admin
+from django.contrib.admin import SimpleListFilter
 from django.contrib.auth.admin import UserAdmin
 from django.db import models
 from django.http import JsonResponse, HttpRequest
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.urls import path
 
 from .models import User, Action, Verification
+from reputation.distributor import Distributor
+from reputation import distributions
 
 
 class CustomUserAdmin(UserAdmin):
@@ -23,8 +26,8 @@ class CustomUserAdmin(UserAdmin):
         changed_spam_status = 'probable_spammer' in form.changed_data
         changed_suspended_status = 'is_suspended' in form.changed_data
         if changed_spam_status or changed_suspended_status:
-            user.set_probable_spammer(obj.probable_spammer)  
-            user.set_suspended(obj.is_suspended) 
+            user.set_probable_spammer(obj.probable_spammer)
+            user.set_suspended(obj.is_suspended)
         super().save_model(request, obj, form, change)
 
 
@@ -200,6 +203,146 @@ class AnalyticAdminPanel(admin.ModelAdmin):
         return res
 
 
+class VerificationFilter(SimpleListFilter):
+    title = 'Academic Verification'
+    parameter_name = 'user__author_profile__academic_verification'
+
+    def lookups(self, request, model_admin):
+        return (
+            (True, 'Approved'),
+            (False, 'Rejected'),
+            ('unknown', 'Awaiting Verification')
+        )
+
+    def queryset(self, request, qs):
+        value = self.value()
+
+        if not value:
+            return qs
+
+        if value == 'unknown':
+            value = None
+
+        return qs.filter(user__author_profile__academic_verification=value)
+
+
+class VerificationAdminPanel(admin.ModelAdmin):
+    model = Verification
+    change_form_template = 'verification_change_form.html'
+    list_filter = (VerificationFilter,)
+    exclude = ('user', 'file')
+    # fieldsets = (
+    #     (None, {
+    #         'fields': ('user',)
+    #     }),
+    # )
+
+    def get_queryset(self, request):
+        unique = Verification.objects.order_by(
+            'user_id',
+            'id'
+        ).distinct(
+            'user_id',
+        ).values_list(
+            'id'
+        )
+        qs = super(VerificationAdminPanel, self).get_queryset(request)
+        qs = qs.filter(id__in=unique)
+        return qs
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        images = ''
+        obj = self.model.objects.get(id=object_id)
+        user = obj.user
+        referrer = user.invited_by
+        verifications = self.model.objects.filter(user=user)
+
+        for i, verification in enumerate(verifications.iterator()):
+            url = verification.file.url
+            image_html = f"""
+                <div style="display:inline-grid;padding:10px">
+                    <span>
+                        <a href="{url}" target="_blank">
+                            <img src="{url}" style="max-width:300px;">
+                        </a>
+                    </span>
+                    <label for="id_file">Image {i + 1}</label>
+                </div>
+            """
+            images += image_html
+
+        is_verified = user.author_profile.academic_verification
+        if is_verified:
+            verified = """<img src="/static/admin/img/icon-yes.svg">"""
+        elif is_verified is False:
+            verified = """<img src="/static/admin/img/icon-no.svg">"""
+        else:
+            verified = """<img src="/static/admin/img/icon-unknown.svg">"""
+
+        user_html = f"""
+            <p style="font-weight:bold;">
+                {user.id}: {user.email} / {user.first_name} {user.last_name}
+            </p>
+        """
+
+        if referrer:
+            referred_by = f"""
+                <p style="font-weight:bold;">
+                    {referrer.id}: {referrer.email} / {referrer.first_name} {referrer.last_name}
+                </p>
+            """
+        else:
+            referred_by = """<p> No Referrer </p>"""
+
+        extra_context = extra_context or {}
+        extra_context['images'] = images
+        extra_context['verified'] = verified
+        extra_context['user'] = user_html
+        extra_context['referred_by'] = referred_by
+
+        return super(VerificationAdminPanel, self).change_view(
+            request,
+            object_id,
+            form_url,
+            extra_context=extra_context,
+        )
+
+    def response_change(self, request, obj):
+        user = obj.user
+        if '_approve' in request.POST:
+            author_profile = user.author_profile
+            author_profile.academic_verification = True
+            author_profile.save()
+            self.distribute_referral_reward(user)
+            return redirect('.')
+        elif '_reject' in request.POST:
+            author_profile = user.author_profile
+            author_profile.academic_verification = False
+            author_profile.save()
+            return redirect('.')
+        return super().response_change(request, obj)
+
+    def distribute_referral_reward(self, user):
+        timestamp = time()
+        referred = Distributor(
+            distributions.ReferralApproved,
+            user,
+            user.invited_by,
+            timestamp,
+            None,
+        )
+        referred.distribute()
+
+        referrer = Distributor(
+            distributions.ReferralApproved,
+            user.invited_by,
+            user.invited_by,
+            timestamp,
+            None,
+        )
+        referrer.distribute()
+
+
 admin.site.register(AnalyticModel, AnalyticAdminPanel)
 admin.site.register(User, CustomUserAdmin)
-admin.site.register(Verification)
+admin.site.register(Verification, VerificationAdminPanel)
