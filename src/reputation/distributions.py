@@ -104,6 +104,10 @@ Referral = Distribution(
     'REFERRAL', 50, False
 )
 
+ReferralApproved = Distribution(
+    'REFERRAL_APPROVED', 1000, False
+)
+
 DISTRIBUTION_TYPE_CHOICES = [
     (
         FlagPaper.name,

@@ -4,6 +4,7 @@ from django.db.models import (
 )
 from django.contrib.postgres.fields import JSONField
 from django.db import models
+from django.contrib.contenttypes.fields import GenericRelation
 
 from bullet_point.exceptions import BulletPointModelError
 from researchhub.lib import CREATED_LOCATIONS
@@ -91,6 +92,12 @@ class BulletPoint(models.Model):
     ordinal = models.IntegerField(default=None, null=True)
     ordinal_is_locked = models.BooleanField(default=False)
     bullet_type = models.CharField(choices=BULLETPOINT_CHOICES, max_length=16)
+    actions = GenericRelation(
+        'user.Action',
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='bullet_point'
+    )
 
     def __str__(self):
         return '%s: %s' % (self.created_by, self.plain_text)

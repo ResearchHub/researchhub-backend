@@ -5,6 +5,7 @@ from django.db.models import (
 )
 from django.contrib.postgres.fields import JSONField
 from django.utils import timezone
+from django.contrib.contenttypes.fields import GenericRelation
 
 from researchhub.lib import CREATED_LOCATIONS
 
@@ -57,6 +58,12 @@ class Summary(models.Model):
         default=None,
         null=True,
         blank=True
+    )
+    actions = GenericRelation(
+        'user.Action',
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='summaries'
     )
 
     def __str__(self):
