@@ -239,7 +239,7 @@ class Paper(models.Model):
         'user.Action',
         object_id_field='object_id',
         content_type_field='content_type',
-        related_query_name='paper'
+        related_query_name='papers'
     )
 
     slug = models.SlugField(max_length=1024)

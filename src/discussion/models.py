@@ -236,6 +236,13 @@ class Thread(BaseComment):
         blank=True,
         null=True
     )
+    actions = GenericRelation(
+        'user.Action',
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='threads'
+    )
+
 
     def __str__(self):
         return '%s: %s' % (self.created_by, self.title)
@@ -297,6 +304,12 @@ class Reply(BaseComment):
     object_id = models.PositiveIntegerField()
     parent = GenericForeignKey('content_type', 'object_id')
     replies = GenericRelation('Reply')
+    actions = GenericRelation(
+        'user.Action',
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='replies'
+    )
 
     @property
     def paper(self):
@@ -375,6 +388,12 @@ class Comment(BaseComment):
         null=True
     )
     replies = GenericRelation(Reply)
+    actions = GenericRelation(
+        'user.Action',
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='comments'
+    )
 
     def __str__(self):
         return '{} - {}'.format(self.created_by, self.plain_text)
