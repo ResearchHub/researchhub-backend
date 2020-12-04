@@ -246,14 +246,14 @@ class HubViewSet(viewsets.ModelViewSet):
             user__probable_spammer=False,
             content_type__model__in=models+['paper'],
             display=True
-        ).order_by('-created_date')
+        )
 
         actions = actions.filter(
             (
                 Q(paper__is_removed=False) &
                 Q(content_type__model='paper')
             ) | Q(content_type__model__in=models)
-        )
+        ).order_by('-created_date')
 
         page = self.paginate_queryset(actions)
         if page is not None:
