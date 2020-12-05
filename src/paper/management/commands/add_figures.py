@@ -18,11 +18,7 @@ class Command(BaseCommand):
         for i, paper in enumerate(papers):
             print('{} / {}'.format(i, count))
             try:
-                paper.extract_figures()
-                paper.extract_pdf_preview()
-                self.stdout.write(self.style.SUCCESS(
-                    f'Queued task to add figures for paper {paper.id}'
-                ))
+                paper.extract_pdf_preview(use_celery=False)
             except Exception as e:
                 self.stdout.write(self.style.ERROR(
                     f'Failed to queue task for paper {paper.id}: {e}'
