@@ -189,12 +189,15 @@ def celery_extract_pdf_preview(paper_id):
     if paper_id is None:
         return
 
+    print(f'Extracting pdf figures for paper: {paper_id}')
+
     Paper = apps.get_model('paper.Paper')
     Figure = apps.get_model('paper.Figure')
     paper = Paper.objects.get(id=paper_id)
 
     file = paper.file
     if not file:
+        print(f'No file exists for paper: {paper_id}')
         return
 
     path = f'/tmp/figures/preview-{paper_id}/'
