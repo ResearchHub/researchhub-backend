@@ -269,7 +269,9 @@ class SummaryViewSet(viewsets.ModelViewSet):
                     data = SummaryVoteSerializer(instance=vote).data
 
             score = SummarySerializer().get_score(summary)
+            promoted = SummarySerializer().get_promoted(summary)
             data['score'] = score
+            data['promoted'] = promoted
             response[summary.id] = data
 
         return Response(response, status=status.HTTP_200_OK)
