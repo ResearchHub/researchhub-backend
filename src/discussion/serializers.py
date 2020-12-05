@@ -155,6 +155,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
             'plain_text',
             'thread_id',
             'paper_id',
+            'promoted'
         ]
         read_only_fields = [
             'is_public',
@@ -238,7 +239,8 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
             'user_flag',
             'was_edited',
             'plain_text',
-            'paper_slug'
+            'paper_slug',
+            'promoted'
         ]
         read_only_fields = [
             'is_public',
@@ -334,7 +336,8 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
             'was_edited',
             'plain_text',
             'thread_id',
-            'paper_id'
+            'paper_id',
+            'promoted'
         ]
         read_only_fields = [
             'is_public',

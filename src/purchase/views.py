@@ -110,6 +110,10 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             purchase.group = purchase.get_aggregate_group()
             purchase.save()
 
+        context = {
+            'purchase_minimal_serialization': True,
+            'exclude_stats': True
+        }
         if content_type_str == 'paper':
             paper = Paper.objects.get(id=object_id)
             paper.calculate_hot_score()
@@ -130,9 +134,6 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         elif content_type_str == 'bullet_point':
             pass
 
-        context = {
-            'purchase_minimal_serialization': True
-        }
         serializer = self.serializer_class(purchase, context=context)
         serializer_data = serializer.data
         return Response(serializer_data, status=201)
