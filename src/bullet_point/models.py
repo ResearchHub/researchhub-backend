@@ -183,7 +183,7 @@ class BulletPoint(models.Model):
         self.ordinal_is_locked = locked
         self.save()
 
-    def calculate_score(self, ignore_self_vote):
+    def calculate_score(self, ignore_self_vote=False):
         qs = self.votes.filter(
             created_by__is_suspended=False,
             created_by__probable_spammer=False
