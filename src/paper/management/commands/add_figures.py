@@ -13,16 +13,12 @@ class Command(BaseCommand):
             'paper',
             flat=True
         )
-        papers = Paper.objects.filter(file__isnull=False, uploaded_date__gte="2020-11-20").exclude(id__in=exclude_ids)
+        papers = Paper.objects.filter(file__isnull=False, uploaded_date__gte="2020-11-20").order_by('-id').exclude(id__in=exclude_ids)
         count = papers.count()
         for i, paper in enumerate(papers):
             print('{} / {}'.format(i, count))
             try:
-                paper.extract_figures()
-                paper.extract_pdf_preview()
-                self.stdout.write(self.style.SUCCESS(
-                    f'Queued task to add figures for paper {paper.id}'
-                ))
+                paper.extract_pdf_preview(use_celery=False)
             except Exception as e:
                 self.stdout.write(self.style.ERROR(
                     f'Failed to queue task for paper {paper.id}: {e}'
