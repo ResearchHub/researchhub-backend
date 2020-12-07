@@ -1,7 +1,8 @@
 from django.db import models
 from django.db.models import (
     Count,
-    Q
+    Q,
+    F
 )
 from django.contrib.postgres.fields import JSONField
 from django.utils import timezone
@@ -107,11 +108,16 @@ class Summary(models.Model):
             f' {self.proposed_by.author_profile.last_name}'
         )
 
-    def calculate_score(self):
-        score = self.votes.filter(
+    def calculate_score(self, ignore_self_vote=False):
+        qs = self.votes.filter(
             created_by__is_suspended=False,
             created_by__probable_spammer=False
-        ).aggregate(
+        )
+
+        if ignore_self_vote:
+            qs = qs.exclude(summary__proposed_by=F('created_by'))
+
+        score = qs.aggregate(
             score=Count(
                 'id', filter=Q(vote_type=Vote.UPVOTE)
             ) - Count(

@@ -1,6 +1,7 @@
 from django.db.models import (
     Count,
-    Q
+    Q,
+    F
 )
 from django.contrib.postgres.fields import JSONField
 from django.db import models
@@ -182,11 +183,16 @@ class BulletPoint(models.Model):
         self.ordinal_is_locked = locked
         self.save()
 
-    def calculate_score(self):
-        score = self.votes.filter(
+    def calculate_score(self, ignore_self_vote):
+        qs = self.votes.filter(
             created_by__is_suspended=False,
             created_by__probable_spammer=False
-        ).aggregate(
+        )
+
+        if ignore_self_vote:
+            qs = qs.exclude(bulletpoint__created_by=F('created_by'))
+
+        score = qs.aggregate(
             score=Count(
                 'id', filter=Q(vote_type=Vote.UPVOTE)
             ) - Count(

@@ -1,6 +1,7 @@
 from django.db.models import (
     Count,
-    Q
+    Q,
+    F
 )
 from django.contrib.contenttypes.fields import (
     GenericForeignKey,
@@ -145,7 +146,12 @@ class BaseComment(models.Model):
     )
     text = JSONField(blank=True, null=True)
     external_metadata = JSONField(null=True)
-    votes = GenericRelation(Vote)
+    votes = GenericRelation(
+        Vote,
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='discussion'
+    )
     flags = GenericRelation(Flag)
     endorsement = GenericRelation(Endorsement)
     plain_text = models.TextField(default='', blank=True)
@@ -184,11 +190,19 @@ class BaseComment(models.Model):
     def score_indexing(self):
         return self.calculate_score()
 
-    def calculate_score(self):
+    def calculate_score(self, ignore_self_vote=False):
         if hasattr(self, 'score'):
             return self.score
         else:
-            score = self.votes.filter(
+            qs = self.votes.filter(
+                created_by__is_suspended=False,
+                created_by__probable_spammer=False
+            )
+
+            if ignore_self_vote:
+                qs = qs.exclude(created_by=F('discussion__created_by'))
+
+            score = qs.aggregate(
                 created_by__is_suspended=False,
                 created_by__probable_spammer=False
             ).aggregate(
@@ -227,6 +241,7 @@ class BaseComment(models.Model):
             for c in self.children:
                 c.remove_nested()
 
+
 class Thread(BaseComment):
     title = models.CharField(max_length=255, null=True, blank=True)
     paper = models.ForeignKey(
@@ -242,7 +257,6 @@ class Thread(BaseComment):
         content_type_field='content_type',
         related_query_name='threads'
     )
-
 
     def __str__(self):
         return '%s: %s' % (self.created_by, self.title)
