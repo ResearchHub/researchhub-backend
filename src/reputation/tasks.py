@@ -411,7 +411,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         if user_key in bulletpoint_votes_count:
             bulletpoint_votes_count[user_key] += score
         else:
-            bulletpoint_votes_count[user_key] = 1
+            bulletpoint_votes_count[user_key] = score
 
         for vote in obj.votes.exclude(bulletpoint__created_by=F('created_by')):
             total_score += 1
@@ -436,7 +436,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         if user_key in summary_votes_count:
             summary_votes_count[user_key] += score
         else:
-            summary_votes_count[user_key] = 1
+            summary_votes_count[user_key] = score
 
         for vote in obj.votes.exclude(summary__proposed_by=F('created_by')):
             total_score += 1
