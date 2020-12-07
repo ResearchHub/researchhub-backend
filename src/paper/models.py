@@ -4,7 +4,7 @@ import requests
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
 from django.db import models, transaction
-from django.db.models import Count, Q, Avg
+from django.db.models import Count, Q, Avg, F
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from django.db.models.functions import Extract
 
@@ -566,11 +566,16 @@ class Paper(models.Model):
         else:
             celery_extract_twitter_comments(self.id)
 
-    def calculate_score(self):
-        score = self.votes.filter(
+    def calculate_score(self, ignore_self_vote=False):
+        qs = self.votes.filter(
             created_by__is_suspended=False,
             created_by__probable_spammer=False
-        ).aggregate(
+        )
+
+        if ignore_self_vote:
+            qs = qs.exclude(paper__uploaded_by=F('created_by'))
+
+        score = qs.aggregate(
             score=Count(
                 'id', filter=Q(vote_type=Vote.UPVOTE)
             ) - Count(

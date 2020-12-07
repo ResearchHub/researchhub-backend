@@ -331,7 +331,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     comment_score = 0
     for i, obj in enumerate(threads):
         print('{} / {}'.format(i, count))
-        score = obj.calculate_score() - 1
+        score = obj.calculate_score(ignore_self_vote=True)
         comment_score += score
         user_key = obj.created_by.email
         if user_key in IGNORE_USERS:
@@ -354,7 +354,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     count = replies.count()
     for i, obj in enumerate(replies):
         print('{} / {}'.format(i, count))
-        score = obj.calculate_score() - 1
+        score = obj.calculate_score(ignore_self_vote=True)
         comment_score += score
         user_key = obj.created_by.email
         if user_key in IGNORE_USERS:
@@ -378,7 +378,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     count = comments.count()
     for i, obj in enumerate(comments):
         print('{} / {}'.format(i, count))
-        score = obj.calculate_score() - 1
+        score = obj.calculate_score(ignore_self_vote=True)
         comment_score += score
         user_key = obj.created_by.email
         if user_key in IGNORE_USERS:
@@ -404,7 +404,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     for i, obj in enumerate(bulletpoints):
         print('{} / {}'.format(i, count))
         user_key = obj.created_by.email
-        score = obj.calculate_score() - 1
+        score = obj.calculate_score(ignore_self_vote=True)
         bulletpoint_score += score
         if user_key in IGNORE_USERS:
             continue
@@ -429,7 +429,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
     for i, obj in enumerate(summaries):
         print('{} / {}'.format(i, count))
         user_key = obj.proposed_by.email
-        score = obj.calculate_score() - 1
+        score = obj.calculate_score(ignore_self_vote=True)
         summary_score += score
         if user_key in IGNORE_USERS:
             continue
@@ -567,7 +567,7 @@ def get_uploaded_papers_email_data(papers_uploaded):
         paper_data['summary'] = f'From Paper: {paper.summary.summary_plain_text}' if paper.summary else ''
         paper_data['uploaded_by'] = get_author_full_name(paper.uploaded_by)
         paper_data['discussion_count'] = paper.discussion_count
-        paper_data['vote_count'] = paper.calculate_score()
+        paper_data['vote_count'] = paper.calculate_score(ignore_self_vote=True)
         paper_data['paper_type'] = ''.join(paper.paper_type.split('_')).capitalize()
         paper_data['url'] = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}'
         paper_preview_list = Figure.objects.filter(paper=paper.id, figure_type=Figure.PREVIEW).order_by('created_date')
