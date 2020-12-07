@@ -203,9 +203,6 @@ class BaseComment(models.Model):
                 qs = qs.exclude(created_by=F('discussion__created_by'))
 
             score = qs.aggregate(
-                created_by__is_suspended=False,
-                created_by__probable_spammer=False
-            ).aggregate(
                 score=Count(
                     'id', filter=Q(vote_type=Vote.UPVOTE)
                 ) - Count(
