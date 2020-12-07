@@ -252,6 +252,10 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
     def send_purchase_notification(self, purchase, paper, recipient, extra):
         creator = purchase.user
+
+        if creator == recipient:
+            return
+
         content_type = ContentType.objects.get_for_model(purchase)
         action = Action.objects.create(
             user=creator,
