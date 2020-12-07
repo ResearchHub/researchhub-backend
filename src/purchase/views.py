@@ -1,3 +1,4 @@
+import time
 import datetime
 import stripe
 import decimal
@@ -44,6 +45,8 @@ from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfAllowed
 from user.models import User, Author, Action
 from user.serializers import UserSerializer
 from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
+from reputation.distributions import create_purchase_distribution
+from reputation.distributor import Distributor
 
 
 class PurchaseViewSet(viewsets.ModelViewSet):
@@ -67,6 +70,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         content_type_str = data['content_type']
         content_type = ContentType.objects.get(model=content_type_str)
         object_id = data['object_id']
+        transfer_rsc = False
+        recipient = None
 
         with transaction.atomic():
             if purchase_method == Purchase.ON_CHAIN:
@@ -110,29 +115,45 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             purchase.group = purchase.get_aggregate_group()
             purchase.save()
 
-        context = {
-            'purchase_minimal_serialization': True,
-            'exclude_stats': True
-        }
-        if content_type_str == 'paper':
-            paper = Paper.objects.get(id=object_id)
-            paper.calculate_hot_score()
-            cache_key = get_cache_key(None, 'paper', pk=object_id)
-            cache.delete(cache_key)
-            # invalidate_trending_cache([])
-            invalidate_top_rated_cache([])
-            invalidate_most_discussed_cache([])
-            invalidate_newest_cache([])
-        elif content_type_str == 'thread':
-            pass
-        elif content_type_str == 'comment':
-            pass
-        elif content_type_str == 'reply':
-            pass
-        elif content_type_str == 'summary':
-            pass
-        elif content_type_str == 'bullet_point':
-            pass
+            item = purchase.item
+            context = {
+                'purchase_minimal_serialization': True,
+                'exclude_stats': True
+            }
+            if content_type_str == 'paper':
+                paper = Paper.objects.get(id=object_id)
+                paper.calculate_hot_score()
+                cache_key = get_cache_key(None, 'paper', pk=object_id)
+                cache.delete(cache_key)
+                # invalidate_trending_cache([])
+                invalidate_top_rated_cache([])
+                invalidate_most_discussed_cache([])
+                invalidate_newest_cache([])
+            elif content_type_str == 'thread':
+                transfer_rsc = True
+                recipient = item.created_by
+            elif content_type_str == 'comment':
+                transfer_rsc = True
+                recipient = item.created_by
+            elif content_type_str == 'reply':
+                transfer_rsc = True
+                recipient = item.created_by
+            elif content_type_str == 'summary':
+                transfer_rsc = True
+                recipient = item.proposed_by
+            elif content_type_str == 'bulletpoint':
+                transfer_rsc = True
+                recipient = item.created_by
+
+            if transfer_rsc and recipient != user:
+                distribution = create_purchase_distribution(amount)
+                distributor = Distributor(
+                    distribution,
+                    recipient,
+                    purchase,
+                    time.time()
+                )
+                distributor.distribute()
 
         serializer = self.serializer_class(purchase, context=context)
         serializer_data = serializer.data
