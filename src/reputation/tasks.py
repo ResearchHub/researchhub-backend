@@ -529,8 +529,8 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
             paper_voted_on_count.get(key, 0),
             discussion_count.get(key, 0),
             comment_votes_count.get(key, 0),
-            bulletpoint_votes_count.get(key, 0),
             bulletpoint_upvotes_count.get(key, 0),
+            bulletpoint_votes_count.get(key, 0),
             summary_votes_count.get(key, 0),
             summary_upvotes_count.get(key, 0),
             "\"" + '\n\n'.join(papers_list) + "\""
