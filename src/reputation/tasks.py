@@ -450,7 +450,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
             all_users[user_key] = True
 
     # headers = 'Total Upvotes: {}, Total Paper Upvotes: {}, Total Comment Upvotes: {}\n'.format(total_score, total_paper_scores, total_comment_scores,)
-    headers = 'email,name,Author URL,Bonus RSC Amount,Paper Submissions,Upvotes,Upvotes on Submissions,Comments,Upvotes on Comments,Bulletpoint Upvotes,Upvotes on Bulletpoints,Upvotes on Summary,Summary Upvotes,Papers Uploaded\n'
+    headers = 'name,email,Author URL,Bonus RSC Amount,Paper Submissions,Upvotes,Upvotes on Submissions,Comments,Upvotes on Comments,Key Takeaway Upvotes,Upvotes on Key Takeaways,Upvotes on Summary,Summary Upvotes,Papers Uploaded\n'
 
     total_rewards = {}
 
@@ -520,8 +520,8 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         name = author_profile.first_name + ' ' + author_profile.last_name
         author_url = 'https://www.researchhub.com/user/{}'.format(author_profile.id)
         line = '{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n'.format(
-            user.email,
             name,
+            user.email,
             author_url,
             total_sorted[key],
             uploaded_paper_count.get(key, 0),
