@@ -9,6 +9,7 @@ from hub.serializers import HubSerializer
 from paper.models import Vote as PaperVote, Paper
 from user.models import Action, Author, University, User, Major, Verification
 from summary.models import Summary
+from purchase.models import Purchase
 from utils import sentry
 
 
@@ -347,6 +348,8 @@ class UserActions:
             creator = item.uploaded_by
         elif isinstance(item, User):
             creator = item
+        elif isinstance(item, Purchase):
+            creator= item.user
         else:
             creator = item.created_by
         if creator is not None:

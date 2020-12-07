@@ -123,6 +123,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             if content_type_str == 'paper':
                 paper = Paper.objects.get(id=object_id)
                 paper.calculate_hot_score()
+                recipient = paper.uploaded_by
                 cache_key = get_cache_key(None, 'paper', pk=object_id)
                 cache.delete(cache_key)
                 # invalidate_trending_cache([])
@@ -132,18 +133,23 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             elif content_type_str == 'thread':
                 transfer_rsc = True
                 recipient = item.created_by
+                paper = item.paper
             elif content_type_str == 'comment':
                 transfer_rsc = True
+                paper = item.paper
                 recipient = item.created_by
             elif content_type_str == 'reply':
                 transfer_rsc = True
+                paper = item.paper
                 recipient = item.created_by
             elif content_type_str == 'summary':
                 transfer_rsc = True
                 recipient = item.proposed_by
+                paper = item.paper
             elif content_type_str == 'bulletpoint':
                 transfer_rsc = True
                 recipient = item.created_by
+                paper = item.paper
 
             if transfer_rsc and recipient != user:
                 distribution = create_purchase_distribution(amount)
@@ -157,6 +163,12 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
         serializer = self.serializer_class(purchase, context=context)
         serializer_data = serializer.data
+        self.send_purchase_notification(
+            purchase,
+            paper,
+            recipient,
+            serializer_data
+        )
         return Response(serializer_data, status=201)
 
     def update(self, request, *args, **kwargs):
@@ -237,6 +249,23 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def send_purchase_notification(self, purchase, paper, recipient, extra):
+        creator = purchase.user
+        content_type = ContentType.objects.get_for_model(purchase)
+        action = Action.objects.create(
+            user=creator,
+            content_type=content_type,
+            object_id=purchase.id,
+        )
+        notification = Notification.objects.create(
+            paper=paper,
+            recipient=recipient,
+            action_user=creator,
+            action=action,
+            extra={**extra}
+        )
+        notification.send_notification()
 
 
 class SupportViewSet(viewsets.ModelViewSet):
