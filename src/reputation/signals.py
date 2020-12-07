@@ -8,7 +8,8 @@ from django.utils import timezone
 from django.contrib.admin.options import get_content_type_for_model
 
 from bullet_point.models import (
-    BulletPoint
+    BulletPoint,
+    Vote as BulletPointVote
 )
 from discussion.lib import check_is_discussion_item
 from discussion.models import (
@@ -25,7 +26,7 @@ from reputation.distributor import Distributor
 import reputation.distributions as distributions
 from reputation.exceptions import ReputationSignalError
 from reputation.models import Distribution
-from summary.models import Summary
+from summary.models import Summary, Vote as SummaryVote
 from utils import sentry
 
 # TODO: "Suspend" user if their reputation becomes negative
@@ -152,6 +153,33 @@ def distribute_for_create_summary(
         distributor.distribute()
 
 
+@receiver(post_save, sender=SummaryVote, dispatch_uid='summary_vote')
+def distribute_for_summary_vote(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
+    timestamp = time()
+    voter = instance.created_by
+    recipient = instance.summary.proposed_by
+
+    if created and is_eligible_for_summary_vote(recipient, voter):
+        hubs = instance.summary.paper.hubs
+        distribution = get_summary_vote_item_distribution(instance)
+
+        distributor = Distributor(
+            distribution,
+            recipient,
+            instance,
+            timestamp,
+            hubs.all()
+        )
+
+        distributor.distribute()
+
+
 def is_eligible_for_create_summary(created, user):
     return (
         created
@@ -166,6 +194,28 @@ def is_eligible_for_create_first_summary(created, update_fields, summary):
         and check_approved_updated(update_fields)
         and summary.is_first_paper_summary
     )
+
+
+def is_eligible_for_summary_vote(recipient, voter):
+    """
+    Returns True if the recipient is eligible to receive an award.
+
+    Checks to ensure recipient is not also the voter.
+    """
+    if voter is None:
+        return True
+    return (recipient != voter) and is_eligible_user(recipient)
+
+
+def get_summary_vote_item_distribution(instance):
+    vote_type = instance.vote_type
+
+    if vote_type == SummaryVote.UPVOTE:
+        return distributions.SummaryUpvoted
+    elif vote_type == SummaryVote.DOWNVOTE:
+        return distributions.SummaryDownvoted
+    else:
+        raise TypeError('No vote type for summary instance')
 
 
 def check_approved_updated(update_fields):
@@ -209,8 +259,57 @@ def distribute_for_create_bullet_point(sender, instance, created, **kwargs):
         distributor.distribute()
 
 
+@receiver(post_save, sender=BulletPointVote, dispatch_uid='bullet_point_vote')
+def distribute_for_bullet_point_vote(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
+    timestamp = time()
+    voter = instance.created_by
+    recipient = instance.bulletpoint.created_by
+
+    if created and is_eligible_for_bulletpoint_vote(recipient, voter):
+        hubs = instance.bulletpoint.paper.hubs
+        distribution = get_bulletpoint_vote_item_distribution(instance)
+
+        distributor = Distributor(
+            distribution,
+            recipient,
+            instance,
+            timestamp,
+            hubs.all()
+        )
+
+        distributor.distribute()
+
+
 def is_eligible_for_create_bullet_point(user):
     return is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
+
+
+def is_eligible_for_bulletpoint_vote(recipient, voter):
+    """
+    Returns True if the recipient is eligible to receive an award.
+
+    Checks to ensure recipient is not also the voter.
+    """
+    if voter is None:
+        return True
+    return (recipient != voter) and is_eligible_user(recipient)
+
+
+def get_bulletpoint_vote_item_distribution(instance):
+    vote_type = instance.vote_type
+
+    if vote_type == BulletPointVote.UPVOTE:
+        return distributions.BulletPointUpvoted
+    elif vote_type == BulletPointVote.DOWNVOTE:
+        return distributions.BulletPointDownvoted
+    else:
+        raise TypeError('No vote type for bulletpoint instance')
 
 
 def check_key_takeaway_interval(bullet_point, recipient):
