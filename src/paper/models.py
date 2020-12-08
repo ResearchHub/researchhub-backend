@@ -1,5 +1,6 @@
 import math
 import requests
+import regex as re
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
@@ -501,7 +502,13 @@ class Paper(models.Model):
             if self.pdf_url and journal_host in self.pdf_url:
                 return
 
+        regex = r'(.*doi\.org\/)(.*)'
         doi = self.doi or ''
+
+        regex_doi = re.search(regex, doi)
+        if regex_doi and len(regex_doi.groups()) > 1:
+            doi = regex_doi.groups()[-1]
+
         has_doi = doi.startswith(DOI_IDENTIFIER)
         has_arxiv = doi.startswith(ARXIV_IDENTIFIER)
 
