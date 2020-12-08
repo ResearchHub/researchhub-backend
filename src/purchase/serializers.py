@@ -43,6 +43,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
     source = serializers.SerializerMethodField()
     end_date = serializers.SerializerMethodField()
     stats = serializers.SerializerMethodField()
+    content_type = serializers.SerializerMethodField()
 
     class Meta:
         model = Purchase
@@ -146,6 +147,10 @@ class PurchaseSerializer(serializers.ModelSerializer):
         views = len(row[row['interaction'] == 'VIEW'])
         clicks = len(row[row['interaction'] == 'CLICK'])
         return pd.Series((views, clicks), index=index)
+
+    def get_content_type(self, purchase):
+        content = purchase.content_type
+        return {'app_label': content.app_label, 'model': content.model}
 
 
 class AggregatePurchaseSerializer(serializers.ModelSerializer):
