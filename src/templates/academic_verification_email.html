@@ -1,0 +1,45 @@
+{% load inlinecss %}
+{% load l10n %}
+{% load humanize %}
+<html>
+  <link rel="stylesheet" href="../stylesheets/academic_verification_email.css">  
+  <head>
+      <meta charset="UTF-8">
+      <title></title>
+      <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+  </head>
+  {% inlinecss "academic_verification_email.css" %}
+  <body>
+    <div class="email-container">
+      <div class="banner">
+        <img class="img-banner" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/user_verification.png" />
+      </div>
+      <div class="email-info">
+        <div class="email-header">
+          <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
+          <div class="header">
+            Academic Verification Complete
+            <p class="header-message">
+              Dear {{ user_name }},
+              <br/><br/>
+              You've been verified on ResearchHub and we've credited you {{ reward_amount|intcomma }} RSC!
+            </p>
+            <div class="email-action-container">
+              <a class="email-action-button" href="{{ user_profile }}"> 
+                Go to profile 
+              </a>
+            </div>
+      </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <a class="footer-link" href="{{ opt_out }}">Unsubscribe from this list</a>
+      <a class="footer-link" href="{{ update_subscription }}">Update subscription preferences</a>
+    </div>
+    <div style="display: none">{% now "U" %}</div>
+  </body>
+</html>
+
+{% endinlinecss %}
