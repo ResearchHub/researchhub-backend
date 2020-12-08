@@ -52,16 +52,18 @@ class Distributor:
 
     @staticmethod
     def generate_proof(db_record, timestamp):
-        serializer = get_model_serializer(type(db_record))
-        obj = serializer(db_record).data
-        if obj.get('password'):
-            del obj['password']
-        proof = {
-            'timestamp': timestamp,
-            'table': db_record._meta.db_table,
-            'record': obj
-        }
-        return proof
+        if db_record:
+            serializer  = get_model_serializer(type(db_record))
+            obj = serializer(db_record).data
+            if obj.get('password'):
+                del obj['password']
+            proof = {
+                'timestamp': timestamp,
+                'table': db_record._meta.db_table,
+                'record': obj
+            }
+            return proof
+        return None
 
     def distribute(self):
         record = self._record_distribution()
@@ -86,8 +88,8 @@ class Distributor:
             proof=self.proof,
             proof_item_content_type=get_content_type_for_model(
                 self.proof_item
-            ),
-            proof_item_object_id=self.proof_item.id
+            ) if self.proof_item else None,
+            proof_item_object_id=self.proof_item.id if self.proof_item else None
         )
 
         if self.hubs:

@@ -78,14 +78,15 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
     )
     proof_item_content_type = models.ForeignKey(
         ContentType,
-        on_delete=models.CASCADE
+        on_delete=models.CASCADE,
+        null=True
     )
-    proof_item_object_id = models.PositiveIntegerField()
+    proof_item_object_id = models.PositiveIntegerField(null=True)
     proof_item = GenericForeignKey(
         'proof_item_content_type',
         'proof_item_object_id',
     )
-    proof = JSONField()
+    proof = JSONField(null=True)
     distributed_date = models.DateTimeField(default=None, null=True)
     distributed_status = models.CharField(
         max_length=255,
