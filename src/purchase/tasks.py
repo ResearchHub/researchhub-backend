@@ -52,6 +52,7 @@ def send_support_email(
 ):
 
     paper_data = {}
+    object_supported = 'profile'
     if content_type == 'paper':
         paper = Paper.objects.get(id=object_id)
         paper_data['title'] = paper.title
@@ -63,6 +64,17 @@ def send_support_email(
             paper.paper_type.split('_')
         ).capitalize()
         paper_data['url'] = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}'
+        object_supported = 'paper'
+    elif content_type == 'thread':
+        object_supported = 'thread'
+    elif content_type == 'comment':
+        object_supported = 'comment'
+    elif content_type == 'reply':
+        object_supported = 'reply'
+    elif content_type == 'summary':
+        object_supported = 'summary'
+    elif content_type == 'bulletpoint':
+        object_supported = 'key takeaway'
 
     if payment_type == Support.STRIPE:
         payment_type = 'USD'
@@ -72,9 +84,9 @@ def send_support_email(
         payment_type = 'Ethereum'
     elif payment_type == Support.BTC:
         payment_type = 'Bitcoin'
-    elif payment_type == Support.RSC_ON_CHAIN:
+    elif payment_type in Support.RSC_ON_CHAIN:
         payment_type = 'ResearchHub Coin'
-    elif payment_type == Support.RSC_OFF_CHAIN:
+    elif payment_type in Support.RSC_OFF_CHAIN:
         payment_type = 'ResearchHub Coin'
 
     context = {
@@ -88,6 +100,7 @@ def send_support_email(
         'recipient_name': recipient_name,
         'paper': paper_data,
         'user_profile': profile_url,
+        'object_supported': object_supported
     }
 
     if email_type == 'sender':
