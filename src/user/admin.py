@@ -324,23 +324,29 @@ class VerificationAdminPanel(admin.ModelAdmin):
 
     def distribute_referral_reward(self, user):
         timestamp = time()
-        referred = Distributor(
+
+        referrer = user.invited_by
+        if not referrer:
+            referrer = user
+
+        distribution = Distributor(
             distributions.ReferralApproved,
             user,
-            user.invited_by,
+            referrer,
             timestamp,
             None,
         )
-        referred.distribute()
+        distribution.distribute()
 
-        referrer = Distributor(
-            distributions.ReferralApproved,
-            user.invited_by,
-            user.invited_by,
-            timestamp,
-            None,
-        )
-        referrer.distribute()
+        if referrer:
+            distribution = Distributor(
+                distributions.ReferralApproved,
+                referrer,
+                referrer,
+                timestamp,
+                None,
+            )
+            distribution.distribute()
 
 
 admin.site.register(AnalyticModel, AnalyticAdminPanel)
