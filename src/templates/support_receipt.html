@@ -33,7 +33,7 @@
               {% if paper %}
                 You received a contribution from <a href="{{ user_profile }}" class="header-link">{{ sender_name }}</a> for your research paper '<a href="{{ paper.url }}" class="header-link">{{ paper.title }}</a>'.
               {% else %}
-                <a href="{{ user_profile }}" class="header-link">{{ sender_name }}</a> supported your profile.
+                <a href="{{ user_profile }}" class="header-link">{{ sender_name }}</a> supported your {{ object_supported }}.
               {% endif %}
               <br/><br/>
               Congratulations!

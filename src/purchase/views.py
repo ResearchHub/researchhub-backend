@@ -169,6 +169,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             recipient,
             serializer_data
         )
+        self.send_purchase_email(purchase, recipient)
         return Response(serializer_data, status=201)
 
     def update(self, request, *args, **kwargs):
@@ -270,6 +271,52 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             extra={**extra}
         )
         notification.send_notification()
+
+    def send_purchase_email(self, purchase, recipient):
+        sender = purchase.user
+        if sender == recipient:
+            return
+
+        sender_balance_date = datetime.datetime.now().strftime(
+            '%m/%d/%Y'
+        )
+        amount = purchase.amount
+        payment_type = purchase.purchase_method
+        content_type_str = purchase.content_type.model
+        object_id = purchase.object_id
+        send_support_email.apply_async(
+            (
+                f'{BASE_FRONTEND_URL}/user/{sender.author_profile.id}/overview',
+                sender.full_name(),
+                recipient.full_name(),
+                recipient.email,
+                amount,
+                sender_balance_date,
+                payment_type,
+                'recipient',
+                content_type_str,
+                object_id
+            ),
+            priority=6,
+            countdown=2
+        )
+
+        send_support_email.apply_async(
+            (
+                f'{BASE_FRONTEND_URL}/user/{recipient.author_profile.id}/overview',
+                sender.full_name(),
+                recipient.full_name(),
+                sender.email,
+                amount,
+                sender_balance_date,
+                payment_type,
+                'sender',
+                content_type_str,
+                object_id
+            ),
+            priority=6,
+            countdown=2
+        )
 
 
 class SupportViewSet(viewsets.ModelViewSet):
