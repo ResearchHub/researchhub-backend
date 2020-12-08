@@ -85,9 +85,9 @@ def send_support_email(
     elif payment_type == Support.BTC:
         payment_type = 'Bitcoin'
     elif payment_type in Support.RSC_ON_CHAIN:
-        payment_type = 'ResearchHub Coin'
+        payment_type = 'ResearchCoin'
     elif payment_type in Support.RSC_OFF_CHAIN:
-        payment_type = 'ResearchHub Coin'
+        payment_type = 'ResearchCoin'
 
     context = {
         **base_email_context,
