@@ -151,7 +151,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 recipient = item.created_by
                 paper = item.paper
 
-            if transfer_rsc and recipient != user:
+            if transfer_rsc and recipient and recipient != user:
                 distribution = create_purchase_distribution(amount)
                 distributor = Distributor(
                     distribution,
@@ -163,13 +163,15 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
         serializer = self.serializer_class(purchase, context=context)
         serializer_data = serializer.data
-        self.send_purchase_notification(
-            purchase,
-            paper,
-            recipient,
-            serializer_data
-        )
-        self.send_purchase_email(purchase, recipient)
+
+        if recipient and user:
+            self.send_purchase_notification(
+                purchase,
+                paper,
+                recipient,
+                serializer_data
+            )
+            self.send_purchase_email(purchase, recipient)
         return Response(serializer_data, status=201)
 
     def update(self, request, *args, **kwargs):
