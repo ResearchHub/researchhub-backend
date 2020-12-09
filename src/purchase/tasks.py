@@ -122,8 +122,11 @@ def send_support_email(
         'recipient_name': recipient_name,
         'paper': paper_data,
         'user_profile': profile_url,
-        'object_supported': object_supported
+        'object_supported': object_supported,
+        'url': url
     }
+
+    print(url)
 
     if email_type == 'sender':
         subject = 'Receipt From ResearchHub'
