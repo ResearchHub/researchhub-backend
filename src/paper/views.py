@@ -811,6 +811,8 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         context = self.get_serializer_context()
         context['user_no_balance'] = True
+        context['exclude_promoted_score'] = True
+        context['include_wallet'] = False
 
         if page_number == 1 and 'removed' not in ordering:
             time_difference = end_date - start_date
@@ -828,7 +830,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 
             cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
             cache_hit = cache.get(cache_key_hub)
-            
+
             if cache_hit and page_number == 1:
                 return Response(cache_hit)
             else:

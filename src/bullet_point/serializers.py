@@ -54,6 +54,7 @@ class BulletPointSerializer(serializers.ModelSerializer):
     editors = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
+    promoted = serializers.SerializerMethodField()
     endorsements = EndorsementSerializer(read_only=True, many=True)
     flags = FlagSerializer(read_only=True, many=True)
 
@@ -95,6 +96,11 @@ class BulletPointSerializer(serializers.ModelSerializer):
                 return BulletPointVoteSerializer(vote.last()).data
             return False
         return False
+
+    def get_promoted(self, obj):
+        if self.context.get('exclude_promoted_score', False):
+            return None
+        return obj.get_promoted_score()
 
 
 class BulletPointTextOnlySerializer(serializers.ModelSerializer):
