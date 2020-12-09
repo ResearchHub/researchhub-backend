@@ -262,12 +262,13 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(serialized.data, status=200)
 
     @action(
-        detail=True,
+        detail=False,
         methods=[RequestMethods.POST],
         permission_classes=[IsAuthenticated, Censor],
     )
-    def reinstate(self, request, pk=None):
-        user = User.objects.get(id=pk)
+    def reinstate(self, request):
+        author_id = request.data['author_id']
+        user = Author.objects.get(id=author_id).user
         user.is_suspended = False
         user.save()
         serialized = UserSerializer(user)
