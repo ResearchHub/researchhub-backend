@@ -107,9 +107,9 @@ def send_support_email(
     elif payment_type == Support.BTC:
         payment_type = 'Bitcoin'
     elif payment_type in Support.RSC_ON_CHAIN:
-        payment_type = 'ResearchCoin'
+        payment_type = 'RSC'
     elif payment_type in Support.RSC_OFF_CHAIN:
-        payment_type = 'ResearchCoin'
+        payment_type = 'RSC'
 
     context = {
         **base_email_context,
