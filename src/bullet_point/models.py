@@ -143,11 +143,10 @@ class BulletPoint(models.Model):
             paid_status=Purchase.PAID,
         )
         if purchases.exists():
-            base_score = self.calculate_score()
             boost_score = sum(
                 map(int, purchases.values_list('amount', flat=True))
             )
-            return base_score + boost_score
+            return boost_score
         return False
 
     def remove_from_head(self):
