@@ -47,7 +47,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     first_figure = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
     hubs = SimpleHubSerializer(many=True, required=False)
-    summary = SummarySerializer(required=False)
+    summary = serializers.SerializerMethodField()
     uploaded_by = UserSerializer(read_only=True)
     user_vote = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
@@ -140,6 +140,13 @@ class BasePaperSerializer(serializers.ModelSerializer):
 
     def get_bullet_points(self, paper):
         return None
+
+    def get_summary(self, paper):
+        return SummarySerializer(
+            paper.summary,
+            required=False,
+            context=self.context
+        ).data
 
     def get_csl_item(self, paper):
         if self.context.get('purchase_minimal_serialization', False):
@@ -491,7 +498,11 @@ class HubPaperSerializer(BasePaperSerializer):
         # bullet_points = paper.bullet_points.filter(
         #     ordinal__isnull=False
         # ).order_by('ordinal')[:3]
-        return BulletPointTextOnlySerializer(paper.bullet_points, many=True).data
+        return BulletPointTextOnlySerializer(
+            paper.bullet_points,
+            many=True,
+            context=self.context,
+        ).data
 
     # def get_uploaded_by(self, paper):
     #     serializer_context = {'request': self.context.get('request'), 'no_balance': True}
