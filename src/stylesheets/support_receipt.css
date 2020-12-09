@@ -11,10 +11,6 @@ body {
   background-color: #FFFFFF;
 }
 
-.notification-wrapper {
-  width: 80%;
-}
-
 .paper {
   color: #0098ca;
   padding-right: 16px;
@@ -31,6 +27,7 @@ body {
 
 .img-logo {
   height: 40px;
+  width: 100%;
   object-fit: contain;
 }
 
@@ -60,9 +57,17 @@ body {
 }
 
 .header-link {
-  display: contents;
   text-decoration: underline;
-  color: inherit;
+  color: #0098ca;
+}
+
+.url-button {
+  background: #3971FF;
+  width: 100%;
+  height: 40px;
+  text-align: center;
+  font-size: 16px;
+  text-transform: capitalize;
 }
 
 .count-wrapper {
@@ -324,7 +329,6 @@ body {
   background-color: #282936;
   width: 650px;
   margin: auto;
-  height: 16px;
 }
 
 .footer-link {

@@ -6,12 +6,30 @@
       <meta charset="UTF-8">
       <title></title>
       <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+      <style type="text/css">
+        @media only screen and (max-width: 767px) {
+          body {
+            width: 100%;
+            box-sizing: border-box;
+          }
+
+          .email-container {
+            width: 90%!important;
+            box-sizing: border-box;
+          }
+
+          .footer {
+            width: 90%!important;
+            box-sizing: border-box;
+          }
+        }
+      </style>
   </head>
   {% inlinecss "support_receipt.css" %}
   <body>
     <div class="email-container">
       <div class="email-header">
-        <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
+        <img class="img-logo" src="https://rh-email-assets.s3-us-west-2.amazonaws.com/researchlogo.png" />
         <div class="header">
           {% if recipient %}
             {% if paper %}
@@ -34,6 +52,8 @@
                 You received a contribution from <a href="{{ user_profile }}" class="header-link">{{ sender_name }}</a> for your research paper '<a href="{{ paper.url }}" class="header-link">{{ paper.title }}</a>'.
               {% else %}
                 <a href="{{ user_profile }}" class="header-link">{{ sender_name }}</a> supported your {{ object_supported|safe }}.
+
+                <a href="{{ paper.url }}" class="header-link url-button"> View {{ object_supported|safe }} </a>
               {% endif %}
               <br/><br/>
               Congratulations!
@@ -63,7 +83,7 @@
             <h4 class="column-values"> {{ recipient_name }} </h4>
           {% endif %}
           <h4 class="column-values"> 
-            {% if method == "ResearchHub Coin" %}
+            {% if method == "RSC" %}
               <img class="coin-logo" src="https://www.researchhub.com/static/icons/coin-filled.png" />
               {{amount}} {{method}}
             {% elif method == "USD" or method == "Paypal" %}
