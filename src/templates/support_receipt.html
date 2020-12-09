@@ -46,21 +46,19 @@
           {% endif %}
           <p class="header-message">
             {% if recipient %}
-              Dear {{ recipient_name }},
-              <br/><br/>
               {% if paper %}
                 You received a contribution from <a href="{{ user_profile }}" class="header-link">{{ sender_name }}</a> for your research paper '<a href="{{ paper.url }}" class="header-link">{{ paper.title }}</a>'.
               {% else %}
-                <a href="{{ user_profile }}" class="header-link">{{ sender_name }}</a> supported your {{ object_supported|safe }}.
-
-                <a href="{{ paper.url }}" class="header-link url-button"> View {{ object_supported|safe }} </a>
+                <a href="{{ user_profile }}" class="header-link">{{ sender_name }}</a> supported your {{ object_supported|safe }} on ResearchHub. Check out how much RSC was given to you below!
+                <br/><br/>
+                <a href="{{ url }}" class="url-button">
+                  <div class="url-button-container">
+                    View {{ object_supported|safe }}
+                  </div>
+                </a>
               {% endif %}
-              <br/><br/>
-              Congratulations!
             {% else %}
-              Dear {{ sender_name }},
-              <br/><br/>
-              Thank you for your support to <a href="{{ user_profile }}" class="header-link">{{ recipient_name }}</a>. Your generosity is appreciated! Here are the details:
+              Thank you for supporting <a href="{{ user_profile }}" class="header-link">{{ recipient_name }}</a>. Your generosity is appreciated! Here are the details:
             {% endif %}
           </p>
         </div>
