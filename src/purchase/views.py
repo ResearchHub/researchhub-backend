@@ -171,7 +171,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 recipient,
                 serializer_data
             )
-            self.send_purchase_email(purchase, recipient)
+            self.send_purchase_email(purchase, recipient, paper.id)
         return Response(serializer_data, status=201)
 
     def update(self, request, *args, **kwargs):
@@ -274,7 +274,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         )
         notification.send_notification()
 
-    def send_purchase_email(self, purchase, recipient):
+    def send_purchase_email(self, purchase, recipient, paper_id):
         sender = purchase.user
         if sender == recipient:
             return
@@ -297,7 +297,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 payment_type,
                 'recipient',
                 content_type_str,
-                object_id
+                object_id,
+                paper_id
             ),
             priority=6,
             countdown=2
@@ -314,7 +315,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 payment_type,
                 'sender',
                 content_type_str,
-                object_id
+                object_id,
+                paper_id
             ),
             priority=6,
             countdown=2

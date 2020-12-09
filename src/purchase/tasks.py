@@ -48,7 +48,8 @@ def send_support_email(
     payment_type,
     email_type,
     content_type,
-    object_id
+    object_id,
+    paper_id=None
 ):
 
     paper_data = {}
@@ -66,15 +67,36 @@ def send_support_email(
         paper_data['url'] = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}'
         object_supported = 'paper'
     elif content_type == 'thread':
+        paper = Paper.objects.get(id=paper_id)
+        url = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments'
+        object_supported = f"""
+            <a href="{url}" class="header-link">thread</a>
+        """
         object_supported = 'thread'
     elif content_type == 'comment':
-        object_supported = 'comment'
+        paper = Paper.objects.get(id=paper_id)
+        url = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments'
+        object_supported = f"""
+            <a href="{url}" class="header-link">comment</a>
+        """
     elif content_type == 'reply':
-        object_supported = 'reply'
+        paper = Paper.objects.get(id=paper_id)
+        url = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments'
+        object_supported = f"""
+            <a href="{url}" class="header-link">reply</a>
+        """
     elif content_type == 'summary':
-        object_supported = 'summary'
+        paper = Paper.objects.get(id=paper_id)
+        url = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#summary'
+        object_supported = f"""
+            <a href="{url}" class="header-link">summary</a>
+        """
     elif content_type == 'bulletpoint':
-        object_supported = 'key takeaway'
+        paper = Paper.objects.get(id=paper_id)
+        url = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#takeaways'
+        object_supported = f"""
+            <a href="{url}" class="header-link">key takeaway</a>
+        """
 
     if payment_type == Support.STRIPE:
         payment_type = 'USD'
