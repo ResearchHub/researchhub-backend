@@ -49,6 +49,8 @@ class SummarySerializer(serializers.ModelSerializer):
         return False
 
     def get_promoted(self, obj):
+        if self.context.get('exclude_promoted_score', False):
+            return None
         return obj.get_promoted_score()
 
 
