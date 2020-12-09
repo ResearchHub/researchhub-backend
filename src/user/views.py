@@ -270,6 +270,8 @@ class UserViewSet(viewsets.ModelViewSet):
         user = User.objects.get(id=pk)
         user.is_suspended = False
         user.save()
+        serialized = UserSerializer(user)
+        return Response(serialized.data, status=200)
 
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
