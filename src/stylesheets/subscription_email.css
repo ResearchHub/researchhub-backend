@@ -3,7 +3,6 @@ body {
 }
 .email-container {
   width: 600px;
-  /* border: 1px solid #ddd; */
   border: none;
   margin: 0px auto;
 }
@@ -25,6 +24,8 @@ body {
 
 .img-logo {
   height: 40px;
+  width: 100%;
+  object-fit: contain;
 }
 
 .header {

@@ -1,12 +1,13 @@
+from django.db import models
 from django.db.models import (
     Count,
     Q,
     F
 )
 from django.contrib.postgres.fields import JSONField
-from django.db import models
 from django.contrib.contenttypes.fields import GenericRelation
 
+from purchase.models import Purchase
 from bullet_point.exceptions import BulletPointModelError
 from researchhub.lib import CREATED_LOCATIONS
 
@@ -88,6 +89,12 @@ class BulletPoint(models.Model):
         blank=True,
         null=True
     )
+    purchases = GenericRelation(
+        Purchase,
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='bulletpoint'
+    )
     text = JSONField(blank=True, null=True)
     plain_text = models.TextField(default='', blank=True)
     ordinal = models.IntegerField(default=None, null=True)
@@ -130,6 +137,17 @@ class BulletPoint(models.Model):
             self.set_ordinal(self.ordinal)
         else:
             super().save(*args, **kwargs)
+
+    def get_promoted_score(self):
+        purchases = self.purchases.filter(
+            paid_status=Purchase.PAID,
+        )
+        if purchases.exists():
+            boost_score = sum(
+                map(int, purchases.values_list('amount', flat=True))
+            )
+            return boost_score
+        return False
 
     def remove_from_head(self):
         self.is_head = False

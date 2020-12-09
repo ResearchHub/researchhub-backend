@@ -48,10 +48,12 @@ def send_support_email(
     payment_type,
     email_type,
     content_type,
-    object_id
+    object_id,
+    paper_id=None
 ):
 
     paper_data = {}
+    object_supported = 'profile'
     if content_type == 'paper':
         paper = Paper.objects.get(id=object_id)
         paper_data['title'] = paper.title
@@ -63,6 +65,38 @@ def send_support_email(
             paper.paper_type.split('_')
         ).capitalize()
         paper_data['url'] = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}'
+        object_supported = 'paper'
+    elif content_type == 'thread':
+        paper = Paper.objects.get(id=paper_id)
+        url = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments'
+        object_supported = f"""
+            <a href="{url}" class="header-link">thread</a>
+        """
+        object_supported = 'thread'
+    elif content_type == 'comment':
+        paper = Paper.objects.get(id=paper_id)
+        url = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments'
+        object_supported = f"""
+            <a href="{url}" class="header-link">comment</a>
+        """
+    elif content_type == 'reply':
+        paper = Paper.objects.get(id=paper_id)
+        url = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments'
+        object_supported = f"""
+            <a href="{url}" class="header-link">reply</a>
+        """
+    elif content_type == 'summary':
+        paper = Paper.objects.get(id=paper_id)
+        url = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#summary'
+        object_supported = f"""
+            <a href="{url}" class="header-link">summary</a>
+        """
+    elif content_type == 'bulletpoint':
+        paper = Paper.objects.get(id=paper_id)
+        url = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#takeaways'
+        object_supported = f"""
+            <a href="{url}" class="header-link">key takeaway</a>
+        """
 
     if payment_type == Support.STRIPE:
         payment_type = 'USD'
@@ -72,10 +106,10 @@ def send_support_email(
         payment_type = 'Ethereum'
     elif payment_type == Support.BTC:
         payment_type = 'Bitcoin'
-    elif payment_type == Support.RSC_ON_CHAIN:
-        payment_type = 'ResearchHub Coin'
-    elif payment_type == Support.RSC_OFF_CHAIN:
-        payment_type = 'ResearchHub Coin'
+    elif payment_type in Support.RSC_ON_CHAIN:
+        payment_type = 'RSC'
+    elif payment_type in Support.RSC_OFF_CHAIN:
+        payment_type = 'RSC'
 
     context = {
         **base_email_context,
@@ -88,7 +122,11 @@ def send_support_email(
         'recipient_name': recipient_name,
         'paper': paper_data,
         'user_profile': profile_url,
+        'object_supported': object_supported,
+        'url': url
     }
+
+    print(url)
 
     if email_type == 'sender':
         subject = 'Receipt From ResearchHub'
