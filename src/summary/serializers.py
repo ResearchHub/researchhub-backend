@@ -21,6 +21,7 @@ class SummarySerializer(serializers.ModelSerializer):
     score = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
+    paper_slug = serializers.SerializerMethodField()
 
     class Meta:
         fields = '__all__'
@@ -52,6 +53,9 @@ class SummarySerializer(serializers.ModelSerializer):
         if self.context.get('exclude_promoted_score', False):
             return None
         return obj.get_promoted_score()
+
+    def get_paper_slug(self, obj):
+        return obj.paper.slug
 
 
 class SummaryVoteSerializer(serializers.ModelSerializer):
