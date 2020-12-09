@@ -43,6 +43,7 @@ from datetime import timedelta
 from django.utils import timezone
 from utils.siftscience import events_api, decisions_api
 
+
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(is_suspended=False)
     serializer_class = UserEditableSerializer
@@ -260,6 +261,16 @@ class UserViewSet(viewsets.ModelViewSet):
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
 
+    @action(
+        detail=True,
+        methods=[RequestMethods.POST],
+        permission_classes=[IsAuthenticated, Censor],
+    )
+    def reinstate(self, request, pk=None):
+        user = User.objects.get(id=pk)
+        user.is_suspended = False
+        user.save()
+
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = University.objects.all()
@@ -292,7 +303,7 @@ class VerificationViewSet(viewsets.ModelViewSet):
                 file=image,
                 user=request.user,
             )
-        
+
         return Response({'message': 'Verification was uploaded!'})
 
 
