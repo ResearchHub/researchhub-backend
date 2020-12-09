@@ -17,6 +17,13 @@ from django.db.models.functions import Cast
 from purchase.models import Purchase, AggregatePurchase, Wallet, Support
 from analytics.serializers import PaperEventSerializer
 from paper.serializers import BasePaperSerializer
+from summary.serializers import SummarySerializer
+from bullet_point.serializers import BulletPointSerializer
+from discussion.serializers import (
+    ThreadSerializer,
+    CommentSerializer,
+    ReplySerializer
+)
 from analytics.models import PaperEvent, INTERACTIONS
 
 
@@ -36,6 +43,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
     source = serializers.SerializerMethodField()
     end_date = serializers.SerializerMethodField()
     stats = serializers.SerializerMethodField()
+    content_type = serializers.SerializerMethodField()
 
     class Meta:
         model = Purchase
@@ -46,12 +54,34 @@ class PurchaseSerializer(serializers.ModelSerializer):
         if self.context.get('exclude_source', False):
             return None
 
+        serializer = None
+        object_id = purchase.object_id
+        model_class = purchase.content_type.model_class()
         if model_name == 'paper':
-            Paper = purchase.content_type.model_class()
-            paper = Paper.objects.get(id=purchase.object_id)
+            paper = model_class.objects.get(id=object_id)
             serializer = BasePaperSerializer(paper, context=self.context)
-            data = serializer.data
-            return data
+        elif model_name == 'thread':
+            thread = model_class.objects.get(id=object_id)
+            serializer = ThreadSerializer(thread, context=self.context)
+        elif model_name == 'comment':
+            comment = model_class.objects.get(id=object_id)
+            serializer = CommentSerializer(comment, context=self.context)
+        elif model_name == 'reply':
+            reply = model_class.objects.get(id=object_id)
+            serializer = ReplySerializer(reply, context=self.context)
+        elif model_name == 'summary':
+            summary = model_class.objects.get(id=object_id)
+            serializer = SummarySerializer(summary, context=self.context)
+        elif model_name == 'bullet_point':
+            bulletpoint = model_class.objects.get(id=object_id)
+            serializer = BulletPointSerializer(
+                bulletpoint,
+                context=self.context
+            )
+
+        if serializer is not None:
+            return serializer.data
+
         return None
 
     def get_end_date(self, purchase):
@@ -117,6 +147,10 @@ class PurchaseSerializer(serializers.ModelSerializer):
         views = len(row[row['interaction'] == 'VIEW'])
         clicks = len(row[row['interaction'] == 'CLICK'])
         return pd.Series((views, clicks), index=index)
+
+    def get_content_type(self, purchase):
+        content = purchase.content_type
+        return {'app_label': content.app_label, 'model': content.model}
 
 
 class AggregatePurchaseSerializer(serializers.ModelSerializer):

@@ -108,6 +108,13 @@ ReferralApproved = Distribution(
     'REFERRAL_APPROVED', 1000, False
 )
 
+
+def create_purchase_distribution(amount):
+    return Distribution(
+        'PURCHASE', amount
+    )
+
+
 DISTRIBUTION_TYPE_CHOICES = [
     (
         FlagPaper.name,
@@ -196,6 +203,10 @@ DISTRIBUTION_TYPE_CHOICES = [
     (
         'REWARD',
         'REWARD'
+    ),
+    (
+        'PURCHASE',
+        'PURCHASE'
     ),
     (
         Referral.name,

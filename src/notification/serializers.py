@@ -5,13 +5,14 @@ from user.serializers import UserActions, UserSerializer
 
 
 class NotificationSerializer(serializers.ModelSerializer):
-    action = serializers.SerializerMethodField()
     action_user = UserSerializer(read_only=True)
     paper = serializers.PrimaryKeyRelatedField(read_only=True)
     recipient = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
+    action = serializers.SerializerMethodField()
+    paper_slug = serializers.SerializerMethodField()
 
     class Meta:
         fields = '__all__'
@@ -29,3 +30,9 @@ class NotificationSerializer(serializers.ModelSerializer):
 
     def get_action(self, obj):
         return UserActions(data=[obj.action]).serialized
+
+    def get_paper_slug(self, obj):
+        paper = obj.paper
+        if paper:
+            return paper.slug
+        return None

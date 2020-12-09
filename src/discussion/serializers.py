@@ -100,6 +100,11 @@ class VoteMixin:
                     pass
         return flag
 
+    def get_promoted(self, obj):
+        if self.context.get('exclude_promoted_score', False):
+            return None
+        return obj.get_promoted_score()
+
 
 class VoteSerializer(serializers.ModelSerializer):
     item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
@@ -128,6 +133,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
     user_flag = serializers.SerializerMethodField()
     thread_id = serializers.SerializerMethodField()
     paper_id = serializers.SerializerMethodField()
+    promoted = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -151,6 +157,7 @@ class CommentSerializer(serializers.ModelSerializer, VoteMixin):
             'plain_text',
             'thread_id',
             'paper_id',
+            'promoted'
         ]
         read_only_fields = [
             'is_public',
@@ -212,6 +219,7 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
     user_flag = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     paper_slug = serializers.SerializerMethodField()
+    promoted = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -233,7 +241,8 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
             'user_flag',
             'was_edited',
             'plain_text',
-            'paper_slug'
+            'paper_slug',
+            'promoted'
         ]
         read_only_fields = [
             'is_public',
@@ -308,6 +317,7 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
     paper_id = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
+    promoted = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -328,7 +338,8 @@ class ReplySerializer(serializers.ModelSerializer, VoteMixin):
             'was_edited',
             'plain_text',
             'thread_id',
-            'paper_id'
+            'paper_id',
+            'promoted'
         ]
         read_only_fields = [
             'is_public',

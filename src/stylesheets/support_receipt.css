@@ -11,10 +11,6 @@ body {
   background-color: #FFFFFF;
 }
 
-.notification-wrapper {
-  width: 80%;
-}
-
 .paper {
   color: #0098ca;
   padding-right: 16px;
@@ -31,6 +27,7 @@ body {
 
 .img-logo {
   height: 40px;
+  width: 100%;
   object-fit: contain;
 }
 
@@ -60,9 +57,26 @@ body {
 }
 
 .header-link {
-  display: contents;
   text-decoration: underline;
-  color: inherit;
+  color: #0098ca;
+}
+
+.url-button-container {
+  width: 100%;
+  background: #3971FF;
+  width: 100%;
+  text-align: center;
+  font-size: 16px;
+  text-transform: capitalize;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.url-button {
+  color: #fff;
+  text-decoration: none;
+  width: 100%;
+  height: 100%;
 }
 
 .count-wrapper {
@@ -324,7 +338,6 @@ body {
   background-color: #282936;
   width: 650px;
   margin: auto;
-  height: 16px;
 }
 
 .footer-link {
