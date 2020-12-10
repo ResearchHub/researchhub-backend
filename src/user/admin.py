@@ -14,6 +14,9 @@ from django.urls import path
 from .models import User, Action, Verification
 from reputation.distributor import Distributor
 from reputation import distributions
+from mailing_list.lib import base_email_context
+from utils.message import send_email_message
+from researchhub.settings import BASE_FRONTEND_URL
 
 
 class CustomUserAdmin(UserAdmin):
@@ -313,7 +316,8 @@ class VerificationAdminPanel(admin.ModelAdmin):
             author_profile = user.author_profile
             author_profile.academic_verification = True
             author_profile.save()
-            self.distribute_referral_reward(user)
+            user_distribution_record = self.distribute_referral_reward(user)
+            self.send_academic_verification_email(user, user_distribution_record)
             return redirect('.')
         elif '_reject' in request.POST:
             author_profile = user.author_profile
@@ -321,6 +325,28 @@ class VerificationAdminPanel(admin.ModelAdmin):
             author_profile.save()
             return redirect('.')
         return super().response_change(request, obj)
+    
+    def send_academic_verification_email(self, user, user_distribution_record):
+        author_profile = user.author_profile
+        user_name = author_profile.first_name
+        if author_profile.last_name:
+            user_name += ' ' + author_profile.last_name
+
+        context = {
+            **base_email_context,
+            'user_name': user_name,
+            'reward_amount': user_distribution_record.amount,
+            'user_profile': f'{BASE_FRONTEND_URL}/user/{user.id}/overview',
+        }
+        
+        subject = 'Your ResearchHub Verification is Approved!'
+        send_email_message(
+            user.email,
+            'academic_verification_email.txt',
+            subject,
+            context,
+            html_template='academic_verification_email.html'
+        )
 
     def distribute_referral_reward(self, user):
         timestamp = time()
@@ -336,7 +362,7 @@ class VerificationAdminPanel(admin.ModelAdmin):
             timestamp,
             None,
         )
-        distribution.distribute()
+        referred_distribution_record = distribution.distribute()
 
         if referrer:
             distribution = Distributor(
@@ -347,6 +373,8 @@ class VerificationAdminPanel(admin.ModelAdmin):
                 None,
             )
             distribution.distribute()
+
+        return referred_distribution_record
 
 
 admin.site.register(AnalyticModel, AnalyticAdminPanel)

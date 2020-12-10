@@ -1,0 +1,73 @@
+{% load inlinecss %}
+{% load l10n %}
+{% load humanize %}
+<html>
+  <link rel="stylesheet" href="../stylesheets/academic_verification_email.css">  
+  <head>
+      <meta charset="UTF-8">
+      <title></title>
+      <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+      <style type="text/css">
+        @media only screen and (max-width: 633px) {
+          body {
+            width: 100%;
+            box-sizing: border-box;
+          }
+
+          .email {
+            box-sizing: border-box;
+          }
+
+          .email-body {
+            box-sizing: border-box;
+          }
+
+          .footer {
+            box-sizing: border-box;
+          }
+          
+          .banner-img-container {
+            display: none !important;
+          }
+        }
+      </style>
+  </head>
+  {% inlinecss "academic_verification_email.css" %}
+  <body>
+    <div class="email">
+      <div class="email-body"> 
+        <div class="banner-img-container">
+          <img class="img-banner" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/user_verification.png" />
+        </div>
+        <div class="email-info">
+          <div class="email-header">
+            <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
+            <div class="header">
+              Academic Verification Complete
+              <p class="header-message">
+                Dear {{ user_name }},
+                <br/><br/>
+                You've been verified on ResearchHub and we've credited you {{ reward_amount|intcomma }} RSC!
+              </p>
+              <div class="email-action-container">
+                <a class="email-action-button" href="{{ user_profile }}"> 
+                  Go To Profile 
+                </a>
+              </div>
+            </div>
+          </div>
+          <div class="info-img-container">
+            <img class="img-info" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/background_home+(1).png" />
+          </div>
+        </div>
+      </div>
+      <div class="footer">
+        <a class="footer-link" href="{{ opt_out }}">Unsubscribe from this list</a>
+        <a class="footer-link" href="{{ update_subscription }}">Update subscription preferences</a>
+      </div>
+    </div>
+    <div style="display: none">{% now "U" %}</div>
+  </body>
+</html>
+
+{% endinlinecss %}
