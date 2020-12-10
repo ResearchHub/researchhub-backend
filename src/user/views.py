@@ -8,7 +8,7 @@ from rest_framework.permissions import (
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Sum, Q, F, Count
+from django.db.models import Sum, Q, F
 from django.contrib.contenttypes.models import ContentType
 from utils.http import DELETE, POST, PATCH, PUT
 
@@ -19,7 +19,7 @@ from discussion.serializers import (
 
 from user.tasks import handle_spam_user_task
 from reputation.models import Distribution
-from paper.models import Paper, Vote
+from paper.models import Paper
 from paper.views import PaperViewSet
 from paper.serializers import PaperSerializer, HubPaperSerializer
 from user.filters import AuthorFilter
@@ -41,7 +41,6 @@ from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from datetime import timedelta
 from django.utils import timezone
-from utils.siftscience import events_api, decisions_api
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -69,7 +68,7 @@ class UserViewSet(viewsets.ModelViewSet):
         elif user.is_authenticated:
             return User.objects.filter(id=user.id)
         else:
-            return User.objects.none()        
+            return User.objects.none()
 
     @action(
         detail=False,
