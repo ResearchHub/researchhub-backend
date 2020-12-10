@@ -273,6 +273,7 @@ class UserViewSet(viewsets.ModelViewSet):
         author_id = request.data['author_id']
         user = Author.objects.get(id=author_id).user
         user.is_suspended = False
+        user.probable_spammer = False
         user.save()
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
