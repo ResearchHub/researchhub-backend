@@ -339,7 +339,7 @@ class VerificationAdminPanel(admin.ModelAdmin):
             'user_profile': f'{BASE_FRONTEND_URL}/user/{user.id}/overview',
         }
         
-        subject = 'Notification From ResearchHub'
+        subject = 'Your ResearchHub Verification is Approved!'
         send_email_message(
             user.email,
             'academic_verification_email.txt',
