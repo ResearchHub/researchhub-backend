@@ -17,7 +17,7 @@ from discussion.serializers import (
     ThreadSerializer
 )
 
-from user.tasks import handle_spam_user_task
+from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution
 from paper.models import Paper
 from paper.views import PaperViewSet
@@ -66,7 +66,7 @@ class UserViewSet(viewsets.ModelViewSet):
         if self.request.GET.get('referral_code') or self.request.GET.get('invited_by'):
             return qs
         elif author_profile:
-            return qs.filter(author_profile=author_profile)
+            return User.objects.filter(author_profile=author_profile)
         elif user.is_staff:
             return qs
         elif user.is_authenticated:
@@ -275,6 +275,7 @@ class UserViewSet(viewsets.ModelViewSet):
         user.is_suspended = False
         user.probable_spammer = False
         user.save()
+        reinstate_user_task(user.id)
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
 

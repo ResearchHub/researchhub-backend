@@ -60,6 +60,7 @@ def censored_paper_cleanup(paper_id):
         uploaded_by = paper.uploaded_by
         uploaded_by.set_probable_spammer()
 
+
 @app.task
 def download_pdf(paper_id):
     Paper = apps.get_model('paper.Paper')
