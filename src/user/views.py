@@ -61,12 +61,16 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        qs = self.queryset
+        author_profile = self.request.query_params.get('author_profile')
         if self.request.GET.get('referral_code') or self.request.GET.get('invited_by'):
-            return User.objects.filter(is_suspended=False)
+            return qs
+        elif author_profile:
+            return qs.filter(author_profile=author_profile)
         elif user.is_staff:
-            return User.objects.all()
+            return qs
         elif user.is_authenticated:
-            return User.objects.filter(id=user.id)
+            return qs.filter(id=user.id)
         else:
             return User.objects.none()
 
