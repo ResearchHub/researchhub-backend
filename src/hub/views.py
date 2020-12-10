@@ -229,7 +229,8 @@ class HubViewSet(viewsets.ModelViewSet):
             'thread',
             'comment',
             'reply',
-            'summary'
+            'summary',
+            'purchase'
         ]
 
         # PK == 0 indicates for now that we're on the homepage
@@ -253,7 +254,8 @@ class HubViewSet(viewsets.ModelViewSet):
                 Q(papers__is_removed=False) |
                 Q(bullet_point__paper__is_removed=False) |
                 Q(threads__paper__is_removed=False) |
-                Q(summaries__paper__is_removed=False)
+                Q(summaries__paper__is_removed=False) |
+                Q(content_type__model='purchase')
             )
         ).order_by('-created_date')
 
