@@ -261,7 +261,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
         content_type = ContentType.objects.get_for_model(purchase)
         action = Action.objects.create(
-            user=creator,
+            user=recipient,
             content_type=content_type,
             object_id=purchase.id,
         )

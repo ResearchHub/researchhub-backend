@@ -83,7 +83,7 @@ def distribute_for_paper_upvoted(
             timestamp,
             instance.paper.hubs.all(),
         )
-        distributor.distribute()
+        record = distributor.distribute()
 
 
 def is_eligible_for_paper_upvoted(created, voter, paper_uploader):
@@ -113,7 +113,7 @@ def distribute_for_censor_paper(
                 timestamp,
                 instance.hubs.all(),
             )
-            distributor.distribute()
+            record = distributor.distribute()
 
 
 @receiver(post_save, sender=Summary, dispatch_uid='create_summary')
@@ -150,7 +150,7 @@ def distribute_for_create_summary(
             timestamp,
             instance.paper.hubs.all(),
         )
-        distributor.distribute()
+        record = distributor.distribute()
 
 
 @receiver(post_save, sender=SummaryVote, dispatch_uid='summary_vote')
@@ -177,7 +177,7 @@ def distribute_for_summary_vote(
             hubs.all()
         )
 
-        distributor.distribute()
+        record = distributor.distribute()
 
 
 def is_eligible_for_create_summary(created, user):
@@ -256,7 +256,7 @@ def distribute_for_create_bullet_point(sender, instance, created, **kwargs):
             timestamp,
             hubs.all()
         )
-        distributor.distribute()
+        record = distributor.distribute()
 
 
 @receiver(post_save, sender=BulletPointVote, dispatch_uid='bullet_point_vote')
@@ -283,7 +283,7 @@ def distribute_for_bullet_point_vote(
             hubs.all()
         )
 
-        distributor.distribute()
+        record = distributor.distribute()
 
 
 def is_eligible_for_create_bullet_point(user):
@@ -475,7 +475,7 @@ def distribute_for_discussion_vote(
             print(error)
 
     if distributor is not None:
-        distributor.distribute()
+        record = distributor.distribute()
 
 
 def is_eligible_for_discussion_vote(recipient, voter):
