@@ -22,6 +22,7 @@ from paper.utils import reset_cache
 
 from discussion.models import (Thread, Comment, Reply)
 
+
 @app.task
 def handle_spam_user_task(user_id):
     User = apps.get_model('user.User')
@@ -47,8 +48,33 @@ def handle_spam_user_task(user_id):
 
         reset_cache(hub_ids, {}, None)
 
-        # for paper in user.papers.all():
-            # censored_paper_cleanup(paper.id)
+
+@app.task
+def reinstate_user_task(user_id):
+    User = apps.get_model('user.User')
+    user = User.objects.get(id=user_id)
+
+    papers = Paper.objects.filter(uploaded_by=user)
+    papers.update(is_removed=False)
+    user.paper_votes.update(is_removed=False)
+
+    hub_ids = list(Hub.objects.filter(papers__in=list(user.papers.values_list(flat=True))).values_list(flat=True).distinct())
+
+    # Update discussions
+    for thr in Thread.objects.filter(created_by=user):
+        thr.remove_nested()
+        thr.update_discussion_count()
+
+    for com in Comment.objects.filter(created_by=user):
+        com.remove_nested()
+        com.update_discussion_count()
+
+    for rep in Reply.objects.filter(created_by=user):
+        rep.remove_nested()
+        rep.update_discussion_count()
+
+    reset_cache(hub_ids, {}, None)
+
 
 @app.task
 def link_author_to_papers(author_id, orcid_account_id):
