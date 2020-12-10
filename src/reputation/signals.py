@@ -7,6 +7,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 from django.contrib.admin.options import get_content_type_for_model
 
+import reputation.distributions as distributions
 from bullet_point.models import (
     BulletPoint,
     Vote as BulletPointVote
@@ -23,7 +24,6 @@ from paper.models import (
     Vote as PaperVote
 )
 from reputation.distributor import Distributor
-import reputation.distributions as distributions
 from reputation.exceptions import ReputationSignalError
 from reputation.models import Distribution
 from summary.models import Summary, Vote as SummaryVote
