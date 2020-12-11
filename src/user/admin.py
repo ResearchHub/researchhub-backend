@@ -261,18 +261,19 @@ class VerificationAdminPanel(admin.ModelAdmin):
         verifications = self.model.objects.filter(user=user)
 
         for i, verification in enumerate(verifications.iterator()):
-            url = verification.file.url
-            image_html = f"""
-                <div style="display:inline-grid;padding:10px">
-                    <span>
-                        <a href="{url}" target="_blank">
-                            <img src="{url}" style="max-width:300px;">
-                        </a>
-                    </span>
-                    <label for="id_file">Image {i + 1}</label>
-                </div>
-            """
-            images += image_html
+            if verification.file:
+                url = verification.file.url
+                image_html = f"""
+                    <div style="display:inline-grid;padding:10px">
+                        <span>
+                            <a href="{url}" target="_blank">
+                                <img src="{url}" style="max-width:300px;">
+                            </a>
+                        </span>
+                        <label for="id_file">Image {i + 1}</label>
+                    </div>
+                """
+                images += image_html
 
         is_verified = user.author_profile.academic_verification
         if is_verified:
@@ -325,7 +326,7 @@ class VerificationAdminPanel(admin.ModelAdmin):
             author_profile.save()
             return redirect('.')
         return super().response_change(request, obj)
-    
+
     def send_academic_verification_email(self, user, user_distribution_record):
         author_profile = user.author_profile
         user_name = author_profile.first_name
@@ -338,7 +339,7 @@ class VerificationAdminPanel(admin.ModelAdmin):
             'reward_amount': user_distribution_record.amount,
             'user_profile': f'{BASE_FRONTEND_URL}/user/{user.id}/overview',
         }
-        
+
         subject = 'Your ResearchHub Verification is Approved!'
         send_email_message(
             user.email,
