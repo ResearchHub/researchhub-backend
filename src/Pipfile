@@ -57,6 +57,7 @@ geoip2 = "==4.1.0"
 stripe = "==2.54.0"
 python-twitter = "==3.5"
 lxml = "==4.6.2"
+html5lib = "==1.1"
 
 [requires]
 python_version = "3.6"
