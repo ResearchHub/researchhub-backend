@@ -34,6 +34,7 @@ class CombinedView(ListAPIView):
     indices = [
         'paper',
         'hub',
+        'author',
     ]
     serializer_class = CombinedSerializer
 
@@ -68,6 +69,10 @@ class CombinedView(ListAPIView):
             *self.search_fields,
             fragment_size=50
         )
+        self.author_search = Search(index=['author']).highlight(
+            *self.search_fields,
+            fragment_size=50
+        )
 
         super(CombinedView, self).__init__(*args, **kwargs)
 
@@ -83,9 +88,14 @@ class CombinedView(ListAPIView):
             es=True,
             limit=HUB_RESULTS_LIMIT
         )
+        es_author_response_queryset = self.filter_queryset(
+            self.author_search,
+            es=True,
+        )
         es_response_queryset = self._merge_es_querysets_in_order([
             es_hub_response_queryset,
-            es_paper_response_queryset
+            es_paper_response_queryset,
+            es_author_response_queryset,
         ])
 
         # NOTE: Not using crossref for now, pending some refinement

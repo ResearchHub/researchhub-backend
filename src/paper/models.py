@@ -431,7 +431,12 @@ class Paper(models.Model):
         self.save()
 
     def get_full_name(self, author_or_user):
-        return f'{author_or_user.first_name} {author_or_user.last_name}'
+        full_name = []
+        if author_or_user.first_name:
+            full_name.append(author_or_user.first_name)
+        if author_or_user.last_name:
+            full_name.append(author_or_user.last_name)
+        return ' '.join(full_name)
 
     def get_discussion_count(self):
         thread_count = self.threads.aggregate(
