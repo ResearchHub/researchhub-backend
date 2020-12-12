@@ -51,6 +51,7 @@ class CombinedView(ListAPIView):
         'name',
         'summary_plain_text',
         'plain_text',
+        'abstract',
     ]
 
     def __init__(self, *args, **kwargs):

@@ -40,7 +40,7 @@ class CombinedSerializer(serializers.BaseSerializer):
                 hit_meta = obj.meta.to_dict()
                 if hit_meta['index'] == 'paper':
                     hit_authors = hit['authors']
-                    if 'authors' in hit_meta['highlight']:
+                    if 'highlight' in hit_meta and 'authors' in hit_meta['highlight']:
                         meta_authors = hit_meta['highlight']['authors']
                         authors_set = set()
                         for meta_author in meta_authors:
