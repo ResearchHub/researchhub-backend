@@ -19,6 +19,7 @@ class PaperDocument(Document):
     summary = es_fields.TextField(attr='summary_indexing')
     title = es_fields.TextField(analyzer=title_analyzer)
     paper_title = es_fields.TextField(analyzer=title_analyzer)
+    abstract = es_fields.TextField(attr='abstract_indexing')
 
     class Index:
         name = 'paper'

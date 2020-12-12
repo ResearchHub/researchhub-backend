@@ -370,6 +370,10 @@ class Paper(models.Model):
         return ''
 
     @property
+    def abstract_indexing(self):
+        return self.abstract if self.abstract else ''
+
+    @property
     def votes_indexing(self):
         all_votes = self.votes.all()
         if len(all_votes) > 0:
