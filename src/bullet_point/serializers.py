@@ -104,7 +104,8 @@ class BulletPointSerializer(serializers.ModelSerializer):
         return obj.get_promoted_score()
 
     def get_paper_slug(self, obj):
-        return obj.paper.slug
+        if obj.paper:
+            return obj.paper.slug
 
 
 class BulletPointTextOnlySerializer(serializers.ModelSerializer):
