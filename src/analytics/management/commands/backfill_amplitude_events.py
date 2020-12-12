@@ -80,6 +80,7 @@ class Command(BaseCommand):
                         'is_removed': comment.is_removed,
                     }
                     events.append(hit)
+        self.forward_amp_event(events)
 
     def handle_replies(self, replies):
         print('Replies')
@@ -108,6 +109,7 @@ class Command(BaseCommand):
                         'is_removed': reply.is_removed,
                     }
                     events.append(hit)
+        self.forward_amp_event(events)
 
     def handle_threads(self, threads):
         print('Threads')
@@ -136,6 +138,7 @@ class Command(BaseCommand):
                         'is_removed': thread.is_removed,
                     }
                     events.append(hit)
+        self.forward_amp_event(events)
 
     def handle_dis_votes(self, votes):
         print('Discussion Votes')
@@ -163,6 +166,7 @@ class Command(BaseCommand):
                         'insert_id': f'dis_vote_{vote.id}'
                     }
                     events.append(hit)
+        self.forward_amp_event(events)
 
     def handle_papers(self, papers):
         print('Papers')
@@ -191,6 +195,7 @@ class Command(BaseCommand):
                         'is_removed': paper.is_removed,
                     }
                     events.append(hit)
+        self.forward_amp_event(events)
 
     def handle_paper_votes(self, votes):
         print('Paper Votes')
@@ -218,6 +223,7 @@ class Command(BaseCommand):
                         'insert_id': f'paper_vote_{vote.id}'
                     }
                     events.append(hit)
+        self.forward_amp_event(events)
 
     def handle_summaries(self, summaries):
         print('Summaries')
@@ -245,6 +251,7 @@ class Command(BaseCommand):
                         'insert_id': f'summary_{summary.id}'
                     }
                     events.append(hit)
+        self.forward_amp_event(events)
 
     def handle_bulletpoints(self, bulletpoints):
         print('Bulletpoints')
@@ -272,6 +279,7 @@ class Command(BaseCommand):
                         'insert_id': f'bulletpoint_{bulletpoint.id}'
                     }
                     events.append(hit)
+        self.forward_amp_event(events)
 
     def handle_user_signup(self, users):
         print('Users')
@@ -296,6 +304,7 @@ class Command(BaseCommand):
                     'insert_id': f'user_{user.id}'
                 }
                 events.append(hit)
+        self.forward_amp_event(events)
 
     def handle_purchases(self, purchases):
         print('Purchases')
@@ -320,10 +329,14 @@ class Command(BaseCommand):
                     'user_properties': user_properties,
                     'insert_id': f'purchase_{purchase.id}',
                     'event_properties': {
-                        'boost_amount': purchase.amount
+                        'interaction': purchase.purchase_method,
+                        'amount': purchase.amount,
+                        'object_id': purchase.object_id,
+                        'content_type': purchase.content_type.model
                     }
                 }
                 events.append(hit)
+        self.forward_amp_event(events)
 
     def handle(self, *args, **options):
         comment_ct = ContentType.objects.get(model='comment')
@@ -376,13 +389,13 @@ class Command(BaseCommand):
         user = User.objects
         purchase = Purchase.objects
 
-        self.handle_comments(comment)
-        self.handle_replies(reply)
-        self.handle_threads(thread)
-        self.handle_dis_votes(dis_vote)
-        self.handle_papers(paper)
-        self.handle_paper_votes(paper_vote)
-        self.handle_summaries(summary)
-        self.handle_bulletpoints(bulletpoint)
-        self.handle_user_signup(user)
+        # self.handle_comments(comment)
+        # self.handle_replies(reply)
+        # self.handle_threads(thread)
+        # self.handle_dis_votes(dis_vote)
+        # self.handle_papers(paper)
+        # self.handle_paper_votes(paper_vote)
+        # self.handle_summaries(summary)
+        # self.handle_bulletpoints(bulletpoint)
+        # self.handle_user_signup(user)
         self.handle_purchases(purchase)
