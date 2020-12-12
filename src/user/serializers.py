@@ -271,6 +271,15 @@ class UserActions:
                     data['content_type'] += '_thread'
             elif isinstance(item, PaperVote):
                 data['content_type'] += '_paper'
+            elif isinstance(item, Purchase):
+                recipient = action.user
+                data['amount'] = item.amount
+                data['recipient'] = {
+                    'name': recipient.full_name(),
+                    'author_id': recipient.author_profile.id
+                }
+                data['sender'] = item.user.full_name()
+                data['support_type'] = item.content_type.model
             else:
                 continue
                 raise TypeError(
@@ -283,7 +292,14 @@ class UserActions:
                 paper = item
             else:
                 try:
-                    paper = item.paper
+                    if isinstance(item, Purchase):
+                        purchase_item = item.item
+                        if isinstance(purchase_item, Paper):
+                            paper = purchase_item
+                        else:
+                            paper = purchase_item.paper
+                    else:
+                        paper = item.paper
                 except Exception as e:
                     logging.warning(str(e))
 
@@ -317,7 +333,7 @@ class UserActions:
             elif isinstance(item, BulletPoint):
                 data['tip'] = item.plain_text
 
-            if not isinstance(item, Summary):
+            if not isinstance(item, Summary) and not isinstance(item, Purchase):
                 data['user_flag'] = None
                 if self.user:
                     user_flag = item.flags.filter(created_by=self.user).first()
@@ -349,7 +365,9 @@ class UserActions:
         elif isinstance(item, User):
             creator = item
         elif isinstance(item, Purchase):
-            creator= item.user
+            creator = item.user
+        elif isinstance(item, Purchase):
+            creator = item.user
         else:
             creator = item.created_by
         if creator is not None:
