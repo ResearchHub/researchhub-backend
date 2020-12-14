@@ -64,7 +64,7 @@ class CombinedView(ListAPIView):
         )
         self.paper_search = Search(index=['paper']).highlight(
             *self.search_fields,
-            fragment_size=50
+            fragment_size=10000
         )
         self.hub_search = Search(index=['hub']).highlight(
             *self.search_fields,
