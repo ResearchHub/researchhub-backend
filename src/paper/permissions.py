@@ -51,6 +51,13 @@ class IsModeratorOrVerifiedAuthor(AuthorizationBasedPermission):
             return author in obj.authors.all()
 
 
+class IsModerator(AuthorizationBasedPermission):
+    message = 'User is not authorized'
+
+    def is_authorized(self, request, view, obj):
+        return request.user.moderator
+
+
 class IsAuthor(AuthorizationBasedPermission):
     message = 'User is not authorized.'
 

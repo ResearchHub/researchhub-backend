@@ -115,6 +115,18 @@ def create_purchase_distribution(amount):
     )
 
 
+def create_bulletpoint_bounty_distribution(amount):
+    return Distribution(
+        'BULLET_POINT_BOUNTY', amount
+    )
+
+
+def create_summary_bounty_distribution(amount):
+    return Distribution(
+        'SUMMARY_BOUNTY', amount
+    )
+
+
 DISTRIBUTION_TYPE_CHOICES = [
     (
         FlagPaper.name,
@@ -207,6 +219,14 @@ DISTRIBUTION_TYPE_CHOICES = [
     (
         'PURCHASE',
         'PURCHASE'
+    ),
+    (
+        'BULLET_POINT_BOUNTY',
+        'BULLET_POINT_BOUNTY'
+    ),
+    (
+        'SUMMARY_BOUNTY',
+        'SUMMARY_BOUNTY'
     ),
     (
         Referral.name,

@@ -26,6 +26,10 @@ from paper.models import (
 from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError
 from reputation.models import Distribution
+from reputation.distributions import (
+    create_bulletpoint_bounty_distribution,
+    create_summary_bounty_distribution
+)
 from summary.models import Summary, Vote as SummaryVote
 from utils import sentry
 
@@ -134,7 +138,11 @@ def distribute_for_create_summary(
         update_fields,
         instance
     ):
-        distribution = distributions.CreateFirstSummary
+        paper = instance.paper
+        amount = paper.summary_low_quality
+        distribution = create_summary_bounty_distribution(amount)
+        paper.summary_low_quality
+        paper.save()
     else:
         return
 
@@ -246,6 +254,12 @@ def distribute_for_create_bullet_point(sender, instance, created, **kwargs):
         ):
             distribution = distributions.CreateBulletPoint
             hubs = instance.paper.hubs
+        elif is_eligible_for_create_first_bullet_point(created, instance):
+            paper = instance.paper
+            amount = paper.bullet_low_quality
+            distribution = create_bulletpoint_bounty_distribution(amount)
+            paper.bullet_low_quality = 0
+            paper.save()
         else:
             return
 
@@ -288,6 +302,13 @@ def distribute_for_bullet_point_vote(
 
 def is_eligible_for_create_bullet_point(user):
     return is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
+
+
+def is_eligible_for_create_first_bullet_point(created, bulletpoint):
+    return (
+        created
+        and bulletpoint.paper.bullet_points.count() == 1
+    )
 
 
 def is_eligible_for_bulletpoint_vote(recipient, voter):

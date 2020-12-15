@@ -41,10 +41,11 @@ from paper.permissions import (
     UpdateOrDeleteAdditionalFile,
     FlagPaper,
     IsAuthor,
+    IsModerator,
     IsModeratorOrVerifiedAuthor,
     UpdatePaper,
     UpvotePaper,
-    DownvotePaper
+    DownvotePaper,
 )
 from paper.serializers import (
     AdditionalFileSerializer,
@@ -168,7 +169,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             pass
         else:
             queryset = self.queryset.filter(is_removed=False)
-        
+
         if ordering == 'newest':
             queryset = queryset.filter(uploaded_by__isnull=False)
 
@@ -853,6 +854,29 @@ class PaperViewSet(viewsets.ModelViewSet):
         return self.get_paginated_response(
             {'data': serializer_data, 'no_results': False}
         )
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[IsModerator]
+    )
+    def set_paper_bounty(self, request, pk=None):
+        data = request.data
+        paper = self.get_object()
+
+        bulletpoint_bounty = data.get('bulletpoint_bounty')
+        summary_bounty = data.get('summary_bounty')
+
+        if bulletpoint_bounty:
+            paper.bullet_low_quality = bulletpoint_bounty
+
+        if summary_bounty:
+            paper.summary_low_quality = summary_bounty
+
+        paper.save()
+        serializer = self.get_serializer(paper)
+        data = serializer.data
+        return Response(data, status=status.HTTP_200_OK)
 
     def _set_hub_paper_ordering(self, request):
         ordering = request.query_params.get('ordering', None)
