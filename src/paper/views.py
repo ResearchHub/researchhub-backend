@@ -860,7 +860,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         methods=['post'],
         permission_classes=[IsModerator]
     )
-    def set_paper_bounty(self, request, pk=None):
+    def bounty(self, request, pk=None):
         data = request.data
         paper = self.get_object()
 
