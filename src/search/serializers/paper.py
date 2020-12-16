@@ -7,6 +7,7 @@ from paper.models import Paper
 
 class PaperDocumentSerializer(DocumentSerializer):
     slug = serializers.SerializerMethodField()
+    abstract = serializers.SerializerMethodField()
 
     class Meta(object):
         document = PaperDocument
@@ -30,6 +31,12 @@ class PaperDocumentSerializer(DocumentSerializer):
         paper = Paper.objects.get(id=paper_id)
         slug = paper.slug
         return slug
+
+    def get_abstract(self, hit):
+        paper_id = hit['id']
+        paper = Paper.objects.get(id=paper_id)
+        abstract = paper.abstract
+        return abstract
 
 
 class CrossrefPaperSerializer(serializers.Serializer):
