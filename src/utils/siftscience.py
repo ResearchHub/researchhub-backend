@@ -64,8 +64,6 @@ def update_user_risk_score(user, tracked_content):
 
 
 def check_user_risk(user):
-    if user.sift_risk_score > 75:
-        user.set_probable_spammer()
     if user.sift_risk_score > 90:
         user.set_suspended(is_manual=False)
 
