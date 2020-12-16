@@ -259,12 +259,14 @@ def distribute_for_create_bullet_point(sender, instance, created, **kwargs):
         ):
             distribution = distributions.CreateBulletPoint
             hubs = instance.paper.hubs
-        elif is_eligible_for_create_first_bullet_point(created, instance):
+        elif is_eligible_for_create_bullet_point_bounty(created, instance):
             paper = instance.paper
             amount = paper.bullet_low_quality
             distribution = create_bulletpoint_bounty_distribution(amount)
-            paper.bullet_low_quality = 0
-            paper.save()
+
+            if paper.bullet_points.count() == 3:
+                paper.bullet_low_quality = 0
+                paper.save()
 
             cache_key = get_cache_key(None, 'paper', pk=paper.id)
             cache.delete(cache_key)
@@ -312,10 +314,10 @@ def is_eligible_for_create_bullet_point(user):
     return is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
 
 
-def is_eligible_for_create_first_bullet_point(created, bulletpoint):
+def is_eligible_for_create_bullet_point_bounty(created, bulletpoint):
     return (
         created
-        and bulletpoint.paper.bullet_points.count() == 1
+        and bulletpoint.paper.bullet_points.count() <= 3
     )
 
 
