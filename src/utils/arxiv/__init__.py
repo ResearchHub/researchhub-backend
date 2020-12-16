@@ -8,11 +8,12 @@ HUB_INSTANCE = 0
 
 
 class Arxiv:
-    def __init__(self, id=None, query=None):
+    def __init__(self, id=None, query=None, title=None):
         # TODO: Handle query case
         self.id = id
         self.data = None
         self._handle_doi(self.id)
+        self.editorialized_title = title
 
     def _handle_doi(self, id):
         id = id.replace('arXiv:', '')
@@ -44,7 +45,7 @@ class Arxiv:
         if (self.data is not None) and (self.id is not None):
             self.paper = Paper.objects.create(
                 abstract=self.abstract,
-                title=self.title,
+                title=self.editorialized_title,
                 paper_title=self.title,
                 doi=self.doi,
                 alternate_ids=self.alternate_ids,
