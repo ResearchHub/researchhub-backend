@@ -4,6 +4,7 @@ from time import time
 from django.db.models import Q
 from django.db.models.signals import m2m_changed, post_save, post_delete
 from django.dispatch import receiver
+from django.core.cache import cache
 from django.utils import timezone
 from django.contrib.admin.options import get_content_type_for_model
 
@@ -32,6 +33,7 @@ from reputation.distributions import (
 )
 from summary.models import Summary, Vote as SummaryVote
 from utils import sentry
+from paper.utils import get_cache_key
 
 # TODO: "Suspend" user if their reputation becomes negative
 # This could mean setting `is_active` to false
@@ -143,6 +145,9 @@ def distribute_for_create_summary(
         distribution = create_summary_bounty_distribution(amount)
         paper.summary_low_quality
         paper.save()
+
+        cache_key = get_cache_key(None, 'paper', pk=paper.id)
+        cache.delete(cache_key)
     else:
         return
 
@@ -260,6 +265,9 @@ def distribute_for_create_bullet_point(sender, instance, created, **kwargs):
             distribution = create_bulletpoint_bounty_distribution(amount)
             paper.bullet_low_quality = 0
             paper.save()
+
+            cache_key = get_cache_key(None, 'paper', pk=paper.id)
+            cache.delete(cache_key)
         else:
             return
 
