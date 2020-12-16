@@ -604,7 +604,12 @@ class PaperViewSet(viewsets.ModelViewSet):
 
             for vote in votes.iterator():
                 paper_id = vote.paper_id
+                paper = vote.paper
+                bulletpoint_bounty = paper.bullet_low_quality
+                summary_bounty = paper.summary_low_quality
                 data = PaperVoteSerializer(instance=vote).data
+                data['bullet_low_quality'] = bulletpoint_bounty
+                data['summary_low_quality'] = summary_bounty
                 response[paper_id] = data
 
         return Response(response, status=status.HTTP_200_OK)
