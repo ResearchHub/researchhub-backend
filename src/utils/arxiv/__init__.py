@@ -45,7 +45,7 @@ class Arxiv:
         if (self.data is not None) and (self.id is not None):
             self.paper = Paper.objects.create(
                 abstract=self.abstract,
-                title=self.editorialized_title,
+                title=self.editorialized_title or self.title,
                 paper_title=self.title,
                 doi=self.doi,
                 alternate_ids=self.alternate_ids,
