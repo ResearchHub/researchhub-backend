@@ -872,10 +872,10 @@ class PaperViewSet(viewsets.ModelViewSet):
         bulletpoint_bounty = data.get('bulletpoint_bounty')
         summary_bounty = data.get('summary_bounty')
 
-        if bulletpoint_bounty:
+        if bulletpoint_bounty is not None:
             paper.bullet_low_quality = bulletpoint_bounty
 
-        if summary_bounty:
+        if summary_bounty is not None:
             paper.summary_low_quality = summary_bounty
 
         paper.save()
