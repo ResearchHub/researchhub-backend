@@ -230,7 +230,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
         return False
 
     def _send_approval_notification(self, obj, recipient, creator, action):
-        paper = obj.item
+        paper = obj.paper
         notification = Notification.objects.create(
             paper=paper,
             recipient=recipient,

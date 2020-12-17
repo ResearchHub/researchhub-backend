@@ -104,7 +104,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
                 return Response('Missing required field `paper`', status=400)
             paper = Paper.objects.get(id=paper_id)
             has_bounty = paper.bullet_low_quality > 0
-            if has_bounty and paper.bullet_points.count() > 3:
+            if has_bounty and paper.bullet_points.count() >= 3:
                 request.data['approved'] = False
                 send_approval_notification = True
             request.data['paper'] = paper_id
@@ -418,14 +418,14 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         return response
 
     def _send_approval_notification(self, obj, recipient, creator, action):
-        paper = action.item
+        paper = obj.paper
         notification = Notification.objects.create(
             paper=paper,
             recipient=recipient,
             action_user=creator,
             action=action,
             extra={
-                'bounty_content_type': 'bullet_point',
+                'bounty_content_type': 'bulletpoint',
                 'bounty_object_id': obj.id
             }
         )

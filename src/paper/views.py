@@ -1,3 +1,4 @@
+import time
 import datetime
 
 from django.core.cache import cache
@@ -12,6 +13,7 @@ from django.db.models import (
 )
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.postgres.search import TrigramSimilarity
+from django.contrib.contenttypes.models import ContentType
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -71,6 +73,12 @@ from paper.utils import (
 )
 from researchhub.lib import get_paper_id_from_path
 from reputation.models import Contribution
+from reputation.distributor import Distributor
+from reputation.distributions import (
+    create_bulletpoint_bounty_distribution,
+    create_summary_bounty_distribution
+)
+from notification.models import Notification
 from reputation.tasks import create_contribution
 from user.models import Author, Action
 from utils.http import GET, POST, check_url_contains_pdf
@@ -887,6 +895,72 @@ class PaperViewSet(viewsets.ModelViewSet):
             display=False,
             extra={'bounty': True}
         )
+        serializer = self.get_serializer(paper)
+        data = serializer.data
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[IsModerator]
+    )
+    def approve_bounty(self, request, pk=None):
+        data = request.data
+        user = request.user
+        paper = self.get_object()
+        timestamp = time.time()
+
+        content_type = data['bounty_content_type']
+        object_id = data['bounty_object_id']
+        obj = ContentType.objects.get(
+            model=content_type
+        ).model_class().objects.get(
+            id=object_id
+        )
+
+        if content_type == 'summary':
+            recipient = obj.proposed_by
+            amount = paper.summary_low_quality
+            distribution = create_summary_bounty_distribution(amount)
+            paper.summary_low_quality = 0
+            obj.approve(by=user)
+
+        else:
+            recipient = obj.created_by
+            amount = paper.bullet_low_quality
+            distribution = create_bulletpoint_bounty_distribution(amount)
+            paper.bullet_low_quality = 0
+            obj.approved = True
+            obj.save()
+
+        paper.save()
+        distributor = Distributor(
+            distribution,
+            recipient,
+            obj,
+            timestamp,
+            paper.hubs.all(),
+        )
+        distributor.distribute()
+
+        actions = Action.objects.filter(
+            content_type__model=content_type,
+            object_id=object_id,
+            user=recipient
+        )
+        if actions.exists():
+            action = actions.last()
+            notification = Notification.objects.create(
+                paper=paper,
+                recipient=recipient,
+                action_user=user,
+                action=action,
+                extra={
+                    'bounty_approval': True
+                }
+            )
+            notification.send_notification()
+
         serializer = self.get_serializer(paper)
         data = serializer.data
         return Response(data, status=status.HTTP_200_OK)
