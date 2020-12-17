@@ -6,7 +6,6 @@ title_analyzer = analyzer(
     tokenizer='standard',
     filter=[  # Order matters
         'word_delimiter',
-        'stop',
         'apostrophe',
         'lowercase',
         'trim',

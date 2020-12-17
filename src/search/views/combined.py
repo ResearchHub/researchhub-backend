@@ -94,8 +94,8 @@ class CombinedView(ListAPIView):
             es=True,
         )
         es_response_queryset = self._merge_es_querysets_in_order([
-            es_hub_response_queryset,
             es_paper_response_queryset,
+            es_hub_response_queryset,
             es_author_response_queryset,
         ])
 

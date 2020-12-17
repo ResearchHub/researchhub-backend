@@ -1,5 +1,5 @@
 from elasticsearch_dsl.query import Match
-from elasticsearch_dsl import Q
+from elasticsearch_dsl import query, Q
 from rest_framework import filters
 
 from .utils import practical_score, get_avgdl
@@ -23,13 +23,28 @@ class ElasticsearchFuzzyFilter(filters.SearchFilter):
             search = getattr(view, 'search')
         fields = getattr(view, 'search_fields')
         terms = ' '.join(self.get_search_terms(request))
-        query = Q(
-            'multi_match',
-            query=terms,
-            fields=fields,
-            fuzziness='AUTO'
+
+        search_query = Q(
+            'function_score',
+            query={
+                'multi_match': {
+                    'query': terms,
+                    'fields': fields,
+                    'fuzziness': 'AUTO',
+                }
+            },
+            functions=[
+                query.SF(
+                    'script_score',
+                    script={
+                        'lang': 'painless',
+                        'inline': "if (!doc.containsKey('score')) { return _score; } else { return (Math.max(0, doc['score'].value) * 10) + _score; }"
+                    }
+                )
+            ]
         )
-        es = search.query(query)
+
+        es = search.query(search_query)
         if limit:
             es = es[:limit]
 
