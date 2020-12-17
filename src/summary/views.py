@@ -15,6 +15,8 @@ from rest_framework import status
 from .models import Summary, Vote
 from .permissions import ProposeSummaryEdit, UpdateOrDeleteSummaryEdit
 from .serializers import SummarySerializer, SummaryVoteSerializer
+from notification.models import Notification
+from user.models import Action
 from paper.models import Paper
 from paper.utils import get_cache_key
 from reputation.models import Contribution
@@ -184,12 +186,31 @@ class SummaryViewSet(viewsets.ModelViewSet):
         return user.reputation >= 50
 
     def _approve_and_add_summary_to_paper(self, paper_id, summary, user):
-        summary.approve(by=user)
-        summary.save()
-        return self._update_paper_summary(user, paper_id, summary)
-
-    def _update_paper_summary(self, user, paper_id, summary):
         paper = Paper.objects.get(id=paper_id)
+        has_bounty = paper.summary_low_quality > 0
+        first_paper_summary = summary.is_first_paper_summary
+
+        if has_bounty and not first_paper_summary:
+            summary.approved = False
+            actions = Action.objects.filter(
+                user__moderator=True,
+                extra__bounty=True
+            )
+            if actions.exists():
+                action = actions.last()
+                recipient = action.user
+                self._send_approval_notification(
+                    summary,
+                    recipient,
+                    user,
+                    action
+                )
+        else:
+            summary.approve(by=user)
+        summary.save()
+        return self._update_paper_summary(user, paper, summary)
+
+    def _update_paper_summary(self, user, paper, summary):
         first_summary = paper.summary is None
         user_is_author = user in paper.authors.all()
         user_is_submitter = user == paper.uploaded_by
@@ -204,9 +225,23 @@ class SummaryViewSet(viewsets.ModelViewSet):
         if any(edit_conditions):
             paper.update_summary(summary)
             paper.save()
-            self._invalidate_paper_cache(paper_id)
+            self._invalidate_paper_cache(paper.id)
             return True
         return False
+
+    def _send_approval_notification(self, obj, recipient, creator, action):
+        paper = obj.item
+        notification = Notification.objects.create(
+            paper=paper,
+            recipient=recipient,
+            action_user=creator,
+            action=action,
+            extra={
+                'bounty_content_type': 'summary',
+                'bounty_object_id': obj.id
+            }
+        )
+        notification.send_notification()
 
     @action(
         detail=True,

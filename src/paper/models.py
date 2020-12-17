@@ -84,8 +84,8 @@ class Paper(models.Model):
         default=False,
         help_text=HELP_TEXT_IS_REMOVED
     )
-    bullet_low_quality = models.PositiveIntegerField(default=1)
-    summary_low_quality = models.PositiveIntegerField(default=5)
+    bullet_low_quality = models.PositiveIntegerField(default=0)
+    summary_low_quality = models.PositiveIntegerField(default=0)
     score = models.IntegerField(default=0, db_index=True)
     discussion_count = models.IntegerField(default=0, db_index=True)
     hot_score = models.IntegerField(default=0, db_index=True)

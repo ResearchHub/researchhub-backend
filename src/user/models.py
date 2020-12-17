@@ -362,6 +362,7 @@ class Action(DefaultModel):
         Hub,
         related_name='actions',
     )
+    extra = JSONField(default=dict)
 
     def __str__(self):
         return 'Action: {}-{}-{}, '.format(

@@ -47,6 +47,7 @@ class BulletPoint(models.Model):
     )
     is_head = models.BooleanField(default=True)
     is_tail = models.BooleanField(default=True)
+    approved = models.BooleanField(default=True)
     tail = models.ForeignKey(
         'self',
         default=None,

@@ -72,7 +72,7 @@ from paper.utils import (
 from researchhub.lib import get_paper_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
-from user.models import Author
+from user.models import Author, Action
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.sentry import log_error
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -867,6 +867,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     )
     def bounty(self, request, pk=None):
         data = request.data
+        user = request.user
         paper = self.get_object()
 
         bulletpoint_bounty = data.get('bulletpoint_bounty')
@@ -879,6 +880,13 @@ class PaperViewSet(viewsets.ModelViewSet):
             paper.summary_low_quality = summary_bounty
 
         paper.save()
+
+        Action.objects.create(
+            item=paper,
+            user=user,
+            display=False,
+            extra={'bounty': True}
+        )
         serializer = self.get_serializer(paper)
         data = serializer.data
         return Response(data, status=status.HTTP_200_OK)

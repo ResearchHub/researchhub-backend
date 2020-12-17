@@ -41,7 +41,9 @@ from utils.siftscience import (
     decisions_api,
     update_user_risk_score
 )
-
+from paper.models import Paper
+from user.models import Action
+from notification.models import Notification
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.lib import ActionableViewSet, get_paper_id_from_path
@@ -93,19 +95,26 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         except KeyError:
             pass
 
+        creator = request.user
         paper = request.data.get('paper', None)
+        send_approval_notification = False
         if paper is None:
-            paper = get_paper_id_from_path(request)
-            if paper is None:
+            paper_id = get_paper_id_from_path(request)
+            if paper_id is None:
                 return Response('Missing required field `paper`', status=400)
-            request.data['paper'] = paper
+            paper = Paper.objects.get(id=paper_id)
+            has_bounty = paper.bullet_low_quality > 0
+            if has_bounty and paper.bullet_points.count() > 3:
+                request.data['approved'] = False
+                send_approval_notification = True
+            request.data['paper'] = paper_id
 
         context = self.get_serializer_context()
         response = super().create(request, *args, **kwargs)
         bullet_id = response.data['id']
 
         bullet_point = BulletPoint.objects.get(pk=response.data['id'])
-        update_or_create_vote(request, request.user, bullet_point, Vote.UPVOTE)
+        update_or_create_vote(request, creator, bullet_point, Vote.UPVOTE)
         response.data = BulletPointSerializer(
             bullet_point,
             context=context
@@ -117,13 +126,27 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
             request,
         )
         update_user_risk_score(bullet_point.created_by, tracked_bullet_point)
+        if send_approval_notification:
+            actions = Action.objects.filter(
+                user__moderator=True,
+                extra__bounty=True
+            )
+            if actions.exists():
+                action = actions.last()
+                recipient = action.user
+                self._send_approval_notification(
+                    bullet_point,
+                    recipient,
+                    creator,
+                    action
+                )
 
         create_contribution.apply_async(
             (
                 Contribution.CURATOR,
                 {'app_label': 'bullet_point', 'model': 'bulletpoint'},
                 request.user.id,
-                paper,
+                paper_id,
                 bullet_id
             ),
             priority=2,
@@ -393,6 +416,20 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
             )
         response = update_or_create_vote(request, user, item, Vote.DOWNVOTE)
         return response
+
+    def _send_approval_notification(self, obj, recipient, creator, action):
+        paper = action.item
+        notification = Notification.objects.create(
+            paper=paper,
+            recipient=recipient,
+            action_user=creator,
+            action=action,
+            extra={
+                'bounty_content_type': 'bullet_point',
+                'bounty_object_id': obj.id
+            }
+        )
+        notification.send_notification()
 
 
 def create_vote(user, bulletpoint, vote_type):
