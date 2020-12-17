@@ -135,7 +135,7 @@ def distribute_for_create_summary(
 
     if is_eligible_for_create_summary(created, recipient):
         distribution = distributions.CreateSummary
-    elif is_eligible_for_create_first_summary(
+    elif is_eligible_for_create_summary_bounty(
         created,
         update_fields,
         instance
@@ -201,11 +201,13 @@ def is_eligible_for_create_summary(created, user):
     )
 
 
-def is_eligible_for_create_first_summary(created, update_fields, summary):
+def is_eligible_for_create_summary_bounty(created, update_fields, summary):
+    # and summary.is_first_paper_summary
+    paper = summary.paper
     return (
         not created
         and check_approved_updated(update_fields)
-        and summary.is_first_paper_summary
+        and paper.summary_low_quality > 0
     )
 
 
@@ -315,9 +317,10 @@ def is_eligible_for_create_bullet_point(user):
 
 
 def is_eligible_for_create_bullet_point_bounty(created, bulletpoint):
+    paper = bulletpoint.paper
     return (
-        created
-        and bulletpoint.paper.bullet_points.count() <= 3
+        created,
+        paper.bullet_low_quality > 0
     )
 
 
