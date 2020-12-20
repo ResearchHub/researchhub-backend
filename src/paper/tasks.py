@@ -482,7 +482,7 @@ def preload_hub_papers(
     else:
         http_req.META = {'SERVER_NAME': 'localhost', 'SERVER_PORT': 80}
     paper_view.request = Request(http_req)
-    papers = paper_view._get_filtered_papers(hub_id)
+    papers = paper_view._get_filtered_papers(hub_id, ordering)
     order_papers = paper_view.calculate_paper_ordering(
         papers,
         ordering,
