@@ -255,6 +255,11 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         total_score += score
         total_paper_scores += score
         user_key = obj.paper.uploaded_by.email
+        vote_created_by = obj.created_by.email
+
+        if user_key == vote_created_by:
+            continue
+
         if user_key in paper_voted_on_count:
             paper_voted_on_count[user_key] += score
         else:
