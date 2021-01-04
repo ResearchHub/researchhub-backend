@@ -201,40 +201,29 @@ def celery_extract_pdf_preview(paper_id):
         print(f'No file exists for paper: {paper_id}')
         return
 
-    path = f'/tmp/figures/preview-{paper_id}/'
-    filename = f'{paper.id}.pdf'
-    file_path = f'{path}{filename}'
     file_url = file.url
-
-    if not os.path.isdir(path):
-        os.mkdir(path)
 
     try:
         res = requests.get(file_url)
-        with open(file_path, 'wb+') as f:
-            f.write(res.content)
-
-        doc = fitz.open(file_path)
+        doc = fitz.open(stream=res.content, filetype='pdf')
         extracted_figures = Figure.objects.filter(paper=paper)
         for page in doc:
             pix = page.getPixmap(alpha=False)
-            output_filename = f'{file_path}-{page.number}.png'
+            output_filename = f'{paper_id}-{page.number}.png'
             pix.writePNG(output_filename)
 
             if not extracted_figures.filter(
                 file__contains=output_filename,
                 figure_type=Figure.PREVIEW
             ):
-                with open(output_filename, 'rb') as f:
-                    Figure.objects.create(
-                        file=File(f),
-                        paper=paper,
-                        figure_type=Figure.PREVIEW
-                    )
+                Figure.objects.create(
+                    file=File(pix.getPNGdata(), name=output_filename),
+                    paper=paper,
+                    figure_type=Figure.PREVIEW
+                )
     except Exception as e:
         sentry.log_error(e)
     finally:
-        shutil.rmtree(path)
         cache_key = get_cache_key(None, 'figure', pk=paper_id)
         cache.delete(cache_key)
 

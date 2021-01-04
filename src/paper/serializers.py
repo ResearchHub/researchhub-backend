@@ -261,7 +261,7 @@ class PaperSerializer(BasePaperSerializer):
                     arxiv_id = arxiv_id.strip('.pdf')
                     arxiv_paper = Arxiv(id=arxiv_id, query=None, title=validated_data.get('title'))
                     paper = arxiv_paper.create_paper(uploaded_by=user)
-                
+
                 if paper is None:
                     paper = super(PaperSerializer, self).create(validated_data)
 
