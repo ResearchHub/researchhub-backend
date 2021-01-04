@@ -210,7 +210,6 @@ def celery_extract_pdf_preview(paper_id):
         for page in doc:
             pix = page.getPixmap(alpha=False)
             output_filename = f'{paper_id}-{page.number}.png'
-            pix.writePNG(output_filename)
 
             if not extracted_figures.filter(
                 file__contains=output_filename,
