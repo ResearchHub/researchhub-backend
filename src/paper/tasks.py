@@ -14,6 +14,7 @@ from subprocess import call
 from django.apps import apps
 from django.core.cache import cache
 from django.core.files import File
+from django.core.files.base import ContentFile
 from django.db import IntegrityError
 from django.http.request import HttpRequest
 from rest_framework.request import Request
@@ -216,7 +217,7 @@ def celery_extract_pdf_preview(paper_id):
                 figure_type=Figure.PREVIEW
             ):
                 Figure.objects.create(
-                    file=File(pix.getPNGdata(), name=output_filename),
+                    file=ContentFile(pix.getPNGdata(), name=output_filename),
                     paper=paper,
                     figure_type=Figure.PREVIEW
                 )
