@@ -314,7 +314,7 @@ class PaperSerializer(BasePaperSerializer):
                     priority=2,
                     countdown=10
                 )
-
+                paper.extract_pdf_preview(use_celery=True)
                 return paper
         except IntegrityError as e:
             raise e
@@ -430,10 +430,11 @@ class PaperSerializer(BasePaperSerializer):
             return
 
         if paper.url is not None:
-            if not TESTING:
-                download_pdf.apply_async((paper.id,), priority=3, countdown=7)
-            else:
-                download_pdf(paper.id)
+            download_pdf(paper.id)
+            # if not TESTING:
+            #     download_pdf.apply_async((paper.id,), priority=3, countdown=7)
+            # else:
+            #     download_pdf(paper.id)
 
     def _add_url(self, file, validated_data):
         if check_file_is_url(file):
