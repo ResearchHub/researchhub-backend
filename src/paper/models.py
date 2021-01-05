@@ -88,6 +88,7 @@ class Paper(models.Model):
     score = models.IntegerField(default=0, db_index=True)
     discussion_count = models.IntegerField(default=0, db_index=True)
     hot_score = models.IntegerField(default=0, db_index=True)
+    twitter_score = models.IntegerField(default=0)
 
     # Moderators are obsolete, in favor of super mods on the user
     moderators = models.ManyToManyField(
@@ -433,6 +434,9 @@ class Paper(models.Model):
             self.hot_score = 0
 
         self.save()
+
+    def calculate_twitter_score(self):
+        pass
 
     def get_full_name(self, author_or_user):
         full_name = []

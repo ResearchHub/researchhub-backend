@@ -21,12 +21,7 @@ from rest_framework.request import Request
 from discussion.models import Thread, Comment
 from purchase.models import Wallet
 from researchhub.celery import app
-from researchhub.settings import (
-    TWITTER_CONSUMER_KEY,
-    TWITTER_CONSUMER_SECRET,
-    TWITER_ACCESS_TOKEN,
-    TWITTER_ACCESS_TOKEN_SECRET,
-)
+
 from paper.utils import (
     check_crossref_title,
     check_pdf_title,
@@ -39,6 +34,7 @@ from paper.utils import (
     get_cache_key,
 )
 from utils import sentry
+from utils.twitter import get_twitter_url_results, get_twitter_results
 from utils.http import check_url_contains_pdf
 
 
@@ -297,17 +293,8 @@ def celery_extract_twitter_comments(paper_id):
 
     source = 'twitter'
     try:
-        api = twitter.Api(
-            consumer_key=TWITTER_CONSUMER_KEY,
-            consumer_secret=TWITTER_CONSUMER_SECRET,
-            access_token_key=TWITER_ACCESS_TOKEN,
-            access_token_secret=TWITTER_ACCESS_TOKEN_SECRET,
-            tweet_mode='extended'
-        )
 
-        results = api.GetSearch(
-            term=f'{url} -filter:retweets'
-        )
+        results = get_twitter_url_results(url)
         for res in results:
             source_id = res.id_str
             username = res.user.screen_name
@@ -339,9 +326,8 @@ def celery_extract_twitter_comments(paper_id):
                 thread.created_date = thread_created_date
                 thread.save()
 
-                replies = api.GetSearch(
-                    term=f'to:{username}'
-                )
+                query = f'to:{username}'
+                replies = get_twitter_results(query)
                 for reply in replies:
                     reply_username = reply.user.screen_name
                     reply_id = reply.id_str
