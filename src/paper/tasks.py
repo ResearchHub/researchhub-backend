@@ -189,6 +189,7 @@ def celery_extract_figures(paper_id):
 @app.task
 def celery_extract_pdf_preview(paper_id):
     if paper_id is None:
+        print('No paper id for pdf preview')
         return
 
     print(f'Extracting pdf figures for paper: {paper_id}')
