@@ -315,6 +315,8 @@ class PaperSerializer(BasePaperSerializer):
                     countdown=10
                 )
 
+                paper.extract_pdf_preview(use_celery=True)
+
                 return paper
         except IntegrityError as e:
             raise e
