@@ -498,7 +498,7 @@ class Paper(models.Model):
             celery_extract_pdf_preview.apply_async(
                 (self.id,),
                 priority=2,
-                countdown=15,
+                countdown=10,
             )
         else:
             celery_extract_pdf_preview(self.id)
