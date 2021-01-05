@@ -46,6 +46,19 @@ def recalc_paper_votes(
     paper.save()
 
 
+@receiver(post_save, sender=Paper, dispatch_uid='pdf_extract_figures')
+def queue_extract_figures_from_pdf(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
+    if instance.figures.all().count() == 0:
+        instance.extract_pdf_preview(use_celery=True)
+        # instance.extract_figures(use_celery=True)
+
+
 @receiver(post_save, sender=Paper, dispatch_uid='extract_twitter_comments')
 def queue_extract_twitter_comments(
     sender,
