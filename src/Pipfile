@@ -58,6 +58,7 @@ stripe = "==2.54.0"
 python-twitter = "==3.5"
 lxml = "==4.6.2"
 html5lib = "==1.1"
+flower = "==0.9.7"
 
 [requires]
 python_version = "3.6"
