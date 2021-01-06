@@ -6,6 +6,7 @@ celery_worker=`grep -o "CELERY_WORKER=\".*\"" /opt/python/current/env`
 if ! [ $celery_worker = "CELERY_WORKER=\"True\"" ]; then
         /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf stop celeryd-worker
         /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf stop celerybeat
+        /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf stop celeryflower
         echo "Exiting worker script"
     exit 0
 else
@@ -118,3 +119,4 @@ fi
 # Restart celeryd
 /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf restart celeryd-worker
 /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf restart celerybeat
+/usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf restart celeryflower
