@@ -107,7 +107,7 @@ echo "$celeryflowerconf" | tee /opt/python/etc/celeryflower.conf
 if ! grep -Fxq "[include]" /opt/python/etc/supervisord.conf
   then
   echo "[include]" | tee -a /opt/python/etc/supervisord.conf
-  echo "files= /opt/python/etc/celerybeat.conf /opt/python/etc/celery.conf" | tee -a /opt/python/etc/supervisord.conf
+  echo "files= /opt/python/etc/celerybeat.conf /opt/python/etc/celery.conf /opt/python/etc/celeryflower.conf" | tee -a /opt/python/etc/supervisord.conf
 fi
 
 # Reread the conf
