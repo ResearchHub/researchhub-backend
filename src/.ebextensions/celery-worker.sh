@@ -73,7 +73,7 @@ environment=$celery_env"
 
 celeryflowerconf="[program:celeryflower]
 ; Set full path to celery program if using virtualenv
-command=/opt/python/run/venv/bin/flower -A researchhub -S --port=5555
+command=/opt/python/run/venv/bin/flower -A researchhub --port=5555
 directory=/opt/python/current/app
 user=ec2-user
 numprocs=1
