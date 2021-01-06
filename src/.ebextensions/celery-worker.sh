@@ -70,9 +70,37 @@ priority=998
 
 environment=$celery_env"
 
+celeryflowerconf="[program:celeryflower]
+; Set full path to celery program if using virtualenv
+command=/opt/python/run/venv/bin/flower -A researchhub -S --port=5555
+directory=/opt/python/current/app
+user=ec2-user
+numprocs=1
+stdout_logfile=/var/log/celery/flower.out.log
+stderr_logfile=/var/log/celery/flower.err.log
+autostart=true
+autorestart=true
+startsecs=10
+startretries=2
+
+; Need to wait for currently executing tasks to finish at shutdown.
+; Increase this if you have very long running tasks.
+stopwaitsecs=60
+
+; When resorting to send SIGKILL to the program to terminate it
+; send SIGKILL to its whole process group instead,
+; taking care of its children as well.
+killasgroup=true
+
+; if rabbitmq is supervised, set its priority higher
+; so it starts first
+priority=998
+
+environment=$celery_env"
 # Copy the above script into celery.conf file
 echo "$celery_conf" | tee /opt/python/etc/celery.conf
 echo "$celerybeatconf" | tee /opt/python/etc/celerybeat.conf
+echo "$celeryflowerconf" | tee /opt/python/etc/celeryflowerconf.conf
 
 # Add the conf to supervisord (if not already there)
 if ! grep -Fxq "[include]" /opt/python/etc/supervisord.conf
