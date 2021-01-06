@@ -809,6 +809,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         ordering = self._set_hub_paper_ordering(request)
         hub_id = request.GET.get('hub_id', 0)
 
+        cache_hit = None
         if page_number == 1 and 'removed' not in ordering:
             time_difference = end_date - start_date
             cache_pk = ''
