@@ -809,11 +809,6 @@ class PaperViewSet(viewsets.ModelViewSet):
         ordering = self._set_hub_paper_ordering(request)
         hub_id = request.GET.get('hub_id', 0)
 
-        context = self.get_serializer_context()
-        context['user_no_balance'] = True
-        context['exclude_promoted_score'] = True
-        context['include_wallet'] = False
-
         if page_number == 1 and 'removed' not in ordering:
             time_difference = end_date - start_date
             cache_pk = ''
@@ -829,12 +824,19 @@ class PaperViewSet(viewsets.ModelViewSet):
                 cache_pk = f'{hub_id}_{ordering}_today'
 
             cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
+            print(f'hub cache key: {cache_key_hub}')
             cache_hit = cache.get(cache_key_hub)
 
             if cache_hit and page_number == 1:
                 return Response(cache_hit)
-            else:
-                reset_cache([hub_id], context, request.META)
+
+        context = self.get_serializer_context()
+        context['user_no_balance'] = True
+        context['exclude_promoted_score'] = True
+        context['include_wallet'] = False
+
+        if not cache_hit and page_number == 1:
+            reset_cache([hub_id], context, request.META)
 
         papers = self._get_filtered_papers(hub_id, ordering)
         order_papers = self.calculate_paper_ordering(
