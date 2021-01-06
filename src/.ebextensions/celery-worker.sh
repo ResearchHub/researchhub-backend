@@ -101,7 +101,7 @@ environment=$celery_env"
 # Copy the above script into celery.conf file
 echo "$celery_conf" | tee /opt/python/etc/celery.conf
 echo "$celerybeatconf" | tee /opt/python/etc/celerybeat.conf
-echo "$celeryflowerconf" | tee /opt/python/etc/celeryflowerconf.conf
+echo "$celeryflowerconf" | tee /opt/python/etc/celeryflower.conf
 
 # Add the conf to supervisord (if not already there)
 if ! grep -Fxq "[include]" /opt/python/etc/supervisord.conf
