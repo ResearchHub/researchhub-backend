@@ -211,14 +211,17 @@ def celery_extract_pdf_preview(paper_id):
         extracted_figures = Figure.objects.filter(paper=paper)
         for page in doc:
             pix = page.getPixmap(alpha=False)
-            output_filename = f'{paper_id}-{page.number}.png'
+            output_filename = f'{paper_id}-{page.number}.jpg'
 
             if not extracted_figures.filter(
                 file__contains=output_filename,
                 figure_type=Figure.PREVIEW
             ):
                 Figure.objects.create(
-                    file=ContentFile(pix.getPNGdata(), name=output_filename),
+                    file=ContentFile(
+                        pix.getImageData(output='jpg'),
+                        name=output_filename
+                    ),
                     paper=paper,
                     figure_type=Figure.PREVIEW
                 )
