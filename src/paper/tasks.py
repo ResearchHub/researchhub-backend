@@ -185,10 +185,10 @@ def celery_extract_figures(paper_id):
 
 
 @app.task
-def celery_extract_pdf_preview(paper_id):
-    if paper_id is None:
+def celery_extract_pdf_preview(paper_id, retry=0):
+    if paper_id is None or retry > 2:
         print('No paper id for pdf preview')
-        return
+        return False
 
     print(f'Extracting pdf figures for paper: {paper_id}')
 
@@ -199,7 +199,12 @@ def celery_extract_pdf_preview(paper_id):
     file = paper.file
     if not file:
         print(f'No file exists for paper: {paper_id}')
-        return
+        celery_extract_pdf_preview.apply_async(
+            (paper.id, retry + 1),
+            priority=3,
+            countdown=10,
+        )
+        return False
 
     file_url = file.url
 
@@ -228,6 +233,7 @@ def celery_extract_pdf_preview(paper_id):
     finally:
         cache_key = get_cache_key(None, 'figure', pk=paper_id)
         cache.delete(cache_key)
+    return True
 
 
 @app.task
