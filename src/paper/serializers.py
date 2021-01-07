@@ -287,7 +287,8 @@ class PaperSerializer(BasePaperSerializer):
 
                 # TODO: Do we still need add authors from the request content?
                 paper.authors.add(*authors)
-                self._add_orcid_authors(paper)
+                # Fix adding orcid authors
+                # self._add_orcid_authors(paper)
                 paper.hubs.add(*hubs)
                 for hub in hubs:
                     hub.paper_count = hub.get_paper_count()
