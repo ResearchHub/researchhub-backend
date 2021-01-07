@@ -300,7 +300,8 @@ class PaperSerializer(BasePaperSerializer):
                         e,
                     )
 
-                self._add_references(paper)
+                # Fix adding references
+                # self._add_references(paper)
                 tracked_paper = events_api.track_content_paper(
                     user,
                     paper,

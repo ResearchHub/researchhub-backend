@@ -654,6 +654,7 @@ class Paper(models.Model):
         self.save()
 
     def add_references(self):
+        # This method and following methods need fixing
         ss_id = self.doi
         ss_id_type = SemanticScholar.ID_TYPES['doi']
         # TODO: Modify this to try all availble alternate id keys
