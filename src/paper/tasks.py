@@ -88,6 +88,7 @@ def add_references(paper_id):
 
 @app.task
 def add_orcid_authors(paper_id):
+    # TODO: Fix adding orcid authors
     if paper_id is None:
         return
 
