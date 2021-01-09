@@ -8,8 +8,10 @@ import requests
 import shutil
 import twitter
 
+from io import BytesIO
 from datetime import datetime, timedelta, timezone
 from subprocess import call
+from PIL import Image
 
 from django.apps import apps
 from django.core.cache import cache
@@ -63,7 +65,10 @@ def censored_paper_cleanup(paper_id):
 
 
 @app.task
-def download_pdf(paper_id):
+def download_pdf(paper_id, retry=0):
+    if retry > 3:
+        return
+
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
     paper_url = paper.url
@@ -72,12 +77,21 @@ def download_pdf(paper_id):
     url_has_pdf = (check_url_contains_pdf(paper_url) or pdf_url)
 
     if paper_url and url_has_pdf:
-        pdf = get_pdf_from_url(url)
-        filename = paper.url.split('/').pop()
-        if not filename.endswith('.pdf'):
-            filename += '.pdf'
-        paper.file.save(filename, pdf)
-        paper.save(update_fields=['file'])
+        try:
+            pdf = get_pdf_from_url(url)
+            filename = paper.url.split('/').pop()
+            if not filename.endswith('.pdf'):
+                filename += '.pdf'
+            paper.file.save(filename, pdf)
+            paper.save(update_fields=['file'])
+            paper.extract_pdf_preview(use_celery=True)
+        except Exception as e:
+            sentry.log_info(e)
+            download_pdf.apply_async(
+                (paper.id, retry + 1),
+                priority=3,
+                countdown=15 * (retry + 1)
+            )
 
 
 @app.task
@@ -224,11 +238,16 @@ def celery_extract_pdf_preview(paper_id, retry=0):
                 file__contains=output_filename,
                 figure_type=Figure.PREVIEW
             ):
+                img_buffer = BytesIO()
+                img_buffer.write(pix.getImageData(output='jpg'))
+                image = Image.open(img_buffer)
+                image.save(img_buffer, 'jpeg', quality=0)
+                file = ContentFile(
+                    img_buffer.getvalue(),
+                    name=output_filename
+                )
                 Figure.objects.create(
-                    file=ContentFile(
-                        pix.getImageData(output='jpg'),
-                        name=output_filename
-                    ),
+                    file=file,
                     paper=paper,
                     figure_type=Figure.PREVIEW
                 )
