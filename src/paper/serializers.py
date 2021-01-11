@@ -282,7 +282,8 @@ class PaperSerializer(BasePaperSerializer):
 
                 # TODO: Do we still need add authors from the request content?
                 paper.authors.add(*authors)
-                self._add_orcid_authors(paper)
+                # Fix adding orcid authors
+                # self._add_orcid_authors(paper)
                 paper.hubs.add(*hubs)
                 for hub in hubs:
                     hub.paper_count = hub.get_paper_count()
@@ -295,7 +296,8 @@ class PaperSerializer(BasePaperSerializer):
                         e,
                     )
 
-                self._add_references(paper)
+                # Fix adding references
+                # self._add_references(paper)
                 tracked_paper = events_api.track_content_paper(
                     user,
                     paper,
@@ -314,7 +316,6 @@ class PaperSerializer(BasePaperSerializer):
                     priority=2,
                     countdown=10
                 )
-
                 return paper
         except IntegrityError as e:
             raise e
@@ -430,11 +431,10 @@ class PaperSerializer(BasePaperSerializer):
             return
 
         if paper.url is not None:
-            download_pdf(paper.id)
-            # if not TESTING:
-            #     download_pdf.apply_async((paper.id,), priority=3, countdown=7)
-            # else:
-            #     download_pdf(paper.id)
+            if not TESTING:
+                download_pdf.apply_async((paper.id,), priority=3, countdown=7)
+            else:
+                download_pdf(paper.id)
 
     def _add_url(self, file, validated_data):
         if check_file_is_url(file):
