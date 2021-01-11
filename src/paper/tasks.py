@@ -8,8 +8,10 @@ import requests
 import shutil
 import twitter
 
+from io import BytesIO
 from datetime import datetime, timedelta, timezone
 from subprocess import call
+from PIL import Image
 
 from django.apps import apps
 from django.core.cache import cache
@@ -63,7 +65,10 @@ def censored_paper_cleanup(paper_id):
 
 
 @app.task
-def download_pdf(paper_id):
+def download_pdf(paper_id, retry=0):
+    if retry > 3:
+        return
+
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
     paper_url = paper.url
@@ -72,12 +77,21 @@ def download_pdf(paper_id):
     url_has_pdf = (check_url_contains_pdf(paper_url) or pdf_url)
 
     if paper_url and url_has_pdf:
-        pdf = get_pdf_from_url(url)
-        filename = paper.url.split('/').pop()
-        if not filename.endswith('.pdf'):
-            filename += '.pdf'
-        paper.file.save(filename, pdf)
-        paper.save(update_fields=['file'])
+        try:
+            pdf = get_pdf_from_url(url)
+            filename = paper.url.split('/').pop()
+            if not filename.endswith('.pdf'):
+                filename += '.pdf'
+            paper.file.save(filename, pdf)
+            paper.save(update_fields=['file'])
+            paper.extract_pdf_preview(use_celery=True)
+        except Exception as e:
+            sentry.log_info(e)
+            download_pdf.apply_async(
+                (paper.id, retry + 1),
+                priority=3,
+                countdown=15 * (retry + 1)
+            )
 
 
 @app.task
@@ -92,6 +106,8 @@ def add_references(paper_id):
 
 @app.task
 def add_orcid_authors(paper_id):
+    # TODO: Fix adding orcid authors
+    return
     if paper_id is None:
         return
 
@@ -187,10 +203,10 @@ def celery_extract_figures(paper_id):
 
 
 @app.task
-def celery_extract_pdf_preview(paper_id):
-    if paper_id is None:
+def celery_extract_pdf_preview(paper_id, retry=0):
+    if paper_id is None or retry > 2:
         print('No paper id for pdf preview')
-        return
+        return False
 
     print(f'Extracting pdf figures for paper: {paper_id}')
 
@@ -201,7 +217,12 @@ def celery_extract_pdf_preview(paper_id):
     file = paper.file
     if not file:
         print(f'No file exists for paper: {paper_id}')
-        return
+        celery_extract_pdf_preview.apply_async(
+            (paper.id, retry + 1),
+            priority=3,
+            countdown=10,
+        )
+        return False
 
     file_url = file.url
 
@@ -211,14 +232,22 @@ def celery_extract_pdf_preview(paper_id):
         extracted_figures = Figure.objects.filter(paper=paper)
         for page in doc:
             pix = page.getPixmap(alpha=False)
-            output_filename = f'{paper_id}-{page.number}.png'
+            output_filename = f'{paper_id}-{page.number}.jpg'
 
             if not extracted_figures.filter(
                 file__contains=output_filename,
                 figure_type=Figure.PREVIEW
             ):
+                img_buffer = BytesIO()
+                img_buffer.write(pix.getImageData(output='jpg'))
+                image = Image.open(img_buffer)
+                image.save(img_buffer, 'jpeg', quality=0)
+                file = ContentFile(
+                    img_buffer.getvalue(),
+                    name=output_filename
+                )
                 Figure.objects.create(
-                    file=ContentFile(pix.getPNGdata(), name=output_filename),
+                    file=file,
                     paper=paper,
                     figure_type=Figure.PREVIEW
                 )
@@ -227,6 +256,7 @@ def celery_extract_pdf_preview(paper_id):
     finally:
         cache_key = get_cache_key(None, 'figure', pk=paper_id)
         cache.delete(cache_key)
+    return True
 
 
 @app.task

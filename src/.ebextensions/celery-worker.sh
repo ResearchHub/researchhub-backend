@@ -21,7 +21,7 @@ celery_env=${celery_env%?}
 celery_conf="[program:celeryd-worker]
 
 ; Run celery from virtual env
-command=/opt/python/run/venv/bin/celery worker -A researchhub -P solo --loglevel=INFO -Q ${app_env}
+command=/opt/python/run/venv/bin/celery worker -A researchhub -P solo --loglevel=INFO -Q ${app_env} -E
 
 directory=/opt/python/current/app
 user=ec2-user
@@ -73,7 +73,7 @@ environment=$celery_env"
 
 celeryflowerconf="[program:celeryflower]
 ; Set full path to celery program if using virtualenv
-command=/opt/python/run/venv/bin/flower -A researchhub --port=5555
+command=/opt/python/run/venv/bin/flower -A researchhub --port=5555 --url_prefix=flower --basic_auth=quantfive:houseofBerkeley!
 directory=/opt/python/current/app
 user=ec2-user
 numprocs=1
