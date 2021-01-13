@@ -3,6 +3,7 @@ from rest_framework import status, viewsets
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
+from rest_framework.decorators import action
 
 from analytics.models import PaperEvent, WebsiteVisits
 from analytics.permissions import UpdateOrDelete
@@ -55,7 +56,41 @@ class PaperEventViewSet(viewsets.ModelViewSet):
             interaction = interaction.upper()
             request.data['interaction'] = interaction
         return super().create(request, *args, **kwargs)
+    
 
+    @action(
+        detail=False,
+        methods=['POST'],
+        permission_classes=[]
+    )
+    def batch_views(self, request, *args, **kwargs):
+        user = request.user
+        if not user.is_anonymous:
+            request.data['user'] = user.id
+        
+        created_location = request.data.get('created_location')
+        if created_location is not None:
+            created_location = created_location.upper()
+            request.data['created_location'] = created_location
+        else:
+            return Response(
+                'Missing required field `created_location`',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        interaction = request.data.get('interaction', None)
+        if interaction is not None:
+            interaction = interaction.upper()
+            request.data['interaction'] = interaction
+        
+        events = []
+        paper_ids = request.data['paper_ids']
+        del request.data['paper_ids']
+        for id in paper_ids:
+            events.append(PaperEvent(paper=id, **request.data))
+        
+        PaperEvent.objects.bulk_create(events)
+        return Response({'msg': 'Events Created'}, 201)
 
 class AmplitudeViewSet(viewsets.ViewSet):
     authentication_classes = ()
