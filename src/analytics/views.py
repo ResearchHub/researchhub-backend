@@ -87,7 +87,7 @@ class PaperEventViewSet(viewsets.ModelViewSet):
         paper_ids = request.data['paper_ids']
         del request.data['paper_ids']
         for id in paper_ids:
-            events.append(PaperEvent(paper=id, **request.data))
+            events.append(PaperEvent(paper_id=id, **request.data))
         
         PaperEvent.objects.bulk_create(events)
         return Response({'msg': 'Events Created'}, 201)
