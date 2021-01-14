@@ -66,7 +66,7 @@ class PaperEventViewSet(viewsets.ModelViewSet):
     def batch_views(self, request, *args, **kwargs):
         user = request.user
         if not user.is_anonymous:
-            request.data['user'] = user.id
+            request.data['user'] = user
         
         created_location = request.data.get('created_location')
         if created_location is not None:
