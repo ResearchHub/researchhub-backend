@@ -459,7 +459,7 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
 
     total_rewards = {}
 
-    temp_emails = ['chukwumachidera001@gmail.com', 'sandeepkhant99@gmail.com', 'colin.moser94@gmail.com', 'a.eng2013@gmail.com', 'gr8nationp@gmail.com', 'ogahbraititus12@gmail.com', 'zeefor14@gmail.com', 'morgansprecious@gmail.com', 'bhaiwaseemtum@gmail.com', 'kingsleyomeke1@gmail.com', 'ayotunea@gmail.com', 'tim.dingman.11@gmail.com', 'kmburris@email.wm.edu', 'tajrkala@gmail.com', 'm.khalin@gmail.com', 'sebastianhunte@gmail.com', 'umc.aleksander@gmail.com', 'jesus.c.lucky@gmail.com', 'joker12121999@gmail.com']
+    temp_emails = ['chukwumachidera001@gmail.com', 'sandeepkhant99@gmail.com', 'colin.moser94@gmail.com', 'a.eng2013@gmail.com', 'gr8nationp@gmail.com', 'ogahbraititus12@gmail.com', 'zeefor14@gmail.com', 'morgansprecious@gmail.com', 'bhaiwaseemtum@gmail.com', 'kingsleyomeke1@gmail.com', 'ayotunea@gmail.com', 'tim.dingman.11@gmail.com', 'kmburris@email.wm.edu', 'tajrkala@gmail.com', 'm.khalin@gmail.com', 'sebastianhunte@gmail.com', 'umc.aleksander@gmail.com', 'jesus.c.lucky@gmail.com', 'joker12121999@gmail.com','karabas007@gmail.com','pdj7@georgetown.edu','tawkabagirova@gmail.com']
     for key in all_users:
         with transaction.atomic():
             upload_vote_count = paper_voted_on_count.get(key, 0)
