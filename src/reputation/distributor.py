@@ -163,7 +163,7 @@ class RewardDistributor:
     def generate_distribution(self, item, amount=1, distribute=True):
         from paper.models import Paper, Vote
         from user.models import User, Author
-        from bullet_point.models import BulletPoint
+        from bullet_point.models import BulletPoint, Vote as BulletPointVote
         from summary.models import Summary
         from discussion.models import Thread, Comment, Reply
 
@@ -181,6 +181,8 @@ class RewardDistributor:
         if item_type is Paper:
             recipient = item.uploaded_by
         elif item_type is BulletPoint:
+            recipient = item.created_by
+        elif item_type is BulletPointVote:
             recipient = item.created_by
         elif item_type is Summary:
             recipient = item.proposed_by
