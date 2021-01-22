@@ -407,6 +407,11 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
         priority=5,
         countdown=86400 * (iteration + 1)
     )
+    score = paper.calculate_score()
+    paper.score = score
+    paper.save()
+    paper_cache_key = get_cache_key(None, 'paper', pk=paper.id)
+    cache.delete(paper_cache_key)
 
 
 @app.task
