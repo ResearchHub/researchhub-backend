@@ -616,7 +616,11 @@ class Paper(models.Model):
         else:
             celery_extract_twitter_comments(self.id)
 
-    def calculate_score(self, ignore_self_vote=False):
+    def calculate_score(
+        self,
+        ignore_self_vote=False,
+        ignore_twitter_score=False
+    ):
         qs = self.votes.filter(
             created_by__is_suspended=False,
             created_by__probable_spammer=False
@@ -632,6 +636,9 @@ class Paper(models.Model):
                 'id', filter=Q(vote_type=Vote.DOWNVOTE)
             )
         ).get('score', 0)
+
+        if not ignore_twitter_score:
+            score += self.twitter_score
         return score
 
     def get_vote_for_index(self, vote):

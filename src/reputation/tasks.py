@@ -572,7 +572,7 @@ def get_uploaded_papers_email_data(papers_uploaded):
         paper_data['summary'] = f'From Paper: {paper.summary.summary_plain_text}' if paper.summary else ''
         paper_data['uploaded_by'] = get_author_full_name(paper.uploaded_by)
         paper_data['discussion_count'] = paper.discussion_count
-        paper_data['vote_count'] = paper.calculate_score(ignore_self_vote=True)
+        paper_data['vote_count'] = paper.calculate_score(ignore_self_vote=True, ignore_twitter_score=True)
         paper_data['paper_type'] = ''.join(paper.paper_type.split('_')).capitalize()
         paper_data['url'] = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}'
         paper_preview_list = Figure.objects.filter(paper=paper.id, figure_type=Figure.PREVIEW).order_by('created_date')
