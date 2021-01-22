@@ -7,11 +7,18 @@ import re
 import requests
 import shutil
 import twitter
+import urllib.request
+import feedparser
+import time
 
 from io import BytesIO
 from datetime import datetime, timedelta, timezone
 from subprocess import call
 from PIL import Image
+from habanero import Crossref
+from celery.decorators import periodic_task
+from celery.task.schedules import crontab
+from celery.utils.log import get_task_logger
 
 from django.apps import apps
 from django.core.cache import cache
@@ -23,6 +30,7 @@ from rest_framework.request import Request
 from discussion.models import Thread, Comment
 from purchase.models import Wallet
 from researchhub.celery import app
+
 
 from paper.utils import (
     check_crossref_title,
@@ -36,8 +44,12 @@ from paper.utils import (
     get_cache_key,
 )
 from utils import sentry
+from utils.arxiv.categories import get_category_name, ARXIV_CATEGORIES, get_general_hub_name
+from utils.crossref import get_crossref_issued_date
 from utils.twitter import get_twitter_url_results, get_twitter_results
 from utils.http import check_url_contains_pdf
+
+logger = get_task_logger(__name__)
 
 
 @app.task
@@ -552,3 +564,262 @@ def preload_hub_papers(
         )
 
     return paginated_response.data
+
+
+# ARXIV Download Constants
+RESULTS_PER_ITERATION = 50 # default is 10, if this goes too high like >=100 it seems to fail too often
+WAIT_TIME = 3 # The docs recommend 3 seconds between queries
+RETRY_WAIT = 8
+RETRY_MAX = 20 # It fails a lot so retry a bunch
+NUM_DUP_STOP = 30 # Number of dups to hit before determining we're done
+BASE_URL = 'http://export.arxiv.org/api/query?'
+
+# Pull Daily (arxiv updates 20:00 EST)
+@periodic_task(run_every=crontab(minute='45', hour='1'), priority=8)
+def pull_papers(start=0):
+    logger.info('Pulling Papers')
+
+    Paper = apps.get_model('paper.Paper')
+    Summary = apps.get_model('summary.Summary')
+    Hub = apps.get_model('hub.Hub')
+
+    # Namespaces don't quite work with the feedparser, so hack them in
+    feedparser.namespaces._base.Namespace.supported_namespaces['http://a9.com/-/spec/opensearch/1.1/'] = 'opensearch'
+    feedparser.namespaces._base.Namespace.supported_namespaces['http://arxiv.org/schemas/atom'] = 'arxiv'
+
+    # Code Inspired from https://static.arxiv.org/static/arxiv.marxdown/0.1/help/api/examples/python_arXiv_parsing_example.txt
+    # Original Author: Julius B. Lucks
+
+    # All categories
+    search_query = "+OR+".join(["cat:" + cat for cat in ARXIV_CATEGORIES])
+    sortBy = "submittedDate"
+    sortOrder = "descending"
+
+    i = start
+    num_retries = 0
+    dups = 0
+    while True:
+        logger.info("Entries: %i - %i" % (i, i+RESULTS_PER_ITERATION))
+
+        query = 'search_query=%s&start=%i&max_results=%i&sortBy=%s&sortOrder=%s&' % (
+                search_query,
+                i,
+                RESULTS_PER_ITERATION,
+                sortBy,
+                sortOrder)
+
+        with urllib.request.urlopen(BASE_URL+query) as url:
+            response = url.read()
+            feed = feedparser.parse(response)
+            # If failed to fetch and we're not at the end retry until the limit
+            if url.getcode() != 200:
+                if num_retries < RETRY_MAX and i < int(feed.feed.opensearch_totalresults):
+                    num_retries += 1
+                    time.sleep(RETRY_WAIT)
+                    continue
+                else:
+                    return
+
+
+            if i == start:
+                logger.info(f'Total results: {feed.feed.opensearch_totalresults}')
+                logger.info(f'Last updated: {feed.feed.updated}')
+
+            # If no results and we're at the end or we've hit the retry limit give up
+            if len(feed.entries) == 0:
+                if num_retries < RETRY_MAX and i < int(feed.feed.opensearch_totalresults):
+                    num_retries += 1
+                    time.sleep(RETRY_WAIT)
+                    continue
+                else:
+                    return
+
+            # Run through each entry, and print out information
+            for entry in feed.entries:
+                num_retries = 0
+                paper, created = Paper.objects.get_or_create(url=entry.id)
+
+                if created:
+                    paper.alternate_ids = {'arxiv': entry.id.split('/abs/')[-1]}
+
+                    paper.title = entry.title
+                    paper.abstract = entry.summary
+                    paper.paper_publish_date = entry.published.split('T')[0]
+                    paper.raw_authors = {'main_author': entry.author}
+
+                    try:
+                        paper.raw_authors['main_author'] += ' (%s)' % entry.arxiv_affiliation
+                    except AttributeError:
+                        pass
+
+                    try:
+                        paper.raw_authors['other_authors'] = [author.name for author in entry.authors]
+                    except AttributeError:
+                        pass
+
+                    for link in entry.links:
+                        try:
+                            if link.title == 'pdf':
+                                paper.pdf_url = link.href
+                            if link.title == 'doi':
+                                paper.doi = link.href.split('doi.org/')[-1]
+                        except AttributeError:
+                            pass
+
+                    paper.save()
+
+                    celery_calculate_paper_twitter_score.apply_async(
+                        (paper.id,),
+                        priority=5,
+                        countdown=15
+                    )
+
+                    # If not published in the past week we're done
+                    if Paper.objects.get(pk=paper.id).paper_publish_date < datetime.now().date() - timedelta(days=7):
+                        return
+
+                    # Arxiv Journal Ref
+                    # try:
+                        # journal_ref = entry.arxiv_journal_ref
+                    # except AttributeError:
+                        # journal_ref = 'No journal ref found'
+
+                    # Arxiv Comment
+                    # try:
+                        # comment = entry.arxiv_comment
+                    # except AttributeError:
+                        # comment = 'No comment found'
+
+                    # Arxiv Categories
+                    # all_categories = [t['term'] for t in entry.tags]
+                    try:
+                        general_hub = get_general_hub_name(entry.arxiv_primary_category['term'])
+                        if general_hub:
+                            hub = Hub.objects.filter(name__iexact=general_hub).first()
+                            if hub:
+                                paper.hubs.add(hub)
+
+                        specific_hub = get_category_name(entry.arxiv_primary_category['term'])
+                        if specific_hub:
+                            shub = Hub.objects.filter(name__iexact=general_hub).first()
+                            if shub:
+                                paper.hubs.add(shub)
+                    except AttributeError:
+                        pass
+                else:
+                    # if we've reach the max dups then we're done
+                    if dups > NUM_DUP_STOP:
+                        return
+                    else:
+                        dups += 1
+
+        # Rate limit
+        time.sleep(WAIT_TIME)
+
+        i += RESULTS_PER_ITERATION
+
+
+# Crossref Download Constants
+RESULTS_PER_ITERATION = 50
+WAIT_TIME = 2
+RETRY_WAIT = 8
+RETRY_MAX = 20
+NUM_DUP_STOP = 30
+
+# Pull Daily
+@periodic_task(run_every=crontab(minute=0, hour=12), priority=8)
+def pull_crossref_papers(start=0):
+    logger.info('Pulling Crossref Papers')
+
+    Paper = apps.get_model('paper.Paper')
+    Hub = apps.get_model('hub.Hub')
+
+    cr = Crossref()
+
+    num_retries = 0 
+    num_duplicates = 0
+
+    offset = 0
+    filters = {
+        'type': 'journal-article',
+        'from-pub-date': (datetime.now().date() - timedelta(days=1)).strftime('%Y-%m-%d'),
+        'until-pub-date': datetime.now().date().strftime('%Y-%m-%d'),
+    }
+
+    while True:
+        try:
+            results = cr.works(
+                filter=filters,
+                limit=RESULTS_PER_ITERATION,
+                sort='issued',
+                order='desc',
+                offset=offset,
+            )
+        except:
+            if num_retries < RETRY_MAX:
+                num_retries += 1
+                time.sleep(RETRY_WAIT)
+                continue
+            else:
+                return
+
+        if results['message']['total-results'] == 0 or len(results['message']['items']) == 0:
+            if num_retries < RETRY_MAX:
+                num_retries += 1
+                time.sleep(RETRY_WAIT)
+                continue
+            else:
+                return
+
+        for item in results['message']['items']:
+            num_retries = 0
+            paper, created = Paper.objects.get_or_create(doi=item['DOI'])
+            if created:
+                paper.title = item['title'][0]
+                paper.paper_title = item['title'][0]
+                paper.slug = slugify(item['title'][0])
+                paper.doi = item['DOI']
+                paper.url = item['URL']
+                paper.paper_publish_date = get_crossref_issued_date(item)
+                paper.retrieved_from_external_source = True
+                paper.external_source = item['source']
+                paper.publication_type = item['type']
+                if 'abstract' in item:
+                    paper.abstract = item['abstract']
+                if 'author' in item:
+                    paper.raw_authors = {}
+                    for i, author in enumerate(item['author']):
+                        author_name = []
+                        if 'given' in author:
+                            author_name.append(author['given'])
+                        if 'family' in author:
+                            author_name.append(author['family'])
+                        author_name = ' '.join(author_name)
+                        if author_name:
+                            if i == 0: 
+                                paper.raw_authors['main_author'] = author_name
+                            else:
+                                if 'other_authors' not in paper.raw_authors:
+                                    paper.raw_authors['other_authors'] = []
+                                else:
+                                    paper.raw_authors['other_authors'].append(author_name)
+                if 'link' in item and item['link']:
+                    paper.pdf_url = item['link'][0]['URL']
+                if 'subject' in item:
+                    for subject_name in item['subject']:
+                        hub = Hub.objects.filter(name__iexact=subject_name).first()
+                        if hub:
+                            paper.hubs.add(hub)
+                paper.save()
+                celery_calculate_paper_twitter_score.apply_async(
+                    (paper.id,),
+                    priority=5,
+                    countdown=15
+                )
+            else:
+                if num_duplicates > NUM_DUP_STOP:
+                    return
+                num_duplicates += 1
+
+        offset += RESULTS_PER_ITERATION
+        time.sleep(WAIT_TIME)
