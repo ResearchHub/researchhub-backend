@@ -365,6 +365,21 @@ def celery_extract_twitter_comments(paper_id):
 
 
 @app.task
+def celery_calculate_paper_twitter_score(paper_id, iteration=0):
+    if paper_id is None or iteration > 2:
+        return
+
+    Paper = apps.get_model('paper.Paper')
+    paper = Paper.objects.get(id=paper_id)
+    paper.calculate_twitter_score()
+    celery_calculate_paper_twitter_score.apply_async(
+        (paper_id, iteration + 1),
+        priority=5,
+        countdown=86400 * (iteration + 1)
+    )
+
+
+@app.task
 def handle_duplicate_doi(new_paper, doi):
     Paper = apps.get_model('paper.Paper')
     original_paper = Paper.objects.filter(doi=doi).order_by('uploaded_date')[0]

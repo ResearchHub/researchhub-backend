@@ -36,6 +36,11 @@ from utils.http import check_url_contains_pdf
 from utils.arxiv import Arxiv
 from utils.crossref import Crossref
 from utils.semantic_scholar import SemanticScholar
+from utils.twitter import (
+    get_twitter_url_results,
+    get_twitter_doi_results,
+    get_twitter_results
+)
 
 DOI_IDENTIFIER = '10.'
 ARXIV_IDENTIFIER = 'arXiv:'
@@ -436,7 +441,32 @@ class Paper(models.Model):
         self.save()
 
     def calculate_twitter_score(self):
-        pass
+        result_ids = set()
+        paper_title = self.paper_title
+        url = self.url
+        doi = self.doi
+
+        if doi:
+            doi_results = [
+                res.id for res in get_twitter_doi_results(self.doi, filters='')
+            ]
+            result_ids |= doi_results
+
+        if url:
+            url_results = set([
+                res.id for res in get_twitter_url_results(self.url, filters='')
+            ])
+            result_ids |= url_results
+
+        if paper_title:
+            title_results = set([
+                res.id for res in get_twitter_results(self.paper_title)
+            ])
+            result_ids |= title_results
+
+        self.twitter_score = len(result_ids)
+        self.save()
+        return self.twitter_score
 
     def get_full_name(self, author_or_user):
         full_name = []

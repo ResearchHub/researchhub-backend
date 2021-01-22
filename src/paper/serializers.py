@@ -18,7 +18,12 @@ from paper.models import (
     Figure,
     FeaturedPaper
 )
-from paper.tasks import download_pdf, add_references, add_orcid_authors
+from paper.tasks import (
+    download_pdf,
+    add_references,
+    add_orcid_authors,
+    celery_calculate_paper_twitter_score
+)
 from paper.utils import (
     check_pdf_title,
     check_file_is_url,
@@ -312,6 +317,11 @@ class PaperSerializer(BasePaperSerializer):
                         paper_id
                     ),
                     priority=2,
+                    countdown=10
+                )
+                celery_calculate_paper_twitter_score.apply_async(
+                    (paper_id,),
+                    priority=5,
                     countdown=10
                 )
 
