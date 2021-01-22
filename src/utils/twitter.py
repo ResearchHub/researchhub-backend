@@ -22,14 +22,14 @@ def get_twitter_results(query):
     return results
 
 
-def get_twitter_url_results(url, filters='-filter:retweets'):
+def get_twitter_url_results(url, filters=' -filter:retweets'):
     term = f'{url}'
     if filters:
         term += filters
     return get_twitter_results(term)
 
 
-def get_twitter_doi_results(doi, filters='-filter:retweets'):
+def get_twitter_doi_results(doi, filters=' -filter:retweets'):
     term = f'{doi}'
     if filters:
         term += filters
