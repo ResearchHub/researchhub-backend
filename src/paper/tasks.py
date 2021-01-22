@@ -21,7 +21,6 @@ from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from celery.utils.log import get_task_logger
 
-logger = get_task_logger(__name__)
 
 from django.apps import apps
 from django.core.cache import cache
@@ -35,7 +34,6 @@ from rest_framework.request import Request
 from discussion.models import Thread, Comment
 from purchase.models import Wallet
 from researchhub.celery import app
-
 from paper.utils import (
     check_crossref_title,
     check_pdf_title,
@@ -52,6 +50,8 @@ from utils.twitter import get_twitter_url_results, get_twitter_results
 from utils.arxiv.categories import get_category_name, ARXIV_CATEGORIES, get_general_hub_name
 from utils.http import check_url_contains_pdf
 from utils.crossref import get_crossref_issued_date
+
+logger = get_task_logger(__name__)
 
 
 @app.task
@@ -670,6 +670,12 @@ def pull_papers(start=0):
 
                     paper.save()
 
+                    celery_calculate_paper_twitter_score.apply_async(
+                        (paper.id,),
+                        priority=5,
+                        countdown=15
+                    )
+
                     # If not published in the past week we're done
                     if Paper.objects.get(pk=paper.id).paper_publish_date < datetime.now().date() - timedelta(days=7):
                         return
@@ -807,10 +813,15 @@ def pull_crossref_papers(start=0):
                         if hub:
                             paper.hubs.add(hub)
                 paper.save()
+                celery_calculate_paper_twitter_score.apply_async(
+                    (paper.id,),
+                    priority=5,
+                    countdown=15
+                )
             else:
                 if num_duplicates > NUM_DUP_STOP:
                     return
                 num_duplicates += 1
 
         offset += RESULTS_PER_ITERATION
-        time.sleep(WAIT_TIME)       
+        time.sleep(WAIT_TIME)
