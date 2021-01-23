@@ -12,6 +12,7 @@ import feedparser
 import time
 
 from io import BytesIO
+from slugify import slugify
 from datetime import datetime, timedelta, timezone
 from subprocess import call
 from PIL import Image
