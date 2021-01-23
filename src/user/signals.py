@@ -167,7 +167,7 @@ def create_action(sender, instance, created, **kwargs):
             get_content_type_for_model(Comment),
             get_content_type_for_model(Paper)
         ]
-        if user.invited_by and not Action.objects.filter(user=user, content_type__in=referral_content_types).exists() and sender in [Thread, Reply, Comment, Paper]:
+        if user and user.invited_by and not Action.objects.filter(user=user, content_type__in=referral_content_types).exists() and sender in [Thread, Reply, Comment, Paper]:
             timestamp = time()
             referred = Distributor(
                 distributions.Referral,
