@@ -169,6 +169,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         else:
             queryset = self.queryset.filter(is_removed=False)
 
+        if ordering == 'newest':
+            queryset = queryset.filter(uploaded_by__isnull=False)
+
         user = self.request.user
         if user.is_staff:
             return queryset

@@ -43,6 +43,7 @@ from paper.utils import (
     merge_paper_threads,
     merge_paper_votes,
     get_cache_key,
+    clean_abstract
 )
 from utils import sentry
 from utils.arxiv.categories import get_category_name, ARXIV_CATEGORIES, get_general_hub_name
@@ -415,6 +416,7 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
     paper.calculate_twitter_score()
+
     celery_calculate_paper_twitter_score.apply_async(
         (paper_id, iteration + 1),
         priority=5,
@@ -423,6 +425,9 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     score = paper.calculate_score()
     paper.score = score
     paper.save()
+
+    if score > 0:
+        paper.calculate_hot_score()
     paper_cache_key = get_cache_key(None, 'paper', pk=paper.id)
     cache.delete(paper_cache_key)
 
@@ -644,9 +649,10 @@ def pull_papers(start=0):
                         paper.alternate_ids = {'arxiv': entry.id.split('/abs/')[-1]}
 
                         paper.title = entry.title
-                        paper.abstract = entry.summary
+                        paper.abstract = clean_abstract(entry.summary)
                         paper.paper_publish_date = entry.published.split('T')[0]
                         paper.raw_authors = {'main_author': entry.author}
+                        paper.external_source = 'Arxiv'
 
                         try:
                             paper.raw_authors['main_author'] += ' (%s)' % entry.arxiv_affiliation
@@ -786,10 +792,10 @@ def pull_crossref_papers(start=0):
                     paper.url = item['URL']
                     paper.paper_publish_date = get_crossref_issued_date(item)
                     paper.retrieved_from_external_source = True
-                    paper.external_source = item['source']
+                    paper.external_source = item.get('publisher', 'Crossref')
                     paper.publication_type = item['type']
                     if 'abstract' in item:
-                        paper.abstract = item['abstract']
+                        paper.abstract = clean_abstract(item['abstract'])
                     if 'author' in item:
                         paper.raw_authors = {}
                         for i, author in enumerate(item['author']):
