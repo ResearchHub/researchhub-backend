@@ -638,81 +638,83 @@ def pull_papers(start=0):
             # Run through each entry, and print out information
             for entry in feed.entries:
                 num_retries = 0
-                paper, created = Paper.objects.get_or_create(url=entry.id)
+                try:
+                    paper, created = Paper.objects.get_or_create(url=entry.id)
+                    if created:
+                        paper.alternate_ids = {'arxiv': entry.id.split('/abs/')[-1]}
 
-                if created:
-                    paper.alternate_ids = {'arxiv': entry.id.split('/abs/')[-1]}
+                        paper.title = entry.title
+                        paper.abstract = entry.summary
+                        paper.paper_publish_date = entry.published.split('T')[0]
+                        paper.raw_authors = {'main_author': entry.author}
 
-                    paper.title = entry.title
-                    paper.abstract = entry.summary
-                    paper.paper_publish_date = entry.published.split('T')[0]
-                    paper.raw_authors = {'main_author': entry.author}
-
-                    try:
-                        paper.raw_authors['main_author'] += ' (%s)' % entry.arxiv_affiliation
-                    except AttributeError:
-                        pass
-
-                    try:
-                        paper.raw_authors['other_authors'] = [author.name for author in entry.authors]
-                    except AttributeError:
-                        pass
-
-                    for link in entry.links:
                         try:
-                            if link.title == 'pdf':
-                                paper.pdf_url = link.href
-                            if link.title == 'doi':
-                                paper.doi = link.href.split('doi.org/')[-1]
+                            paper.raw_authors['main_author'] += ' (%s)' % entry.arxiv_affiliation
                         except AttributeError:
                             pass
 
-                    paper.save()
+                        try:
+                            paper.raw_authors['other_authors'] = [author.name for author in entry.authors]
+                        except AttributeError:
+                            pass
 
-                    celery_calculate_paper_twitter_score.apply_async(
-                        (paper.id,),
-                        priority=5,
-                        countdown=15
-                    )
+                        for link in entry.links:
+                            try:
+                                if link.title == 'pdf':
+                                    paper.pdf_url = link.href
+                                if link.title == 'doi':
+                                    paper.doi = link.href.split('doi.org/')[-1]
+                            except AttributeError:
+                                pass
 
-                    # If not published in the past week we're done
-                    if Paper.objects.get(pk=paper.id).paper_publish_date < datetime.now().date() - timedelta(days=7):
-                        return
+                        paper.save()
 
-                    # Arxiv Journal Ref
-                    # try:
-                        # journal_ref = entry.arxiv_journal_ref
-                    # except AttributeError:
-                        # journal_ref = 'No journal ref found'
+                        celery_calculate_paper_twitter_score.apply_async(
+                            (paper.id,),
+                            priority=5,
+                            countdown=15
+                        )
 
-                    # Arxiv Comment
-                    # try:
-                        # comment = entry.arxiv_comment
-                    # except AttributeError:
-                        # comment = 'No comment found'
+                        # If not published in the past week we're done
+                        if Paper.objects.get(pk=paper.id).paper_publish_date < datetime.now().date() - timedelta(days=7):
+                            return
 
-                    # Arxiv Categories
-                    # all_categories = [t['term'] for t in entry.tags]
-                    try:
-                        general_hub = get_general_hub_name(entry.arxiv_primary_category['term'])
-                        if general_hub:
-                            hub = Hub.objects.filter(name__iexact=general_hub).first()
-                            if hub:
-                                paper.hubs.add(hub)
+                        # Arxiv Journal Ref
+                        # try:
+                            # journal_ref = entry.arxiv_journal_ref
+                        # except AttributeError:
+                            # journal_ref = 'No journal ref found'
 
-                        specific_hub = get_category_name(entry.arxiv_primary_category['term'])
-                        if specific_hub:
-                            shub = Hub.objects.filter(name__iexact=general_hub).first()
-                            if shub:
-                                paper.hubs.add(shub)
-                    except AttributeError:
-                        pass
-                else:
-                    # if we've reach the max dups then we're done
-                    if dups > NUM_DUP_STOP:
-                        return
+                        # Arxiv Comment
+                        # try:
+                            # comment = entry.arxiv_comment
+                        # except AttributeError:
+                            # comment = 'No comment found'
+
+                        # Arxiv Categories
+                        # all_categories = [t['term'] for t in entry.tags]
+                        try:
+                            general_hub = get_general_hub_name(entry.arxiv_primary_category['term'])
+                            if general_hub:
+                                hub = Hub.objects.filter(name__iexact=general_hub).first()
+                                if hub:
+                                    paper.hubs.add(hub)
+
+                            specific_hub = get_category_name(entry.arxiv_primary_category['term'])
+                            if specific_hub:
+                                shub = Hub.objects.filter(name__iexact=general_hub).first()
+                                if shub:
+                                    paper.hubs.add(shub)
+                        except AttributeError:
+                            pass
                     else:
-                        dups += 1
+                        # if we've reach the max dups then we're done
+                        if dups > NUM_DUP_STOP:
+                            return
+                        else:
+                            dups += 1
+                except Exception as e:
+                    sentry.log_error(e)
 
         # Rate limit
         time.sleep(WAIT_TIME)
@@ -774,53 +776,56 @@ def pull_crossref_papers(start=0):
 
         for item in results['message']['items']:
             num_retries = 0
+            try:
             paper, created = Paper.objects.get_or_create(doi=item['DOI'])
-            if created:
-                paper.title = item['title'][0]
-                paper.paper_title = item['title'][0]
-                paper.slug = slugify(item['title'][0])
-                paper.doi = item['DOI']
-                paper.url = item['URL']
-                paper.paper_publish_date = get_crossref_issued_date(item)
-                paper.retrieved_from_external_source = True
-                paper.external_source = item['source']
-                paper.publication_type = item['type']
-                if 'abstract' in item:
-                    paper.abstract = item['abstract']
-                if 'author' in item:
-                    paper.raw_authors = {}
-                    for i, author in enumerate(item['author']):
-                        author_name = []
-                        if 'given' in author:
-                            author_name.append(author['given'])
-                        if 'family' in author:
-                            author_name.append(author['family'])
-                        author_name = ' '.join(author_name)
-                        if author_name:
-                            if i == 0: 
-                                paper.raw_authors['main_author'] = author_name
-                            else:
-                                if 'other_authors' not in paper.raw_authors:
-                                    paper.raw_authors['other_authors'] = []
+                if created:
+                    paper.title = item['title'][0]
+                    paper.paper_title = item['title'][0]
+                    paper.slug = slugify(item['title'][0])
+                    paper.doi = item['DOI']
+                    paper.url = item['URL']
+                    paper.paper_publish_date = get_crossref_issued_date(item)
+                    paper.retrieved_from_external_source = True
+                    paper.external_source = item['source']
+                    paper.publication_type = item['type']
+                    if 'abstract' in item:
+                        paper.abstract = item['abstract']
+                    if 'author' in item:
+                        paper.raw_authors = {}
+                        for i, author in enumerate(item['author']):
+                            author_name = []
+                            if 'given' in author:
+                                author_name.append(author['given'])
+                            if 'family' in author:
+                                author_name.append(author['family'])
+                            author_name = ' '.join(author_name)
+                            if author_name:
+                                if i == 0: 
+                                    paper.raw_authors['main_author'] = author_name
                                 else:
-                                    paper.raw_authors['other_authors'].append(author_name)
-                if 'link' in item and item['link']:
-                    paper.pdf_url = item['link'][0]['URL']
-                if 'subject' in item:
-                    for subject_name in item['subject']:
-                        hub = Hub.objects.filter(name__iexact=subject_name).first()
-                        if hub:
-                            paper.hubs.add(hub)
-                paper.save()
-                celery_calculate_paper_twitter_score.apply_async(
-                    (paper.id,),
-                    priority=5,
-                    countdown=15
-                )
-            else:
-                if num_duplicates > NUM_DUP_STOP:
-                    return
-                num_duplicates += 1
+                                    if 'other_authors' not in paper.raw_authors:
+                                        paper.raw_authors['other_authors'] = []
+                                    else:
+                                        paper.raw_authors['other_authors'].append(author_name)
+                    if 'link' in item and item['link']:
+                        paper.pdf_url = item['link'][0]['URL']
+                    if 'subject' in item:
+                        for subject_name in item['subject']:
+                            hub = Hub.objects.filter(name__iexact=subject_name).first()
+                            if hub:
+                                paper.hubs.add(hub)
+                    paper.save()
+                    celery_calculate_paper_twitter_score.apply_async(
+                        (paper.id,),
+                        priority=5,
+                        countdown=15
+                    )
+                else:
+                    if num_duplicates > NUM_DUP_STOP:
+                        return
+                    num_duplicates += 1
+            except Exception as e:
+                sentry.log_error(e)
 
         offset += RESULTS_PER_ITERATION
         time.sleep(WAIT_TIME)
