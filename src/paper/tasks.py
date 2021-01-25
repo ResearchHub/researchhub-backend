@@ -777,7 +777,7 @@ def pull_crossref_papers(start=0):
         for item in results['message']['items']:
             num_retries = 0
             try:
-            paper, created = Paper.objects.get_or_create(doi=item['DOI'])
+                paper, created = Paper.objects.get_or_create(doi=item['DOI'])
                 if created:
                     paper.title = item['title'][0]
                     paper.paper_title = item['title'][0]
