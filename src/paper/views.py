@@ -853,6 +853,42 @@ class PaperViewSet(viewsets.ModelViewSet):
             {'data': serializer_data, 'no_results': False}
         )
 
+    @action(detail=False, methods=[GET])
+    def get_subscribed_hub_papers(self, request):
+        user = request.user
+        if user.is_anonymous:
+            return self.get_paginated_response(
+                {'data': None, 'no_results': True}
+            )
+
+        hubs = user.subscribed_hubs.all()
+        start_date = datetime.datetime.fromtimestamp(
+            int(request.GET.get('start_date__gte', 0)),
+            datetime.timezone.utc
+        )
+        end_date = datetime.datetime.fromtimestamp(
+            int(request.GET.get('end_date__lte', 0)),
+            datetime.timezone.utc
+        )
+        ordering = self._set_hub_paper_ordering(request)
+        qs = self.get_queryset()
+        papers = qs.filter(hubs__in=hubs)
+
+        order_papers = self.calculate_paper_ordering(
+            papers,
+            ordering,
+            start_date,
+            end_date
+        )
+
+        page = self.paginate_queryset(order_papers)
+        serializer = HubPaperSerializer(page, many=True)
+        serializer_data = serializer.data
+
+        return self.get_paginated_response(
+            {'data': serializer_data, 'no_results': False}
+        )
+
     def _set_hub_paper_ordering(self, request):
         ordering = request.query_params.get('ordering', None)
         # TODO send correct ordering from frontend
