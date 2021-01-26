@@ -873,6 +873,10 @@ class PaperViewSet(viewsets.ModelViewSet):
         ordering = self._set_hub_paper_ordering(request)
         qs = self.get_queryset()
         papers = qs.filter(hubs__in=hubs)
+        context = self.get_serializer_context()
+        context['user_no_balance'] = True
+        context['exclude_promoted_score'] = True
+        context['include_wallet'] = False
 
         order_papers = self.calculate_paper_ordering(
             papers,
@@ -882,7 +886,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         )
 
         page = self.paginate_queryset(order_papers)
-        serializer = HubPaperSerializer(page, many=True)
+        serializer = HubPaperSerializer(page, many=True, context=context)
         serializer_data = serializer.data
 
         return self.get_paginated_response(
