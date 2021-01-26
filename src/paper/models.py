@@ -421,7 +421,7 @@ class Paper(models.Model):
                 )['avg'] or 0
 
                 avg_hrs = (
-                    vote_avg_epoch - ALGO_START_UNIX
+                    max(0, vote_avg_epoch - ALGO_START_UNIX)
                 ) / 3600
 
             avg_hrs /= 100
