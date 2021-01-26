@@ -854,7 +854,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=False, methods=[GET])
-    def get_subscribed_hub_papers(self, request):
+    def subscribed_hub_papers(self, request):
         user = request.user
         if user.is_anonymous:
             return self.get_paginated_response(
