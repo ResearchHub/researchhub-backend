@@ -797,6 +797,10 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def get_hub_papers(self, request):
+        subscribed_hubs = request.GET.get('subscribed_hubs', False)
+        if subscribed_hubs:
+            return self.subscribed_hub_papers(request)
+
         page_number = int(request.GET['page'])
         start_date = datetime.datetime.fromtimestamp(
             int(request.GET.get('start_date__gte', 0)),
