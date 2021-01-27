@@ -861,8 +861,10 @@ class PaperViewSet(viewsets.ModelViewSet):
     def subscribed_hub_papers(self, request):
         user = request.user
         if user.is_anonymous:
+            page = self.paginate_queryset(Paper.objects.none())
+            serializer = HubPaperSerializer(page, many=True)
             return self.get_paginated_response(
-                {'data': None, 'no_results': True}
+                {'data': serializer.data, 'no_results': True}
             )
 
         hubs = user.subscribed_hubs.all()
