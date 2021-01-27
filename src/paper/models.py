@@ -388,6 +388,7 @@ class Paper(models.Model):
 
     def calculate_hot_score(self):
         N = 1572080689
+        TWITTER_BOOST = 50
         boosts = self.purchases.filter(
             paid_status=Purchase.PAID,
             amount__gt=0
@@ -430,8 +431,22 @@ class Paper(models.Model):
             hot_score = math.log(max(abs(score), 1), 10)
             seconds = (uploaded_date - N) / 45000
             discussion_score = math.log(max(self.discussion_count, 1), 10)
+
+            twitter_score = self.twitter_score
+            twitter_boost_score = 0
+            if twitter_score > 0:
+                twitter_boost_score = (
+                    max(2, math.log(twitter_score)) * TWITTER_BOOST
+                )
+
+            # import pdb; pdb.set_trace()
             hot_score = (
-                boost_amount + avg_hrs + hot_score + seconds + discussion_score
+                boost_amount +
+                avg_hrs +
+                hot_score +
+                seconds +
+                discussion_score +
+                twitter_boost_score
             ) * 1000
 
             self.hot_score = hot_score
