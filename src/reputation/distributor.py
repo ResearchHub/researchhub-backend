@@ -164,7 +164,7 @@ class RewardDistributor:
         from paper.models import Paper, Vote
         from user.models import User, Author
         from bullet_point.models import BulletPoint, Vote as BulletPointVote
-        from summary.models import Summary
+        from summary.models import Summary, Vote as SummaryVote
         from discussion.models import Thread, Comment, Reply
 
         item_type = type(item)
@@ -186,6 +186,8 @@ class RewardDistributor:
             recipient = item.created_by
         elif item_type is Summary:
             recipient = item.proposed_by
+        elif item_type is SummaryVote:
+            recipient = item.created_by
         elif item_type is Vote:
             recipient = item.created_by
         elif item_type is User:
