@@ -858,7 +858,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             {
                 'data': serializer_data,
                 'no_results': False,
-                'feed_type': 'regular'
+                'feed_type': 'all'
             }
         )
 
