@@ -798,7 +798,8 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def get_hub_papers(self, request):
         subscribed_hubs = request.GET.get('subscribed_hubs', False)
-        if subscribed_hubs:
+        is_anonymous = request.user.is_anonymous
+        if subscribed_hubs and not is_anonymous:
             return self.subscribed_hub_papers(request)
 
         page_number = int(request.GET['page'])
@@ -854,19 +855,15 @@ class PaperViewSet(viewsets.ModelViewSet):
         serializer_data = serializer.data
 
         return self.get_paginated_response(
-            {'data': serializer_data, 'no_results': False}
+            {
+                'data': serializer_data,
+                'no_results': False,
+                'feed_type': 'regular'
+            }
         )
 
-    @action(detail=False, methods=[GET])
     def subscribed_hub_papers(self, request):
         user = request.user
-        if user.is_anonymous:
-            page = self.paginate_queryset(Paper.objects.none())
-            serializer = HubPaperSerializer(page, many=True)
-            return self.get_paginated_response(
-                {'data': serializer.data, 'no_results': True}
-            )
-
         hubs = user.subscribed_hubs.all()
         start_date = datetime.datetime.fromtimestamp(
             int(request.GET.get('start_date__gte', 0)),
@@ -896,7 +893,11 @@ class PaperViewSet(viewsets.ModelViewSet):
         serializer_data = serializer.data
 
         return self.get_paginated_response(
-            {'data': serializer_data, 'no_results': False}
+            {
+                'data': serializer_data,
+                'no_results': False,
+                'feed_type': 'subscribed'
+            }
         )
 
     def _set_hub_paper_ordering(self, request):
