@@ -479,7 +479,8 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
             reward_amount = upvoted_amount + upvotes_amount
 
             total_rewards[key] = reward_amount
-            if distribute:
+            emails = ['ayotunea@gmail.com', 'colin.moser94@gmail.com', 'gr8nationp@gmail.com', 'kingsleyomeke1@gmail.com', 'khush.deoja@gmail.com', 'chukwumachidera001@gmail.com', 'zeefor14@gmail.com', 'daniel@bojar.net', 'tajrkala@gmail.com', 'morgansprecious@gmail.com', 'gratitudedollar@gmail.com', 'godwinolori415@gmail.com', 'pdj7@georgetown.edu', 'umc.aleksander@gmail.com', 'gboy6497@gmail.com', 'akujobik44@gmail.com', 'zicoandrew6@gmail.com', 'ibukunhont92@gmail.com', 'lucaswhitaker22@gmail.com', 'adeyemmykenny04@gmail.com', 'maslam09876543@gmail.com', 'rubinrai505@gmail.com', 'top.razrab@gmail.com', 'ms202367@gmail.com', 'jesus.c.lucky@gmail.com', 'joker12121999@gmail.com', 'kotun.mm.di1@gmail.com', 'sebastianhunte@gmail.com', 'jeffgaffney13@gmail.com', 'kmburris@email.wm.edu', 'dawnstarbabe5050@gmail.com', 'webmoneyfil@gmail.com', 'bhaiwaseemtum@gmail.com', 'talissonjunio244@gmail.com', 'vanphuong079@gmail.com', 'urbanfran5@gmail.com', 'lightning.lu7@gmail.com', 'alebed@udel.edu', 'a.eng2013@gmail.com', 'kunchesm@gmail.com', 'sandeepkhant99@gmail.com', 'kolawolesolomon3@gmail.com', 'lomose23@gmail.com', 'abgcarlostoro@gmail.com', 'birgberg2@gmail.com', 'joshslee93@gmail.com', 'satyam1997kumar544@gmail.com']
+            if distribute and key not in emails:
                 item = Contribution.objects.filter(user__email=key)
                 if not item.exists():
                     item = User.objects.get(email=key)
