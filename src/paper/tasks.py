@@ -541,7 +541,7 @@ def preload_hub_papers(
     serializer = HubPaperSerializer(page, many=True, context=context)
     serializer_data = serializer.data
     paginated_response = paper_view.get_paginated_response(
-        {'data': serializer_data, 'no_results': False}
+        {'data': serializer_data, 'no_results': False, 'feed_type': 'all'}
     )
 
     if synchronous:
