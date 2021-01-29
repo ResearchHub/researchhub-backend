@@ -65,7 +65,6 @@ class ArxivMetadata:
             paper.hubs.add(*self.hubs)
         else:
             print('No paper for arxiv id', self.raw_arxiv_id)
-        print(paper)
 
     def _build_arxiv_url(self):
         return f'https://arxiv.org/abs/{self.raw_arxiv_id}'
