@@ -13,6 +13,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='paper',
             name='twitter_score',
-            field=models.IntegerField(default=0),
+            field=models.IntegerField(default=1),
         ),
     ]
