@@ -1,3 +1,4 @@
+from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.permissions import (
@@ -286,6 +287,10 @@ class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ('name', 'city', 'state', 'country')
     permission_classes = [AllowAny]
+
+    @cache_page(60*60*6)
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
 
 
 class MajorViewSet(viewsets.ReadOnlyModelViewSet):
