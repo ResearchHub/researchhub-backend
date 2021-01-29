@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -130,6 +131,10 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
             countdown=10
         )
         return response
+
+    @cache_page(60*60*6)
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
         if (
