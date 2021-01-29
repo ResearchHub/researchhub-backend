@@ -876,6 +876,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         ordering = self._set_hub_paper_ordering(request)
         qs = self.get_queryset(include_autopull=True)
         papers = qs.filter(hubs__in=hubs)
+
+        if papers.count() < 1:
+            papers = self.get_queryset()
         context = self.get_serializer_context()
         context['user_no_balance'] = True
         context['exclude_promoted_score'] = True
