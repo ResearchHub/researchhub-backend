@@ -160,7 +160,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             ),
         )
 
-    def get_queryset(self, prefetch=True):
+    def get_queryset(self, prefetch=True, include_autopull=False):
         query_params = self.request.query_params
         queryset = self.queryset
         ordering = self.request.query_params.get('ordering', None)
@@ -169,7 +169,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         else:
             queryset = self.queryset.filter(is_removed=False)
 
-        if ordering == 'newest':
+        if ordering == 'newest' and not include_autopull:
             queryset = queryset.filter(uploaded_by__isnull=False)
 
         user = self.request.user
@@ -874,7 +874,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             datetime.timezone.utc
         )
         ordering = self._set_hub_paper_ordering(request)
-        qs = self.get_queryset()
+        qs = self.get_queryset(include_autopull=True)
         papers = qs.filter(hubs__in=hubs)
         context = self.get_serializer_context()
         context['user_no_balance'] = True

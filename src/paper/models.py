@@ -93,7 +93,7 @@ class Paper(models.Model):
     score = models.IntegerField(default=0, db_index=True)
     discussion_count = models.IntegerField(default=0, db_index=True)
     hot_score = models.IntegerField(default=0, db_index=True)
-    twitter_score = models.IntegerField(default=0)
+    twitter_score = models.IntegerField(default=1)
 
     # Moderators are obsolete, in favor of super mods on the user
     moderators = models.ManyToManyField(
