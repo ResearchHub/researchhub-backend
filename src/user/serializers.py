@@ -46,7 +46,8 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
             'reputation',
             'orcid_id',
             'total_score',
-            'wallet'
+            'wallet',
+            'sift_link'
         ]
 
     def get_reputation(self, obj):
