@@ -464,9 +464,9 @@ class Paper(models.Model):
         doi = self.doi
 
         if doi:
-            doi_results = [
+            doi_results = set([
                 res.id for res in get_twitter_doi_results(self.doi, filters='')
-            ]
+            ])
             result_ids |= doi_results
 
         if url:
