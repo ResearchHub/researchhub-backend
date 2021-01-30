@@ -194,7 +194,7 @@ class UserEditableSerializer(rest_framework_serializers.ModelSerializer):
 
     def get_subscribed(self, obj):
         if self.context.get('get_subscribed'):
-            subscribed_query = obj.subscribed_hubs.all()
+            subscribed_query = obj.subscribed_hubs.filter(is_removed=False)
             return HubSerializer(subscribed_query, many=True).data
 
 
