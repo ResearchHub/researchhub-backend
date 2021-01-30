@@ -73,9 +73,12 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
             pass
 
     def get_sift_link(self, author):
-        user_id = author.user.id
-        sift_link = f'https://console.sift.com/users/{user_id}?abuse_type=content_abuse'
-        return sift_link
+        user = author.user
+        if user:
+            user_id = user.id
+            sift_link = f'https://console.sift.com/users/{user_id}?abuse_type=content_abuse'
+            return sift_link
+        return None
 
 
 class AuthorEditableSerializer(rest_framework_serializers.ModelSerializer):
