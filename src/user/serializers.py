@@ -37,6 +37,7 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
     orcid_id = rest_framework_serializers.SerializerMethodField()
     total_score = rest_framework_serializers.SerializerMethodField()
     wallet = rest_framework_serializers.SerializerMethodField()
+    sift_link = rest_framework_serializers.SerializerMethodField()
 
     class Meta:
         model = Author
@@ -69,6 +70,11 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
         except Exception as error:
             # sentry.log_error(error)
             pass
+
+    def get_sift_link(self, author):
+        user_id = author.user.id
+        sift_link = f'https://console.sift.com/users/{user_id}?abuse_type=content_abuse'
+        return sift_link
 
 
 class AuthorEditableSerializer(rest_framework_serializers.ModelSerializer):
