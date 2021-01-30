@@ -481,7 +481,7 @@ class Paper(models.Model):
             ])
             result_ids |= title_results
 
-        self.twitter_score = len(result_ids)
+        self.twitter_score = len(result_ids) + 1
         self.save()
         return self.twitter_score
 

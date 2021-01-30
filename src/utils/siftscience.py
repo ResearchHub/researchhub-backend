@@ -52,15 +52,21 @@ def unlabel_user(user_id):
 
 
 def get_tracked_content_score(tracked_content):
-    return round(tracked_content['score_response']['scores']['content_abuse']['score'] * 100, 1)
+    score_response = tracked_content.get('score_response', None)
+    if score_response:
+        score = score_response['scores']['content_abuse']['score']
+        score = round(score * 100, 1)
+        return score
+    return None
 
 
 def update_user_risk_score(user, tracked_content):
     if tracked_content:
         content_risk_score = get_tracked_content_score(tracked_content)
-        user.sift_risk_score = content_risk_score
-        user.save(update_fields=['sift_risk_score'])
-        check_user_risk(user)
+        if content_risk_score:
+            user.sift_risk_score = content_risk_score
+            user.save(update_fields=['sift_risk_score'])
+            check_user_risk(user)
 
 
 def check_user_risk(user):
@@ -133,7 +139,7 @@ class EventsApi:
         track_type = '$update_account' if update else '$create_account'
 
         try:
-            response = client.track(track_type, properties, return_score=True)
+            response = client.track(track_type, properties, return_score=False)
             print(response.body)
             return response.body
         except sift.client.ApiException as e:
@@ -175,7 +181,7 @@ class EventsApi:
         }
 
         try:
-            response = client.track('$login', properties, return_score=True)
+            response = client.track('$login', properties, return_score=False)
             print(response.body)
             return response.body
         except sift.client.ApiException as e:
@@ -251,7 +257,7 @@ class EventsApi:
         track_type = '$update_content' if update else '$create_content'
 
         try:
-            response = client.track(track_type, comment_properties, return_score=True)
+            response = client.track(track_type, comment_properties, return_score=False)
             print(response.body)
             return response.body
         except sift.client.ApiException as e:
@@ -299,7 +305,7 @@ class EventsApi:
         track_type = '$update_content' if update else '$create_content'
 
         try:
-            response = client.track(track_type, post_properties, return_score=True)
+            response = client.track(track_type, post_properties, return_score=False)
             print(response.body)
             return response.body
         except sift.client.ApiException as e:
@@ -350,7 +356,7 @@ class EventsApi:
         track_type = '$update_content' if update else '$create_content'
 
         try:
-            response = client.track(track_type, comment_properties, return_score=True)
+            response = client.track(track_type, comment_properties, return_score=False)
             print(response.body)
             return response.body
         except sift.client.ApiException as e:
@@ -401,7 +407,7 @@ class EventsApi:
         track_type = '$update_content' if update else '$create_content'
 
         try:
-            response = client.track(track_type, comment_properties, return_score=True)
+            response = client.track(track_type, comment_properties, return_score=False)
             print(response.body)
             return response.body
         except sift.client.ApiException as e:
@@ -454,7 +460,7 @@ class EventsApi:
         track_type = '$update_content' if update else '$create_content'
 
         try:
-            response = client.track(track_type, review_properties, return_score=True)
+            response = client.track(track_type, review_properties, return_score=False)
             print(response.body)
             return response.body
         except sift.client.ApiException as e:

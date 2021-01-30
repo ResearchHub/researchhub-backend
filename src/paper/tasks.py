@@ -31,6 +31,7 @@ from rest_framework.request import Request
 from discussion.models import Thread, Comment
 from purchase.models import Wallet
 from researchhub.celery import app
+from researchhub.settings import APP_ENV
 
 
 from paper.utils import (
@@ -581,7 +582,11 @@ NUM_DUP_STOP = 30 # Number of dups to hit before determining we're done
 BASE_URL = 'http://export.arxiv.org/api/query?'
 
 # Pull Daily (arxiv updates 20:00 EST)
-@periodic_task(run_every=crontab(minute='45', hour='1'), priority=8)
+@periodic_task(
+    run_every=crontab(minute='45', hour='1'),
+    priority=8,
+    options={'queue': APP_ENV}
+)
 def pull_papers(start=0):
     logger.info('Pulling Papers')
 
@@ -736,7 +741,11 @@ RETRY_MAX = 20
 NUM_DUP_STOP = 30
 
 # Pull Daily
-@periodic_task(run_every=crontab(minute=0, hour=12), priority=8)
+@periodic_task(
+    run_every=crontab(minute=0, hour=12),
+    priority=8,
+    options={'queue': APP_ENV}
+)
 def pull_crossref_papers(start=0):
     logger.info('Pulling Crossref Papers')
 
