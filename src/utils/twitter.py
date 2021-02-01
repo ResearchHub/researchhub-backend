@@ -16,10 +16,13 @@ api = twitter.Api(
 
 
 def get_twitter_results(query):
-    results = api.GetSearch(
-        term=query
-    )
-    return results
+    try:
+        results = api.GetSearch(
+            term=query
+        )
+        return results
+    except Exception as e:
+        return []
 
 
 def get_twitter_url_results(url, filters=' -filter:retweets'):
