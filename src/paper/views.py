@@ -877,7 +877,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         qs = self.get_queryset(include_autopull=True)
         papers = qs.filter(hubs__in=hubs)
 
+        feed_type = 'subscribed'
         if papers.count() < 1:
+            feed_type = 'all'
             papers = self.get_queryset()
         context = self.get_serializer_context()
         context['user_no_balance'] = True
@@ -899,7 +901,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             {
                 'data': serializer_data,
                 'no_results': False,
-                'feed_type': 'subscribed'
+                'feed_type': feed_type
             }
         )
 
