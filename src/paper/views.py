@@ -163,7 +163,9 @@ class PaperViewSet(viewsets.ModelViewSet):
     def get_queryset(self, prefetch=True, include_autopull=False):
         query_params = self.request.query_params
         queryset = self.queryset
-        ordering = self.request.query_params.get('ordering', None)
+        ordering = query_params.get('ordering', None)
+        external_source = query_params.get('external_source', False)
+
         if query_params.get('make_public') or query_params.get('all') or (ordering and 'removed' in ordering):
             pass
         else:
@@ -175,6 +177,12 @@ class PaperViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.is_staff:
             return queryset
+
+        if user.moderator and external_source:
+            queryset = queryset.filter(
+                is_removed=False,
+                retrieved_from_external_source=True
+            )
         if prefetch:
             return queryset.prefetch_related(
                 *self.prefetch_lookups()
