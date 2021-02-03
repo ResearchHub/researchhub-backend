@@ -117,8 +117,6 @@ def add_references(paper_id):
 
 @app.task
 def add_orcid_authors(paper_id):
-    # TODO: Fix adding orcid authors
-    return
     if paper_id is None:
         return
 
@@ -128,13 +126,23 @@ def add_orcid_authors(paper_id):
     paper = Paper.objects.get(id=paper_id)
     orcid_authors = []
     while True:
-        if paper.doi is not None:
-            orcid_authors = orcid_api.get_authors(doi=paper.doi)
-            break
+        doi = paper.doi
+        if doi is not None:
+            orcid_authors = orcid_api.get_authors(doi=doi)
+            if orcid_authors:
+                break
+
         arxiv_id = paper.alternate_ids.get('arxiv', None)
+        if arxiv_id is not None and doi:
+            orcid_authors = orcid_api.get_authors(arxiv=doi)
+            if orcid_authors:
+                break
+
         if arxiv_id is not None:
             orcid_authors = orcid_api.get_authors(arxiv=arxiv_id)
-            break
+            if orcid_authors:
+                break
+
         break
 
         if len(orcid_authors) < 1:
@@ -630,7 +638,6 @@ def pull_papers(start=0):
                     continue
                 else:
                     return
-
 
             if i == start:
                 logger.info(f'Total results: {feed.feed.opensearch_totalresults}')
