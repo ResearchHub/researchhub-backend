@@ -389,6 +389,7 @@ class Paper(models.Model):
     def calculate_hot_score(self):
         N = 1572080689
         TWITTER_BOOST = 100
+        BOOST_WEIGHT = 4  # 0
         boosts = self.purchases.filter(
             paid_status=Purchase.PAID,
             amount__gt=0
@@ -410,7 +411,7 @@ class Paper(models.Model):
                         flat=True
                     ))
                 )
-                boost_amount = 4 * math.log(boost_amount, 10)
+                boost_amount = BOOST_WEIGHT * math.log(boost_amount, 10)
             else:
                 boost_amount = 0
                 uploaded_date = self.uploaded_date.timestamp()

@@ -178,7 +178,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         if user.is_staff:
             return queryset
 
-        if user.moderator and external_source:
+        if not user.is_anonymous and user.moderator and external_source:
             queryset = queryset.filter(
                 is_removed=False,
                 retrieved_from_external_source=True
