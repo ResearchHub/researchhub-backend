@@ -809,7 +809,9 @@ def pull_crossref_papers(start=0):
                     paper.url = item['URL']
                     paper.paper_publish_date = get_crossref_issued_date(item)
                     paper.retrieved_from_external_source = True
-                    paper.external_source = item.get('publisher', 'Crossref')
+                    paper.external_source = item.get('container-title', ['Crossref'])
+                    if len(paper.external_source) > 1:
+                        paper.external_source = paper.external_source[0]
                     paper.publication_type = item['type']
                     if 'abstract' in item:
                         paper.abstract = clean_abstract(item['abstract'])
