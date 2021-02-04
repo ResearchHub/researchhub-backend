@@ -12,6 +12,7 @@ class SimpleHubSerializer(serializers.ModelSerializer):
             'is_locked',
             'slug',
             'is_removed',
+            'hub_image'
         ]
         model = Hub
 
