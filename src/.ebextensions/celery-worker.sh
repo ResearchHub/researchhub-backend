@@ -119,4 +119,4 @@ fi
 # Restart celeryd
 /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf restart celeryd-worker
 /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf restart celerybeat
-/usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf restart celeryflower
+# /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf restart celeryflower
