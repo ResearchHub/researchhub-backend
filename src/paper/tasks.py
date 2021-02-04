@@ -44,7 +44,8 @@ from paper.utils import (
     merge_paper_threads,
     merge_paper_votes,
     get_cache_key,
-    clean_abstract
+    clean_abstract,
+    get_csl_item
 )
 from utils import sentry
 from utils.arxiv.categories import get_category_name, ARXIV_CATEGORIES, get_general_hub_name
@@ -812,6 +813,15 @@ def pull_crossref_papers(start=0):
                     paper.publication_type = item['type']
                     if 'abstract' in item:
                         paper.abstract = clean_abstract(item['abstract'])
+                    else:
+                        csl = get_csl_item(item['URL'])
+                        abstract = csl.get('abstract', None)
+                        if abstract:
+                            paper.abstract = abstract
+                        else:
+                            # paper.delete()
+                            paper.is_removed = True
+                            continue
                     if 'author' in item:
                         paper.raw_authors = {}
                         for i, author in enumerate(item['author']):
