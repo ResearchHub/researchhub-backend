@@ -389,7 +389,7 @@ class Paper(models.Model):
     def calculate_hot_score(self):
         N = 1572080689
         TWITTER_BOOST = 100
-        BOOST_WEIGHT = 0  # 4
+        BOOST_WEIGHT = 4  # 0
         boosts = self.purchases.filter(
             paid_status=Purchase.PAID,
             amount__gt=0
