@@ -44,7 +44,8 @@ from paper.utils import (
     merge_paper_threads,
     merge_paper_votes,
     get_cache_key,
-    clean_abstract
+    clean_abstract,
+    get_csl_item
 )
 from utils import sentry
 from utils.arxiv.categories import get_category_name, ARXIV_CATEGORIES, get_general_hub_name
@@ -117,8 +118,6 @@ def add_references(paper_id):
 
 @app.task
 def add_orcid_authors(paper_id):
-    # TODO: Fix adding orcid authors
-    return
     if paper_id is None:
         return
 
@@ -128,13 +127,23 @@ def add_orcid_authors(paper_id):
     paper = Paper.objects.get(id=paper_id)
     orcid_authors = []
     while True:
-        if paper.doi is not None:
-            orcid_authors = orcid_api.get_authors(doi=paper.doi)
-            break
+        doi = paper.doi
+        if doi is not None:
+            orcid_authors = orcid_api.get_authors(doi=doi)
+            if orcid_authors:
+                break
+
         arxiv_id = paper.alternate_ids.get('arxiv', None)
+        if arxiv_id is not None and doi:
+            orcid_authors = orcid_api.get_authors(arxiv=doi)
+            if orcid_authors:
+                break
+
         if arxiv_id is not None:
             orcid_authors = orcid_api.get_authors(arxiv=arxiv_id)
-            break
+            if orcid_authors:
+                break
+
         break
 
         if len(orcid_authors) < 1:
@@ -631,7 +640,6 @@ def pull_papers(start=0):
                 else:
                     return
 
-
             if i == start:
                 logger.info(f'Total results: {feed.feed.opensearch_totalresults}')
                 logger.info(f'Last updated: {feed.feed.updated}')
@@ -805,6 +813,15 @@ def pull_crossref_papers(start=0):
                     paper.publication_type = item['type']
                     if 'abstract' in item:
                         paper.abstract = clean_abstract(item['abstract'])
+                    else:
+                        csl = get_csl_item(item['URL'])
+                        abstract = csl.get('abstract', None)
+                        if abstract:
+                            paper.abstract = abstract
+                        else:
+                            # paper.delete()
+                            paper.is_removed = True
+                            continue
                     if 'author' in item:
                         paper.raw_authors = {}
                         for i, author in enumerate(item['author']):

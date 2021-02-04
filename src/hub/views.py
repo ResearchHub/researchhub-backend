@@ -27,6 +27,7 @@ from utils.throttles import THROTTLE_CLASSES
 from paper.models import Vote, Paper
 from paper.utils import get_cache_key, reset_cache
 
+
 class CustomPageLimitPagination(PageNumberPagination):
     page_size_query_param = 'page_limit'
     max_page_size = 10000
