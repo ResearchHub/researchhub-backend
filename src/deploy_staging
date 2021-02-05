@@ -11,6 +11,7 @@ echo "Deploying"
 
 eb deploy staging-backend-2
 eb deploy staging-backend-2-worker
+eb deploy staging-backend-2-worker-2
 
 git checkout HEAD -- requirements.txt
 

@@ -50,7 +50,11 @@ from paper.utils import (
 from utils import sentry
 from utils.arxiv.categories import get_category_name, ARXIV_CATEGORIES, get_general_hub_name
 from utils.crossref import get_crossref_issued_date
-from utils.twitter import get_twitter_url_results, get_twitter_results
+from utils.twitter import (
+    get_twitter_url_results,
+    get_twitter_results,
+    get_twitter_search_rate_limit
+)
 from utils.http import check_url_contains_pdf
 
 logger = get_task_logger(__name__)
@@ -336,6 +340,9 @@ def celery_extract_meta_data(paper_id, title, check_title):
 
 @app.task
 def celery_extract_twitter_comments(paper_id):
+    # TODO: Optimize this
+    return
+
     if paper_id is None:
         return
 
@@ -418,14 +425,33 @@ def celery_extract_twitter_comments(paper_id):
         return
 
 
-@app.task
+@app.task(queue=f'{APP_ENV}_auotpull_queue')
 def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     if paper_id is None or iteration > 2:
         return
 
+    remaining, seconds = get_twitter_search_rate_limit()
+    if remaining < 1:
+        celery_calculate_paper_twitter_score.apply_async(
+            (paper_id, iteration),
+            priority=5,
+            countdown=seconds + 5
+        )
+        return False
+
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
-    twitter_score = paper.calculate_twitter_score()
+
+    try:
+        twitter_score = paper.calculate_twitter_score()
+    except Exception as e:
+        remaining, seconds = get_twitter_search_rate_limit()
+        celery_calculate_paper_twitter_score.apply_async(
+            (paper_id, iteration),
+            priority=5,
+            countdown=seconds + 5
+        )
+        return False
 
     celery_calculate_paper_twitter_score.apply_async(
         (paper_id, iteration + 1),
@@ -593,8 +619,8 @@ BASE_URL = 'http://export.arxiv.org/api/query?'
 # Pull Daily (arxiv updates 20:00 EST)
 @periodic_task(
     run_every=crontab(minute='45', hour='1'),
-    priority=8,
-    options={'queue': APP_ENV}
+    priority=2,
+    options={'queue': f'{APP_ENV}_auotpull_queue'}
 )
 def pull_papers(start=0):
     logger.info('Pulling Papers')
@@ -752,7 +778,7 @@ NUM_DUP_STOP = 30
 @periodic_task(
     run_every=crontab(minute=0, hour=12),
     priority=8,
-    options={'queue': APP_ENV}
+    options={'queue': f'{APP_ENV}_auotpull_queue'}
 )
 def pull_crossref_papers(start=0):
     logger.info('Pulling Crossref Papers')
