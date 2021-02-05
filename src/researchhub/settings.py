@@ -582,10 +582,10 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_TASK_ROUTES = {
     '*.tasks.*': {
-        'queue': APP_ENV
+        'queue': f'{APP_ENV}_worker_1'
     }
 }
-CELERY_TASK_DEFAULT_QUEUE = APP_ENV
+CELERY_TASK_DEFAULT_QUEUE = f'{APP_ENV}_worker_1'
 
 REDBEAT_REDIS_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
 
