@@ -15,13 +15,14 @@ fi
 
 # Get eb environment variables
 app_env=`grep -oP "(?<=APP_ENV=\").*(?=\")" /opt/python/current/env`
+queue=`grep -oP "(?<=QUEUE=\").*(?=\")" /opt/python/current/env`
 celery_env=`cat /opt/python/current/env | tr '\n' ',' | sed 's/%/%%/g' | sed 's/export //g' | sed 's/$PATH/%(ENV_PATH)s/g' | sed 's/$PYTHONPATH//g' | sed 's/$LD_LIBRARY_PATH//g'`
 celery_env=${celery_env%?}
 
 celery_conf="[program:celeryd-worker]
 
 ; Run celery from virtual env
-command=/opt/python/run/venv/bin/celery worker -A researchhub -P solo --loglevel=INFO -Q ${app_env} -E
+command=/opt/python/run/venv/bin/celery worker -A researchhub -P solo --loglevel=INFO -Q ${queue} -E -n ${queue}
 
 directory=/opt/python/current/app
 user=ec2-user
@@ -119,4 +120,4 @@ fi
 # Restart celeryd
 /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf restart celeryd-worker
 /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf restart celerybeat
-# /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf restart celeryflower
+/usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf stop celeryflower
