@@ -848,6 +848,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         context['exclude_promoted_score'] = True
         context['include_wallet'] = False
 
+        import pdb; pdb.set_trace()
         if not cache_hit and page_number == 1:
             reset_cache([hub_id], context, request.META)
 
