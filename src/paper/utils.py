@@ -575,7 +575,10 @@ def reset_paper_cache(cache_key, data):
 
 def reset_cache(hub_ids, context, meta):
     from paper.tasks import preload_hub_papers
-    print(meta)
+    http_meta = {}
+    if meta:
+        http_meta['SERVER_NAME'] = meta.get('SERVER_NAME')
+        http_meta['SERVER_PORT'] = meta.get('SERVER_PORT')
 
     hub_ids_list = add_default_hub(hub_ids)
     for hub in hub_ids_list:
@@ -589,6 +592,7 @@ def reset_cache(hub_ids, context, meta):
                 end_date,
                 '-hot_score',
                 hub,
+                http_meta
             ),
             priority=10
         )
