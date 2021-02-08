@@ -588,7 +588,6 @@ def reset_cache(hub_ids, context, meta):
                 end_date,
                 '-hot_score',
                 hub,
-                None,
                 meta
             ),
             priority=10

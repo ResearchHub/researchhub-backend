@@ -550,8 +550,8 @@ def preload_hub_papers(
     end_date,
     ordering,
     hub_id,
+    meta,
     synchronous=False,
-    meta=None,
 ):
     from paper.serializers import HubPaperSerializer
     from paper.views import PaperViewSet
