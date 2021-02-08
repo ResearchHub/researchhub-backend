@@ -31,7 +31,7 @@ from rest_framework.request import Request
 from discussion.models import Thread, Comment
 from purchase.models import Wallet
 from researchhub.celery import app
-from researchhub.settings import APP_ENV
+from researchhub.settings import APP_ENV, BASE_FRONTEND_URL
 
 
 from paper.utils import (
@@ -550,7 +550,7 @@ def preload_hub_papers(
     end_date,
     ordering,
     hub_id,
-    meta,
+    meta=None,
     synchronous=False,
 ):
     from paper.serializers import HubPaperSerializer
@@ -560,7 +560,7 @@ def preload_hub_papers(
     if meta:
         http_req.META = meta
     else:
-        http_req.META = {'SERVER_NAME': 'localhost', 'SERVER_PORT': 80}
+        http_req.META = {'SERVER_NAME': BASE_FRONTEND_URL, 'SERVER_PORT': 80}
     paper_view.request = Request(http_req)
     papers = paper_view._get_filtered_papers(hub_id, ordering)
     order_papers = paper_view.calculate_paper_ordering(
