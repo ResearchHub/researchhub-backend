@@ -425,7 +425,7 @@ def celery_extract_twitter_comments(paper_id):
         return
 
 
-@app.task(queue=f'{APP_ENV}_auotpull_queue')
+@app.task(queue=f'{APP_ENV}_autopull_queue')
 def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     if paper_id is None or iteration > 2:
         return
@@ -620,7 +620,7 @@ BASE_URL = 'http://export.arxiv.org/api/query?'
 @periodic_task(
     run_every=crontab(),
     priority=2,
-    options={'queue': f'{APP_ENV}_auotpull_queue'}
+    options={'queue': f'{APP_ENV}_autopull_queue'}
 )
 def pull_papers(start=0):
     logger.info('Pulling Papers')
@@ -778,7 +778,7 @@ NUM_DUP_STOP = 30
 @periodic_task(
     run_every=crontab(minute=0, hour=12),
     priority=8,
-    options={'queue': f'{APP_ENV}_auotpull_queue'}
+    options={'queue': f'{APP_ENV}_autopull_queue'}
 )
 def pull_crossref_papers(start=0):
     logger.info('Pulling Crossref Papers')
