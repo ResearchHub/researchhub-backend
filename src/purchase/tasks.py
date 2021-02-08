@@ -56,6 +56,7 @@ def send_support_email(
     object_supported = 'profile'
     if content_type == 'paper':
         paper = Paper.objects.get(id=object_id)
+        url = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}'
         paper_data['title'] = paper.title
         paper_summary = f'From Paper: {paper.summary}' if paper.summary else ''
         paper_data['summary'] = paper_summary
@@ -64,7 +65,7 @@ def send_support_email(
         paper_data['paper_type'] = ''.join(
             paper.paper_type.split('_')
         ).capitalize()
-        paper_data['url'] = f'{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}'
+        paper_data['url'] = url
         object_supported = 'paper'
     elif content_type == 'thread':
         paper = Paper.objects.get(id=paper_id)
