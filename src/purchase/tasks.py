@@ -14,7 +14,7 @@ from utils.message import send_email_message
 @periodic_task(
     run_every=crontab(minute='*/30'),
     priority=2,
-    options={'queue': APP_ENV}
+    options={'queue': f'{APP_ENV}_core_queue'}
 )
 def update_purchases():
     PAPER_CONTENT_TYPE = ContentType.objects.get(
