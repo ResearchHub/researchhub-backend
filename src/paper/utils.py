@@ -575,6 +575,7 @@ def reset_paper_cache(cache_key, data):
 
 def reset_cache(hub_ids, context, meta):
     from paper.tasks import preload_hub_papers
+    print(meta)
 
     hub_ids_list = add_default_hub(hub_ids)
     for hub in hub_ids_list:
