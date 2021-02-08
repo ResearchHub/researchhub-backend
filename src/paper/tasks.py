@@ -31,7 +31,7 @@ from rest_framework.request import Request
 from discussion.models import Thread, Comment
 from purchase.models import Wallet
 from researchhub.celery import app
-from researchhub.settings import APP_ENV, BASE_FRONTEND_URL
+from researchhub.settings import APP_ENV
 
 
 from paper.utils import (
@@ -560,7 +560,7 @@ def preload_hub_papers(
     if meta:
         http_req.META = meta
     else:
-        http_req.META = {'SERVER_NAME': BASE_FRONTEND_URL, 'SERVER_PORT': 80}
+        http_req.META = {'SERVER_NAME': 'localhost', 'SERVER_PORT': 80}
     paper_view.request = Request(http_req)
     papers = paper_view._get_filtered_papers(hub_id, ordering)
     order_papers = paper_view.calculate_paper_ordering(
@@ -618,7 +618,7 @@ BASE_URL = 'http://export.arxiv.org/api/query?'
 
 # Pull Daily (arxiv updates 20:00 EST)
 @periodic_task(
-    run_every=crontab(minute='45', hour='1'),
+    run_every=crontab(),
     priority=2,
     options={'queue': f'{APP_ENV}_auotpull_queue'}
 )
