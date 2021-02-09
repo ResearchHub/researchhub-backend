@@ -708,7 +708,9 @@ def pull_papers(start=0):
                         for link in entry.links:
                             try:
                                 if link.title == 'pdf':
-                                    paper.pdf_url = link.href
+                                    pdf_url = get_redirect_url(link.href)
+                                    if pdf_url:
+                                        paper.pdf_url = pdf_url
                                 if link.title == 'doi':
                                     paper.doi = link.href.split('doi.org/')[-1]
                             except AttributeError:
@@ -779,7 +781,7 @@ NUM_DUP_STOP = 30
 # Pull Daily
 @periodic_task(
     run_every=crontab(minute=0, hour=12),
-    priority=8,
+    priority=1,
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
 def pull_crossref_papers(start=0):
