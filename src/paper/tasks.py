@@ -45,7 +45,8 @@ from paper.utils import (
     merge_paper_votes,
     get_cache_key,
     clean_abstract,
-    get_csl_item
+    get_csl_item,
+    get_redirect_url
 )
 from utils import sentry
 from utils.arxiv.categories import get_category_name, ARXIV_CATEGORIES, get_general_hub_name
@@ -692,6 +693,7 @@ def pull_papers(start=0):
                         paper.paper_publish_date = entry.published.split('T')[0]
                         paper.raw_authors = {'main_author': entry.author}
                         paper.external_source = 'Arxiv'
+                        paper.external_metadata = entry
 
                         try:
                             paper.raw_authors['main_author'] += ' (%s)' % entry.arxiv_affiliation
@@ -836,6 +838,8 @@ def pull_crossref_papers(start=0):
                     paper.paper_publish_date = get_crossref_issued_date(item)
                     paper.retrieved_from_external_source = True
                     paper.external_source = item.get('container-title', ['Crossref'])
+                    paper.external_metadata = item
+
                     if len(paper.external_source) > 1:
                         paper.external_source = paper.external_source[0]
                     paper.publication_type = item['type']
@@ -860,7 +864,7 @@ def pull_crossref_papers(start=0):
                                 author_name.append(author['family'])
                             author_name = ' '.join(author_name)
                             if author_name:
-                                if i == 0: 
+                                if i == 0:
                                     paper.raw_authors['main_author'] = author_name
                                 else:
                                     if 'other_authors' not in paper.raw_authors:
@@ -868,7 +872,9 @@ def pull_crossref_papers(start=0):
                                     else:
                                         paper.raw_authors['other_authors'].append(author_name)
                     if 'link' in item and item['link']:
-                        paper.pdf_url = item['link'][0]['URL']
+                        pdf_url = get_redirect_url(item['link'][0]['URL'])
+                        if check_url_contains_pdf(pdf_url):
+                            paper.pdf_url = pdf_url
                     if 'subject' in item:
                         for subject_name in item['subject']:
                             hub = Hub.objects.filter(name__iexact=subject_name).first()

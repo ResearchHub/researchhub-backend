@@ -234,6 +234,7 @@ class Paper(models.Model):
         blank=True,
         help_text='PDF availability in Unpaywall OA Location format.'
     )
+    external_metadata = JSONField(null=True)
 
     purchases = GenericRelation(
         'purchase.Purchase',

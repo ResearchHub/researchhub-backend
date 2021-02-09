@@ -350,6 +350,21 @@ def get_pdf_from_url(url):
     return pdf
 
 
+def get_redirect_url(url):
+    response = http_request(methods.GET, url, allow_redirects=False)
+    status_code = response.status_code
+    if status_code == 301 or status_code == 302:
+        headers = response.headers
+        location = headers.get('Location')
+        if location:
+            return location
+        else:
+            return None
+    elif status_code == 200:
+        return url
+    return None
+
+
 def fitz_extract_xobj(file_path):
     src = fitz.open(file_path)  # open input
     doc = fitz.open()  # output file
