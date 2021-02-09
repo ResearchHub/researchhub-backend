@@ -592,8 +592,10 @@ def reset_cache(hub_ids, context, meta):
     from paper.tasks import preload_hub_papers
     http_meta = {}
     if meta:
-        http_meta['SERVER_NAME'] = meta.get('SERVER_NAME')
-        http_meta['SERVER_PORT'] = meta.get('SERVER_PORT')
+        for key, value in meta.items():
+            value_type = type(value)
+            if value_type is str or value_type is int:
+                http_meta[key] = value
 
     hub_ids_list = add_default_hub(hub_ids)
     for hub in hub_ids_list:
