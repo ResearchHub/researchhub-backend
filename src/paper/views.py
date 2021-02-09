@@ -806,6 +806,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def get_hub_papers(self, request):
         subscribed_hubs = request.GET.get('subscribed_hubs', False)
+        external_source = request.GET.get('external_source', False)
         is_anonymous = request.user.is_anonymous
         if subscribed_hubs and not is_anonymous:
             return self.subscribed_hub_papers(request)
@@ -823,7 +824,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         hub_id = request.GET.get('hub_id', 0)
 
         cache_hit = None
-        if page_number == 1 and 'removed' not in ordering:
+        if page_number == 1 and 'removed' not in ordering and not external_source:
             time_difference = end_date - start_date
             cache_pk = ''
             if time_difference.days > 365:
