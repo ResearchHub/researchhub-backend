@@ -843,7 +843,10 @@ def pull_crossref_papers(start=0):
                     paper.external_metadata = item
 
                     if len(paper.external_source) > 1:
-                        paper.external_source = paper.external_source[0]
+                        external_source = paper.external_source[0]
+                        if type(external_source) is list:
+                            external_source = external_source[0]
+                        paper.external_source = external_source
                     paper.publication_type = item['type']
                     if 'abstract' in item:
                         paper.abstract = clean_abstract(item['abstract'])
