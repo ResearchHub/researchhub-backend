@@ -716,7 +716,10 @@ def pull_papers(start=0):
                             except AttributeError:
                                 pass
 
+                        score = paper.calculate_score()
+                        paper.score = score
                         paper.save()
+                        paper.calculate_hot_score()
 
                         celery_calculate_paper_twitter_score.apply_async(
                             (paper.id,),
@@ -883,7 +886,10 @@ def pull_crossref_papers(start=0):
                             hub = Hub.objects.filter(name__iexact=subject_name).first()
                             if hub:
                                 paper.hubs.add(hub)
+                    score = paper.calculate_score()
+                    paper.score = score
                     paper.save()
+                    paper.calculate_hot_score()
                     celery_calculate_paper_twitter_score.apply_async(
                         (paper.id,),
                         priority=5,
