@@ -10,6 +10,7 @@ from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.decorators import action
 
 from purchase.models import Balance
 from reputation.exceptions import WithdrawalError
@@ -54,6 +55,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         user = request.user
         amount = decimal.Decimal(request.data['amount'])
+        transaction_fee = request.data.get('transaction_fee', 100)
         to_address = request.data.get('to_address')
 
         valid, message = self._check_meets_withdrawal_minimum(amount)
@@ -63,9 +65,15 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             valid, message = self._check_withdrawal_interval(user, to_address)
         if valid:
             valid, message = self._check_withdrawal_time_limit(to_address, user)
+
+        if valid:
+            valid, message, amount = self._check_withdrawal_amount(
+                amount,
+                transaction_fee
+            )
         if valid:
             try:
-                
+
                 withdrawal = Withdrawal.objects.create(
                     user=user,
                     token_address=WEB3_RSC_ADDRESS,
@@ -90,6 +98,20 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         resp = super().list(request)
         resp.data['user'] = UserSerializer(request.user, context={'user': request.user}).data
         return resp
+
+    @action(detail=False, methods=['get'])
+    def transaction_fee(self, request):
+        amount = request.query_params.get('amount', 1)
+        """
+        rsc_to_usd_url = 'https://api.coinbase.com/v2/prices/RSC-USD/spot'
+        eth_to_usd_url = 'https://api.coinbase.com/v2/prices/ETH-USD/spot'
+        rsc_price = requests.get(rsc_to_usd_url).json()['data']['amount']
+        eth_price = requests.get(eth_to_usd_url).json()['data']['amount']
+        rsc_to_eth_ratio = rsc_price / eth_price
+        return math.ceil(amount * rsc_to_eth_ratio)
+        """
+
+        return Response(100, status=200)
 
     def _create_balance_record(self, withdrawal, amount):
         source_type = ContentType.objects.get_for_model(withdrawal)
@@ -153,7 +175,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 "You're limited to 1 withdrawal every 2 weeks."
             )
             return (False, message)
-        
+
         return (True, None)
 
     def _check_meets_withdrawal_minimum(self, balance):
@@ -204,7 +226,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
                 if valid and last_withdrawal_tx:
                     return (True, None)
-                
+
                 time_since_withdrawal = last_withdrawal.created_date - time_ago
                 return (False, "The next time you're able to withdraw is in {} days".format(time_since_withdrawal.days))
             else:
@@ -213,3 +235,13 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 return (False, "The next time you're able to withdraw is in {} minutes".format(minutes))
 
         return (True, None)
+
+    def _check_withdrawal_amount(self, amount, transaction_fee):
+        if transaction_fee <= 0:
+            return (False, "Transaction fee can't be zero", None)
+
+        net_amount = amount - transaction_fee
+        if amount - transaction_fee < 0:
+            return (False, "Invalid withdrawal", None)
+
+        return True, None, net_amount
