@@ -691,20 +691,28 @@ def pull_papers(start=0):
                         paper.title = entry.title
                         paper.abstract = clean_abstract(entry.summary)
                         paper.paper_publish_date = entry.published.split('T')[0]
-                        paper.raw_authors = {'main_author': entry.author}
                         paper.external_source = 'Arxiv'
                         paper.external_metadata = entry
 
-                        try:
-                            paper.raw_authors['main_author'] += ' (%s)' % entry.arxiv_affiliation
-                        except AttributeError:
-                            pass
+                        authors = [entry.author]
+                        authors += [author.name for author in entry.authors]
+                        raw_authors = []
 
-                        try:
-                            paper.raw_authors['other_authors'] = [author.name for author in entry.authors]
-                        except AttributeError:
-                            pass
+                        for author in authors:
+                            full_name = author.split(' ')
+                            if len(full_name) > 1:
+                                raw_authors.append({
+                                    'first_name': full_name[0],
+                                    'last_name': full_name[-1]
+                                })
+                            else:
+                                raw_authors.append({
+                                    'first_name': full_name,
+                                    'last_name': ''
+                                })
+                        paper.raw_authors = raw_authors
 
+                        pdf_url = ''
                         for link in entry.links:
                             try:
                                 if link.title == 'pdf':
@@ -720,6 +728,13 @@ def pull_papers(start=0):
                         paper.score = score
                         paper.save()
                         paper.calculate_hot_score()
+
+                        if pdf_url:
+                            download_pdf.apply_async(
+                                (paper.id,),
+                                priority=3,
+                                countdown=7
+                            )
 
                         celery_calculate_paper_twitter_score.apply_async(
                             (paper.id,),
@@ -862,21 +877,19 @@ def pull_crossref_papers(start=0):
                             continue
                     if 'author' in item:
                         paper.raw_authors = {}
+                        raw_authors = []
                         for i, author in enumerate(item['author']):
-                            author_name = []
-                            if 'given' in author:
-                                author_name.append(author['given'])
-                            if 'family' in author:
-                                author_name.append(author['family'])
-                            author_name = ' '.join(author_name)
-                            if author_name:
-                                if i == 0:
-                                    paper.raw_authors['main_author'] = author_name
-                                else:
-                                    if 'other_authors' not in paper.raw_authors:
-                                        paper.raw_authors['other_authors'] = []
-                                    else:
-                                        paper.raw_authors['other_authors'].append(author_name)
+                            given = author.get('given')
+                            family = author.get('family')
+                            if given and family:
+                                raw_authors.append({
+                                    'last_name': family,
+                                    'first_name': given
+                                })
+                        if raw_authors:
+                            paper.raw_authors = raw_authors
+
+                    pdf_url = ''
                     if 'link' in item and item['link']:
                         pdf_url = get_redirect_url(item['link'][0]['URL'])
                         if check_url_contains_pdf(pdf_url):
@@ -895,6 +908,13 @@ def pull_crossref_papers(start=0):
                         priority=5,
                         countdown=15
                     )
+
+                    if pdf_url:
+                        download_pdf.apply_async(
+                            (paper.id,),
+                            priority=3,
+                            countdown=7
+                        )
                 else:
                     if num_duplicates > NUM_DUP_STOP:
                         return
