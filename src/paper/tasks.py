@@ -560,6 +560,8 @@ def preload_hub_papers(
     http_req = HttpRequest()
     if meta:
         http_req.META = meta
+        if 'REQUEST_PATH' in meta.keys():
+            http_req.path = meta['REQUEST_PATH']
     else:
         http_req.META = {'SERVER_NAME': 'localhost', 'SERVER_PORT': 80}
     paper_view.request = Request(http_req)
