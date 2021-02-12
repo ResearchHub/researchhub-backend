@@ -45,7 +45,8 @@ class Hub(models.Model):
     is_locked = models.BooleanField(default=False)
     subscribers = models.ManyToManyField(
         'user.User',
-        related_name='subscribed_hubs'
+        related_name='subscribed_hubs',
+        through='HubMembership'
     )
     category = models.ForeignKey(
         HubCategory,
@@ -71,7 +72,7 @@ class Hub(models.Model):
         self.name = self.name.lower()
         self.slugify()
         return super(Hub, self).save(*args, **kwargs)
-    
+
     def get_subscriber_count(self):
         return self.subscriber_count
 
@@ -110,3 +111,11 @@ class Hub(models.Model):
     def unlock(self):
         self.is_locked = False
         self.save(update_fields=['is_locked'])
+
+
+class HubMembership(models.Model):
+    user = models.ForeignKey('user.User', on_delete=models.CASCADE)
+    hub = models.ForeignKey(Hub, on_delete=models.CASCADE)
+
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
