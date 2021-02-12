@@ -850,7 +850,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         context['include_wallet'] = False
 
         if not cache_hit and page_number == 1:
-            reset_cache([hub_id], context, request.META)
+            meta = {**request.META}
+            meta['REQUEST_PATH'] = request.path
+            reset_cache([hub_id], context,  meta)
 
         papers = self._get_filtered_papers(hub_id, ordering)
         order_papers = self.calculate_paper_ordering(
