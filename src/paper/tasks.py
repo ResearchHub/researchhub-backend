@@ -48,6 +48,7 @@ from paper.utils import (
     get_csl_item,
     get_redirect_url
 )
+from hub.utils import scopus_to_rh_map
 from utils import sentry
 from utils.arxiv.categories import get_category_name, ARXIV_CATEGORIES, get_general_hub_name
 from utils.crossref import get_crossref_issued_date
@@ -898,9 +899,8 @@ def pull_crossref_papers(start=0):
                             paper.pdf_url = pdf_url
                     if 'subject' in item:
                         for subject_name in item['subject']:
-                            if 'General' in subject_name:
-                                subject_name = subject_name.lstrip('General ')
-                            hub = Hub.objects.filter(name__iexact=subject_name).first()
+                            rh_key = scopus_to_rh_map[subject_name]
+                            hub = Hub.objects.filter(name__iexact=rh_key).first()
                             if hub:
                                 paper.hubs.add(hub)
                     score = paper.calculate_score()
