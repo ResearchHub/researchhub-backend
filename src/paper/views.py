@@ -171,8 +171,8 @@ class PaperViewSet(viewsets.ModelViewSet):
         else:
             queryset = self.queryset.filter(is_removed=False)
 
-        if ordering == 'newest' and not include_autopull:
-            queryset = queryset.filter(uploaded_by__isnull=False)
+        # if ordering == 'newest' and not include_autopull:
+        #     queryset = queryset.filter(uploaded_by__isnull=False)
 
         user = self.request.user
         if user.is_staff:
