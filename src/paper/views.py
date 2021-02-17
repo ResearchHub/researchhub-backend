@@ -886,7 +886,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         )
         ordering = self._set_hub_paper_ordering(request)
         qs = self.get_queryset(include_autopull=True)
-        papers = qs.filter(hubs__in=hubs)
+        papers = qs.filter(hubs__in=hubs).distinct()
 
         feed_type = 'subscribed'
         if papers.count() < 1:
