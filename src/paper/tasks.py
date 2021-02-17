@@ -818,7 +818,7 @@ def pull_crossref_papers(start=0):
     offset = 0
     filters = {
         'type': 'journal-article',
-        'from-pub-date': (datetime.now().date() - timedelta(days=1)).strftime('%Y-%m-%d'),
+        'from-pub-date': (datetime.now().date() - timedelta(days=2)).strftime('%Y-%m-%d'),
         'until-pub-date': datetime.now().date().strftime('%Y-%m-%d'),
     }
 
@@ -876,7 +876,7 @@ def pull_crossref_papers(start=0):
                         else:
                             # paper.delete()
                             paper.is_removed = True
-                            continue
+
                     if 'author' in item:
                         paper.raw_authors = {}
                         raw_authors = []
@@ -898,6 +898,8 @@ def pull_crossref_papers(start=0):
                             paper.pdf_url = pdf_url
                     if 'subject' in item:
                         for subject_name in item['subject']:
+                            if 'General' in subject_name:
+                                subject_name = subject_name.lstrip('General ')
                             hub = Hub.objects.filter(name__iexact=subject_name).first()
                             if hub:
                                 paper.hubs.add(hub)
