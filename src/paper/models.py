@@ -1,5 +1,7 @@
 import math
 import requests
+import datetime
+import pytz
 import regex as re
 
 from django.contrib.contenttypes.fields import GenericRelation
@@ -396,6 +398,7 @@ class Paper(models.Model):
             amount__gt=0
         )
         boost_exists = boosts.exists()
+        today = datetime.datetime.now(tz=pytz.utc)
 
         if self.score >= 0 or boost_exists:
             ALGO_START_UNIX = 1575199677
@@ -415,7 +418,13 @@ class Paper(models.Model):
                 boost_amount = BOOST_WEIGHT * math.log(boost_amount, 10)
             else:
                 boost_amount = 0
-                uploaded_date = self.uploaded_date.timestamp()
+                uploaded_date = self.uploaded_date
+
+                if (today - uploaded_date).days >= 7:
+                    uploaded_date = uploaded_date.timestamp() * 0.90
+                else:
+                    uploaded_date = uploaded_date.timestamp()
+
                 vote_avg_epoch = self.votes.aggregate(
                     avg=Avg(
                         Extract('created_date', 'epoch'),
