@@ -421,16 +421,19 @@ class Paper(models.Model):
                 uploaded_date = self.uploaded_date
 
                 if (today - uploaded_date).days >= 7:
-                    uploaded_date = uploaded_date.timestamp() * 0.90
+                    uploaded_date = uploaded_date.timestamp() * 0.95
                 else:
                     uploaded_date = uploaded_date.timestamp()
 
-                vote_avg_epoch = self.votes.aggregate(
-                    avg=Avg(
-                        Extract('created_date', 'epoch'),
-                        output_field=models.IntegerField()
-                    )
-                )['avg'] or 0
+                if self.votes.exists():
+                    vote_avg_epoch = self.votes.aggregate(
+                        avg=Avg(
+                            Extract('created_date', 'epoch'),
+                            output_field=models.IntegerField()
+                        )
+                    )['avg'] or 0
+                else:
+                    vote_avg_epoch = uploaded_date
 
                 avg_hrs = (
                     max(0, vote_avg_epoch - ALGO_START_UNIX)
