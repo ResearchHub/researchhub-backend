@@ -807,6 +807,7 @@ NUM_DUP_STOP = 30
 )
 def pull_crossref_papers(start=0):
     logger.info('Pulling Crossref Papers')
+    sentry.log_info('Pulling Crossref Papers')
 
     Paper = apps.get_model('paper.Paper')
     Hub = apps.get_model('hub.Hub')
