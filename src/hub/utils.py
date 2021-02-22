@@ -331,5 +331,6 @@ scopus_to_rh_map = {
     'Podiatry': 'Medicine',
     'Radiological and Ultrasound Technology': 'Medicie',
     'Respiratory Care': 'Medicine',
-    'Speech and Hearing': 'Medicine'
+    'Speech and Hearing': 'Medicine',
+    'Medical–Surgical': 'Medicine',
 }
