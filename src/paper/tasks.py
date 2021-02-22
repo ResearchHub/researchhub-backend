@@ -430,6 +430,37 @@ def celery_extract_twitter_comments(paper_id):
         return
 
 
+@app.task
+def celery_get_paper_citation_count(paper_id, doi):
+    if not doi:
+        return
+
+    Paper = apps.get_model('paper.Paper')
+    paper = Paper.objects.get(id=paper_id)
+
+    cr = Crossref()
+    filters = {'type': 'journal-article', 'doi': doi}
+    res = cr.works(filter=filters)
+
+    result_count = res['message']['total-results']
+    if result_count == 0:
+        return
+
+    citation_count = 0
+    for item in res['message']['items']:
+        keys = item.keys()
+        if 'DOI' not in keys:
+            continue
+        if item['DOI'] != doi:
+            continue
+
+        if 'is-referenced-by-count' in keys:
+            citation_count += item['is-referenced-by-count']
+
+    paper.citations = citation_count
+    paper.save()
+
+
 @app.task(queue=f'{APP_ENV}_autopull_queue')
 def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     if paper_id is None or iteration > 2:
