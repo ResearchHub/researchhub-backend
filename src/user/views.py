@@ -11,6 +11,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Sum, Q, F
+from django.db.models.functions import Coalesce
 from django.contrib.contenttypes.models import ContentType
 from utils.http import DELETE, POST, PATCH, PUT
 
@@ -192,25 +193,25 @@ class UserViewSet(viewsets.ModelViewSet):
                     is_suspended=False,
                     probable_spammer=False,
                 ).annotate(
-                    hub_rep=Sum(
+                    hub_rep=Coalesce(Sum(
                         'reputation_records__amount',
                         filter=Q(
                             **time_filter,
                             reputation_records__hubs__in=[hub_id],
                         ) & ~Q(reputation_records__distribution_type__in=['REFERRAL', 'REWARD', 'REFERRAL_APPROVED']),
-                    )
-                ).order_by(F('hub_rep').desc(nulls_last=True))
+                    ), 0)
+                ).order_by(F('hub_rep').desc(nulls_last=True), '-reputation')
             else:
                 items = User.objects.filter(
                     is_active=True,
                     is_suspended=False,
                     probable_spammer=False,
                 ).annotate(
-                    hub_rep=Sum(
+                    hub_rep=Coalesce(Sum(
                         'reputation_records__amount',
                         filter=Q(**time_filter) & ~Q(reputation_records__distribution_type__in=['REFERRAL', 'REWARD', 'REFERRAL_APPROVED'])
-                    )
-                ).order_by(F('hub_rep').desc(nulls_last=True))
+                    ), 0)
+                ).order_by(F('hub_rep').desc(nulls_last=True), '-reputation')
         elif leaderboard_type == 'authors':
             serializerClass = AuthorSerializer
             items = Author.objects.filter(user__is_suspended=False).order_by('-author_score')
