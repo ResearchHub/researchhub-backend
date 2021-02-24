@@ -479,7 +479,7 @@ def celery_extract_pdf_sections(paper_id):
     if not file:
         return
 
-    path = f'pdf_cermine/{paper_id}/'
+    path = f'/tmp/pdf_cermine/{paper_id}/'
     filename = f'{paper_id}.pdf'
     extract_filename = f'{paper_id}.xml'
     file_path = f'{path}{filename}'
