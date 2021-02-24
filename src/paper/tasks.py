@@ -820,8 +820,8 @@ def pull_crossref_papers(start=0):
     offset = 0
     filters = {
         'type': 'journal-article',
-        'from-pub-date': (datetime.now().date() - timedelta(days=2)).strftime('%Y-%m-%d'),
-        'until-pub-date': datetime.now().date().strftime('%Y-%m-%d'),
+        'from-created-date': (datetime.now().date() - timedelta(days=2)).strftime('%Y-%m-%d'),
+        'until-created-date': datetime.now().date().strftime('%Y-%m-%d'),
     }
 
     while True:
