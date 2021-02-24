@@ -149,6 +149,8 @@ class UserViewSet(viewsets.ModelViewSet):
                 keyword = 'uploaded_date__gte'
             else:
                 keyword = 'paper_publish_date__gte'
+        elif leaderboard_type == 'users':
+            keyword = 'reputation_records__created_date__gte'
         else:
             keyword = 'created_date__gte'
 
