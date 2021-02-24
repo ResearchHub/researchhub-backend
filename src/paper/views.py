@@ -1,5 +1,6 @@
 import datetime
 
+from io import StringIO
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
@@ -865,6 +866,17 @@ class PaperViewSet(viewsets.ModelViewSet):
             }
         )
         return res
+
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[IsAuthenticatedOrReadOnly]
+    )
+    def pdf_extract_xml_string(self, request, pk=None):
+        paper = paper = self.get_object()
+        xml_bytes = paper.pdf_file_extract.read()
+        xml_string = xml_bytes.decode('utf8')
+        return Response(xml_string, status=status.HTTP_200_OK)
 
     def subscribed_hub_papers(self, request):
         feed_type = 'subscribed'

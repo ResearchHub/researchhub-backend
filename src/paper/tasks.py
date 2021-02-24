@@ -11,7 +11,6 @@ import urllib.request
 import feedparser
 import time
 
-from bs4 import BeautifulSoup
 from io import BytesIO
 from datetime import datetime, timedelta, timezone
 from subprocess import call
