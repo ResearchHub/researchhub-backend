@@ -875,7 +875,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     def pdf_extract_xml_string(self, request, pk=None):
         paper = paper = self.get_object()
         xml_bytes = paper.pdf_file_extract.read()
-        xml_string = xml_bytes.decode('utf8')
+        xml_string = xml_bytes.decode('utf8').replace('\n', '')
         return Response(xml_string, status=status.HTTP_200_OK)
 
     def subscribed_hub_papers(self, request):
