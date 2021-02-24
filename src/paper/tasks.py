@@ -11,6 +11,7 @@ import urllib.request
 import feedparser
 import time
 
+from bs4 import BeautifulSoup
 from io import BytesIO
 from datetime import datetime, timedelta, timezone
 from subprocess import call
@@ -504,9 +505,10 @@ def celery_extract_pdf_sections(paper_id):
         call(args)
 
         with open(extract_file_path) as f:
+            soup = BeautifulSoup(f, 'lxml')
             paper.pdf_file_extract.save(
                 extract_filename,
-                ContentFile(f.read().encode())
+                ContentFile(soup.prettify().encode())
             )
         paper.save()
         # with open(f'{path}{paper_id}.cermxml') as f:
