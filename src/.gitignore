@@ -25,5 +25,5 @@ static/
 backups/
 
 # Ignore Cermine PDF files
-# pdf_cermine/*
-# pdf_cermine/.DS_Store
+pdf_cermine/*
+pdf_cermine/.DS_Store
