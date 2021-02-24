@@ -11,6 +11,7 @@ import urllib.request
 import feedparser
 import time
 
+from bs4 import BeautifulSoup
 from io import BytesIO
 from datetime import datetime, timedelta, timezone
 from subprocess import call
@@ -106,6 +107,11 @@ def download_pdf(paper_id, retry=0):
             paper.file.save(filename, pdf)
             paper.save(update_fields=['file'])
             paper.extract_pdf_preview(use_celery=True)
+            celery_extract_pdf_sections.apply_async(
+                (paper_id,),
+                priority=4,
+                countdown=10
+            )
         except Exception as e:
             sentry.log_info(e)
             download_pdf.apply_async(
@@ -459,6 +465,58 @@ def celery_get_paper_citation_count(paper_id, doi):
 
     paper.citations = citation_count
     paper.save()
+
+
+@app.task
+def celery_extract_pdf_sections(paper_id):
+    if paper_id is None:
+        return
+
+    Paper = apps.get_model('paper.Paper')
+    paper = Paper.objects.get(id=paper_id)
+
+    file = paper.file
+    if not file:
+        return
+
+    path = f'pdf_cermine/{paper_id}/'
+    filename = f'{paper_id}.pdf'
+    extract_filename = f'{paper_id}.xml'
+    file_path = f'{path}{filename}'
+    extract_file_path = f'{path}{paper_id}.cermxml'
+    file_url = file.url
+
+    if not os.path.isdir(path):
+        os.mkdir(path)
+
+    try:
+        res = requests.get(file_url)
+        with open(file_path, 'wb+') as f:
+            f.write(res.content)
+
+        args = [
+            'java',
+            '-cp',
+            'cermine-impl-1.13-jar-with-dependencies.jar',
+            'pl.edu.icm.cermine.ContentExtractor',
+            '-path',
+            path,
+        ]
+        call(args)
+
+        with open(extract_file_path) as f:
+            paper.pdf_file_extract.save(
+                extract_filename,
+                ContentFile(f.read().encode())
+            )
+        paper.save()
+        # with open(f'{path}{paper_id}.cermxml') as f:
+        #     soup = BeautifulSoup(f, 'xml')
+    except Exception as e:
+        sentry.log_error(e)
+        print(e)
+    finally:
+        shutil.rmtree(path)
 
 
 @app.task(queue=f'{APP_ENV}_autopull_queue')
