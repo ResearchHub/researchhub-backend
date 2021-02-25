@@ -481,7 +481,7 @@ def celery_extract_pdf_sections(paper_id):
 
     path = f'/tmp/pdf_cermine/{paper_id}/'
     filename = f'{paper_id}.pdf'
-    extract_filename = f'{paper_id}.xml'
+    extract_filename = f'{paper_id}.html'
     file_path = f'{path}{filename}'
     extract_file_path = f'{path}{paper_id}.cermxml'
     file_url = file.url
@@ -506,9 +506,10 @@ def celery_extract_pdf_sections(paper_id):
 
         with open(extract_file_path) as f:
             soup = BeautifulSoup(f, 'lxml')
+            # soup.prettify().replace('\n', '').encode('utf8')
             paper.pdf_file_extract.save(
                 extract_filename,
-                ContentFile(soup.prettify().encode())
+                ContentFile(soup.encode())
             )
         paper.save()
         # with open(f'{path}{paper_id}.cermxml') as f:

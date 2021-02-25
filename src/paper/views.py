@@ -873,10 +873,12 @@ class PaperViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticatedOrReadOnly]
     )
     def pdf_extract_xml_string(self, request, pk=None):
-        paper = paper = self.get_object()
+        import base64
+        paper = self.get_object()
         xml_bytes = paper.pdf_file_extract.read()
-        xml_string = xml_bytes.decode('utf8').replace('\n', '')
-        return Response(xml_string, status=status.HTTP_200_OK)
+        b64_string = base64.b64encode(xml_bytes)
+        xml_string = xml_bytes.decode('utf8')
+        return Response(b64_string, status=status.HTTP_200_OK)
 
     def subscribed_hub_papers(self, request):
         feed_type = 'subscribed'
