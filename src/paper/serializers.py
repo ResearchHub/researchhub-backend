@@ -22,7 +22,8 @@ from paper.tasks import (
     download_pdf,
     add_references,
     add_orcid_authors,
-    celery_calculate_paper_twitter_score
+    celery_calculate_paper_twitter_score,
+    celery_extract_pdf_sections
 )
 from paper.utils import (
     check_pdf_title,
@@ -437,16 +438,22 @@ class PaperSerializer(BasePaperSerializer):
             sentry.log_info(e)
 
     def _add_file(self, paper, file):
+        paper_id = paper.id
         if type(file) is not str:
             paper.file = file
             paper.save(update_fields=['file'])
+            celery_extract_pdf_sections.apply_async(
+                (paper_id,),
+                priority=3,
+                countdown=15
+            )
             return
 
         if paper.url is not None:
             if not TESTING:
-                download_pdf.apply_async((paper.id,), priority=3, countdown=7)
+                download_pdf.apply_async((paper_id,), priority=3, countdown=7)
             else:
-                download_pdf(paper.id)
+                download_pdf(paper_id)
 
     def _add_url(self, file, validated_data):
         if check_file_is_url(file):

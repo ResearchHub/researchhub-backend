@@ -110,7 +110,7 @@ def download_pdf(paper_id, retry=0):
             celery_extract_pdf_sections.apply_async(
                 (paper_id,),
                 priority=4,
-                countdown=10
+                countdown=15
             )
         except Exception as e:
             sentry.log_info(e)
