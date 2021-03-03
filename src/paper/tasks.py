@@ -480,73 +480,34 @@ def handle_duplicate_doi(new_paper, doi):
     new_paper.delete()
 
 
-# @periodic_task(
-#     run_every=crontab(minute='*/30'),
-#     priority=2,
-#     options={'queue': APP_ENV}
-# )
-# TODO: Remove this completely?
+# Executes every 5 minutes
+@periodic_task(
+    run_every=crontab(minute='*/5'),
+    priority=3,
+    options={'queue': f'{APP_ENV}_core_queue'}
+)
 def celery_preload_hub_papers():
-    # hub_ids = Hub.objects.values_list('id', flat=True)
-    hub_ids = [0]
-    orderings = (
-        '-hot_score',
-        '-score',
-        '-discussed',
-        '-uploaded_date',
-    )
-    filter_types = (
-        'year',
-        'month',
-        'week',
-        'today',
-    )
+    from paper.serializers import HubPaperSerializer
+    context = {}
+    context['user_no_balance'] = True
+    Hub = apps.get_model('hub.Hub')
+    hubs = Hub.objects.iterator()
+    for hub in hubs:
+        hub_name = hub.slug
+        papers = hub.papers.get_queryset().order_by('-hot_score')[:10]
+        cache_key = get_cache_key(None, 'papers', pk=hub_name)
+        serializer = HubPaperSerializer(papers, many=True, context=context)
 
-    start_date_hour = 7
-    end_date = today = datetime.now()
-    for hub_id in hub_ids:
-        for ordering in orderings:
-            for filter_type in filter_types:
-                cache_pk = f'{hub_id}_{ordering}_{filter_type}'
-                if filter_type == 'year':
-                    td = timedelta(days=365)
-                elif filter_type == 'month':
-                    td = timedelta(days=30)
-                elif filter_type == 'week':
-                    td = timedelta(days=7)
-                else:
-                    td = timedelta(days=0)
-
-                cache_key = get_cache_key(None, 'hub', pk=cache_pk)
-                datetime_diff = today - td
-                year = datetime_diff.year
-                month = datetime_diff.month
-                day = datetime_diff.day
-                start_date = datetime(
-                    year,
-                    month,
-                    day,
-                    hour=start_date_hour
-                )
-
-                args = (
-                    1,
-                    start_date,
-                    end_date,
-                    ordering,
-                    hub_id,
-                    {},
-                    {},
-                    cache_key
-                )
-                preload_hub_papers(*args)
-                break
-            break
-        break
+        cache.set(
+            cache_key,
+            serializer.data,
+            timeout=60*6
+        )
+    return True
 
 
 @app.task
-def preload_hub_papers(
+def preload_trending_papers(
     page_number,
     start_date,
     end_date,
@@ -622,7 +583,7 @@ BASE_URL = 'http://export.arxiv.org/api/query?'
 
 # Pull Daily (arxiv updates 20:00 EST)
 @periodic_task(
-    run_every=crontab(),
+    run_every=crontab(minute=0, hour=12),
     priority=2,
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
