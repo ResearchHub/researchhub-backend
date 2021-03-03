@@ -1,7 +1,9 @@
+import json
 import datetime
+import base64
 
-from io import StringIO
 from django.core.cache import cache
+from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.db import IntegrityError
@@ -872,13 +874,36 @@ class PaperViewSet(viewsets.ModelViewSet):
         methods=['get'],
         permission_classes=[IsAuthenticatedOrReadOnly]
     )
-    def pdf_extract_xml_string(self, request, pk=None):
-        import base64
+    def pdf_extract(self, request, pk=None):
         paper = self.get_object()
-        xml_bytes = paper.pdf_file_extract.read()
-        b64_string = base64.b64encode(xml_bytes)
-        xml_string = xml_bytes.decode('utf8')
+        pdf_file = paper.pdf_file_extract
+        edited_file = paper.edited_file_extract
+
+        if not pdf_file.name:
+            return Response(status=404)
+
+        if edited_file.name:
+            edited_json = json.loads(edited_file.read())
+            return Response(edited_json, status=status.HTTP_200_OK)
+
+        html_bytes = paper.pdf_file_extract.read()
+        b64_string = base64.b64encode(html_bytes)
         return Response(b64_string, status=status.HTTP_200_OK)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[IsModeratorOrVerifiedAuthor]
+    )
+    def edit_file_extract(self, request, pk=None):
+        paper = self.get_object()
+        data = request.data['data']
+        filename = f'{paper.id}.json'
+        paper.edited_file_extract.save(
+            filename,
+            ContentFile(json.dumps(data).encode('utf8'))
+        )
+        return Response(status=status.HTTP_200_OK)
 
     def subscribed_hub_papers(self, request):
         feed_type = 'subscribed'
