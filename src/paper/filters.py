@@ -21,6 +21,7 @@ class PaperFilter(filters.FilterSet):
             'raw_authors',
             'external_metadata',
             'pdf_file_extract',
+            'edited_file_extract'
         ]
 
     def uploaded_by_author(self, queryset, name, value):
