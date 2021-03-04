@@ -892,12 +892,17 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         if ordering == '-hot_score' and page_number <= 1:
             papers = []
+            paper_ids = []
             for hub in hubs.iterator():
                 hub_name = hub.slug
                 cache_key = get_cache_key(None, 'papers', pk=hub_name)
                 cache_hit = cache.get(cache_key)
                 if cache_hit:
-                    papers += cache_hit
+                    for hit in cache_hit:
+                        paper_id = hit['id']
+                        if paper_id not in paper_ids:
+                            papers.append(hit)
+                            paper_ids.append(paper_id)
 
             if len(papers) < 1:
                 qs = self.get_queryset(include_autopull=True)
@@ -905,8 +910,9 @@ class PaperViewSet(viewsets.ModelViewSet):
                 if len(papers) < 1:
                     papers = self.get_queryset()
             else:
+                papers = list(set(papers))
                 papers = sorted(papers, key=lambda paper: -paper['hot_score'])
-                papers = papers[:15]
+                papers = papers[:10]
                 next_page = request.build_absolute_uri()
                 next_page = replace_query_param(next_page, 'page', 2)
                 res = {
