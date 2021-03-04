@@ -914,7 +914,10 @@ class PaperViewSet(viewsets.ModelViewSet):
                 papers = sorted(papers, key=lambda paper: -paper['hot_score'])
                 papers = papers[:10]
                 next_page = request.build_absolute_uri()
-                next_page = replace_query_param(next_page, 'page', 2)
+                if len(papers) < 10:
+                    next_page = None
+                else:
+                    next_page = replace_query_param(next_page, 'page', 2)
                 res = {
                     'count': len(papers),
                     'next': next_page,
