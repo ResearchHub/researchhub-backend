@@ -486,13 +486,16 @@ def handle_duplicate_doi(new_paper, doi):
     priority=3,
     options={'queue': f'{APP_ENV}_core_queue'}
 )
-def celery_preload_hub_papers():
+def celery_preload_hub_papers(hub_ids=None):
     from paper.serializers import HubPaperSerializer
     context = {}
     context['user_no_balance'] = True
     Hub = apps.get_model('hub.Hub')
-    hubs = Hub.objects.iterator()
-    for hub in hubs:
+    hubs = Hub.objects.all()
+    if hub_ids:
+        hubs = hubs.filter(id__in=hub_ids)
+
+    for hub in hubs.iterator():
         hub_name = hub.slug
         papers = hub.papers.get_queryset().order_by('-hot_score')[:10]
         cache_key = get_cache_key(None, 'papers', pk=hub_name)
