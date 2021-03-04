@@ -910,7 +910,6 @@ class PaperViewSet(viewsets.ModelViewSet):
                 if len(papers) < 1:
                     papers = self.get_queryset()
             else:
-                papers = list(set(papers))
                 papers = sorted(papers, key=lambda paper: -paper['hot_score'])
                 papers = papers[:10]
                 next_page = request.build_absolute_uri()
