@@ -909,6 +909,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                 papers = qs.filter(hubs__in=hubs).distinct()
                 if len(papers) < 1:
                     papers = self.get_queryset()
+                    feed_type = 'all'
             else:
                 papers = sorted(papers, key=lambda paper: -paper['hot_score'])
                 papers = papers[:10]
