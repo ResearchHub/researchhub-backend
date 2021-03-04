@@ -589,7 +589,7 @@ def reset_paper_cache(cache_key, data):
 
 
 def reset_cache(hub_ids, context, meta):
-    from paper.tasks import preload_hub_papers
+    from paper.tasks import preload_trending_papers, celery_preload_hub_papers
     http_meta = {}
     if meta:
         for key, value in meta.items():
@@ -602,7 +602,7 @@ def reset_cache(hub_ids, context, meta):
         start_date = 0
         end_date = 0
 
-        preload_hub_papers.apply_async(
+        preload_trending_papers.apply_async(
             (
                 1,
                 start_date,
@@ -613,6 +613,10 @@ def reset_cache(hub_ids, context, meta):
             ),
             priority=10
         )
+    celery_preload_hub_papers.apply_async(
+        (hub_ids,),
+        priority=10
+    )
 
 
 def get_cache_key(request, subtype, pk=None):

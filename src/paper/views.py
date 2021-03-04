@@ -17,6 +17,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.pagination import LimitOffsetPagination
+from rest_framework.utils.urls import replace_query_param
 from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly,
     IsAuthenticated
@@ -865,17 +866,20 @@ class PaperViewSet(viewsets.ModelViewSet):
         serializer = HubPaperSerializer(page, many=True, context=context)
         serializer_data = serializer.data
 
-        return self.get_paginated_response(
+        res = self.get_paginated_response(
             {
                 'data': serializer_data,
                 'no_results': False,
                 'feed_type': 'all'
             }
         )
+        return res
 
     def subscribed_hub_papers(self, request):
+        feed_type = 'subscribed'
         user = request.user
         hubs = user.subscribed_hubs.all()
+        page_number = int(request.GET['page'])
         start_date = datetime.datetime.fromtimestamp(
             int(request.GET.get('start_date__gte', 0)),
             datetime.timezone.utc
@@ -885,10 +889,50 @@ class PaperViewSet(viewsets.ModelViewSet):
             datetime.timezone.utc
         )
         ordering = self._set_hub_paper_ordering(request)
-        qs = self.get_queryset(include_autopull=True)
-        papers = qs.filter(hubs__in=hubs).distinct()
 
-        feed_type = 'subscribed'
+        if ordering == '-hot_score' and page_number <= 1:
+            papers = []
+            paper_ids = []
+            for hub in hubs.iterator():
+                hub_name = hub.slug
+                cache_key = get_cache_key(None, 'papers', pk=hub_name)
+                cache_hit = cache.get(cache_key)
+                if cache_hit:
+                    for hit in cache_hit:
+                        paper_id = hit['id']
+                        if paper_id not in paper_ids:
+                            papers.append(hit)
+                            paper_ids.append(paper_id)
+
+            if len(papers) < 1:
+                qs = self.get_queryset(include_autopull=True)
+                papers = qs.filter(hubs__in=hubs).distinct()
+                if len(papers) < 1:
+                    papers = self.get_queryset()
+                    feed_type = 'all'
+            else:
+                papers = sorted(papers, key=lambda paper: -paper['hot_score'])
+                papers = papers[:10]
+                next_page = request.build_absolute_uri()
+                if len(papers) < 10:
+                    next_page = None
+                else:
+                    next_page = replace_query_param(next_page, 'page', 2)
+                res = {
+                    'count': len(papers),
+                    'next': next_page,
+                    'results': {
+                        'data': papers,
+                        'no_results': False,
+                        'feed_type': feed_type
+                    }
+                }
+                return Response(res, status=status.HTTP_200_OK)
+
+        else:
+            qs = self.get_queryset(include_autopull=True)
+            papers = qs.filter(hubs__in=hubs).distinct()
+
         if papers.count() < 1:
             feed_type = 'all'
             papers = self.get_queryset()
