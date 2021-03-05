@@ -897,7 +897,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     )
     def edit_file_extract(self, request, pk=None):
         paper = self.get_object()
-        data = request.data['data']
+        data = request.data
         filename = f'{paper.id}.json'
         paper.edited_file_extract.save(
             filename,
