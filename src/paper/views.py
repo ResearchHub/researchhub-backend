@@ -74,7 +74,7 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from user.models import Author
 from utils.http import GET, POST, check_url_contains_pdf
-from utils.sentry import log_error
+from utils.sentry import log_error, log_info
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from utils.siftscience import events_api, decisions_api
@@ -890,9 +890,8 @@ class PaperViewSet(viewsets.ModelViewSet):
         )
         ordering = self._set_hub_paper_ordering(request)
 
-        if ordering == '-hot_score' and page_number <= 1:
-            papers = []
-            paper_ids = []
+        if ordering == '-hot_score' and page_number == 1:
+            papers = {}
             for hub in hubs.iterator():
                 hub_name = hub.slug
                 cache_key = get_cache_key(None, 'papers', pk=hub_name)
@@ -900,16 +899,13 @@ class PaperViewSet(viewsets.ModelViewSet):
                 if cache_hit:
                     for hit in cache_hit:
                         paper_id = hit['id']
-                        if paper_id not in paper_ids:
-                            papers.append(hit)
-                            paper_ids.append(paper_id)
+                        if paper_id not in papers:
+                            papers[paper_id] = hit
+            papers = list(papers.values())
 
             if len(papers) < 1:
                 qs = self.get_queryset(include_autopull=True)
                 papers = qs.filter(hubs__in=hubs).distinct()
-                if len(papers) < 1:
-                    papers = self.get_queryset()
-                    feed_type = 'all'
             else:
                 papers = sorted(papers, key=lambda paper: -paper['hot_score'])
                 papers = papers[:10]
@@ -934,8 +930,10 @@ class PaperViewSet(viewsets.ModelViewSet):
             papers = qs.filter(hubs__in=hubs).distinct()
 
         if papers.count() < 1:
+            log_info('No hub papers found, retrieiving trending papers')
             feed_type = 'all'
             papers = self.get_queryset()
+
         context = self.get_serializer_context()
         context['user_no_balance'] = True
         context['exclude_promoted_score'] = True
