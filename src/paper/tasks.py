@@ -434,6 +434,8 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
 
     remaining, seconds = get_twitter_search_rate_limit()
     if remaining < 1:
+        # If we hit the rate-limit, call the task again with
+        # amount of seconds left of the rate-limit
         celery_calculate_paper_twitter_score.apply_async(
             (paper_id, iteration),
             priority=5,
@@ -457,7 +459,7 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
 
     celery_calculate_paper_twitter_score.apply_async(
         (paper_id, iteration + 1),
-        priority=5,
+        priority=5 + iteration + 1,
         countdown=86400 * (iteration + 1)
     )
     score = paper.calculate_score()
