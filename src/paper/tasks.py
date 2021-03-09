@@ -658,6 +658,7 @@ def pull_papers(start=0):
                         paper.alternate_ids = {'arxiv': entry.id.split('/abs/')[-1]}
 
                         paper.title = entry.title
+                        paper.paper_title = entry.title
                         paper.abstract = clean_abstract(entry.summary)
                         paper.paper_publish_date = entry.published.split('T')[0]
                         paper.external_source = 'Arxiv'
