@@ -17,20 +17,22 @@ api = twitter.Api(
 
 
 def get_twitter_results(query):
+    # To filter out retweets: add -filter:retweets to filters
     results = api.GetSearch(
-        term=query
+        term=query,
+        count=100
     )
     return results
 
 
-def get_twitter_url_results(url, filters=' -filter:retweets'):
+def get_twitter_url_results(url, filters=''):
     term = f'{url}'
     if filters:
         term += filters
     return get_twitter_results(term)
 
 
-def get_twitter_doi_results(doi, filters=' -filter:retweets'):
+def get_twitter_doi_results(doi, filters=''):
     term = f'{doi}'
     if filters:
         term += filters
