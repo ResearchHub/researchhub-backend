@@ -441,7 +441,7 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
             priority=5,
             countdown=seconds + 5
         )
-        return False
+        return False, remaining, seconds
 
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
@@ -455,7 +455,7 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
             priority=5,
             countdown=seconds + 5
         )
-        return False
+        return False, remaining, seconds
 
     celery_calculate_paper_twitter_score.apply_async(
         (paper_id, iteration + 1),
