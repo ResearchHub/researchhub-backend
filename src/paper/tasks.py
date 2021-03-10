@@ -166,6 +166,9 @@ def add_orcid_authors(paper_id):
             logging.info('Did not find paper identifier to give to ORCID API')
 
     paper.authors.add(*orcid_authors)
+    if orcid_authors:
+        paper_cache_key = get_cache_key(None, 'paper', pk=paper_id)
+        cache.delete(paper_cache_key)
     for author in paper.authors.iterator():
         Wallet.objects.get_or_create(author=author)
     logging.info(f'Finished adding orcid authors to paper {paper.id}')
@@ -802,6 +805,12 @@ def pull_papers(start=0):
                             countdown=15
                         )
 
+                        add_orcid_authors.apply_async(
+                            (paper.id,),
+                            priority=4,
+                            countdown=10
+                        )
+
                         # If not published in the past week we're done
                         if Paper.objects.get(pk=paper.id).paper_publish_date < datetime.now().date() - timedelta(days=7):
                             return
@@ -972,6 +981,11 @@ def pull_crossref_papers(start=0):
                         (paper.id,),
                         priority=5,
                         countdown=15
+                    )
+                    add_orcid_authors.apply_async(
+                        (paper.id,),
+                        priority=4,
+                        countdown=10
                     )
 
                     if pdf_url:
