@@ -12,7 +12,6 @@ import feedparser
 import time
 
 from io import BytesIO
-from slugify import slugify
 from datetime import datetime, timedelta, timezone
 from subprocess import call
 from PIL import Image
@@ -27,6 +26,7 @@ from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
 from django.http.request import HttpRequest
+from django.utils.text import slugify
 from rest_framework.request import Request
 from discussion.models import Thread, Comment
 from purchase.models import Wallet

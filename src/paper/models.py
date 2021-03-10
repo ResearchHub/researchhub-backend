@@ -71,6 +71,7 @@ class Paper(models.Model):
 
     uploaded_date = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_date = models.DateTimeField(auto_now=True)
+    twitter_score_updated_date = models.DateTimeField(null=True)
     is_public = models.BooleanField(
         default=True,
         help_text=HELP_TEXT_IS_PUBLIC
@@ -503,6 +504,7 @@ class Paper(models.Model):
             }.values())
             result_ids |= title_results
 
+        self.twitter_score_updated_date = datetime.datetime.now()
         self.twitter_score = len(result_ids) + 1
         self.save()
         return self.twitter_score
