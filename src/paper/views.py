@@ -799,6 +799,8 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         elif 'removed' in ordering:
             order_papers = papers.order_by('-uploaded_date')
+        elif 'twitter_score' in ordering:
+            order_papers = papers.order_by('-twitter_score')
         else:
             order_papers = papers.order_by(ordering)
 
