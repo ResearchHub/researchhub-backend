@@ -478,21 +478,29 @@ class Paper(models.Model):
         doi = self.doi
 
         if doi:
-            doi_results = set([
-                res.id for res in get_twitter_doi_results(self.doi, filters='')
-            ])
+            doi_results = set({
+                res.user.name: res.id for res in get_twitter_doi_results(
+                    self.doi,
+                    filters=''
+                )
+            }.values())
             result_ids |= doi_results
 
         if url:
-            url_results = set([
-                res.id for res in get_twitter_url_results(self.url, filters='')
-            ])
+            url_results = set({
+                res.user.name: res.id for res in get_twitter_url_results(
+                    self.url,
+                    filters=''
+                )
+            }.values())
             result_ids |= url_results
 
         if paper_title:
-            title_results = set([
-                res.id for res in get_twitter_results(self.paper_title)
-            ])
+            title_results = set({
+                res.user.name: res.id for res in get_twitter_results(
+                    self.paper_title
+                )
+            }.values())
             result_ids |= title_results
 
         self.twitter_score = len(result_ids) + 1
