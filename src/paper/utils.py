@@ -591,7 +591,6 @@ def reset_paper_cache(cache_key, data):
 def reset_cache(hub_ids, context, meta):
     from paper.tasks import preload_trending_papers, celery_preload_hub_papers
     http_meta = {}
-    print(meta)
     if meta:
         for key, value in meta.items():
             value_type = type(value)
