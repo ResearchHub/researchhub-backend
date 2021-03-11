@@ -50,12 +50,15 @@ from paper.utils import (
 )
 from hub.utils import scopus_to_rh_map
 from utils import sentry
-from utils.arxiv.categories import get_category_name, ARXIV_CATEGORIES, get_general_hub_name
+from utils.arxiv.categories import (
+    get_category_name,
+    ARXIV_CATEGORIES,
+    get_general_hub_name
+)
 from utils.crossref import get_crossref_issued_date
 from utils.twitter import (
     get_twitter_url_results,
     get_twitter_results,
-    get_twitter_search_rate_limit
 )
 from utils.http import check_url_contains_pdf
 
@@ -432,35 +435,24 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     if paper_id is None or iteration > 2:
         return
 
-    remaining, seconds = get_twitter_search_rate_limit()
-    if remaining < 1:
-        # If we hit the rate-limit, call the task again with
-        # amount of seconds left of the rate-limit
-        celery_calculate_paper_twitter_score.apply_async(
-            (paper_id, iteration),
-            priority=5,
-            countdown=seconds + 5
-        )
-        return False, remaining, seconds
-
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
 
     try:
         twitter_score = paper.calculate_twitter_score()
     except Exception as e:
-        remaining, seconds = get_twitter_search_rate_limit()
         celery_calculate_paper_twitter_score.apply_async(
             (paper_id, iteration),
             priority=5,
-            countdown=seconds + 5
+            countdown=300
         )
-        return False, remaining, seconds
+        return False
 
+    next_iteration = iteration + 1
     celery_calculate_paper_twitter_score.apply_async(
-        (paper_id, iteration + 1),
-        priority=5 + iteration + 1,
-        countdown=86400 * (iteration + 1)
+        (paper_id, next_iteration),
+        priority=5 + next_iteration,
+        countdown=86400 * next_iteration
     )
     score = paper.calculate_score()
     paper.score = score
@@ -470,6 +462,8 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
         paper.calculate_hot_score()
     paper_cache_key = get_cache_key(None, 'paper', pk=paper.id)
     cache.delete(paper_cache_key)
+
+    return True, score
 
 
 @app.task
