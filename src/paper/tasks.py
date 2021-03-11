@@ -471,7 +471,7 @@ def celery_get_paper_citation_count(paper_id, doi):
     paper.save()
 
 
-@app.task
+@app.task(queue=f'{APP_ENV}_cermine_queue')
 def celery_extract_pdf_sections(paper_id):
     if paper_id is None:
         return False, 'No Paper Id'
