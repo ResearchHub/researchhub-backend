@@ -25,7 +25,7 @@ from utils.message import send_email_message
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from paper.models import Vote, Paper
-from paper.utils import get_cache_key, reset_cache
+from paper.utils import get_cache_key
 
 
 class CustomPageLimitPagination(PageNumberPagination):
@@ -123,7 +123,6 @@ class HubViewSet(viewsets.ModelViewSet):
 
         hub.save(update_fields=['is_removed', 'paper_count', 'discussion_count'])
 
-        reset_cache([hub.id], {}, None)
         return Response(
             self.get_serializer(instance=hub).data,
             status=200

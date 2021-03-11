@@ -197,7 +197,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             request = args[0]
             hub_ids = list(request.POST['hubs'])
             context = self.get_serializer_context()
-            reset_cache(hub_ids, context, request.META)
             return response
         except IntegrityError as e:
             return self._get_integrity_error_response(e)
@@ -267,9 +266,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             self._send_created_location_ga_event(instance, request.user)
 
         hub_ids = request.data.get('hubs', [])
-        context = self.get_serializer_context()
         reset_paper_cache(cache_key, response.data)
-        reset_cache(hub_ids, context, request.META)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -337,8 +334,6 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper.save()
         censored_paper_cleanup.apply_async((paper.id,), priority=3)
 
-        context = self.get_serializer_context()
-        reset_cache(hub_ids, context, request.META)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -384,8 +379,6 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         hub_ids = list(paper.hubs.values_list('id', flat=True))
 
-        context = self.get_serializer_context()
-        reset_cache(hub_ids, context, request.META)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -552,8 +545,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(request, user, paper, Vote.UPVOTE)
 
-        context = self.get_serializer_context()
-        reset_cache(hub_ids, context, request.META)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -586,8 +577,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(request, user, paper, Vote.DOWNVOTE)
 
-        context = self.get_serializer_context()
-        reset_cache(hub_ids, context, request.META)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
