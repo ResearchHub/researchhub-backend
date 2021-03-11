@@ -597,8 +597,7 @@ def reset_cache(hub_ids, context, meta):
             if value_type is str or value_type is int:
                 http_meta[key] = value
 
-    hub_ids_list = add_default_hub(hub_ids)
-    for hub in hub_ids_list:
+    for hub in hub_ids:
         start_date = 0
         end_date = 0
 
