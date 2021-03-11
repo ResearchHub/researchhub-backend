@@ -97,29 +97,6 @@ class Biorxiv(Journal):
             sentry.log_error(e, message=pdf_url)
             return None
 
-    @classmethod
-    def journal_url_to_xml_url(cls, journal_url):
-        parts = journal_url.split(cls.journal_url_split_on)
-        protocol = parts[0]
-        uuid = parts[-1].replace('v1', '')
-        uuid = uuid.replace('.full', '')
-        doi, identifer = uuid.split('/')
-        year, month, day, paper_id = identifer.split('.')
-        base_url = f'{cls.host}/content/early/'
-        try:
-            xml_url = f'{protocol}{base_url}{year}/{month}/{day}/{identifer}.source.xml'
-            return xml_url
-        except Exception as e:
-            sentry.log_error(e, message=journal_url)
-            return None
-
-    @classmethod
-    def xml_url_to_html(cls, xml_url):
-        res = requests.get(xml_url)
-        if res.status_code != 200:
-            return False
-        return res
-
 
 class Nature(Journal):
     host = 'nature.com'
