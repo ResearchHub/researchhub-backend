@@ -476,6 +476,7 @@ def celery_extract_pdf_sections(paper_id):
         return
 
     Paper = apps.get_model('paper.Paper')
+    Figure = apps.get_model('paper.Figure')
     paper = Paper.objects.get(id=paper_id)
 
     file = paper.file
@@ -487,6 +488,7 @@ def celery_extract_pdf_sections(paper_id):
     extract_filename = f'{paper_id}.html'
     file_path = f'{path}{filename}'
     extract_file_path = f'{path}{paper_id}.cermxml'
+    images_path = f'{path}{paper_id}.images'
     file_url = file.url
 
     if not os.path.isdir(path):
@@ -509,14 +511,26 @@ def celery_extract_pdf_sections(paper_id):
 
         with open(extract_file_path) as f:
             soup = BeautifulSoup(f, 'lxml')
-            # soup.prettify().replace('\n', '').encode('utf8')
             paper.pdf_file_extract.save(
                 extract_filename,
                 ContentFile(soup.encode())
             )
         paper.save()
-        # with open(f'{path}{paper_id}.cermxml') as f:
-        #     soup = BeautifulSoup(f, 'xml')
+
+        figures = os.listdir(images_path)
+        for extracted_figure in figures:
+            extracted_figure_path = f'{images_path}/{extracted_figure}'
+            with open(extracted_figure_path, 'rb') as f:
+                extracted_figures = Figure.objects.filter(paper=paper)
+                if not extracted_figures.filter(
+                    file__contains=f.name,
+                    figure_type=Figure.FIGURE
+                ):
+                    Figure.objects.create(
+                        file=File(f),
+                        paper=paper,
+                        figure_type=Figure.FIGURE
+                    )
     except Exception as e:
         sentry.log_error(e)
         print(e)
