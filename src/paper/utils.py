@@ -591,13 +591,14 @@ def reset_paper_cache(cache_key, data):
 def reset_cache(hub_ids, context, meta):
     from paper.tasks import preload_trending_papers, celery_preload_hub_papers
     http_meta = {}
+    print(meta)
     if meta:
         for key, value in meta.items():
             value_type = type(value)
-            if value_type is str or value_type is int:
-                http_meta[key] = value
             if key == 'QUERY_STRING':
                 value = value.replace('&subscribed_hubs=true', '')
+            if value_type is str or value_type is int:
+                http_meta[key] = value
 
     for hub in hub_ids:
         start_date = 0
