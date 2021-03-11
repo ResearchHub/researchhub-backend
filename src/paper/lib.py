@@ -1,5 +1,3 @@
-import requests
-
 import utils.sentry as sentry
 
 # TODO: Create classes of url patterns to generalize this even further esp for

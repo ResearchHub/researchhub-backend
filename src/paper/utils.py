@@ -1,7 +1,5 @@
 import io
 import requests
-import boto3
-import math
 import fitz
 import jellyfish
 import nltk
@@ -23,9 +21,7 @@ from paper.lib import (
     journal_url_to_pdf
 )
 from researchhub.settings import (
-    CACHE_KEY_PREFIX,
-    AWS_ACCESS_KEY_ID,
-    AWS_SECRET_ACCESS_KEY
+    CACHE_KEY_PREFIX
 )
 from utils.http import (
     check_url_contains_pdf,
