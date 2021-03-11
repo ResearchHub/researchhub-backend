@@ -18,7 +18,6 @@ from discussion.models import (
 from paper.models import Paper
 from hub.models import Hub
 from paper.tasks import censored_paper_cleanup
-from paper.utils import reset_cache
 
 from discussion.models import (Thread, Comment, Reply)
 
@@ -45,8 +44,6 @@ def handle_spam_user_task(user_id):
         for rep in Reply.objects.filter(created_by=user):
             rep.remove_nested()
             rep.update_discussion_count()
-
-        reset_cache(hub_ids, {}, None)
 
 
 @app.task

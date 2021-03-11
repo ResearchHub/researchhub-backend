@@ -32,10 +32,6 @@ def update_purchases():
             )
             paper.calculate_hot_score()
 
-    hub_ids = []
-    context = {}
-    reset_cache(hub_ids, context, {})
-
 
 @app.task
 def send_support_email(
