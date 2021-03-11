@@ -499,7 +499,11 @@ def celery_preload_hub_papers(hub_ids=None):
 
     for hub in hubs.iterator():
         hub_name = hub.slug
-        papers = hub.papers.get_queryset().order_by('-hot_score')[:10]
+        papers = hub.papers.get_queryset().filter(
+            is_removed=False
+        ).order_by(
+            '-hot_score'
+        )[:10]
         cache_key = get_cache_key(None, 'papers', pk=hub_name)
         serializer = HubPaperSerializer(papers, many=True, context=context)
 
