@@ -1,6 +1,7 @@
 from psycopg2.errors import UniqueViolation
 
 import fitz
+import codecs
 import logging
 import os
 import re
@@ -499,6 +500,7 @@ def celery_extract_pdf_sections(paper_id):
         with open(file_path, 'wb+') as f:
             f.write(res.content)
 
+        time.sleep(1)
         args = [
             'java',
             '-cp',
@@ -509,7 +511,8 @@ def celery_extract_pdf_sections(paper_id):
         ]
         call(args)
 
-        with open(extract_file_path) as f:
+        time.sleep(1)
+        with codecs.open(extract_file_path, 'rb') as f:
             soup = BeautifulSoup(f, 'lxml')
             paper.pdf_file_extract.save(
                 extract_filename,
