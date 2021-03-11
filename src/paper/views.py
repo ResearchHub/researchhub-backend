@@ -880,7 +880,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         edited_file = paper.edited_file_extract
 
         if not pdf_file.name:
-            return Response(status=404)
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
         if edited_file.name:
             edited_json = json.loads(edited_file.read())

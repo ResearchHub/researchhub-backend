@@ -33,7 +33,7 @@ from rest_framework.request import Request
 from discussion.models import Thread, Comment
 from purchase.models import Wallet
 from researchhub.celery import app
-from researchhub.settings import APP_ENV
+from researchhub.settings import APP_ENV, PRODUCTION
 
 
 from paper.utils import (
@@ -703,7 +703,9 @@ BASE_URL = 'http://export.arxiv.org/api/query?'
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
 def pull_papers(start=0):
-    return
+    if not PRODUCTION:
+        return
+
     logger.info('Pulling Papers')
 
     Paper = apps.get_model('paper.Paper')
@@ -890,7 +892,9 @@ NUM_DUP_STOP = 30
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
 def pull_crossref_papers(start=0):
-    return
+    if not PRODUCTION:
+        return
+
     logger.info('Pulling Crossref Papers')
     sentry.log_info('Pulling Crossref Papers')
 
