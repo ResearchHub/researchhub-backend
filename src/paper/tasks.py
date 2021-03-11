@@ -848,7 +848,9 @@ def pull_crossref_papers(start=0):
                             paper.abstract = abstract
                         else:
                             # paper.delete()
-                            paper.is_removed = True
+                            # paper.is_removed = True
+                            # Do nothing if the paper has no abstract
+                            pass
 
                     if 'author' in item:
                         paper.raw_authors = {}
