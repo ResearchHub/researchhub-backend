@@ -596,6 +596,8 @@ def reset_cache(hub_ids, context, meta):
             value_type = type(value)
             if value_type is str or value_type is int:
                 http_meta[key] = value
+            if key == 'QUERY_STRING':
+                value = value.replace('&subscribed_hubs=true', '')
 
     for hub in hub_ids:
         start_date = 0
