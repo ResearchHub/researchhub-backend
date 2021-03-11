@@ -473,7 +473,7 @@ def celery_get_paper_citation_count(paper_id, doi):
 @app.task
 def celery_extract_pdf_sections(paper_id):
     if paper_id is None:
-        return
+        return False, 'No Paper Id'
 
     Paper = apps.get_model('paper.Paper')
     Figure = apps.get_model('paper.Figure')
@@ -481,7 +481,7 @@ def celery_extract_pdf_sections(paper_id):
 
     file = paper.file
     if not file:
-        return
+        return False, 'No Paper File'
 
     path = f'/tmp/pdf_cermine/{paper_id}/'
     filename = f'{paper_id}.pdf'
@@ -536,6 +536,7 @@ def celery_extract_pdf_sections(paper_id):
         print(e)
     finally:
         shutil.rmtree(path)
+        return True
 
 
 @app.task(queue=f'{APP_ENV}_autopull_queue')
