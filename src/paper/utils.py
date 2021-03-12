@@ -1,6 +1,5 @@
 import io
 import requests
-
 import fitz
 import jellyfish
 import nltk
@@ -21,7 +20,9 @@ from paper.lib import (
     journal_pdf_to_url,
     journal_url_to_pdf
 )
-from researchhub.settings import CACHE_KEY_PREFIX
+from researchhub.settings import (
+    CACHE_KEY_PREFIX
+)
 from utils.http import (
     check_url_contains_pdf,
     http_request,

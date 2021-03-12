@@ -98,6 +98,11 @@ class Paper(models.Model):
     hot_score = models.IntegerField(default=0, db_index=True)
     twitter_score = models.IntegerField(default=1)
 
+    views = models.IntegerField(default=0)
+    downloads = models.IntegerField(default=0)
+    twitter_mentions = models.IntegerField(default=0)
+    citations = models.IntegerField(default=0)
+
     # Moderators are obsolete, in favor of super mods on the user
     moderators = models.ManyToManyField(
         'user.User',
@@ -124,6 +129,20 @@ class Paper(models.Model):
     file = models.FileField(
         max_length=512,
         upload_to='uploads/papers/%Y/%m/%d',
+        default=None,
+        null=True,
+        blank=True
+    )
+    pdf_file_extract = models.FileField(
+        max_length=512,
+        upload_to='uploads/papers/%Y/%m/%d/pdf_extract',
+        default=None,
+        null=True,
+        blank=True
+    )
+    edited_file_extract = models.FileField(
+        max_length=512,
+        upload_to='uploads/papers/%Y/%m/%d/edited_extract',
         default=None,
         null=True,
         blank=True
@@ -506,6 +525,7 @@ class Paper(models.Model):
 
         self.twitter_score_updated_date = datetime.datetime.now()
         self.twitter_score = len(result_ids) + 1
+        self.twitter_mentions = self.twitter_score
         self.save()
         return self.twitter_score
 
