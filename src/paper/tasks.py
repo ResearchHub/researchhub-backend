@@ -1,6 +1,7 @@
 from psycopg2.errors import UniqueViolation
 
 import fitz
+import codecs
 import logging
 import os
 import re
@@ -11,6 +12,7 @@ import urllib.request
 import feedparser
 import time
 
+from bs4 import BeautifulSoup
 from io import BytesIO
 from datetime import datetime, timedelta, timezone
 from subprocess import call
@@ -31,7 +33,7 @@ from rest_framework.request import Request
 from discussion.models import Thread, Comment
 from purchase.models import Wallet
 from researchhub.celery import app
-from researchhub.settings import APP_ENV
+from researchhub.settings import APP_ENV, PRODUCTION
 
 
 from paper.utils import (
@@ -106,6 +108,11 @@ def download_pdf(paper_id, retry=0):
             paper.file.save(filename, pdf)
             paper.save(update_fields=['file'])
             paper.extract_pdf_preview(use_celery=True)
+            celery_extract_pdf_sections.apply_async(
+                (paper_id,),
+                priority=4,
+                countdown=15
+            )
         except Exception as e:
             sentry.log_info(e)
             download_pdf.apply_async(
@@ -160,6 +167,9 @@ def add_orcid_authors(paper_id):
             logging.info('Did not find paper identifier to give to ORCID API')
 
     paper.authors.add(*orcid_authors)
+    if orcid_authors:
+        paper_cache_key = get_cache_key(None, 'paper', pk=paper_id)
+        cache.delete(paper_cache_key)
     for author in paper.authors.iterator():
         Wallet.objects.get_or_create(author=author)
     logging.info(f'Finished adding orcid authors to paper {paper.id}')
@@ -430,6 +440,106 @@ def celery_extract_twitter_comments(paper_id):
         return
 
 
+@app.task
+def celery_get_paper_citation_count(paper_id, doi):
+    if not doi:
+        return
+
+    Paper = apps.get_model('paper.Paper')
+    paper = Paper.objects.get(id=paper_id)
+
+    cr = Crossref()
+    filters = {'type': 'journal-article', 'doi': doi}
+    res = cr.works(filter=filters)
+
+    result_count = res['message']['total-results']
+    if result_count == 0:
+        return
+
+    citation_count = 0
+    for item in res['message']['items']:
+        keys = item.keys()
+        if 'DOI' not in keys:
+            continue
+        if item['DOI'] != doi:
+            continue
+
+        if 'is-referenced-by-count' in keys:
+            citation_count += item['is-referenced-by-count']
+
+    paper.citations = citation_count
+    paper.save()
+
+
+@app.task(queue=f'{APP_ENV}_cermine_queue')
+def celery_extract_pdf_sections(paper_id):
+    if paper_id is None:
+        return False, 'No Paper Id'
+
+    Paper = apps.get_model('paper.Paper')
+    Figure = apps.get_model('paper.Figure')
+    paper = Paper.objects.get(id=paper_id)
+
+    file = paper.file
+    if not file:
+        return False, 'No Paper File'
+
+    path = f'/tmp/pdf_cermine/{paper_id}/'
+    filename = f'{paper_id}.pdf'
+    extract_filename = f'{paper_id}.html'
+    file_path = f'{path}{filename}'
+    extract_file_path = f'{path}{paper_id}.cermxml'
+    images_path = f'{path}{paper_id}.images'
+    file_url = file.url
+
+    if not os.path.isdir(path):
+        os.mkdir(path)
+
+    try:
+        res = requests.get(file_url)
+        with open(file_path, 'wb+') as f:
+            f.write(res.content)
+
+        args = [
+            'java',
+            '-cp',
+            'cermine-impl-1.13-jar-with-dependencies.jar',
+            'pl.edu.icm.cermine.ContentExtractor',
+            '-path',
+            path,
+        ]
+        call(args)
+
+        with codecs.open(extract_file_path, 'rb') as f:
+            soup = BeautifulSoup(f, 'lxml')
+            paper.pdf_file_extract.save(
+                extract_filename,
+                ContentFile(soup.encode())
+            )
+        paper.save()
+
+        figures = os.listdir(images_path)
+        for extracted_figure in figures:
+            extracted_figure_path = f'{images_path}/{extracted_figure}'
+            with open(extracted_figure_path, 'rb') as f:
+                extracted_figures = Figure.objects.filter(paper=paper)
+                if not extracted_figures.filter(
+                    file__contains=f.name,
+                    figure_type=Figure.FIGURE
+                ):
+                    Figure.objects.create(
+                        file=File(f),
+                        paper=paper,
+                        figure_type=Figure.FIGURE
+                    )
+    except Exception as e:
+        sentry.log_error(e)
+        print(e)
+    finally:
+        shutil.rmtree(path)
+        return True
+
+
 @app.task(queue=f'{APP_ENV}_autopull_queue')
 def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     if paper_id is None or iteration > 2:
@@ -591,6 +701,9 @@ BASE_URL = 'http://export.arxiv.org/api/query?'
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
 def pull_papers(start=0):
+    if not PRODUCTION:
+        return
+
     logger.info('Pulling Papers')
 
     Paper = apps.get_model('paper.Paper')
@@ -710,6 +823,12 @@ def pull_papers(start=0):
                             countdown=15
                         )
 
+                        add_orcid_authors.apply_async(
+                            (paper.id,),
+                            priority=4,
+                            countdown=10
+                        )
+
                         # If not published in the past week we're done
                         if Paper.objects.get(pk=paper.id).paper_publish_date < datetime.now().date() - timedelta(days=7):
                             return
@@ -771,6 +890,9 @@ NUM_DUP_STOP = 30
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
 def pull_crossref_papers(start=0):
+    if not PRODUCTION:
+        return
+
     logger.info('Pulling Crossref Papers')
     sentry.log_info('Pulling Crossref Papers')
 
@@ -879,6 +1001,11 @@ def pull_crossref_papers(start=0):
                         (paper.id,),
                         priority=5,
                         countdown=15
+                    )
+                    add_orcid_authors.apply_async(
+                        (paper.id,),
+                        priority=4,
+                        countdown=10
                     )
 
                     if pdf_url:

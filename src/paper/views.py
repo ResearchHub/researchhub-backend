@@ -1,6 +1,9 @@
+import json
 import datetime
+import base64
 
 from django.core.cache import cache
+from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.db import IntegrityError
@@ -677,6 +680,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             csl_item = get_csl_item(url)
         except Exception as error:
             data['warning'] = f"Generating csl_item failed with:\n{error}"
+            log_error(error)
             csl_item = None
 
         if csl_item:
@@ -865,6 +869,42 @@ class PaperViewSet(viewsets.ModelViewSet):
             }
         )
         return res
+
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[IsAuthenticatedOrReadOnly]
+    )
+    def pdf_extract(self, request, pk=None):
+        paper = self.get_object()
+        pdf_file = paper.pdf_file_extract
+        edited_file = paper.edited_file_extract
+
+        if not pdf_file.name:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if edited_file.name:
+            edited_json = json.loads(edited_file.read())
+            return Response(edited_json, status=status.HTTP_200_OK)
+
+        html_bytes = paper.pdf_file_extract.read()
+        b64_string = base64.b64encode(html_bytes)
+        return Response(b64_string, status=status.HTTP_200_OK)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[IsModeratorOrVerifiedAuthor]
+    )
+    def edit_file_extract(self, request, pk=None):
+        paper = self.get_object()
+        data = request.data
+        filename = f'{paper.id}.json'
+        paper.edited_file_extract.save(
+            filename,
+            ContentFile(json.dumps(data).encode('utf8'))
+        )
+        return Response(status=status.HTTP_200_OK)
 
     def subscribed_hub_papers(self, request):
         feed_type = 'subscribed'

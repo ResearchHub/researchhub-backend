@@ -19,7 +19,9 @@ class PaperFilter(filters.FilterSet):
             'csl_item',
             'oa_pdf_location',
             'raw_authors',
-            'external_metadata'
+            'external_metadata',
+            'pdf_file_extract',
+            'edited_file_extract'
         ]
 
     def uploaded_by_author(self, queryset, name, value):

@@ -23,3 +23,7 @@ static/
 !static/researchhub
 !static/researchhub/*
 backups/
+
+# Ignore Cermine PDF files
+!pdf_cermine/*
+pdf_cermine/.DS_Store
