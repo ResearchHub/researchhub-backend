@@ -26,7 +26,6 @@ pre-commit = "==2.7.1"
 django-inlinecss = "==0.3.0"
 django-ses = "==1.0.3"
 web3 = "==5.12.1"
-manubot = "==0.4.0"
 django-silk = "==4.1.0"
 django-dbbackup = "==3.3.0"
 celery = {extras = ["redis"],version = "==4.4.7"}
@@ -61,6 +60,7 @@ html5lib = "==1.1"
 flower = "==0.9.7"
 pillow = "==8.1.0"
 feedparser = "==6.0.2"
+manubot = "*"
 
 [requires]
 python_version = "3.6"
