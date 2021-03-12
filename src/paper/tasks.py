@@ -500,7 +500,6 @@ def celery_extract_pdf_sections(paper_id):
         with open(file_path, 'wb+') as f:
             f.write(res.content)
 
-        time.sleep(1)
         args = [
             'java',
             '-cp',
@@ -511,7 +510,6 @@ def celery_extract_pdf_sections(paper_id):
         ]
         call(args)
 
-        time.sleep(1)
         with codecs.open(extract_file_path, 'rb') as f:
             soup = BeautifulSoup(f, 'lxml')
             paper.pdf_file_extract.save(
