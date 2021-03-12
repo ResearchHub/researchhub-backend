@@ -33,14 +33,13 @@ def notify_daily():
 def notify_three_hours():
     send_hub_digest(NotificationFrequencies.THREE_HOUR)
 
+
 # Noon PST
 @periodic_task(
     run_every=crontab(minute=0, hour=20, day_of_week='friday'),
     priority=9
 )
 def notify_weekly():
-    # TODO: Temporarily turning off notifications - Revamp
-    return
     send_hub_digest(NotificationFrequencies.WEEKLY)
 
 
