@@ -680,6 +680,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             csl_item = get_csl_item(url)
         except Exception as error:
             data['warning'] = f"Generating csl_item failed with:\n{error}"
+            log_error(error)
             csl_item = None
 
         if csl_item:
