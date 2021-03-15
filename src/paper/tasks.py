@@ -135,36 +135,28 @@ def add_references(paper_id):
 @app.task
 def add_orcid_authors(paper_id):
     if paper_id is None:
-        return
+        return False, 'No Paper Id'
 
     from utils.orcid import orcid_api
 
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
     orcid_authors = []
-    while True:
-        doi = paper.doi
-        if doi is not None:
-            orcid_authors = orcid_api.get_authors(doi=doi)
-            if orcid_authors:
-                break
+    doi = paper.doi
+    if doi is not None:
+        orcid_authors = orcid_api.get_authors(doi=doi)
 
-        arxiv_id = paper.alternate_ids.get('arxiv', None)
-        if arxiv_id is not None and doi:
-            orcid_authors = orcid_api.get_authors(arxiv=doi)
-            if orcid_authors:
-                break
+    arxiv_id = paper.alternate_ids.get('arxiv', None)
+    if arxiv_id is not None and doi:
+        orcid_authors = orcid_api.get_authors(arxiv=doi)
 
-        if arxiv_id is not None:
-            orcid_authors = orcid_api.get_authors(arxiv=arxiv_id)
-            if orcid_authors:
-                break
+    if arxiv_id is not None:
+        orcid_authors = orcid_api.get_authors(arxiv=arxiv_id)
 
-        break
-
-        if len(orcid_authors) < 1:
-            print('No authors to add')
-            logging.info('Did not find paper identifier to give to ORCID API')
+    if len(orcid_authors) < 1:
+        print('No authors to add')
+        logging.info('Did not find paper identifier to give to ORCID API')
+        return False, 'No Authors Found'
 
     paper.authors.add(*orcid_authors)
     if orcid_authors:
@@ -173,6 +165,7 @@ def add_orcid_authors(paper_id):
     for author in paper.authors.iterator():
         Wallet.objects.get_or_create(author=author)
     logging.info(f'Finished adding orcid authors to paper {paper.id}')
+    return True
 
 
 @app.task
