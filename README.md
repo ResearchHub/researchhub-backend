@@ -31,26 +31,6 @@ INFURA_PROJECT_SECRET = ''
 INFURA_RINKEBY_ENDPOINT = f'https://rinkeby.infura.io/v3/{INFURA_PROJECT_ID}'
 ```
 
-
-### ENVIRONMENT
-
-The project environment is managed using [Pipenv](https://pipenv.kennethreitz.org/en/latest/).
-Run the following commands from the [`src`](src) directory:
-
-```shell
-# install the project environment
-pipenv install
-
-# activate the environment
-pipenv shell
-
-# add a package to the project environment
-pipenv install package_name
-
-# update requirements.txt which is used by elastic beanstalk
-pipenv lock --requirements >| requirements.txt
-```
-
 Set executable permissions on scripts
 
 ```
@@ -96,6 +76,25 @@ docker run \
   --publish 5432:5432 \
   --detach \
   postgres:12
+```
+
+### ENVIRONMENT
+
+The project environment is managed using [Pipenv](https://pipenv.kennethreitz.org/en/latest/).
+Run the following commands from the [`src`](src) directory:
+
+```shell
+# install the project environment
+pipenv install
+
+# activate the environment
+pipenv shell
+
+# add a package to the project environment
+pipenv install package_name
+
+# update requirements.txt which is used by elastic beanstalk
+pipenv lock --requirements >| requirements.txt
 ```
 
 ### ELASTICSEARCH
