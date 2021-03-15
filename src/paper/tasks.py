@@ -686,6 +686,9 @@ def preload_trending_papers(
     return paginated_response.data
 
 
+# Auto pull
+IGNORE_PAPER_TITLES = ['Editorial Board']
+
 # ARXIV Download Constants
 RESULTS_PER_ITERATION = 50 # default is 10, if this goes too high like >=100 it seems to fail too often
 WAIT_TIME = 3 # The docs recommend 3 seconds between queries
@@ -766,10 +769,14 @@ def pull_papers(start=0):
                 try:
                     paper, created = Paper.objects.get_or_create(url=entry.id)
                     if created:
-                        paper.alternate_ids = {'arxiv': entry.id.split('/abs/')[-1]}
+                        title = entry.title
+                        if title in IGNORE_PAPER_TITLES:
+                            paper.delete()
+                            continue
 
-                        paper.title = entry.title
-                        paper.paper_title = entry.title
+                        paper.alternate_ids = {'arxiv': entry.id.split('/abs/')[-1]}
+                        paper.title = title
+                        paper.paper_title = title
                         paper.abstract = clean_abstract(entry.summary)
                         paper.paper_publish_date = entry.published.split('T')[0]
                         paper.external_source = 'Arxiv'
@@ -941,9 +948,14 @@ def pull_crossref_papers(start=0):
             try:
                 paper, created = Paper.objects.get_or_create(doi=item['DOI'])
                 if created:
-                    paper.title = item['title'][0]
-                    paper.paper_title = item['title'][0]
-                    paper.slug = slugify(item['title'][0])
+                    title = item['title'][0]
+                    if title in IGNORE_PAPER_TITLES:
+                        paper.delete()
+                        continue
+
+                    paper.title = title
+                    paper.paper_title = title
+                    paper.slug = slugify(title)
                     paper.doi = item['DOI']
                     paper.url = item['URL']
                     paper.paper_publish_date = get_crossref_issued_date(item)
