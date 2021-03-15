@@ -2,7 +2,7 @@
 # Will probably delete this later
 # Using Thread.clean to validate metadata
 
-import django
+from django.core.exceptions import ValidationError
 # import jsonschema
 
 from django.core.validators import BaseValidator
@@ -35,7 +35,7 @@ class JSONSchemaValidator(BaseValidator):
 
 
 def ThreadValidator(value):
-    return False
+    raise ValidationError(value)
     # import pdb; pdb.set_trace()
     # print('test')
     # return True
