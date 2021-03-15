@@ -21,7 +21,7 @@ from researchhub.settings import BASE_FRONTEND_URL
 
 class CustomUserAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
-            ('Labels', {'fields': ('probable_spammer', 'is_suspended')}),
+            ('Labels', {'fields': ('probable_spammer', 'is_suspended', 'moderator')}),
     )
 
     def save_model(self, request, obj, form, change):
