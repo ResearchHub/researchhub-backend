@@ -102,7 +102,7 @@ pipenv lock --requirements >| requirements.txt
 In a new shell, run this Docker image script
 
 ```
-./start-es.sh
+./start-es.sh # This takes a long time, be patient :)
 ```
 
 Back in the python virtual environment, build the indices
