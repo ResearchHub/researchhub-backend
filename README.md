@@ -102,7 +102,7 @@ pipenv lock --requirements >| requirements.txt
 In a new shell, run this Docker image script (make sure Redis is running in the background ```redis-server```) 
 
 ```
- # This takes a long time (could take up to an hr), be patient :)
+ # Let this run for ~30 minutes in the background before terminating, be patient :)
 ./start-es.sh
 ```
 
