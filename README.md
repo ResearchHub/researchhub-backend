@@ -102,7 +102,7 @@ pipenv lock --requirements >| requirements.txt
 In a new shell, run this Docker image script
 
 ```
- # This takes a long time, be patient :)
+ # This takes a long time (could take up to an hr), be patient :)
 ./start-es.sh
 ```
 
