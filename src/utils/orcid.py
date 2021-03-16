@@ -71,7 +71,6 @@ class OrcidApi:
             if results is None:
                 raise ValueError('Results was None')
             for result in results:
-                sleep(2)
                 self._attempt_to_add_author(result, authors)
             return authors
         except Exception as e:
@@ -89,7 +88,6 @@ class OrcidApi:
                 authors.append(author)
             except Exception as e:
                 print(e)
-                sleep(60)
             tries -= 1
 
     def get_record_as_author(self, record):
