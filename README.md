@@ -99,7 +99,7 @@ pipenv lock --requirements >| requirements.txt
 
 ### ELASTICSEARCH
 
-In a new shell, run this Docker image script
+In a new shell, run this Docker image script (make sure Redis is running in the background ```redis-server```) 
 
 ```
  # This takes a long time (could take up to an hr), be patient :)
