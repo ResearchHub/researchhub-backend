@@ -220,14 +220,14 @@ MIDDLEWARE = [
 #     MIDDLEWARE.append('profiler.middleware.profiler.ProfileMiddleware')
 
 if not CLOUD and not NO_SILK == 'True':
-    # INSTALLED_APPS += [
-    #     'silk',
-    #     'dbbackup'
-    # ]
+    INSTALLED_APPS += [
+        'silk',
+        'dbbackup'
+    ]
 
-    # MIDDLEWARE += [
-    #     'silk.middleware.SilkyMiddleware',
-    # ]
+    MIDDLEWARE += [
+        'silk.middleware.SilkyMiddleware',
+    ]
 
     DBBACKUP_STORAGE = 'django.core.files.storage.FileSystemStorage'
     DBBACKUP_STORAGE_OPTIONS = {'location': 'backups'}
