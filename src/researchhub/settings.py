@@ -178,6 +178,9 @@ INSTALLED_APPS = [
     # Channels
     'channels',
 
+    # Django Celery Results
+    'django_celery_results',
+
 
     # Custom apps
     'bullet_point',
@@ -217,14 +220,14 @@ MIDDLEWARE = [
 #     MIDDLEWARE.append('profiler.middleware.profiler.ProfileMiddleware')
 
 if not CLOUD and not NO_SILK == 'True':
-    INSTALLED_APPS += [
-        'silk',
-        'dbbackup'
-    ]
+    # INSTALLED_APPS += [
+    #     'silk',
+    #     'dbbackup'
+    # ]
 
-    MIDDLEWARE += [
-        'silk.middleware.SilkyMiddleware',
-    ]
+    # MIDDLEWARE += [
+    #     'silk.middleware.SilkyMiddleware',
+    # ]
 
     DBBACKUP_STORAGE = 'django.core.files.storage.FileSystemStorage'
     DBBACKUP_STORAGE_OPTIONS = {'location': 'backups'}
@@ -578,7 +581,16 @@ else:
 # Celery
 
 CELERY_BROKER_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
-# CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+# CELERY_RESULT_BACKEND = 'db+postgresql://{}:{}@{}:{}/{}'.format(
+#     DB_USER,
+#     DB_PASS,
+#     DB_HOST,
+#     DB_PORT,
+#     DB_NAME
+# )
+CELERY_RESULT_BACKEND = 'django-db'
+CELERY_TASK_TRACK_STARTED = True
+CELERY_RESULT_EXTENDED = True
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_TASK_ROUTES = {
