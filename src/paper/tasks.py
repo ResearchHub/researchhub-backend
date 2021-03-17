@@ -533,7 +533,7 @@ def celery_extract_pdf_sections(paper_id):
         return True
 
 
-@app.task(queue=f'{APP_ENV}_autopull_queue')
+@app.task(queue=f'{APP_ENV}_autopull_queue', ignore_result=True)
 def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     if paper_id is None or iteration > 2:
         return
@@ -551,12 +551,13 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
         )
         return False
 
-    next_iteration = iteration + 1
-    celery_calculate_paper_twitter_score.apply_async(
-        (paper_id, next_iteration),
-        priority=7 - next_iteration,
-        countdown=86400 * next_iteration
-    )
+    # Temporarily stopping next day twitter score updates
+    # next_iteration = iteration + 1
+    # celery_calculate_paper_twitter_score.apply_async(
+    #     (paper_id, next_iteration),
+    #     priority=7 - next_iteration,
+    #     countdown=86400 * next_iteration
+    # )
     score = paper.calculate_score()
     paper.score = score
     paper.save()
