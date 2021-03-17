@@ -233,5 +233,5 @@ urlpatterns = [
     path('', researchhub.views.index, name='index'),
 ]
 
-# if not CLOUD and not NO_SILK:
-#     urlpatterns += [path('silk/', include('silk.urls', namespace='silk'))]
+if not CLOUD and not NO_SILK:
+    urlpatterns += [path('silk/', include('silk.urls', namespace='silk'))]
