@@ -1,7 +1,11 @@
-from time import sleep
-
-from researchhub.settings import SOCIALACCOUNT_PROVIDERS
+from researchhub.celery import app
+from researchhub.settings import (
+    SOCIALACCOUNT_PROVIDERS,
+    APP_ENV,
+    PRODUCTION
+)
 from user.models import Author
+from utils import sentry
 from utils.exceptions import OrcidApiError
 from utils.http import http_request, GET, POST
 
@@ -62,7 +66,7 @@ class OrcidApi:
         response = http_request(GET, url, headers=self.headers, timeout=5)
         return response, uid
 
-    def get_authors(self, **kwargs):
+    def get_authors(self, use_celery=PRODUCTION, **kwargs):
         response, uid = self.search_by_paper_id(**kwargs)
         try:
             response.raise_for_status()
@@ -71,24 +75,33 @@ class OrcidApi:
             if results is None:
                 raise ValueError('Results was None')
             for result in results:
-                self._attempt_to_add_author(result, authors)
+                self._attempt_to_add_author(
+                    result,
+                    authors,
+                    use_celery=use_celery
+                )
             return authors
         except Exception as e:
             error = OrcidApiError(e, 'Failed to get authors')
             print(error)
             return []
 
-    def _attempt_to_add_author(self, result, authors, attempts=2):
-        tries = attempts
-        while tries > 0:
-            try:
-                result_orcid_id = result['orcid-identifier']['path']
-                record_response = self.search_by_id(result_orcid_id)
-                author = self.get_record_as_author(record_response)
-                authors.append(author)
-            except Exception as e:
-                print(e)
-            tries -= 1
+    def _attempt_to_add_author(
+        self,
+        result,
+        authors,
+        attempts=2,
+        use_celery=True
+    ):
+        if use_celery:
+            celery_add_author.apply_async(
+                (result, authors, attempts),
+                priority=4,
+                countdown=5
+            )
+        else:
+            celery_add_author(result, authors, attempts)
+        return authors
 
     def get_record_as_author(self, record):
         author = record.json()
@@ -110,3 +123,18 @@ class OrcidApi:
 
 
 orcid_api = OrcidApi()
+
+
+@app.task(queue=f'{APP_ENV}_autopull_queue', ignore_result=True)
+def celery_add_author(result, authors, attempts=2):
+    tries = attempts
+    while tries > 0:
+        try:
+            result_orcid_id = result['orcid-identifier']['path']
+            record_response = orcid_api.search_by_id(result_orcid_id)
+            author = orcid_api.get_record_as_author(record_response)
+            authors.append(author)
+        except Exception as e:
+            print(e)
+        tries -= 1
+    return authors

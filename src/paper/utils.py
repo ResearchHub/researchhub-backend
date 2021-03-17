@@ -613,11 +613,11 @@ def reset_cache(hub_ids, context, meta):
                 hub,
                 http_meta
             ),
-            priority=10
+            priority=9
         )
     celery_preload_hub_papers.apply_async(
         (hub_ids,),
-        priority=10
+        priority=9
     )
 
 

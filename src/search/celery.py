@@ -29,7 +29,7 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
                 countdown=30
             )
 
-    @shared_task()
+    @shared_task(ignore_result=True)
     def registry_update_task(pk, app_label, model_name):
         try:
             model = apps.get_model(app_label, model_name)
@@ -41,7 +41,7 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
                 model.objects.get(pk=pk)
             )
 
-    @shared_task()
+    @shared_task(ignore_result=True)
     def registry_update_related_task(pk, app_label, model_name):
         try:
             model = apps.get_model(app_label, model_name)
