@@ -110,14 +110,14 @@ def download_pdf(paper_id, retry=0):
             paper.extract_pdf_preview(use_celery=True)
             celery_extract_pdf_sections.apply_async(
                 (paper_id,),
-                priority=7,
+                priority=5,
                 countdown=15
             )
         except Exception as e:
             sentry.log_info(e)
             download_pdf.apply_async(
                 (paper.id, retry + 1),
-                priority=6,
+                priority=7,
                 countdown=15 * (retry + 1)
             )
 
@@ -251,7 +251,7 @@ def celery_extract_pdf_preview(paper_id, retry=0):
         print(f'No file exists for paper: {paper_id}')
         celery_extract_pdf_preview.apply_async(
             (paper.id, retry + 1),
-            priority=4,
+            priority=6,
             countdown=10,
         )
         return False
@@ -533,7 +533,7 @@ def celery_extract_pdf_sections(paper_id):
         return True
 
 
-@app.task(queue=f'{APP_ENV}_autopull_queue', ignore_result=True)
+@app.task(queue=f'{APP_ENV}_autopull_queue', ignore_result=False)
 def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     if paper_id is None or iteration > 2:
         return
@@ -546,7 +546,7 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     except Exception as e:
         celery_calculate_paper_twitter_score.apply_async(
             (paper_id, iteration),
-            priority=7,
+            priority=5,
             countdown=420
         )
         return False
@@ -583,7 +583,7 @@ def handle_duplicate_doi(new_paper, doi):
 # Executes every 5 minutes
 @periodic_task(
     run_every=crontab(minute='*/5'),
-    priority=9,
+    priority=1,
     options={'queue': f'{APP_ENV}_core_queue'}
 )
 def celery_preload_hub_papers(hub_ids=None):
@@ -814,13 +814,13 @@ def pull_papers(start=0):
                         if pdf_url:
                             download_pdf.apply_async(
                                 (paper.id,),
-                                priority=7,
+                                priority=5,
                                 countdown=7
                             )
 
                         celery_calculate_paper_twitter_score.apply_async(
                             (paper.id,),
-                            priority=7,
+                            priority=5,
                             countdown=15
                         )
 
@@ -1005,7 +1005,7 @@ def pull_crossref_papers(start=0):
                     paper.calculate_hot_score()
                     celery_calculate_paper_twitter_score.apply_async(
                         (paper.id,),
-                        priority=7,
+                        priority=5,
                         countdown=15
                     )
                     add_orcid_authors.apply_async(
@@ -1017,7 +1017,7 @@ def pull_crossref_papers(start=0):
                     if pdf_url:
                         download_pdf.apply_async(
                             (paper.id,),
-                            priority=7,
+                            priority=5,
                             countdown=7
                         )
                 else:
