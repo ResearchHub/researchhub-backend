@@ -3,6 +3,7 @@ import requests
 import fitz
 import jellyfish
 import nltk
+import regex as re
 
 from django.core.cache import cache
 from django.core.files.base import ContentFile
@@ -591,33 +592,35 @@ def reset_paper_cache(cache_key, data):
 
 def reset_cache(hub_ids, context, meta):
     from paper.tasks import preload_trending_papers, celery_preload_hub_papers
+
+    start_date_regex = r'start_date__gte=([0-9]+)'
+    end_date_regex = r'end_date__lte=([0-9]+)'
     http_meta = {}
+
     if meta:
         for key, value in meta.items():
             value_type = type(value)
             if key == 'QUERY_STRING':
                 value = value.replace('&subscribed_hubs=true', '')
+                start_date = int(re.findall(start_date_regex, value)[0])
+                end_date = int(re.findall(end_date_regex, value)[0])
             if value_type is str or value_type is int:
                 http_meta[key] = value
 
     for hub in hub_ids:
-        start_date = 0
-        end_date = 0
-
         preload_trending_papers.apply_async(
             (
                 1,
                 start_date,
                 end_date,
-                '-hot_score',
                 hub,
                 http_meta
             ),
-            priority=9
+            priority=1
         )
     celery_preload_hub_papers.apply_async(
         (hub_ids,),
-        priority=9
+        priority=1
     )
 
 
