@@ -18,6 +18,7 @@ from discussion.models import (
 from paper.models import Paper
 from hub.models import Hub
 from paper.tasks import censored_paper_cleanup
+from paper.utils import reset_cache
 
 from discussion.models import (Thread, Comment, Reply)
 
