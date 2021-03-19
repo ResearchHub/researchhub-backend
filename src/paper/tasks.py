@@ -618,6 +618,7 @@ def preload_trending_papers(
     page_number,
     start_date,
     end_date,
+    ordering,
     hub_id,
     meta=None,
     synchronous=False,
@@ -626,6 +627,7 @@ def preload_trending_papers(
     from paper.views import PaperViewSet
     paper_view = PaperViewSet()
     http_req = HttpRequest()
+    http_req.GET['ordering'] = ordering
     if meta:
         http_req.META = meta
         if 'REQUEST_PATH' in meta.keys():

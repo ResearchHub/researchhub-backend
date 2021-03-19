@@ -318,4 +318,5 @@ def celery_get_event_hit_response(category, action, label, value, date):
         value=0
     )
     hit = Hit(Hit.EVENT, date, fields)
-    return ga.send_hit(hit)
+    ga.send_hit(hit)
+    return True

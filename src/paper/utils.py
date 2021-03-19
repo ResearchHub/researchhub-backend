@@ -593,6 +593,7 @@ def reset_paper_cache(cache_key, data):
 def reset_cache(hub_ids, context, meta):
     from paper.tasks import preload_trending_papers, celery_preload_hub_papers
 
+    order_regex = r'ordering=([a-z]+)'
     start_date_regex = r'start_date__gte=([0-9]+)'
     end_date_regex = r'end_date__lte=([0-9]+)'
     http_meta = {}
@@ -604,6 +605,7 @@ def reset_cache(hub_ids, context, meta):
                 value = value.replace('&subscribed_hubs=true', '')
                 start_date = int(re.findall(start_date_regex, value)[0])
                 end_date = int(re.findall(end_date_regex, value)[0])
+                ordering = re.findall(order_regex, value)[0]
             if value_type is str or value_type is int:
                 http_meta[key] = value
 
@@ -613,6 +615,7 @@ def reset_cache(hub_ids, context, meta):
                 1,
                 start_date,
                 end_date,
+                ordering,
                 hub,
                 http_meta
             ),
