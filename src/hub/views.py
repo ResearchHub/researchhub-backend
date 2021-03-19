@@ -247,23 +247,19 @@ class HubViewSet(viewsets.ModelViewSet):
             user__probable_spammer=False,
             content_type__model__in=models+['paper'],
             display=True
-        )
-
-        actions = actions.filter(
-            (
-                Q(papers__is_removed=False) |
-                Q(bullet_point__paper__is_removed=False) |
-                Q(threads__paper__is_removed=False) |
-                Q(summaries__paper__is_removed=False) |
-                Q(content_type__model='purchase')
-            )
         ).order_by('-created_date')
+
+        # import pdb; pdb.set_trace()
 
         # actions = actions.filter(
         #     (
-        #         Q(paper__is_removed=False) &
-        #         Q(content_type__model='paper')
-        #     ) | Q(content_type__model__in=models)
+        #         Q(papers__is_removed=False) |
+        #         Q(bullet_point__paper__is_removed=False) |
+        #         Q(threads__paper__is_removed=False) |
+        #         Q(summaries__paper__is_removed=False) |
+        #         Q(comments__parent__paper__is_removed=False)
+        #         # Q(replies__parent__parent__paper__is_removed=False)
+        #     )
         # ).order_by('-created_date')
 
         page = self.paginate_queryset(actions)
