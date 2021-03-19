@@ -618,7 +618,6 @@ def preload_trending_papers(
     page_number,
     start_date,
     end_date,
-    ordering,
     hub_id,
     meta=None,
     synchronous=False,
@@ -633,8 +632,14 @@ def preload_trending_papers(
             http_req.path = meta['REQUEST_PATH']
     else:
         http_req.META = {'SERVER_NAME': 'localhost', 'SERVER_PORT': 80}
-    paper_view.request = Request(http_req)
+
+    start_date = datetime.fromtimestamp(start_date)
+    end_date = datetime.fromtimestamp(end_date)
+    req = Request(http_req)
+    paper_view.request = req
+    ordering = paper_view._set_hub_paper_ordering(req)
     papers = paper_view._get_filtered_papers(hub_id, ordering)
+
     order_papers = paper_view.calculate_paper_ordering(
         papers,
         ordering,
