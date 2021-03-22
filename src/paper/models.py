@@ -410,77 +410,93 @@ class Paper(models.Model):
         return {}
 
     def calculate_hot_score(self):
-        N = 1572080689
+        ALGO_START_UNIX = 1546329600
         TWITTER_BOOST = 100
-        BOOST_WEIGHT = 0  # 4
+        TIME_DIV = 3600000
+        LOG_CONST = 3
+        HOUR_SECONDS = 86400
+
         boosts = self.purchases.filter(
             paid_status=Purchase.PAID,
             amount__gt=0
         )
-        boost_exists = boosts.exists()
-        today = datetime.datetime.now(tz=pytz.utc)
+        today = datetime.datetime.now(
+            tz=pytz.utc
+        ).replace(
+            hour=0,
+            minute=0,
+            second=0
+        )
+        score = self.score
 
-        if self.score >= 0 or boost_exists:
-            ALGO_START_UNIX = 1575199677
-            if boost_exists:
-                uploaded_date = boosts.first().created_date.timestamp()
-                avg_hrs = (
-                    uploaded_date -
-                    ALGO_START_UNIX
-                ) / 3600
-
-                boost_amount = sum(
-                    map(int, boosts.values_list(
-                        'amount',
-                        flat=True
-                    ))
-                )
-                boost_amount = BOOST_WEIGHT * math.log(boost_amount, 10)
-            else:
-                boost_amount = 0
-                uploaded_date = self.uploaded_date
-
-                if (today - uploaded_date).days >= 7:
-                    uploaded_date = uploaded_date.timestamp() * 0.95
-                else:
-                    uploaded_date = uploaded_date.timestamp()
-
-                if self.votes.exists():
-                    vote_avg_epoch = self.votes.aggregate(
-                        avg=Avg(
-                            Extract('created_date', 'epoch'),
-                            output_field=models.IntegerField()
-                        )
-                    )['avg'] or 0
-                else:
-                    vote_avg_epoch = uploaded_date
-
-                avg_hrs = (
-                    max(0, vote_avg_epoch - ALGO_START_UNIX)
-                ) / 3600
-
-            avg_hrs /= 100
-            score = self.score
-
-            hot_score = math.log(max(abs(score), 1), 10)
-            seconds = (uploaded_date - N) / 45000
-            discussion_score = math.log(max(self.discussion_count, 1), 10)
-
+        if score >= 0:
+            original_uploaded_date = self.uploaded_date
+            uploaded_date = original_uploaded_date
             twitter_score = self.twitter_score
+            three_day_delta = datetime.timedelta(days=3)
+            three_day_timeframe = today - three_day_delta
+
+            if original_uploaded_date > three_day_timeframe:
+                uploaded_date = three_day_timeframe.replace(
+                    hour=original_uploaded_date.hour,
+                    minute=original_uploaded_date.minute,
+                    second=original_uploaded_date.second
+                )
+
+            votes = self.votes
+            if votes.exists():
+                vote_avg_epoch = self.votes.aggregate(
+                    avg=Avg(
+                        Extract('created_date', 'epoch'),
+                        output_field=models.IntegerField()
+                    )
+                )['avg'] or 0
+                num_votes = votes.count()
+            else:
+                num_votes = 0
+                vote_avg_epoch = three_day_timeframe.timestamp()
+
             twitter_boost_score = 0
             if twitter_score > 0:
                 twitter_epoch = (
-                    (self.uploaded_date.timestamp() - ALGO_START_UNIX) / 3600
+                    (uploaded_date.timestamp() - ALGO_START_UNIX) / TIME_DIV
                 )
                 twitter_boost_score = (
-                    max(2, math.log(twitter_score)) * TWITTER_BOOST
+                    math.log(1 + twitter_score, LOG_CONST) * TWITTER_BOOST
                 ) / twitter_epoch
 
+            vote_avg = (
+                max(0, vote_avg_epoch - ALGO_START_UNIX)
+            ) / TIME_DIV
+
+            base_score = math.log(1 + score, LOG_CONST)
+            uploaded_date_score = uploaded_date.timestamp() / TIME_DIV
+            vote_score = math.log(1 + num_votes, LOG_CONST)
+            discussion_score = math.log(1 + self.discussion_count)
+
+            if original_uploaded_date > three_day_timeframe:
+                uploaded_date_delta = (
+                    original_uploaded_date - three_day_timeframe
+                )
+                delta_days = (
+                    uploaded_date_delta.total_seconds() / HOUR_SECONDS
+                )
+                uploaded_date_score += delta_days
+            else:
+                uploaded_date_delta = (
+                    three_day_timeframe - original_uploaded_date
+                )
+                delta_days = -math.log(
+                    1 + (uploaded_date_delta.total_seconds() / HOUR_SECONDS),
+                    LOG_CONST
+                )
+                uploaded_date_score += delta_days
+
             hot_score = (
-                boost_amount +
-                avg_hrs +
-                hot_score +
-                seconds +
+                base_score +
+                uploaded_date_score +
+                vote_avg +
+                vote_score +
                 discussion_score +
                 twitter_boost_score
             ) * 1000
