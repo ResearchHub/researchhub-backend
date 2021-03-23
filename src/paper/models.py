@@ -434,11 +434,11 @@ class Paper(models.Model):
             original_uploaded_date = self.uploaded_date
             uploaded_date = original_uploaded_date
             twitter_score = self.twitter_score
-            three_day_delta = datetime.timedelta(days=3)
-            three_day_timeframe = today - three_day_delta
+            day_delta = datetime.timedelta(days=2)
+            timeframe = today - day_delta
 
-            if original_uploaded_date > three_day_timeframe:
-                uploaded_date = three_day_timeframe.replace(
+            if original_uploaded_date > timeframe:
+                uploaded_date = timeframe.replace(
                     hour=original_uploaded_date.hour,
                     minute=original_uploaded_date.minute,
                     second=original_uploaded_date.second
@@ -455,7 +455,7 @@ class Paper(models.Model):
                 num_votes = votes.count()
             else:
                 num_votes = 0
-                vote_avg_epoch = three_day_timeframe.timestamp()
+                vote_avg_epoch = timeframe.timestamp()
 
             twitter_boost_score = 0
             if twitter_score > 0:
@@ -475,9 +475,9 @@ class Paper(models.Model):
             vote_score = math.log(1 + num_votes, LOG_CONST)
             discussion_score = math.log(1 + self.discussion_count)
 
-            if original_uploaded_date > three_day_timeframe:
+            if original_uploaded_date > timeframe:
                 uploaded_date_delta = (
-                    original_uploaded_date - three_day_timeframe
+                    original_uploaded_date - timeframe
                 )
                 delta_days = math.log(
                     uploaded_date_delta.total_seconds() / HOUR_SECONDS,
@@ -486,7 +486,7 @@ class Paper(models.Model):
                 uploaded_date_score += delta_days
             else:
                 uploaded_date_delta = (
-                    three_day_timeframe - original_uploaded_date
+                    timeframe - original_uploaded_date
                 )
                 delta_days = -math.log(
                     1 + (uploaded_date_delta.total_seconds() / HOUR_SECONDS),
