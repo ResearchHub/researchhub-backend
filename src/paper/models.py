@@ -415,7 +415,7 @@ class Paper(models.Model):
         TIME_DIV = 3600000
         LOG_CONST = 3
         HOUR_SECONDS = 86400
-        DATE_BOOST = 1.5
+        DATE_BOOST = 3
 
         boosts = self.purchases.filter(
             paid_status=Purchase.PAID,
