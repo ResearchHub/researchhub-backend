@@ -415,6 +415,7 @@ class Paper(models.Model):
         TIME_DIV = 3600000
         LOG_CONST = 3
         HOUR_SECONDS = 86400
+        DATE_BOOST = 1.5
 
         boosts = self.purchases.filter(
             paid_status=Purchase.PAID,
@@ -480,7 +481,7 @@ class Paper(models.Model):
                 )
                 delta_days = (
                     uploaded_date_delta.total_seconds() / HOUR_SECONDS
-                )
+                ) * DATE_BOOST
                 uploaded_date_score += delta_days
             else:
                 uploaded_date_delta = (
@@ -489,7 +490,7 @@ class Paper(models.Model):
                 delta_days = -math.log(
                     1 + (uploaded_date_delta.total_seconds() / HOUR_SECONDS),
                     LOG_CONST
-                )
+                ) * DATE_BOOST
                 uploaded_date_score += delta_days
 
             hot_score = (
