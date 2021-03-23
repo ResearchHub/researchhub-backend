@@ -608,7 +608,7 @@ def celery_preload_hub_papers(hub_ids=None):
         cache.set(
             cache_key,
             serializer.data,
-            timeout=60*6
+            timeout=None
         )
     return True
 
@@ -681,7 +681,7 @@ def preload_trending_papers(
         cache.set(
             cache_key_hub,
             paginated_response.data,
-            timeout=60*40
+            timeout=None
         )
 
     return paginated_response.data
