@@ -413,7 +413,7 @@ class Paper(models.Model):
         ALGO_START_UNIX = 1546329600
         TWITTER_BOOST = 100
         TIME_DIV = 3600000
-        LOG_CONST = 3
+        LOG_CONST = 4
         HOUR_SECONDS = 86400
         DATE_BOOST = 10
 
@@ -479,8 +479,9 @@ class Paper(models.Model):
                 uploaded_date_delta = (
                     original_uploaded_date - three_day_timeframe
                 )
-                delta_days = (
-                    uploaded_date_delta.total_seconds() / HOUR_SECONDS
+                delta_days = math.log(
+                    uploaded_date_delta.total_seconds() / HOUR_SECONDS,
+                    LOG_CONST
                 ) * DATE_BOOST
                 uploaded_date_score += delta_days
             else:
@@ -502,6 +503,7 @@ class Paper(models.Model):
                 twitter_boost_score
             ) * 1000
 
+            # import pdb; pdb.set_trace()
             self.hot_score = hot_score
         else:
             self.hot_score = 0
