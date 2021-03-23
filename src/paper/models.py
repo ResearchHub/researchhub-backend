@@ -503,7 +503,6 @@ class Paper(models.Model):
                 twitter_boost_score
             ) * 1000
 
-            # import pdb; pdb.set_trace()
             self.hot_score = hot_score
         else:
             self.hot_score = 0
