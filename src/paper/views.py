@@ -1,6 +1,7 @@
 import json
 import datetime
 import base64
+import elasticapm
 
 from django.core.cache import cache
 from django.core.files.base import ContentFile
@@ -799,6 +800,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         return order_papers
 
+    @elasticapm.capture_span()
     @action(detail=False, methods=['get'])
     def get_hub_papers(self, request):
         subscribed_hubs = request.GET.get('subscribed_hubs', False)
