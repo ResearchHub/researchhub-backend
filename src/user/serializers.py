@@ -7,7 +7,14 @@ from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from discussion.lib import check_is_discussion_item
 from hub.serializers import HubSerializer
 from paper.models import Vote as PaperVote, Paper
-from user.models import Action, Author, University, User, Major, Verification
+from user.models import (
+    Action,
+    Author,
+    University,
+    User,
+    Major,
+    Verification
+)
 from summary.models import Summary
 from purchase.models import Purchase
 from utils import sentry
