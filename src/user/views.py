@@ -1,3 +1,4 @@
+from django.db import IntegrityError
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
@@ -21,12 +22,20 @@ from discussion.serializers import (
 )
 
 from user.tasks import handle_spam_user_task, reinstate_user_task
-from reputation.models import Distribution
+from reputation.models import Distribution, Contribution
+from reputation.serializers import ContributionSerializer
 from paper.models import Paper
 from paper.views import PaperViewSet
 from paper.serializers import PaperSerializer, HubPaperSerializer
 from user.filters import AuthorFilter
-from user.models import User, University, Author, Major, Verification
+from user.models import (
+    User,
+    University,
+    Author,
+    Major,
+    Verification,
+    Follow
+)
 from user.permissions import UpdateAuthor, Censor
 from user.serializers import (
     AuthorSerializer,
@@ -226,6 +235,45 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
         return self.get_paginated_response(serializer.data)
+
+    @action(
+        detail=True,
+        methods=[RequestMethods.POST],
+        permission_classes=[IsAuthenticated]
+    )
+    def follow(self, request, pk=None):
+        data = request.data
+        user = self.get_object()
+        followee_id = data.get('followee_id')
+        followee = self.queryset.get(id=followee_id)
+
+        try:
+            follow = Follow.objects.create(
+                user=user,
+                followee=followee
+            )
+        except IntegrityError:
+            return Response('User is already following Author', status=400)
+        return Response(status=200)
+
+    @action(
+        detail=True,
+        methods=[RequestMethods.GET],
+        permission_classes=[IsAuthenticated]
+    )
+    def following_latest_activity(self, request, pk=None):
+        query_params = request.query_params
+        ordering = query_params.get('ordering', '-created_date')
+        user = self.get_object()
+        following_ids = user.following.values_list('followee')
+        contributions = Contribution.objects.filter(
+            user__in=following_ids
+        ).order_by(
+            ordering
+        )
+        serializer = ContributionSerializer(contributions, many=True)
+        data = serializer.data
+        return Response(data, stauts=200)
 
     @action(
         detail=True,
