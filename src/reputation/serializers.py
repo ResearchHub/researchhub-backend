@@ -3,10 +3,12 @@ from rest_framework import serializers
 import ethereum.lib
 
 from reputation.models import Withdrawal, Contribution
-from paper.serializers import BasePaperSerializer
 from user.serializers import UserSerializer
 from summary.serializers import SummarySerializer, SummaryVoteSerializer
-from bullet_point.serializers import BulletPointSerializer, BulletPointVoteSerializer
+from bullet_point.serializers import (
+    BulletPointSerializer,
+    BulletPointVoteSerializer
+)
 from discussion.serializers import (
     ThreadSerializer,
     CommentSerializer,
@@ -47,47 +49,47 @@ def get_model_serializer(model_arg):
 
 class ContributionSerializer(serializers.ModelSerializer):
     source = serializers.SerializerMethodField()
-    paper = BasePaperSerializer()
+    paper = serializers.SerializerMethodField()
 
     class Meta:
         model = Contribution
         fields = '__all__'
 
+    def get_paper(self, contribution):
+        from paper.serializers import BasePaperSerializer
+        serializer = BasePaperSerializer(contribution.paper)
+        return serializer.data
+
     def get_source(self, contribution):
+        from paper.serializers import BasePaperSerializer
+
         serializer = None
+        context = self.context
         app_label = contribution.content_type.app_label
         model_name = contribution.content_type.name
         object_id = contribution.object_id
         model_class = contribution.content_type.model_class()
+        obj = model_class.objects.get(id=object_id)
 
         if model_name == 'paper':
-            paper = model_class.objects.get(id=object_id)
-            serializer = BasePaperSerializer(paper, context=self.context)
+            serializer = BasePaperSerializer(obj, context=context)
         elif model_name == 'thread':
-            thread = model_class.objects.get(id=object_id)
-            serializer = ThreadSerializer(thread, context=self.context)
+            serializer = ThreadSerializer(obj, context=context)
         elif model_name == 'comment':
-            comment = model_class.objects.get(id=object_id)
-            serializer = CommentSerializer(comment, context=self.context)
+            serializer = CommentSerializer(obj, context=context)
         elif model_name == 'reply':
-            reply = model_class.objects.get(id=object_id)
-            serializer = ReplySerializer(reply, context=self.context)
+            serializer = ReplySerializer(obj, context=context)
         elif model_name == 'summary':
-            summary = model_class.objects.get(id=object_id)
-            serializer = SummarySerializer(summary, context=self.context)
+            serializer = SummarySerializer(obj, context=context)
         elif model_name == 'bullet_point':
-            bulletpoint = model_class.objects.get(id=object_id)
-            serializer = BulletPointSerializer(
-                bulletpoint,
-                context=self.context
-            )
+            serializer = BulletPointSerializer(obj, context=context)
         elif model_name == 'vote':
             if app_label == 'discussion':
-                serializer = DisVoteSerializer
+                serializer = DisVoteSerializer(obj, context=context)
             elif app_label == 'summary':
-                serializer = SummaryVoteSerializer
+                serializer = SummaryVoteSerializer(obj, context=context)
             elif app_label == 'bullet_point':
-                serializer = BulletPointVoteSerializer
+                serializer = BulletPointVoteSerializer(obj, context=context)
 
         if serializer is not None:
             return serializer.data
