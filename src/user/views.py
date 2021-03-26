@@ -271,9 +271,10 @@ class UserViewSet(viewsets.ModelViewSet):
         ).order_by(
             ordering
         )
-        serializer = ContributionSerializer(contributions, many=True)
-        data = serializer.data
-        return Response(data, stauts=200)
+        page = self.paginate_queryset(contributions)
+        serializer = ContributionSerializer(page, many=True)
+        response = self.get_paginated_response(serializer.data)
+        return response
 
     @action(
         detail=True,
