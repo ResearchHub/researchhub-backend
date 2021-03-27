@@ -935,7 +935,11 @@ class PaperViewSet(viewsets.ModelViewSet):
             papers = list(papers.values())
 
             if len(papers) < 1:
-                qs = self.get_queryset(include_autopull=True)
+                qs = self.get_queryset(
+                    include_autopull=True
+                ).order_by(
+                    '-hot_score'
+                )
                 papers = qs.filter(hubs__in=hubs).distinct()
             else:
                 papers = sorted(papers, key=lambda paper: -paper['hot_score'])
@@ -957,13 +961,22 @@ class PaperViewSet(viewsets.ModelViewSet):
                 return Response(res, status=status.HTTP_200_OK)
 
         else:
-            qs = self.get_queryset(include_autopull=True)
+            qs = self.get_queryset(
+                include_autopull=True
+                ).order_by(
+                    '-hot_score'
+                )
             papers = qs.filter(hubs__in=hubs).distinct()
 
         if papers.count() < 1:
-            log_info('No hub papers found, retrieiving trending papers')
+            log_info(
+                f"""
+                    No hub papers found, retrieiving trending papers.
+                    Page: {page_number}
+                """
+            )
             feed_type = 'all'
-            papers = self.get_queryset()
+            papers = self.get_queryset().order_by('-hot_score')
 
         context = self.get_serializer_context()
         context['user_no_balance'] = True
