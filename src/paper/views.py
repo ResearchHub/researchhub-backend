@@ -975,6 +975,13 @@ class PaperViewSet(viewsets.ModelViewSet):
                     Page: {page_number}
                 """
             )
+            trending_pk = '0_-hot_score_today'
+            cache_key_hub = get_cache_key(None, 'hub', pk=trending_pk)
+            cache_hit = cache.get(cache_key_hub)
+
+            if cache_hit and page_number == 1:
+                return Response(cache_hit)
+
             feed_type = 'all'
             papers = self.get_queryset().order_by('-hot_score')
 
