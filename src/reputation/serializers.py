@@ -50,6 +50,8 @@ def get_model_serializer(model_arg):
 class ContributionSerializer(serializers.ModelSerializer):
     source = serializers.SerializerMethodField()
     paper = serializers.SerializerMethodField()
+    content_type = serializers.SerializerMethodField()
+    user = UserSerializer()
 
     class Meta:
         model = Contribution
@@ -59,6 +61,11 @@ class ContributionSerializer(serializers.ModelSerializer):
         from paper.serializers import BasePaperSerializer
         serializer = BasePaperSerializer(contribution.paper)
         return serializer.data
+
+    def get_content_type(self, contribution):
+        app_label = contribution.content_type.app_label
+        model_name = contribution.content_type.name
+        return {'app_label': app_label, 'model_name': model_name}
 
     def get_source(self, contribution):
         from paper.serializers import BasePaperSerializer
