@@ -318,7 +318,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         events_api.track_flag_content(
             content_creator,
             content_id,
-            user.id
+            user.id if user else None
         )
         decisions_api.apply_bad_content_decision(
             content_creator,
