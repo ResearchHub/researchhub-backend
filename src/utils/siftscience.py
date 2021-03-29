@@ -475,7 +475,7 @@ class EventsApi:
             '$flagged_by': str(referer_id),
         }
 
-        if user.id:
+        if user:
             properties['$user_id'] = str(user.id)
 
         try:
