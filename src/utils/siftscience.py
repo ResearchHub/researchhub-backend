@@ -471,10 +471,12 @@ class EventsApi:
     def track_flag_content(self, user, content_id, referer_id):
         # https://sift.com/developers/docs/curl/events-api/reserved-events/flag-content
         properties = {
-            '$user_id': str(user.id),
             '$content_id': content_id,
             '$flagged_by': str(referer_id),
         }
+
+        if user.id:
+            properties['$user_id'] = str(user.id)
 
         try:
             response = client.track('$flag_content', properties)
