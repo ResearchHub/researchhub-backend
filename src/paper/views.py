@@ -315,22 +315,23 @@ class PaperViewSet(viewsets.ModelViewSet):
         content_id = f'{type(paper).__name__}_{paper.id}'
         user = request.user
         content_creator = paper.uploaded_by
-        events_api.track_flag_content(
-            content_creator,
-            content_id,
-            user.id if user else None
-        )
-        decisions_api.apply_bad_content_decision(
-            content_creator,
-            content_id,
-            'MANUAL_REVIEW',
-            user
-        )
-        decisions_api.apply_bad_user_decision(
-            content_creator,
-            'MANUAL_REVIEW',
-            user
-        )
+        if content_creator:
+            events_api.track_flag_content(
+                content_creator,
+                content_id,
+                user.id
+            )
+            decisions_api.apply_bad_content_decision(
+                content_creator,
+                content_id,
+                'MANUAL_REVIEW',
+                user
+            )
+            decisions_api.apply_bad_user_decision(
+                content_creator,
+                'MANUAL_REVIEW',
+                user
+            )
 
         Contribution.objects.filter(paper=paper).delete()
         paper.is_removed = True
