@@ -670,10 +670,10 @@ def preload_trending_papers(hub_id, ordering, time_difference, context):
     request_path = '/api/paper/get_hub_papers/'
     if STAGING:
         http_host = 'staging-backend.researchhub.com'
-        server_port = 80
+        server_port = 443
     elif PRODUCTION:
         http_host = 'backend.researchhub.com'
-        server_port = 80
+        server_port = 443
     else:
         http_host = 'localhost:8000'
         server_port = 8000
