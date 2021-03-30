@@ -43,7 +43,7 @@ class SummaryViewSet(viewsets.ModelViewSet):
     ]
 
     def _invalidate_paper_cache(self, paper_id):
-        cache_key = get_cache_key(None, 'paper', pk=paper_id)
+        cache_key = get_cache_key('paper', paper_id)
         cache.delete(cache_key)
 
     @action(detail=False, methods=['get'])

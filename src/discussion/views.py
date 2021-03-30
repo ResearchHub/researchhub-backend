@@ -57,6 +57,7 @@ from discussion.permissions import (
 from paper.models import Paper
 from paper.utils import (
     get_cache_key,
+    reset_cache,
     invalidate_top_rated_cache,
     invalidate_newest_cache,
     invalidate_most_discussed_cache,
@@ -339,7 +340,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         )
         paper_id = get_paper_id_from_path(request)
         hubs = list(Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True))
-        cache_key = get_cache_key(None, 'paper', paper_id)
+        cache_key = get_cache_key('paper', paper_id)
         cache.delete(cache_key)
         discussion_id = response.data['id']
         create_contribution.apply_async(
@@ -354,6 +355,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
             countdown=10
         )
 
+        reset_cache([0])
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)
         invalidate_most_discussed_cache(hubs)
@@ -512,6 +514,7 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
             countdown=10
         )
 
+        reset_cache([0])
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)
         invalidate_most_discussed_cache(hubs)

@@ -228,7 +228,7 @@ class BaseComment(models.Model):
             paper.discussion_count = new_dis_count
             paper.save(update_fields=['discussion_count'])
 
-            cache_key = get_cache_key(None, 'paper', self.paper.id)
+            cache_key = get_cache_key('paper', paper.id)
             cache.delete(cache_key)
 
             for h in paper.hubs.all():
