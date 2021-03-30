@@ -670,13 +670,13 @@ def preload_trending_papers(hub_id, ordering, time_difference, context):
     request_path = '/api/paper/get_hub_papers/'
     if STAGING:
         http_host = 'staging-backend.researchhub.com'
-        server_port = 443
+        protocol = 'https'
     elif PRODUCTION:
         http_host = 'backend.researchhub.com'
-        server_port = 443
+        protocol = 'https'
     else:
         http_host = 'localhost:8000'
-        server_port = 8000
+        protocol = 'http'
 
     start_date_timestamp = int(start_date.timestamp())
     end_date_timestamp = int(end_date.timestamp())
@@ -688,16 +688,15 @@ def preload_trending_papers(hub_id, ordering, time_difference, context):
     )
     http_meta = {
         'QUERY_STRING': query_string,
-        'PATH_INFO': request_path,
-        'REQUEST_PATH': request_path,
-        'SERVER_PORT': server_port,
-        'HTTP_HOST': http_host
+        'HTTP_HOST': http_host,
+        'HTTP_X_FORWARDED_PROTO': protocol,
     }
 
     cache_key_hub = get_cache_key('hub', cache_pk)
     paper_view = PaperViewSet()
     http_req = HttpRequest()
     http_req.META = http_meta
+    http_req.path = request_path
     req = Request(http_req)
     paper_view.request = req
 
@@ -711,6 +710,7 @@ def preload_trending_papers(hub_id, ordering, time_difference, context):
     page = paper_view.paginate_queryset(order_papers)
     serializer = HubPaperSerializer(page, many=True, context=context)
     serializer_data = serializer.data
+
     paginated_response = paper_view.get_paginated_response(
         {'data': serializer_data, 'no_results': False, 'feed_type': 'all'}
     )
