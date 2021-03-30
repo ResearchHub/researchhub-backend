@@ -561,6 +561,7 @@ if TESTING:
         'default': {
             'BACKEND': 'researchhub.TestCache.TestCache',
             'LOCATION': f'{REDIS_HOST}:{REDIS_PORT}',
+            'KEY_PREFIX': APP_ENV
         },
     }
 else:
@@ -568,15 +569,9 @@ else:
         'default': {
             'BACKEND': 'redis_cache.RedisCache',
             'LOCATION': f'{REDIS_HOST}:{REDIS_PORT}',
+            'KEY_PREFIX': APP_ENV
         },
     }
-
-if PRODUCTION:
-    CACHE_KEY_PREFIX = 'prod'
-elif STAGING:
-    CACHE_KEY_PREFIX = 'staging'
-else:
-    CACHE_KEY_PREFIX = 'dev'
 
 # Celery
 

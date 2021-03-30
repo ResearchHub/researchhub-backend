@@ -9,7 +9,7 @@ from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
-from datetime import datetime
+from datetime import datetime, timedelta
 from habanero import Crossref
 from manubot.cite.csl_item import CSL_Item
 from bs4 import BeautifulSoup
@@ -21,9 +21,7 @@ from paper.lib import (
     journal_pdf_to_url,
     journal_url_to_pdf
 )
-from researchhub.settings import (
-    CACHE_KEY_PREFIX
-)
+
 from utils.http import (
     check_url_contains_pdf,
     http_request,
@@ -590,34 +588,25 @@ def reset_paper_cache(cache_key, data):
     cache.set(cache_key, data, timeout=60*60*24*7)
 
 
-def reset_cache(hub_ids, context, meta):
+def reset_cache(
+    hub_ids,
+    ordering='-hot_score',
+    time_difference=0
+):
     from paper.tasks import preload_trending_papers, celery_preload_hub_papers
 
-    order_regex = r'ordering=([a-z]+)'
-    start_date_regex = r'start_date__gte=([0-9]+)'
-    end_date_regex = r'end_date__lte=([0-9]+)'
-    http_meta = {}
+    context = {}
+    context['user_no_balance'] = True
+    context['exclude_promoted_score'] = True
+    context['include_wallet'] = False
 
-    if meta:
-        for key, value in meta.items():
-            value_type = type(value)
-            if key == 'QUERY_STRING':
-                value = value.replace('&subscribed_hubs=true', '')
-                start_date = int(re.findall(start_date_regex, value)[0])
-                end_date = int(re.findall(end_date_regex, value)[0])
-                ordering = re.findall(order_regex, value)[0]
-            if value_type is str or value_type is int:
-                http_meta[key] = value
-
-    for hub in hub_ids:
+    for hub_id in hub_ids:
         preload_trending_papers.apply_async(
             (
-                1,
-                start_date,
-                end_date,
+                hub_id,
                 ordering,
-                hub,
-                http_meta
+                time_difference,
+                context
             ),
             priority=1
         )
@@ -627,17 +616,14 @@ def reset_cache(hub_ids, context, meta):
     )
 
 
-def get_cache_key(request, subtype, pk=None):
-    if pk is None:
-        key = request.path.split('/')[3]
-    else:
-        key = pk
-    key = f'{CACHE_KEY_PREFIX}_get_cache_{key}_{subtype}'
-    return key
+def get_cache_key(obj_type, pk):
+    return f'{obj_type}_{pk}'
 
 
 def add_default_hub(hub_ids):
-    return [0] + list(hub_ids)
+    if 0 not in hub_ids:
+        return [0] + list(hub_ids)
+    return hub_ids
 
 
 def invalidate_trending_cache(hub_ids, with_default=True):
@@ -646,9 +632,8 @@ def invalidate_trending_cache(hub_ids, with_default=True):
 
     for hub_id in hub_ids:
         cache_key = get_cache_key(
-            None,
             'hub',
-            pk=f'{hub_id}_-hot_score_today'
+            f'{hub_id}_-hot_score_today'
         )
         cache.delete(cache_key)
 
@@ -660,9 +645,8 @@ def invalidate_top_rated_cache(hub_ids, with_default=True):
     for hub_id in hub_ids:
         for key in CACHE_TOP_RATED_DATES:
             cache_key = get_cache_key(
-                None,
                 'hub',
-                pk=f'{hub_id}_{key}'
+                f'{hub_id}_{key}'
             )
             cache.delete(cache_key)
 
@@ -673,9 +657,8 @@ def invalidate_newest_cache(hub_ids, with_default=True):
 
     for hub_id in hub_ids:
         cache_key = get_cache_key(
-            None,
             'hub',
-            pk=f'{hub_id}_-uploaded_date_today'
+            f'{hub_id}_-uploaded_date_today'
         )
         cache.delete(cache_key)
 
@@ -687,8 +670,7 @@ def invalidate_most_discussed_cache(hub_ids, with_default=True):
     for hub_id in hub_ids:
         for key in CACHE_MOST_DISCUSSED_DATES:
             cache_key = get_cache_key(
-                None,
                 'hub',
-                pk=f'{hub_id}_{key}'
+                f'{hub_id}_{key}'
             )
             cache.delete(cache_key)

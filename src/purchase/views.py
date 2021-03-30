@@ -124,7 +124,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 paper = Paper.objects.get(id=object_id)
                 paper.calculate_hot_score()
                 recipient = paper.uploaded_by
-                cache_key = get_cache_key(None, 'paper', pk=object_id)
+                cache_key = get_cache_key('paper', object_id)
                 cache.delete(cache_key)
                 transfer_rsc = True
 
