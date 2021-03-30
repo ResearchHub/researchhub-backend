@@ -716,12 +716,11 @@ def preload_trending_papers(hub_id, ordering, time_difference, context):
     )
 
     cache_key_hub = get_cache_key('hub', cache_pk)
-    if cache_key_hub:
-        cache.set(
-            cache_key_hub,
-            paginated_response.data,
-            timeout=None
-        )
+    cache.set(
+        cache_key_hub,
+        paginated_response.data,
+        timeout=None
+    )
 
     return paginated_response.data
 
