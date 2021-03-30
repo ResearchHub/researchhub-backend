@@ -31,7 +31,13 @@ def handle_spam_user_task(user_id):
         # user.papers.update(is_removed=True)
         user.paper_votes.update(is_removed=True)
 
-        hub_ids = list(Hub.objects.filter(papers__in=list(user.papers.values_list(flat=True))).values_list(flat=True).distinct())
+        hub_ids = list(
+            Hub.objects.filter(
+                papers__in=list(user.papers.values_list(flat=True))
+            ).values_list(
+                flat=True
+            ).distinct()
+        )
 
         # Update discussions
         for thr in Thread.objects.filter(created_by=user):
@@ -45,6 +51,7 @@ def handle_spam_user_task(user_id):
         for rep in Reply.objects.filter(created_by=user):
             rep.remove_nested()
             rep.update_discussion_count()
+    reset_cache(hub_ids)
 
 
 @app.task
