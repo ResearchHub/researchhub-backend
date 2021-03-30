@@ -610,10 +610,10 @@ def reset_cache(
             ),
             priority=1
         )
-    celery_preload_hub_papers.apply_async(
-        (hub_ids,),
-        priority=1
-    )
+        celery_preload_hub_papers.apply_async(
+            (hub_ids,),
+            priority=1
+        )
 
 
 def get_cache_key(obj_type, pk):
