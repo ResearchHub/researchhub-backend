@@ -250,8 +250,6 @@ class HubViewSet(viewsets.ModelViewSet):
             display=True
         ).order_by('-created_date')
 
-        # import pdb; pdb.set_trace()
-
         # actions = actions.filter(
         #     (
         #         Q(papers__is_removed=False) |
