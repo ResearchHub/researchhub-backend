@@ -33,7 +33,11 @@ from rest_framework.request import Request
 from discussion.models import Thread, Comment
 from purchase.models import Wallet
 from researchhub.celery import app
-from researchhub.settings import APP_ENV, PRODUCTION
+from researchhub.settings import (
+    APP_ENV,
+    PRODUCTION,
+    STAGING
+)
 
 
 from paper.utils import (
@@ -160,7 +164,7 @@ def add_orcid_authors(paper_id):
 
     paper.authors.add(*orcid_authors)
     if orcid_authors:
-        paper_cache_key = get_cache_key(None, 'paper', pk=paper_id)
+        paper_cache_key = get_cache_key('paper', paper_id)
         cache.delete(paper_cache_key)
     for author in paper.authors.iterator():
         Wallet.objects.get_or_create(author=author)
@@ -230,7 +234,7 @@ def celery_extract_figures(paper_id):
         sentry.log_error(e)
     finally:
         shutil.rmtree(path)
-        cache_key = get_cache_key(None, 'figure', pk=paper_id)
+        cache_key = get_cache_key('figure', paper_id)
         cache.delete(cache_key)
 
 
@@ -286,7 +290,7 @@ def celery_extract_pdf_preview(paper_id, retry=0):
     except Exception as e:
         sentry.log_error(e)
     finally:
-        cache_key = get_cache_key(None, 'figure', pk=paper_id)
+        cache_key = get_cache_key('figure', paper_id)
         cache.delete(cache_key)
     return True
 
@@ -335,7 +339,7 @@ def celery_extract_meta_data(paper_id, title, check_title):
         if not paper.tagline:
             paper.tagline = tagline
 
-        paper_cache_key = get_cache_key(None, 'paper', pk=paper_id)
+        paper_cache_key = get_cache_key('paper', paper_id)
         cache.delete(paper_cache_key)
 
         paper.check_doi()
@@ -564,7 +568,7 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
 
     if score > 0:
         paper.calculate_hot_score()
-    paper_cache_key = get_cache_key(None, 'paper', pk=paper.id)
+    paper_cache_key = get_cache_key('paper', paper.id)
     cache.delete(paper_cache_key)
 
     return True, score
@@ -602,7 +606,7 @@ def celery_preload_hub_papers(hub_ids=None):
         ).order_by(
             '-hot_score'
         )[:10]
-        cache_key = get_cache_key(None, 'papers', pk=hub_name)
+        cache_key = get_cache_key('papers', hub_name)
         serializer = HubPaperSerializer(papers, many=True, context=context)
 
         cache.set(
@@ -614,75 +618,109 @@ def celery_preload_hub_papers(hub_ids=None):
 
 
 @app.task
-def preload_trending_papers(
-    page_number,
-    start_date,
-    end_date,
-    ordering,
-    hub_id,
-    meta=None,
-    synchronous=False,
-):
+def preload_trending_papers(hub_id, ordering, time_difference, context):
     from paper.serializers import HubPaperSerializer
     from paper.views import PaperViewSet
+
+    initial_date = datetime.now().replace(
+        hour=7,
+        minute=0,
+        second=0,
+        microsecond=0
+    )
+    end_date = datetime.now()
+    if time_difference > 365:
+        cache_pk = f'{hub_id}_{ordering}_all_time'
+        start_date = datetime(
+            year=2018,
+            month=12,
+            day=31,
+            hour=7
+        )
+    elif time_difference == 365:
+        cache_pk = f'{hub_id}_{ordering}_year'
+        start_date = initial_date - timedelta(days=365)
+    elif time_difference == 30 or time_difference == 31:
+        cache_pk = f'{hub_id}_{ordering}_month'
+        start_date = initial_date - timedelta(days=30)
+    elif time_difference == 7:
+        cache_pk = f'{hub_id}_{ordering}_week'
+        start_date = initial_date - timedelta(days=7)
+    else:
+        start_date = datetime.now().replace(
+            hour=7,
+            minute=0,
+            second=0,
+            microsecond=0
+        )
+        cache_pk = f'{hub_id}_{ordering}_today'
+
+    query_string_ordering = 'top_rated'
+    if ordering == 'removed':
+        query_string_ordering = 'removed'
+    elif ordering == '-score':
+        query_string_ordering = 'top_rated'
+    elif ordering == '-discussed':
+        query_string_ordering = 'most_discussed'
+    elif ordering == '-uploaded_date':
+        query_string_ordering = 'newest'
+    elif ordering == '-hot_score':
+        query_string_ordering = 'hot'
+
+    request_path = '/api/paper/get_hub_papers/'
+    if STAGING:
+        http_host = 'staging-backend.researchhub.com'
+        protocol = 'https'
+    elif PRODUCTION:
+        http_host = 'backend.researchhub.com'
+        protocol = 'https'
+    else:
+        http_host = 'localhost:8000'
+        protocol = 'http'
+
+    start_date_timestamp = int(start_date.timestamp())
+    end_date_timestamp = int(end_date.timestamp())
+    query_string = 'page=1&start_date__gte={}&end_date__lte={}&ordering={}&hub_id={}&'.format(
+        start_date_timestamp,
+        end_date_timestamp,
+        query_string_ordering,
+        hub_id
+    )
+    http_meta = {
+        'QUERY_STRING': query_string,
+        'HTTP_HOST': http_host,
+        'HTTP_X_FORWARDED_PROTO': protocol,
+    }
+
+    cache_key_hub = get_cache_key('hub', cache_pk)
     paper_view = PaperViewSet()
     http_req = HttpRequest()
-    http_req.GET['ordering'] = ordering
-    if meta:
-        http_req.META = meta
-        if 'REQUEST_PATH' in meta.keys():
-            http_req.path = meta['REQUEST_PATH']
-    else:
-        http_req.META = {'SERVER_NAME': 'localhost', 'SERVER_PORT': 80}
-
-    start_date = datetime.fromtimestamp(start_date)
-    end_date = datetime.fromtimestamp(end_date)
+    http_req.META = http_meta
+    http_req.path = request_path
     req = Request(http_req)
     paper_view.request = req
-    ordering = paper_view._set_hub_paper_ordering(req)
-    papers = paper_view._get_filtered_papers(hub_id, ordering)
 
+    papers = paper_view._get_filtered_papers(hub_id, ordering)
     order_papers = paper_view.calculate_paper_ordering(
         papers,
         ordering,
         start_date,
         end_date
     )
-
-    context = {}
-    context['user_no_balance'] = True
-
     page = paper_view.paginate_queryset(order_papers)
     serializer = HubPaperSerializer(page, many=True, context=context)
     serializer_data = serializer.data
+
     paginated_response = paper_view.get_paginated_response(
         {'data': serializer_data, 'no_results': False, 'feed_type': 'all'}
     )
 
-    if synchronous:
-        time_difference = end_date - start_date
-    else:
-        now = datetime.now()
-        time_difference = now - now
-    cache_pk = ''
-    if time_difference.days > 365:
-        cache_pk = f'{hub_id}_{ordering}_all_time'
-    elif time_difference.days == 365:
-        cache_pk = f'{hub_id}_{ordering}_year'
-    elif time_difference.days == 30 or time_difference.days == 31:
-        cache_pk = f'{hub_id}_{ordering}_month'
-    elif time_difference.days == 7:
-        cache_pk = f'{hub_id}_{ordering}_week'
-    else:
-        cache_pk = f'{hub_id}_{ordering}_today'
-
-    cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
-    if cache_key_hub:
-        cache.set(
-            cache_key_hub,
-            paginated_response.data,
-            timeout=None
-        )
+    cache_key_hub = get_cache_key('hub', cache_pk)
+    cache.set(
+        cache_key_hub,
+        paginated_response.data,
+        timeout=None
+    )
 
     return paginated_response.data
 
@@ -691,11 +729,11 @@ def preload_trending_papers(
 IGNORE_PAPER_TITLES = ['Editorial Board']
 
 # ARXIV Download Constants
-RESULTS_PER_ITERATION = 50 # default is 10, if this goes too high like >=100 it seems to fail too often
-WAIT_TIME = 3 # The docs recommend 3 seconds between queries
+RESULTS_PER_ITERATION = 50  # default is 10, if this goes too high like >=100 it seems to fail too often
+WAIT_TIME = 3  # The docs recommend 3 seconds between queries
 RETRY_WAIT = 8
-RETRY_MAX = 20 # It fails a lot so retry a bunch
-NUM_DUP_STOP = 30 # Number of dups to hit before determining we're done
+RETRY_MAX = 20  # It fails a lot so retry a bunch
+NUM_DUP_STOP = 30  # Number of dups to hit before determining we're done
 BASE_URL = 'http://export.arxiv.org/api/query?'
 
 # Pull Daily (arxiv updates 20:00 EST)

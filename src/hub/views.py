@@ -25,7 +25,7 @@ from utils.message import send_email_message
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from paper.models import Vote, Paper
-from paper.utils import get_cache_key
+from paper.utils import get_cache_key, reset_cache
 
 
 class CustomPageLimitPagination(PageNumberPagination):
@@ -50,7 +50,7 @@ class HubViewSet(viewsets.ModelViewSet):
     def dispatch(self, request, *args, **kwargs):
         query_params = request.META.get('QUERY_STRING', '')
         if 'score' in query_params:
-            cache_key = get_cache_key(None, 'hubs', pk='trending')
+            cache_key = get_cache_key('hubs', 'trending')
             cache_hit = cache.get(cache_key)
             if cache_hit:
                 return cache_hit
@@ -122,6 +122,7 @@ class HubViewSet(viewsets.ModelViewSet):
         hub.discussion_count = hub.get_discussion_count()
 
         hub.save(update_fields=['is_removed', 'paper_count', 'discussion_count'])
+        reset_cache([0])
 
         return Response(
             self.get_serializer(instance=hub).data,
@@ -248,8 +249,6 @@ class HubViewSet(viewsets.ModelViewSet):
             content_type__model__in=models+['paper'],
             display=True
         ).order_by('-created_date')
-
-        # import pdb; pdb.set_trace()
 
         # actions = actions.filter(
         #     (

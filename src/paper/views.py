@@ -70,7 +70,8 @@ from paper.utils import (
     invalidate_newest_cache,
     invalidate_most_discussed_cache,
     reset_cache,
-    reset_paper_cache
+    reset_paper_cache,
+    add_default_hub
 )
 from researchhub.lib import get_paper_id_from_path
 from reputation.models import Contribution
@@ -199,7 +200,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             response = super().create(*args, **kwargs)
             request = args[0]
             hub_ids = list(request.POST['hubs'])
-            context = self.get_serializer_context()
+            reset_cache(hub_ids)
             return response
         except IntegrityError as e:
             return self._get_integrity_error_response(e)
@@ -223,9 +224,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         )
 
     def retrieve(self, request, *args, **kwargs):
-        cache_key = get_cache_key(request, 'paper')
-        cache_hit = cache.get(cache_key)
         instance = self.get_object()
+        cache_key = get_cache_key('paper', instance.id)
+        cache_hit = cache.get(cache_key)
         if cache_hit is not None:
             vote = self.serializer_class(
                 context={'request': request}
@@ -251,8 +252,8 @@ class PaperViewSet(viewsets.ModelViewSet):
         return super().list(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
-        cache_key = get_cache_key(request, 'paper')
         instance = self.get_object()
+        cache_key = get_cache_key('paper', instance.id)
 
         # TODO: This needs improvement so we guarantee that we are tracking
         # file created location when a file is actually being added and not
@@ -268,7 +269,8 @@ class PaperViewSet(viewsets.ModelViewSet):
             instance = self.get_object()
             self._send_created_location_ga_event(instance, request.user)
 
-        hub_ids = request.data.get('hubs', [])
+        hub_ids = request.data.get('hubs', [0])
+        reset_cache(hub_ids)
         reset_paper_cache(cache_key, response.data)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
@@ -308,11 +310,13 @@ class PaperViewSet(viewsets.ModelViewSet):
     )
     def censor(self, request, pk=None):
         paper = self.get_object()
-        cache_key = get_cache_key(request, 'paper')
+        paper_id = paper.id
+        cache_key = get_cache_key('paper', paper_id)
         cache.delete(cache_key)
         hub_ids = list(paper.hubs.values_list('id', flat=True))
+        hub_ids = add_default_hub(hub_ids)
 
-        content_id = f'{type(paper).__name__}_{paper.id}'
+        content_id = f'{type(paper).__name__}_{paper_id}'
         user = request.user
         content_creator = paper.uploaded_by
         if content_creator:
@@ -336,8 +340,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         Contribution.objects.filter(paper=paper).delete()
         paper.is_removed = True
         paper.save()
-        censored_paper_cleanup.apply_async((paper.id,), priority=3)
+        censored_paper_cleanup.apply_async((paper_id,), priority=3)
 
+        reset_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -350,13 +355,14 @@ class PaperViewSet(viewsets.ModelViewSet):
     )
     def censor_pdf(self, request, pk=None):
         paper = self.get_object()
+        paper_id = paper.id
         paper.file = None
         paper.url = None
         paper.pdf_url = None
         paper.figures.all().delete()
         paper.save()
 
-        content_id = f'{type(paper).__name__}_{paper.id}'
+        content_id = f'{type(paper).__name__}_{paper_id}'
         user = request.user
         content_creator = paper.uploaded_by
         events_api.track_flag_content(
@@ -376,13 +382,15 @@ class PaperViewSet(viewsets.ModelViewSet):
             user
         )
 
-        cache_key = get_cache_key(request, 'paper')
+        cache_key = get_cache_key('paper', paper_id)
         serializer = self.get_serializer(paper)
         serializer_data = serializer.data
         reset_paper_cache(cache_key, serializer_data)
 
         hub_ids = list(paper.hubs.values_list('id', flat=True))
+        hub_ids = add_default_hub(hub_ids)
 
+        reset_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -538,6 +546,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     def upvote(self, request, pk=None):
         paper = self.get_object()
         hub_ids = list(paper.hubs.values_list('id', flat=True))
+        hub_ids = add_default_hub(hub_ids)
         user = request.user
 
         vote_exists = find_vote(user, paper, Vote.UPVOTE)
@@ -549,10 +558,11 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(request, user, paper, Vote.UPVOTE)
 
+        reset_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
-        cache_key_paper = get_cache_key(request, 'paper')
+        cache_key_paper = get_cache_key('paper', paper.id)
         serializer = self.get_serializer(paper)
         serializer_data = serializer.data
         reset_paper_cache(cache_key_paper, serializer_data)
@@ -570,6 +580,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     def downvote(self, request, pk=None):
         paper = self.get_object()
         hub_ids = list(paper.hubs.values_list('id', flat=True))
+        hub_ids = add_default_hub(hub_ids)
         user = request.user
 
         vote_exists = find_vote(user, paper, Vote.DOWNVOTE)
@@ -581,10 +592,11 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(request, user, paper, Vote.DOWNVOTE)
 
+        reset_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
-        cache_key_paper = get_cache_key(request, 'paper')
+        cache_key_paper = get_cache_key('paper', paper.id)
         serializer = self.get_serializer(paper)
         serializer_data = serializer.data
         reset_paper_cache(cache_key_paper, serializer_data)
@@ -821,8 +833,8 @@ class PaperViewSet(viewsets.ModelViewSet):
         hub_id = request.GET.get('hub_id', 0)
 
         cache_hit = None
+        time_difference = end_date - start_date
         if page_number == 1 and 'removed' not in ordering and not external_source:
-            time_difference = end_date - start_date
             cache_pk = ''
             if time_difference.days > 365:
                 cache_pk = f'{hub_id}_{ordering}_all_time'
@@ -835,7 +847,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             else:
                 cache_pk = f'{hub_id}_{ordering}_today'
 
-            cache_key_hub = get_cache_key(None, 'hub', pk=cache_pk)
+            cache_key_hub = get_cache_key('hub', cache_pk)
             cache_hit = cache.get(cache_key_hub)
 
             if cache_hit and page_number == 1:
@@ -847,9 +859,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         context['include_wallet'] = False
 
         if not cache_hit and page_number == 1:
-            meta = {**request.META}
-            meta['REQUEST_PATH'] = request.path
-            reset_cache([hub_id], context,  meta)
+            reset_cache([hub_id], ordering, time_difference.days)
 
         papers = self._get_filtered_papers(hub_id, ordering)
         order_papers = self.calculate_paper_ordering(
@@ -926,7 +936,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             papers = {}
             for hub in hubs.iterator():
                 hub_name = hub.slug
-                cache_key = get_cache_key(None, 'papers', pk=hub_name)
+                cache_key = get_cache_key('papers', hub_name)
                 cache_hit = cache.get(cache_key)
                 if cache_hit:
                     for hit in cache_hit:
@@ -977,7 +987,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                 """
             )
             trending_pk = '0_-hot_score_today'
-            cache_key_hub = get_cache_key(None, 'hub', pk=trending_pk)
+            cache_key_hub = get_cache_key('hub', trending_pk)
             cache_hit = cache.get(cache_key_hub)
 
             if cache_hit and page_number == 1:
@@ -1219,7 +1229,7 @@ class FigureViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticatedOrReadOnly]
     )
     def get_all_figures(self, request, pk=None):
-        cache_key = get_cache_key(request, 'figure')
+        cache_key = get_cache_key('figure', pk)
         cache_hit = cache.get(cache_key)
         if cache_hit is not None:
             return Response(
