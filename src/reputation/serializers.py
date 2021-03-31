@@ -5,7 +5,6 @@ import ethereum.lib
 from reputation.models import Withdrawal, Contribution
 from user.serializers import UserSerializer
 from summary.serializers import SummarySerializer, SummaryVoteSerializer
-from purchase.serializers import PurchaseSerializer
 from bullet_point.serializers import (
     BulletPointSerializer,
     BulletPointVoteSerializer
@@ -70,6 +69,7 @@ class ContributionSerializer(serializers.ModelSerializer):
 
     def get_source(self, contribution):
         from paper.serializers import BasePaperSerializer
+        from purchase.serializers import PurchaseSerializer
 
         serializer = None
         context = self.context
