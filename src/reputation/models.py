@@ -173,6 +173,8 @@ class Contribution(models.Model):
     AUTHOR = 'AUTHOR'
     CURATOR = 'CURATOR'
     COMMENTER = 'COMMENTER'
+    SUPPORTER = 'SUPPORTER'
+    VIEWER = 'VIEWER'
 
     contribution_choices = [
         # (PAPER, PAPER),
@@ -180,7 +182,9 @@ class Contribution(models.Model):
         (SUBMITTER, SUBMITTER),
         (UPVOTER, UPVOTER),
         (CURATOR, CURATOR),
-        (COMMENTER, COMMENTER)
+        (COMMENTER, COMMENTER),
+        (SUPPORTER, SUPPORTER),
+        (VIEWER, VIEWER)
     ]
 
     contribution_type = models.CharField(
