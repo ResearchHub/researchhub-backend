@@ -281,6 +281,8 @@ class Thread(BaseComment):
         null=True,
         validators=[ThreadValidator]
     )
+    block_key = models.CharField(max_length=255, null=True, blank=True)
+    entity_key = models.CharField(max_length=255, null=True, blank=True)
     title = models.CharField(
         max_length=255,
         null=True,
