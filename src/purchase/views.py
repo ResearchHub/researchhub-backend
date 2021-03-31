@@ -45,6 +45,8 @@ from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfAllowed
 from user.models import User, Author, Action
 from user.serializers import UserSerializer
 from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
+from reputation.models import Contribution
+from reputation.tasks import create_contribution
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
 
@@ -174,6 +176,18 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 serializer_data
             )
             self.send_purchase_email(purchase, recipient, paper.id)
+
+        create_contribution.apply_async(
+            (
+                Contribution.SUPPORTER,
+                {'app_label': 'purchase', 'model': 'purchase'},
+                user.id,
+                paper.id,
+                purchase.id
+            ),
+            priority=2,
+            countdown=10
+        )
         return Response(serializer_data, status=201)
 
     def update(self, request, *args, **kwargs):

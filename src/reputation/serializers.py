@@ -5,6 +5,7 @@ import ethereum.lib
 from reputation.models import Withdrawal, Contribution
 from user.serializers import UserSerializer
 from summary.serializers import SummarySerializer, SummaryVoteSerializer
+from purchase.serializers import PurchaseSerializer
 from bullet_point.serializers import (
     BulletPointSerializer,
     BulletPointVoteSerializer
@@ -90,6 +91,10 @@ class ContributionSerializer(serializers.ModelSerializer):
             serializer = SummarySerializer(obj, context=context)
         elif model_name == 'bullet_point':
             serializer = BulletPointSerializer(obj, context=context)
+        elif model_name == 'purchase':
+            context['exclude_source'] = True
+            context['exclude_stats'] = True
+            serializer = PurchaseSerializer(obj, context=context)
         elif model_name == 'vote':
             if app_label == 'discussion':
                 serializer = DisVoteSerializer(obj, context=context)
