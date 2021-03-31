@@ -887,7 +887,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticatedOrReadOnly]
     )
     def pdf_extract(self, request, pk=None):
-        paper = self.get_object()
+        paper = Paper.objects.get(id=pk)
         pdf_file = paper.pdf_file_extract
         edited_file = paper.edited_file_extract
 
