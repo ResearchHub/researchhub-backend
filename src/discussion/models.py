@@ -13,6 +13,11 @@ from django.contrib.postgres.fields import JSONField
 from django.core.cache import cache
 from django.db import models
 
+from discussion.validators import (
+    JSONSchemaValidator,
+    THREAD_SOURCE_SCHEMA,
+    ThreadValidator
+)
 from paper.utils import get_cache_key
 from purchase.models import Purchase
 from researchhub.lib import CREATED_LOCATIONS
@@ -259,7 +264,28 @@ class BaseComment(models.Model):
 
 
 class Thread(BaseComment):
-    title = models.CharField(max_length=255, null=True, blank=True)
+    PAPER = 'paper'
+    INLINE_ABSTRACT = 'inline_abstract'
+    INLINE_PAPER_BODY = 'inline_paper_body'
+    THREAD_SOURCE_CHOICES = [
+        (PAPER, 'Paper'),
+        (INLINE_ABSTRACT, 'Inline Abstract'),
+        (INLINE_PAPER_BODY, 'Inline Paper Body')
+    ]
+    source = models.CharField(
+        default=PAPER,
+        choices=THREAD_SOURCE_CHOICES,
+        max_length=32
+    )
+    metadata = JSONField(
+        null=True,
+        validators=[ThreadValidator]
+    )
+    title = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True
+    )
     paper = models.ForeignKey(
         'paper.Paper',
         on_delete=models.SET_NULL,
