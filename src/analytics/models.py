@@ -33,7 +33,7 @@ class WebsiteVisits(models.Model):
 class PaperEvent(models.Model):
     CLICK = 'CLICK'
     VIEW = 'VIEW'
-    PAPER = 'paper'
+    PAPER = 'PAPER'
 
     paper = models.ForeignKey(
         'paper.Paper',
