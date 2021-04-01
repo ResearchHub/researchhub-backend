@@ -530,8 +530,8 @@ def celery_extract_pdf_sections(paper_id):
                         figure_type=Figure.FIGURE
                     )
     except Exception as e:
-        sentry.log_error(e)
-        print(e)
+        message = str(os.listdir('/tmp/pdf_cermine'))
+        sentry.log_error(e, message=message)
     finally:
         shutil.rmtree(path)
         return True
