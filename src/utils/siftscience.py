@@ -61,12 +61,13 @@ def get_tracked_content_score(tracked_content):
 
 
 def update_user_risk_score(user, tracked_content):
-    if tracked_content:
-        content_risk_score = get_tracked_content_score(tracked_content)
-        if content_risk_score:
-            user.sift_risk_score = content_risk_score
-            user.save(update_fields=['sift_risk_score'])
-            check_user_risk(user)
+    return
+    # if tracked_content:
+    #     content_risk_score = get_tracked_content_score(tracked_content)
+    #     if content_risk_score:
+    #         user.sift_risk_score = content_risk_score
+    #         user.save(update_fields=['sift_risk_score'])
+    #         check_user_risk(user)
 
 
 def check_user_risk(user):
