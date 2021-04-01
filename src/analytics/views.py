@@ -61,7 +61,7 @@ class PaperEventViewSet(viewsets.ModelViewSet):
         paper_id = request.data['paper']
         res = super().create(request, *args, **kwargs)
         paper_event_id = res.data['id']
-        if created_location == 'PAPER' and interaction == 'VIEW':
+        if created_location == PaperEvent.PAPER and PaperEvent.VIEW:
             create_contribution.apply_async(
                 (
                     Contribution.SUPPORTER,
