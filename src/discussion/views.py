@@ -325,11 +325,12 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     ordering = ('-created_date',)
 
     def create(self, request, *args, **kwargs):
+        print("CALLLIINNNNG HEREEEEE")
         if request.query_params.get('created_location') == 'progress':
             request.data['created_location'] = (
                 BaseComment.CREATED_LOCATION_PROGRESS
             )
-
+    
         response = super().create(request, *args, **kwargs)
         response = self.get_self_upvote_response(request, response, Thread)
         self.sift_track_create_content_comment(
@@ -389,10 +390,8 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         upvotes = Count('votes', filter=Q(votes__vote_type=Vote.UPVOTE,))
         downvotes = Count('votes', filter=Q(votes__vote_type=Vote.DOWNVOTE,))
         paper_id = get_paper_id_from_path(self.request)
-
         source = self.request.query_params.get('source')
         is_removed = self.request.query_params.get('is_removed', False)
-
         if source and source == 'twitter':
             try:
                 Paper.objects.get(
@@ -421,6 +420,8 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         threads = threads.annotate(
             score=upvotes-downvotes
         )
+        # print(threads)
+
         return threads.prefetch_related('paper')
 
     @action(

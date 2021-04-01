@@ -227,11 +227,13 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
             'title',
             'text',
             'paper',
+            'block_key',
             'comment_count',
             'comments',
             'created_by',
             'created_date',
             'created_location',
+            'entity_key',
             'external_metadata',
             'is_public',
             'is_removed',
@@ -242,7 +244,7 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
             'was_edited',
             'plain_text',
             'paper_slug',
-            'promoted'
+            'promoted',
         ]
         read_only_fields = [
             'is_public',
