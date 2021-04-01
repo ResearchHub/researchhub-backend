@@ -325,7 +325,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
     ordering = ('-created_date',)
 
     def create(self, request, *args, **kwargs):
-        print("CALLLIINNNNG HEREEEEE")
         if request.query_params.get('created_location') == 'progress':
             request.data['created_location'] = (
                 BaseComment.CREATED_LOCATION_PROGRESS
@@ -420,7 +419,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         threads = threads.annotate(
             score=upvotes-downvotes
         )
-        # print(threads)
 
         return threads.prefetch_related('paper')
 
