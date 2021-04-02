@@ -254,7 +254,9 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         except IntegrityError:
             return Response('User is already following Author', status=400)
-        return Response(status=200)
+
+        is_following = user.following.filter(followee=followee).exists()
+        return Response(is_following, status=200)
 
     @action(
         detail=True,
