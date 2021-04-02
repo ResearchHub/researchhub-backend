@@ -245,7 +245,7 @@ class UserViewSet(viewsets.ModelViewSet):
         data = request.data
         user = self.get_object()
         followee_id = data.get('followee_id')
-        followee = self.queryset.get(id=followee_id)
+        followee = Author.objects.get(id=followee_id).user
 
         try:
             follow = Follow.objects.create(
