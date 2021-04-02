@@ -261,6 +261,30 @@ class UserViewSet(viewsets.ModelViewSet):
         methods=[RequestMethods.GET],
         permission_classes=[IsAuthenticated]
     )
+    def following(self, request, pk=None):
+        user = self.get_object()
+        following_ids = user.following.values_list('followee')
+        following = self.queryset.filter(id__in=following_ids)
+        serializer = UserSerializer(following, many=True)
+        data = {user['id']: user for user in serializer.data}
+        return Response(data, status=200)
+
+    @action(
+        detail=True,
+        methods=[RequestMethods.GET],
+        permission_classes=[IsAuthenticated]
+    )
+    def check_follow(self, request, pk=None):
+        user = request.user
+        followee = Author.objects.get(id=pk).user
+        is_following = user.following.filter(followee=followee).exists()
+        return Response(is_following, status=200)
+
+    @action(
+        detail=True,
+        methods=[RequestMethods.GET],
+        permission_classes=[IsAuthenticated]
+    )
     def following_latest_activity(self, request, pk=None):
         query_params = request.query_params
         ordering = query_params.get('ordering', '-created_date')
