@@ -253,6 +253,11 @@ class UserViewSet(viewsets.ModelViewSet):
                 followee=followee
             )
         except IntegrityError:
+            follow = Follow.objects.get(
+                user=user,
+                followee=followee
+            )
+            follow.delete()
             return Response('User is already following Author', status=400)
 
         is_following = user.following.filter(followee=followee).exists()
