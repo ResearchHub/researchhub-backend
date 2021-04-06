@@ -405,6 +405,11 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
                 paper=paper_id,
                 source=source
             )
+        elif source == "researchhub":
+            threads = Thread.objects.filter(
+                paper=paper_id,
+                source__in=[source, "inline_paper_body"]
+            )
         elif source:
             threads = Thread.objects.filter(
                 paper=paper_id,
