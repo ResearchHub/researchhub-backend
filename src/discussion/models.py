@@ -282,6 +282,11 @@ class Thread(BaseComment):
         validators=[ThreadValidator]
     )
     block_key = models.CharField(max_length=255, null=True, blank=True)
+    context_title = models.TextField(
+        blank=True,
+        null=True,
+        help_text="For inline-comments, indicates what's highlighted"
+    )
     entity_key = models.CharField(max_length=255, null=True, blank=True)
     title = models.CharField(
         max_length=255,
