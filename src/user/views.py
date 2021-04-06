@@ -287,20 +287,28 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(is_following, status=200)
 
     @action(
-        detail=True,
+        detail=False,
         methods=[RequestMethods.GET],
-        permission_classes=[IsAuthenticated]
+        permission_classes=[AllowAny]
     )
-    def following_latest_activity(self, request, pk=None):
+    def following_latest_activity(self, request):
         query_params = request.query_params
         ordering = query_params.get('ordering', '-created_date')
-        user = self.get_object()
-        following_ids = user.following.values_list('followee')
-        contributions = Contribution.objects.filter(
-            user__in=following_ids
-        ).order_by(
-            ordering
-        )
+        hub_id = query_params.get('hub_id', None)
+        user = request.user
+        # following_ids = user.following.values_list('followee')
+        contributions = Contribution.objects.prefetch_related('paper', 'user', 'paper__uploaded_by')
+        if hub_id:
+            contributions = contributions.filter(
+                paper__hubs__in=[hub_id]
+                # user__in=following_ids
+            ).order_by(
+                ordering
+            )
+        else:
+            contributions = contributions.order_by(
+                ordering
+            )
         page = self.paginate_queryset(contributions)
         serializer = ContributionSerializer(page, many=True)
         response = self.get_paginated_response(serializer.data)

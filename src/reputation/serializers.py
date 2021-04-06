@@ -58,8 +58,8 @@ class ContributionSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_paper(self, contribution):
-        from paper.serializers import BasePaperSerializer
-        serializer = BasePaperSerializer(contribution.paper)
+        from paper.serializers import ContributionPaperSerializer
+        serializer = ContributionPaperSerializer(contribution.paper)
         return serializer.data
 
     def get_content_type(self, contribution):
@@ -68,7 +68,7 @@ class ContributionSerializer(serializers.ModelSerializer):
         return {'app_label': app_label, 'model_name': model_name}
 
     def get_source(self, contribution):
-        from paper.serializers import BasePaperSerializer
+        from paper.serializers import ContributionPaperSerializer
         from purchase.serializers import PurchaseSerializer
 
         serializer = None
@@ -80,7 +80,7 @@ class ContributionSerializer(serializers.ModelSerializer):
         obj = model_class.objects.get(id=object_id)
 
         if model_name == 'paper':
-            serializer = BasePaperSerializer(obj, context=context)
+            serializer = ContributionPaperSerializer(obj, context=context)
         elif model_name == 'thread':
             serializer = ThreadSerializer(obj, context=context)
         elif model_name == 'comment':

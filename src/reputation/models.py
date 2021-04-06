@@ -214,6 +214,12 @@ class Contribution(models.Model):
         'content_type',
         'object_id',
     )
+    # hub = models.ForeignKey(
+    #     'hub.Hub',
+    #     related_name="contributions",
+    #     on_Delete=models.SET_NULL,
+    #     null=True
+    # )
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
