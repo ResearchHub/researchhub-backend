@@ -544,7 +544,7 @@ def celery_extract_pdf_sections(paper_id):
 @app.task(queue=f'{APP_ENV}_autopull_queue', ignore_result=False)
 def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     if paper_id is None or iteration > 2:
-        return
+        return False
 
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
