@@ -82,6 +82,7 @@ from utils.sentry import log_error, log_info
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from utils.siftscience import events_api, decisions_api
+from rest_framework.permissions import AllowAny
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -908,7 +909,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['post'],
-        permission_classes=[IsModeratorOrVerifiedAuthor]
+        permission_classes=[AllowAny]
     )
     def edit_file_extract(self, request, pk=None):
         paper = self.get_object()
