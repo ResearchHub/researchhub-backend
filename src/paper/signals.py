@@ -45,20 +45,6 @@ def recalc_paper_votes(
         author.save()
     paper.save()
 
-
-
-@receiver(post_save, sender=Paper, dispatch_uid='extract_twitter_comments')
-def queue_extract_twitter_comments(
-    sender,
-    instance,
-    created,
-    update_fields,
-    **kwargs
-):
-    if created:
-        instance.extract_twitter_comments(use_celery=True)
-
-
 def check_file_updated(update_fields, file):
     if update_fields is not None and file:
         return 'file' in update_fields

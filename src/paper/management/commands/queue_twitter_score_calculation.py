@@ -8,5 +8,6 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         today_papers = Paper.objects.filter(uploaded_date__gte='2021-04-09')
-        for paper in today_papers:
+        count = today_papers.count()
+        for i, paper in enumerate(today_papers):
             celery_calculate_paper_twitter_score(paper.id)
