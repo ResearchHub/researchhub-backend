@@ -1,20 +1,18 @@
 import math
 import datetime
 import pytz
-import numpy as np
 
 from django.db import transaction
-from django.db.models import Q, Sum, Count, F
+from django.db.models import Q, F
 
-from celery.decorators import periodic_task
 from django.contrib.contenttypes.models import ContentType
 from datetime import timedelta
 from django.utils import timezone
 
-from researchhub.settings import REWARD_SCHEDULE, REWARD_TIME, APP_ENV, BASE_FRONTEND_URL
+from researchhub.settings import BASE_FRONTEND_URL
 from researchhub.celery import app
 from paper.models import Paper, Vote as PaperVote, Figure
-from discussion.models import Vote as DiscussionVote, Thread, Reply, Comment
+from discussion.models import Thread, Reply, Comment
 from bullet_point.models import BulletPoint
 from summary.models import Summary
 from reputation.models import Contribution, DistributionAmount

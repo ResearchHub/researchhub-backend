@@ -173,6 +173,8 @@ class Contribution(models.Model):
     AUTHOR = 'AUTHOR'
     CURATOR = 'CURATOR'
     COMMENTER = 'COMMENTER'
+    SUPPORTER = 'SUPPORTER'
+    VIEWER = 'VIEWER'
 
     contribution_choices = [
         # (PAPER, PAPER),
@@ -180,7 +182,9 @@ class Contribution(models.Model):
         (SUBMITTER, SUBMITTER),
         (UPVOTER, UPVOTER),
         (CURATOR, CURATOR),
-        (COMMENTER, COMMENTER)
+        (COMMENTER, COMMENTER),
+        (SUPPORTER, SUPPORTER),
+        (VIEWER, VIEWER)
     ]
 
     contribution_type = models.CharField(
@@ -210,6 +214,12 @@ class Contribution(models.Model):
         'content_type',
         'object_id',
     )
+    # hub = models.ForeignKey(
+    #     'hub.Hub',
+    #     related_name="contributions",
+    #     on_Delete=models.SET_NULL,
+    #     null=True
+    # )
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)

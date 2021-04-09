@@ -31,6 +31,10 @@ class WebsiteVisits(models.Model):
 
 
 class PaperEvent(models.Model):
+    CLICK = 'CLICK'
+    VIEW = 'VIEW'
+    PAPER = 'PAPER'
+
     paper = models.ForeignKey(
         'paper.Paper',
         on_delete=models.SET_NULL,

@@ -1,3 +1,4 @@
+from django.db import IntegrityError
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
@@ -21,12 +22,20 @@ from discussion.serializers import (
 )
 
 from user.tasks import handle_spam_user_task, reinstate_user_task
-from reputation.models import Distribution
+from reputation.models import Distribution, Contribution
+from reputation.serializers import ContributionSerializer
 from paper.models import Paper
 from paper.views import PaperViewSet
 from paper.serializers import PaperSerializer, HubPaperSerializer
 from user.filters import AuthorFilter
-from user.models import User, University, Author, Major, Verification
+from user.models import (
+    User,
+    University,
+    Author,
+    Major,
+    Verification,
+    Follow
+)
 from user.permissions import UpdateAuthor, Censor
 from user.serializers import (
     AuthorSerializer,
@@ -226,6 +235,86 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
         return self.get_paginated_response(serializer.data)
+
+    @action(
+        detail=True,
+        methods=[RequestMethods.POST],
+        permission_classes=[IsAuthenticated]
+    )
+    def follow(self, request, pk=None):
+        data = request.data
+        user = self.get_object()
+        followee_id = data.get('followee_id')
+        followee = Author.objects.get(id=followee_id).user
+
+        try:
+            follow = Follow.objects.create(
+                user=user,
+                followee=followee
+            )
+        except IntegrityError:
+            follow = Follow.objects.get(
+                user=user,
+                followee=followee
+            )
+            follow.delete()
+
+        is_following = user.following.filter(followee=followee).exists()
+        return Response(is_following, status=200)
+
+    @action(
+        detail=True,
+        methods=[RequestMethods.GET],
+        permission_classes=[IsAuthenticated]
+    )
+    def following(self, request, pk=None):
+        user = self.get_object()
+        following_ids = user.following.values_list('followee')
+        following = self.queryset.filter(id__in=following_ids)
+        serializer = UserSerializer(following, many=True)
+        data = {user['id']: user for user in serializer.data}
+        return Response(data, status=200)
+
+    @action(
+        detail=True,
+        methods=[RequestMethods.GET],
+        permission_classes=[IsAuthenticated]
+    )
+    def check_follow(self, request, pk=None):
+        user = request.user
+        followee = Author.objects.get(id=pk).user
+        is_following = user.following.filter(followee=followee).exists()
+        return Response(is_following, status=200)
+
+    @action(
+        detail=False,
+        methods=[RequestMethods.GET],
+        permission_classes=[AllowAny]
+    )
+    def following_latest_activity(self, request):
+        query_params = request.query_params
+        ordering = query_params.get('ordering', '-created_date')
+        hub_ids = query_params.get('hub_ids', '')
+        user = request.user
+        # following_ids = user.following.values_list('followee')
+        contributions = Contribution.objects.prefetch_related('paper', 'user', 'paper__uploaded_by')
+        if hub_ids:
+            hub_ids = hub_ids.split(',')
+            hub_ids = [int(i) for i in hub_ids]
+            contributions = contributions.filter(
+                paper__hubs__in=hub_ids
+                # user__in=following_ids
+            ).order_by(
+                ordering
+            )
+        else:
+            contributions = contributions.order_by(
+                ordering
+            )
+        page = self.paginate_queryset(contributions)
+        serializer = ContributionSerializer(page, many=True)
+        response = self.get_paginated_response(serializer.data)
+        return response
 
     @action(
         detail=True,
