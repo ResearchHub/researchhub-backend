@@ -7,6 +7,6 @@ from paper.tasks import celery_calculate_paper_twitter_score
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        today_papers = Paper.objects.filter(uploaded_date__gte='4/9/21')
+        today_papers = Paper.objects.filter(uploaded_date__gte='2021-04-09')
         for paper in today_papers:
             celery_calculate_paper_twitter_score(paper.id)
