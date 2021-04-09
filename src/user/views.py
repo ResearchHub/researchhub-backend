@@ -297,7 +297,8 @@ class UserViewSet(viewsets.ModelViewSet):
         hub_ids = query_params.get('hub_ids', '')
         user = request.user
         # following_ids = user.following.values_list('followee')
-        contributions = Contribution.objects.prefetch_related('paper', 'user', 'paper__uploaded_by')
+        contribution_type = [Contribution.COMMENTER, Contribution.SUPPORTER, Contribution.VIEWER]
+        contributions = Contribution.objects.prefetch_related('paper', 'user', 'paper__uploaded_by').filter(contribution_type__in=contribution_type)
         if hub_ids:
             hub_ids = hub_ids.split(',')
             hub_ids = [int(i) for i in hub_ids]
