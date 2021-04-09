@@ -11,8 +11,7 @@ class Command(BaseCommand):
         count = today_papers.count()
         for i, paper in enumerate(today_papers):
           print('{} / {}'.format(i, count))
-          celery_calculate_paper_twitter_score.apply_async(
-              (paper.id,),
-              priority=5,
-              countdown=15
-          )
+          success = celery_calculate_paper_twitter_score(paper.id)
+          if not success:
+            time.sleep(900)
+            celery_calculate_paper_twitter_score(paper.id)
