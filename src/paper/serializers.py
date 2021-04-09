@@ -148,11 +148,12 @@ class BasePaperSerializer(serializers.ModelSerializer):
         return None
 
     def get_summary(self, paper):
-        return SummarySerializer(
-            paper.summary,
-            required=False,
-            context=self.context
-        ).data
+        # return SummarySerializer(
+        #     paper.summary,
+        #     required=False,
+        #     context=self.context
+        # ).data
+        return None
 
     def get_csl_item(self, paper):
         if self.context.get('purchase_minimal_serialization', False):
@@ -238,6 +239,14 @@ class BasePaperSerializer(serializers.ModelSerializer):
     def get_promoted(self, paper):
         return paper.get_promoted_score()
 
+class ContributionPaperSerializer(BasePaperSerializer):
+    uploaded_by = None
+    discussion = None
+    first_figure = None
+    first_preview = None
+    bullet_points = None
+    csl_item = None
+    summary = None
 
 class PaperSerializer(BasePaperSerializer):
 

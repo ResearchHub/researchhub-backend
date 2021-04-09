@@ -12,6 +12,8 @@ from analytics.serializers import (
     WebsiteVisitsSerializer
 )
 from analytics.amplitude import Amplitude
+from reputation.models import Contribution
+from reputation.tasks import create_contribution
 
 
 class WebsiteVisitsViewSet(viewsets.ModelViewSet):
@@ -55,8 +57,22 @@ class PaperEventViewSet(viewsets.ModelViewSet):
         if interaction is not None:
             interaction = interaction.upper()
             request.data['interaction'] = interaction
-        return super().create(request, *args, **kwargs)
-    
+
+        paper_id = request.data['paper']
+        res = super().create(request, *args, **kwargs)
+        paper_event_id = res.data['id']
+        if created_location == PaperEvent.PAPER and PaperEvent.VIEW:
+            create_contribution.apply_async(
+                (
+                    Contribution.SUPPORTER,
+                    {'app_label': 'analytics', 'model': 'paperevent'},
+                    user.id,
+                    paper_id,
+                    paper_event_id
+                ),
+                priority=2,
+                countdown=10
+            )
 
     @action(
         detail=False,
@@ -67,7 +83,7 @@ class PaperEventViewSet(viewsets.ModelViewSet):
         user = request.user
         if not user.is_anonymous:
             request.data['user'] = user
-        
+
         created_location = request.data.get('created_location')
         if created_location is not None:
             created_location = created_location.upper()
@@ -77,20 +93,21 @@ class PaperEventViewSet(viewsets.ModelViewSet):
                 'Missing required field `created_location`',
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         interaction = request.data.get('interaction', None)
         if interaction is not None:
             interaction = interaction.upper()
             request.data['interaction'] = interaction
-        
+
         events = []
         paper_ids = request.data['paper_ids']
         del request.data['paper_ids']
         for id in paper_ids:
             events.append(PaperEvent(paper_id=id, **request.data))
-        
+
         PaperEvent.objects.bulk_create(events)
         return Response({'msg': 'Events Created'}, 201)
+
 
 class AmplitudeViewSet(viewsets.ViewSet):
     authentication_classes = ()
