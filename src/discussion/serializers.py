@@ -223,33 +223,36 @@ class ThreadSerializer(serializers.ModelSerializer, VoteMixin):
 
     class Meta:
         fields = [
-            'id',
-            'title',
-            'text',
-            'paper',
+            'block_key',
             'comment_count',
             'comments',
+            'context_title',
             'created_by',
             'created_date',
             'created_location',
+            'entity_key',
             'external_metadata',
+            'id',
             'is_public',
             'is_removed',
+            'paper_slug',
+            'paper',
+            'plain_text',
+            'promoted',
             'score',
             'source',
-            'user_vote',
+            'text',
+            'title',
             'user_flag',
+            'user_vote',
             'was_edited',
-            'plain_text',
-            'paper_slug',
-            'promoted'
         ]
         read_only_fields = [
             'is_public',
             'is_removed',
             'score',
-            'user_vote',
             'user_flag',
+            'user_vote',
         ]
         model = Thread
 
