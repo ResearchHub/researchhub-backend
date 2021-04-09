@@ -294,13 +294,15 @@ class UserViewSet(viewsets.ModelViewSet):
     def following_latest_activity(self, request):
         query_params = request.query_params
         ordering = query_params.get('ordering', '-created_date')
-        hub_id = query_params.get('hub_id', None)
+        hub_ids = query_params.get('hub_ids', '')
         user = request.user
         # following_ids = user.following.values_list('followee')
         contributions = Contribution.objects.prefetch_related('paper', 'user', 'paper__uploaded_by')
-        if hub_id:
+        if hub_ids:
+            hub_ids = hub_ids.split(',')
+            hub_ids = [int(i) for i in hub_ids]
             contributions = contributions.filter(
-                paper__hubs__in=[hub_id]
+                paper__hubs__in=hub_ids
                 # user__in=following_ids
             ).order_by(
                 ordering
