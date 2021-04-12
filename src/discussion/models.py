@@ -13,11 +13,6 @@ from django.contrib.postgres.fields import JSONField
 from django.core.cache import cache
 from django.db import models
 
-from discussion.validators import (
-    JSONSchemaValidator,
-    THREAD_SOURCE_SCHEMA,
-    ThreadValidator
-)
 from paper.utils import get_cache_key
 from purchase.models import Purchase
 from researchhub.lib import CREATED_LOCATIONS
@@ -276,10 +271,6 @@ class Thread(BaseComment):
         default=PAPER,
         choices=THREAD_SOURCE_CHOICES,
         max_length=32
-    )
-    metadata = JSONField(
-        null=True,
-        validators=[ThreadValidator]
     )
     block_key = models.CharField(max_length=255, null=True, blank=True)
     context_title = models.TextField(

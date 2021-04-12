@@ -505,7 +505,7 @@ def celery_extract_pdf_sections(paper_id):
             '-path',
             path,
         ]
-        call(args)
+        call_res = call(args)
 
         with codecs.open(extract_file_path, 'rb') as f:
             soup = BeautifulSoup(f, 'lxml')
@@ -530,15 +530,16 @@ def celery_extract_pdf_sections(paper_id):
                         figure_type=Figure.FIGURE
                     )
     except Exception as e:
+        message = f'{call_res}, '
         try:
-            message = str(os.listdir(path))
+            message += str(os.listdir(path))
         except Exception as e:
-            message = str(os.listdir('/tmp/pdf_cermine')) + str(e)
+            message += str(os.listdir('/tmp/pdf_cermine')) + str(e)
 
         sentry.log_error(e, message=message)
     finally:
         shutil.rmtree(path)
-        return True
+        return True, call_res
 
 
 @app.task(queue=f'{APP_ENV}_autopull_queue', ignore_result=False)
@@ -557,7 +558,7 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
             priority=5,
             countdown=420
         )
-        return False
+        return False, str(e)
 
     # Temporarily stopping next day twitter score updates
     # next_iteration = iteration + 1
