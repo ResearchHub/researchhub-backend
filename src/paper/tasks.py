@@ -549,13 +549,23 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
 
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
+    today = datetime.today().replace(
+        hour=0,
+        minute=0
+    )
 
     try:
         twitter_score = paper.calculate_twitter_score()
     except Exception as e:
+        uploaded_date = paper.uploaded_date
+        if uploaded_date >= today:
+            priority = 4
+        else:
+            priority = 7
+
         celery_calculate_paper_twitter_score.apply_async(
             (paper_id, iteration),
-            priority=5,
+            priority=priority,
             countdown=420
         )
         return False, str(e)
