@@ -419,7 +419,8 @@ class Paper(models.Model):
 
         boosts = self.purchases.filter(
             paid_status=Purchase.PAID,
-            amount__gt=0
+            amount__gt=0,
+            user__moderator=True
         )
         today = datetime.datetime.now(
             tz=pytz.utc
@@ -494,13 +495,24 @@ class Paper(models.Model):
                 ) * DATE_BOOST
                 uploaded_date_score += delta_days
 
+            boost_score = 0
+            if boosts.exists():
+                boost_amount = sum(
+                    map(int, boosts.values_list(
+                        'amount',
+                        flat=True
+                    ))
+                )
+                math.log(1 + boost_amount, LOG_CONST)
+
             hot_score = (
                 base_score +
                 uploaded_date_score +
                 vote_avg +
                 vote_score +
                 discussion_score +
-                twitter_boost_score
+                twitter_boost_score +
+                boost_score
             ) * 1000
 
             self.hot_score = hot_score
