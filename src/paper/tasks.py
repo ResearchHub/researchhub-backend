@@ -15,7 +15,7 @@ import time
 from bs4 import BeautifulSoup
 from io import BytesIO
 from datetime import datetime, timedelta, timezone
-from subprocess import call
+from subprocess import run, PIPE
 from PIL import Image
 from habanero import Crossref
 from celery.decorators import periodic_task
@@ -213,7 +213,7 @@ def celery_extract_figures(paper_id):
                 path,
                 '-e'
             ]
-            call(args)
+            call_res = run(args, stdout=PIPE, stderr=PIPE)
             figures = os.listdir(path)
 
         for extracted_figure in figures:
@@ -231,7 +231,8 @@ def celery_extract_figures(paper_id):
                             figure_type=Figure.FIGURE
                         )
     except Exception as e:
-        sentry.log_error(e)
+        message = call_res.stdout.decode('utf8')
+        sentry.log_error(e, message=message)
     finally:
         shutil.rmtree(path)
         cache_key = get_cache_key('figure', paper_id)
@@ -505,7 +506,8 @@ def celery_extract_pdf_sections(paper_id):
             '-path',
             path,
         ]
-        call_res = call(args)
+        call_res = run(args, stdout=PIPE, stderr=PIPE)
+        return_code = call_res.returncode
 
         with codecs.open(extract_file_path, 'rb') as f:
             soup = BeautifulSoup(f, 'lxml')
@@ -530,7 +532,8 @@ def celery_extract_pdf_sections(paper_id):
                         figure_type=Figure.FIGURE
                     )
     except Exception as e:
-        message = f'{call_res}, '
+        stdout = call_res.stdout.decode('utf8')
+        message = f'{return_code}; {stdout}; '
         try:
             message += str(os.listdir(path))
         except Exception as e:
@@ -539,7 +542,7 @@ def celery_extract_pdf_sections(paper_id):
         sentry.log_error(e, message=message)
     finally:
         shutil.rmtree(path)
-        return True, call_res
+        return True, return_code
 
 
 @app.task(queue=f'{APP_ENV}_autopull_queue', ignore_result=False)
