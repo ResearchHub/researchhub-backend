@@ -369,7 +369,7 @@ def get_pdf_from_url(url):
 def get_redirect_url(url):
     response = http_request(methods.GET, url, allow_redirects=False)
     status_code = response.status_code
-    if status_code == 301 or status_code == 302:
+    if status_code == 301 or status_code == 302 or status_code == 303:
         headers = response.headers
         location = headers.get('Location')
         if location:
