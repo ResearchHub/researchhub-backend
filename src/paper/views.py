@@ -774,11 +774,19 @@ class PaperViewSet(viewsets.ModelViewSet):
         elif 'score' in ordering:
             upvotes = Count(
                 'vote',
-                filter=Q(vote__vote_type=Vote.UPVOTE)
+                filter=Q(
+                    vote__vote_type=Vote.UPVOTE,
+                    vote__created_by__is_suspended=False,
+                    vote__created_by__probable_spammer=False,
+                )
             )
             downvotes = Count(
                 'vote',
-                filter=Q(vote__vote_type=Vote.DOWNVOTE)
+                filter=Q(
+                    vote__vote_type=Vote.DOWNVOTE,
+                    vote__created_by__is_suspended=False,
+                    vote__created_by__probable_spammer=False
+                )
             )
 
             order_papers = papers.filter(
