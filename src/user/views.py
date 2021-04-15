@@ -312,6 +312,7 @@ class UserViewSet(viewsets.ModelViewSet):
             contributions = contributions.order_by(
                 ordering
             )
+        contributions = contributions.distinct()
         page = self.paginate_queryset(contributions)
         serializer = ContributionSerializer(page, many=True)
         response = self.get_paginated_response(serializer.data)
