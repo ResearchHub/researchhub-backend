@@ -824,12 +824,12 @@ def pull_papers(start=0):
             for entry in feed.entries:
                 num_retries = 0
                 try:
+                    title = entry.title
+                    if title.lower() in IGNORE_PAPER_TITLES:
+                        continue
+
                     paper, created = Paper.objects.get_or_create(url=entry.id)
                     if created:
-                        title = entry.title
-                        if title.lower() in IGNORE_PAPER_TITLES:
-                            paper.delete()
-                            continue
 
                         paper.alternate_ids = {'arxiv': entry.id.split('/abs/')[-1]}
                         paper.title = title
@@ -1003,13 +1003,12 @@ def pull_crossref_papers(start=0):
         for item in results['message']['items']:
             num_retries = 0
             try:
+                title = item['title'][0]
+                if title.lower() in IGNORE_PAPER_TITLES:
+                    continue
+
                 paper, created = Paper.objects.get_or_create(doi=item['DOI'])
                 if created:
-                    title = item['title'][0]
-                    if title.lower() in IGNORE_PAPER_TITLES:
-                        paper.delete()
-                        continue
-
                     paper.title = title
                     paper.paper_title = title
                     paper.slug = slugify(title)
