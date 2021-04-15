@@ -125,7 +125,7 @@ class OrcidApi:
 orcid_api = OrcidApi()
 
 
-@app.task(queue=f'{APP_ENV}_autopull_queue', ignore_result=True)
+@app.task(queue=f'{APP_ENV}_autopull_queue', ignore_result=False)
 def celery_add_author(result, authors, attempts=2):
     tries = attempts
     while tries > 0:
