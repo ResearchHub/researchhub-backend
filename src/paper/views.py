@@ -70,7 +70,6 @@ from paper.utils import (
     invalidate_newest_cache,
     invalidate_most_discussed_cache,
     reset_cache,
-    reset_paper_cache,
     add_default_hub
 )
 from researchhub.lib import get_paper_id_from_path
@@ -254,7 +253,6 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        cache_key = get_cache_key('paper', instance.id)
 
         # TODO: This needs improvement so we guarantee that we are tracking
         # file created location when a file is actually being added and not
@@ -275,10 +273,10 @@ class PaperViewSet(viewsets.ModelViewSet):
             hub_ids = list(hub_ids)
 
         reset_cache(hub_ids)
-        reset_paper_cache(cache_key, response.data)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
+        instance.reset_cache()
         return response
 
     def _send_created_location_ga_event(self, instance, user):
@@ -386,11 +384,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             user
         )
 
-        cache_key = get_cache_key('paper', paper_id)
-        serializer = self.get_serializer(paper)
-        serializer_data = serializer.data
-        reset_paper_cache(cache_key, serializer_data)
-
         hub_ids = list(paper.hubs.values_list('id', flat=True))
         hub_ids = add_default_hub(hub_ids)
 
@@ -398,6 +391,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
+        paper.reset_cache()
         return Response(
             self.get_serializer(instance=paper).data,
             status=200
@@ -566,10 +560,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
-        cache_key_paper = get_cache_key('paper', paper.id)
-        serializer = self.get_serializer(paper)
-        serializer_data = serializer.data
-        reset_paper_cache(cache_key_paper, serializer_data)
+        paper.reset_cache()
 
         return response
 
@@ -600,10 +591,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
-        cache_key_paper = get_cache_key('paper', paper.id)
-        serializer = self.get_serializer(paper)
-        serializer_data = serializer.data
-        reset_paper_cache(cache_key_paper, serializer_data)
+        paper.reset_cache()
 
         return response
 
@@ -1090,7 +1078,10 @@ class PaperViewSet(viewsets.ModelViewSet):
 
 
 class FeaturedPaperViewSet(viewsets.ModelViewSet):
-    queryset = FeaturedPaper.objects.filter(paper__is_removed=False, user__is_suspended=False)
+    queryset = FeaturedPaper.objects.filter(
+        paper__is_removed=False,
+        user__is_suspended=False
+    )
     serializer_class = FeaturedPaperSerializer
     throttle_classes = THROTTLE_CLASSES
     permission_classes = [IsAuthenticatedOrReadOnly]

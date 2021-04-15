@@ -39,7 +39,6 @@ from researchhub.settings import (
     STAGING
 )
 
-
 from paper.utils import (
     check_crossref_title,
     check_pdf_title,
@@ -54,6 +53,7 @@ from paper.utils import (
     get_csl_item,
     get_redirect_url,
     IGNORE_PAPER_TITLES
+    reset_paper_cache
 )
 from hub.utils import scopus_to_rh_map
 from utils import sentry
@@ -71,6 +71,20 @@ from utils.twitter import (
 from utils.http import check_url_contains_pdf
 
 logger = get_task_logger(__name__)
+
+
+@app.task
+def celery_paper_reset_cache(paper_id):
+    from paper.serializers import PaperSerializer
+    Paper = apps.get_model('paper.Paper')
+    paper = Paper.objects.get(id=paper_id)
+
+    serializer = PaperSerializer(paper)
+    data = serializer.data
+
+    cache_key = get_cache_key('paper', paper_id)
+    reset_paper_cache(cache_key, data)
+    return data
 
 
 @app.task
