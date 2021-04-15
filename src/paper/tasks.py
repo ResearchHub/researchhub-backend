@@ -52,7 +52,8 @@ from paper.utils import (
     get_cache_key,
     clean_abstract,
     get_csl_item,
-    get_redirect_url
+    get_redirect_url,
+    IGNORE_PAPER_TITLES
 )
 from hub.utils import scopus_to_rh_map
 from utils import sentry
@@ -745,9 +746,6 @@ def preload_trending_papers(hub_id, ordering, time_difference, context):
     return paginated_response.data
 
 
-# Auto pull
-IGNORE_PAPER_TITLES = ['Editorial Board']
-
 # ARXIV Download Constants
 RESULTS_PER_ITERATION = 50  # default is 10, if this goes too high like >=100 it seems to fail too often
 WAIT_TIME = 3  # The docs recommend 3 seconds between queries
@@ -826,12 +824,12 @@ def pull_papers(start=0):
             for entry in feed.entries:
                 num_retries = 0
                 try:
+                    title = entry.title
+                    if title.lower() in IGNORE_PAPER_TITLES:
+                        continue
+
                     paper, created = Paper.objects.get_or_create(url=entry.id)
                     if created:
-                        title = entry.title
-                        if title in IGNORE_PAPER_TITLES:
-                            paper.delete()
-                            continue
 
                         paper.alternate_ids = {'arxiv': entry.id.split('/abs/')[-1]}
                         paper.title = title
@@ -1005,13 +1003,12 @@ def pull_crossref_papers(start=0):
         for item in results['message']['items']:
             num_retries = 0
             try:
+                title = item['title'][0]
+                if title.lower() in IGNORE_PAPER_TITLES:
+                    continue
+
                 paper, created = Paper.objects.get_or_create(doi=item['DOI'])
                 if created:
-                    title = item['title'][0]
-                    if title in IGNORE_PAPER_TITLES:
-                        paper.delete()
-                        continue
-
                     paper.title = title
                     paper.paper_title = title
                     paper.slug = slugify(title)

@@ -3,13 +3,12 @@ import requests
 import fitz
 import jellyfish
 import nltk
-import regex as re
 
 from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
-from datetime import datetime, timedelta
+from datetime import datetime
 from habanero import Crossref
 from manubot.cite.csl_item import CSL_Item
 from bs4 import BeautifulSoup
@@ -48,6 +47,23 @@ MANUBOT_PAPER_TYPES = [
 ]
 SIMILARITY_THRESHOLD = 0.9
 MAX_TITLE_PAGES = 5
+IGNORE_PAPER_TITLES = [
+    'editorial',
+    'editorial board',
+    'contents continued',
+    'table of contents',
+    'calendar',
+    'copyright',
+    'contributors',
+    'contents',
+    'ieee access',
+    'correspondence',
+    'announcements',
+    'editorial advisory board',
+    'issue highlights',
+    'title page',
+    'front cover'
+]
 
 
 def check_file_is_url(file):
