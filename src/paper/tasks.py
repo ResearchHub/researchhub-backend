@@ -552,7 +552,9 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
 
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.get(id=paper_id)
-    today = datetime.today().replace(
+    today = datetime.today(
+        timezone.utc
+    ).replace(
         hour=0,
         minute=0
     )
