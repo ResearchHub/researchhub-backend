@@ -66,6 +66,7 @@ from utils.crossref import get_crossref_issued_date
 from utils.twitter import (
     get_twitter_url_results,
     get_twitter_results,
+    RATE_LIMIT_CODE
 )
 from utils.http import check_url_contains_pdf
 
@@ -565,6 +566,11 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     try:
         twitter_score = paper.calculate_twitter_score()
     except Exception as e:
+        error_message = e.message[0]
+        code = error_message['code']
+        if code != RATE_LIMIT_CODE:
+            return False, str(e)
+
         uploaded_date = paper.uploaded_date
         if uploaded_date >= today:
             priority = 4
