@@ -827,11 +827,7 @@ def pull_papers(start=0):
                     paper, created = Paper.objects.get_or_create(url=entry.id)
                     if created:
                         title = entry.title
-                        title_word_count = len(title.split(' '))
-                        if (
-                            title.lower() in IGNORE_PAPER_TITLES or
-                            title_word_count <= 3
-                        ):
+                        if title.lower() in IGNORE_PAPER_TITLES:
                             paper.delete()
                             continue
 
@@ -1010,11 +1006,7 @@ def pull_crossref_papers(start=0):
                 paper, created = Paper.objects.get_or_create(doi=item['DOI'])
                 if created:
                     title = item['title'][0]
-                    title_word_count = len(title.split(' '))
-                    if (
-                        title.lower() in IGNORE_PAPER_TITLES or
-                        title_word_count <= 3
-                    ):
+                    if title.lower() in IGNORE_PAPER_TITLES:
                         paper.delete()
                         continue
 
