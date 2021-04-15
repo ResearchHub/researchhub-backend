@@ -137,4 +137,4 @@ def celery_add_author(result, authors, attempts=2):
         except Exception as e:
             print(e)
         tries -= 1
-    return authors
+    return len(authors)
