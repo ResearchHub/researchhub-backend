@@ -259,16 +259,16 @@ class BaseComment(models.Model):
 
 
 class Thread(BaseComment):
-    PAPER = 'paper'
+    RESEARCHHUB = 'researchhub'
     INLINE_ABSTRACT = 'inline_abstract'
     INLINE_PAPER_BODY = 'inline_paper_body'
     THREAD_SOURCE_CHOICES = [
-        (PAPER, 'Paper'),
+        (RESEARCHHUB, 'researchhub'),
         (INLINE_ABSTRACT, 'Inline Abstract'),
         (INLINE_PAPER_BODY, 'Inline Paper Body')
     ]
     source = models.CharField(
-        default=PAPER,
+        default=RESEARCHHUB,
         choices=THREAD_SOURCE_CHOICES,
         max_length=32
     )
