@@ -30,7 +30,7 @@ from .tasks import (
     celery_paper_reset_cache
 )
 from researchhub.lib import CREATED_LOCATIONS
-from researchhub.settings import TESTING, PRODUCTION
+from researchhub.settings import TESTING
 from summary.models import Summary
 from hub.models import Hub
 from purchase.models import Purchase
@@ -930,7 +930,7 @@ class Paper(models.Model):
         return False
 
     def reset_cache(self, use_celery=True):
-        if use_celery or PRODUCTION:
+        if use_celery:
             celery_paper_reset_cache.apply_async(
                 (self.id,),
                 priority=2
