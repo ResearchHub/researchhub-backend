@@ -26,10 +26,11 @@ from .tasks import (
     celery_extract_figures,
     celery_extract_pdf_preview,
     celery_extract_meta_data,
-    celery_extract_twitter_comments
+    celery_extract_twitter_comments,
+    celery_paper_reset_cache
 )
 from researchhub.lib import CREATED_LOCATIONS
-from researchhub.settings import TESTING
+from researchhub.settings import TESTING, PRODUCTION
 from summary.models import Summary
 from hub.models import Hub
 from purchase.models import Purchase
@@ -927,6 +928,15 @@ class Paper(models.Model):
             )
             return base_score + boost_score
         return False
+
+    def reset_cache(self, use_celery=True):
+        if use_celery or PRODUCTION:
+            celery_paper_reset_cache.apply_async(
+                (self.id,),
+                priority=2
+            )
+        else:
+            celery_paper_reset_cache(self.id)
 
 
 class MetadataRetrievalAttempt(models.Model):
