@@ -1,5 +1,7 @@
 import utils.sentry as sentry
 
+from utils.http import check_url_contains_pdf
+
 # TODO: Create classes of url patterns to generalize this even further esp for
 # subdomains.
 
@@ -112,7 +114,10 @@ class Nature(Journal):
             uid = parts[1]
             uid = cls.remove_query(uid)
             pdf_url = f'{cls.pdf_url_base}{uid}{cls.pdf_url_suffix}'
-            return pdf_url
+
+            if check_url_contains_pdf(pdf_url):
+                return pdf_url
+            return None
         except Exception as e:
             sentry.log_error(e, message=journal_url)
             return None
@@ -362,13 +367,11 @@ class JPET_ASPET(JournalWithSubdomain):
     pdf_identifier = pdf_url_suffix
 
 
-# Temporarily removing Nature because of paid pdfs
-
 journal_hosts = [
     Arxiv.host,
     Biorxiv.host,
     ScienceMag.host,
-    # Nature.host,
+    Nature.host,
     JNeurosci.host,
     PLOS.host,
     PNAS.host,
@@ -380,7 +383,7 @@ pdf_identifiers = [
     Arxiv.pdf_identifier,
     Biorxiv.pdf_identifier,
     ScienceMag.pdf_identifier,
-    # Nature.pdf_identifier,
+    Nature.pdf_identifier,
     JNeurosci.pdf_identifier,
     PLOS.pdf_identifier,
     PNAS.pdf_identifier,
@@ -392,7 +395,7 @@ journal_hosts_and_pdf_identifiers = [
     (Arxiv.host, Arxiv.pdf_identifier),
     (Biorxiv.host, Biorxiv.pdf_identifier),
     (ScienceMag.host, ScienceMag.pdf_identifier),
-    # (Nature.host, Nature.pdf_identifier),
+    (Nature.host, Nature.pdf_identifier),
     (JNeurosci.host, JNeurosci.pdf_identifier),
     (PLOS.host, PLOS.pdf_identifier),
     (PNAS.host, PNAS.pdf_identifier),
@@ -403,7 +406,7 @@ journal_hosts_and_pdf_identifiers = [
 journal_pdf_to_url = {
     Arxiv.host: Arxiv.pdf_url_to_journal_url,
     Biorxiv.host: Biorxiv.pdf_url_to_journal_url,
-    # Nature.host: Nature.pdf_url_to_journal_url,
+    Nature.host: Nature.pdf_url_to_journal_url,
     JNeurosci.host: JNeurosci.pdf_url_to_journal_url,
     PLOS.host: PLOS.pdf_url_to_journal_url,
     PNAS.host: PNAS.pdf_url_to_journal_url,
@@ -417,7 +420,7 @@ journal_pdf_to_url = {
 journal_url_to_pdf = {
     Arxiv.host: Arxiv.journal_url_to_pdf_url,
     Biorxiv.host: Biorxiv.journal_url_to_pdf_url,
-    # Nature.host: Nature.journal_url_to_pdf_url,
+    Nature.host: Nature.journal_url_to_pdf_url,
     JNeurosci.host: JNeurosci.journal_url_to_pdf_url,
     PLOS.host: PLOS.journal_url_to_pdf_url,
     PNAS.host: PNAS.journal_url_to_pdf_url,
