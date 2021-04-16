@@ -56,6 +56,9 @@ def send_email_message(
         email_context (dict) - Data to send to template
         html_template (:str:) - Optional html template name
     """
+    subject = subject.replace('\n', '')
+    subject = subject.replace('\r', '')
+
     if not isinstance(recipients, list):
         recipients = [recipients]
 
