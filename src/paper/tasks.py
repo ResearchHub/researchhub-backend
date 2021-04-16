@@ -52,7 +52,7 @@ from paper.utils import (
     clean_abstract,
     get_csl_item,
     get_redirect_url,
-    IGNORE_PAPER_TITLES
+    IGNORE_PAPER_TITLES,
     reset_paper_cache
 )
 from hub.utils import scopus_to_rh_map
