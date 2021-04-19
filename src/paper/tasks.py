@@ -778,7 +778,7 @@ BASE_URL = 'http://export.arxiv.org/api/query?'
 
 # Pull Daily (arxiv updates 20:00 EST)
 @periodic_task(
-    run_every=crontab(minute=0, hour=12),
+    run_every=crontab(minute=0, hour='*/2'),
     priority=2,
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
@@ -971,7 +971,7 @@ NUM_DUP_STOP = 30
 
 # Pull Daily
 @periodic_task(
-    run_every=crontab(minute=0, hour=12),
+    run_every=crontab(minute=0, hour='*/2'),
     priority=1,
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
