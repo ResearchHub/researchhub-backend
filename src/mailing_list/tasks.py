@@ -104,9 +104,18 @@ def send_hub_digest(frequency):
     for user in User.objects.filter(id__in=users, is_suspended=False):
         if not check_can_receive_digest(user, frequency):
             continue
-        users_papers = Paper.objects.filter(
-            hubs__in=user.subscribed_hubs.all()
-        )
+
+        subscribed_hubs = user.subscribed_hubs.all()
+        if subscribed_hubs.exists():
+            users_papers = Paper.objects.filter(
+                hubs__in=subscribed_hubs,
+                is_removed=False
+            )
+        else:
+            users_papers = Paper.objects.filter(
+                is_removed=False
+            )
+
         most_voted_and_uploaded_in_interval = users_papers.filter(
             uploaded_date__gte=start_date,
             uploaded_date__lte=end_date
