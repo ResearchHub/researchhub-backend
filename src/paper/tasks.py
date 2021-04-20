@@ -507,6 +507,7 @@ def celery_extract_pdf_sections(paper_id):
     extract_file_path = f'{path}{paper_id}.cermxml'
     images_path = f'{path}{paper_id}.images'
     file_url = file.url
+    return_code = -1
 
     if not os.path.isdir(path):
         os.mkdir(path)
