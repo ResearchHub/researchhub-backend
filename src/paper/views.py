@@ -768,29 +768,6 @@ class PaperViewSet(viewsets.ModelViewSet):
         if 'hot_score' in ordering:
             order_papers = papers.order_by(ordering)
         elif 'score' in ordering:
-            # upvotes = Count(
-            #     'vote',
-            #     filter=Q(
-            #         vote__vote_type=Vote.UPVOTE,
-            #         vote__created_by__is_suspended=False,
-            #         vote__created_by__probable_spammer=False,
-            #     )
-            # )
-            # downvotes = Count(
-            #     'vote',
-            #     filter=Q(
-            #         vote__vote_type=Vote.DOWNVOTE,
-            #         vote__created_by__is_suspended=False,
-            #         vote__created_by__probable_spammer=False
-            #     )
-            # )
-
-            # order_papers = papers.filter(
-            #     vote__updated_date__range=[start_date, end_date]
-            # ).annotate(
-            #     score_in_time=upvotes - downvotes,
-            #     score_all_time=F('score')
-            # ).order_by(ordering + '_in_time', ordering + '_all_time')
             boost_amount = Coalesce(
                 Sum(
                     Cast(
