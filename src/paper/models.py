@@ -421,7 +421,8 @@ class Paper(models.Model):
         boosts = self.purchases.filter(
             paid_status=Purchase.PAID,
             amount__gt=0,
-            user__moderator=True
+            user__moderator=True,
+            boost_time__gte=0
         )
         today = datetime.datetime.now(
             tz=pytz.utc
@@ -920,6 +921,9 @@ class Paper(models.Model):
     def get_promoted_score(self):
         purchases = self.purchases.filter(
             paid_status=Purchase.PAID,
+            user__moderator=True,
+            amount__gt=0,
+            boost_time__gt=0
         )
         if purchases.exists():
             base_score = self.score

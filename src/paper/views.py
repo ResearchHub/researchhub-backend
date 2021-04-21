@@ -11,7 +11,14 @@ from django.db.models import (
     Count,
     Q,
     Prefetch,
-    F
+    F,
+    Sum,
+    Value,
+    IntegerField
+)
+from django.db.models.functions import (
+    Coalesce,
+    Cast
 )
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.postgres.search import TrigramSimilarity
@@ -72,6 +79,7 @@ from paper.utils import (
     reset_cache,
     add_default_hub
 )
+from purchase.models import Purchase
 from researchhub.lib import get_paper_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
@@ -760,30 +768,26 @@ class PaperViewSet(viewsets.ModelViewSet):
         if 'hot_score' in ordering:
             order_papers = papers.order_by(ordering)
         elif 'score' in ordering:
-            upvotes = Count(
-                'vote',
-                filter=Q(
-                    vote__vote_type=Vote.UPVOTE,
-                    vote__created_by__is_suspended=False,
-                    vote__created_by__probable_spammer=False,
-                )
+            boost_amount = Coalesce(
+                Sum(
+                    Cast(
+                        'purchases__amount',
+                        output_field=IntegerField()
+                    ),
+                    filter=Q(
+                        purchases__paid_status=Purchase.PAID,
+                        purchases__user__moderator=True,
+                        purchases__amount__gt=0,
+                        purchases__boost_time__gt=0
+                        )
+                    ),
+                Value(0)
             )
-            downvotes = Count(
-                'vote',
-                filter=Q(
-                    vote__vote_type=Vote.DOWNVOTE,
-                    vote__created_by__is_suspended=False,
-                    vote__created_by__probable_spammer=False
-                )
-            )
-
             order_papers = papers.filter(
-                vote__updated_date__range=[start_date, end_date]
+                uploaded_date__range=[start_date, end_date],
             ).annotate(
-                score_in_time=upvotes - downvotes,
-                score_all_time=F('score')
-            ).order_by(ordering + '_in_time', ordering + '_all_time')
-
+                total_score=boost_amount + F('score')
+            ).order_by('-total_score')
         elif 'discussed' in ordering:
             threads_count = Count('threads')
             comments_count = Count('threads__comments')
