@@ -62,6 +62,7 @@ pillow = "==8.1.0"
 feedparser = "==6.0.2"
 manubot = "==0.5.0"
 django-celery-results = "==2.0.1"
+newrelic = "*"
 
 [requires]
 python_version = "3.6"
