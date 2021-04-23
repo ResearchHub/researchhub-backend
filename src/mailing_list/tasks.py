@@ -40,6 +40,8 @@ def notify_three_hours():
     priority=9
 )
 def notify_weekly():
+    # TODO: Temporarily turning off notifications - Revamp
+    return
     send_hub_digest(NotificationFrequencies.WEEKLY)
 
 
