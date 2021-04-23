@@ -11,9 +11,11 @@ import os
 
 from django.core.wsgi import get_wsgi_application
 
-APP_ENV = os.environ.get('APP_ENV') or 'development'
+CELERY_WORKER = os.environ.get('CELERY_WORKER', False)
 
-newrelic.agent.initialize('./newrelic.ini', APP_ENV)
+if not CELERY_WORKER:
+  APP_ENV = os.environ.get('APP_ENV') or 'development'
+  newrelic.agent.initialize('./newrelic.ini', APP_ENV)
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'researchhub.settings')
 
