@@ -11,6 +11,12 @@ import os
 
 from django.core.wsgi import get_wsgi_application
 
+import newrelic.agent
+
+APP_ENV = os.environ.get('APP_ENV') or 'development'
+
+newrelic.agent.initialize('./newrelic.ini', APP_ENV)
+
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'researchhub.settings')
 
 application = get_wsgi_application()
