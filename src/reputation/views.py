@@ -99,7 +99,11 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         resp.data['user'] = UserSerializer(request.user, context={'user': request.user}).data
         return resp
 
-    @action(detail=False, methods=['get'])
+    @action(
+        detail=False,
+        methods=['get'],
+        permission_classes=[IsAuthenticated]
+    )
     def transaction_fee(self, request):
         amount = request.query_params.get('amount', 1)
         """
