@@ -102,7 +102,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
     @action(
         detail=False,
         methods=['get'],
-        permission_classes=[IsAuthenticated]
+        permission_classes=[]
     )
     def transaction_fee(self, request):
         amount = request.query_params.get('amount', 1)
