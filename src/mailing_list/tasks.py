@@ -74,7 +74,7 @@ def send_hub_digest(frequency):
         req = Request(http_req)
         req.GET = {
             'use_cache': False,
-            'subscribed_hubs': True,
+            'subscribed_hubs': user.subscribed_hubs.exists(),
             'page': 1,
             'start_date__gte': start_date.timestamp(),
             'end_date__lte': end_date.timestamp()
