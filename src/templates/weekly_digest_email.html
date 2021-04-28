@@ -38,7 +38,7 @@
                   <div class="content">
                       <div class="points">
                           <span class="flex-text">
-                              {{ paper.calculate_score }}
+                              {{ paper.score }}
                           </span>
                       </div>
                       <div class="right">
@@ -52,10 +52,10 @@
                           </div>
                           <div class="row">
                               <div class="comments-row">
-                                  <img class="comments-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/comments.png" /> {{ paper.get_discussion_count }} {% if paper.get_discussion_count == 1 %} comment {% else %} comments {% endif %}
+                                  <img class="comments-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/comments.png" /> {{ paper.discussion_count }} {% if paper.discussion_count == 1 %} comment {% else %} comments {% endif %}
                               </div>
                               <div class="hubs hubs-desktop">
-                                  {% for hub in paper.hubs.all %}
+                                  {% for hub in paper.hubs %}
                                       <button class="hub">
                                           {{ hub.name }}
                                       </button>
@@ -64,7 +64,7 @@
                           </div>
                       </div>
                       <div class="hubs-mobile">
-                          {% for hub in paper.hubs.all %}
+                          {% for hub in paper.hubs %}
                               <button class="hub mobile-hub">
                                   {{ hub.name }}
                               </button>
