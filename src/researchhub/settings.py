@@ -456,10 +456,10 @@ if TESTING:
 
 EMAIL_WHITELIST = [
     'craig@quantfive.org',
-    'val@quantfive.org',
     'joey@quantfive.org',
     'patrick@quantfive.org',
-    'leosun@quantfive.org'
+    'leosun@quantfive.org',
+    'bank@researchhub.com'
 ]
 
 # Sentry

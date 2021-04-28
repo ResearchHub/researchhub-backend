@@ -2,10 +2,10 @@ import logging
 
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
-
 from django.utils import timezone
 from django.db.models import Q, Count
-
+from django.http.request import HttpRequest
+from rest_framework.request import Request
 from datetime import timedelta
 
 from mailing_list.lib import base_email_context
@@ -15,6 +15,7 @@ from utils.message import send_email_message
 from user.models import Action, User
 from hub.models import Hub
 from paper.models import Paper, Vote as PaperVote
+from paper.views import PaperViewSet
 
 
 @app.task
@@ -40,61 +41,16 @@ def notify_three_hours():
     priority=9
 )
 def notify_weekly():
-    # TODO: Temporarily turning off notifications - Revamp
-    return
     send_hub_digest(NotificationFrequencies.WEEKLY)
 
 
 def send_hub_digest(frequency):
-    etl = EmailTaskLog.objects.create(emails='', notification_frequency=frequency)
+    etl = EmailTaskLog.objects.create(
+        emails='',
+        notification_frequency=frequency
+    )
     end_date = timezone.now()
     start_date = calculate_hub_digest_start_date(end_date, frequency)
-
-    upvotes = Count(
-        'vote',
-        filter=Q(
-            vote__vote_type=PaperVote.UPVOTE,
-            vote__updated_date__gte=start_date,
-            vote__updated_date__lte=end_date
-        )
-    )
-
-    downvotes = Count(
-        'vote',
-        filter=Q(
-            vote__vote_type=PaperVote.DOWNVOTE,
-            vote__created_date__gte=start_date,
-            vote__created_date__lte=end_date
-        )
-    )
-
-    # TODO don't include censored threads?
-    thread_counts = Count(
-        'threads',
-        filter=Q(
-            threads__created_date__gte=start_date,
-            threads__created_date__lte=end_date,
-            # threads__is_removed=False,
-        )
-    )
-
-    comment_counts = Count(
-        'threads__comments',
-        filter=Q(
-            threads__comments__created_date__gte=start_date,
-            threads__comments__created_date__lte=end_date,
-            # threads__comments__is_removed=False,
-        )
-    )
-
-    reply_counts = Count(
-        'threads__comments__replies',
-        filter=Q(
-            threads__comments__replies__created_date__gte=start_date,
-            threads__comments__replies__created_date__lte=end_date,
-            # threads__comments__replies__is_removed=False,
-        )
-    )
 
     users = Hub.objects.filter(
         subscribers__isnull=False,
@@ -106,23 +62,31 @@ def send_hub_digest(frequency):
     for user in User.objects.filter(id__in=users, is_suspended=False):
         if not check_can_receive_digest(user, frequency):
             continue
-        users_papers = Paper.objects.filter(
-            hubs__in=user.subscribed_hubs.all()
-        )
-        most_voted_and_uploaded_in_interval = users_papers.filter(
-            uploaded_date__gte=start_date,
-            uploaded_date__lte=end_date
-        ).filter(score__gt=0).order_by('-score')[:3]
-        most_discussed_in_interval = users_papers.annotate(
-            discussions=thread_counts + comment_counts + reply_counts
-        ).filter(discussions__gt=0).order_by('-discussions')[:3]
-        most_voted_in_interval = users_papers.filter(score__gt=0).order_by('-score')[:2]
-        papers = (
-            most_voted_and_uploaded_in_interval
-            or most_discussed_in_interval
-            or most_voted_in_interval
-        )
+
+        paper_view = PaperViewSet()
+        http_req = HttpRequest()
+        http_meta = {
+            'QUERY_STRING': '',
+            'HTTP_HOST': 'localhost',
+            'HTTP_X_FORWARDED_PROTO': 'http',
+        }
+        http_req.META = http_meta
+        req = Request(http_req)
+        req.GET = {
+            'use_cache': False,
+            'subscribed_hubs': True,
+            'page': 1,
+            'start_date__gte': start_date.timestamp(),
+            'end_date__lte': end_date.timestamp()
+        }
+        req.user = user
+        paper_view.request = req
+        paper_view.format_kwarg = lambda x: x
+        user_papers = paper_view.get_hub_papers(req)
+        papers = user_papers.data['results']['data']
+
         if len(papers) == 0:
+            print(f'No papers for user: {user.email}')
             continue
 
         email_context = {
@@ -130,12 +94,12 @@ def send_hub_digest(frequency):
             'first_name': user.first_name,
             'last_name': user.last_name,
             'papers': papers,
-            'preview_text': papers[0].tagline
+            'preview_text': papers[0]['tagline']
         }
 
         recipient = [user.email]
         # subject = 'Research Hub | Your Weekly Digest'
-        subject = papers[0].title[0:86] + '...'
+        subject = papers[0]['title'][0:86] + '...'
         send_email_message(
             recipient,
             'weekly_digest_email.txt',

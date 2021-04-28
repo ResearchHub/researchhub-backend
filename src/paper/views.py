@@ -820,6 +820,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     def get_hub_papers(self, request):
         subscribed_hubs = request.GET.get('subscribed_hubs', False)
         external_source = request.GET.get('external_source', False)
+        use_cache = request.GET.get('use_cache', True)
         is_anonymous = request.user.is_anonymous
         if subscribed_hubs and not is_anonymous:
             return self.subscribed_hub_papers(request)
@@ -862,7 +863,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         context['exclude_promoted_score'] = True
         context['include_wallet'] = False
 
-        if not cache_hit and page_number == 1:
+        if not cache_hit and page_number == 1 and use_cache:
             reset_cache([hub_id], ordering, time_difference.days)
 
         papers = self._get_filtered_papers(hub_id, ordering)
@@ -926,6 +927,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         user = request.user
         hubs = user.subscribed_hubs.all()
         page_number = int(request.GET['page'])
+        use_cache = request.GET.get('use_cache', True)
         start_date = datetime.datetime.fromtimestamp(
             int(request.GET.get('start_date__gte', 0)),
             datetime.timezone.utc
@@ -978,9 +980,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         else:
             qs = self.get_queryset(
                 include_autopull=True
-                ).order_by(
-                    '-hot_score'
-                )
+            ).order_by(
+                '-hot_score'
+            )
             papers = qs.filter(hubs__in=hubs).distinct()
 
         if papers.count() < 1:
@@ -994,7 +996,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             cache_key_hub = get_cache_key('hub', trending_pk)
             cache_hit = cache.get(cache_key_hub)
 
-            if cache_hit and page_number == 1:
+            if cache_hit and page_number == 1 and use_cache:
                 return Response(cache_hit)
 
             feed_type = 'all'
