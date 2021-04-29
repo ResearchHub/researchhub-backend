@@ -6,7 +6,7 @@ from .related_models.school_models import Major, University
 from .related_models.user_model import User
 from .related_models.verification_model import Verification
 
-exportables = [
+exportables = (
     Action,
     Author,
     Follow,
@@ -15,4 +15,4 @@ exportables = [
     University,
     User,
     Verification
-]
+)
