@@ -9,7 +9,7 @@ class AbstractResearchhubCase(DefaultModel):
         User,
         blank=False,
         null=False,
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         related_name='case_creator',
     )
     moderator = models.OneToOneField(
@@ -19,4 +19,7 @@ class AbstractResearchhubCase(DefaultModel):
         on_delete=models.SET_NULL,
         related_name='case_moderator',
     )
+
+    class Meta:
+        abstract = True
 
