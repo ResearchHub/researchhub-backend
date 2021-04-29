@@ -1,12 +1,14 @@
+import decimal
+import uuid
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
+
 from mailing_list.models import EmailRecipient
 from user.tasks import handle_spam_user_task
 from utils.siftscience import decisions_api
 from utils.throttles import UserSustainedRateThrottle
-import decimal
-import uuid
 
 
 """

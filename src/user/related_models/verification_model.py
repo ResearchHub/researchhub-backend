@@ -1,4 +1,5 @@
 from django.db import models
+
 from user.related_models.user_model import User
 
 

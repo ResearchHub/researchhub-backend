@@ -1,7 +1,8 @@
-from discussion.models import Comment, Reply, Thread
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+
+from discussion.models import Comment, Reply, Thread
 from hub.models import Hub
 from paper.models import Paper
 from researchhub.settings import BASE_FRONTEND_URL, TESTING
