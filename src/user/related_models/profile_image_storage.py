@@ -10,4 +10,3 @@ class ProfileImageStorage(S3Boto3Storage):
             return name
         else:
             return super(ProfileImageStorage, self).url(name)
-
