@@ -4,7 +4,7 @@ from django.db import models
 from django.db.models import Sum
 
 from user.related_models.profile_image_storage import ProfileImageStorage
-from user.related_models.school_models import University
+from user.related_models.school_model import University
 from user.related_models.user_model import User
 
 fs = ProfileImageStorage()
