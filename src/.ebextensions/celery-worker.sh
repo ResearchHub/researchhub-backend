@@ -22,7 +22,7 @@ celery_env=${celery_env%?}
 celery_conf="[program:celeryd-worker]
 
 ; Run celery from virtual env
-command=/opt/python/run/venv/bin/celery worker -A researchhub -P solo --loglevel=INFO -Q ${queue} -E -n ${queue} --prefetch-multiplier=1
+command=/opt/python/run/venv/bin/celery worker -A researchhub -P prefork --loglevel=INFO -Q ${queue} -E -n ${queue} --prefetch-multiplier=1
 
 directory=/opt/python/current/app
 user=ec2-user
