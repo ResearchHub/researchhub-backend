@@ -329,7 +329,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
             request.data['created_location'] = (
                 BaseComment.CREATED_LOCATION_PROGRESS
             )
-    
+
         response = super().create(request, *args, **kwargs)
         response = self.get_self_upvote_response(request, response, Thread)
         self.sift_track_create_content_comment(
@@ -339,9 +339,8 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
             is_thread=True
         )
         paper_id = get_paper_id_from_path(request)
-        hubs = list(Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True))
-        cache_key = get_cache_key('paper', paper_id)
-        cache.delete(cache_key)
+        paper = Paper.objects.get(id=paper_id)
+        hubs = list(paper.hubs.values_list('id', flat=True))
         discussion_id = response.data['id']
         create_contribution.apply_async(
             (
@@ -355,6 +354,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
             countdown=10
         )
 
+        paper.reset_cache()
         reset_cache([0])
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)
@@ -504,7 +504,8 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
         self.sift_track_create_content_comment(request, response, Comment)
 
         paper_id = get_paper_id_from_path(request)
-        hubs = Paper.objects.get(id=paper_id).hubs.values_list('id', flat=True)
+        paper = Paper.objects.get(id=paper_id)
+        hubs = paper.hubs.values_list('id', flat=True)
 
         create_contribution.apply_async(
             (
@@ -518,6 +519,7 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
             countdown=10
         )
 
+        paper.reset_cache()
         reset_cache([0])
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)
@@ -603,6 +605,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
 
         response = super().create(request, *args, **kwargs)
         paper_id = get_paper_id_from_path(request)
+        paper = Paper.objects.get(id=paper_id)
         discussion_id = response.data['id']
         self.sift_track_create_content_comment(request, response, Reply)
         create_contribution.apply_async(
@@ -616,6 +619,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
             priority=3,
             countdown=10
         )
+        paper.reset_cache()
         return self.get_self_upvote_response(request, response, Reply)
 
     def update(self, request, *args, **kwargs):
