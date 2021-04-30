@@ -34,6 +34,7 @@ from researchhub.settings import TESTING
 from summary.models import Summary
 from hub.models import Hub
 from purchase.models import Purchase
+from discussion.models import Thread
 
 from utils.http import check_url_contains_pdf
 from utils.arxiv import Arxiv
@@ -570,13 +571,19 @@ class Paper(models.Model):
         return ' '.join(full_name)
 
     def get_discussion_count(self):
+        sources = [
+            Thread.RESEARCHHUB,
+            Thread.INLINE_ABSTRACT,
+            Thread.INLINE_PAPER_BODY
+        ]
+
         thread_count = self.threads.aggregate(
             discussion_count=Count(
                 1,
                 filter=Q(
                     is_removed=False,
                     created_by__isnull=False,
-                    source='researchhub'
+                    source__in=sources
                 )
             )
         )['discussion_count']
@@ -586,7 +593,7 @@ class Paper(models.Model):
                 filter=Q(
                     comments__is_removed=False,
                     comments__created_by__isnull=False,
-                    source='researchhub'
+                    source__in=sources
                 )
             )
         )['discussion_count']
@@ -596,7 +603,7 @@ class Paper(models.Model):
                 filter=Q(
                     comments__replies__is_removed=False,
                     comments__replies__created_by__isnull=False,
-                    source='researchhub'
+                    source__in=sources
                 )
             )
         )['discussion_count']
