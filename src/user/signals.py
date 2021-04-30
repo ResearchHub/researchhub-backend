@@ -1,6 +1,6 @@
 # TODO: Fix the celery task on cloud deploys
 from time import time
-
+from django.db import models
 from django.db.models.signals import post_save, post_delete, pre_save
 from django.dispatch import receiver
 from allauth.socialaccount.models import SocialAccount
@@ -8,19 +8,22 @@ from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.contrib.admin.options import get_content_type_for_model
 
 from bullet_point.models import BulletPoint, Vote as BulletPointVote
+from bullet_point.serializers import BulletPointVoteSerializer
 from discussion.models import Comment, Reply, Thread
+from discussion.models import Vote as DisVote
 from notification.models import Notification
 from paper.models import Paper, Vote as PaperVote
-from discussion.models import Vote as DisVote
+from purchase.models import Wallet
+from reputation import distributions
+from reputation.distributor import Distributor
 from researchhub.settings import TESTING
 from summary.models import Summary, Vote as SummaryVote
 from summary.serializers import SummaryVoteSerializer
-from bullet_point.serializers import BulletPointVoteSerializer
-from user.models import Action, Author, User
-from user.tasks import link_author_to_papers, link_paper_to_authors, handle_spam_user_task
-from reputation.distributor import Distributor
-from reputation import distributions
 from utils.siftscience import events_api, decisions_api
+from user.models import Action, Author, User
+from user.tasks import (
+    link_author_to_papers, link_paper_to_authors, handle_spam_user_task
+)
 
 
 @receiver(
@@ -281,3 +284,20 @@ def create_notification(sender, instance, created, action, **kwargs):
 def get_related_hubs(instance):
     paper = instance.paper
     return paper.hubs.all()
+
+
+@receiver(models.signals.post_save, sender=User)
+def attach_author_and_email_preference(
+    sender,
+    instance,
+    created,
+    *args,
+    **kwargs
+):
+    if created:
+        author = Author.objects.create(
+            user=instance,
+            first_name=instance.first_name,
+            last_name=instance.last_name,
+        )
+        Wallet.objects.create(author=author)
