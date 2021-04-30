@@ -1,10 +1,17 @@
 from django.db import models
 
-from utils.models import DefaultModel
+from researchhub_case.constants.case_constants import RH_CASE_TYPES
 from user.models import User
+from utils.models import DefaultModel
 
 
 class AbstractResearchhubCase(DefaultModel):
+    case_type = models.CharField(
+      blank=False,
+      choices=RH_CASE_TYPES,
+      max_length=32,
+      null=False,
+    )
     creator = models.OneToOneField(
         User,
         blank=False,
@@ -22,4 +29,3 @@ class AbstractResearchhubCase(DefaultModel):
 
     class Meta:
         abstract = True
-
