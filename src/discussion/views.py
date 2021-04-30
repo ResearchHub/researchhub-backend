@@ -355,7 +355,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
             countdown=10
         )
 
-        paper.reset_cache()
         reset_cache([0])
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)
@@ -520,7 +519,6 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
             countdown=10
         )
 
-        paper.reset_cache()
         reset_cache([0])
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)
@@ -600,7 +598,6 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
 
     def create(self, request, *args, **kwargs):
         paper_id = get_paper_id_from_path(request)
-        paper = Paper.objects.get(id=paper_id)
 
         if request.query_params.get('created_location') == 'progress':
             request.data['created_location'] = (
@@ -621,7 +618,6 @@ class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
             priority=3,
             countdown=10
         )
-        paper.reset_cache()
         return self.get_self_upvote_response(request, response, Reply)
 
     def update(self, request, *args, **kwargs):
