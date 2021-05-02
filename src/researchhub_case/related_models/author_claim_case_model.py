@@ -9,6 +9,7 @@ from researchhub_case.related_models.researchhub_case_abstract_model import (
 class AuthorClaimCase(AbstractResearchhubCase):
     status = models.CharField(
       choices=AUTHOR_CLAIM_CASE_STATUS,
-      default=AUTHOR_CLAIM_CASE_STATUS['OPEN'],
+      default='OPEN',
       max_length=32,
+      null=False,
     )

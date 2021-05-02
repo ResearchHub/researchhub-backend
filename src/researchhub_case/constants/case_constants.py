@@ -5,7 +5,7 @@
 AUTHOR_CLAIM_CASE_STATUS = [
     ('CLOSED', 'CLOSED'),
     ('DENIED', 'DENIED'),
-    ('NULLIFIED', 'NULLIFIED')
+    ('NULLIFIED', 'NULLIFIED'),
     ('OPEN', 'OPEN'),
 ]
 
