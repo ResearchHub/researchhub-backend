@@ -16,8 +16,8 @@ COPY requirements.txt .
 RUN pip3 install -r requirements.txt
 
 RUN mkdir -p /usr/app/src
-COPY src/*  /usr/app/src/
+COPY src/  /usr/app/src/
 
 WORKDIR /usr/app/src
 ENTRYPOINT [ "/usr/bin/python3.6", "-m", "awslambdaric" ]
-CMD [ "aws_lambda" ]
+CMD [ "researchhub.aws_lambda.handler" ]
