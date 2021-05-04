@@ -1053,7 +1053,8 @@ def pull_crossref_papers(start=0):
                     if 'abstract' in item:
                         paper.abstract = clean_abstract(item['abstract'])
                     else:
-                        csl = get_csl_item(item['URL'])
+                        csl = {'abstract': 'test'}
+                        # csl = get_csl_item(item['URL'])
                         abstract = csl.get('abstract', None)
                         if abstract:
                             paper.abstract = abstract
@@ -1090,6 +1091,7 @@ def pull_crossref_papers(start=0):
                             ).first()
                             if hub:
                                 paper.hubs.add(hub)
+                    paper.save()
 
                     celery_calculate_paper_twitter_score.apply_async(
                         (paper.id,),
