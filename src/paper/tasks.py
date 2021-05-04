@@ -977,7 +977,7 @@ NUM_DUP_STOP = 30
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
 def pull_crossref_papers(start=0):
-    if not PRODUCTION:
+    if not PRODUCTION and False:
         return
 
     logger.info('Pulling Crossref Papers')
@@ -1090,10 +1090,7 @@ def pull_crossref_papers(start=0):
                             ).first()
                             if hub:
                                 paper.hubs.add(hub)
-                    score = paper.calculate_score()
-                    paper.score = score
-                    paper.save()
-                    paper.calculate_hot_score()
+
                     celery_calculate_paper_twitter_score.apply_async(
                         (paper.id,),
                         priority=5,
