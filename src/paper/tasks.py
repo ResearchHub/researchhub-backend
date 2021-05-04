@@ -972,7 +972,7 @@ NUM_DUP_STOP = 30
 
 # Pull Daily
 @periodic_task(
-    run_every=crontab(minute=0, hour='*/2'),
+    run_every=crontab(minute=0, hour='*/6'),
     priority=1,
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
