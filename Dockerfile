@@ -19,4 +19,5 @@ RUN mkdir -p /usr/app/src
 COPY src/*  /usr/app/src/
 
 WORKDIR /usr/app/src
+ENTRYPOINT [ "/usr/local/lib/python3.6", "-m", "awslambdaric" ]
 CMD [ "/usr/app/src/researchhub/aws_lambda.py" ]
