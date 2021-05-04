@@ -3,4 +3,4 @@ from researchhub.settings import TEST_ENV
 
 
 def handler(event, context):
-    return TEST_ENV, event, context
+    return TEST_ENV, event
