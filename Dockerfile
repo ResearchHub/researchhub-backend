@@ -20,4 +20,4 @@ COPY src/*  /usr/app/src/
 
 WORKDIR /usr/app/src
 ENTRYPOINT [ "/usr/bin/python3.6", "-m", "awslambdaric" ]
-CMD [ "/usr/app/src/researchhub/aws_lambda.handler" ]
+CMD [ "/usr/app/src/researchhub/aws_lambda.py" ]
