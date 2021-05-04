@@ -977,7 +977,7 @@ NUM_DUP_STOP = 30
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
 def pull_crossref_papers(start=0):
-    if not PRODUCTION and False:
+    if not PRODUCTION:
         return
 
     logger.info('Pulling Crossref Papers')
@@ -1053,8 +1053,7 @@ def pull_crossref_papers(start=0):
                     if 'abstract' in item:
                         paper.abstract = clean_abstract(item['abstract'])
                     else:
-                        csl = {'abstract': 'test'}
-                        # csl = get_csl_item(item['URL'])
+                        csl = get_csl_item(item['URL'])
                         abstract = csl.get('abstract', None)
                         if abstract:
                             paper.abstract = abstract
