@@ -964,7 +964,7 @@ def pull_papers(start=0):
 
 
 # Crossref Download Constants
-RESULTS_PER_ITERATION = 50
+RESULTS_PER_ITERATION = 100
 WAIT_TIME = 2
 RETRY_WAIT = 8
 RETRY_MAX = 20
@@ -988,14 +988,17 @@ def pull_crossref_papers(start=0):
 
     cr = Crossref()
 
-    num_retries = 0 
+    num_retries = 0
     num_duplicates = 0
 
     offset = 0
+    today = datetime.now().date().strftime('%Y-%m-%d')
     filters = {
         'type': 'journal-article',
-        'from-created-date': (datetime.now().date() - timedelta(days=2)).strftime('%Y-%m-%d'),
-        'until-created-date': datetime.now().date().strftime('%Y-%m-%d'),
+        'from-created-date': today,
+        'until-created-date': today,
+        'from-index-date': today,
+        'until-index-date': today,
     }
 
     while True:
@@ -1007,12 +1010,13 @@ def pull_crossref_papers(start=0):
                 order='desc',
                 offset=offset,
             )
-        except:
+        except Exception as e:
             if num_retries < RETRY_MAX:
                 num_retries += 1
                 time.sleep(RETRY_WAIT)
                 continue
             else:
+                sentry.log_error(e)
                 return
 
         if results['message']['total-results'] == 0 or len(results['message']['items']) == 0:
@@ -1081,7 +1085,9 @@ def pull_crossref_papers(start=0):
                     if 'subject' in item:
                         for subject_name in item['subject']:
                             rh_key = scopus_to_rh_map[subject_name]
-                            hub = Hub.objects.filter(name__iexact=rh_key).first()
+                            hub = Hub.objects.filter(
+                                name__iexact=rh_key
+                            ).first()
                             if hub:
                                 paper.hubs.add(hub)
                     score = paper.calculate_score()
@@ -1106,11 +1112,10 @@ def pull_crossref_papers(start=0):
                             countdown=7
                         )
                 else:
-                    if num_duplicates > NUM_DUP_STOP:
-                        return
                     num_duplicates += 1
             except Exception as e:
                 sentry.log_error(e)
 
         offset += RESULTS_PER_ITERATION
         time.sleep(WAIT_TIME)
+    sentry.log_info(f'Crossref Duplicates Detected: {num_duplicates}')
