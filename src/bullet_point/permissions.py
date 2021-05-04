@@ -1,7 +1,7 @@
 from paper.models import Paper
 from researchhub.lib import get_paper_id_from_path
 from user.models import Author
-from utils.http import POST, PATCH, PUT, DELETE
+from utils.rh_http import POST, PATCH, PUT, DELETE
 from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission
 
 

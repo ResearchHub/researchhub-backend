@@ -13,7 +13,7 @@ from .models import (
     Vote,
 )
 from user.serializers import MinimalUserSerializer
-from utils.http import get_user_from_request
+from utils.rh_http import get_user_from_request
 
 # TODO: Make is_public editable for creator as a delete mechanism
 

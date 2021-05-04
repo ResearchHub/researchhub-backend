@@ -40,7 +40,7 @@ from purchase.serializers import (
 from notification.models import Notification
 from purchase.tasks import send_support_email
 from utils.throttles import THROTTLE_CLASSES
-from utils.http import http_request, RequestMethods
+from utils.rh_http import http_request, RequestMethods
 from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfAllowed
 from user.models import User, Author, Action
 from user.serializers import UserSerializer

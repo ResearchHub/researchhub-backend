@@ -7,7 +7,7 @@ from researchhub.settings import (
 from user.models import Author
 from utils import sentry
 from utils.exceptions import OrcidApiError
-from utils.http import http_request, GET, POST
+from utils.rh_http import http_request, GET, POST
 
 orcid = SOCIALACCOUNT_PROVIDERS['orcid']
 

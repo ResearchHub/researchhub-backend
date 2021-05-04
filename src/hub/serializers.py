@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from .models import Hub, HubCategory
-from utils.http import get_user_from_request
+from utils.rh_http import get_user_from_request
 
 
 class SimpleHubSerializer(serializers.ModelSerializer):

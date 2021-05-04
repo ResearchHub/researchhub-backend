@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 
 from google_analytics.exceptions import GoogleAnalyticsError
 from researchhub.settings import PRODUCTION, TESTING
-from utils.http import http_request, POST
+from utils.rh_http import http_request, POST
 
 TRACKING_ID = 'UA-106669204-1'
 USER_ID = 'django'

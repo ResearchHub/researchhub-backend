@@ -169,7 +169,7 @@ Custom helper methods not copied from allauth
 
 
 def _get_orcid_email(sociallogin):
-    from utils.http import http_request, GET
+    from utils.rh_http import http_request, GET
     from oauth.exceptions import LoginError
 
     url = f'https://pub.orcid.org/v3.0/{sociallogin.account.uid}/email'

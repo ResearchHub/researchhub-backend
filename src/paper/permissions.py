@@ -1,5 +1,5 @@
 from user.models import Author
-from utils.http import RequestMethods, POST
+from utils.rh_http import RequestMethods, POST
 from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission
 
 

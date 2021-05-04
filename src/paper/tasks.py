@@ -70,7 +70,7 @@ from utils.twitter import (
     get_twitter_results,
     RATE_LIMIT_CODE
 )
-from utils.http import check_url_contains_pdf
+from utils.rh_http import check_url_contains_pdf
 
 logger = get_task_logger(__name__)
 

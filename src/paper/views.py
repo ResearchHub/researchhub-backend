@@ -84,7 +84,7 @@ from researchhub.lib import get_paper_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from user.models import Author
-from utils.http import GET, POST, check_url_contains_pdf
+from utils.rh_http import GET, POST, check_url_contains_pdf
 from utils.sentry import log_error, log_info
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES

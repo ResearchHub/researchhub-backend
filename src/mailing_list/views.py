@@ -21,7 +21,7 @@ from mailing_list.models import (
     ReplySubscription
 )
 from mailing_list.serializers import EmailRecipientSerializer
-from utils.http import http_request, POST, PATCH
+from utils.rh_http import http_request, POST, PATCH
 from utils.parsers import PlainTextParser
 from utils.sentry import log_info, log_error, log_request_error
 

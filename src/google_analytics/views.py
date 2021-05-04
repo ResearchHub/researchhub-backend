@@ -3,7 +3,7 @@ from rest_framework.response import Response
 
 from google_analytics.utils import get_event_hit_response
 from paper.models import Paper
-from utils.http import POST
+from utils.rh_http import POST
 from utils.parsers import iso_string_to_datetime
 
 

@@ -25,7 +25,7 @@ from search.utils import (
     get_crossref_issued_date
 )
 from utils.permissions import ReadOnly
-# from utils.http import RequestMethods
+# from utils.rh_http import RequestMethods
 
 HUB_RESULTS_LIMIT = 5
 

@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from django.db.models import Sum, Q, F
 from django.db.models.functions import Coalesce
 from django.contrib.contenttypes.models import ContentType
-from utils.http import DELETE, POST, PATCH, PUT
+from utils.rh_http import DELETE, POST, PATCH, PUT
 
 from discussion.models import Thread, Comment, Reply
 from discussion.serializers import (
@@ -48,7 +48,7 @@ from user.serializers import (
     VerificationSerializer
 )
 
-from utils.http import RequestMethods
+from utils.rh_http import RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from datetime import timedelta

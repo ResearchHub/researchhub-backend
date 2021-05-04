@@ -3,7 +3,7 @@ import time
 
 from django.apps import apps
 
-from utils.http import GET, http_request
+from utils.rh_http import GET, http_request
 
 
 class SemanticScholar:

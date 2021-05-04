@@ -40,7 +40,7 @@ from hub.models import Hub
 from purchase.models import Purchase
 from discussion.models import Thread
 
-from utils.http import check_url_contains_pdf
+from utils.rh_http import check_url_contains_pdf
 from utils.arxiv import Arxiv
 from utils.crossref import Crossref
 import utils.sentry as sentry

@@ -40,7 +40,7 @@ from reputation.tasks import create_contribution
 from user.models import Author, User
 from user.serializers import AuthorSerializer, UserSerializer
 from utils.arxiv import Arxiv
-from utils.http import get_user_from_request, check_url_contains_pdf
+from utils.rh_http import get_user_from_request, check_url_contains_pdf
 from utils.siftscience import events_api, update_user_risk_score
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 

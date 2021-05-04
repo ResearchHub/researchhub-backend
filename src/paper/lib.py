@@ -1,6 +1,6 @@
 import utils.sentry as sentry
 
-from utils.http import check_url_contains_pdf
+from utils.rh_http import check_url_contains_pdf
 
 # TODO: Create classes of url patterns to generalize this even further esp for
 # subdomains.

@@ -49,7 +49,7 @@ from researchhub.settings import (
 from user.models import Author
 from user.utils import merge_author_profiles
 from utils import sentry
-from utils.http import http_request, RequestMethods
+from utils.rh_http import http_request, RequestMethods
 from utils.throttles import captcha_unlock
 from utils.siftscience import events_api
 

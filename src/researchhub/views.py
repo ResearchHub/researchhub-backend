@@ -8,7 +8,7 @@ from rest_framework.decorators import (
 from rest_framework.response import Response
 
 from researchhub.settings import BASE_DIR
-from utils.http import RequestMethods
+from utils.rh_http import RequestMethods
 
 
 def index(request):

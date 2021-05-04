@@ -23,7 +23,7 @@ from paper.lib import (
     journal_url_to_pdf
 )
 
-from utils.http import (
+from utils.rh_http import (
     check_url_contains_pdf,
     http_request,
     RequestMethods as methods

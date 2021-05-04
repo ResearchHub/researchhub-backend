@@ -1,5 +1,5 @@
 from rest_framework.decorators import action
-from utils.http import DELETE, GET, PATCH, POST, PUT
+from utils.rh_http import DELETE, GET, PATCH, POST, PUT
 
 CREATED_LOCATIONS = {
     'FEED': 'FEED',

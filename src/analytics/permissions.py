@@ -1,4 +1,4 @@
-from utils.http import POST
+from utils.rh_http import POST
 from utils.permissions import AuthorizationBasedPermission
 
 

@@ -33,7 +33,7 @@ from bullet_point.serializers import (
     FlagSerializer,
     BulletPointVoteSerializer
 )
-from utils.http import DELETE, POST, PATCH, PUT
+from utils.rh_http import DELETE, POST, PATCH, PUT
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 

@@ -2,7 +2,7 @@ import rest_framework.serializers as serializers
 
 from .models import Summary, Vote
 from user.serializers import UserSerializer
-from utils.http import get_user_from_request
+from utils.rh_http import get_user_from_request
 
 
 class PreviousSummarySerializer(serializers.ModelSerializer):

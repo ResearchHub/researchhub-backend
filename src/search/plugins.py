@@ -7,7 +7,7 @@ from .exceptions import ElasticsearchPluginError
 from paper.models import Paper
 from researchhub.settings import ELASTICSEARCH_DSL
 from utils.aws import http_to_s3
-from utils.http import http_request, RequestMethods as methods
+from utils.rh_http import http_request, RequestMethods as methods
 import utils.sentry as sentry
 
 

@@ -20,7 +20,7 @@ from .serializers import HubSerializer, HubCategorySerializer
 from .filters import HubFilter
 from user.models import Action
 from user.serializers import UserActions
-from utils.http import PATCH, POST, PUT, GET, DELETE
+from utils.rh_http import PATCH, POST, PUT, GET, DELETE
 from utils.message import send_email_message
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES

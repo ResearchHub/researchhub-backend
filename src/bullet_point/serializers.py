@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from bullet_point.models import BulletPoint, Endorsement, Flag, Vote
 from user.serializers import UserSerializer
-from utils.http import get_user_from_request
+from utils.rh_http import get_user_from_request
 
 
 class EndorsementSerializer(serializers.ModelSerializer):

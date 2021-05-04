@@ -1,4 +1,4 @@
-from utils.http import RequestMethods
+from utils.rh_http import RequestMethods
 from utils.permissions import AuthorizationBasedPermission
 
 
