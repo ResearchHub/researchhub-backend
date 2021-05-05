@@ -628,6 +628,22 @@ def handle_duplicate_doi(new_paper, doi):
     new_paper.delete()
 
 
+@periodic_task(
+    run_every=crontab(minute=0, hour=0),
+    priority=5,
+    options={'queue': f'{APP_ENV}_core_queue'}
+)
+def celery_update_hot_scores():
+    Paper = apps.get_model('paper.Paper')
+    start_date = datetime.now() - timedelta(days=4)
+    papers = Paper.objects.filter(
+        uploaded_date__gte=start_date,
+        is_removed=False
+    )
+    for paper in papers.iterator():
+        paper.calculate_hot_score()
+
+
 # Executes every 5 minutes
 @periodic_task(
     run_every=crontab(minute='*/5'),
