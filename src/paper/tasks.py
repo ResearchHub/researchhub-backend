@@ -513,7 +513,7 @@ def celery_extract_pdf_sections(paper_id):
     return_code = -1
 
     if not os.path.isdir(path):
-        os.mkdir(path)
+        os.makedirs(path, exist_ok=True)
 
     try:
         res = requests.get(file_url)
