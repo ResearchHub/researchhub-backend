@@ -1008,13 +1008,15 @@ def pull_crossref_papers(start=0):
     num_duplicates = 0
 
     offset = 0
-    today = datetime.now().date().strftime('%Y-%m-%d')
+    today = datetime.now().date()
+    start_date = (today - timedelta(days=1)).strftime('%Y-%m-%d')
+    end_date = today.strftime('%Y-%m-%d')
     filters = {
         'type': 'journal-article',
-        'from-created-date': today,
-        'until-created-date': today,
-        'from-index-date': today,
-        'until-index-date': today,
+        'from-created-date': start_date,
+        'until-created-date': end_date,
+        'from-index-date': start_date,
+        'until-index-date': end_date,
     }
 
     while True:
