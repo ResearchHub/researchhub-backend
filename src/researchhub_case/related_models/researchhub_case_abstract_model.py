@@ -26,6 +26,13 @@ class AbstractResearchhubCase(DefaultModel):
         on_delete=models.SET_NULL,
         related_name='case_moderator',
     )
+    requestor = models.OneToOneField(
+        User,
+        blank=False,
+        null=False,
+        on_delete=models.PROTECT,
+        related_name='case_requestor',
+    )
 
     class Meta:
         abstract = True
