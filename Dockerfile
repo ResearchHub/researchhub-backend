@@ -9,6 +9,7 @@ RUN apt-get install -y python3
 RUN apt-get -y install python3-setuptools
 RUN apt-get -y install python3-pip
 RUN python3 -m pip install --upgrade pip
+RUN apt-get -y install default-jre
 
 
 COPY requirements.txt .
@@ -21,3 +22,6 @@ COPY src/  /usr/app/src/
 WORKDIR /usr/app/src
 ENTRYPOINT [ "/usr/bin/python3.6", "-m", "awslambdaric" ]
 CMD [ "researchhub.aws_lambda.handler" ]
+
+# This is for debugging
+#CMD [ "/bin/bash" ]
