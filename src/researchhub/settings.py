@@ -183,6 +183,7 @@ INSTALLED_APPS = [
 
 
     # Custom apps
+    'analytics',
     'bullet_point',
     'discussion',
     'ethereum',
@@ -192,13 +193,13 @@ INSTALLED_APPS = [
     'notification',
     'oauth',
     'paper',
+    'profiler',
+    'purchase',
     'reputation',
+    'researchhub_case',
     'search',
     'summary',
     'user',
-    'analytics',
-    'profiler',
-    'purchase',
 ]
 
 SITE_ID = 1
