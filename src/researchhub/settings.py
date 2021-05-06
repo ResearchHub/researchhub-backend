@@ -749,3 +749,14 @@ stripe.api_key = os.environ.get('STRIPE_API_KEY', keys.STRIPE_API_KEY)
 # from django.contrib.gis.geoip2 import GeoIP2
 
 # geo_ip = GeoIP2()
+
+# AWS Lambda
+if DEVELOPMENT or TESTING:
+    LAMBDA_URL = ''
+    LAMBDA_API_KEY = ''
+elif PRODUCTION:
+    LAMBDA_URL = ''
+    LAMBDA_API_KEY = ''
+elif STAGING:
+    LAMBDA_URL = 'https://fyh1rqkpuh.execute-api.us-west-2.amazonaws.com/lambda/'
+    LAMBDA_API_KEY = 'a4U0qyQb0m87FJeHWn3YQcpiFS7k1dD2LidBFYgb'
