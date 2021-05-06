@@ -1021,117 +1021,121 @@ def pull_crossref_papers(start=0):
 
     while True:
         try:
-            results = cr.works(
-                filter=filters,
-                limit=RESULTS_PER_ITERATION,
-                sort='issued',
-                order='desc',
-                offset=offset,
-            )
-        except Exception as e:
-            if num_retries < RETRY_MAX:
-                num_retries += 1
-                time.sleep(RETRY_WAIT)
-                continue
-            else:
-                sentry.log_error(e)
-                return
-
-        if results['message']['total-results'] == 0 or len(results['message']['items']) == 0:
-            if num_retries < RETRY_MAX:
-                num_retries += 1
-                time.sleep(RETRY_WAIT)
-                continue
-            else:
-                return
-
-        for item in results['message']['items']:
-            num_retries = 0
             try:
-                title = item['title'][0]
-                if title.lower() in IGNORE_PAPER_TITLES:
+                results = cr.works(
+                    filter=filters,
+                    limit=RESULTS_PER_ITERATION,
+                    sort='issued',
+                    order='desc',
+                    offset=offset,
+                )
+            except Exception as e:
+                if num_retries < RETRY_MAX:
+                    num_retries += 1
+                    time.sleep(RETRY_WAIT)
                     continue
+                else:
+                    sentry.log_error(e)
+                    return
 
-                paper, created = Paper.objects.get_or_create(doi=item['DOI'])
-                if created:
-                    paper.title = title
-                    paper.paper_title = title
-                    paper.slug = slugify(title)
-                    paper.doi = item['DOI']
-                    paper.url = item['URL']
-                    paper.paper_publish_date = get_crossref_issued_date(item)
-                    paper.retrieved_from_external_source = True
-                    paper.external_metadata = item
-                    external_source = item.get('container-title', ['Crossref'])[0]
-                    if type(external_source) is list:
-                        external_source = external_source[0]
+            items = results['message']['items']
+            total_results = results['message']['total-results']
+            if total_results == 0 or len(items) == 0:
+                if num_retries < RETRY_MAX:
+                    num_retries += 1
+                    time.sleep(RETRY_WAIT)
+                    continue
+                else:
+                    sentry.log_info('No Crossref results found')
+                    return
 
-                    paper.external_source = external_source
-                    paper.publication_type = item['type']
-                    if 'abstract' in item:
-                        paper.abstract = clean_abstract(item['abstract'])
-                    else:
-                        csl = get_csl_item(item['URL'])
-                        abstract = csl.get('abstract', None)
-                        if abstract:
-                            paper.abstract = abstract
+            for item in items:
+                num_retries = 0
+                try:
+                    title = item['title'][0]
+                    if title.lower() in IGNORE_PAPER_TITLES:
+                        continue
+
+                    paper, created = Paper.objects.get_or_create(doi=item['DOI'])
+                    if created:
+                        paper.title = title
+                        paper.paper_title = title
+                        paper.slug = slugify(title)
+                        paper.doi = item['DOI']
+                        paper.url = item['URL']
+                        paper.paper_publish_date = get_crossref_issued_date(item)
+                        paper.retrieved_from_external_source = True
+                        paper.external_metadata = item
+                        external_source = item.get('container-title', ['Crossref'])[0]
+                        if type(external_source) is list:
+                            external_source = external_source[0]
+
+                        paper.external_source = external_source
+                        paper.publication_type = item['type']
+                        if 'abstract' in item:
+                            paper.abstract = clean_abstract(item['abstract'])
                         else:
-                            # paper.delete()
-                            # paper.is_removed = True
-                            # Do nothing if the paper has no abstract
-                            pass
+                            csl = get_csl_item(item['URL'])
+                            abstract = csl.get('abstract', None)
+                            if abstract:
+                                paper.abstract = abstract
 
-                    if 'author' in item:
-                        paper.raw_authors = {}
-                        raw_authors = []
-                        for i, author in enumerate(item['author']):
-                            given = author.get('given')
-                            family = author.get('family')
-                            if given and family:
-                                raw_authors.append({
-                                    'last_name': family,
-                                    'first_name': given
-                                })
-                        if raw_authors:
-                            paper.raw_authors = raw_authors
+                        if 'author' in item:
+                            paper.raw_authors = {}
+                            raw_authors = []
+                            for i, author in enumerate(item['author']):
+                                given = author.get('given')
+                                family = author.get('family')
+                                if given and family:
+                                    raw_authors.append({
+                                        'last_name': family,
+                                        'first_name': given
+                                    })
+                            if raw_authors:
+                                paper.raw_authors = raw_authors
 
-                    pdf_url = ''
-                    if 'link' in item and item['link']:
-                        pdf_url = get_redirect_url(item['link'][0]['URL'])
-                        if check_url_contains_pdf(pdf_url):
-                            paper.pdf_url = pdf_url
-                    if 'subject' in item:
-                        for subject_name in item['subject']:
-                            rh_key = scopus_to_rh_map[subject_name]
-                            hub = Hub.objects.filter(
-                                name__iexact=rh_key
-                            ).first()
-                            if hub:
-                                paper.hubs.add(hub)
-                    paper.save()
+                        pdf_url = ''
+                        if 'link' in item and item['link']:
+                            pdf_url = get_redirect_url(item['link'][0]['URL'])
+                            if check_url_contains_pdf(pdf_url):
+                                paper.pdf_url = pdf_url
+                        if 'subject' in item:
+                            for subject_name in item['subject']:
+                                rh_key = scopus_to_rh_map[subject_name]
+                                hub = Hub.objects.filter(
+                                    name__iexact=rh_key
+                                ).first()
+                                if hub:
+                                    paper.hubs.add(hub)
+                        paper.save()
 
-                    celery_calculate_paper_twitter_score.apply_async(
-                        (paper.id,),
-                        priority=5,
-                        countdown=15
-                    )
-                    add_orcid_authors.apply_async(
-                        (paper.id,),
-                        priority=6,
-                        countdown=10
-                    )
-
-                    if pdf_url:
-                        download_pdf.apply_async(
+                        celery_calculate_paper_twitter_score.apply_async(
                             (paper.id,),
                             priority=5,
-                            countdown=7
+                            countdown=15
                         )
-                else:
-                    num_duplicates += 1
-            except Exception as e:
-                sentry.log_error(e)
+                        add_orcid_authors.apply_async(
+                            (paper.id,),
+                            priority=6,
+                            countdown=10
+                        )
 
-        offset += RESULTS_PER_ITERATION
-        time.sleep(WAIT_TIME)
+                        if pdf_url:
+                            download_pdf.apply_async(
+                                (paper.id,),
+                                priority=5,
+                                countdown=7
+                            )
+                    else:
+                        num_duplicates += 1
+                except Exception as e:
+                    sentry.log_error(e)
+
+            offset += RESULTS_PER_ITERATION
+            time.sleep(WAIT_TIME)
+        except Exception as e:
+            sentry.log_error(e)
+
     sentry.log_info(f'Crossref Duplicates Detected: {num_duplicates}')
+    sentry.log_info(f'Total Crossref pull: {total_results}')
+    return total_results
