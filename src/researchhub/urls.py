@@ -23,6 +23,7 @@ import user.views
 import notification.views
 import analytics.views
 import purchase.views
+import researchhub_case.views
 
 from researchhub.settings import CLOUD, NO_SILK
 
@@ -179,6 +180,11 @@ router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
 
 router.register(r'user_verification', user.views.VerificationViewSet)
 
+router.register(
+    r'author_claim_case',
+    researchhub_case.views.AuthorClaimCaseViewSet,
+    basename='author_claim_case'
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
