@@ -980,7 +980,7 @@ def pull_papers(start=0):
 
 
 # Crossref Download Constants
-RESULTS_PER_ITERATION = 100
+RESULTS_PER_ITERATION = 200
 WAIT_TIME = 2
 RETRY_WAIT = 8
 RETRY_MAX = 20
@@ -1134,8 +1134,11 @@ def pull_crossref_papers(start=0):
             offset += RESULTS_PER_ITERATION
             time.sleep(WAIT_TIME)
         except Exception as e:
-            sentry.log_error(e)
+            sentry.log_error(e, message=f'Total Results: {total_results}')
 
-    sentry.log_info(f'Crossref Duplicates Detected: {num_duplicates}')
-    sentry.log_info(f'Total Crossref pull: {total_results}')
+    info = f"""
+        Crossref Duplicates Detected: {num_duplicates}\n
+        Total Crossref pull: {total_results}
+    """
+    sentry.log_info(info)
     return total_results
