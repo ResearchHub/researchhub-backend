@@ -21,5 +21,6 @@ def format_valid_ids(case, requestor, target_author):
     })
 
 
+# TODO: calvinhlee - write email sender here
 def send_validation_email(case):
     return True

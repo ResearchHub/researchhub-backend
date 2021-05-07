@@ -1,3 +1,5 @@
+import logging
+
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -33,6 +35,11 @@ def author_claim_case_post_save_signal(
           format_valid_ids(instance, requestor, target_author)
         )
         instance.new_token = new_token
-        send_validation_email(instance)
-        instance.validation_attempt_count += 1
-        instance.save()
+        did_email_send = send_validation_email(instance)
+        if (did_email_send):
+            instance.validation_attempt_count += 1
+            instance.save()
+        else:
+            logging.warning(
+              "Instance creationg of AuthorClaimCase did not process properly"
+            )
