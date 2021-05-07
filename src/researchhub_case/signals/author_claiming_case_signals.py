@@ -29,17 +29,15 @@ def author_claim_case_post_save_signal(
       and instance.status == AUTHOR_CLAIM_CASE_STATUS.OPEN
       and instance.validation_token is None
     ):
-        target_author = instance.target_author
-        requestor = instance.requestor
-        new_token = encode_validation_token(
-          format_valid_ids(instance, requestor, target_author)
-        )
-        instance.new_token = new_token
-        did_email_send = send_validation_email(instance)
-        if (did_email_send):
+        try:
+            target_author = instance.target_author
+            requestor = instance.requestor
+            new_token = encode_validation_token(
+              format_valid_ids(instance, requestor, target_author)
+            )
+            instance.new_token = new_token
+            send_validation_email(instance)
             instance.validation_attempt_count += 1
             instance.save()
-        else:
-            logging.warning(
-              "Instance creationg of AuthorClaimCase did not process properly"
-            )
+        except Exception as exception:
+            logging.warning(exception)
