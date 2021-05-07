@@ -1,6 +1,5 @@
 import base64
 import time
-import request
 
 
 # TODO: calvinhlee - maybe improve these in the future
@@ -13,15 +12,12 @@ def encode_validation_token(str):
 
 
 def format_valid_ids(case, requestor, target_author):
-    return request.get(
-        '',
-        params={
-          'case_id': case.id,
-          'generated_time': int(time.time()),
-          'requestor_id': requestor.id,
-          'target_author_id': target_author,
-        }
-    ).text
+    return '&'.join(
+        f'case_id={case.id}',
+        f'generated_time={int(time.time())}',
+        f'requestor_id={requestor.id}',
+        f'target_author_id={target_author.id}',
+    )
 
 
 def send_validation_email(case):
