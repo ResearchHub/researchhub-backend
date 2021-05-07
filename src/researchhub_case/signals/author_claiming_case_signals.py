@@ -36,6 +36,7 @@ def author_claim_case_post_save_signal(
               format_valid_ids(instance, requestor, target_author)
             )
             instance.new_token = new_token
+            # note intentionally sending email before incrementing attempt
             send_validation_email(instance)
             instance.validation_attempt_count += 1
             instance.save()
