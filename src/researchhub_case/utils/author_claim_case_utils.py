@@ -1,6 +1,7 @@
 import base64
 import time
 
+
 # TODO: calvinhlee - improve this in the future
 def decode_validation_token(encoded_str):
     return base64.urlsafe_b64decode(encoded_str)
