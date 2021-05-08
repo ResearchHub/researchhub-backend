@@ -8,7 +8,7 @@ def handler(event, context):
     return event
 
 
-def app_handler(name, *args):
+def app_handler(name, args):
     import django
     django.setup()
 
