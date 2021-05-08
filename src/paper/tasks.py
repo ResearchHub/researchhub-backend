@@ -511,6 +511,7 @@ def celery_extract_pdf_sections(paper_id):
     images_path = f'{path}{paper_id}.images'
     file_url = file.url
     return_code = -1
+    message = 'success'
 
     if not os.path.isdir(path):
         os.makedirs(path, exist_ok=True)
@@ -564,7 +565,7 @@ def celery_extract_pdf_sections(paper_id):
         sentry.log_error(e, message=message)
     finally:
         shutil.rmtree(path)
-        return True, return_code
+        return True, return_code, message
 
 
 @app.task(queue=f'{APP_ENV}_twitter_queue', ignore_result=False)
