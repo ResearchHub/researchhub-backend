@@ -4,6 +4,7 @@ import fitz
 import jellyfish
 import nltk
 import math
+import json
 
 from django.core.cache import cache
 from django.core.files.base import ContentFile
@@ -15,14 +16,21 @@ from manubot.cite.csl_item import CSL_Item
 from bs4 import BeautifulSoup
 from utils import sentry
 from django.db import models
+from boto3.session import Session
 
+from researchhub.aws_lambda import CERMINE_EXTRACT
+from researchhub.settings import (
+    AWS_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY,
+    AWS_S3_REGION_NAME,
+    CERMINE_FUNCTION_ARN
+)
 from paper.lib import (
     journal_hosts,
     journal_hosts_and_pdf_identifiers,
     journal_pdf_to_url,
     journal_url_to_pdf
 )
-
 from utils.rh_http import (
     check_url_contains_pdf,
     http_request,
@@ -693,6 +701,7 @@ def invalidate_most_discussed_cache(hub_ids, with_default=True):
             )
             cache.delete(cache_key)
 
+
 def get_name(person):
     full_name = []
 
@@ -709,6 +718,7 @@ def get_name(person):
             full_name.append(person.get('last_name'))
 
     return ' '.join(full_name)
+
 
 def paper_piecewise_log(k):
     sign = 1
@@ -730,3 +740,28 @@ def paper_piecewise_log(k):
 
     res = k * sign
     return res
+
+
+def lambda_extract_pdf_sections(paper_id):
+    data = {
+        CERMINE_EXTRACT: paper_id
+    }
+    data_bytes = json.dumps(data).encode('utf-8')
+
+    session = Session(
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+        region_name=AWS_S3_REGION_NAME
+    )
+    lambda_client = session.client(
+        service_name='lambda',
+        region_name=AWS_S3_REGION_NAME
+    )
+    response = lambda_client.invoke(
+        FunctionName=CERMINE_FUNCTION_ARN,
+        InvocationType='Event',
+        LogType='Tail',
+        ClientContext='string',
+        Payload=data_bytes,
+    )
+    return response
