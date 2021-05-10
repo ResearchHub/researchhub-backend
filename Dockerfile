@@ -18,7 +18,7 @@ RUN pip3 install -r requirements.txt
 
 RUN mkdir -p /usr/app/src
 COPY src/  /usr/app/src/
-RUN mkdir /tmp/pdf_cermine
+RUN mkdir - p /tmp/pdf_cermine/
 
 WORKDIR /usr/app/src
 ENTRYPOINT [ "/usr/bin/python3.6", "-m", "awslambdaric" ]
