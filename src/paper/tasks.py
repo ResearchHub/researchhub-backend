@@ -564,7 +564,7 @@ def celery_extract_pdf_sections(paper_id):
         return True, return_code
 
 
-@app.task(queue=f'{APP_ENV}_autopull_queue', ignore_result=False)
+@app.task(queue=f'{APP_ENV}_twitter_queue', ignore_result=False)
 def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     if paper_id is None or iteration > 2:
         return False
@@ -914,8 +914,6 @@ def pull_papers(start=0):
                             except AttributeError:
                                 pass
 
-                        score = paper.calculate_score()
-                        paper.score = score
                         paper.save()
                         paper.calculate_hot_score()
 
@@ -928,7 +926,7 @@ def pull_papers(start=0):
 
                         celery_calculate_paper_twitter_score.apply_async(
                             (paper.id,),
-                            priority=5,
+                            priority=4,
                             countdown=15
                         )
 
@@ -1117,7 +1115,7 @@ def pull_crossref_papers(start=0):
 
                         celery_calculate_paper_twitter_score.apply_async(
                             (paper.id,),
-                            priority=5,
+                            priority=4,
                             countdown=15
                         )
                         add_orcid_authors.apply_async(
