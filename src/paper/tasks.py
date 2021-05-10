@@ -565,7 +565,7 @@ def celery_extract_pdf_sections(paper_id):
         sentry.log_error(e, message=message)
     finally:
         shutil.rmtree(path)
-        return True, return_code, message
+        return True, return_code, message.encode('utf-8')
 
 
 @app.task(queue=f'{APP_ENV}_twitter_queue', ignore_result=False)
