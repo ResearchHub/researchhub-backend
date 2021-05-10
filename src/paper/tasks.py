@@ -520,6 +520,7 @@ def celery_extract_pdf_sections(paper_id):
             os.mkdir(path)
             print('3------------------------')
     except Exception as e:
+        print(os.listdir('/'))
         print(e)
         return False
 
