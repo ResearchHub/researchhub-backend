@@ -514,10 +514,14 @@ def celery_extract_pdf_sections(paper_id):
     message = 'success'
     print('1------------------------')
 
-    if not os.path.isdir(path):
-        print('2------------------------')
-        os.mkdir(path)
-        print('3------------------------')
+    try:
+        if not os.path.isdir(path):
+            print('2------------------------')
+            os.mkdir(path)
+            print('3------------------------')
+    except Exception as e:
+        print(e)
+        return False
 
     try:
         res = requests.get(file_url)
