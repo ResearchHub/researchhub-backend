@@ -515,13 +515,16 @@ def celery_extract_pdf_sections(paper_id):
     print('1------------------------')
 
     if not os.path.isdir(path):
+        print('2------------------------')
         os.mkdir(path)
+        print('3------------------------')
 
     try:
         res = requests.get(file_url)
+        print('4------------------------')
         with open(file_path, 'wb+') as f:
             f.write(res.content)
-        print('2------------------------')
+        print('5------------------------')
 
         args = [
             'java',
@@ -531,27 +534,27 @@ def celery_extract_pdf_sections(paper_id):
             '-path',
             path,
         ]
-        print('3------------------------')
+        print('6------------------------')
         call_res = run(args, stdout=PIPE, stderr=PIPE)
         return_code = call_res.returncode
-        print('4------------------------')
+        print('7------------------------')
 
         with codecs.open(extract_file_path, 'rb') as f:
             soup = BeautifulSoup(f, 'lxml')
-            print('5------------------------')
+            print('8------------------------')
             paper.pdf_file_extract.save(
                 extract_filename,
                 ContentFile(soup.encode())
             )
-        print('6------------------------')
+        print('9------------------------')
         paper.save()
 
         figures = os.listdir(images_path)
-        print('7------------------------')
+        print('10------------------------')
         for extracted_figure in figures:
             extracted_figure_path = f'{images_path}/{extracted_figure}'
             with open(extracted_figure_path, 'rb') as f:
-                print('8------------------------')
+                print('11------------------------')
                 extracted_figures = Figure.objects.filter(paper=paper)
                 if not extracted_figures.filter(
                     file__contains=f.name,
@@ -562,7 +565,7 @@ def celery_extract_pdf_sections(paper_id):
                         paper=paper,
                         figure_type=Figure.FIGURE
                     )
-        print('9------------------------')
+        print('12------------------------')
     except Exception as e:
         stdout = call_res.stdout.decode('utf8')
         message = f'{return_code}; {stdout}; '
