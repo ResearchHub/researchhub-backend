@@ -517,7 +517,7 @@ def celery_extract_pdf_sections(paper_id):
     try:
         if not os.path.isdir(path):
             print('2------------------------')
-            os.mkdir(path)
+            os.makedirs(path, exist_ok=True)
             print('3------------------------')
     except Exception as e:
         print(os.listdir('/'))
