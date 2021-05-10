@@ -578,6 +578,12 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
         minute=0
     )
 
+    title = paper.title
+    if title:
+        words_in_title = paper.title.split(' ')
+        if len(words_in_title) <= 4:
+            return False, 'Probable spam paper'
+
     try:
         twitter_score = paper.calculate_twitter_score()
     except Exception as e:
