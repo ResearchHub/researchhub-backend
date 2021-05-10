@@ -512,6 +512,7 @@ def celery_extract_pdf_sections(paper_id):
     file_url = file.url
     return_code = -1
     message = 'success'
+    print('1------------------------')
 
     if not os.path.isdir(path):
         os.mkdir(path)
@@ -520,6 +521,7 @@ def celery_extract_pdf_sections(paper_id):
         res = requests.get(file_url)
         with open(file_path, 'wb+') as f:
             f.write(res.content)
+        print('2------------------------')
 
         args = [
             'java',
@@ -529,21 +531,27 @@ def celery_extract_pdf_sections(paper_id):
             '-path',
             path,
         ]
+        print('3------------------------')
         call_res = run(args, stdout=PIPE, stderr=PIPE)
         return_code = call_res.returncode
+        print('4------------------------')
 
         with codecs.open(extract_file_path, 'rb') as f:
             soup = BeautifulSoup(f, 'lxml')
+            print('5------------------------')
             paper.pdf_file_extract.save(
                 extract_filename,
                 ContentFile(soup.encode())
             )
+        print('6------------------------')
         paper.save()
 
         figures = os.listdir(images_path)
+        print('7------------------------')
         for extracted_figure in figures:
             extracted_figure_path = f'{images_path}/{extracted_figure}'
             with open(extracted_figure_path, 'rb') as f:
+                print('8------------------------')
                 extracted_figures = Figure.objects.filter(paper=paper)
                 if not extracted_figures.filter(
                     file__contains=f.name,
@@ -554,6 +562,7 @@ def celery_extract_pdf_sections(paper_id):
                         paper=paper,
                         figure_type=Figure.FIGURE
                     )
+        print('9------------------------')
     except Exception as e:
         stdout = call_res.stdout.decode('utf8')
         message = f'{return_code}; {stdout}; '
@@ -565,7 +574,7 @@ def celery_extract_pdf_sections(paper_id):
         sentry.log_error(e, message=message)
     finally:
         shutil.rmtree(path)
-        return True, return_code, message.encode('utf-8')
+        return True, return_code, message
 
 
 @app.task(queue=f'{APP_ENV}_twitter_queue', ignore_result=False)
