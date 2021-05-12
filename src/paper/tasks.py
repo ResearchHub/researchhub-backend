@@ -526,10 +526,10 @@ def celery_extract_pdf_sections(paper_id):
 
     print('before main----------------')
     try:
+        print(file_url)
         res = requests.get(file_url)
         print('4------------------------')
         print(res.status_code)
-        print(file_url)
         with open(file_path, 'wb+') as f:
             f.write(res.content)
             print('before content----------')
