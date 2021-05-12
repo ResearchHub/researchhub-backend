@@ -34,6 +34,6 @@ class AuthorClaimCase(AbstractResearchhubCase):
       blank=True,
       default=None,
       help_text="Used to authenticate User's identity. See post_save signal",
-      max_length=32,
+      max_length=255,
       null=True,
     )
