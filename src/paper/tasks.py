@@ -509,11 +509,9 @@ def celery_extract_pdf_sections(paper_id):
     file_path = f'{path}{filename}'
     extract_file_path = f'{path}{paper_id}.cermxml'
     images_path = f'{path}{paper_id}.images'
-    file_url = file.url
     return_code = -1
     message = 'success'
     print('1------------------------')
-    print(file_url)
 
     try:
         if not os.path.isdir(path):
@@ -527,13 +525,10 @@ def celery_extract_pdf_sections(paper_id):
 
     print('before main----------------')
     try:
-        res = requests.get(file_url)
         print('4------------------------')
-        print(res.status_code)
         with open(file_path, 'wb+') as f:
-            f.write(res.content)
+            f.write(file.read())
             print('before content----------')
-            print(res.content)
             print('after content-----------')
         print('5------------------------')
 
