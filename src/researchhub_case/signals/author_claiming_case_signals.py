@@ -6,9 +6,8 @@ from django.dispatch import receiver
 from researchhub_case.constants.case_constants import INITIATED
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.utils.author_claim_case_utils import (
-  encode_validation_token,
-  format_valid_ids,
-  send_validation_email
+  get_new_validation_token,
+  send_validation_email,
 )
 
 
@@ -30,12 +29,9 @@ def author_claim_case_post_create_signal(
       and instance.validation_token is None
     ):
         try:
-            target_author = instance.target_author
-            requestor = instance.requestor
-            new_token = encode_validation_token(
-              format_valid_ids(instance, requestor, target_author)
-            )
-            instance.validation_token = new_token
+            [generated_time, token] = get_new_validation_token()
+            instance.token_generated_time = generated_time
+            instance.validation_token = token
             # Note: intentionally sending email before incrementing attempt
             send_validation_email(instance)
             instance.validation_attempt_count += 1
