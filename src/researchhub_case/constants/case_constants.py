@@ -3,6 +3,7 @@ AUTHOR_CLAIM = "AUTHOR_CLAIM"
 CLOSED = "CLOSED"
 DENIED = "DENIED"
 INITIATED = "INITIATED"
+INVALIDATED = "INVALIDATED"
 """
   Nullified signifies that the author was
   claimed by someone else during process

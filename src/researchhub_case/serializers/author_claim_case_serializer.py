@@ -10,13 +10,15 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         model = AuthorClaimCase
         fields = [
           *EXPOSABLE_FIELDS,
-          'target_author',
           'status',
+          'target_author',
+          'token_generated_time',
           'validation_attempt_count',
           'validation_token',
         ]
         read_only_fields = [
           'status',
+          'token_generated_time',
           'validation_attempt_count',
           'validation_token',
         ]

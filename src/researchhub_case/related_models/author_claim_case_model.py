@@ -23,6 +23,12 @@ class AuthorClaimCase(AbstractResearchhubCase):
       on_delete=models.CASCADE,
       related_name='related_claim_cases',
     )
+    token_generated_time = models.IntegerField(
+      blank=True,
+      default=None,
+      help_text="Intentionally setting as a int field",
+      null=True,
+    )
     validation_attempt_count = models.IntegerField(
       blank=False,
       default=-1,
@@ -31,8 +37,10 @@ class AuthorClaimCase(AbstractResearchhubCase):
     )
     validation_token = models.CharField(
       blank=True,
+      db_index=True,
       default=None,
-      help_text="Used to authenticate User's identity. See post_save signal",
+      help_text="See author_claim_case_post_create_signal",
       max_length=255,
       null=True,
+      unique=True,
     )
