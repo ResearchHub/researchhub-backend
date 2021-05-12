@@ -18,14 +18,14 @@ class AbstractResearchhubCase(DefaultModel):
         default=0,
         null=False,
         on_delete=models.CASCADE,
-        related_name='created_case',
+        related_name='created_cases',
     )
     moderator = models.ForeignKey(
         User,
         blank=True,
         null=True,
         on_delete=models.CASCADE,
-        related_name='moderating_case',
+        related_name='moderating_cases',
     )
     requestor = models.ForeignKey(
         User,
@@ -33,7 +33,7 @@ class AbstractResearchhubCase(DefaultModel):
         default=0,
         null=False,
         on_delete=models.CASCADE,
-        related_name='requested_case',
+        related_name='requested_cases',
     )
 
     class Meta:

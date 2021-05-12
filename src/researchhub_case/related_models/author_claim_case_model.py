@@ -19,10 +19,9 @@ class AuthorClaimCase(AbstractResearchhubCase):
     target_author = models.ForeignKey(
       Author,
       blank=False,
-      default=0,
       null=False,
       on_delete=models.CASCADE,
-      related_name='claim_case',
+      related_name='related_claim_cases',
     )
     validation_attempt_count = models.IntegerField(
       blank=False,
