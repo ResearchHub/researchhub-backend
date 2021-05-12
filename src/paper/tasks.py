@@ -513,6 +513,7 @@ def celery_extract_pdf_sections(paper_id):
     return_code = -1
     message = 'success'
     print('1------------------------')
+    print(file_url)
 
     try:
         if not os.path.isdir(path):
@@ -526,7 +527,6 @@ def celery_extract_pdf_sections(paper_id):
 
     print('before main----------------')
     try:
-        print(file_url)
         res = requests.get(file_url)
         print('4------------------------')
         print(res.status_code)
