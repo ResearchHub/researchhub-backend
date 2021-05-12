@@ -1,16 +1,20 @@
 AUTHOR_CLAIM = "AUTHOR_CLAIM"
+
 CLOSED = "CLOSED"
 DENIED = "DENIED"
-NULLIFIED = "NULLIFIED"
-OPEN = "NULLIFIED"
-
+INITIATED = "INITIATED"
 """
   Nullified signifies that the author was
   claimed by someone else during process
 """
+NULLIFIED = "NULLIFIED"
+OPEN = "OPEN"
+
+
 AUTHOR_CLAIM_CASE_STATUS = [
     (CLOSED, CLOSED),
     (DENIED, DENIED),
+    (INITIATED, INITIATED),
     (NULLIFIED, NULLIFIED),
     (OPEN, OPEN),
 ]
