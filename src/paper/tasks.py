@@ -524,6 +524,7 @@ def celery_extract_pdf_sections(paper_id):
         print(e)
         return False
 
+    print('before main----------------')
     try:
         res = requests.get(file_url)
         print('4------------------------')
@@ -577,6 +578,7 @@ def celery_extract_pdf_sections(paper_id):
                     )
         print('12------------------------')
     except Exception as e:
+        print(e)
         stdout = call_res.stdout.decode('utf8')
         message = f'{return_code}; {stdout}; '
         try:
