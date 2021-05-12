@@ -12,4 +12,11 @@ class AuthorClaimCaseSerializer(ModelSerializer):
           *EXPOSABLE_FIELDS,
           'target_author',
           'status',
+          'validation_attempt_count',
+          'validation_token',
+        ]
+        read_only_fields = [
+          'status',
+          'validation_attempt_count',
+          'validation_token',
         ]

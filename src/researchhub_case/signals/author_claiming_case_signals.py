@@ -3,9 +3,9 @@ import logging
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from researchhub_case.constants.case_constants import AUTHOR_CLAIM_CASE_STATUS
+from researchhub_case.constants.case_constants import INITIATED
 from researchhub_case.models import AuthorClaimCase
-from researchhub_case.utils import (
+from researchhub_case.utils.author_claim_case_utils import (
   encode_validation_token,
   format_valid_ids,
   send_validation_email
@@ -14,10 +14,10 @@ from researchhub_case.utils import (
 
 @receiver(
     post_save,
-    dispatch_uid='author_claim_case_post_save_signal',
     sender=AuthorClaimCase,
+    dispatch_uid='author_claim_case_post_create_signal',
 )
-def author_claim_case_post_save_signal(
+def author_claim_case_post_create_signal(
     sender,
     instance,
     created,
@@ -26,7 +26,7 @@ def author_claim_case_post_save_signal(
 ):
     if (
       created
-      and instance.status == AUTHOR_CLAIM_CASE_STATUS.OPEN
+      and instance.status == INITIATED
       and instance.validation_token is None
     ):
         try:
@@ -35,8 +35,8 @@ def author_claim_case_post_save_signal(
             new_token = encode_validation_token(
               format_valid_ids(instance, requestor, target_author)
             )
-            instance.new_token = new_token
-            # note intentionally sending email before incrementing attempt
+            instance.validation_token = new_token
+            # Note: intentionally sending email before incrementing attempt
             send_validation_email(instance)
             instance.validation_attempt_count += 1
             instance.save()
