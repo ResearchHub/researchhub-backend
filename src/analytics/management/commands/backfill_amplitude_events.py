@@ -1,11 +1,14 @@
 import requests
 import json
 
+from django.db.models import Count
+from django.db.models.functions import TruncDate
 from django.core.management.base import BaseCommand
 from django.contrib.contenttypes.models import ContentType
 
 from user.models import User, Action
 from purchase.models import Purchase
+from paper.models import Paper
 from researchhub.settings import AMPLITUDE_API_KEY
 
 
@@ -338,6 +341,38 @@ class Command(BaseCommand):
                 events.append(hit)
         self.forward_amp_event(events)
 
+    def handle_autopull_uploads(self, purchases):
+        print('Autopull')
+        papers = Paper.objects.all().filter(
+            uploaded_by__isnull=True
+        ).annotate(
+            date=TruncDate('uploaded_date')
+        ).order_by(
+            '-date'
+        ).values(
+            'date'
+        ).annotate(
+            count=Count('date')
+        )
+        count = papers.count()
+        events = []
+        for i, paper in enumerate(papers.iterator()):
+            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
+                self.forward_amp_event(events)
+                events = []
+            else:
+                print(f'{i}/{count}')
+                date = paper['date']
+                paper_count = paper['count']
+                hit = {
+                    'event_type': 'autopull_count',
+                    'time': int(date.timestamp()),
+                    'insert_id': f"autopull_{date.strftime('%Y-%m-%d')}",
+                    'amount': paper_count
+                }
+                events.append(hit)
+        self.forward_amp_event(events)
+
     def handle(self, *args, **options):
         comment_ct = ContentType.objects.get(model='comment')
         reply_ct = ContentType.objects.get(model='reply')
@@ -398,4 +433,5 @@ class Command(BaseCommand):
         # self.handle_summaries(summary)
         # self.handle_bulletpoints(bulletpoint)
         # self.handle_user_signup(user)
-        self.handle_purchases(purchase)
+        # self.handle_purchases(purchase)
+        self.handle_autopull_uploads()
