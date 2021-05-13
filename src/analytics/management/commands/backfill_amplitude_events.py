@@ -2,8 +2,10 @@ import time
 import requests
 import json
 
+from pytz import timezone
+
 from django.db.models import Count
-from django.db.models.functions import TruncDate
+from django.db.models.functions import TruncDay
 from django.core.management.base import BaseCommand
 from django.contrib.contenttypes.models import ContentType
 
@@ -347,7 +349,7 @@ class Command(BaseCommand):
         papers = Paper.objects.all().filter(
             uploaded_by__isnull=True
         ).annotate(
-            date=TruncDate('uploaded_date')
+            date=TruncDay('uploaded_date', tzinfo=timezone('US/Pacific'))
         ).order_by(
             '-date'
         ).values(
