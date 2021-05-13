@@ -1,0 +1,71 @@
+{% load inlinecss %}
+{% load l10n %}
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title></title>
+        <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+    </head>
+    {% inlinecss "notification_email.css" %}
+    <body>
+      <div class="email-container">
+        <div class="email-header">
+          <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
+          <div class="header">
+            Your Notifications
+          </div>
+        </div>
+        {% for action in actions %}
+          <div class="content">
+            <div class="meta">
+              <div class="avatar-wrapper">
+                {% if action.item.created_by.author_profile.profile_image %}
+                  <img
+                    class="author-avatar"
+                    src="{{ action.item.created_by.author_profile.profile_image|default:"https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg" }}"
+                    alt="{{ action.item.created_by.author_profile.profile_image }}"
+                  />
+                {% else %}
+                  <div class="initials">
+                    {{ action.initials }}
+                  </div>
+                {% endif %}
+              </div>
+              <div class="notification-wrapper">
+                <div class="notification-title">
+                  <span class="first-line">
+                    <b>
+                      {{ action.item.created_by.author_profile.first_name }}
+                       {{ action.item.created_by.author_profile.last_name }}
+                    </b> {{ action.label }}:
+                  </span>
+                  <div class="paper">
+                    {{ action.item.paper.title }}
+                  </div>
+                  <div class="timestamp">
+                    <!-- <span class="timestamp-icon">•</span> -->
+                    {{ action.created_date|localize }}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="body">
+              {{ action.item.plain_text }}
+            </div>
+            <div class="hubtags-list">
+              <a class="button-label" href="{{ action.frontend_view_link }}">
+                View {{ action.content_type_name }}
+              </a>
+            </div>
+            <div class="divider">
+              <div class="line"></div>
+            </div>
+          </div>
+        {% endfor %}
+      <div class="footer">
+        <a href="{{opt_out}}">Unsubscribe or change how frequently I get updated</a>
+      </div>
+    </body>
+</html>
+
+{% endinlinecss %}

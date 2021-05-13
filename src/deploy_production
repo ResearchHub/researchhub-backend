@@ -1,0 +1,26 @@
+#!/bin/sh
+# Deploy researchhub-backend to production
+
+start="Deploying to production environments:"
+echo $start
+
+# echo "Creating requirements.txt"
+# pipenv lock --requirements > requirements.txt
+
+echo "Deploying to production"
+eb deploy backend-production
+
+echo "Deploying to production"
+eb deploy production-worker-2
+
+echo "Deploying to production"
+eb deploy production-worker-3
+
+echo "Deploying to production"
+eb deploy production-worker-cermine
+
+echo "Deploying to production"
+eb deploy production-worker-twitter
+
+done="Finished executing production deployment"
+echo $done

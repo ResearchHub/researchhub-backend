@@ -1,0 +1,26 @@
+#!/bin/sh
+# Run Django tests
+
+start_msg="Running linter:"
+end_msg="\nFinished running linter. Clean up any errors before pushing."
+
+run() {
+  command="flake8"
+  cd src && pipenv run $command
+}
+
+clean_up() {
+  rm output.txt
+}
+
+main() {
+  echo $start_msg
+
+  run &> output.txt
+  cd .. && cat output.txt
+
+  clean_up
+  echo $end_msg && exit 0
+}
+
+main

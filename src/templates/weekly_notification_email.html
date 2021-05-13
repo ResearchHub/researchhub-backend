@@ -1,0 +1,58 @@
+{% load inlinecss %}
+{% load l10n %}
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title></title>
+        <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://pro.fontawesome.com/releases/v5.12.1/css/all.css" integrity="sha384-TxKWSXbsweFt0o2WqfkfJRRNVaPdzXJ/YLqgStggBVRREXkwU7OKz+xXtqOU4u8+" crossorigin="anonymous">
+
+    </head>
+    {% inlinecss "notification_email.css" %}
+    <body>
+      <div class="email-container">
+        <div class="email-header">
+          <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
+        </div>
+        {% for paper in papers %}
+          <div class="content">
+            <div class="meta">
+              <div class="notification-wrapper">
+                <div class="notification-title">
+                  <span class="first-line">
+                    <b>
+                      {{ action.item.created_by.author_profile.first_name }}
+                       {{ action.item.created_by.author_profile.last_name }}
+                    </b> {{ action.label }}:
+                    <span class="thread"> {{ action.item.thread.title }} </span>
+                  </span>
+                  <div class="paper">
+                    {{ paper.calculate_score }}
+                  </div>
+                  <div class="timestamp">
+                    <!-- <span class="timestamp-icon">•</span> -->
+                    {{ paper.discussion_count }}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="body">
+              {{ action.item.plain_text }}
+            </div>
+            <div class="hubtags-list">
+              <a class="button-label" href="{{ action.frontend_view_link }}">
+                View {{ action.content_type_name }}
+              </a>
+            </div>
+            <div class="divider">
+              <div class="line"></div>
+            </div>
+          </div>
+        {% endfor %}
+      <div class="footer">
+        <a href="{{opt_out}}">Unsubscribe or change how frequently I get updated</a>
+      </div>
+    </body>
+</html>
+
+{% endinlinecss %}

@@ -1,0 +1,29 @@
+# Config
+config/*
+!config/paper.pdf
+!config/*.py
+!config/ci
+config_local/*
+!config_local/__init__.py
+
+# Django
+__pycache__/
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
+
+# Ignore DB
+db.json
+static/
+!static/css
+!static/ethereum
+!static/ethereum/*
+!static/researchhub
+!static/researchhub/*
+backups/
+
+# Ignore Cermine PDF files
+!pdf_cermine/*
+pdf_cermine/.DS_Store

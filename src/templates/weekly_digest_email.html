@@ -1,0 +1,96 @@
+{% load inlinecss %}
+{% load static %}
+
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title></title>
+        <link href="https://fonts.googleapis.com/css?family=Roboto:400,500&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css?family=Raleway&display=swap" rel="stylesheet">
+    </head>
+    {% inlinecss "weekly_digest_email.css" %}
+    <body>
+        <style type="text/css">
+            @media only screen and (max-width:767px) {
+                .hubs-desktop {display: none!important;}
+
+                .hubs-mobile {display: block!important;}
+            }
+        </style>
+        <div style="display: none; max-height: 0px; overflow: hidden;">
+            {{ preview_text }}
+        </div>
+        <div class="email-container">
+            <div class="email-header">
+                <div class="flex-text inline">
+                    <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/rh-logo.png" />
+                    <div class="first-name">
+                        {{ first_name }}'s' Digest
+                    </div>
+                </div>
+            </div>
+            <div class="tagline">
+                Top Papers For You
+            </div>
+            {% for paper in papers %}
+              <a class="content-container" href="https://www.researchhub.com/paper/{{paper.id}}/summary">
+                  <div class="content">
+                      <div class="points">
+                          <span class="flex-text">
+                              {{ paper.calculate_score }}
+                          </span>
+                      </div>
+                      <div class="right">
+                        <div class="title">{{paper.title}}</div>
+                        <!-- <div class="body">
+                            {{paper.tagline}}
+                        </div> -->
+                        <div class="meta">
+                          <div class="author-name">
+                              {{paper.author.first_name}} {{paper.author.last_name}}
+                          </div>
+                          <div class="row">
+                              <div class="comments-row">
+                                  <img class="comments-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/comments.png" /> {{ paper.get_discussion_count }} {% if paper.get_discussion_count == 1 %} comment {% else %} comments {% endif %}
+                              </div>
+                              <div class="hubs hubs-desktop">
+                                  {% for hub in paper.hubs.all %}
+                                      <button class="hub">
+                                          {{ hub.name }}
+                                      </button>
+                                {% endfor %}
+                              </div>
+                          </div>
+                      </div>
+                      <div class="hubs-mobile">
+                          {% for hub in paper.hubs.all %}
+                              <button class="hub mobile-hub">
+                                  {{ hub.name }}
+                              </button>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  </div>
+              </a>
+            {% endfor %}
+            <div class="read-more-container">
+                <a href="https://www.researchhub.com" class="read-more-button">
+                    Read More on ResearchHub
+                </a>
+            </div>
+            <div class="divider">
+                <div class="line"></div>
+              </div>
+        <div class="footer">
+            <div>
+                This email was sent by ResearchHub
+            </div>
+            <div>
+                If you would like to stop receiving emails from ResearchHub <a href={{opt_out}}>opt-out here</a>
+            </div>
+        </div>
+    </body>
+</html>
+
+{% endinlinecss %}

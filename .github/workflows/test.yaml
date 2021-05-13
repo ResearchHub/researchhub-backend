@@ -1,0 +1,113 @@
+name: Backend CI
+on:
+  push:
+    branches:
+      - ci
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:12
+        env:
+          POSTGRES_DB: researchhub
+          POSTGRES_USER: rh_developer
+          POSTGRES_PASSWORD: not_secure
+        ports:
+        - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:7.4.1
+        ports:
+        - 9200:9200
+        - 9300:9300
+        env:
+          discovery.type: single-node
+        options: --name elasticsearch
+    steps:
+    - name: checkout repository
+      uses: actions/checkout@v2
+    - name: setup python
+      uses: actions/setup-python@v1
+      with:
+        python-version: '3.7'
+    - name: elasticsearch plugins
+      run: docker exec elasticsearch bin/elasticsearch-plugin install --batch ingest-attachment
+    - name: pipenv install
+      working-directory: ./src
+      run: |
+        pip install pipenv
+        pipenv install --dev --deploy
+    - name: set secrets
+      run: |
+        echo "::set-env name=AWS_ACCESS_KEY_ID::${{ secrets.AWS_ACCESS_KEY_ID }}"
+        echo "::set-env name=AWS_SECRET_ACCESS_KEY::${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+        echo "::set-env name=INFURA_PROJECT_ID::${{ secrets.INFURA_PROJECT_ID }}"
+        echo "::set-env name=INFURA_PROJECT_SECRET::${{ secrets.INFURA_PROJECT_SECRET }}"
+    - name: prepare django
+      working-directory: ./src
+      run: |
+        cp config/ci/* config
+        pipenv run python manage.py migrate
+        pipenv run python manage.py search_index --create
+        pipenv run python manage.py collectstatic --noinput
+    - name: django tests
+      working-directory: ./src
+      run: pipenv run python manage.py test
+    - name: prepare deployment
+      working-directory: ./src
+      run: |
+        pipenv lock --requirements >| requirements.txt
+        # fail if requirements.txt has unstaged changes
+        git diff --exit-code requirements.txt
+        # create an archive of the ./src directory
+        git archive --output=deploy.zip HEAD
+    - name: deploy to staging
+      if: contains(github.event.head_commit.message, '[deploy staging]')
+      # pinned to specific version by hash for security (only include vetted codebases)
+      uses: einaregilsson/beanstalk-deploy@778ea5ec7c1fedbd233b2fcea9e7d24d647984bc
+      with:
+        aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        application_name: researchhub-backend
+        environment_name: staging-backend-2
+        version_label: ${{ github.sha }}
+        use_existing_version_if_available: true
+        region: us-west-2
+        deployment_package: src/deploy.zip
+    - name: deploy worker to staging
+      if: contains(github.event.head_commit.message, '[deploy staging]')
+      # pinned to specific version by hash for security (only include vetted codebases)
+      uses: einaregilsson/beanstalk-deploy@778ea5ec7c1fedbd233b2fcea9e7d24d647984bc
+      with:
+        aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        application_name: researchhub-backend
+        environment_name: staging-backend-worker-2
+        version_label: ${{ github.sha }}
+        region: us-west-2
+    - name: deploy to production
+      if: github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy production]')
+      # pinned to specific version by hash for security (only include vetted codebases)
+      uses: einaregilsson/beanstalk-deploy@778ea5ec7c1fedbd233b2fcea9e7d24d647984bc
+      with:
+        aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        application_name: researchhub-backend
+        environment_name: production-2
+        version_label: ${{ github.sha }}
+        use_existing_version_if_available: true
+        region: us-west-2
+        deployment_package: src/deploy.zip
+    - name: deploy worker to production
+      if: github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy production]')
+      # pinned to specific version by hash for security (only include vetted codebases)
+      uses: einaregilsson/beanstalk-deploy@778ea5ec7c1fedbd233b2fcea9e7d24d647984bc
+      with:
+        aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        application_name: researchhub-backend
+        environment_name: production-worker-2
+        version_label: ${{ github.sha }}
+        region: us-west-2
