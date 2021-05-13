@@ -370,8 +370,10 @@ class Command(BaseCommand):
                     'device_id': APP_ENV,
                     'event_type': 'autopull_count',
                     'time': int(timestamp),
-                    'insert_id': f"autopull_{date.strftime('%Y-%m-%d')}",
-                    'amount': paper_count
+                    'insert_id': f"_autopull_{date.strftime('%Y-%m-%d')}",
+                    'event_properties': {
+                        'amount': paper_count,
+                    }
                 }
                 events.append(hit)
         self.forward_amp_event(events)
