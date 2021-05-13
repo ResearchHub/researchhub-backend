@@ -1,3 +1,4 @@
+import time
 import requests
 import json
 
@@ -364,9 +365,10 @@ class Command(BaseCommand):
                 print(f'{i}/{count}')
                 date = paper['date']
                 paper_count = paper['count']
+                timestamp = time.mktime(date.timetuple())
                 hit = {
                     'event_type': 'autopull_count',
-                    'time': int(date.timestamp()),
+                    'time': int(timestamp),
                     'insert_id': f"autopull_{date.strftime('%Y-%m-%d')}",
                     'amount': paper_count
                 }
