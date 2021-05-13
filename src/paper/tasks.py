@@ -814,7 +814,7 @@ def log_daily_uploads():
         'device_id': APP_ENV,
         'event_type': 'autopull_count',
         'time': int(today.timestamp()),
-        'insert_id': f"autopull_{today.strftime('%Y-%m-%d')}",
+        'insert_id': f"{APP_ENV}_autopull_{today.strftime('%Y-%m-%d')}",
         'event_properties': {
             'amount': paper_count
         }
