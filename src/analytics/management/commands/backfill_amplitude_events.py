@@ -10,7 +10,7 @@ from django.contrib.contenttypes.models import ContentType
 from user.models import User, Action
 from purchase.models import Purchase
 from paper.models import Paper
-from researchhub.settings import AMPLITUDE_API_KEY
+from researchhub.settings import AMPLITUDE_API_KEY, APP_ENV
 
 
 API_URL = 'https://api.amplitude.com/2/httpapi'
@@ -367,6 +367,7 @@ class Command(BaseCommand):
                 paper_count = paper['count']
                 timestamp = time.mktime(date.timetuple())
                 hit = {
+                    'device_id': APP_ENV,
                     'event_type': 'autopull_count',
                     'time': int(timestamp),
                     'insert_id': f"autopull_{date.strftime('%Y-%m-%d')}",
