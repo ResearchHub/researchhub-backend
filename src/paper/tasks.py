@@ -13,6 +13,7 @@ import feedparser
 import time
 import json
 
+from pytz import timezone
 from bs4 import BeautifulSoup
 from io import BytesIO
 from datetime import datetime, timedelta, timezone
@@ -804,9 +805,12 @@ def log_daily_uploads():
     url = amp.api_url
     key = amp.api_key
 
-    today = datetime.today().date()
+    today = datetime.now(tz=timezone('US/Pacific'))
+    start_date = today.replace(hour=0, minute=0, second=0)
+    end_date = today.replace(hour=23, minute=59, second=59)
     papers = Paper.objects.filter(
-        uploaded_date__gte=today,
+        uploaded_date__gte=start_date,
+        uploaded_date__lte=end_date,
         uploaded_by__isnull=True
     )
     paper_count = papers.count()
