@@ -11,6 +11,7 @@ import twitter
 import urllib.request
 import feedparser
 import time
+import json
 
 from bs4 import BeautifulSoup
 from io import BytesIO
@@ -789,6 +790,47 @@ def preload_trending_papers(hub_id, ordering, time_difference, context):
     )
 
     return paginated_response.data
+
+
+@periodic_task(
+    run_every=crontab(minute=50, hour=23),
+    priority=2,
+    options={'queue': f'{APP_ENV}_core_queue'}
+)
+def log_daily_uploads():
+    from analytics.amplitude import Amplitude
+    Paper = apps.get_model('paper.Paper')
+    amp = Amplitude()
+    url = amp.api_url
+    key = amp.api_key
+
+    today = datetime.today().date()
+    papers = Paper.objects.filter(
+        uploaded_date__gte=today,
+        uploaded_by__isnull=True
+    )
+    paper_count = papers.count()
+    data = {
+        'event_type': 'autopull_count',
+        'time': int(today.timestamp()),
+        'insert_id': f"autopull_{today.strftime('%Y-%m-%d')}",
+        'amount': paper_count
+    }
+    hit = {
+        'events': [data],
+        'api_key': key
+    }
+    hit = json.dumps(hit)
+    headers = {
+      'Content-Type': 'application/json',
+      'Accept': '*/*'
+    }
+    request = requests.post(
+        url,
+        data=hit,
+        headers=headers
+    )
+    return request.status_code, paper_count
 
 
 # ARXIV Download Constants
