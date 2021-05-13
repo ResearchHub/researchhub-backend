@@ -10,6 +10,13 @@ from user.models import Author
 
 
 class AuthorClaimCase(AbstractResearchhubCase):
+    provided_email = models.EmailField(
+      blank=False,
+      help_text=(
+        "Requestors may use this field to validate themselves with this email"
+      ),
+      null=False,
+    )
     status = models.CharField(
       choices=AUTHOR_CLAIM_CASE_STATUS,
       default=INITIATED,
