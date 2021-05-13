@@ -368,7 +368,7 @@ class Command(BaseCommand):
                 timestamp = time.mktime(date.timetuple())
                 hit = {
                     'device_id': APP_ENV,
-                    'event_type': 'autopull_count',
+                    'event_type': f'{APP_ENV}_autopull_count',
                     'time': int(timestamp),
                     'insert_id': f"{APP_ENV}_autopull_{date.strftime('%Y-%m-%d')}",
                     'event_properties': {
