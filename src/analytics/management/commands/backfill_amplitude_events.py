@@ -341,7 +341,7 @@ class Command(BaseCommand):
                 events.append(hit)
         self.forward_amp_event(events)
 
-    def handle_autopull_uploads(self, purchases):
+    def handle_autopull_uploads(self):
         print('Autopull')
         papers = Paper.objects.all().filter(
             uploaded_by__isnull=True
