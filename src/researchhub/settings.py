@@ -325,10 +325,19 @@ SOCIALACCOUNT_PROVIDERS = {
         # Defaults to 'orcid.org' for the production API
         'BASE_DOMAIN': 'orcid.org',
         'MEMBER_API': False,  # Defaults to False for the Public API
-        'CLIENT_ID': 'APP-28GINQJPUWS3ZTW1',
-        'CLIENT_SECRET': '3da83990-1df1-4d22-b86c-31d2fa13892a',
+        'CLIENT_ID': os.environ.get(
+            'ORCID_CLIENT_ID',
+            keys.ORCID_CLIENT_ID
+        ),
+        'CLIENT_SECRET': os.environ.get(
+            'ORCID_CLIENT_SECRET',
+            keys.ORCID_CLIENT_SECRET
+        ),
         # not expiring for approximately 20 years
-        'ACCESS_TOKEN': '24876622-a9c6-42b0-b831-4b397b0bce4b',
+        'ACCESS_TOKEN': os.environ.get(
+            'ORCID_ACCESS_TOKEN',
+            keys.ORCID_ACCESS_TOKEN
+        ),
         'REFRESH_TOKEN': '',
     }
 }
@@ -474,7 +483,7 @@ if PRODUCTION or STAGING:
             return None
         return event
     sentry_sdk.init(
-        dsn="https://eddb587c90ec4e59916d46bcc43f2957@sentry.io/1797024",
+        dsn=os.environ.get('SENTRY_DSN', keys.SENTRY_DSN),
         before_send=before_send,
         integrations=[DjangoIntegration()],
         environment=SENTRY_ENVIRONMENT
@@ -488,10 +497,11 @@ ELASTICSEARCH_DSL = {
     },
 }
 
+ELASTICSEARCH_HOST = os.environ.get('ELASTICSEARCH_HOST', keys.ELASTICSEARCH_HOST)
 if PRODUCTION:
     ELASTICSEARCH_DSL = {
         'default': {
-            'hosts': 'https://vpc-researchhub-es-production-2-fsmclpkmgiepjd3xtdmeluj5va.us-west-2.es.amazonaws.com',  # noqa: E501
+            'hosts': ELASTICSEARCH_HOST,  # noqa: E501
             'port': 443,
             'use_ssl': True,
             'max_retries': 5,
@@ -501,7 +511,7 @@ if PRODUCTION:
 if STAGING:
     ELASTICSEARCH_DSL = {
         'default': {
-            'hosts': 'https://vpc-researchhub-es-staging-gss6whmowsn26eqzovms5jpdou.us-west-2.es.amazonaws.com',  # noqa: E501
+            'hosts': ELASTICSEARCH_HOST,  # noqa: E501
             'port': 443,
             'use_ssl': True,
             'max_retries': 0,
@@ -647,7 +657,7 @@ if elastic_token:
         'SECRET_TOKEN': os.environ.get('ELASTIC_APM_SECRET_TOKEN', ''),
 
         # Set custom APM Server URL (default: http://localhost:8200)
-        'SERVER_URL': 'https://d11bb2079f694eb996ddcfe6edb848f7.apm.us-west-2.aws.cloud.es.io:443',  # noqa
+        'SERVER_URL': os.environ.get('APM_URL', keys.APM_URL),  # noqa
 
         'ENVIRONMENT': APP_ENV,
         'DJANGO_AUTOINSERT_MIDDLEWARE': False,
@@ -700,7 +710,7 @@ TWITTER_ACCESS_TOKEN_SECRET_ALT = os.environ.get(
 
 # MailChimp
 MAILCHIMP_SERVER = 'us4'
-MAILCHIMP_LIST_ID = '7e0e5c04df'
+MAILCHIMP_LIST_ID = os.environ.get('MAILCHIMP_LIST_ID', keys.MAILCHIMP_LIST_ID)
 
 # Recaptcha
 RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
