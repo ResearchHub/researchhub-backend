@@ -3,6 +3,10 @@ import json
 import time
 import uuid
 
+from utils.message import send_email_message
+from mailing_list.lib import base_email_context
+from researchhub.settings import BASE_FRONTEND_URL
+
 
 def decode_validation_token(encoded_str):
     return base64.urlsafe_b64decode(encoded_str).decode("ascii")
@@ -28,59 +32,30 @@ def get_new_validation_token():
     ]
 
 
-# TODO: calvinhlee - write email sender here
+def get_client_validation_url(validation_token):
+    return (
+        BASE_FRONTEND_URL
+        + f'/author_claim_validation/?token={validation_token}'
+    )
+
+
 def send_validation_email(case):
-    return True
-    # validation_token = case.validation_token
-    # provided_email = case.provided_email 
-
-    # users = Hub.objects.filter(
-    #     subscribers__isnull=False,
-    #     is_removed=False,
-    # ).values_list('subscribers', flat=True)
-
-    # # TODO find best by hub and then in mem sort for each user? more efficient?
-    # emails = []
-    # for user in User.objects.filter(id__in=users, is_suspended=False):
-    #     if not check_can_receive_digest(user, frequency):
-    #         continue
-    #     users_papers = Paper.objects.filter(
-    #         hubs__in=user.subscribed_hubs.all()
-    #     )
-    #     most_voted_and_uploaded_in_interval = users_papers.filter(
-    #         uploaded_date__gte=start_date,
-    #         uploaded_date__lte=end_date
-    #     ).filter(score__gt=0).order_by('-score')[:3]
-    #     most_discussed_in_interval = users_papers.annotate(
-    #         discussions=thread_counts + comment_counts + reply_counts
-    #     ).filter(discussions__gt=0).order_by('-discussions')[:3]
-    #     most_voted_in_interval = users_papers.filter(score__gt=0).order_by('-score')[:2]
-    #     papers = (
-    #         most_voted_and_uploaded_in_interval
-    #         or most_discussed_in_interval
-    #         or most_voted_in_interval
-    #     )
-    #     if len(papers) == 0:
-    #         continue
-
-    #     email_context = {
-    #         **base_email_context,
-    #         'first_name': user.first_name,
-    #         'last_name': user.last_name,
-    #         'papers': papers,
-    #         'preview_text': papers[0].tagline
-    #     }
-
-    #     recipient = [user.email]
-    #     # subject = 'Research Hub | Your Weekly Digest'
-    #     subject = papers[0].title[0:86] + '...'
-    #     send_email_message(
-    #         recipient,
-    #         'weekly_digest_email.txt',
-    #         subject,
-    #         email_context,
-    #         'weekly_digest_email.html',
-    #         'ResearchHub Digest <digest@researchhub.com>'
-    #     )
-    #     emails += recipient
-
+    validation_token = case.validation_token
+    target_author = case.target_author
+    requestor = case.requestor
+    requestor_name = f'{requestor.first_name} {requestor.last_name}'
+    email_context = {
+        **base_email_context,
+        'author_name': f'{target_author.first_name} {target_author.last_name}',
+        'preview_text':  f"{requestor_name}'s Author Claim ",
+        'requestor_name': requestor_name,
+        'validation_url': get_client_validation_url(validation_token),
+    }
+    send_email_message(
+        [case.provided_email],
+        'author_claim_validation_email.txt',
+        'Please Verify Your Author Claim',
+        email_context,
+        'author_claim_validation_email.html',
+        'ResearchHub <noreply@researchhub.com>'
+    )
