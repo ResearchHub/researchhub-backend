@@ -32,11 +32,7 @@
     <div class="email-container">
       <div class="email-header">
         <div class="flex-text inline">
-          <img
-            class="img-logo"
-            src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/rh-logo.png"
-          />
-          <div class="first-name">{{ recipient_name }}'s Author Claim</div>
+          <div class="first-name">{{ requestor_name }}'s Author Claim</div>
         </div>
       </div>
       <div class="content">
@@ -45,7 +41,7 @@
             You have recently tried to claim author {{ author_name }}
           </span>
         </div>
-        Please click <a href="{{validation_url}}"> here </a> to confirm your
+        Please click <a href="{{validation_url}}">here</a> to confirm your
         request
       </div>
       <div class="footer">

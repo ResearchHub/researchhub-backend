@@ -10,6 +10,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         model = AuthorClaimCase
         fields = [
           *EXPOSABLE_FIELDS,
+          'provided_email',
           'status',
           'target_author',
           'token_generated_time',

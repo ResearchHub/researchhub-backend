@@ -40,6 +40,7 @@ def get_client_validation_url(validation_token):
 
 
 def send_validation_email(case):
+    # TODO: calvinhlee - add email styling
     validation_token = case.validation_token
     target_author = case.target_author
     requestor = case.requestor
