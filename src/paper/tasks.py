@@ -527,6 +527,7 @@ def celery_extract_pdf_sections(paper_id):
     try:
         print('4------------------------')
         with open(file_path, 'wb+') as f:
+            print(file.url)
             f.write(file.read())
             print('before content----------')
             print('after content-----------')
