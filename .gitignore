@@ -1,0 +1,21 @@
+.DS_Store
+
+# testing files
+/output.txt
+
+# deployment files
+deploy.zip
+
+# python notebooks
+.ipynb/
+.ipynb_checkpoints/
+**/**.ipynb
+
+# IDE
+.vscode/
+
+# local postgress database docker volume
+database/
+
+# Celery local files
+celerybeat-schedule

@@ -1,0 +1,296 @@
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: rgb(252, 252, 252);
+}
+  .email-container {
+    max-width: 700px;
+    width: 100%;
+    border: none;
+    font-family: 'Roboto', sans-serif;
+    margin: 0px auto;
+  }
+
+  .hub {
+    font-size: 10px;
+    color: rgb(78, 83, 255);
+    text-transform: uppercase;
+    font-weight: bold;
+    letter-spacing: 1px;
+    padding: 3px 10px;
+    background-color: #edeefe;
+    margin-right: 8px;
+    border: none;
+  }
+
+  .mobile-hub {
+    margin-bottom: 8px;
+  }
+
+  .hubs {
+      margin-left: auto;
+  }
+
+  .read-more-button {
+      padding: 16px;
+      background: rgb(78, 83, 255);
+      color: #fff;
+      display: block;
+      text-decoration: none;
+      text-align: center;
+      width: 50%;
+      max-width: 180px;
+      border-radius: 4px;
+      margin: 0 auto;
+  }
+
+  .read-more-container {
+    text-align: center;
+    width: 100%;
+    margin-bottom: 16px;
+  }
+
+  .content {
+    font-size: 16px;
+    padding: 0px 16px;
+    display: flex;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 16px;
+  }
+  
+  .right {
+    width: 100%;
+  }
+
+  .points {
+    left: 16;
+    top: 16;
+    color: rgb(100, 196, 143);
+    background: rgb(233, 250, 234);
+    border-radius: 24px;
+    width: 48px;
+    height: 28px;
+    margin-right: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 18px;
+    text-align: center;
+  }
+  
+  .user-name {
+    font-family: 'Roboto', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    padding-bottom: 30px;
+  }
+  
+  .email-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 16px;
+    margin: auto;
+  }
+  
+  .img-logo {
+    height: 40px;
+    object-fit: contain;
+  }
+
+  .first-name {
+      font-size: 20px;
+      margin: 8px 0px;
+      font-family: 'Raleway', sans-serif;
+  }
+
+  .tagline {
+      /* border-bottom: 1px solid #ddd; */
+      margin-bottom: 16px;
+      margin-top: 16px;
+      font-variant: small-caps;
+      font-size: 16px;
+      font-family: 'Raleway', sans-serif;
+  }
+
+  .comments-row {
+      margin: auto 0;
+      min-width: 120px;
+  }
+
+  .comments-logo {
+      height: 16px;
+      vertical-align: middle;
+  }
+  
+  .header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: "center";
+    width: 600px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #ddd;
+    font-size: 12px;
+    padding-bottom: 5px;
+    font-weight: 500;
+  }
+  
+  .meta {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    margin-bottom: 15px;
+    color: #aaa;
+  }
+
+  .hubs-mobile {
+    display: none;
+    padding-bottom: 16px;
+  }
+  
+  .content-container {
+    text-decoration: none;
+    margin-bottom: 16px;
+  }
+  
+  .column {
+    display: flex;
+    flex-direction: column;
+    height: 35px;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-left: 10px;
+  }
+
+  .row {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      align-items: center;
+  }
+  
+  .author-avatar {
+    height: 100%;
+    min-height: 100%;
+    max-height: 100%;
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+    object-fit: contain;
+  }
+  
+  .avatar-wrapper {
+    height: 40px;
+    width: 40px;
+    border-radius: 20px;
+    background-color: #000;
+    object-fit: contain;
+    overflow: hidden;
+  }
+  
+  .author-name {
+    font-weight: 500;
+    font-size: 14px;
+  }
+  
+  .publish-date {
+    color: rgb(145, 143, 155);
+    font-size: 14px;
+  }
+  
+  .header-text {
+    margin-left: auto;
+    font-size: 24px;
+    letter-spacing: 0.7px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    color: rgb(78, 83, 255);
+  }
+  
+  .instructions {
+    padding: 16px;
+  }
+
+  .flex-text {
+      margin: auto;
+  }
+  
+  .reset-text {
+    padding: 16px;
+    margin-bottom: 16px;
+    font-size: 16px;
+  }
+  
+  .title {
+    font-weight: 500;
+    font-size: 16px;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    letter-spacing: .7px;
+  }
+    
+  .body {
+    line-height: 1.4;
+    font-size: 14px;
+    padding-bottom: 10px;
+    color: #111;
+  }
+  
+  .divider {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .line {
+    width: 150px;
+    border-bottom: 1px solid #ddd;
+    margin: 0 auto;
+  }
+  
+  .product-name {
+    margin-right: 8px;
+  }
+  
+  .footer {
+    font-size: 12px;
+    color: #aaa;
+    padding: 10px;
+    padding-top: 25px;
+    text-align: center;
+  }
+  
+  .hubtags-list {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 600px;
+    padding-bottom: 20px;
+  }
+  
+  .hubtag-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #edeefe;
+    height: 21px;
+    border-radius: 3px;
+    border: 1px solid #fff;
+    margin-right: 10px;
+  }
+  
+  .hubtag-label {
+    font-size: 10px;
+    color: rgb(78, 83, 255);
+    height: 12px;
+    text-transform: uppercase;
+    font-weight: bold;
+    letter-spacing: 1px;
+    padding: 3px 10px 3px 10px;
+  }
+  

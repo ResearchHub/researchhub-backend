@@ -1,0 +1,165 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a>
+  &rsaquo;
+  <a href="/admin/user/">User</a>
+  &rsaquo;
+  Analytics
+</div>
+{% endblock %}
+
+{% block content %}
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.bundle.min.js"></script>
+
+<div style="display: flex; width: 70%;">
+  <canvas style="margin-bottom: 30px; width: 55%; height: 45%;" id="contributorsChart"></canvas>
+  <div style="display: table-caption; padding: 10px;">
+    <div style="padding: 5px">
+      <label for="start_date">Start Date:</label>
+      <input type="date" id="start_date" name="start_date" value="2020-01-01">
+    </div>
+    <div style="padding: 5px">
+      <label for="end_date">End Date:</label>
+      <input type="date" id="end_date" name="end_date" value="2020-01-01">
+    </div>
+    <div style="display: grid; padding: 5px">
+      <label for="days_range">Days Range:</label>
+      <select name="days_range" id="days_range">
+        <option value="1">30</option>
+        <option value="2">60</option>
+        <option value="3">90</option>
+        <option value="4">120</option>
+      </select>
+    </div>
+    <div style="display: grid; padding: 5px">
+      <label for="chart_selector">Chart:</label>
+      <select name="chart_selector" id="chart_selector">
+        <option value="day">Day</option>
+        <option value="month">Month</option>
+      </select>
+    </div>
+    <div style="padding: 5px">
+      <button id="reload" style="height: 30px; width: 100%; font-size: 14px">
+        Reload Chart Data
+      </button>
+    </div>
+  </div>
+  <div style="padding: 10px;">
+    <label for="tool_tip_output">Tool Tip Info: Users</label>
+    <textarea readonly style="height: 235px; width: 210px; margin-top: 5px;" id='tool_tip_output'></textarea>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const ctx = document.getElementById('contributorsChart').getContext('2d');
+
+    const chartData = {{ chart_data | safe }};
+
+    // Parse the dates to JS
+    chartData.forEach((d) => {
+      d.x = d.date;
+    });
+
+    const contributorsChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        datasets: [
+          {
+            label: 'Unique Contributors',
+            fill: true,
+            data: chartData,
+            backgroundColor: 'rgba(220,20,20,0.5)',
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        tooltips: {
+          intersect: true,
+          mode: 'x-axis',
+            callbacks: {
+                label: function(tooltipItem, data) {
+                  var userData = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index].users;
+                  var label = "Unique Contributors: " + userData.length;
+                  var toolTipTextArea = document.getElementById('tool_tip_output');
+                  toolTipTextArea.value = ""
+
+                  userData.forEach((user) => {
+                    toolTipTextArea.value += user + "\n"
+                  });
+                  return label
+                }
+            }
+        },
+        scales: {
+          xAxes: [
+            {
+              type: 'time',
+              ticks: {
+                source: 'data',
+              },
+              time: {
+                unit: 'day',
+                displayFormats: {
+                  day: 'MMM DD',
+                },
+              },
+            },
+          ],
+          yAxes: [
+            {
+              ticks: {
+                beginAtZero: true,
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    var date = new Date();
+    date = date.toISOString().split('T')[0];
+    document.getElementById('end_date').value = date;
+
+    // Reload chart data from the backend on button click
+    const reloadButton = document.getElementById('reload');
+
+    reloadButton.addEventListener('click', async() => {
+        var data = {
+          start_date: document.getElementById('start_date').value,
+          end_date: document.getElementById('end_date').value,
+          days_range: document.getElementById('days_range').value,
+          chart_selector: document.getElementById('chart_selector').value,
+        };
+        var url = "/admin/user/analyticmodel/chart_data/";
+        url += "?start_date=" + data.start_date;
+        url += "&end_date=" + data.end_date + "T23:59";
+        url += "&days_range=" + data.days_range;
+        url += "&chart_selector=" + data.chart_selector;
+
+        const res = await fetch(url);
+        const json = await res.json();
+        var chartData = json.chart_data;
+        chartData.forEach((d) => {
+          d.x = d.date
+        });
+
+        var xAxisFormat = ''
+        if (data.chart_selector === 'day') {
+          xAxisFormat = 'MMM DD'
+        } else {
+          xAxisFormat = 'MMM'
+        }
+        contributorsChart.data.datasets[0].data = chartData;
+        contributorsChart.scales["x-axis-0"].options.time.displayFormats.day = xAxisFormat;
+        contributorsChart.update();
+      }
+    );
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,20 @@
+#!/bin/sh
+# Deploy researchhub-backend to staging
+
+start="Deploying to staging environments:"
+echo $start
+
+# echo "Creating requirements.txt"
+# pipenv lock --requirements > requirements.txt
+
+echo "Deploying"
+
+eb deploy staging-backend-2
+eb deploy staging-backend-2-worker
+eb deploy staging-backend-2-worker-2
+eb deploy staging-backend-2-worker-3
+
+git checkout HEAD -- requirements.txt
+
+done="Finished executing staging deployment"
+echo $done

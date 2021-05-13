@@ -1,0 +1,135 @@
+{% load inlinecss %}
+{% load l10n %}
+<html>
+  <link rel="stylesheet" href="../stylesheets/support_receipt.css">  
+  <head>
+      <meta charset="UTF-8">
+      <title></title>
+      <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+      <style type="text/css">
+        @media only screen and (max-width: 767px) {
+          body {
+            width: 100%;
+            box-sizing: border-box;
+          }
+
+          .email-container {
+            width: 90%!important;
+            box-sizing: border-box;
+          }
+
+          .footer {
+            width: 90%!important;
+            box-sizing: border-box;
+          }
+        }
+      </style>
+  </head>
+  {% inlinecss "support_receipt.css" %}
+  <body>
+    <div class="email-container">
+      <div class="email-header">
+        <img class="img-logo" src="https://rh-email-assets.s3-us-west-2.amazonaws.com/researchlogo.png" />
+        <div class="header">
+          {% if recipient %}
+            {% if paper %}
+              You received a contribution!
+            {% else %}
+              You gained a supporter!
+            {% endif %}
+          {% else %}
+            {% if paper %}
+              Support Receipt
+            {% else %}
+              You're now a supporter of {{ recipient_name }}
+            {% endif %}
+          {% endif %}
+          <p class="header-message">
+            {% if recipient %}
+              {% if paper %}
+                You received a contribution from <a href="{{ user_profile }}" class="header-link">{{ sender_name }}</a> for your research paper '<a href="{{ paper.url }}" class="header-link">{{ paper.title }}</a>'.
+              {% else %}
+                <a href="{{ user_profile }}" class="header-link">{{ sender_name }}</a> supported your {{ object_supported|safe }} on ResearchHub. Check out how much RSC was given to you below!
+                <br/><br/>
+                <a href="{{ url }}" class="url-button">
+                  <div class="url-button-container">
+                    View {{ object_supported|safe }}
+                  </div>
+                </a>
+              {% endif %}
+            {% else %}
+              Thank you for supporting <a href="{{ user_profile }}" class="header-link">{{ recipient_name }}</a>. Your generosity is appreciated! Here are the details:
+            {% endif %}
+          </p>
+        </div>
+      </div>
+      <div class="content">
+        <div class="column-left">
+          {% if recipient %}
+            <h4 class="column-headers"> Contributor </h4>
+          {% else %}
+            <h4 class="column-headers"> Recipient </h4>
+          {% endif %}
+          <h4 class="column-headers"> Amount </h4>
+          <h4 class="column-headers"> Date </h4>
+          <h4 class="column-headers"> Payment Method </h4>
+        </div>
+        <div class="column-center">
+          {% if recipient %}
+            <h4 class="column-values"> {{ sender_name }} </h4>
+          {% else %}
+            <h4 class="column-values"> {{ recipient_name }} </h4>
+          {% endif %}
+          <h4 class="column-values"> 
+            {% if method == "RSC" %}
+              <img class="coin-logo" src="https://www.researchhub.com/static/icons/coin-filled.png" />
+              {{amount}} {{method}}
+            {% elif method == "USD" or method == "Paypal" %}
+              ${{amount}} 
+            {% else %}
+              {{amount}} {{method}}
+            {% endif %} 
+          </h4>
+          <h4 class="column-values">{{date}}</h4>
+          <h4 class="column-values">{{method}}</h4>
+        </div>
+      </div>
+      {% if paper %}
+      <a href="{{ paper.url }}" class="paper-info">
+          <h4 class="paper-title"> {{ paper.title }} </h4>
+          <div class="paper-summary">
+            {% if paper.summary %}
+              {{ paper.summary }}
+              <br/>
+            {% endif %}
+            Submitted by {{ paper.uploaded_by }}
+          </div>
+          <div class="paper-footer">
+            <div class="paper-comments">
+              <img class="comments-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/comments.png" />
+              {{ paper.discussion_count }} Comment{{ paper.discussion_count|pluralize }}
+            </div>
+            <div class="paper-status">
+              <img class="wip-logo" src="https://www.researchhub.com/static/icons/wip.png" />
+              {{ paper.paper_type }}
+            </div>
+          </div>
+      </a>
+      {% endif %}
+      <!-- <div class="email-action-container">
+        {% if recipient %}
+          <div class="email-action-button"> See Contributions History </div>
+        {% else %}
+          <div class="email-action-button"> Manage Donations </div>
+        {% endif %}
+      </div> -->
+    </div>
+    <div class="footer">
+      <a class="footer-link" href="{{opt_out}}">Unsubscribe from this list</a>
+      <a class="footer-link" href="{{update_subscription}}">Update subscription preferences</a>
+    </div>
+    <div style="display: none">{% now "U" %}</div>
+  </body>
+</html>
+
+{% endinlinecss %}

@@ -1,0 +1,37 @@
+#!/bin/sh
+# Run Django tests
+
+start_msg="Running tests:"
+fail_msg="\nTests failed. Your commits may be breaking some existing functionality."
+end_msg="\nFinished running tests. Found no failures."
+
+run_tests() {
+  command="python manage.py test --failfast"
+  cd src && pipenv run $command
+}
+
+tests_fail() {
+  grep -Fq -e "FAILED" -e "error" output.txt
+}
+
+clean_up() {
+  rm output.txt
+}
+
+main() {
+  echo $start_msg
+
+  run_tests &> output.txt
+  cd .. && cat output.txt
+
+  if tests_fail; then
+    clean_up
+    echo $fail_msg
+    exit 1
+  fi
+
+  clean_up
+  echo $end_msg && exit 0
+}
+
+main

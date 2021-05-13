@@ -1,0 +1,45 @@
+{% load inlinecss %}
+
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title></title>
+        <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+    </head>
+    {% inlinecss "stylesheets/invite_to_hub_email.css" %}
+    <body>
+        <div class="email-container">
+            <div class="email-header">
+                <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
+                <span class="header-text">
+                    You're Invited!
+                </span>
+            </div>
+            <div class="content">
+                <div class="tagline">
+                    Someone has invited you to join the {{ hub_name }} Hub on Researchhub.
+                </div>
+                <br/>
+                <div>
+                    Join now to colaborate with scholars, researchers, and enthusiasts in creating a community invested in expanding research and knowledge in the {{hub_name}} field!
+                </div>
+                <br/>
+                <div class="button-container">
+                    <a href={{link}}>
+                        <div class="join">
+                            <div class="join-text">
+                                Join Now
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                <br/>
+            </div>
+            <div class="footer">
+                If you would like to stop receiving emails from ResearchHub <a href={{opt_out}}>opt-out here</a>
+            </div>
+        </div>
+    </body>
+</html>
+
+{% endinlinecss %}
