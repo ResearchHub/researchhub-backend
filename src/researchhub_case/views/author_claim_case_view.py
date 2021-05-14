@@ -24,7 +24,7 @@ class AuthorClaimCaseViewSet(ModelViewSet):
 
 # TODO: calvinhlee - add permissions class here
 @api_view(http_method_names=[POST])
-@permission_classes((AllowAny))
+@permission_classes([AllowAny])
 def validate_user_request_email(request):
     try:
         print(['*********** RECEIVED DATA: ', request.data])

@@ -191,7 +191,7 @@ urlpatterns = [
     re_path(r'^api/', include(router.urls)),
     path('api/events/forward_event/', google_analytics.views.forward_event),
     path(
-        'api/author_claim_validation/',
+        'api/author_claim_token_validation/',
         researchhub_case_views.validate_user_request_email
     ),
     path(
