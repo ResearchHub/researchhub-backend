@@ -16,7 +16,7 @@ import json
 from pytz import timezone
 from bs4 import BeautifulSoup
 from io import BytesIO
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from subprocess import run, PIPE
 from PIL import Image
 from habanero import Crossref
