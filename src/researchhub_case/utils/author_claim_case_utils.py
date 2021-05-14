@@ -35,7 +35,7 @@ def get_new_validation_token():
 def get_client_validation_url(validation_token):
     return (
         BASE_FRONTEND_URL
-        + f'/author_claim_validation/?token={validation_token}'
+        + f'/author-claim-validation/?token={validation_token}'
     )
 
 
