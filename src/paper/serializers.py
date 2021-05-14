@@ -7,6 +7,7 @@ from django.http import QueryDict
 
 from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
+from discussion.models import Thread, Comment, Reply
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
@@ -37,7 +38,7 @@ from summary.serializers import SummarySerializer
 from researchhub.lib import get_paper_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
-from user.models import Author
+from user.models import Author, User
 from user.serializers import AuthorSerializer, UserSerializer
 from utils.arxiv import Arxiv
 from utils.http import get_user_from_request, check_url_contains_pdf
@@ -59,6 +60,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     user_flag = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     file = serializers.SerializerMethodField()
+    discussion_users = serializers.SerializerMethodField()
 
     class Meta:
         abstract = True
@@ -255,6 +257,8 @@ class ContributionPaperSerializer(BasePaperSerializer):
     bullet_points = None
     csl_item = None
     summary = None
+    discussion_users = None
+
 
 
 class PaperSerializer(BasePaperSerializer):
@@ -527,7 +531,7 @@ class PaperSerializer(BasePaperSerializer):
         json_raw_authors = list(map(json.loads, raw_authors))
         validated_data['raw_authors'] = json_raw_authors
 
-    def get_discussion(self, paper):
+    def get_discssuion(self, paper):
         return None
 
     def get_file(self, paper):
@@ -540,6 +544,28 @@ class PaperSerializer(BasePaperSerializer):
             elif url:
                 return url
             return None
+    def get_discussion_users(self, paper):
+        thread_users = Thread.objects.filter(
+            paper=paper
+        ).values_list(
+            'created_by',
+            flat=True
+        ).distinct()
+        comment_users = Comment.objects.filter(
+            parent__paper=paper
+        ).values_list(
+            'created_by',
+            flat=True
+        ).distinct()
+
+        users = list(thread_users) + list(comment_users)
+        unique_users = set(users)
+        users = list(unique_users)
+
+        users = User.objects.filter(id__in=users)
+        serializer = UserSerializer(users, many=True)
+        data = serializer.data
+        return data
 
 
 class HubPaperSerializer(BasePaperSerializer):
@@ -568,6 +594,9 @@ class HubPaperSerializer(BasePaperSerializer):
         return None
 
     def get_references(self, paper):
+        return None
+
+    def get_discussion_users(self, paper):
         return None
 
 
