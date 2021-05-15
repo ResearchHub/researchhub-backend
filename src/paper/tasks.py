@@ -511,27 +511,17 @@ def celery_extract_pdf_sections(paper_id):
     images_path = f'{path}{paper_id}.images'
     return_code = -1
     message = 'success'
-    print('1------------------------')
 
     try:
         if not os.path.isdir(path):
-            print('2------------------------')
             os.makedirs(path, exist_ok=True)
-            print('3------------------------')
     except Exception as e:
-        print(os.listdir('/'))
-        print(e)
+        sentry.log_error(e)
         return False
 
-    print('before main----------------')
     try:
-        print('4------------------------')
         with open(file_path, 'wb+') as f:
-            print(file.url)
             f.write(file.read())
-            print('before content----------')
-            print('after content-----------')
-        print('5------------------------')
 
         args = [
             'java',
@@ -541,27 +531,21 @@ def celery_extract_pdf_sections(paper_id):
             '-path',
             path,
         ]
-        print('6------------------------')
         call_res = run(args, stdout=PIPE, stderr=PIPE)
         return_code = call_res.returncode
-        print('7------------------------')
 
         with codecs.open(extract_file_path, 'rb') as f:
             soup = BeautifulSoup(f, 'lxml')
-            print('8------------------------')
             paper.pdf_file_extract.save(
                 extract_filename,
                 ContentFile(soup.encode())
             )
-        print('9------------------------')
         paper.save()
 
         figures = os.listdir(images_path)
-        print('10------------------------')
         for extracted_figure in figures:
             extracted_figure_path = f'{images_path}/{extracted_figure}'
             with open(extracted_figure_path, 'rb') as f:
-                print('11------------------------')
                 extracted_figures = Figure.objects.filter(paper=paper)
                 if not extracted_figures.filter(
                     file__contains=f.name,
@@ -572,7 +556,6 @@ def celery_extract_pdf_sections(paper_id):
                         paper=paper,
                         figure_type=Figure.FIGURE
                     )
-        print('12------------------------')
     except Exception as e:
         print(e)
         stdout = call_res.stdout.decode('utf8')
