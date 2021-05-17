@@ -13,10 +13,10 @@ import feedparser
 import time
 import json
 
-from pytz import timezone
+from pytz import timezone as pytz_tz
 from bs4 import BeautifulSoup
 from io import BytesIO
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from subprocess import run, PIPE
 from PIL import Image
 from habanero import Crossref
@@ -805,7 +805,7 @@ def log_daily_uploads():
     url = amp.api_url
     key = amp.api_key
 
-    today = datetime.now(tz=timezone('US/Pacific'))
+    today = datetime.now(tz=pytz_tz('US/Pacific'))
     start_date = today.replace(hour=0, minute=0, second=0)
     end_date = today.replace(hour=23, minute=59, second=59)
     papers = Paper.objects.filter(
