@@ -43,7 +43,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='authorclaimcase',
             name='creator',
-            field=models.ForeignKey(default=0, on_delete=django.db.models.deletion.CASCADE, related_name='created_cases', to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(default=-1, on_delete=django.db.models.deletion.CASCADE, related_name='created_cases', to=settings.AUTH_USER_MODEL),
         ),
         migrations.AlterField(
             model_name='authorclaimcase',
@@ -53,7 +53,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='authorclaimcase',
             name='requestor',
-            field=models.ForeignKey(default=0, on_delete=django.db.models.deletion.CASCADE, related_name='requested_cases', to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(default=-1, on_delete=django.db.models.deletion.CASCADE, related_name='requested_cases', to=settings.AUTH_USER_MODEL),
         ),
         migrations.AlterField(
             model_name='authorclaimcase',
