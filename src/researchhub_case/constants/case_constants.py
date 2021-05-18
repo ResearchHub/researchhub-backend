@@ -1,8 +1,11 @@
+ALLOWED_VALIDATION_ATTEMPT_COUNT = 10
 AUTHOR_CLAIM = "AUTHOR_CLAIM"
 
 CLOSED = "CLOSED"
+# "Denied" signifies moderators manually denying the request
 DENIED = "DENIED"
 INITIATED = "INITIATED"
+# Invalidations occurs through the system such as too many attempts
 INVALIDATED = "INVALIDATED"
 """
   Nullified signifies that the author was
@@ -23,3 +26,5 @@ AUTHOR_CLAIM_CASE_STATUS = [
 RH_CASE_TYPES = [
     (AUTHOR_CLAIM, AUTHOR_CLAIM)
 ]
+
+
