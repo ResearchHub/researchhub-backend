@@ -132,6 +132,7 @@ def download_pdf(paper_id, retry=0):
             paper.file.save(filename, pdf)
             paper.save(update_fields=['file'])
             paper.extract_pdf_preview(use_celery=True)
+            paper.set_paper_completeness()
             celery_extract_pdf_sections.apply_async(
                 (paper_id,),
                 priority=5,
@@ -974,6 +975,8 @@ def pull_papers(start=0):
                             paper.pdf_license = license
 
                         paper.save()
+                        paper.calculate_hot_score()
+                        paper.set_paper_completeness()
 
                         if pdf_url:
                             download_pdf.apply_async(
@@ -1185,6 +1188,7 @@ def pull_crossref_papers(start=0):
                             paper.pdf_license = license
 
                         paper.save()
+                        paper.set_paper_completeness()
 
                         celery_calculate_paper_twitter_score.apply_async(
                             (paper.id,),

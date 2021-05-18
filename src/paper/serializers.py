@@ -333,6 +333,7 @@ class PaperSerializer(BasePaperSerializer):
                         e,
                     )
 
+                paper.set_paper_completeness()
                 # Fix adding references
                 # self._add_references(paper)
 
