@@ -248,6 +248,29 @@ class BasePaperSerializer(serializers.ModelSerializer):
             return paper.file.url
         return None
 
+    def get_discussion_users(self, paper):
+        thread_users = Thread.objects.filter(
+            paper=paper
+        ).values_list(
+            'created_by',
+            flat=True
+        ).distinct()
+        comment_users = Comment.objects.filter(
+            parent__paper=paper
+        ).values_list(
+            'created_by',
+            flat=True
+        ).distinct()
+
+        users = list(thread_users) + list(comment_users)
+        unique_users = set(users)
+        users = list(unique_users)
+
+        users = User.objects.filter(id__in=users)
+        serializer = UserSerializer(users, many=True)
+        data = serializer.data
+        return data
+
 
 class ContributionPaperSerializer(BasePaperSerializer):
     uploaded_by = None
@@ -545,27 +568,7 @@ class PaperSerializer(BasePaperSerializer):
                 return url
             return None
     def get_discussion_users(self, paper):
-        thread_users = Thread.objects.filter(
-            paper=paper
-        ).values_list(
-            'created_by',
-            flat=True
-        ).distinct()
-        comment_users = Comment.objects.filter(
-            parent__paper=paper
-        ).values_list(
-            'created_by',
-            flat=True
-        ).distinct()
-
-        users = list(thread_users) + list(comment_users)
-        unique_users = set(users)
-        users = list(unique_users)
-
-        users = User.objects.filter(id__in=users)
-        serializer = UserSerializer(users, many=True)
-        data = serializer.data
-        return data
+        return None
 
 
 class HubPaperSerializer(BasePaperSerializer):
@@ -594,9 +597,6 @@ class HubPaperSerializer(BasePaperSerializer):
         return None
 
     def get_references(self, paper):
-        return None
-
-    def get_discussion_users(self, paper):
         return None
 
 
