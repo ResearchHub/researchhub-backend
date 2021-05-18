@@ -1,4 +1,3 @@
-import base64
 import json
 import time
 import uuid
@@ -8,24 +7,12 @@ from mailing_list.lib import base_email_context
 from researchhub.settings import BASE_FRONTEND_URL
 
 
-def decode_validation_token(encoded_str):
-    return base64.urlsafe_b64decode(encoded_str).decode("ascii")
-
-
-def encode_validation_token(str):
-    return base64.urlsafe_b64encode(str.encode("ascii"))
-
-
-def get_formatted_token(generated_time):
-    return json.dumps({
-        "generated_time": generated_time,
-        "token": uuid.uuid4().hex,
-    })
+def get_formatted_token():
+    return [int(time.time()), uuid.uuid4().hex]
 
 
 def get_new_validation_token():
-    generated_time = int(time.time())
-    token = encode_validation_token(get_formatted_token(generated_time))
+    [generated_time, token] = get_formatted_token()
     return [
         generated_time,
         token

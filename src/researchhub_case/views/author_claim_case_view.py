@@ -1,4 +1,6 @@
-import json 
+from researchhub_case.constants.case_constants import (
+    ALLOWED_VALIDATION_ATTEMPT_COUNT, INITIATED, INVALIDATED, OPEN
+)
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -7,9 +9,6 @@ from rest_framework.viewsets import ModelViewSet
 
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.serializers import AuthorClaimCaseSerializer
-from researchhub_case.utils.author_claim_case_utils import (
-    decode_validation_token
-)
 from utils.http import POST
 
 
@@ -27,23 +26,35 @@ class AuthorClaimCaseViewSet(ModelViewSet):
 @permission_classes([AllowAny])
 def validate_user_request_email(request):
     try:
-        print(['*********** RECEIVED DATA: ', request.data])
-        decoded_client_token_json = json.load(
-            decode_validation_token(
-                request.data.get("token")
-            )
-        )
-        print("DECODED: ", decoded_client_token_json)
-        validation_token = decoded_client_token_json["token"]
+        validation_token = request.data.get('token')
         target_case = AuthorClaimCase.objects.get(
             validation_token=validation_token
         )
-        curr_user = request.user
-        print("curr_user: ", curr_user)
-        if (target_case.requestor__id != curr_user.id):
-            return Response("YO", status=400)
+        if (target_case.status is not INITIATED):
+            return Response('CASE_STATUS_NOT_INITIATED', status=400)
 
-        return Response('Success',  status=200)
+        invalidation_result = check_and_invalidate_case(target_case)
+        if (invalidation_result is not None):
+            return invalidation_result
+
+        target_case.validation_attempt_count += 1
+        target_case.save()
+
+        curr_user = request.user
+        if (target_case.requestor.id != curr_user.id):
+            return Response('DIFFERENT_REQUESTORS', status=400)
+        else:
+            target_case.status = OPEN
+            target_case.save()
+            return Response('SUCCESS',  status=200)
+
     except (KeyError, TypeError) as e:
         return Response(e, status=400)
 
+
+def check_and_invalidate_case(target_case):
+    attempt_count = target_case.validation_attempt_count
+    if (ALLOWED_VALIDATION_ATTEMPT_COUNT < attempt_count):
+        target_case.status = INVALIDATED
+        target_case.save()
+        return Response("TOO_MANY_ATTEMPTS", status=400)
