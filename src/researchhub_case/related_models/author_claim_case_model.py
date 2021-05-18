@@ -13,7 +13,7 @@ class AuthorClaimCase(AbstractResearchhubCase):
     provided_email = models.EmailField(
       blank=False,
       help_text=(
-        "Requestors may use this field to validate themselves with this email"
+        'Requestors may use this field to validate themselves with this email'
       ),
       null=False,
     )
