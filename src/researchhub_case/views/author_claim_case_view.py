@@ -28,10 +28,9 @@ def validate_user_request_email(request):
     try:
         validation_token = request.data.get('token')
         target_case = AuthorClaimCase.objects.get(
+            status=INITIATED,
             validation_token=validation_token
         )
-        if (target_case.status is not INITIATED):
-            return Response('CASE_STATUS_NOT_INITIATED', status=400)
 
         invalidation_result = check_and_invalidate_case(target_case)
         if (invalidation_result is not None):
@@ -42,7 +41,7 @@ def validate_user_request_email(request):
 
         curr_user = request.user
         if (target_case.requestor.id != curr_user.id):
-            return Response('DIFFERENT_REQUESTORS', status=400)
+            return Response('DENIED_WRONG_USER', status=400)
         else:
             target_case.status = OPEN
             target_case.save()
@@ -57,4 +56,4 @@ def check_and_invalidate_case(target_case):
     if (ALLOWED_VALIDATION_ATTEMPT_COUNT < attempt_count):
         target_case.status = INVALIDATED
         target_case.save()
-        return Response("TOO_MANY_ATTEMPTS", status=400)
+        return Response("DENIED_TOO_MANY_ATTEMPS", status=400)
