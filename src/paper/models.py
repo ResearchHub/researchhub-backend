@@ -1,4 +1,3 @@
-import math
 import requests
 import datetime
 import pytz
@@ -23,6 +22,7 @@ from paper.utils import (
     populate_metadata_from_pdf,
     populate_metadata_from_crossref,
     get_csl_item,
+    paper_piecewise_log,
 )
 from .tasks import (
     celery_extract_figures,
@@ -63,10 +63,18 @@ HELP_TEXT_IS_REMOVED = (
 class Paper(models.Model):
     REGULAR = 'REGULAR'
     PRE_REGISTRATION = 'PRE_REGISTRATION'
+    COMPLETE = 'COMPLETE'
+    PARTIAL = 'PARTIAL'
+    INCOMPLETE = 'INCOMPLETE'
 
     PAPER_TYPE_CHOICES = [
         (REGULAR, REGULAR),
         (PRE_REGISTRATION, PRE_REGISTRATION)
+    ]
+    PAPER_COMPLETENESS = [
+        (COMPLETE, COMPLETE),
+        (PARTIAL, PARTIAL),
+        (INCOMPLETE, INCOMPLETE)
     ]
 
     CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS['PROGRESS']
@@ -170,6 +178,11 @@ class Paper(models.Model):
         choices=PAPER_TYPE_CHOICES,
         max_length=32,
         default=REGULAR
+    )
+    completeness = models.CharField(
+        choices=PAPER_COMPLETENESS,
+        max_length=16,
+        default=INCOMPLETE
     )
 
     # User generated
@@ -418,7 +431,6 @@ class Paper(models.Model):
         ALGO_START_UNIX = 1546329600
         TWITTER_BOOST = 100
         TIME_DIV = 3600000
-        LOG_CONST = 4
         HOUR_SECONDS = 86400
         DATE_BOOST = 10
 
@@ -470,34 +482,32 @@ class Paper(models.Model):
                     (uploaded_date.timestamp() - ALGO_START_UNIX) / TIME_DIV
                 )
                 twitter_boost_score = (
-                    math.log(1 + twitter_score, LOG_CONST) * TWITTER_BOOST
+                    paper_piecewise_log(twitter_score + 1) * TWITTER_BOOST
                 ) / twitter_epoch
 
             vote_avg = (
                 max(0, vote_avg_epoch - ALGO_START_UNIX)
             ) / TIME_DIV
 
-            base_score = math.log(1 + score, LOG_CONST)
+            base_score = paper_piecewise_log(score + 1)
             uploaded_date_score = uploaded_date.timestamp() / TIME_DIV
-            vote_score = math.log(1 + num_votes, LOG_CONST)
-            discussion_score = math.log(1 + self.discussion_count)
+            vote_score = paper_piecewise_log(num_votes + 1)
+            discussion_score = paper_piecewise_log(self.discussion_count + 1)
 
             if original_uploaded_date > timeframe:
                 uploaded_date_delta = (
                     original_uploaded_date - timeframe
                 )
-                delta_days = math.log(
-                    uploaded_date_delta.total_seconds() / HOUR_SECONDS,
-                    LOG_CONST
+                delta_days = paper_piecewise_log(
+                    uploaded_date_delta.total_seconds() / HOUR_SECONDS
                 ) * DATE_BOOST
                 uploaded_date_score += delta_days
             else:
                 uploaded_date_delta = (
                     timeframe - original_uploaded_date
                 )
-                delta_days = -math.log(
-                    1 + (uploaded_date_delta.total_seconds() / HOUR_SECONDS),
-                    LOG_CONST
+                delta_days = -paper_piecewise_log(
+                    (uploaded_date_delta.total_seconds() / HOUR_SECONDS) + 1
                 ) * DATE_BOOST
                 uploaded_date_score += delta_days
 
@@ -509,7 +519,14 @@ class Paper(models.Model):
                         flat=True
                     ))
                 )
-                math.log(1 + boost_amount, LOG_CONST)
+                boost_score = paper_piecewise_log(boost_amount + 1)
+
+            completeness_score = 0
+            completeness = self.completeness
+            if completeness == self.COMPLETE:
+                completeness_score = base_score
+            elif completeness == self.PARTIAL:
+                completeness_score = base_score / 2
 
             hot_score = (
                 base_score +
@@ -518,7 +535,8 @@ class Paper(models.Model):
                 vote_score +
                 discussion_score +
                 twitter_boost_score +
-                boost_score
+                boost_score +
+                completeness_score
             ) * 1000
 
             self.hot_score = hot_score
@@ -997,6 +1015,15 @@ class Paper(models.Model):
             self.pdf_license = license
             self.save()
         return license
+
+    def set_paper_completeness(self):
+        if self.abstract and self.file:
+            self.completeness = self.COMPLETE
+        elif self.abstract or self.file:
+            self.completeness = self.PARTIAL
+        else:
+            self.completeness = self.INCOMPLETE
+        self.save()
 
 
 class MetadataRetrievalAttempt(models.Model):
