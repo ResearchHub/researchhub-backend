@@ -23,7 +23,6 @@ from paper.tasks import (
     add_references,
     add_orcid_authors,
     celery_calculate_paper_twitter_score,
-    celery_extract_pdf_sections
 )
 from paper.utils import (
     check_pdf_title,
@@ -31,7 +30,8 @@ from paper.utils import (
     clean_abstract,
     check_url_is_pdf,
     convert_journal_url_to_pdf_url,
-    convert_pdf_url_to_journal_url
+    convert_pdf_url_to_journal_url,
+    lambda_extract_pdf_sections
 )
 from summary.serializers import SummarySerializer
 from researchhub.lib import get_paper_id_from_path
@@ -479,11 +479,7 @@ class PaperSerializer(BasePaperSerializer):
         if type(file) is not str:
             paper.file = file
             paper.save(update_fields=['file'])
-            celery_extract_pdf_sections.apply_async(
-                (paper_id,),
-                priority=3,
-                countdown=15
-            )
+            lambda_extract_pdf_sections(paper_id)
             return
 
         if paper.url is not None:

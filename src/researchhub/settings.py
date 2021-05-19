@@ -752,17 +752,14 @@ stripe.api_key = os.environ.get('STRIPE_API_KEY', keys.STRIPE_API_KEY)
 
 # AWS Lambda
 if DEVELOPMENT or TESTING:
-    # LAMBDA_URL = ''
-    # LAMBDA_API_KEY = ''
-    # CERMINE_FUNCTION_ARN = ''
-    LAMBDA_URL = 'https://fyh1rqkpuh.execute-api.us-west-2.amazonaws.com/lambda/'
-    LAMBDA_API_KEY = 'a4U0qyQb0m87FJeHWn3YQcpiFS7k1dD2LidBFYgb'
-    CERMINE_FUNCTION_ARN = 'arn:aws:lambda:us-west-2:794128250202:function:ResearchHub-Backend-Staging'
-elif PRODUCTION:
     LAMBDA_URL = ''
-    LAMBDA_API_KEY = ''
-    CERMINE_FUNCTION_ARN = 'arn:aws:lambda:us-west-2:794128250202:function:ResearchHub-Backend'
+    LAMBDA_API_KEY = os.environ.get('LAMBDA_API_KEY', keys.LAMBDA_API_KEY)
+    CERMINE_FUNCTION_ARN = os.environ.get('CERMINE_FUNCTION_ARN', keys.CERMINE_FUNCTION_ARN)
+elif PRODUCTION:
+    LAMBDA_URL = 'https://a7ie8kissi.execute-api.us-west-2.amazonaws.com/lambda'
+    LAMBDA_API_KEY = os.environ.get('LAMBDA_API_KEY', keys.LAMBDA_API_KEY)
+    CERMINE_FUNCTION_ARN = os.environ.get('CERMINE_FUNCTION_ARN', keys.CERMINE_FUNCTION_ARN)
 elif STAGING:
     LAMBDA_URL = 'https://fyh1rqkpuh.execute-api.us-west-2.amazonaws.com/lambda/'
-    LAMBDA_API_KEY = 'a4U0qyQb0m87FJeHWn3YQcpiFS7k1dD2LidBFYgb'
-    CERMINE_FUNCTION_ARN = 'arn:aws:lambda:us-west-2:794128250202:function:ResearchHub-Backend-Staging'
+    LAMBDA_API_KEY = os.environ.get('LAMBDA_API_KEY', keys.LAMBDA_API_KEY)
+    CERMINE_FUNCTION_ARN = os.environ.get('CERMINE_FUNCTION_ARN', keys.CERMINE_FUNCTION_ARN)
