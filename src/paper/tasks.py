@@ -855,8 +855,8 @@ BASE_URL = 'http://export.arxiv.org/api/query?'
     priority=2,
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
-def pull_papers(start=0):
-    if not PRODUCTION:
+def pull_papers(start=0, force=False):
+    if not PRODUCTION and not force:
         return
 
     logger.info('Pulling Papers')
@@ -1057,8 +1057,8 @@ NUM_DUP_STOP = 30
     priority=1,
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
-def pull_crossref_papers(start=0):
-    if not PRODUCTION:
+def pull_crossref_papers(start=0, force=False):
+    if not PRODUCTION and not force:
         return
 
     logger.info('Pulling Crossref Papers')
