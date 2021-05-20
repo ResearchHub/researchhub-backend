@@ -855,6 +855,8 @@ BASE_URL = 'http://export.arxiv.org/api/query?'
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
 def pull_papers(start=0):
+    if not PRODUCTION:
+        return
 
     logger.info('Pulling Papers')
 
