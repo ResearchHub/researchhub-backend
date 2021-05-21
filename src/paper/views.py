@@ -895,6 +895,10 @@ class PaperViewSet(viewsets.ModelViewSet):
         pdf_file = paper.pdf_file_extract
         edited_file = paper.edited_file_extract
 
+        external_source = paper.external_source
+        if external_source and external_source.lower() == 'arxiv':
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
         if not pdf_file.name:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
