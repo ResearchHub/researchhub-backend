@@ -283,7 +283,6 @@ class ContributionPaperSerializer(BasePaperSerializer):
     discussion_users = None
 
 
-
 class PaperSerializer(BasePaperSerializer):
 
     def create(self, validated_data):
