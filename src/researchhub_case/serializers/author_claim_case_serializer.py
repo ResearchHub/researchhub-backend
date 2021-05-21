@@ -1,10 +1,23 @@
-from rest_framework.serializers import ModelSerializer
+from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
-from researchhub_case.models import AuthorClaimCase
 from .researchhub_case_abstract_serializer import EXPOSABLE_FIELDS
+from researchhub_case.models import AuthorClaimCase
+from user.serializers import AuthorSerializer, UserSerializer
 
 
 class AuthorClaimCaseSerializer(ModelSerializer):
+    moderator = SerializerMethodField()
+    requestor = SerializerMethodField()
+    target_author = SerializerMethodField()
+
+    def get_moderator(self, case):
+        return UserSerializer(case.moderator).data
+
+    def get_requestor(self, case):
+        return UserSerializer(case.requestor).data
+
+    def get_target_author(self, case):
+        return AuthorSerializer(case.target_author).data
 
     class Meta(object):
         model = AuthorClaimCase
