@@ -195,6 +195,14 @@ urlpatterns = [
         researchhub_case_views.validate_user_request_email
     ),
     path(
+        'api/moderators/author_claim_case/',
+        researchhub_case_views.get_author_claim_cases_for_mods
+    ),
+    path(
+        'api/moderators/author_claim_case/counts',
+        researchhub_case_views.get_author_claim_counts_for_mods
+    ),
+    path(
         'api/permissions/',
         researchhub.views.permissions,
         name='permissions'
