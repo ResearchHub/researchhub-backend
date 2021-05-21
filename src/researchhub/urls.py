@@ -199,7 +199,7 @@ urlpatterns = [
         researchhub_case_views.get_author_claim_cases_for_mods
     ),
     path(
-        'api/moderators/author_claim_case/counts',
+        'api/moderators/author_claim_case/counts/',
         researchhub_case_views.get_author_claim_counts_for_mods
     ),
     path(
