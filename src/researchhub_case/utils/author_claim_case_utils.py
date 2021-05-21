@@ -71,7 +71,6 @@ def reward_author_claim_case(author):
         ).get('score', 0)
         vote_reward += score
 
-    vote_reward = max(-100000000, vote_reward)
     vote_reward = min(vote_reward, 1000)
 
     distributor = Distributor(
