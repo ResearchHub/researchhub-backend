@@ -58,6 +58,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     user_vote = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
+    file = serializers.SerializerMethodField()
 
     class Meta:
         abstract = True
@@ -239,6 +240,10 @@ class BasePaperSerializer(serializers.ModelSerializer):
     def get_promoted(self, paper):
         return paper.get_promoted_score()
 
+    def get_file(self, paper):
+        return paper.file.url
+
+
 class ContributionPaperSerializer(BasePaperSerializer):
     uploaded_by = None
     discussion = None
@@ -247,6 +252,7 @@ class ContributionPaperSerializer(BasePaperSerializer):
     bullet_points = None
     csl_item = None
     summary = None
+
 
 class PaperSerializer(BasePaperSerializer):
 
@@ -520,6 +526,17 @@ class PaperSerializer(BasePaperSerializer):
 
     def get_discussion(self, paper):
         return None
+
+    def get_file(self, paper):
+        external_source = paper.external_source
+        if external_source and external_source.lower() == 'arxiv':
+            pdf_url = paper.pdf_url
+            url = paper.url
+            if pdf_url:
+                return pdf_url
+            elif url:
+                return url
+            return None
 
 
 class HubPaperSerializer(BasePaperSerializer):
