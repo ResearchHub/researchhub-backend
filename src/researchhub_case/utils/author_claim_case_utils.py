@@ -76,7 +76,7 @@ def reward_author_claim_case(author):
 
     distributor = Distributor(
         dist('REWARD', vote_reward, False),
-        author,
+        author.user,
         author,
         time.time()
     )
