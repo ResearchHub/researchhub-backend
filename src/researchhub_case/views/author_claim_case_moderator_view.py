@@ -38,7 +38,7 @@ def get_author_claim_cases_for_mods(request):
 
 @api_view(http_method_names=[GET])
 @permission_classes([AllowAny])
-def get_author_claim_counts_for_mods():
+def get_author_claim_counts_for_mods(request):
     try:
         close_count = AuthorClaimCase.objects.filter(
             status__in=[APPROVED, DENIED, INVALIDATED, NULLIFIED]
@@ -46,10 +46,9 @@ def get_author_claim_counts_for_mods():
         open_count = AuthorClaimCase.objects.filter(
             status__in=[OPEN]
         ).count()
-        result_data = json.dumps({
+        return Response(data={
           'close_count': close_count,
           'open_count': open_count
-        })
-        return Response(data=result_data, status=200)
+        }, status=200)
     except (KeyError, TypeError) as e:
         return Response(e, status=400)
