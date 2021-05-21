@@ -566,6 +566,7 @@ class PaperSerializer(BasePaperSerializer):
             elif url:
                 return url
             return None
+
     def get_discussion_users(self, paper):
         return None
 
