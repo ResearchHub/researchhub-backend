@@ -3,7 +3,7 @@ import json
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from utils.http import GET
+from utils.http import GET, POST
 
 from researchhub_case.constants.case_constants import (
     APPROVED, DENIED, INVALIDATED, NULLIFIED, OPEN,
@@ -12,7 +12,7 @@ from researchhub_case.models import AuthorClaimCase
 from researchhub_case.serializers import AuthorClaimCaseSerializer
 
 
-@api_view(http_method_names=[GET])
+@api_view(http_method_names=[GET, POST])
 @permission_classes([AllowAny])
 def get_author_claim_cases_for_mods(request):
     # TODO: calvinhlee - paginate this
@@ -47,7 +47,7 @@ def get_author_claim_counts_for_mods(request):
             status__in=[OPEN]
         ).count()
         return Response(data={
-          'close_count': close_count,
+          'closed_count': close_count,
           'open_count': open_count
         }, status=200)
     except (KeyError, TypeError) as e:
