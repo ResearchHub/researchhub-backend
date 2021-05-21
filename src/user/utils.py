@@ -24,7 +24,9 @@ def merge_author_profiles(source, target):
     for attr in attributes:
         try:
             target_val = getattr(target, attr)
-            setattr(source, attr, target_val)
+            source_val = getattr(source, attr)
+            if not source_val:
+                setattr(source, attr, target_val)
         except Exception as e:
             print(e)
             log_error(e)
