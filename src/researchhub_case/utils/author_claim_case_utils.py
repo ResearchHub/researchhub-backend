@@ -1,7 +1,12 @@
-import json
 import time
 import uuid
 
+from django.db.models import Count, Q
+from paper.models import Vote
+
+
+from reputation.distributions import Distribution as dist
+from reputation.distributor import Distributor
 from utils.message import send_email_message
 from mailing_list.lib import base_email_context
 from researchhub.settings import BASE_FRONTEND_URL
@@ -47,3 +52,32 @@ def send_validation_email(case):
         'author_claim_validation_email.html',
         'ResearchHub <noreply@researchhub.com>'
     )
+
+
+def reward_author_claim_case(author):
+    vote_reward = 0
+    papers = author.authored_papers.all()
+    for paper in papers.iterator():
+        votes = paper.votes.filter(
+            created_by__is_suspended=False,
+            created_by__probable_spammer=False
+        )
+        score = votes.aggregate(
+            score=Count(
+                'id', filter=Q(vote_type=Vote.UPVOTE)
+            ) - Count(
+                'id', filter=Q(vote_type=Vote.DOWNVOTE)
+            )
+        ).get('score', 0)
+        vote_reward += score
+
+    vote_reward = min(vote_reward, 1000)
+
+    distributor = Distributor(
+        dist('REWARD', vote_reward, False),
+        author.user,
+        author,
+        time.time()
+    )
+    distribution = distributor.distribute()
+    return distribution
