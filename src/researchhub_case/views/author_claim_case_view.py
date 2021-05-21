@@ -3,10 +3,13 @@ from researchhub_case.constants.case_constants import (
 )
 
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+from rest_framework.permissions import (
+    IsAuthenticated
+)
 
+from researchhub_case.permissions import IsModerator
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.serializers import AuthorClaimCaseSerializer
 from utils.http import POST
@@ -14,16 +17,15 @@ from utils.http import POST
 
 class AuthorClaimCaseViewSet(ModelViewSet):
     permission_classes = [
-        # TODO: calvinhlee - add more privacy later
-        AllowAny
+        IsAuthenticated,
+        IsModerator
     ]
     queryset = AuthorClaimCase.objects.all()
     serializer_class = AuthorClaimCaseSerializer
 
 
-# TODO: calvinhlee - add permissions class here
 @api_view(http_method_names=[POST])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def validate_user_request_email(request):
     try:
         validation_token = request.data.get('token')
