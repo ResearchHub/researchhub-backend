@@ -241,7 +241,10 @@ class BasePaperSerializer(serializers.ModelSerializer):
         return paper.get_promoted_score()
 
     def get_file(self, paper):
-        return paper.file.url
+        file = paper.file
+        if file:
+            return paper.file.url
+        return None
 
 
 class ContributionPaperSerializer(BasePaperSerializer):
