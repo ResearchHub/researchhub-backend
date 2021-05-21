@@ -3,19 +3,13 @@ from utils.sentry import log_error
 
 def merge_author_profiles(source, target):
     # Remap papers
-    for paper in source.authored_papers.all():
-        paper.authors.remove(source)
-        paper.authors.add(target)
+    for paper in target.authored_papers.all():
+        paper.authors.remove(target)
+        paper.authors.add(source)
         paper.save()
 
-    if target.user and source.user:
-        target.user = source.user
-
     attributes = [
-        'first_name',
-        'last_name',
         'description',
-        'profile_image',
         'author_score',
         'university',
         'orcid_id',
@@ -29,14 +23,14 @@ def merge_author_profiles(source, target):
     ]
     for attr in attributes:
         try:
-            source_val = getattr(source, attr)
-            setattr(target, attr, source_val)
+            target_val = getattr(target, attr)
+            setattr(source, attr, target_val)
         except Exception as e:
             print(e)
             log_error(e)
 
-    target.save()
-    source.user = None
-    source.orcid_account = None
     source.save()
-    return target
+    target.user = None
+    target.orcid_account = None
+    target.save()
+    return source
