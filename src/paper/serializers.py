@@ -249,24 +249,12 @@ class BasePaperSerializer(serializers.ModelSerializer):
         return None
 
     def get_discussion_users(self, paper):
-        thread_users = Thread.objects.filter(
-            paper=paper
-        ).values_list(
-            'created_by',
+        contributions = Contribution.objects.filter(paper=paper)
+        contribution_users = contributions.values_list(
+            'user',
             flat=True
         ).distinct()
-        comment_users = Comment.objects.filter(
-            parent__paper=paper
-        ).values_list(
-            'created_by',
-            flat=True
-        ).distinct()
-
-        users = list(thread_users) + list(comment_users)
-        unique_users = set(users)
-        users = list(unique_users)
-
-        users = User.objects.filter(id__in=users)
+        users = User.objects.filter(id__in=contribution_users)
         serializer = UserSerializer(users, many=True)
         data = serializer.data
         return data
