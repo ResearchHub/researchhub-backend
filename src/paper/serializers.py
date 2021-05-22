@@ -7,6 +7,7 @@ from django.http import QueryDict
 
 from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
+from discussion.models import Thread, Comment, Reply
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
@@ -37,7 +38,7 @@ from summary.serializers import SummarySerializer
 from researchhub.lib import get_paper_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
-from user.models import Author
+from user.models import Author, User
 from user.serializers import AuthorSerializer, UserSerializer
 from utils.arxiv import Arxiv
 from utils.http import get_user_from_request, check_url_contains_pdf
@@ -59,6 +60,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     user_flag = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     file = serializers.SerializerMethodField()
+    discussion_users = serializers.SerializerMethodField()
 
     class Meta:
         abstract = True
@@ -246,6 +248,17 @@ class BasePaperSerializer(serializers.ModelSerializer):
             return paper.file.url
         return None
 
+    def get_discussion_users(self, paper):
+        contributions = Contribution.objects.filter(paper=paper)
+        contribution_users = contributions.values_list(
+            'user',
+            flat=True
+        ).distinct()
+        users = User.objects.filter(id__in=contribution_users)
+        serializer = UserSerializer(users, many=True)
+        data = serializer.data
+        return data
+
 
 class ContributionPaperSerializer(BasePaperSerializer):
     uploaded_by = None
@@ -255,6 +268,7 @@ class ContributionPaperSerializer(BasePaperSerializer):
     bullet_points = None
     csl_item = None
     summary = None
+    discussion_users = None
 
 
 class PaperSerializer(BasePaperSerializer):
@@ -540,6 +554,9 @@ class PaperSerializer(BasePaperSerializer):
             elif url:
                 return url
             return None
+
+    def get_discussion_users(self, paper):
+        return None
 
 
 class HubPaperSerializer(BasePaperSerializer):
