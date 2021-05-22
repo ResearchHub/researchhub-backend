@@ -1053,7 +1053,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         # we aren't on a specific hub so don't filter by that hub_id
         if int(hub_id) == 0:
             qs = self.get_queryset(
-                prefetch=False
+                prefetch=False,
             ).prefetch_related(
                 *self.prefetch_lookups()
             )
@@ -1065,6 +1065,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             else:
                 qs = qs.filter(
                     is_removed=False,
+                    abstract__isnull=False,
                     is_removed_by_user=False,
                 )
         else:
@@ -1083,6 +1084,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             else:
                 qs = qs.filter(
                     is_removed=False,
+                    abstract__isnull=False,
                     is_removed_by_user=False,
                 )
         return qs
