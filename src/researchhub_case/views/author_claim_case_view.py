@@ -1,7 +1,7 @@
 from researchhub_case.constants.case_constants import (
     ALLOWED_VALIDATION_ATTEMPT_COUNT, INITIATED, INVALIDATED, OPEN
 )
-
+from rest_framework.permissions import AllowAny
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -9,7 +9,7 @@ from rest_framework.permissions import (
     IsAuthenticated
 )
 
-from researchhub_case.permissions import IsModerator
+# from researchhub_case.permissions import IsModerator
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.serializers import AuthorClaimCaseSerializer
 from utils.http import POST
@@ -17,8 +17,8 @@ from utils.http import POST
 
 class AuthorClaimCaseViewSet(ModelViewSet):
     permission_classes = [
-        IsAuthenticated,
-        IsModerator
+        # TODO: calvinhlee - look into this
+        AllowAny,
     ]
     queryset = AuthorClaimCase.objects.all()
     serializer_class = AuthorClaimCaseSerializer
