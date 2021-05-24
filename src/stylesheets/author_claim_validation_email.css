@@ -15,13 +15,8 @@ body {
 }
 
 .bold-name {
-  font-family: Roboto;
-  font-size: 14px;
-  font-style: normal;
+  line-height: 36px;
   font-weight: 700;
-  line-height: 20px;
-  letter-spacing: 0px;
-  text-align: left;
 }
 
 .content {
@@ -35,14 +30,6 @@ body {
   padding: 16px 24px;
 }
 
-.email-container {
-  align-items: flex-start;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  justify-content: space-around;
-}
-
 .email-header {
   font-family: Roboto;
   font-size: 20px;
@@ -51,19 +38,6 @@ body {
   letter-spacing: 0px;
   line-height: 23px;
   text-align: left;
-}
-
-.footer {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #282936;
-  color: #fff;
-  font-size: 12px;
-  height: 40px;
-  text-align: center;
-  width: 100%;
-  margin-top: 52px;
 }
 
 .flex-text {
@@ -77,18 +51,27 @@ body {
   width: 138px;
 }
 
+.footer {
+  background-color: #282936;
+  color: #fff;
+  font-size: 12px;
+  height: 32px;
+  margin-top: 52px;
+  padding-top: 12px;
+  text-align: center;
+  width: 100%;
+}
+
 .verify-button {
-  align-items: center;
+  padding: 8px 0 0;
   background: #3971ff;
   border-radius: 4px;
   color: #fff;
-  display: "flex";
-  display: flex;
-  height: 40px;
-  justify-content: center;
-  text-decoration: none;
-  width: 205px;
+  font-weight: 500;
+  height: 28px;
   margin-top: 24px;
+  width: 205px;
+  text-align: center;
 }
 
 .verification-link {
