@@ -1,23 +1,30 @@
-from rest_framework.serializers import ModelSerializer, SerializerMethodField, ModelField
+from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from .researchhub_case_abstract_serializer import EXPOSABLE_FIELDS
 from researchhub_case.models import AuthorClaimCase
+from user.models import Author, User
 from user.serializers import AuthorSerializer, UserSerializer
 
-# TODO: calvinhlee 
-# class ReadWriteSerializerMethodField(SerializerMethodField):
-#     def __init__(self, method_name=None, **kwargs):
-#         self.method_name = method_name
-#         kwargs['source'] = '*'
-#         super(SerializerMethodField, self).__init__(**kwargs)
-
-#     def to_internal_value(self, data):
-#         return {self.field_name: data}
 
 class AuthorClaimCaseSerializer(ModelSerializer):
-    moderator = ReadWriteSerializerMethodField(method_name='get_moderator')
-    requestor = ReadWriteSerializerMethodField(method_name='get_requestor')
-    target_author = ReadWriteSerializerMethodField(method_name='get_target_author')
+    moderator = SerializerMethodField(method_name='get_moderator')
+    requestor = SerializerMethodField()
+    target_author = SerializerMethodField(method_name='get_target_author')
+
+    def create(self, validated_data):
+        request_data = self.context.get('request').data
+        moderator_id = request_data.get('moderator')
+        requestor_id = request_data.get('requestor')
+        target_author_id = request_data.get('target_author')
+        moderator = User.objects.filter(id=moderator_id).first()
+        requestor = User.objects.filter(id=requestor_id).first()
+        target_author = Author.objects.filter(id=target_author_id).first()
+        return AuthorClaimCase.objects.create(
+            **validated_data,
+            moderator=moderator,
+            requestor=requestor,
+            target_author=target_author
+        )
 
     def get_moderator(self, case):
         serializer = UserSerializer(case.moderator)
