@@ -521,13 +521,6 @@ class Paper(models.Model):
                 )
                 boost_score = paper_piecewise_log(boost_amount + 1)
 
-            completeness_score = 0
-            completeness = self.completeness
-            if completeness == self.COMPLETE:
-                completeness_score = base_score
-            elif completeness == self.PARTIAL:
-                completeness_score = base_score / 2
-
             hot_score = (
                 base_score +
                 uploaded_date_score +
@@ -535,9 +528,16 @@ class Paper(models.Model):
                 vote_score +
                 discussion_score +
                 twitter_boost_score +
-                boost_score +
-                completeness_score
+                boost_score
             ) * 1000
+
+            completeness = self.completeness
+            if completeness == self.COMPLETE:
+                hot_score *= 1
+            elif completeness == self.PARTIAL:
+                hot_score *= 0.95
+            else:
+                hot_score *= 0.90
 
             self.hot_score = hot_score
         else:
