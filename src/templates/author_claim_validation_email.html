@@ -1,7 +1,9 @@
-{% load inlinecss %} {% load static %}
-
 <html>
   <head>
+    <link
+      rel="stylesheet"
+      href="../stylesheets/author_claim_validation_email.css"
+    />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title></title>
@@ -20,7 +22,6 @@
         .hubs-desktop {
           display: none !important;
         }
-
         .hubs-mobile {
           display: block !important;
         }
@@ -30,24 +31,32 @@
       {{ preview_text }}
     </div>
     <div class="email-container">
-      <div class="email-header">
-        <div class="flex-text inline">
-          <div class="first-name">{{ requestor_name }}'s Author Claim</div>
-        </div>
+      <div class="banner-img-container">
+        <img
+          class="img-logo"
+          src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png"
+        />
       </div>
       <div class="content">
+        <div class="email-header">
+          <div class="flex-text inline">
+            <div class="first-name">Hello {{ requestor_name }}</div>
+          </div>
+        </div>
         <div class="points">
           <span class="flex-text">
-            You have recently tried to claim author {{ author_name }}
+            We'ved received your request to claim authorship of &nbsp;
+            <span class="bold-name"> {{ author_name }}</span>.
           </span>
+          <span class="flex-text"> Click here to verify your account </span>
         </div>
-        Please click <a href="{{validation_url}}">here</a> to confirm your
-        request
+        <a class="verification-link" href="{{validation_url}}" target="__blank">
+          <div class="verify-button">Verify</div>
+        </a>
       </div>
-      <div class="footer">
-        <div>This email was sent by ResearchHub</div>
-        <div>If you would like to stop receiving emails from ResearchHub</div>
-      </div>
+    </div>
+    <div class="footer">
+      <div>This email was sent by ResearchHub</div>
     </div>
   </body>
 </html>
