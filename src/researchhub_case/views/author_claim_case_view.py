@@ -33,13 +33,13 @@ def validate_user_request_email(request):
             status=INITIATED,
             validation_token=validation_token
         )
-
         invalidation_result = check_and_invalidate_case(target_case)
         if (invalidation_result is not None):
             return invalidation_result
 
         target_case.validation_attempt_count += 1
         target_case.save()
+        print("TOKEN: ", validation_token)
 
         curr_user = request.user
         if (target_case.requestor.id != curr_user.id):
