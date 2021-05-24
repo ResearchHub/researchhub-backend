@@ -26,8 +26,7 @@ class AuthorClaimCase(AbstractResearchhubCase):
     target_author = models.ForeignKey(
       Author,
       blank=False,
-      default=-1,
-      null=False,
+      null=True,
       on_delete=models.CASCADE,
       related_name='related_claim_cases',
     )

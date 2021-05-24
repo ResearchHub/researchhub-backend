@@ -15,8 +15,7 @@ class AbstractResearchhubCase(DefaultModel):
     creator = models.ForeignKey(
         User,
         blank=False,
-        default=-1,
-        null=False,
+        null=True,
         on_delete=models.CASCADE,
         related_name='created_cases',
     )
@@ -30,8 +29,7 @@ class AbstractResearchhubCase(DefaultModel):
     requestor = models.ForeignKey(
         User,
         blank=False,
-        default=-1,
-        null=False,
+        null=True,
         on_delete=models.CASCADE,
         related_name='requested_cases',
     )
