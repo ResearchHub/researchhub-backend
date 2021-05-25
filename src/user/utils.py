@@ -34,5 +34,6 @@ def merge_author_profiles(source, target):
     source.save()
     target.user = None
     target.orcid_account = None
+    target.orcid_id = None
     target.save()
     return source
