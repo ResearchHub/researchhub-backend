@@ -39,10 +39,9 @@ def validate_user_request_email(request):
 
         target_case.validation_attempt_count += 1
         target_case.save()
-        print("TOKEN: ", validation_token)
 
         curr_user = request.user
-        if (target_case.requestor.id != curr_user.id):
+        if (target_case.requestor != curr_user):
             return Response('DENIED_WRONG_USER', status=400)
         else:
             target_case.status = OPEN
@@ -58,4 +57,4 @@ def check_and_invalidate_case(target_case):
     if (ALLOWED_VALIDATION_ATTEMPT_COUNT < attempt_count):
         target_case.status = INVALIDATED
         target_case.save()
-        return Response("DENIED_TOO_MANY_ATTEMPS", status=400)
+        return Response('DENIED_TOO_MANY_ATTEMPS', status=400)
