@@ -1,0 +1,54 @@
+{% load inlinecss %}
+
+<html>
+  <head>
+    <link
+      rel="stylesheet"
+      href="../stylesheets/author_claim_validation_email.css"
+    />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title></title>
+    <link
+      href="https://fonts.googleapis.com/css?family=Roboto:400,500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css?family=Raleway&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  {% inlinecss "author_claim_validation_email.css" %}
+  <body>
+    <div style="display: none; max-height: 0px; overflow: hidden">
+      {{ preview_text }}
+    </div>
+    <div class="banner-img-container">
+      <img
+        class="img-logo"
+        src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png"
+      />
+    </div>
+    <div class="content">
+      <div class="email-header">
+        <div class="flex-text">
+          <div class="first-name">Hello {{ requestor_name }}</div>
+        </div>
+      </div>
+      <div class="points">
+        <span class="flex-text">
+          We'ved received your request to claim authorship of &nbsp;
+          <span class="bold-name"> {{ author_name }}</span>.
+        </span>
+        <span class="flex-text"> Click here to verify your account </span>
+      </div>
+      <a class="verification-link" href="{{validation_url}}" target="__blank">
+        <div class="verify-button">Verify</div>
+      </a>
+    </div>
+    <div class="footer">
+      <div>This email was sent by ResearchHub</div>
+    </div>
+  </body>
+</html>
+{% endinlinecss %}

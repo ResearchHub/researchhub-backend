@@ -43,8 +43,8 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             self._add_orcid_to_author(user.author_profile, sociallogin.account)
         else:
             user.author_profile = merge_author_profiles(
-                user.author_profile,
-                author
+                author,
+                user.author_profile
             )
             user.author_profile.orcid_account = sociallogin.account
             user.author_profile.save()
