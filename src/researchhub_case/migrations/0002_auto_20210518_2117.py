@@ -6,7 +6,6 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('user', '0059_auto_20210326_0027'),
         ('researchhub_case', '0001_initial'),
