@@ -952,7 +952,8 @@ class PaperViewSet(viewsets.ModelViewSet):
                 if cache_hit:
                     for hit in cache_hit:
                         paper_id = hit['id']
-                        if paper_id not in papers:
+                        abstract = hit.get('abstract', None)
+                        if paper_id not in papers and abstract:
                             papers[paper_id] = hit
             papers = list(papers.values())
 
@@ -962,7 +963,10 @@ class PaperViewSet(viewsets.ModelViewSet):
                 ).order_by(
                     '-hot_score'
                 )
-                papers = qs.filter(hubs__in=hubs).distinct()
+                papers = qs.filter(
+                    abstract__isnull=False,
+                    hubs__in=hubs
+                ).distinct()
             else:
                 papers = sorted(papers, key=lambda paper: -paper['hot_score'])
                 papers = papers[:10]
