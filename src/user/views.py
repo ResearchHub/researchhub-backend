@@ -16,7 +16,7 @@ from django.db.models.functions import Coalesce
 from django.contrib.contenttypes.models import ContentType
 from utils.http import DELETE, POST, PATCH, PUT
 
-from discussion.models import Thread, Comment, Reply
+from discussion.models import Thread
 from discussion.serializers import (
     ThreadSerializer
 )
@@ -306,7 +306,10 @@ class UserViewSet(viewsets.ModelViewSet):
             'user',
             'paper__uploaded_by'
         ).filter(
-            (Q(contribution_type__in=contribution_type) | Q(discussion__is_removed=False)),
+            (
+                Q(contribution_type__in=contribution_type) |
+                Q(discussion__is_removed=False)
+            ),
         )
 
         if hub_ids:
