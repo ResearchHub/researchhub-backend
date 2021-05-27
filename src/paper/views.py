@@ -865,7 +865,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         if not cache_hit and page_number == 1:
             reset_cache([hub_id], ordering, time_difference.days)
 
-        papers = self._get_filtered_papers(hub_id, ordering)
+        papers = self._get_filtered_papers(hub_id, ordering, request)
         order_papers = self.calculate_paper_ordering(
             papers,
             ordering,
@@ -1040,7 +1040,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             ordering = '-score'
         elif ordering == 'most_discussed':
             ordering = '-discussed'
-        elif ordering == 'newest':
+        elif ordering == 'newest' or ordering == 'user-uploaded':
             ordering = '-uploaded_date'
         elif ordering == 'hot':
             ordering = '-hot_score'
@@ -1048,9 +1048,10 @@ class PaperViewSet(viewsets.ModelViewSet):
             ordering = '-score'
         return ordering
 
-    def _get_filtered_papers(self, hub_id, ordering):
+    def _get_filtered_papers(self, hub_id, ordering, request):
         # hub_id = 0 is the homepage
         # we aren't on a specific hub so don't filter by that hub_id
+        ordering_param = request.query_params.get('ordering', None)
         if int(hub_id) == 0:
             qs = self.get_queryset(
                 prefetch=False,
@@ -1061,6 +1062,10 @@ class PaperViewSet(viewsets.ModelViewSet):
             if 'removed' in ordering:
                 qs = qs.filter(
                     is_removed=True
+                )
+            elif 'user-uploaded' in ordering_param:
+                qs = qs.filter(
+                    uploaded_by_id__isnull=False
                 )
             else:
                 qs = qs.filter(
@@ -1080,6 +1085,10 @@ class PaperViewSet(viewsets.ModelViewSet):
             if 'removed' in ordering:
                 qs = qs.filter(
                     is_removed=True
+                )
+            elif 'user-uploaded' in ordering_param:
+                qs = qs.filter(
+                    uploaded_by_id__isnull=False
                 )
             else:
                 qs = qs.filter(
