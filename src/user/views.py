@@ -307,7 +307,8 @@ class UserViewSet(viewsets.ModelViewSet):
             'user',
             'paper__uploaded_by'
         ).filter(
-            contribution_type__in=contribution_type
+            contribution_type__in=contribution_type,
+            paper__is_removed=False
         )
 
         if hub_ids:
