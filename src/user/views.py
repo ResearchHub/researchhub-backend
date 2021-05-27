@@ -309,7 +309,7 @@ class UserViewSet(viewsets.ModelViewSet):
             (
                 Q(contribution_type__in=contribution_type) |
                 Q(discussion__is_removed=False)
-            ),
+            )
         )
 
         if hub_ids:
