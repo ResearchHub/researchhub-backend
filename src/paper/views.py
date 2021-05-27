@@ -811,6 +811,10 @@ class PaperViewSet(viewsets.ModelViewSet):
             order_papers = papers.order_by('-uploaded_date')
         elif 'twitter_score' in ordering:
             order_papers = papers.order_by('-twitter_score')
+        elif 'user-uploaded' in ordering:
+            order_papers = papers.filter(
+                uploaded_date__gte=start_date
+            ).order_by('-uploaded_date')
         else:
             order_papers = papers.order_by(ordering)
 
@@ -865,7 +869,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         if not cache_hit and page_number == 1:
             reset_cache([hub_id], ordering, time_difference.days)
 
-        papers = self._get_filtered_papers(hub_id, ordering, request)
+        papers = self._get_filtered_papers(hub_id, ordering)
         order_papers = self.calculate_paper_ordering(
             papers,
             ordering,
@@ -1044,18 +1048,19 @@ class PaperViewSet(viewsets.ModelViewSet):
             ordering = '-score'
         elif ordering == 'most_discussed':
             ordering = '-discussed'
-        elif ordering == 'newest' or ordering == 'user-uploaded':
+        elif ordering == 'newest':
             ordering = '-uploaded_date'
         elif ordering == 'hot':
             ordering = '-hot_score'
+        elif ordering == 'user-uploaded':
+            ordering = 'user-uploaded'
         else:
             ordering = '-score'
         return ordering
 
-    def _get_filtered_papers(self, hub_id, ordering, request):
+    def _get_filtered_papers(self, hub_id, ordering):
         # hub_id = 0 is the homepage
         # we aren't on a specific hub so don't filter by that hub_id
-        ordering_param = request.query_params.get('ordering', None)
         if int(hub_id) == 0:
             qs = self.get_queryset(
                 prefetch=False,
@@ -1067,7 +1072,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(
                     is_removed=True
                 )
-            elif 'user-uploaded' in ordering_param:
+            elif 'user-uploaded' in ordering:
                 qs = qs.filter(
                     uploaded_by_id__isnull=False
                 )
@@ -1090,7 +1095,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(
                     is_removed=True
                 )
-            elif 'user-uploaded' in ordering_param:
+            elif 'user-uploaded' in ordering:
                 qs = qs.filter(
                     uploaded_by_id__isnull=False
                 )

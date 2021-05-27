@@ -295,7 +295,6 @@ class UserViewSet(viewsets.ModelViewSet):
         query_params = request.query_params
         ordering = query_params.get('ordering', '-created_date')
         hub_ids = query_params.get('hub_ids', '')
-        user = request.user
         # following_ids = user.following.values_list('followee')
         contribution_type = [
             Contribution.COMMENTER,
@@ -307,7 +306,10 @@ class UserViewSet(viewsets.ModelViewSet):
             'user',
             'paper__uploaded_by'
         ).filter(
-            contribution_type__in=contribution_type,
+            (
+                Q(contribution_type__in=contribution_type) |
+                Q(discussion__is_removed=False)
+            ),
             paper__is_removed=False
         )
 
@@ -316,7 +318,6 @@ class UserViewSet(viewsets.ModelViewSet):
             hub_ids = [int(i) for i in hub_ids]
             contributions = contributions.filter(
                 paper__hubs__in=hub_ids
-                # user__in=following_ids
             ).order_by(
                 ordering
             )
