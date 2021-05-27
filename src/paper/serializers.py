@@ -558,7 +558,7 @@ class PaperSerializer(BasePaperSerializer):
                 return url
             return None
 
-    def get_discussion_users(self, paepr):
+    def get_discussion_users(self, paper):
         return None
 
 
