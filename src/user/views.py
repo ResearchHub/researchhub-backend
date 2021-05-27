@@ -306,7 +306,7 @@ class UserViewSet(viewsets.ModelViewSet):
             'user',
             'paper__uploaded_by'
         ).filter(
-            (Q(contribution_type__in=contribution_type | Q(discussion__is_removed=False))),
+            (Q(contribution_type__in=contribution_type) | Q(discussion__is_removed=False)),
         )
 
         if hub_ids:
