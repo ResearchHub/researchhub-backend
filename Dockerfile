@@ -12,7 +12,7 @@ RUN python3 -m pip install --upgrade pip
 RUN apt-get -y install default-jre
 
 
-COPY requirements.txt .
+COPY src/requirements.txt .
 
 RUN pip3 install -r requirements.txt
 
