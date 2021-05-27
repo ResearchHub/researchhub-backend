@@ -7,7 +7,6 @@ from django.contrib.contenttypes.fields import (
     GenericForeignKey,
     GenericRelation
 )
-from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.core.cache import cache
@@ -160,6 +159,12 @@ class BaseComment(models.Model):
     source = models.CharField(default='researchhub', max_length=32, null=True)
     purchases = GenericRelation(
         Purchase,
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='discussion'
+    )
+    contributions = GenericRelation(
+        'reputation.Contribution',
         object_id_field='object_id',
         content_type_field='content_type',
         related_query_name='discussion'

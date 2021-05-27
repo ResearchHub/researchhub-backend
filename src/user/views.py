@@ -16,7 +16,7 @@ from django.db.models.functions import Coalesce
 from django.contrib.contenttypes.models import ContentType
 from utils.http import DELETE, POST, PATCH, PUT
 
-from discussion.models import Thread
+from discussion.models import Thread, Comment, Reply
 from discussion.serializers import (
     ThreadSerializer
 )
@@ -295,7 +295,6 @@ class UserViewSet(viewsets.ModelViewSet):
         query_params = request.query_params
         ordering = query_params.get('ordering', '-created_date')
         hub_ids = query_params.get('hub_ids', '')
-        user = request.user
         # following_ids = user.following.values_list('followee')
         contribution_type = [
             Contribution.COMMENTER,
@@ -307,7 +306,8 @@ class UserViewSet(viewsets.ModelViewSet):
             'user',
             'paper__uploaded_by'
         ).filter(
-            contribution_type__in=contribution_type
+            discussion__is_removed=False,
+            contribution_type__in=contribution_type,
         )
 
         if hub_ids:
@@ -315,7 +315,6 @@ class UserViewSet(viewsets.ModelViewSet):
             hub_ids = [int(i) for i in hub_ids]
             contributions = contributions.filter(
                 paper__hubs__in=hub_ids
-                # user__in=following_ids
             ).order_by(
                 ordering
             )
