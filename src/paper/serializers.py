@@ -587,9 +587,6 @@ class HubPaperSerializer(BasePaperSerializer):
     def get_references(self, paper):
         return None
 
-    def get_discussion_users(self, paper):
-        return None
-
 
 class FeaturedPaperSerializer(serializers.ModelSerializer):
     paper = PaperSerializer()
