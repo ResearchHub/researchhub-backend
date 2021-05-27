@@ -544,7 +544,7 @@ class PaperSerializer(BasePaperSerializer):
         json_raw_authors = list(map(json.loads, raw_authors))
         validated_data['raw_authors'] = json_raw_authors
 
-    def get_discssuion(self, paper):
+    def get_discussion(self, paper):
         return None
 
     def get_file(self, paper):
@@ -557,6 +557,7 @@ class PaperSerializer(BasePaperSerializer):
             elif url:
                 return url
             return None
+
     def get_discussion_users(self, paper):
         thread_users = Thread.objects.filter(
             paper=paper
