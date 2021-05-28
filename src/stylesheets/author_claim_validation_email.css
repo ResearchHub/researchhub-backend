@@ -11,6 +11,8 @@ body {
   display: flex;
   height: 80px;
   justify-content: center;
+  margin-bottom: 24px;
+  padding: 0 24px;
   width: 100%;
 }
 
