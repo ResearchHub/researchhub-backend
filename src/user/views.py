@@ -16,7 +16,7 @@ from django.db.models.functions import Coalesce
 from django.contrib.contenttypes.models import ContentType
 from utils.http import DELETE, POST, PATCH, PUT
 
-from discussion.models import Thread
+from discussion.models import Thread, Comment, Reply
 from discussion.serializers import (
     ThreadSerializer
 )
@@ -301,15 +301,30 @@ class UserViewSet(viewsets.ModelViewSet):
             Contribution.SUPPORTER,
             Contribution.VIEWER
         ]
+        thread_content_id = ContentType.objects.get_for_model(Thread)
+        comment_content_id = ContentType.objects.get_for_model(Comment)
+        reply_content_id = ContentType.objects.get_for_model(Reply)
+
         contributions = Contribution.objects.prefetch_related(
             'paper',
             'user',
             'paper__uploaded_by'
         ).filter(
             (
-                Q(contribution_type__in=contribution_type) |
-                Q(discussion__is_removed=False)
+                (
+                    Q(content_type=thread_content_id) &
+                    Q(discussion__is_removed=False)
+                ) |
+                (
+                    Q(content_type=comment_content_id) &
+                    Q(discussion__is_removed=False)
+                ) |
+                (
+                    Q(content_type=reply_content_id) &
+                    Q(discussion__is_removed=False)
+                )
             ),
+            contribution_type__in=contribution_type,
             paper__is_removed=False
         )
 
