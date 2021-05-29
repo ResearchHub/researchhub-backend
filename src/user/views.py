@@ -1,4 +1,4 @@
-from django.db import IntegrityError
+from django.db import IntegrityError, models
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
@@ -297,35 +297,45 @@ class UserViewSet(viewsets.ModelViewSet):
         hub_ids = query_params.get('hub_ids', '')
         # following_ids = user.following.values_list('followee')
         contribution_type = [
+            Contribution.SUBMITTER,
             Contribution.COMMENTER,
             Contribution.SUPPORTER,
-            Contribution.VIEWER
         ]
-        thread_content_id = ContentType.objects.get_for_model(Thread)
-        comment_content_id = ContentType.objects.get_for_model(Comment)
-        reply_content_id = ContentType.objects.get_for_model(Reply)
+        active_thread = 'active_thread'
+        active_comment = 'active_comment'
+        active_reply = 'active_reply'
+        thread_content_type = ContentType.objects.get_for_model(Thread)
+        comment_content_type = ContentType.objects.get_for_model(Comment)
+        reply_content_type = ContentType.objects.get_for_model(Reply)
+
+        cases = {}
+        for key, content_type in (
+            (active_thread, thread_content_type),
+            (active_comment, comment_content_type),
+            (active_reply, reply_content_type)
+        ):
+            cases[key] = models.Case(
+                models.When(
+                    content_type=content_type,
+                    discussion__is_removed=False,
+                    then=models.Value(True)
+                ),
+                default=models.Value(False),
+                output_field=models.BooleanField()
+            )
 
         contributions = Contribution.objects.prefetch_related(
             'paper',
             'user',
             'paper__uploaded_by'
+        ).annotate(
+            **cases
         ).filter(
-            (
-                (
-                    Q(content_type=thread_content_id) &
-                    Q(discussion__is_removed=False)
-                ) |
-                (
-                    Q(content_type=comment_content_id) &
-                    Q(discussion__is_removed=False)
-                ) |
-                (
-                    Q(content_type=reply_content_id) &
-                    Q(discussion__is_removed=False)
-                )
-            ),
             contribution_type__in=contribution_type,
-            paper__is_removed=False
+            paper__is_removed=False,
+            active_thread=False,
+            active_comment=False,
+            active_reply=False
         )
 
         if hub_ids:
