@@ -14,14 +14,16 @@ def thread_post_save_signal(
 ):
     paper = instance.paper
     instance.update_discussion_count()
-    paper.reset_cache()
+    if paper:
+        paper.reset_cache()
 
 
 @receiver(post_delete, sender=Thread, dispatch_uid='recalc_dis_count_del_thr')
 def recalc_dis_count_thread_delete(sender, instance, **kwargs):
     paper = instance.paper
     instance.update_discussion_count()
-    paper.reset_cache()
+    if paper:
+        paper.reset_cache()
 
 
 @receiver(post_save, sender=Comment, dispatch_uid='comment_post_save_signal')
@@ -34,14 +36,16 @@ def comment_post_save_signal(
 ):
     paper = instance.paper
     instance.update_discussion_count()
-    paper.reset_cache()
+    if paper:
+        paper.reset_cache()
 
 
 @receiver(post_delete, sender=Comment, dispatch_uid='recalc_dis_count_del_com')
 def recalc_dis_count_comment_delete(sender, instance, **kwargs):
     paper = instance.paper
     instance.update_discussion_count()
-    paper.reset_cache()
+    if paper:
+        paper.reset_cache()
 
 
 @receiver(post_save, sender=Reply, dispatch_uid='reply_post_save_signal')
@@ -54,11 +58,13 @@ def reply_post_save_signal(
 ):
     paper = instance.paper
     instance.update_discussion_count()
-    paper.reset_cache()
+    if paper:
+        paper.reset_cache()
 
 # TODO remove these, discussion should never be deleted?
 @receiver(post_delete, sender=Reply, dispatch_uid='recalc_dis_count_del_reply')
 def recalc_dis_count_reply_delete(sender, instance, **kwargs):
     paper = instance.paper
     instance.update_discussion_count()
-    paper.reset_cache()
+    if paper:
+        paper.reset_cache()
