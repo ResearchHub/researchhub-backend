@@ -67,16 +67,19 @@ def reinstate_user_task(user_id):
 
     # Update discussions
     for thr in Thread.objects.filter(created_by=user):
-        thr.remove_nested()
+        thr.is_removed = False
         thr.update_discussion_count()
+        thr.save()
 
     for com in Comment.objects.filter(created_by=user):
-        com.remove_nested()
+        com.is_removed = False
         com.update_discussion_count()
+        com.save()
 
     for rep in Reply.objects.filter(created_by=user):
-        rep.remove_nested()
+        rep.is_removed = False
         rep.update_discussion_count()
+        rep.save()
 
     reset_cache(hub_ids, {}, None)
 
