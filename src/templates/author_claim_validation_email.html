@@ -1,54 +1,111 @@
 {% load inlinecss %}
-
+{% load l10n %}
 <html>
+  <link rel="stylesheet" href="../stylesheets/support_receipt.css">  
   <head>
-    <link
-      rel="stylesheet"
-      href="../stylesheets/author_claim_validation_email.css"
-    />
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title></title>
-    <link
-      href="https://fonts.googleapis.com/css?family=Roboto:400,500&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      href="https://fonts.googleapis.com/css?family=Raleway&display=swap"
-      rel="stylesheet"
-    />
+      <meta charset="UTF-8">
+      <title></title>
+      <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+      <style type="text/css">
+        .verify-button {
+          padding: 8px 0 0;
+          background: #3971ff;
+          border-radius: 4px;
+          color: #fff;
+          font-weight: 500;
+          height: 28px;
+          margin-top: 24px;
+          width: 205px;
+          text-align: center;
+          margin: 0 auto;
+          font-size: 14px;
+          font-weight: bold;
+        }
+
+        .verification-link {
+          text-decoration: none;
+        }
+
+        .header-container {
+          border-top: 1px solid #ddd;
+          border-bottom: 1px solid #ddd;
+          margin-top: 25px;
+          margin-bottom: 20px;
+          padding-top: 35px;
+          padding-bottom: 35px;
+          letter-spacing: 0.6px;
+          box-sizing: border-box;
+          line-height: 23px;
+          text-align: left;
+        }
+
+        .header-2 {
+          display: block;
+          font-size: 20px;
+          font-weight: 500;
+          color: #241F3A;
+        }
+
+
+        .header-message-2 {
+          font-size: 16px;
+          font-weight: 400;
+          line-height: 20px;
+          opacity: 0.8;
+          margin: 20px 0px 0px 0px;
+          text-align: left;
+        }
+
+        .bold-name {
+          font-weight: bold;
+        }
+
+        @media only screen and (max-width: 767px) {
+          body {
+            width: 100%;
+            box-sizing: border-box;
+          }
+
+          .email-container {
+            width: 90%!important;
+            box-sizing: border-box;
+          }
+
+          .footer {
+            width: 90%!important;
+            box-sizing: border-box;
+          }
+        }
+      </style>
   </head>
-  {% inlinecss "author_claim_validation_email.css" %}
+  {% inlinecss "support_receipt.css" %}
   <body>
-    <div style="display: none; max-height: 0px; overflow: hidden">
-      {{ preview_text }}
-    </div>
-    <div class="banner-img-container">
-      <img
-        class="img-logo"
-        src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png"
-      />
-    </div>
-    <div class="content">
+    <div class="email-container">
       <div class="email-header">
-        <div class="flex-text">
-          <div class="first-name">Hello {{ requestor_name }}</div>
+        <img class="img-logo" src="https://rh-email-assets.s3-us-west-2.amazonaws.com/researchlogo.png" />
+        <div class="header-container">
+          <div class="header-2">
+            Hello {{ requestor_name }},      
+          </div>
+          <p class="header-message-2">
+            <div>
+              We've received your request to claim the author profile for&nbsp;<span class="bold-name">{{ author_name }}</span>.
+            </div>
+            <div> Click below to verify your account </div>
+            <br/>
+            <a class="verification-link" href="{{validation_url}}" target="__blank">
+              <div class="verify-button">Verify</div>
+            </a>
+          </p>  
         </div>
       </div>
-      <div class="points">
-        <span class="flex-text">
-          We'ved received your request to claim authorship of &nbsp;
-          <span class="bold-name"> {{ author_name }}</span>.
-        </span>
-        <span class="flex-text"> Click here to verify your account </span>
-      </div>
-      <a class="verification-link" href="{{validation_url}}" target="__blank">
-        <div class="verify-button">Verify</div>
-      </a>
     </div>
     <div class="footer">
-      <div>This email was sent by ResearchHub</div>
+      <a class="footer-link" href="{{opt_out}}">Unsubscribe from this list</a>
+      <a class="footer-link" href="{{update_subscription}}">Update subscription preferences</a>
     </div>
+    <div style="display: none">{% now "U" %}</div>
   </body>
 </html>
+
 {% endinlinecss %}
