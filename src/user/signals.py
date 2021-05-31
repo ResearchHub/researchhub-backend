@@ -117,7 +117,7 @@ def handle_spam(sender, instance, **kwargs):
         if thread.plain_text:
             duplicate_thread = Thread.objects.filter(plain_text=thread.plain_text.strip(), paper=thread.paper).count() > 1
 
-        if duplicate_thread:
+        if len(thread.plain_text) <= 25 or duplicate_thread:
             thread.is_removed = True
 
         if duplicate_thread:
