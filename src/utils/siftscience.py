@@ -258,7 +258,7 @@ class EventsApi:
         track_type = '$update_content' if update else '$create_content'
 
         try:
-            response = client.track(track_type, comment_properties, return_score=False)
+            response = client.track(track_type, comment_properties, return_score=True)
             print(response.body)
             return response.body
         except sift.client.ApiException as e:
