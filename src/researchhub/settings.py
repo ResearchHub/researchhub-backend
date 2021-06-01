@@ -463,6 +463,7 @@ EMAIL_WHITELIST = [
     'patrick@quantfive.org',
     'val@quantfive.org',
     'patrick.lu@berkeley.edu',
+    'calvinhlee@berkeley.edu'
 ]
 
 # Sentry
