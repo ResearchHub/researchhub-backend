@@ -302,9 +302,9 @@ class UserViewSet(viewsets.ModelViewSet):
             Contribution.SUPPORTER,
         ]
 
-        removed_threads = Thread.objects.filter(is_removed=False)
-        removed_comments = Comment.objects.filter(is_removed=False)
-        removed_replies = Reply.objects.filter(is_removed=False)
+        removed_threads = Thread.objects.filter(is_removed=True)
+        removed_comments = Comment.objects.filter(is_removed=True)
+        removed_replies = Reply.objects.filter(is_removed=True)
 
         contributions = Contribution.objects.prefetch_related(
             'paper',
@@ -314,9 +314,11 @@ class UserViewSet(viewsets.ModelViewSet):
             contribution_type__in=contribution_type,
             paper__is_removed=False
         ).exclude(
-            Q(object_id__in=removed_threads),
-            Q(object_id__in=removed_comments),
-            Q(object_id__in=removed_replies)
+            (
+                Q(object_id__in=removed_threads) |
+                Q(object_id__in=removed_comments) |
+                Q(object_id__in=removed_replies)
+            )
         )
 
         if hub_ids:
