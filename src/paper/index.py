@@ -6,6 +6,7 @@ from paper.models import Paper
 @register(Paper)
 class PaperIndex(AlgoliaIndex):
     # fields = ('name', 'date')
-    settings = {'searchableAttributes': ['title', 'paper_title', 'abstract']}
+    settings = {
+        'searchableAttributes': ['title', 'paper_title', 'doi', 'abstract'],
+    }
     index_name = 'papers'
-
