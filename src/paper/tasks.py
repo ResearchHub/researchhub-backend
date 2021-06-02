@@ -924,7 +924,6 @@ def pull_papers(start=0):
 
                     paper, created = Paper.objects.get_or_create(url=entry.id)
                     if created:
-
                         paper.alternate_ids = {'arxiv': entry.id.split('/abs/')[-1]}
                         paper.title = title
                         paper.paper_title = title
@@ -958,6 +957,9 @@ def pull_papers(start=0):
                                     pdf_url = get_redirect_url(link.href)
                                     if pdf_url:
                                         paper.pdf_url = pdf_url
+                                        csl = get_csl_item(pdf_url)
+                                        if csl:
+                                            paper.csl_item = csl
                                 if link.title == 'doi':
                                     paper.doi = link.href.split('doi.org/')[-1]
                             except AttributeError:
@@ -1129,9 +1131,11 @@ def pull_crossref_papers(start=0):
                             paper.abstract = clean_abstract(item['abstract'])
                         else:
                             csl = get_csl_item(item['URL'])
-                            abstract = csl.get('abstract', None)
-                            if abstract:
-                                paper.abstract = abstract
+                            if csl:
+                                paper.csl_item = csl
+                                abstract = csl.get('abstract', None)
+                                if abstract:
+                                    paper.abstract = abstract
 
                         if 'author' in item:
                             paper.raw_authors = {}
