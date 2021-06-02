@@ -494,6 +494,13 @@ class Paper(models.Model):
             vote_score = paper_piecewise_log(num_votes + 1)
             discussion_score = paper_piecewise_log(self.discussion_count + 1)
 
+            # Why we log delta days
+            # Ex: If paper 1 was uploaded 3 days ago with a low score and paper
+            # 2 was uploaded 4 days ago with a very high score, paper 2 will
+            # appear higher in the feed than paper 1. If we remove the delta
+            # days log, paper 1 will appear higher just because time is linear,
+            # and it gives a it better score
+
             if original_uploaded_date > timeframe:
                 uploaded_date_delta = (
                     original_uploaded_date - timeframe
