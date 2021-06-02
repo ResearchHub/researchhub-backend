@@ -969,7 +969,6 @@ class PaperViewSet(viewsets.ModelViewSet):
                     '-hot_score'
                 )
                 papers = qs.filter(
-                    abstract__isnull=False,
                     hubs__in=hubs
                 ).distinct()
             else:
@@ -1080,7 +1079,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             else:
                 qs = qs.filter(
                     is_removed=False,
-                    abstract__isnull=False,
                     is_removed_by_user=False,
                 )
         else:
@@ -1103,7 +1101,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             else:
                 qs = qs.filter(
                     is_removed=False,
-                    abstract__isnull=False,
                     is_removed_by_user=False,
                 )
         return qs
