@@ -376,8 +376,11 @@ class Paper(models.Model):
         return paper
 
     @property
+    def paper_authors(self):
+        return [self.get_full_name(author) for author in (self.raw_authors or list())]
+
+    @property
     def authors_indexing(self):
-        '''Authors for Elasticsearch indexing.'''
         return [self.get_full_name(author) for author in self.authors.all()]
 
     @property
@@ -563,11 +566,18 @@ class Paper(models.Model):
         return self.twitter_score
 
     def get_full_name(self, author_or_user):
+        if not isinstance(author_or_user, dict):
+            author_or_user = vars(author_or_user)
+
         full_name = []
-        if author_or_user.first_name:
-            full_name.append(author_or_user.first_name)
-        if author_or_user.last_name:
-            full_name.append(author_or_user.last_name)
+        first_name = author_or_user.get('first_name')
+        last_name = author_or_user.get('last_name')
+
+        if isinstance(first_name, str):
+            full_name.append(first_name)
+        if isinstance(last_name, str):
+            full_name.append(last_name)
+
         return ' '.join(full_name)
 
     def get_discussion_count(self):

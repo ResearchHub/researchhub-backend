@@ -520,21 +520,11 @@ if STAGING:
         },
     }
 
-# Search (Algolia)
-# ALGOLIA_APP_ID = 'OEYPUJXFJD'
-# ALGOLIA_ADMIN_KEY = os.environ.get('ALGOLIA_ADMIN_KEY', keys.ALGOLIA_ADMIN_KEY)
-# if DEVELOPMENT or TESTING:
-#     ALGOLIA_INDEX_PREFIX = 'development_'
-# elif STAGING:
-#     ALGOLIA_INDEX_PREFIX = 'staging_'
-# elif PRODUCTION:
-#     ALGOLIA_INDEX_PREFIX = 'production_'
-
-
 ALGOLIA = {
     'APPLICATION_ID': os.environ.get('ALGOLIA_APP_ID', keys.ALGOLIA_APP_ID),
     'API_KEY': os.environ.get('ALGOLIA_API_KEY', keys.ALGOLIA_API_KEY),
     'INDEX_SUFFIX': APP_ENV,
+    'AUTO_INDEXING': True # Will auto index whenever indexable models change (e.g. papers)
 }
 
 # TODO: Need to test to ensure this is working correctly
