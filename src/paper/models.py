@@ -982,6 +982,7 @@ class Paper(models.Model):
             self.csl_item = csl_item
             self.save()
 
+        best_openly_licensed_pdf = {}
         try:
             unpaywall = Unpaywall.from_csl_item(csl_item)
             best_openly_licensed_pdf = unpaywall.best_openly_licensed_pdf
