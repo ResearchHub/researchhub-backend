@@ -199,6 +199,7 @@ INSTALLED_APPS = [
     'reputation',
     'researchhub_case',
     'researchhub_document',
+    'researchhub_access_group',
     'search',
     'summary',
     'user',
