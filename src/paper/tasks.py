@@ -971,7 +971,7 @@ def pull_papers(start=0):
 
                         if csl:
                             license = paper.get_license(save=False)
-                            paper.license = license
+                            paper.pdf_license = license
 
                         paper.save()
 
@@ -1182,7 +1182,7 @@ def pull_crossref_papers(start=0):
 
                         if csl:
                             license = paper.get_license(save=False)
-                            paper.license = license
+                            paper.pdf_license = license
 
                         paper.save()
 
