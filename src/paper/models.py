@@ -41,6 +41,7 @@ from discussion.models import Thread
 from utils.http import check_url_contains_pdf
 from utils.arxiv import Arxiv
 from utils.crossref import Crossref
+import utils.sentry as sentry
 from utils.semantic_scholar import SemanticScholar
 from utils.twitter import (
     get_twitter_url_results,
@@ -964,16 +965,14 @@ class Paper(models.Model):
                 if url:
                     csl_item = get_csl_item(self.url)
             except Exception as e:
-                print(e)
-                pass
+                sentry.log_error(e)
 
             try:
                 url = self.pdf_url
                 if url:
                     csl_item = get_csl_item(self.pdf_url)
             except Exception as e:
-                print(e)
-                pass
+                sentry.log_error(e)
             retrieved_csl = True
 
         if not csl_item:
@@ -987,8 +986,7 @@ class Paper(models.Model):
             unpaywall = Unpaywall.from_csl_item(csl_item)
             best_openly_licensed_pdf = unpaywall.best_openly_licensed_pdf
         except Exception as e:
-            print(e)
-            return None
+            sentry.log_error(e)
 
         if not best_openly_licensed_pdf:
             return None
