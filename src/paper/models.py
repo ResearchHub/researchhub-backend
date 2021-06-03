@@ -12,6 +12,7 @@ from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from django.db.models.functions import Extract
 
 from manubot.cite.doi import get_doi_csl_item
+from manubot.cite.unpaywall import Unpaywall
 
 from paper.lib import journal_hosts
 from paper.utils import (
@@ -20,7 +21,8 @@ from paper.utils import (
     populate_metadata_from_manubot_pdf_url,
     populate_pdf_url_from_journal_url,
     populate_metadata_from_pdf,
-    populate_metadata_from_crossref
+    populate_metadata_from_crossref,
+    get_csl_item,
 )
 from .tasks import (
     celery_extract_figures,
@@ -948,6 +950,54 @@ class Paper(models.Model):
             )
         else:
             celery_paper_reset_cache(self.id)
+
+    def get_license(self, save=True):
+        pdf_license = self.pdf_license
+        if pdf_license:
+            return pdf_license
+
+        csl_item = self.csl_item
+        retrieved_csl = False
+        if not csl_item:
+            try:
+                url = self.url
+                if url:
+                    csl_item = get_csl_item(self.url)
+            except Exception as e:
+                print(e)
+                pass
+
+            try:
+                url = self.pdf_url
+                if url:
+                    csl_item = get_csl_item(self.pdf_url)
+            except Exception as e:
+                print(e)
+                pass
+            retrieved_csl = True
+
+        if not csl_item:
+            return None
+
+        if retrieved_csl and save:
+            self.csl_item = csl_item
+            self.save()
+
+        try:
+            unpaywall = Unpaywall.from_csl_item(csl_item)
+            best_openly_licensed_pdf = unpaywall.best_openly_licensed_pdf
+        except Exception as e:
+            print(e)
+            return None
+
+        if not best_openly_licensed_pdf:
+            return None
+
+        license = best_openly_licensed_pdf.get('license', None)
+        if save:
+            self.pdf_license = license
+            self.save()
+        return license
 
 
 class MetadataRetrievalAttempt(models.Model):
