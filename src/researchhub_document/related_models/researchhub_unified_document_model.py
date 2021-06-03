@@ -36,7 +36,8 @@ class ResearchhubUnifiedDocument(DefaultModel):
         on_delete=models.CASCADE,
         related_name='unified_document'
     )
-
+    
+    @property
     def is_public(self):
         if (self.access_group is None):
             return True
