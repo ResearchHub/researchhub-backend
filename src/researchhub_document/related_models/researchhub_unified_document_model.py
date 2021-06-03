@@ -9,31 +9,32 @@ from utils.models import DefaultModel
 
 
 class ResearchhubUnifiedDocument(DefaultModel):
+    # TODO: calvinhlee - we may want to consider adding Hubs here as well
     access_group = models.OneToOneField(
         ResearchhubAccessGroup,
         blank=True,
-        help_text="Mostly used for ELN",
+        help_text='Mostly used for ELN',
         null=True,
         on_delete=models.SET_NULL,
-        related_name="document"
+        related_name='document'
     )
     document_type = models.CharField(
       choices=DOCUMENT_TYPES,
       default=PAPER,
       max_length=32,
       null=False,
-      help_text="Papers are imported from external src. Posts are in-house"
+      help_text='Papers are imported from external src. Posts are in-house'
     )
     hot_score = models.IntegerField(
         default=0,
         db_index=True,
-        help_text="Feed ranking score",
+        help_text='Feed ranking score',
     )
     paper = models.OneToOneField(
         Paper,
         db_index=True,
         on_delete=models.CASCADE,
-        related_name="unified_document"
+        related_name='unified_document'
     )
 
     def is_public(self):
