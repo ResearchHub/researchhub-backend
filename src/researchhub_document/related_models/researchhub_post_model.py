@@ -3,14 +3,14 @@ from django.db import models
 from researchhub_document.related_models.researchhub_unified_document_model \
   import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
-  DISCUSSION, POST_TYPES
+  DISCUSSION, DOCUMENT_TYPES
 )
 
 
 class ResearchhubPost(models.Model):
     post_type = models.CharField(
       blank=False,
-      choices=POST_TYPES,
+      choices=DOCUMENT_TYPES,
       default=DISCUSSION,
       max_length=32,
       null=False,
