@@ -110,7 +110,11 @@ class Paper(models.Model):
     )
     score = models.IntegerField(default=0, db_index=True)
     discussion_count = models.IntegerField(default=0, db_index=True)
-    hot_score = models.IntegerField(default=0, db_index=True)
+    hot_score = models.IntegerField(
+        default=0,
+        db_index=True,
+        help_text="Legacy. Refer to UnifiedDocument"
+    )
     twitter_score = models.IntegerField(default=1)
 
     views = models.IntegerField(default=0)
