@@ -465,11 +465,14 @@ if TESTING:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 EMAIL_WHITELIST = [
+    'calvinhlee@quantfive.org',
     'craig@quantfive.org',
-    'val@quantfive.org',
     'joey@quantfive.org',
+    'leosun@quantfive.org',
     'patrick@quantfive.org',
-    'leosun@quantfive.org'
+    'val@quantfive.org',
+    'patrick.lu@berkeley.edu',
+    'calvinhlee@berkeley.edu'
 ]
 
 # Sentry

@@ -12,26 +12,26 @@ class AbstractResearchhubCase(DefaultModel):
       max_length=32,
       null=False,
     )
-    creator = models.OneToOneField(
+    creator = models.ForeignKey(
         User,
         blank=False,
-        null=False,
-        on_delete=models.PROTECT,
-        related_name='case_creator',
+        null=True,
+        on_delete=models.CASCADE,
+        related_name='created_cases',
     )
-    moderator = models.OneToOneField(
+    moderator = models.ForeignKey(
         User,
         blank=True,
         null=True,
-        on_delete=models.SET_NULL,
-        related_name='case_moderator',
+        on_delete=models.CASCADE,
+        related_name='moderating_cases',
     )
-    requestor = models.OneToOneField(
+    requestor = models.ForeignKey(
         User,
         blank=False,
-        null=False,
-        on_delete=models.PROTECT,
-        related_name='case_requestor',
+        null=True,
+        on_delete=models.CASCADE,
+        related_name='requested_cases',
     )
 
     class Meta:

@@ -23,6 +23,7 @@ import user.views
 import notification.views
 import analytics.views
 import purchase.views
+import researchhub_case.views as researchhub_case_views
 
 from researchhub.settings import CLOUD, NO_SILK
 
@@ -179,13 +180,28 @@ router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
 
 router.register(r'user_verification', user.views.VerificationViewSet)
 
+router.register(
+    r'author_claim_case',
+    researchhub_case_views.AuthorClaimCaseViewSet,
+    basename='author_claim_case'
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('email_notifications/', mailing_list.views.email_notifications),
-    path('health/', researchhub.views.healthcheck),
-    path('api/events/forward_event/', google_analytics.views.forward_event),
     re_path(r'^api/', include(router.urls)),
+    path('api/events/forward_event/', google_analytics.views.forward_event),
+    path(
+        'api/author_claim_token_validation/',
+        researchhub_case_views.validate_user_request_email
+    ),
+    path(
+        'api/moderators/author_claim_case/',
+        researchhub_case_views.handle_author_claim_cases_for_mods
+    ),
+    path(
+        'api/moderators/author_claim_case/counts/',
+        researchhub_case_views.get_author_claim_counts_for_mods
+    ),
     path(
         'api/permissions/',
         researchhub.views.permissions,
@@ -193,14 +209,14 @@ urlpatterns = [
     ),
     path('api/search/', include(search.urls)),
     path(
-        'api/auth/orcid/login/callback/',
-        oauth.views.orcid_callback,
-        name='orcid_callback'
-    ),
-    path(
         'api/auth/orcid/connect/',
         oauth.views.orcid_connect,
         name='orcid_login'
+    ),
+    path(
+        'api/auth/orcid/login/callback/',
+        oauth.views.orcid_callback,
+        name='orcid_callback'
     ),
     path(
         'auth/google/yolo/callback/',
@@ -230,6 +246,8 @@ urlpatterns = [
     path(r'api/auth/', include('rest_auth.urls')),
     re_path(r'^auth/signup/', include(oauth.urls.registration_urls)),
     re_path(r'^auth/', include(oauth.urls.default_urls)),
+    path('email_notifications/', mailing_list.views.email_notifications),
+    path('health/', researchhub.views.healthcheck),
     path('', researchhub.views.index, name='index'),
 ]
 
