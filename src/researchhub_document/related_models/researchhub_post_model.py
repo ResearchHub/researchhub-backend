@@ -1,6 +1,5 @@
 from django.db import models
 
-from hub.models import Hub
 from researchhub_document.related_models.constants.document_type \
     import DISCUSSION, DOCUMENT_TYPES
 from researchhub_document.related_models.researchhub_unified_document_model \
@@ -45,11 +44,6 @@ class ResearchhubPost(DefaultModel):
         max_length=512,
         null=True,
         upload_to='uploads/post_eln/%Y/%m/%d/',
-    )
-    hubs = models.ManyToManyField(
-        Hub,
-        related_name='related_documents',
-        blank=True
     )
     prev_version = models.OneToOneField(
         'self',

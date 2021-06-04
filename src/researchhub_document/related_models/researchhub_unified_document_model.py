@@ -1,5 +1,6 @@
 from django.db import models
 
+from hub.models import Hub
 from paper.models import Paper
 from researchhub_access_group.models import ResearchhubAccessGroup
 from researchhub_document.related_models.constants.document_type import (
@@ -28,6 +29,11 @@ class ResearchhubUnifiedDocument(DefaultModel):
         default=0,
         db_index=True,
         help_text='Feed ranking score',
+    )
+    hubs = models.ManyToManyField(
+        Hub,
+        related_name='related_documents',
+        blank=True
     )
     paper = models.OneToOneField(
         Paper,
