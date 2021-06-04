@@ -379,6 +379,9 @@ class Paper(models.Model):
     def paper_authors(self):
         return [self.get_full_name(author) for author in (self.raw_authors or list())]
 
+    def paper_hubs(self):
+        return [hub.name for hub in self.hubs.all()]
+
     @property
     def authors_indexing(self):
         return [self.get_full_name(author) for author in self.authors.all()]
@@ -390,7 +393,7 @@ class Paper(models.Model):
 
     @property
     def hubs_indexing(self):
-        return [hub.name for hub in self.hubs.all()]
+        return self.paper_hubs
 
     @property
     def score_indexing(self):

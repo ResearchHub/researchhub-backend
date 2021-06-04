@@ -18,6 +18,8 @@ class PaperIndex(AlgoliaIndex):
         'doi',
         'hot_score',
         'paper_authors',
+        'paper_hubs',
+        'discussion_count',
     )
     settings = {
         'searchableAttributes': [
@@ -25,8 +27,10 @@ class PaperIndex(AlgoliaIndex):
             'doi',
             'unordered(abstract)',
             'paper_authors',
+            'paper_hubs'
         ],
         'customRanking': [
-            'desc(hot_score)'
+            'desc(hot_score)',
+            'desc(discussion_count)'
         ]
     }
