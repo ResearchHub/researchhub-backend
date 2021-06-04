@@ -1,4 +1,4 @@
-from allauth.socialaccount.models import SocialLogin, SocialAccount
+from allauth.socialaccount.models import SocialAccount
 from allauth.account import app_settings
 from allauth.utils import (
     get_user_model,
@@ -13,19 +13,20 @@ from django.urls.exceptions import NoReverseMatch
 from elasticsearch.exceptions import ConnectionTimeout
 
 from oauth.serializers import *
-from oauth.adapters import GoogleOAuth2AdapterIdToken
 from oauth.helpers import complete_social_login
 from oauth.exceptions import LoginError
-from oauth.utils import get_orcid_names
-from researchhub.settings import GOOGLE_REDIRECT_URL, GOOGLE_YOLO_REDIRECT_URL
-from user.models import Author, User
-from user.utils import merge_author_profiles
+from user.models import User
 from utils import sentry
-from utils.siftscience import events_api, update_user_risk_score, check_user_risk
+from utils.siftscience import (
+    events_api,
+    update_user_risk_score,
+    check_user_risk
+)
 from analytics.models import WebsiteVisits
 
 from django.contrib.gis.geoip2 import GeoIP2
 geo = GeoIP2()
+
 
 class SocialLoginSerializer(serializers.Serializer):
     access_token = serializers.CharField(required=False, allow_blank=True)
