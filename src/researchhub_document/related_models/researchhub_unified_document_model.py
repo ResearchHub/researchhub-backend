@@ -6,6 +6,7 @@ from researchhub_access_group.models import ResearchhubAccessGroup
 from researchhub_document.related_models.constants.document_type import (
   DOCUMENT_TYPES, PAPER
 )
+from user.models import User
 from utils.models import DefaultModel
 
 
@@ -17,6 +18,13 @@ class ResearchhubUnifiedDocument(DefaultModel):
         null=True,
         on_delete=models.SET_NULL,
         related_name='document'
+    )
+    created_by = models.ForeignKey(
+        User,
+        db_index=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name='created_documents',
     )
     document_type = models.CharField(
       choices=DOCUMENT_TYPES,
