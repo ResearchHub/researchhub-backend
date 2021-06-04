@@ -44,7 +44,7 @@ def get_researchhub_posts(request):
 
 def upsert_researchhub_posts(request):
     try:
-        request_data = request.query_params
+        request_data = request.data
         prev_version_id = request_data.get('prev_version_id')
         if (prev_version_id is not None):
             return update_existing_researchhub_posts(request)
@@ -56,14 +56,14 @@ def upsert_researchhub_posts(request):
 
 def create_researchhub_post(request):
     try:
-        request_data = request.query_params
+        request_data = request.data
         print("PARAMS: ", request_data)
         print("USERID: ", request_data.get('created_by'))
         created_by_user = User.objects.get(
             id=request_data.get('created_by')
         )
         full_src_file = ContentFile(request_data['full_src'])
-        is_discussion = request.data.get('document_type') == DISCUSSION
+        is_discussion = request_data.get('document_type') == DISCUSSION
         editor_type = request_data.get('editor_type')
 
         # logical ordering & not using signals to avoid race-conditions
@@ -106,7 +106,7 @@ def create_access_group(request):
 
 
 def create_unified_doc(request):
-    request_data = request.query_params
+    request_data = request.data
     hubs = Hub.objects.filter(
         id__in=request_data.get('hub_ids')
     )
