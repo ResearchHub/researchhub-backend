@@ -12,6 +12,7 @@ from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from django.db.models.functions import Extract
 
 from manubot.cite.doi import get_doi_csl_item
+from manubot.cite.unpaywall import Unpaywall
 
 from paper.lib import journal_hosts
 from paper.utils import (
@@ -20,7 +21,8 @@ from paper.utils import (
     populate_metadata_from_manubot_pdf_url,
     populate_pdf_url_from_journal_url,
     populate_metadata_from_pdf,
-    populate_metadata_from_crossref
+    populate_metadata_from_crossref,
+    get_csl_item,
 )
 from .tasks import (
     celery_extract_figures,
@@ -39,6 +41,7 @@ from discussion.models import Thread
 from utils.http import check_url_contains_pdf
 from utils.arxiv import Arxiv
 from utils.crossref import Crossref
+import utils.sentry as sentry
 from utils.semantic_scholar import SemanticScholar
 from utils.twitter import (
     get_twitter_url_results,
@@ -948,6 +951,52 @@ class Paper(models.Model):
             )
         else:
             celery_paper_reset_cache(self.id)
+
+    def get_license(self, save=True):
+        pdf_license = self.pdf_license
+        if pdf_license:
+            return pdf_license
+
+        csl_item = self.csl_item
+        retrieved_csl = False
+        if not csl_item:
+            fields = ['doi', 'url', 'pdf_url']
+            for field in fields:
+                item = getattr(self, field)
+                try:
+                    if field == 'doi':
+                        csl_item = get_doi_csl_item(item)
+                    else:
+                        csl_item = get_csl_item(item)
+
+                    if csl_item:
+                        retrieved_csl = True
+                        break
+                except Exception as e:
+                    sentry.log_error(e)
+
+        if not csl_item:
+            return None
+
+        if retrieved_csl and save:
+            self.csl_item = csl_item
+            self.save()
+
+        best_openly_licensed_pdf = {}
+        try:
+            unpaywall = Unpaywall.from_csl_item(csl_item)
+            best_openly_licensed_pdf = unpaywall.best_openly_licensed_pdf
+        except Exception as e:
+            sentry.log_error(e)
+
+        if not best_openly_licensed_pdf:
+            return None
+
+        license = best_openly_licensed_pdf.get('license', None)
+        if save:
+            self.pdf_license = license
+            self.save()
+        return license
 
 
 class MetadataRetrievalAttempt(models.Model):

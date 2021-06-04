@@ -178,11 +178,12 @@ class PaperViewSet(viewsets.ModelViewSet):
         queryset = self.queryset
         ordering = query_params.get('ordering', None)
         external_source = query_params.get('external_source', False)
+        queryset = queryset.filter(pdf_license__isnull=False)
 
         if query_params.get('make_public') or query_params.get('all') or (ordering and 'removed' in ordering):
             pass
         else:
-            queryset = self.queryset.filter(is_removed=False)
+            queryset = queryset.filter(is_removed=False)
 
         # if ordering == 'newest' and not include_autopull:
         #     queryset = queryset.filter(uploaded_by__isnull=False)
