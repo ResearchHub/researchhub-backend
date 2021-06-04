@@ -1,5 +1,6 @@
 from django.db import models
 
+from hub.models import Hub
 from paper.models import Paper
 from researchhub_access_group.models import ResearchhubAccessGroup
 from researchhub_document.related_models.constants.document_type import (
@@ -9,7 +10,6 @@ from utils.models import DefaultModel
 
 
 class ResearchhubUnifiedDocument(DefaultModel):
-    # TODO: calvinhlee - we may want to consider adding Hubs here as well
     access_group = models.OneToOneField(
         ResearchhubAccessGroup,
         blank=True,
@@ -30,13 +30,18 @@ class ResearchhubUnifiedDocument(DefaultModel):
         db_index=True,
         help_text='Feed ranking score',
     )
+    hubs = models.ManyToManyField(
+        Hub,
+        related_name='related_documents',
+        blank=True
+    )
     paper = models.OneToOneField(
         Paper,
         db_index=True,
         on_delete=models.CASCADE,
         related_name='unified_document'
     )
-    
+
     @property
     def is_public(self):
         if (self.access_group is None):
