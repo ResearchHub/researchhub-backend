@@ -67,8 +67,8 @@ def create_researchhub_post(request):
         editor_type = request_data.get('editor_type')
 
         # logical ordering & not using signals to avoid race-conditions
-        access_group = create_access_group()
-        unified_document = create_unified_doc()
+        access_group = create_access_group(request)
+        unified_document = create_unified_doc(request)
         rh_post = ResearchhubPost.create(
             created_by=created_by_user,
             discussion_src=full_src_file if is_discussion else None,
