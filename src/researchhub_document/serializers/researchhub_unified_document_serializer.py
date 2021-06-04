@@ -41,7 +41,7 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
 
     def get_access_group(self, instance):
         # TODO: calvinhlee - access_group is for ELN. Work on this later
-        return []
+        return None
 
     def get_created_by(self, instance):
         return UserSerializer(instance.created_by, read_only=True)
