@@ -38,8 +38,12 @@ class ResearchhubPost(DefaultModel):
         related_name='next_version',
     )
     renderable_text = models.TextField(
-        blank='true',
+        blank=True,
         default='',
+    )
+    title = models.TextField(
+        blank=True, 
+        default=''
     )
     version_number = models.IntegerField(
         blank=False,
