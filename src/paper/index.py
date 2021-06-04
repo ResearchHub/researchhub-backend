@@ -17,14 +17,16 @@ class PaperIndex(AlgoliaIndex):
         'is_removed',
         'doi',
         'hot_score',
-        'paper_authors'
+        'paper_authors',
     )
     settings = {
         'searchableAttributes': [
-            'title',
-            'paper_title',
+            'title, paper_title',
             'doi',
-            'abstract',
+            'unordered(abstract)',
             'paper_authors',
         ],
+        'customRanking': [
+            'desc(hot_score)'
+        ]
     }
