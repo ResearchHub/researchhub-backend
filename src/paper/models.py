@@ -960,20 +960,20 @@ class Paper(models.Model):
         csl_item = self.csl_item
         retrieved_csl = False
         if not csl_item:
-            try:
-                url = self.url
-                if url:
-                    csl_item = get_csl_item(self.url)
-            except Exception as e:
-                sentry.log_error(e)
+            fields = ['doi', 'url', 'pdf_url']
+            for field in fields:
+                item = getattr(self, field)
+                try:
+                    if field == 'doi':
+                        csl_item = get_doi_csl_item(item)
+                    else:
+                        csl_item = get_csl_item(item)
 
-            try:
-                url = self.pdf_url
-                if url:
-                    csl_item = get_csl_item(self.pdf_url)
-            except Exception as e:
-                sentry.log_error(e)
-            retrieved_csl = True
+                    if csl_item:
+                        retrieved_csl = True
+                        break
+                except Exception as e:
+                    sentry.log_error(e)
 
         if not csl_item:
             return None
