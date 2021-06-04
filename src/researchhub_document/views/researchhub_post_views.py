@@ -57,8 +57,10 @@ def upsert_researchhub_posts(request):
 def create_researchhub_post(request):
     try:
         request_data = request.query_params
+        print("PARAMS: ", request_data)
+        print("USERID: ", request_data.get('created_by'))
         created_by_user = User.objects.get(
-            id=request_data.get('created_by_id')
+            id=request_data.get('created_by')
         )
         full_src_file = ContentFile(request_data['full_src'])
         is_discussion = request.data.get('document_type') == DISCUSSION
