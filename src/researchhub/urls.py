@@ -215,6 +215,10 @@ urlpatterns = [
         researchhub.views.permissions,
         name='permissions'
     ),
+    path(
+        'api/researchhub_posts/',
+        researchhub_document_views.handle_rh_posts_requests
+    ),
     path('api/search/', include(search.urls)),
     path(
         'api/auth/orcid/connect/',
