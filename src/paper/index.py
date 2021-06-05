@@ -20,6 +20,7 @@ class PaperIndex(AlgoliaIndex):
         'paper_authors',
         'paper_hubs',
         'discussion_count',
+        'paper_publish_date'
     )
     settings = {
         'searchableAttributes': [
