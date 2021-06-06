@@ -17,7 +17,7 @@ class PaperIndex(AlgoliaIndex):
         'is_removed',
         'doi',
         'hot_score',
-        'paper_authors',
+        'authors_str',
         'paper_hubs',
         'discussion_count',
         'paper_publish_date'
@@ -27,7 +27,7 @@ class PaperIndex(AlgoliaIndex):
             'title, paper_title',
             'doi',
             'unordered(abstract)',
-            'paper_authors',
+            'authors_str',
             'paper_hubs'
         ],
         'customRanking': [
