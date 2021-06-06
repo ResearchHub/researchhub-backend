@@ -377,8 +377,14 @@ class Paper(models.Model):
 
     @property
     def paper_authors(self):
-        return [self.get_full_name(author) for author in (self.raw_authors or list())]
+        raw_authors = (self.raw_authors or list())
+        return [self.get_full_name(author) for author in raw_authors]
 
+    @property
+    def authors_str(self):
+        return ', '.join(self.paper_authors)
+
+    @property
     def paper_hubs(self):
         return [hub.name for hub in self.hubs.all()]
 
