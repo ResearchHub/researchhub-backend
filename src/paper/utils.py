@@ -3,6 +3,7 @@ import requests
 import fitz
 import jellyfish
 import nltk
+import math
 
 from django.core.cache import cache
 from django.core.files.base import ContentFile
@@ -690,3 +691,25 @@ def invalidate_most_discussed_cache(hub_ids, with_default=True):
                 f'{hub_id}_{key}'
             )
             cache.delete(cache_key)
+
+
+def paper_piecewise_log(k):
+    sign = 1
+    step = math.sqrt(2)
+    if k < 0:
+        k = abs(k)
+        sign = -1
+
+    if k == 0:
+        k = 0
+    elif k <= 10:
+        k = math.log(k, 2)
+    elif k <= 100:
+        k = math.log(k, 3) + step
+    elif k <= 500:
+        k = math.log(k, 5) + (step * 2)
+    else:
+        k = math.log(k, 7) + (step * 3)
+
+    res = k * sign
+    return res
