@@ -33,5 +33,10 @@ class PaperIndex(AlgoliaIndex):
         'customRanking': [
             'desc(hot_score)',
             'desc(discussion_count)'
-        ]
+        ],
+        'attributesToSnippet': [
+            'authors_str:10',
+            'abstract:20'
+        ],
+        'snippetEllipsisText': '...'
     }
