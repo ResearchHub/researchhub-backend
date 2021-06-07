@@ -333,6 +333,7 @@ class PaperSerializer(BasePaperSerializer):
                         e,
                     )
 
+                paper.set_paper_completeness()
                 # Fix adding references
                 # self._add_references(paper)
 
@@ -424,6 +425,8 @@ class PaperSerializer(BasePaperSerializer):
                             new_authors.append(author)
                     paper.authors.remove(*remove_authors)
                     paper.authors.add(*new_authors)
+
+                paper.set_paper_completeness()
 
                 if file:
                     self._add_file(paper, file)
