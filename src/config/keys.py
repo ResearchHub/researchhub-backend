@@ -30,3 +30,6 @@ SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
 APM_URL = os.environ.get('APM_URL', '')
 
 ELASTICSEARCH_HOST = os.environ.get('ELASTICSEARCH_HOST', '')
+
+ALGOLIA_APP_ID = os.environ.get('ALGOLIA_APP_ID', '')
+ALGOLIA_API_KEY = os.environ.get('ALGOLIA_API_KEY', '')
