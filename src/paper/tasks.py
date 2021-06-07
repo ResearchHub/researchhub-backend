@@ -880,6 +880,7 @@ def pull_papers(start=0, force=False):
     i = start
     num_retries = 0
     dups = 0
+    twitter_score_priority = 4
     while True:
         logger.info("Entries: %i - %i" % (i, i+RESULTS_PER_ITERATION))
 
@@ -972,10 +973,11 @@ def pull_papers(start=0, force=False):
 
                         if csl:
                             license = paper.get_license(save=False)
-                            paper.pdf_license = license
+                            if license:
+                                twitter_score_priority = 1
+                                paper.pdf_license = license
 
                         paper.save()
-                        paper.calculate_hot_score()
                         paper.set_paper_completeness()
 
                         if pdf_url:
@@ -987,7 +989,7 @@ def pull_papers(start=0, force=False):
 
                         celery_calculate_paper_twitter_score.apply_async(
                             (paper.id,),
-                            priority=4,
+                            priority=twitter_score_priority,
                             countdown=15
                         )
 
@@ -1069,6 +1071,7 @@ def pull_crossref_papers(start=0, force=False):
 
     cr = Crossref()
 
+    twitter_score_priority = 1
     num_retries = 0
     num_duplicates = 0
 
@@ -1185,14 +1188,16 @@ def pull_crossref_papers(start=0, force=False):
 
                         if csl:
                             license = paper.get_license(save=False)
-                            paper.pdf_license = license
+                            if license:
+                                twitter_score_priority = 1
+                                paper.pdf_license = license
 
                         paper.save()
                         paper.set_paper_completeness()
 
                         celery_calculate_paper_twitter_score.apply_async(
                             (paper.id,),
-                            priority=4,
+                            priority=twitter_score_priority,
                             countdown=15
                         )
                         add_orcid_authors.apply_async(
