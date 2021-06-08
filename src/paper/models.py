@@ -13,6 +13,7 @@ from django.db.models.functions import Extract
 
 from manubot.cite.doi import get_doi_csl_item
 
+from utils.person import get_name
 from paper.lib import journal_hosts
 from paper.utils import (
     MANUBOT_PAPER_TYPES,
@@ -22,6 +23,7 @@ from paper.utils import (
     populate_metadata_from_pdf,
     populate_metadata_from_crossref
 )
+
 from .tasks import (
     celery_extract_figures,
     celery_extract_pdf_preview,
@@ -378,7 +380,7 @@ class Paper(models.Model):
     @property
     def paper_authors(self):
         raw_authors = (self.raw_authors or list())
-        return [self.get_full_name(author) for author in raw_authors]
+        return [get_name(author) for author in raw_authors]
 
     @property
     def authors_str(self):
@@ -390,7 +392,7 @@ class Paper(models.Model):
 
     @property
     def authors_indexing(self):
-        return [self.get_full_name(author) for author in self.authors.all()]
+        return [get_name(author) for author in self.authors.all()]
 
     @property
     def discussion_count_indexing(self):
@@ -573,35 +575,6 @@ class Paper(models.Model):
         self.twitter_mentions = self.twitter_score
         self.save()
         return self.twitter_score
-
-    def get_full_name(self, author_or_user):
-        if not isinstance(author_or_user, dict):
-            uploaded_by = self.uploaded_by
-            authors = self.authors
-            if uploaded_by:
-                author_or_user = {
-                    'last_name': uploaded_by.last_name,
-                    'first_name': uploaded_by.first_name
-                }
-            elif authors.exists():
-                author = authors.first()
-                author_or_user = {
-                    'last_name': author.last_name,
-                    'first_name': author.first_name
-                }
-            else:
-                return ''
-
-        full_name = []
-        first_name = author_or_user.get('first_name')
-        last_name = author_or_user.get('last_name')
-
-        if isinstance(first_name, str):
-            full_name.append(first_name)
-        if isinstance(last_name, str):
-            full_name.append(last_name)
-
-        return ' '.join(full_name)
 
     def get_discussion_count(self):
         sources = [
