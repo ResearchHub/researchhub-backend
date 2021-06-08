@@ -1,7 +1,6 @@
 from django.db import models
 
 def get_name(person):
-    print(person)
     full_name = []
 
     if isinstance(person, models.Model) or isinstance(person, models.Model):
