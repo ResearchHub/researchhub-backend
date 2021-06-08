@@ -580,8 +580,8 @@ class Paper(models.Model):
             authors = self.authors
             if uploaded_by:
                 author_or_user = {
-                    'last_name': self.last_name,
-                    'first_name': self.first_name
+                    'last_name': uploaded_by.last_name,
+                    'first_name': uploaded_by.first_name
                 }
             elif authors.exists():
                 author = authors.first()
