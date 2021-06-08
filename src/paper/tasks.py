@@ -132,6 +132,7 @@ def download_pdf(paper_id, retry=0):
             paper.file.save(filename, pdf)
             paper.save(update_fields=['file'])
             paper.extract_pdf_preview(use_celery=True)
+            paper.set_paper_completeness()
             celery_extract_pdf_sections.apply_async(
                 (paper_id,),
                 priority=5,
@@ -854,8 +855,8 @@ BASE_URL = 'http://export.arxiv.org/api/query?'
     priority=2,
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
-def pull_papers(start=0):
-    if not PRODUCTION:
+def pull_papers(start=0, force=False):
+    if not PRODUCTION and not force:
         return
 
     logger.info('Pulling Papers')
@@ -879,6 +880,7 @@ def pull_papers(start=0):
     i = start
     num_retries = 0
     dups = 0
+    twitter_score_priority = 4
     while True:
         logger.info("Entries: %i - %i" % (i, i+RESULTS_PER_ITERATION))
 
@@ -924,7 +926,6 @@ def pull_papers(start=0):
 
                     paper, created = Paper.objects.get_or_create(url=entry.id)
                     if created:
-
                         paper.alternate_ids = {'arxiv': entry.id.split('/abs/')[-1]}
                         paper.title = title
                         paper.paper_title = title
@@ -952,19 +953,32 @@ def pull_papers(start=0):
                         paper.raw_authors = raw_authors
 
                         pdf_url = ''
+                        csl = {}
                         for link in entry.links:
                             try:
                                 if link.title == 'pdf':
-                                    pdf_url = get_redirect_url(link.href)
-                                    if pdf_url:
-                                        paper.pdf_url = pdf_url
+                                    try:
+                                        pdf_url = get_redirect_url(link.href)
+                                        if pdf_url:
+                                            paper.pdf_url = pdf_url
+                                            csl = get_csl_item(pdf_url)
+                                            if csl:
+                                                paper.csl_item = csl
+                                    except Exception as e:
+                                        sentry.log_error(e)
                                 if link.title == 'doi':
                                     paper.doi = link.href.split('doi.org/')[-1]
                             except AttributeError:
                                 pass
 
+                        if csl:
+                            license = paper.get_license(save=False)
+                            if license:
+                                twitter_score_priority = 1
+                                paper.pdf_license = license
+
                         paper.save()
-                        paper.calculate_hot_score()
+                        paper.set_paper_completeness()
 
                         if pdf_url:
                             download_pdf.apply_async(
@@ -975,7 +989,7 @@ def pull_papers(start=0):
 
                         celery_calculate_paper_twitter_score.apply_async(
                             (paper.id,),
-                            priority=4,
+                            priority=twitter_score_priority,
                             countdown=15
                         )
 
@@ -1045,8 +1059,8 @@ NUM_DUP_STOP = 30
     priority=1,
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
-def pull_crossref_papers(start=0):
-    if not PRODUCTION:
+def pull_crossref_papers(start=0, force=False):
+    if not PRODUCTION and not force:
         return
 
     logger.info('Pulling Crossref Papers')
@@ -1057,6 +1071,7 @@ def pull_crossref_papers(start=0):
 
     cr = Crossref()
 
+    twitter_score_priority = 1
     num_retries = 0
     num_duplicates = 0
 
@@ -1128,10 +1143,16 @@ def pull_crossref_papers(start=0):
                         if 'abstract' in item:
                             paper.abstract = clean_abstract(item['abstract'])
                         else:
-                            csl = get_csl_item(item['URL'])
-                            abstract = csl.get('abstract', None)
-                            if abstract:
-                                paper.abstract = abstract
+                            csl = {}
+                            try:
+                                csl = get_csl_item(item['URL'])
+                                if csl:
+                                    paper.csl_item = csl
+                                    abstract = csl.get('abstract', None)
+                                    if abstract:
+                                        paper.abstract = abstract
+                            except Exception as e:
+                                sentry.log_error(e)
 
                         if 'author' in item:
                             paper.raw_authors = {}
@@ -1149,9 +1170,13 @@ def pull_crossref_papers(start=0):
 
                         pdf_url = ''
                         if 'link' in item and item['link']:
-                            pdf_url = get_redirect_url(item['link'][0]['URL'])
+                            try:
+                                pdf_url = get_redirect_url(item['link'][0]['URL'])
+                            except Exception as e:
+                                sentry.log_error(e)
                             if check_url_contains_pdf(pdf_url):
                                 paper.pdf_url = pdf_url
+
                         if 'subject' in item:
                             for subject_name in item['subject']:
                                 rh_key = scopus_to_rh_map[subject_name]
@@ -1160,11 +1185,19 @@ def pull_crossref_papers(start=0):
                                 ).first()
                                 if hub:
                                     paper.hubs.add(hub)
+
+                        if csl:
+                            license = paper.get_license(save=False)
+                            if license:
+                                twitter_score_priority = 1
+                                paper.pdf_license = license
+
                         paper.save()
+                        paper.set_paper_completeness()
 
                         celery_calculate_paper_twitter_score.apply_async(
                             (paper.id,),
-                            priority=4,
+                            priority=twitter_score_priority,
                             countdown=15
                         )
                         add_orcid_authors.apply_async(

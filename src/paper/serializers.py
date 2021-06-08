@@ -7,7 +7,6 @@ from django.http import QueryDict
 
 from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
-from discussion.models import Thread, Comment, Reply
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
@@ -334,8 +333,12 @@ class PaperSerializer(BasePaperSerializer):
                         e,
                     )
 
+                paper.set_paper_completeness()
                 # Fix adding references
                 # self._add_references(paper)
+
+                paper.pdf_license = paper.get_license(save=False)
+
                 tracked_paper = events_api.track_content_paper(
                     user,
                     paper,
@@ -422,6 +425,8 @@ class PaperSerializer(BasePaperSerializer):
                             new_authors.append(author)
                     paper.authors.remove(*remove_authors)
                     paper.authors.add(*new_authors)
+
+                paper.set_paper_completeness()
 
                 if file:
                     self._add_file(paper, file)

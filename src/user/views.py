@@ -301,41 +301,24 @@ class UserViewSet(viewsets.ModelViewSet):
             Contribution.COMMENTER,
             Contribution.SUPPORTER,
         ]
-        active_thread = 'active_thread'
-        active_comment = 'active_comment'
-        active_reply = 'active_reply'
-        thread_content_type = ContentType.objects.get_for_model(Thread)
-        comment_content_type = ContentType.objects.get_for_model(Comment)
-        reply_content_type = ContentType.objects.get_for_model(Reply)
 
-        cases = {}
-        for key, content_type in (
-            (active_thread, thread_content_type),
-            (active_comment, comment_content_type),
-            (active_reply, reply_content_type)
-        ):
-            cases[key] = models.Case(
-                models.When(
-                    content_type=content_type,
-                    discussion__is_removed=False,
-                    then=models.Value(True)
-                ),
-                default=models.Value(False),
-                output_field=models.BooleanField()
-            )
+        removed_threads = Thread.objects.filter(is_removed=True)
+        removed_comments = Comment.objects.filter(is_removed=True)
+        removed_replies = Reply.objects.filter(is_removed=True)
 
         contributions = Contribution.objects.prefetch_related(
             'paper',
             'user',
             'paper__uploaded_by'
-        ).annotate(
-            **cases
         ).filter(
             contribution_type__in=contribution_type,
-            paper__is_removed=False,
-            active_thread=False,
-            active_comment=False,
-            active_reply=False
+            paper__is_removed=False
+        ).exclude(
+            (
+                Q(object_id__in=removed_threads) |
+                Q(object_id__in=removed_comments) |
+                Q(object_id__in=removed_replies)
+            )
         )
 
         if hub_ids:

@@ -72,7 +72,7 @@ def send_email_message(
         if not is_valid_email(recipient):
             result['exclude'].append(recipient)
             recipients.remove(recipient)
-            print('email not on whitelist')
+            print('EMAIL NOT IN WHITELIST')
 
     print(recipients)
 
