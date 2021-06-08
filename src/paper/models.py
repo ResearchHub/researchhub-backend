@@ -13,7 +13,6 @@ from django.db.models.functions import Extract
 
 from manubot.cite.doi import get_doi_csl_item
 
-from utils.person import get_name
 from paper.lib import journal_hosts
 from paper.utils import (
     MANUBOT_PAPER_TYPES,
@@ -21,7 +20,8 @@ from paper.utils import (
     populate_metadata_from_manubot_pdf_url,
     populate_pdf_url_from_journal_url,
     populate_metadata_from_pdf,
-    populate_metadata_from_crossref
+    populate_metadata_from_crossref,
+    get_name
 )
 
 from .tasks import (
