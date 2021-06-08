@@ -576,7 +576,10 @@ class Paper(models.Model):
 
     def get_full_name(self, author_or_user):
         if not isinstance(author_or_user, dict):
-            author_or_user = vars(author_or_user)
+            author_or_user = {
+                'last_name': getattr(author_or_user, 'last_name'),
+                'first_name': getattr(author_or_user, 'first_name')
+            }
 
         full_name = []
         first_name = author_or_user.get('first_name')
