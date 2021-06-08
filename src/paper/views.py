@@ -178,11 +178,12 @@ class PaperViewSet(viewsets.ModelViewSet):
         queryset = self.queryset
         ordering = query_params.get('ordering', None)
         external_source = query_params.get('external_source', False)
+        # queryset = queryset.filter(pdf_license__isnull=False)
 
         if query_params.get('make_public') or query_params.get('all') or (ordering and 'removed' in ordering):
             pass
         else:
-            queryset = self.queryset.filter(is_removed=False)
+            queryset = queryset.filter(is_removed=False)
 
         # if ordering == 'newest' and not include_autopull:
         #     queryset = queryset.filter(uploaded_by__isnull=False)
@@ -968,7 +969,6 @@ class PaperViewSet(viewsets.ModelViewSet):
                     '-hot_score'
                 )
                 papers = qs.filter(
-                    abstract__isnull=False,
                     hubs__in=hubs
                 ).distinct()
             else:
@@ -1079,7 +1079,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             else:
                 qs = qs.filter(
                     is_removed=False,
-                    abstract__isnull=False,
                     is_removed_by_user=False,
                 )
         else:
@@ -1102,7 +1101,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             else:
                 qs = qs.filter(
                     is_removed=False,
-                    abstract__isnull=False,
                     is_removed_by_user=False,
                 )
         return qs

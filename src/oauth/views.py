@@ -210,8 +210,8 @@ def update_author_profile(user, orcid_id, orcid_data, orcid_account):
         user.author_profile.orcid_id = orcid_id
     else:
         user.author_profile = merge_author_profiles(
-            user.author_profile,
-            author
+            author,
+            user.author_profile
         )
 
     user.author_profile.orcid_account = orcid_account

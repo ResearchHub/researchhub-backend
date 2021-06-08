@@ -101,7 +101,7 @@ SummaryDownvoted = Distribution(
     'SUMMARY_DOWNVOTED', -1
 )
 Referral = Distribution(
-    'REFERRAL', 50, False
+    'REFERRAL', 0, False
 )
 
 ReferralApproved = Distribution(

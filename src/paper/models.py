@@ -1,4 +1,3 @@
-import math
 import requests
 import datetime
 import pytz
@@ -12,6 +11,7 @@ from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from django.db.models.functions import Extract
 
 from manubot.cite.doi import get_doi_csl_item
+from manubot.cite.unpaywall import Unpaywall
 
 from paper.lib import journal_hosts
 from paper.utils import (
@@ -21,7 +21,9 @@ from paper.utils import (
     populate_pdf_url_from_journal_url,
     populate_metadata_from_pdf,
     populate_metadata_from_crossref,
-    get_name
+    get_name,
+    get_csl_item,
+    paper_piecewise_log,
 )
 
 from .tasks import (
@@ -41,6 +43,7 @@ from discussion.models import Thread
 from utils.http import check_url_contains_pdf
 from utils.arxiv import Arxiv
 from utils.crossref import Crossref
+import utils.sentry as sentry
 from utils.semantic_scholar import SemanticScholar
 from utils.twitter import (
     get_twitter_url_results,
@@ -62,10 +65,18 @@ HELP_TEXT_IS_REMOVED = (
 class Paper(models.Model):
     REGULAR = 'REGULAR'
     PRE_REGISTRATION = 'PRE_REGISTRATION'
+    COMPLETE = 'COMPLETE'
+    PARTIAL = 'PARTIAL'
+    INCOMPLETE = 'INCOMPLETE'
 
     PAPER_TYPE_CHOICES = [
         (REGULAR, REGULAR),
         (PRE_REGISTRATION, PRE_REGISTRATION)
+    ]
+    PAPER_COMPLETENESS = [
+        (COMPLETE, COMPLETE),
+        (PARTIAL, PARTIAL),
+        (INCOMPLETE, INCOMPLETE)
     ]
 
     CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS['PROGRESS']
@@ -169,6 +180,11 @@ class Paper(models.Model):
         choices=PAPER_TYPE_CHOICES,
         max_length=32,
         default=REGULAR
+    )
+    completeness = models.CharField(
+        choices=PAPER_COMPLETENESS,
+        max_length=16,
+        default=INCOMPLETE
     )
 
     # User generated
@@ -429,7 +445,6 @@ class Paper(models.Model):
         ALGO_START_UNIX = 1546329600
         TWITTER_BOOST = 100
         TIME_DIV = 3600000
-        LOG_CONST = 4
         HOUR_SECONDS = 86400
         DATE_BOOST = 10
 
@@ -481,34 +496,39 @@ class Paper(models.Model):
                     (uploaded_date.timestamp() - ALGO_START_UNIX) / TIME_DIV
                 )
                 twitter_boost_score = (
-                    math.log(1 + twitter_score, LOG_CONST) * TWITTER_BOOST
+                    paper_piecewise_log(twitter_score + 1) * TWITTER_BOOST
                 ) / twitter_epoch
 
             vote_avg = (
                 max(0, vote_avg_epoch - ALGO_START_UNIX)
             ) / TIME_DIV
 
-            base_score = math.log(1 + score, LOG_CONST)
+            base_score = paper_piecewise_log(score + 1)
             uploaded_date_score = uploaded_date.timestamp() / TIME_DIV
-            vote_score = math.log(1 + num_votes, LOG_CONST)
-            discussion_score = math.log(1 + self.discussion_count)
+            vote_score = paper_piecewise_log(num_votes + 1)
+            discussion_score = paper_piecewise_log(self.discussion_count + 1)
+
+            # Why we log delta days
+            # Ex: If paper 1 was uploaded 3 days ago with a low score and paper
+            # 2 was uploaded 4 days ago with a very high score, paper 2 will
+            # appear higher in the feed than paper 1. If we remove the delta
+            # days log, paper 1 will appear higher just because time is linear,
+            # and it gives a it better score
 
             if original_uploaded_date > timeframe:
                 uploaded_date_delta = (
                     original_uploaded_date - timeframe
                 )
-                delta_days = math.log(
-                    uploaded_date_delta.total_seconds() / HOUR_SECONDS,
-                    LOG_CONST
+                delta_days = paper_piecewise_log(
+                    uploaded_date_delta.total_seconds() / HOUR_SECONDS
                 ) * DATE_BOOST
                 uploaded_date_score += delta_days
             else:
                 uploaded_date_delta = (
                     timeframe - original_uploaded_date
                 )
-                delta_days = -math.log(
-                    1 + (uploaded_date_delta.total_seconds() / HOUR_SECONDS),
-                    LOG_CONST
+                delta_days = -paper_piecewise_log(
+                    (uploaded_date_delta.total_seconds() / HOUR_SECONDS) + 1
                 ) * DATE_BOOST
                 uploaded_date_score += delta_days
 
@@ -520,7 +540,7 @@ class Paper(models.Model):
                         flat=True
                     ))
                 )
-                math.log(1 + boost_amount, LOG_CONST)
+                boost_score = paper_piecewise_log(boost_amount + 1)
 
             hot_score = (
                 base_score +
@@ -531,6 +551,14 @@ class Paper(models.Model):
                 twitter_boost_score +
                 boost_score
             ) * 1000
+
+            completeness = self.completeness
+            if completeness == self.COMPLETE:
+                hot_score *= 1
+            elif completeness == self.PARTIAL:
+                hot_score *= 0.95
+            else:
+                hot_score *= 0.90
 
             self.hot_score = hot_score
         else:
@@ -954,6 +982,61 @@ class Paper(models.Model):
             )
         else:
             celery_paper_reset_cache(self.id)
+
+    def get_license(self, save=True):
+        pdf_license = self.pdf_license
+        if pdf_license:
+            return pdf_license
+
+        csl_item = self.csl_item
+        retrieved_csl = False
+        if not csl_item:
+            fields = ['doi', 'url', 'pdf_url']
+            for field in fields:
+                item = getattr(self, field)
+                try:
+                    if field == 'doi':
+                        csl_item = get_doi_csl_item(item)
+                    else:
+                        csl_item = get_csl_item(item)
+
+                    if csl_item:
+                        retrieved_csl = True
+                        break
+                except Exception as e:
+                    sentry.log_error(e)
+
+        if not csl_item:
+            return None
+
+        if retrieved_csl and save:
+            self.csl_item = csl_item
+            self.save()
+
+        best_openly_licensed_pdf = {}
+        try:
+            unpaywall = Unpaywall.from_csl_item(csl_item)
+            best_openly_licensed_pdf = unpaywall.best_openly_licensed_pdf
+        except Exception as e:
+            sentry.log_error(e)
+
+        if not best_openly_licensed_pdf:
+            return None
+
+        license = best_openly_licensed_pdf.get('license', None)
+        if save:
+            self.pdf_license = license
+            self.save()
+        return license
+
+    def set_paper_completeness(self):
+        if self.abstract and self.file:
+            self.completeness = self.COMPLETE
+        elif self.abstract or self.file:
+            self.completeness = self.PARTIAL
+        else:
+            self.completeness = self.INCOMPLETE
+        self.save()
 
 
 class MetadataRetrievalAttempt(models.Model):
