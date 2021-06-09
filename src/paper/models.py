@@ -21,9 +21,11 @@ from paper.utils import (
     populate_pdf_url_from_journal_url,
     populate_metadata_from_pdf,
     populate_metadata_from_crossref,
+    get_name,
     get_csl_item,
     paper_piecewise_log,
 )
+
 from .tasks import (
     celery_extract_figures,
     celery_extract_pdf_preview,
@@ -392,9 +394,21 @@ class Paper(models.Model):
         return paper
 
     @property
+    def paper_authors(self):
+        raw_authors = (self.raw_authors or list())
+        return [get_name(author) for author in raw_authors]
+
+    @property
+    def authors_str(self):
+        return ', '.join(self.paper_authors)
+
+    @property
+    def paper_hubs(self):
+        return [hub.name for hub in self.hubs.all()]
+
+    @property
     def authors_indexing(self):
-        '''Authors for Elasticsearch indexing.'''
-        return [self.get_full_name(author) for author in self.authors.all()]
+        return [get_name(author) for author in self.authors.all()]
 
     @property
     def discussion_count_indexing(self):
@@ -403,7 +417,7 @@ class Paper(models.Model):
 
     @property
     def hubs_indexing(self):
-        return [hub.name for hub in self.hubs.all()]
+        return self.paper_hubs
 
     @property
     def score_indexing(self):
@@ -589,14 +603,6 @@ class Paper(models.Model):
         self.twitter_mentions = self.twitter_score
         self.save()
         return self.twitter_score
-
-    def get_full_name(self, author_or_user):
-        full_name = []
-        if author_or_user.first_name:
-            full_name.append(author_or_user.first_name)
-        if author_or_user.last_name:
-            full_name.append(author_or_user.last_name)
-        return ' '.join(full_name)
 
     def get_discussion_count(self):
         sources = [
