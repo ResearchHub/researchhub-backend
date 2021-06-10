@@ -57,35 +57,40 @@ def upsert_researchhub_posts(request):
 def create_researchhub_post(request):
     try:
         request_data = request.data
-        print("PARAMS: ", request_data)
-        print("USERID: ", request_data.get('created_by'))
+        document_type = request_data.get('document_type')
         created_by_user = User.objects.get(
             id=request_data.get('created_by')
         )
-        full_src_file = ContentFile(request_data['full_src'])
-        is_discussion = request_data.get('document_type') == DISCUSSION
+        is_discussion = document_type == DISCUSSION
         editor_type = request_data.get('editor_type')
 
         # logical ordering & not using signals to avoid race-conditions
         access_group = create_access_group(request)
         unified_document = create_unified_doc(request)
-        rh_post = ResearchhubPost.create(
-            created_by=created_by_user,
-            discussion_src=full_src_file if is_discussion else None,
-            document_type=request_data.get('document_type'),
-            editor_type=CK_EDITOR if editor_type is None else editor_type,
-            eln_src=full_src_file if not is_discussion else None,
-            prev_version=None,
-            preview_img=request_data.get('preview_img'),
-            renderable_text=request_data.get('renderable_text'),
-            title=request_data.get('title')
-        )
         if (access_group is not None):
             unified_document.access_group = access_group
             unified_document.save()
-        rh_post.unified_document = unified_document
-        rh_post.save()
 
+        rh_post = ResearchhubPost.objects.create(
+            created_by=created_by_user,
+            document_type=document_type,
+            editor_type=CK_EDITOR if editor_type is None else editor_type,
+            prev_version=None,
+            preview_img=request_data.get('preview_img'),
+            renderable_text=request_data.get('renderable_text'),
+            title=request_data.get('title'),
+            unified_document=unified_document,
+        )
+        file_name = "RH-POST-{doc_type}-USER-{user_id}.txt".format(
+            doc_type=document_type,
+            user_id=created_by_user.id
+        )
+        full_src_file = ContentFile(request_data['full_src'].encode())
+        if is_discussion:
+            rh_post.discussion_src.save(file_name, full_src_file)
+        else:
+            rh_post.eln_src.save(file_name, full_src_file)
+      
         return Response(
             ResearchhubPostSerializer(
                 ResearchhubPost.objects.get(id=rh_post.id)
@@ -93,6 +98,7 @@ def create_researchhub_post(request):
             status=200
         )
     except (KeyError, TypeError) as exception:
+        print("EXCEPTION: ", exception)
         return Response(exception, status=400)
 
 
@@ -106,11 +112,16 @@ def create_access_group(request):
 
 
 def create_unified_doc(request):
-    request_data = request.data
-    hubs = Hub.objects.filter(
-        id__in=request_data.get('hub_ids')
-    )
-    return ResearchhubUnifiedDocument.create(
-      document_type=request_data.get('document_type'),
-      hubs=hubs,
-    )
+    try:
+        request_data = request.data
+        hubs = Hub.objects.filter(
+            id__in=request_data.get('hubs')
+        ).first()
+        uni_doc = ResearchhubUnifiedDocument.objects.create(
+          document_type=request_data.get('document_type'),
+        )
+        uni_doc.hubs.add(hubs)
+        uni_doc.save()
+        return uni_doc
+    except (KeyError, TypeError) as exception:
+        print("WHAT?: ", exception)
