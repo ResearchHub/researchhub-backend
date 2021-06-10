@@ -14,20 +14,20 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
     class Meta(object):
         model = ResearchhubUnifiedDocument
         fields = [
-          'access_group',
-          'created_by',
-          'document_type',
-          'hot_score',
-          'hubs',
-          'documents',
+            'access_group',
+            'created_by',
+            'document_type',
+            'hot_score',
+            'hubs',
+            'documents',
         ]
         read_only_fields = [
-          'access_group',
-          'created_by',
-          'document_type',
-          'hot_score',
-          'hubs',
-          'documents',
+            'access_group',
+            'created_by',
+            'document_type',
+            'hot_score',
+            'hubs',
+            'documents',
         ]
 
     access_group = SerializerMethodField(method_name="get_access_group")

@@ -1,12 +1,10 @@
 from django.db import models
 
-from hub.models import Hub
 from paper.models import Paper
 from researchhub_access_group.models import ResearchhubAccessGroup
 from researchhub_document.related_models.constants.document_type import (
   DOCUMENT_TYPES, PAPER
 )
-from user.models import User
 from utils.models import DefaultModel
 
 
@@ -19,13 +17,6 @@ class ResearchhubUnifiedDocument(DefaultModel):
         on_delete=models.SET_NULL,
         related_name='document'
     )
-    created_by = models.ForeignKey(
-        User,
-        db_index=True,
-        null=True,
-        on_delete=models.SET_NULL,
-        related_name='created_documents',
-    )
     document_type = models.CharField(
       choices=DOCUMENT_TYPES,
       default=PAPER,
@@ -37,11 +28,6 @@ class ResearchhubUnifiedDocument(DefaultModel):
         default=0,
         db_index=True,
         help_text='Feed ranking score',
-    )
-    hubs = models.ManyToManyField(
-        Hub,
-        related_name='related_documents',
-        blank=True
     )
     paper = models.OneToOneField(
         Paper,
@@ -56,3 +42,23 @@ class ResearchhubUnifiedDocument(DefaultModel):
             return True
         else:
             return self.access_group.is_public
+
+    @property
+    def created_by(self):
+        if (self.document_type == PAPER):
+            return self.paper.created_by
+        else:
+            first_post = self.posts.first()
+            if (first_post is not None):
+                return first_post.created_by
+            return None
+
+    @property
+    def hubs(self):
+        if (self.document_type == PAPER):
+            return self.paper.hubs
+        else:
+            first_post = self.posts.first()
+            return first_post.hubs if first_post is not None \
+                else None
+            

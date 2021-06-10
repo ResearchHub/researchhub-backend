@@ -26,6 +26,8 @@ import purchase.views
 import researchhub_case.views as researchhub_case_views
 
 from researchhub.settings import CLOUD, NO_SILK
+import researchhub_document.views as researchhub_document_views
+
 
 router = routers.DefaultRouter()
 
@@ -184,6 +186,12 @@ router.register(
     r'author_claim_case',
     researchhub_case_views.AuthorClaimCaseViewSet,
     basename='author_claim_case'
+)
+
+router.register(
+    r'researchhub_post',
+    researchhub_document_views.AuthorClaimCaseViewSet,
+    basename='researchhub_post',
 )
 
 urlpatterns = [
