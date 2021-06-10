@@ -39,12 +39,13 @@ class ResearchhubPostSerializer(ModelSerializer):
 
     def get_post_src(self, instance):
         if (instance.document_type == DISCUSSION):
-            return instance.discussion_src
+            print("URL: ", instance.discussion_src.url)
+            return instance.discussion_src.url
         else:
-            return instance.eln_src
+            return instance.eln_src.url
 
     def get_created_by(self, instance):
-        return UserSerializer(instance.created_by, read_only=True)
+        return UserSerializer(instance.created_by, read_only=True).data
 
     def get_unified_document_id(self, instance):
         unified_document = instance.unified_document

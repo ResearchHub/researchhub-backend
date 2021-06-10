@@ -28,7 +28,7 @@ class ResearchhubUnifiedDocument(DefaultModel):
     hot_score = models.IntegerField(
         default=0,
         db_index=True,
-        help_text='Feed ranking score',
+        help_text='Feed ranking score.',
     )
     hubs = models.ManyToManyField(
         Hub,
@@ -38,8 +38,9 @@ class ResearchhubUnifiedDocument(DefaultModel):
     paper = models.OneToOneField(
         Paper,
         db_index=True,
+        null=True,
         on_delete=models.CASCADE,
-        related_name='unified_document'
+        related_name='unified_document',
     )
 
     @property
@@ -58,13 +59,4 @@ class ResearchhubUnifiedDocument(DefaultModel):
             if (first_post is not None):
                 return first_post.created_by
             return None
-
-    @property
-    def hubs(self):
-        if (self.document_type == PAPER):
-            return self.paper.hubs
-        else:
-            first_post = self.posts.first()
-            return first_post.hubs if first_post is not None \
-                else None
             
