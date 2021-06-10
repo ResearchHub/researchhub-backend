@@ -1,5 +1,6 @@
 from django.db import models
 
+from hub.models import Hub
 from researchhub_document.related_models.constants.document_type \
     import DISCUSSION, DOCUMENT_TYPES
 from researchhub_document.related_models.researchhub_unified_document_model \
@@ -7,10 +8,18 @@ from researchhub_document.related_models.researchhub_unified_document_model \
 from researchhub_document.related_models.constants.editor_type import (
   CK_EDITOR, EDITOR_TYPES,
 )
+from user.models import User
 from utils.models import DefaultModel
 
 
 class ResearchhubPost(DefaultModel):
+    created_by = models.ForeignKey(
+        User,
+        db_index=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name='created_posts',
+    )
     discussion_src = models.FileField(
         blank=True,
         default=None,
@@ -37,6 +46,11 @@ class ResearchhubPost(DefaultModel):
         null=True,
         upload_to='uploads/post_eln/%Y/%m/%d/',
     )
+    hubs = models.ManyToManyField(
+        Hub,
+        related_name='related_documents',
+        blank=True
+    )
     prev_version = models.OneToOneField(
         'self',
         blank=True,
@@ -44,6 +58,11 @@ class ResearchhubPost(DefaultModel):
         null=True,
         on_delete=models.SET_NULL,
         related_name='next_version',
+    )
+    preview_img = models.URLField(
+        blank=True,
+        default=None,
+        null=True,
     )
     renderable_text = models.TextField(
         blank=True,
