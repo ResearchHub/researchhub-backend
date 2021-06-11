@@ -94,9 +94,9 @@ class Endorsement(models.Model):
 
 
 class AbstractGenericReactionModel(DefaultModel):
-    endorsement = GenericRelation(Endorsement)
+    endorsements = GenericRelation(Endorsement)
     flags = GenericRelation(Flag)
-    vote = GenericRelation(Vote)
+    votes = GenericRelation(Vote)
 
     @property
     def score_indexing(self):
