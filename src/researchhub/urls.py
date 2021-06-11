@@ -24,9 +24,9 @@ import notification.views
 import analytics.views
 import purchase.views
 import researchhub_case.views as researchhub_case_views
+import researchhub_document.views as researchhub_document_views
 
 from researchhub.settings import CLOUD, NO_SILK
-import researchhub_document.views as researchhub_document_views
 
 
 router = routers.DefaultRouter()
@@ -188,6 +188,12 @@ router.register(
     basename='author_claim_case'
 )
 
+router.register(
+    r'researchhub_posts',
+    researchhub_document_views.ResearchhubPostViewSet,
+    basename='researchhub_posts'
+)
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     re_path(r'^api/', include(router.urls)),
@@ -208,10 +214,6 @@ urlpatterns = [
         'api/permissions/',
         researchhub.views.permissions,
         name='permissions'
-    ),
-    path(
-        'api/researchhub_posts/',
-        researchhub_document_views.handle_rh_posts_requests
     ),
     path('api/search/', include(search.urls)),
     path(
