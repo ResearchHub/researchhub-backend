@@ -6,12 +6,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from discussion.permissions import CensorDiscussion, Endorse
-from discussion.models import (
-    Endorsement,
-    Flag,
-    Vote,
+from discussion.models import Endorsement, Flag, Vote
+from discussion.reaction_serializers import (
+    EndorsementSerializer,
+    FlagSerializer,
+    VoteSerializer,
 )
-
 from reputation.tasks import create_contribution
 from reputation.models import Contribution
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -21,11 +21,6 @@ from utils.siftscience import (
   update_user_risk_score
 )
 
-from .serializers import (
-    EndorsementSerializer,
-    FlagSerializer,
-    VoteSerializer,
-)
 
 
 class ReactionViewActionMixin:
