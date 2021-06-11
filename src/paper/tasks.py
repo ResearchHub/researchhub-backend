@@ -856,6 +856,9 @@ BASE_URL = 'http://export.arxiv.org/api/query?'
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
 def pull_papers(start=0, force=False):
+    # Temporarily disabling autopull
+    return
+
     if not PRODUCTION and not force:
         return
 
@@ -1060,6 +1063,9 @@ NUM_DUP_STOP = 30
     options={'queue': f'{APP_ENV}_autopull_queue'}
 )
 def pull_crossref_papers(start=0, force=False):
+    # Temporarily disabling autopull
+    return
+
     if not PRODUCTION and not force:
         return
 
