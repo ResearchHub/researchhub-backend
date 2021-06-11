@@ -13,6 +13,7 @@ class ResearchhubPostSerializer(ModelSerializer, VoteSerializerMixin):
     class Meta(object):
         model = ResearchhubPost
         fields = [
+            *VoteSerializerMixin.EXPOSABLE_FIELDS,
             'created_by',
             'document_type',
             'editor_type',
@@ -26,25 +27,26 @@ class ResearchhubPostSerializer(ModelSerializer, VoteSerializerMixin):
             'title',
             'unified_document_id',
             'version_number',
-            'user_vote',  # VoteSerializerMixin
+            
         ]
         read_only_fields = [
+            *VoteSerializerMixin.READ_ONLY_FIELDS,
             'created_by',
             'is_latest_version',
             'is_root_version',
             'post_src',
             'unified_document_id',
             'version_number',
-            'user_vote',  # VoteSerializerMixin
         ]
 
     created_by = SerializerMethodField(method_name='get_created_by')
+    full_markdown = SerializerMethodField(method_name='get_full_markdown')
+    hubs = SerializerMethodField(method_name="get_hubs")
     post_src = SerializerMethodField(method_name='get_post_src')
     unified_document_id = SerializerMethodField(
         method_name='get_unified_document_id'
     )
-    full_markdown = SerializerMethodField(method_name='get_full_markdown')
-    hubs = SerializerMethodField(method_name="get_hubs")
+    user_vote = SerializerMethodField()  # VoteSerializerMixin
 
     def get_post_src(self, instance):
         if (instance.document_type == DISCUSSION):

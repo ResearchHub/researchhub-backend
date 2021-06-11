@@ -48,6 +48,13 @@ class VoteSerializer(serializers.ModelSerializer):
 
 
 class VoteSerializerMixin:
+    EXPOSABLE_FIELDS = [
+      'user_vote'
+    ]
+    READ_ONLY_FIELDS = [
+      'user_vote'
+    ]
+
     def get_score(self, obj):
         if self.context.get('needs_score', False):
             return obj.calculate_score()
