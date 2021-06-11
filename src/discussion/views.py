@@ -53,7 +53,7 @@ from reputation.tasks import create_contribution
 from utils import sentry
 from utils.permissions import CreateOrUpdateIfAllowed
 
-from .reaction_views import ReactionActionMixin
+from .reaction_views import ReactionViewActionMixin
 from .serializers import (
     CommentSerializer,
     ReplySerializer,
@@ -66,7 +66,7 @@ from .utils import (
 )
 
 
-class ThreadViewSet(viewsets.ModelViewSet, ReactionActionMixin):
+class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     serializer_class = ThreadSerializer
     throttle_classes = THROTTLE_CLASSES
 
@@ -224,7 +224,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionActionMixin):
         return super().downvote(*args, **kwargs)
 
 
-class CommentViewSet(viewsets.ModelViewSet, ReactionActionMixin):
+class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     serializer_class = CommentSerializer
     throttle_classes = THROTTLE_CLASSES
 
@@ -327,7 +327,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionActionMixin):
         return super().downvote(*args, **kwargs)
 
 
-class ReplyViewSet(viewsets.ModelViewSet, ReactionActionMixin):
+class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     serializer_class = ReplySerializer
     throttle_classes = THROTTLE_CLASSES
 
