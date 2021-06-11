@@ -75,7 +75,7 @@ from utils.permissions import CreateOrUpdateIfAllowed
 from utils.siftscience import events_api, decisions_api, update_user_risk_score
 
 
-class ActionMixin:
+class ReactionActionMixin:
     """
     Note: Action decorators may be applied by classes inheriting this one.
     """
@@ -309,7 +309,7 @@ class ActionMixin:
         update_user_risk_score(item.created_by, tracked_comment)
 
 
-class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
+class ThreadViewSet(viewsets.ModelViewSet, ReactionActionMixin):
     serializer_class = ThreadSerializer
     throttle_classes = THROTTLE_CLASSES
 
@@ -467,7 +467,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ActionMixin):
         return super().downvote(*args, **kwargs)
 
 
-class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
+class CommentViewSet(viewsets.ModelViewSet, ReactionActionMixin):
     serializer_class = CommentSerializer
     throttle_classes = THROTTLE_CLASSES
 
@@ -570,7 +570,7 @@ class CommentViewSet(viewsets.ModelViewSet, ActionMixin):
         return super().downvote(*args, **kwargs)
 
 
-class ReplyViewSet(viewsets.ModelViewSet, ActionMixin):
+class ReplyViewSet(viewsets.ModelViewSet, ReactionActionMixin):
     serializer_class = ReplySerializer
     throttle_classes = THROTTLE_CLASSES
 
