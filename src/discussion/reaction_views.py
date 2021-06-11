@@ -28,7 +28,7 @@ from .serializers import (
 )
 
 
-class ReactionActionMixin:
+class ReactionViewActionMixin:
     """
     Note: Action decorators may be applied by classes inheriting this one.
     """
