@@ -15,6 +15,7 @@ class ResearchhubPostSerializer(
         model = ResearchhubPost
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
+            'id',
             'created_by',
             'document_type',
             'editor_type',
@@ -31,6 +32,7 @@ class ResearchhubPostSerializer(
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
+            'id',
             'created_by',
             'is_latest_version',
             'is_root_version',
