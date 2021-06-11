@@ -4,6 +4,7 @@ from researchhub_document.related_models.constants.document_type \
     import DISCUSSION
 from researchhub_document.models import ResearchhubPost
 from user.serializers import UserSerializer
+from hub.serializers import SimpleHubSerializer
 
 
 class ResearchhubPostSerializer(ModelSerializer):
@@ -21,6 +22,8 @@ class ResearchhubPostSerializer(ModelSerializer):
             'title',
             'unified_document_id',
             'version_number',
+            'full_markdown',
+            'hubs',
         ]
         read_only_fields = [
             'created_by',
@@ -36,10 +39,11 @@ class ResearchhubPostSerializer(ModelSerializer):
     unified_document_id = SerializerMethodField(
         method_name='get_unified_document_id'
     )
+    full_markdown = SerializerMethodField(method_name='get_full_markdown')
+    hubs = SerializerMethodField(method_name="get_hubs")
 
     def get_post_src(self, instance):
         if (instance.document_type == DISCUSSION):
-            print("URL: ", instance.discussion_src.url)
             return instance.discussion_src.url
         else:
             return instance.eln_src.url
@@ -51,3 +55,14 @@ class ResearchhubPostSerializer(ModelSerializer):
         unified_document = instance.unified_document
         return instance.unified_document.id \
             if unified_document is not None else None
+
+    def get_full_markdown(self, instance):
+        if (instance.document_type == DISCUSSION):
+            byte_string = instance.discussion_src.read()
+        else:
+            byte_string = instance.eln_src.read()
+        full_markdown = byte_string.decode('utf-8')
+        return full_markdown
+
+    def get_hubs(self, instance):
+        return SimpleHubSerializer(instance.unified_document.hubs, many=True).data
