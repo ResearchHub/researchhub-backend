@@ -349,16 +349,16 @@ def update_or_create_vote(request, user, item, vote_type):
 
     vote = create_vote(user, item, vote_type)
     events_api.track_content_vote(user, vote, request)
-
-    create_contribution.apply_async(
-        (
-            Contribution.UPVOTER,
-            {'app_label': 'discussion', 'model': 'vote'},
-            request.user.id,
-            vote.paper.id,
-            vote.id
-        ),
-        priority=2,
-        countdown=10
-    )
+    # TODO: calvinhlee - figure out how to handle contributions
+    # create_contribution.apply_async(
+    #     (
+    #         Contribution.UPVOTER,
+    #         {'app_label': 'discussion', 'model': 'vote'},
+    #         request.user.id,
+    #         vote.paper.id,
+    #         vote.id
+    #     ),
+    #     priority=2,
+    #     countdown=10
+    # )
     return get_vote_response(vote, 201)
