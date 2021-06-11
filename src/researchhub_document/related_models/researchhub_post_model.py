@@ -1,5 +1,6 @@
 from django.db import models
 
+from discussion.reaction_models import AbstractGenericReactionModel
 from researchhub_document.related_models.constants.document_type \
     import DISCUSSION, DOCUMENT_TYPES
 from researchhub_document.related_models.researchhub_unified_document_model \
@@ -8,10 +9,9 @@ from researchhub_document.related_models.constants.editor_type import (
   CK_EDITOR, EDITOR_TYPES,
 )
 from user.models import User
-from utils.models import DefaultModel
 
 
-class ResearchhubPost(DefaultModel):
+class ResearchhubPost(AbstractGenericReactionModel):
     created_by = models.ForeignKey(
         User,
         db_index=True,
@@ -77,7 +77,7 @@ class ResearchhubPost(DefaultModel):
         default=1,
         null=False,
     )
-
+    
     @property
     def is_latest_version(self):
         return self.next_version is None

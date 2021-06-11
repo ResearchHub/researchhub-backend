@@ -1,9 +1,12 @@
+from django.db.models import Count, F, Q
+
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import (
     GenericForeignKey,
     GenericRelation
 )
 from django.db import models
+from utils.models import DefaultModel
 
 
 class Vote(models.Model):
@@ -88,3 +91,37 @@ class Endorsement(models.Model):
                 name='unique_endorsement'
             )
         ]
+
+
+class AbstractGenericReactionModel(DefaultModel):
+    endorsement = GenericRelation(Endorsement)
+    flags = GenericRelation(Flag)
+    vote = GenericRelation(Vote)
+
+    @property
+    def score_indexing(self):
+        return self.calculate_score()
+
+    def calculate_score(self, ignore_self_vote=False):
+        if hasattr(self, 'score'):
+            return self.score
+        else:
+            qs = self.votes.filter(
+                created_by__is_suspended=False,
+                created_by__probable_spammer=False
+            )
+
+            if ignore_self_vote:
+                qs = qs.exclude(created_by=F('discussion__created_by'))
+
+            score = qs.aggregate(
+                score=Count(
+                    'id', filter=Q(vote_type=Vote.UPVOTE)
+                ) - Count(
+                    'id', filter=Q(vote_type=Vote.DOWNVOTE)
+                )
+            ).get('score', 0)
+            return score
+
+    class Meta:
+        abstract = True

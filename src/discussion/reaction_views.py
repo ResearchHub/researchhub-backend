@@ -1,11 +1,13 @@
-
 from django.contrib.admin.options import get_content_type_for_model
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from discussion.permissions import CensorDiscussion, Endorse
+from discussion.permissions import (
+    CensorDiscussion as CensorDiscussionPermission,
+    Endorse as EndorsePermission
+)
 from discussion.models import Endorsement, Flag, Vote
 from discussion.reaction_serializers import (
     EndorsementSerializer,
@@ -22,7 +24,6 @@ from utils.siftscience import (
 )
 
 
-
 class ReactionViewActionMixin:
     """
     Note: Action decorators may be applied by classes inheriting this one.
@@ -32,7 +33,7 @@ class ReactionViewActionMixin:
         detail=True,
         methods=['post'],
         permission_classes=[
-            Endorse
+            EndorsePermission
             & CreateOrUpdateIfAllowed
         ]
     )
@@ -106,7 +107,7 @@ class ReactionViewActionMixin:
         methods=['put', 'patch', 'delete'],
         permission_classes=[
             IsAuthenticated,
-            CensorDiscussion
+            CensorDiscussionPermission
         ]
     )
     def censor(self, request, pk=None):
