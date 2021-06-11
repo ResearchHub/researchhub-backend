@@ -6,7 +6,8 @@ from rest_framework.response import Response
 
 from discussion.permissions import (
     CensorDiscussion as CensorDiscussionPermission,
-    Endorse as EndorsePermission
+    Endorse as EndorsePermission,
+    Vote as VotePermission,
 )
 from discussion.models import Endorsement, Flag, Vote
 from discussion.reaction_serializers import (
@@ -140,6 +141,14 @@ class ReactionViewActionMixin:
             status=200
         )
 
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[
+            VotePermission
+            & CreateOrUpdateIfAllowed
+        ]
+    )
     def upvote(self, request, pk=None):
         item = self.get_object()
         user = request.user
@@ -154,6 +163,14 @@ class ReactionViewActionMixin:
         response = update_or_create_vote(request, user, item, Vote.UPVOTE)
         return response
 
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[
+            VotePermission
+            & CreateOrUpdateIfAllowed
+        ]
+    )
     def downvote(self, request, pk=None):
         item = self.get_object()
         user = request.user
