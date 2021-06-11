@@ -6,7 +6,6 @@ from researchhub_document.related_models.constants.document_type \
     import DISCUSSION
 from researchhub_document.models import ResearchhubPost
 from user.serializers import UserSerializer
-from utils.http import get_user_from_request
 
 
 class ResearchhubPostSerializer(ModelSerializer, VoteSerializerMixin):
@@ -27,7 +26,6 @@ class ResearchhubPostSerializer(ModelSerializer, VoteSerializerMixin):
             'title',
             'unified_document_id',
             'version_number',
-            
         ]
         read_only_fields = [
             *VoteSerializerMixin.READ_ONLY_FIELDS,
