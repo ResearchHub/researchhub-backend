@@ -68,7 +68,7 @@ class GenericReactionSerializerMixin:
         if user:
             try:
                 return EndorsementSerializer(
-                    obj.endorsement.get(created_by=user.id)
+                    obj.endorsements.get(created_by=user.id)
                 ).data
             except Endorsement.DoesNotExist:
                 return None
@@ -103,7 +103,7 @@ class GenericReactionSerializerMixin:
                 vote = obj.votes.get(created_by=user.id)
                 vote = VoteSerializer(vote).data
             except Vote.DoesNotExist:
-                pass
+                return None
         return vote
 
     def get_user_flag(self, obj):
