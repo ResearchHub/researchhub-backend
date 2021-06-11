@@ -1,5 +1,4 @@
 from django.core.files.base import ContentFile
-from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -18,7 +17,6 @@ from user.models import User
 
 
 class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
-    # filter_backends = (OrderingFilter)
     ordering = ('-created_date')
     permission_classes = [AllowAny]  # change to IsAuthenticated
     serializer_class = ResearchhubPostSerializer
