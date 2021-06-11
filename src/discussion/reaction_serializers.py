@@ -47,17 +47,31 @@ class VoteSerializer(serializers.ModelSerializer):
         model = Vote
 
 
-class VoteSerializerMixin:
+class GenericReactionSerializerMixin:
     EXPOSABLE_FIELDS = [
       'promoted',
+      'score',
+      'user_endorsement',
       'user_flag',
       'user_vote'
     ]
     READ_ONLY_FIELDS = [
       'promoted',
+      'score',
+      'user_endorsement',
       'user_flag',
       'user_vote'
     ]
+
+    def get_user_endorsement(self, obj):
+        user = get_user_from_request(self.context)
+        if user:
+            try:
+                return EndorsementSerializer(
+                    obj.endorsement.get(created_by=user.id)
+                ).data
+            except Endorsement.DoesNotExist:
+                return None
 
     def get_score(self, obj):
         if self.context.get('needs_score', False):
@@ -112,4 +126,7 @@ class VoteSerializerMixin:
     def get_promoted(self, obj):
         if self.context.get('exclude_promoted_score', False):
             return None
-        return obj.get_promoted_score()
+        try:
+            return obj.get_promoted_score()
+        except Exception:
+            return None

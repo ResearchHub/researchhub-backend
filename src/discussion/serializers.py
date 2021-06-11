@@ -1,7 +1,9 @@
 import rest_framework.serializers as serializers
 
 from discussion.models import Comment, Thread, Reply
-from discussion.reaction_serializers import VoteSerializer, VoteSerializerMixin
+from discussion.reaction_serializers import (
+    VoteSerializer, GenericReactionSerializerMixin
+)
 from researchhub.settings import PAGINATION_PAGE_SIZE
 from user.serializers import MinimalUserSerializer
 from utils.http import get_user_from_request
@@ -38,7 +40,9 @@ class CensorMixin:
         )
 
 
-class CommentSerializer(serializers.ModelSerializer, VoteSerializerMixin):
+class CommentSerializer(
+    serializers.ModelSerializer, GenericReactionSerializerMixin
+):
     created_by = MinimalUserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
@@ -125,7 +129,9 @@ class CommentSerializer(serializers.ModelSerializer, VoteSerializerMixin):
             return None
 
 
-class ThreadSerializer(serializers.ModelSerializer, VoteSerializerMixin):
+class ThreadSerializer(
+    serializers.ModelSerializer, GenericReactionSerializerMixin
+):
     created_by = MinimalUserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
@@ -220,7 +226,10 @@ class SimpleThreadSerializer(ThreadSerializer):
         model = Thread
 
 
-class ReplySerializer(serializers.ModelSerializer, VoteSerializerMixin):
+class ReplySerializer(
+    serializers.ModelSerializer,
+    GenericReactionSerializerMixin
+):
     created_by = MinimalUserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
