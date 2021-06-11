@@ -32,8 +32,11 @@ def get_researchhub_posts(request):
         query_params = request.query_params
         query_set = ResearchhubPost.objects.all()
         created_by_id = query_params.get('created_by')
+        document_id = query_params.get('documentId')
         if (created_by_id is not None):
             query_set = query_set.filter(created_by__id=created_by_id)
+        if (document_id is not None):
+            query_set = query_set.filter(unified_document_id=document_id)
         return Response(
             ResearchhubPostSerializer(query_set, many=True,).data,
             status=200
