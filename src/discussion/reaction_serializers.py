@@ -49,9 +49,13 @@ class VoteSerializer(serializers.ModelSerializer):
 
 class VoteSerializerMixin:
     EXPOSABLE_FIELDS = [
+      'promoted',
+      'user_flag',
       'user_vote'
     ]
     READ_ONLY_FIELDS = [
+      'promoted',
+      'user_flag',
       'user_vote'
     ]
 
