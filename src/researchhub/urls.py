@@ -188,12 +188,6 @@ router.register(
     basename='author_claim_case'
 )
 
-#router.register(
-#    r'researchhub_post',
-#    researchhub_document_views.AuthorClaimCaseViewSet,
-#    basename='researchhub_post',
-#)
-
 urlpatterns = [
     path('admin/', admin.site.urls),
     re_path(r'^api/', include(router.urls)),
