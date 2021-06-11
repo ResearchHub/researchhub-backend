@@ -1,19 +1,23 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
+from discussion.reaction_serializers import VoteSerializerMixin
+from hub.serializers import SimpleHubSerializer
 from researchhub_document.related_models.constants.document_type \
     import DISCUSSION
 from researchhub_document.models import ResearchhubPost
 from user.serializers import UserSerializer
-from hub.serializers import SimpleHubSerializer
+from utils.http import get_user_from_request
 
 
-class ResearchhubPostSerializer(ModelSerializer):
+class ResearchhubPostSerializer(ModelSerializer, VoteSerializerMixin):
     class Meta(object):
         model = ResearchhubPost
         fields = [
             'created_by',
             'document_type',
             'editor_type',
+            'full_markdown',
+            'hubs',
             'is_latest_version',
             'is_root_version',
             'post_src',
@@ -22,8 +26,7 @@ class ResearchhubPostSerializer(ModelSerializer):
             'title',
             'unified_document_id',
             'version_number',
-            'full_markdown',
-            'hubs',
+            'user_vote',  # VoteSerializerMixin
         ]
         read_only_fields = [
             'created_by',
@@ -32,6 +35,7 @@ class ResearchhubPostSerializer(ModelSerializer):
             'post_src',
             'unified_document_id',
             'version_number',
+            'user_vote',  # VoteSerializerMixin
         ]
 
     created_by = SerializerMethodField(method_name='get_created_by')
@@ -65,4 +69,6 @@ class ResearchhubPostSerializer(ModelSerializer):
         return full_markdown
 
     def get_hubs(self, instance):
-        return SimpleHubSerializer(instance.unified_document.hubs, many=True).data
+        return SimpleHubSerializer(
+            instance.unified_document.hubs, many=True
+        ).data
