@@ -152,7 +152,6 @@ class ReactionViewActionMixin:
     def upvote(self, request, pk=None):
         item = self.get_object()
         user = request.user
-
         vote_exists = find_vote(user, item, Vote.UPVOTE)
 
         if vote_exists:
@@ -340,16 +339,15 @@ def create_vote(user, item, vote_type):
 
 def update_or_create_vote(request, user, item, vote_type):
     vote = retrieve_vote(user, item)
-
-    if vote:
+    # TODO: calvinhlee - figure out how to handle contributions
+    if vote is not None:
         vote.vote_type = vote_type
         vote.save(update_fields=['updated_date', 'vote_type'])
-        events_api.track_content_vote(user, vote, request)
+        # events_api.track_content_vote(user, vote, request)
         return get_vote_response(vote, 200)
 
     vote = create_vote(user, item, vote_type)
-    events_api.track_content_vote(user, vote, request)
-    # TODO: calvinhlee - figure out how to handle contributions
+    # events_api.track_content_vote(user, vote, request)
     # create_contribution.apply_async(
     #     (
     #         Contribution.UPVOTER,

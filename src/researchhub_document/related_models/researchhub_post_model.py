@@ -85,3 +85,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
     @property
     def is_root_version(self):
         return self.version_number == 1
+
+    @property
+    def paper(self):
+        return None
