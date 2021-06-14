@@ -23,7 +23,9 @@ from researchhub.settings import (
     AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY,
     AWS_S3_REGION_NAME,
-    CERMINE_FUNCTION_ARN
+    CERMINE_FUNCTION_ARN,
+    PRODUCTION,
+    STAGING
 )
 from paper.lib import (
     journal_hosts,
@@ -742,9 +744,24 @@ def paper_piecewise_log(k):
     return res
 
 
-def lambda_extract_pdf_sections(paper_id):
+def extract_pdf_sections(paper_id):
+    if PRODUCTION or STAGING:
+        return lambda_extract_pdf_sections(paper_id)
+    else:
+        from paper.tasks import celery_extract_pdf_sections
+        return celery_extract_pdf_sections.apply_async(
+            (paper_id,),
+            priority=3,
+            countdown=15
+        )
+
+
+def lambda_extract_pdf_sections(paper_id, retry=0):
     data = {
-        CERMINE_EXTRACT: paper_id
+        CERMINE_EXTRACT: {
+            'args': paper_id,
+            'retry': retry
+        }
     }
     data_bytes = json.dumps(data).encode('utf-8')
 

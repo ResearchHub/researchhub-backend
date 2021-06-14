@@ -1,6 +1,8 @@
 #!/bin/sh
 
-echo "Running pre-push hook\n"
+# TODO: Fix backend tests
+
+# echo "Running pre-push hook\n"
 
 # ./scripts/run-tests
 

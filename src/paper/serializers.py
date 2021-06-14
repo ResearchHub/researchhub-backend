@@ -31,7 +31,7 @@ from paper.utils import (
     check_url_is_pdf,
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url,
-    lambda_extract_pdf_sections
+    extract_pdf_sections
 )
 from summary.serializers import SummarySerializer
 from researchhub.lib import get_paper_id_from_path
@@ -479,7 +479,7 @@ class PaperSerializer(BasePaperSerializer):
         if type(file) is not str:
             paper.file = file
             paper.save(update_fields=['file'])
-            lambda_extract_pdf_sections(paper_id)
+            extract_pdf_sections(paper_id)
             return
 
         if paper.url is not None:

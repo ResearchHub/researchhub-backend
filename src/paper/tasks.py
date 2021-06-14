@@ -56,7 +56,7 @@ from paper.utils import (
     get_redirect_url,
     IGNORE_PAPER_TITLES,
     reset_paper_cache,
-    lambda_extract_pdf_sections
+    extract_pdf_sections
 )
 from hub.utils import scopus_to_rh_map
 from utils import sentry
@@ -134,7 +134,7 @@ def download_pdf(paper_id, retry=0):
             paper.save(update_fields=['file'])
             paper.extract_pdf_preview(use_celery=True)
             paper.set_paper_completeness()
-            lambda_extract_pdf_sections(paper_id)
+            extract_pdf_sections(paper_id)
         except Exception as e:
             sentry.log_info(e)
             download_pdf.apply_async(
@@ -565,7 +565,7 @@ def celery_extract_pdf_sections(paper_id):
         sentry.log_error(e, message=message)
     finally:
         shutil.rmtree(path)
-        results = (True, return_code, message)
+        results = (return_code == 0, return_code, message)
         print(results)
         return results
 
