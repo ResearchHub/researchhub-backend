@@ -10,13 +10,14 @@ from django.contrib.admin.options import get_content_type_for_model
 from bullet_point.models import BulletPoint, Vote as BulletPointVote
 from bullet_point.serializers import BulletPointVoteSerializer
 from discussion.models import Comment, Reply, Thread
-from discussion.models import Vote as DisVote
+from discussion.models import Vote as ReactionVote
 from notification.models import Notification
 from paper.models import Paper, Vote as PaperVote
 from purchase.models import Wallet
 from reputation import distributions
 from reputation.distributor import Distributor
 from researchhub.settings import TESTING
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from summary.models import Summary, Vote as SummaryVote
 from summary.serializers import SummaryVoteSerializer
 from utils.siftscience import events_api, decisions_api
@@ -136,7 +137,7 @@ def handle_spam(sender, instance, **kwargs):
 @receiver(post_save, sender=Thread, dispatch_uid='create_thread_action')
 @receiver(post_save, sender=Paper, dispatch_uid='paper_upload_action')
 @receiver(post_save, sender=PaperVote, dispatch_uid='paper_vote_action')
-@receiver(post_save, sender=DisVote, dispatch_uid='discussion_vote_action')
+@receiver(post_save, sender=ReactionVote, dispatch_uid='discussion_vote_action')
 @receiver(post_save, sender=BulletPointVote, dispatch_uid='summary_vote_action')
 @receiver(post_save, sender=SummaryVote, dispatch_uid='bulletpoint_vote_action')
 def create_action(sender, instance, created, **kwargs):
@@ -148,11 +149,6 @@ def create_action(sender, instance, created, **kwargs):
         else:
             if sender == Thread:
                 thread = instance
-                duplicate_thread = False
-
-                if thread.plain_text:
-                    duplicate_thread = Thread.objects.filter(plain_text=thread.plain_text.strip(), paper=thread.paper).count() > 1
-
                 if thread.is_removed:
                     content_id = f'{type(thread).__name__}_{thread.id}'
                     decisions_api.apply_bad_content_decision(thread.created_by, content_id)
@@ -163,14 +159,24 @@ def create_action(sender, instance, created, **kwargs):
                     )
             user = instance.created_by
 
-        # If we're creating an action for the first time, check if we've been referred
+        """
+        If we're creating an action for the first time,
+        check if we've been referred
+        """
         referral_content_types = [
             get_content_type_for_model(Thread),
             get_content_type_for_model(Reply),
             get_content_type_for_model(Comment),
             get_content_type_for_model(Paper)
         ]
-        if user and user.invited_by and not Action.objects.filter(user=user, content_type__in=referral_content_types).exists() and sender in [Thread, Reply, Comment, Paper]:
+        if (
+            user is not None
+            and user.invited_by
+            and not Action.objects.filter(
+                user=user, content_type__in=referral_content_types
+            ).exists()
+            and sender in [Thread, Reply, Comment, Paper]
+        ):
             timestamp = time()
             referred = Distributor(
                 distributions.Referral,
@@ -190,15 +196,13 @@ def create_action(sender, instance, created, **kwargs):
             )
             referrer.distribute()
 
-        display = True
-        votes = (PaperVote, DisVote, BulletPointVote, SummaryVote)
-        if sender in votes:
-            display = False
-        else:
-            display = True
-
-        if sender != DisVote and instance.is_removed:
-            display = False
+        vote_types = [
+            PaperVote, ReactionVote, BulletPointVote, SummaryVote
+        ]
+        display = False if (
+            sender in vote_types
+            or sender != ReactionVote and instance.is_removed
+        ) else True
 
         action = Action.objects.create(
             item=instance,
@@ -228,7 +232,7 @@ def create_delete_action(sender, instance, using, **kwargs):
 
 
 def create_notification(sender, instance, created, action, **kwargs):
-    if sender == DisVote or sender == PaperVote:
+    if sender == ReactionVote or sender == PaperVote:
         return
 
     if created:
@@ -283,7 +287,10 @@ def create_notification(sender, instance, created, action, **kwargs):
 
 def get_related_hubs(instance):
     paper = instance.paper
-    return paper.hubs.all()
+    if (paper is not None):
+        return paper.hubs.all()
+    elif (type(instance.item) is ResearchhubPost):
+        return instance.item.unified_document.hubs.all()
 
 
 @receiver(models.signals.post_save, sender=User)

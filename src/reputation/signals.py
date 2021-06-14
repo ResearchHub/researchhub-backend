@@ -17,7 +17,7 @@ from discussion.models import (
     Comment,
     Reply,
     Thread,
-    Vote as DiscussionVote
+    Vote as ReactionVote
 )
 from paper.models import (
     Paper,
@@ -421,7 +421,7 @@ def get_discussion_hubs(instance):
     return hubs
 
 
-@receiver(post_save, sender=DiscussionVote, dispatch_uid='discussion_vote')
+@receiver(post_save, sender=ReactionVote, dispatch_uid='discussion_vote')
 def distribute_for_discussion_vote(
     sender,
     instance,
@@ -459,6 +459,7 @@ def distribute_for_discussion_vote(
         # TODO: This needs to be altered so that if the vote changes the
         # original distribution is deleted if not yet withdrawn
         try:
+            # NOTE: Only comment seems to be supporting distribution
             distribution = get_discussion_vote_item_distribution(instance)
             distributor = Distributor(
                 distribution,
@@ -470,7 +471,7 @@ def distribute_for_discussion_vote(
         except TypeError as e:
             error = ReputationSignalError(
                 e,
-                'Failed to distribute for discussion vote'
+                'Failed to distribute for reaction vote'
             )
             print(error)
 
@@ -523,7 +524,7 @@ def get_discussion_vote_item_distribution(instance):
 
     error = TypeError(f'Instance of type {item_type} is not supported')
 
-    if vote_type == DiscussionVote.UPVOTE:
+    if vote_type == ReactionVote.UPVOTE:
         if item_type == Comment:
             return distributions.CommentUpvoted
         elif item_type == Reply:
@@ -533,7 +534,7 @@ def get_discussion_vote_item_distribution(instance):
         else:
             raise error
 
-    elif vote_type == DiscussionVote.DOWNVOTE:
+    elif vote_type == ReactionVote.DOWNVOTE:
         if item_type == Comment:
             return distributions.CommentDownvoted
         elif item_type == Reply:

@@ -40,7 +40,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                 query_set = query_set.filter(created_by__id=created_by_id)
             if (document_id is not None):
                 query_set = query_set.filter(unified_document_id=document_id)
-            return query_set
+            return query_set.order_by('-created_date')
         except (KeyError, TypeError) as exception:
             return Response(exception, status=400)
 
@@ -91,7 +91,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                 rh_post.discussion_src.save(file_name, full_src_file)
             else:
                 rh_post.eln_src.save(file_name, full_src_file)
-            
+
             return Response(
                 ResearchhubPostSerializer(
                     ResearchhubPost.objects.get(id=rh_post.id)
