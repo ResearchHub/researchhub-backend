@@ -306,7 +306,7 @@ class PaperSerializer(BasePaperSerializer):
                 paper_id = paper.id
                 paper_title = paper.paper_title or ''
                 self._check_pdf_title(paper, paper_title, file)
-
+                # NOTE: calvinhlee - This is an antipattern. Look into changing
                 Vote.objects.create(
                     paper=paper,
                     created_by=user,
