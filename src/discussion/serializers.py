@@ -160,6 +160,7 @@ class ThreadSerializer(
             'is_removed',
             'paper_slug',
             'paper',
+            'post',
             'plain_text',
             'promoted',
             'score',
