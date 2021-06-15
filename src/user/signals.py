@@ -215,7 +215,8 @@ def create_action(sender, instance, created, **kwargs):
             hubs = instance.hubs.all()
         elif sender != BulletPointVote and sender != SummaryVote:
             hubs = get_related_hubs(instance)
-        action.hubs.add(*hubs)
+        if hubs:
+            action.hubs.add(*hubs)
         create_notification(sender, instance, created, action, **kwargs)
 
         return action
@@ -286,11 +287,14 @@ def create_notification(sender, instance, created, action, **kwargs):
 
 
 def get_related_hubs(instance):
-    paper = instance.paper
-    if (paper is not None):
-        return paper.hubs.all()
-    elif (type(instance.item) is ResearchhubPost):
-        return instance.item.unified_document.hubs.all()
+    try:
+        paper = instance.paper
+        if (paper is not None):
+            return paper.hubs.all()
+        elif (type(instance.item) is ResearchhubPost):
+            return instance.item.unified_document.hubs.all()
+    except AttributeError:
+        return []
 
 
 @receiver(models.signals.post_save, sender=User)
