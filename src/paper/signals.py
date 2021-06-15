@@ -45,6 +45,7 @@ def recalc_paper_votes(
         author.save()
     paper.save()
 
+
 def check_file_updated(update_fields, file):
     if update_fields is not None and file:
         return 'file' in update_fields
