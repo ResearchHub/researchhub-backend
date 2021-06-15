@@ -270,6 +270,8 @@ class Thread(BaseComment):
 
     @property
     def users_to_notify(self):
+        if self.post:
+            return []
         users = list(self.parent.moderators.all())
         paper_authors = self.parent.authors.all()
         for author in paper_authors:
