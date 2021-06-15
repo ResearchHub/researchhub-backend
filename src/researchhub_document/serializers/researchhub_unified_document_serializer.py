@@ -17,17 +17,19 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
             'access_group',
             'created_by',
             'document_type',
+            'documents',
             'hot_score',
             'hubs',
-            'documents',
+            'score',
         ]
         read_only_fields = [
             'access_group',
             'created_by',
             'document_type',
+            'documents',
             'hot_score',
             'hubs',
-            'documents',
+            'score',
         ]
 
     access_group = SerializerMethodField(method_name="get_access_group")
@@ -37,19 +39,19 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
         many=True,
         required=False,
         context={'no_subscriber_info': True}
-    )
+    ).data
 
     def get_access_group(self, instance):
         # TODO: calvinhlee - access_group is for ELN. Work on this later
         return None
 
     def get_created_by(self, instance):
-        return UserSerializer(instance.created_by, read_only=True)
+        return UserSerializer(instance.created_by, read_only=True).data
 
     def get_documents(self, instance):
         doc_type = instance.document_type
         if (doc_type in [DISCUSSION, ELN]):
-            return ResearchhubPostSerializer(instance.posts, many=True)
+            return ResearchhubPostSerializer(instance.posts, many=True).data
         else:
-            return PaperSerializer(instance.paper)
+            return PaperSerializer(instance.paper).data
 
