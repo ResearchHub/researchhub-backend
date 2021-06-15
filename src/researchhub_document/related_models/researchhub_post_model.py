@@ -19,6 +19,10 @@ class ResearchhubPost(AbstractGenericReactionModel):
         on_delete=models.SET_NULL,
         related_name='created_posts',
     )
+    discussion_count = models.IntegerField(
+        default=0,
+        db_index=True
+    )
     discussion_src = models.FileField(
         blank=True,
         default=None,

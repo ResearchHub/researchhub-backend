@@ -218,6 +218,13 @@ class Thread(BaseComment):
         blank=True,
         null=True
     )
+    post = models.ForeignKey(
+        'researchhub_document.ResearchhubPost',
+        on_delete=models.SET_NULL,
+        related_name='threads',
+        blank=True,
+        null=True
+    )
     actions = GenericRelation(
         'user.Action',
         object_id_field='object_id',
