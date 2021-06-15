@@ -42,6 +42,11 @@ class ResearchhubUnifiedDocument(DefaultModel):
         on_delete=models.CASCADE,
         related_name='unified_document',
     )
+    score = models.IntegerField(
+        default=0,
+        db_index=True,
+        help_text='Another feed ranking score.',
+    )
 
     @property
     def is_public(self):
@@ -59,4 +64,4 @@ class ResearchhubUnifiedDocument(DefaultModel):
             if (first_post is not None):
                 return first_post.created_by
             return None
-            
+

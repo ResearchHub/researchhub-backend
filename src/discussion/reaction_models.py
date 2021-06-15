@@ -102,7 +102,7 @@ class AbstractGenericReactionModel(DefaultModel):
     def score_indexing(self):
         return self.calculate_score()
 
-    def calculate_score(self, ignore_self_vote=False):
+    def calculate_score(self):
         if hasattr(self, 'score'):
             return self.score
         else:
@@ -110,10 +110,6 @@ class AbstractGenericReactionModel(DefaultModel):
                 created_by__is_suspended=False,
                 created_by__probable_spammer=False
             )
-
-            if ignore_self_vote:
-                qs = qs.exclude(created_by=F('discussion__created_by'))
-
             score = qs.aggregate(
                 score=Count(
                     'id', filter=Q(vote_type=Vote.UPVOTE)
