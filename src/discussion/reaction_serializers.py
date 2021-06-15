@@ -74,9 +74,9 @@ class GenericReactionSerializerMixin:
                 return None
 
     def get_score(self, obj):
-        if self.context.get('needs_score', False):
+        try:
             return obj.calculate_score()
-        else:
+        except Exception:
             return None
 
     def get_children_annotated(self, obj):
