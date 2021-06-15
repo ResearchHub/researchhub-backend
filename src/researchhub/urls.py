@@ -194,6 +194,12 @@ router.register(
     basename='researchhub_posts'
 )
 
+router.register(
+    r'researchhub_unified_documents',
+    researchhub_document_views.ResearchhubUnifiedDocumentViewSet,
+    basename='researchhub_unified_documents',
+)
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     re_path(r'^api/', include(router.urls)),
