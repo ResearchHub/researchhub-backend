@@ -50,6 +50,12 @@ router.register(
 )
 
 router.register(
+    r'post/([0-9]+)/discussion',
+    discussion.views.ThreadViewSet,
+    basename='post_discussion_threads'
+)
+
+router.register(
     r'paper/discussion/file',
     discussion.views.CommentFileUpload,
     basename='discussion_file_upload'
