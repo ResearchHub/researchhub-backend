@@ -8,7 +8,7 @@ from researchhub_document.models import (
     ResearchhubUnifiedDocument, ResearchhubPost
 )
 from researchhub_document.related_models.constants.document_type import (
-    Paper as PaperDocType
+    PAPER as PaperDocType
 )
 
 
@@ -23,7 +23,7 @@ from researchhub_document.related_models.constants.document_type import (
     sender=Paper,
     dispatch_uid='rh_unified_doc_sync_scores_paper_paper',
 )
-def rh_unified_doc_sync_scores_paper(instance, sender):
+def rh_unified_doc_sync_scores_paper(instance, sender, **kwargs):
     if (
         sender is Paper
         and instance.unified_document is not None
@@ -51,7 +51,8 @@ def rh_unified_doc_sync_scores_paper(instance, sender):
     sender=Vote,
     dispatch_uid='rh_unified_doc_sync_scores_post_vote',
 )
-def rh_unified_doc_sync_scores_post(instance, sender):
+def rh_unified_doc_sync_scores_post(instance, sender, **kwargs):
+    print("IS THE SIGNAL CALLED HERE?")
     if (
       (sender is ResearchhubPost and instance.unified_document is not None)
       or
@@ -59,6 +60,7 @@ def rh_unified_doc_sync_scores_post(instance, sender):
           and type(instance.item) is ResearchhubPost
           and (instance.item.unified_document) is not None)
     ):
+        print("HOW ABOUT HERE?")
         target_post = instance if sender is ResearchhubPost else instance.item
         target_uni_doc = target_post.unified_document
         sync_scores_uni_doc_and_post(target_uni_doc, target_post)
@@ -80,7 +82,7 @@ def sync_scores_uni_doc_and_post(unified_doc, post):
     should_save = False
     score = post.calculate_score()  # refer to AbstractGenericReactionModel
     hot_score = 0  # TODO: Leo - add hot_score calculator for posts
-    if (unified_doc.hot_socre != hot_score):
+    if (unified_doc.hot_score != hot_score):
         unified_doc.hot_score = hot_score
         should_save = True
     if (unified_doc.score != score):
