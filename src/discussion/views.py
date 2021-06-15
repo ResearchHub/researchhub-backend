@@ -62,6 +62,7 @@ from .serializers import (
 from .utils import (
     get_comment_id_from_path,
     get_paper_id_from_path,
+    get_post_id_from_path,
     get_thread_id_from_path
 )
 
@@ -145,36 +146,43 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     def get_queryset(self):
         upvotes = Count('votes', filter=Q(votes__vote_type=Vote.UPVOTE,))
         downvotes = Count('votes', filter=Q(votes__vote_type=Vote.DOWNVOTE,))
-        paper_id = get_paper_id_from_path(self.request)
         source = self.request.query_params.get('source')
         is_removed = self.request.query_params.get('is_removed', False)
-        if source and source == 'twitter':
-            try:
-                Paper.objects.get(
-                    id=paper_id
-                ).extract_twitter_comments(
-                    use_celery=True
-                )
-            except Exception as e:
-                sentry.log_error(e)
 
-            threads = Thread.objects.filter(
-                paper=paper_id,
-                source=source
-            )
-        elif source == "researchhub":
-            threads = Thread.objects.filter(
-                paper=paper_id,
-                source__in=[source, "inline_paper_body"]
-            )
-        elif source:
-            threads = Thread.objects.filter(
-                paper=paper_id,
-                source=source
-            )
+        if self.request.path.split('/')[2] == 'paper':
+            paper_id = get_paper_id_from_path(self.request)
+            if source and source == 'twitter':
+                try:
+                    Paper.objects.get(
+                        id=paper_id
+                    ).extract_twitter_comments(
+                        use_celery=True
+                    )
+                except Exception as e:
+                    sentry.log_error(e)
+
+                threads = Thread.objects.filter(
+                    paper=paper_id,
+                    source=source
+                )
+            elif source == "researchhub":
+                threads = Thread.objects.filter(
+                    paper=paper_id,
+                    source__in=[source, "inline_paper_body"]
+                )
+            elif source:
+                threads = Thread.objects.filter(
+                    paper=paper_id,
+                    source=source
+                )
+            else:
+                threads = Thread.objects.filter(
+                    paper=paper_id
+                )
         else:
+            post_id = get_post_id_from_path(self.request)
             threads = Thread.objects.filter(
-                paper=paper_id
+                post=post_id,
             )
 
         threads = threads.filter(is_removed=is_removed)
@@ -183,6 +191,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         )
 
         return threads.prefetch_related('paper')
+
 
     @action(
         detail=True,
