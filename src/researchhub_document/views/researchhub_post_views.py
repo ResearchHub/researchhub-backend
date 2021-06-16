@@ -35,11 +35,11 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             query_set = ResearchhubPost.objects.all()
             query_params = request.query_params
             created_by_id = query_params.get('created_by')
-            document_id = query_params.get('document_id')
+            post_id = query_params.get('post_id')
             if (created_by_id is not None):
                 query_set = query_set.filter(created_by__id=created_by_id)
-            if (document_id is not None):
-                query_set = query_set.filter(unified_document__id=document_id)
+            if (post_id is not None):
+                query_set = query_set.filter(id=post_id)
             return query_set.order_by('-created_date')
         except (KeyError, TypeError) as exception:
             return Response(exception, status=400)
