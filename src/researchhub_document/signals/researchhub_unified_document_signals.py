@@ -62,7 +62,6 @@ def rh_unified_doc_sync_scores_post(instance, sender, **kwargs):
           and type(instance.item) is ResearchhubPost
           and (instance.item.unified_document) is not None)
     ):
-        print("HOW ABOUT HERE?")
         target_post = instance if sender is ResearchhubPost else instance.item
         target_uni_doc = target_post.unified_document
         sync_scores_uni_doc_and_post(target_uni_doc, target_post)
