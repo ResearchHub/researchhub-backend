@@ -60,6 +60,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     promoted = serializers.SerializerMethodField()
     file = serializers.SerializerMethodField()
     discussion_users = serializers.SerializerMethodField()
+    unified_document_id = serializers.SerializerMethodField()
 
     class Meta:
         abstract = True
@@ -69,12 +70,22 @@ class BasePaperSerializer(serializers.ModelSerializer):
             'user_vote',
             'user_flag',
             'users_who_bookmarked',
+            'unified_document_id',
             'slug'
         ]
         model = Paper
 
     # def get_uploaded_by(self, obj):
     #     return UserSerializer(obj.uploaded_by, read_only=True).data
+
+    def get_unified_document_id(self, instance):
+        try:
+            target_unified_doc = instance.unified_document
+            return target_unified_doc.id if (
+                target_unified_doc is not None
+            ) else None
+        except Exception:
+            return None
 
     def to_internal_value(self, data):
         data = self._transform_to_dict(data)
