@@ -123,4 +123,4 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             uni_doc.save()
             return uni_doc
         except (KeyError, TypeError) as exception:
-            print("WHAT?: ", exception)
+            print("create_unified_doc: ", exception)
