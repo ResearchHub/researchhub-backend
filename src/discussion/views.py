@@ -84,7 +84,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date',)
 
     def create(self, request, *args, **kwargs):
-        if self.request.path.split('/')[2] == 'paper':
+        if request.path.split('/')[2] == 'paper':
             paper_id = get_paper_id_from_path(request)
             paper = Paper.objects.get(id=paper_id)
 
@@ -115,7 +115,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 countdown=10
             )
         else:
-            post_id = get_post_id_from_path(self.request)
+            post_id = get_post_id_from_path(request)
             post = ResearchhubPost.objects.get(id=post_id)
 
             if request.query_params.get('created_location') == 'progress':
@@ -278,7 +278,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         return comments
 
     def create(self, request, *args, **kwargs):
-        if self.request.path.split('/')[2] == 'paper':
+        if request.path.split('/')[2] == 'paper':
             paper_id = get_paper_id_from_path(request)
             paper = Paper.objects.get(id=paper_id)
             hubs = paper.hubs.values_list('id', flat=True)
@@ -305,7 +305,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 countdown=10
             )
         else:
-            post_id = get_post_id_from_path(self.request)
+            post_id = get_post_id_from_path(request)
             post = ResearchhubPost.objects.get(id=post_id)
             hubs = list(post.unified_document.hubs.all().values_list('id', flat=True))
 
@@ -316,7 +316,6 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
             response = super().create(request, *args, **kwargs)
             response = self.get_self_upvote_response(request, response, Comment)
-            discussion_id = response.data['id']
             self.sift_track_create_content_comment(request, response, Comment)
 
         reset_cache([0])
@@ -397,27 +396,39 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         return replies
 
     def create(self, request, *args, **kwargs):
-        paper_id = get_paper_id_from_path(request)
+        if request.path.split('/')[2] == 'paper':
+            paper_id = get_paper_id_from_path(request)
 
-        if request.query_params.get('created_location') == 'progress':
-            request.data['created_location'] = (
-                BaseComment.CREATED_LOCATION_PROGRESS
+            if request.query_params.get('created_location') == 'progress':
+                request.data['created_location'] = (
+                    BaseComment.CREATED_LOCATION_PROGRESS
+                )
+
+            response = super().create(request, *args, **kwargs)
+            discussion_id = response.data['id']
+            self.sift_track_create_content_comment(request, response, Reply)
+            create_contribution.apply_async(
+                (
+                    Contribution.COMMENTER,
+                    {'app_label': 'discussion', 'model': 'reply'},
+                    request.user.id,
+                    paper_id,
+                    discussion_id
+                ),
+                priority=3,
+                countdown=10
             )
+        else:
+            post_id = get_post_id_from_path(request)
 
-        response = super().create(request, *args, **kwargs)
-        discussion_id = response.data['id']
-        self.sift_track_create_content_comment(request, response, Reply)
-        create_contribution.apply_async(
-            (
-                Contribution.COMMENTER,
-                {'app_label': 'discussion', 'model': 'reply'},
-                request.user.id,
-                paper_id,
-                discussion_id
-            ),
-            priority=3,
-            countdown=10
-        )
+            if request.query_params.get('created_location') == 'progress':
+                request.data['created_location'] = (
+                    BaseComment.CREATED_LOCATION_PROGRESS
+                )
+
+            response = super().create(request, *args, **kwargs)
+            self.sift_track_create_content_comment(request, response, Reply)
+
         return self.get_self_upvote_response(request, response, Reply)
 
     def update(self, request, *args, **kwargs):
