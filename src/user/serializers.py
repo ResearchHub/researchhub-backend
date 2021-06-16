@@ -230,7 +230,7 @@ class UserActions:
         f' and user_id can not both be None'
 
         if not hasattr(UserActions, 'flag_serializer'):
-            from discussion.serializers import FlagSerializer
+            from discussion.reaction_serializers import FlagSerializer
             UserActions.flag_serializer = FlagSerializer
 
             from paper.serializers import FlagSerializer as PaperFlagSerializer
