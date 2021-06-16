@@ -58,10 +58,13 @@ class ResearchhubPostSerializer(
     )
 
     def get_post_src(self, instance):
-        if (instance.document_type == DISCUSSION):
-            return instance.discussion_src.url
-        else:
-            return instance.eln_src.url
+        try:
+            if (instance.document_type == DISCUSSION):
+                return instance.discussion_src.url
+            else:
+                return instance.eln_src.url
+        except Exception:
+            return None
 
     def get_created_by(self, instance):
         return UserSerializer(instance.created_by, read_only=True).data
@@ -72,12 +75,15 @@ class ResearchhubPostSerializer(
             if unified_document is not None else None
 
     def get_full_markdown(self, instance):
-        if (instance.document_type == DISCUSSION):
-            byte_string = instance.discussion_src.read()
-        else:
-            byte_string = instance.eln_src.read()
-        full_markdown = byte_string.decode('utf-8')
-        return full_markdown
+        try:
+            if (instance.document_type == DISCUSSION):
+                byte_string = instance.discussion_src.read()
+            else:
+                byte_string = instance.eln_src.read()
+            full_markdown = byte_string.decode('utf-8')
+            return full_markdown
+        except Exception:
+            return None
 
     def get_hubs(self, instance):
         return SimpleHubSerializer(

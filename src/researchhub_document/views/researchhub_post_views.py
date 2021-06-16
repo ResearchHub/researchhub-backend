@@ -39,7 +39,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             if (created_by_id is not None):
                 query_set = query_set.filter(created_by__id=created_by_id)
             if (document_id is not None):
-                query_set = query_set.filter(unified_document_id=document_id)
+                query_set = query_set.filter(unified_document__id=document_id)
             return query_set.order_by('-created_date')
         except (KeyError, TypeError) as exception:
             return Response(exception, status=400)

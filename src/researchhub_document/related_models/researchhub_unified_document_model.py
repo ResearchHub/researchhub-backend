@@ -39,6 +39,7 @@ class ResearchhubUnifiedDocument(DefaultModel):
         Paper,
         db_index=True,
         null=True,
+        blank=True,
         on_delete=models.CASCADE,
         related_name='unified_document',
     )

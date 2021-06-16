@@ -24,21 +24,24 @@ from researchhub_document.related_models.constants.document_type import (
     dispatch_uid='rh_unified_doc_sync_scores_paper_paper',
 )
 def rh_unified_doc_sync_scores_paper(instance, sender, **kwargs):
-    if (
-        sender is Paper
-        and instance.unified_document is not None
-    ):
-        target_paper = instance
-        target_uni_doc = instance.unified_document
-    elif (
-        sender is ResearchhubUnifiedDocument
-        and instance.document_type is PaperDocType
-    ):
-        target_paper = instance.paper
-        target_uni_doc = instance
-    else:
+    try:
+        if (
+            sender is Paper
+            and instance.unified_document is not None
+        ):
+            target_paper = instance
+            target_uni_doc = instance.unified_document
+        elif (
+            sender is ResearchhubUnifiedDocument
+            and instance.document_type is PaperDocType
+        ):
+            target_paper = instance.paper
+            target_uni_doc = instance
+        else:
+            return None
+        sync_scores_uni_doc_and_paper(target_uni_doc, target_paper)
+    except Exception:
         return None
-    sync_scores_uni_doc_and_paper(target_uni_doc, target_paper)
 
 
 @receiver(
@@ -52,7 +55,6 @@ def rh_unified_doc_sync_scores_paper(instance, sender, **kwargs):
     dispatch_uid='rh_unified_doc_sync_scores_post_vote',
 )
 def rh_unified_doc_sync_scores_post(instance, sender, **kwargs):
-    print("IS THE SIGNAL CALLED HERE?")
     if (
       (sender is ResearchhubPost and instance.unified_document is not None)
       or
