@@ -49,7 +49,7 @@ def add_unified_doc(created, instance, **kwargs):
                 )
                 rh_unified_doc.save()
             except Exception as e:
-                print("EXCPETION: ", e)
+                print("EXCPETION (add_unified_doc): ", e)
 
 
 @receiver(post_save, sender=Vote, dispatch_uid='recalculate_paper_votes')
