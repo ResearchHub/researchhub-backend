@@ -115,11 +115,11 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             request_data = request.data
             hubs = Hub.objects.filter(
                 id__in=request_data.get('hubs')
-            ).first()
+            ).all()
             uni_doc = ResearchhubUnifiedDocument.objects.create(
                 document_type=request_data.get('document_type'),
             )
-            uni_doc.hubs.add(hubs)
+            uni_doc.hubs.add(*hubs)
             uni_doc.save()
             return uni_doc
         except (KeyError, TypeError) as exception:
