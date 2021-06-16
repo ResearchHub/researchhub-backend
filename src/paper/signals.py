@@ -47,6 +47,8 @@ def add_unified_doc(created, instance, **kwargs):
                     paper=instance,
                     score=0 if curr_score is None else curr_score
                 )
+                hubs = instance.hubs.all()
+                rh_unified_doc.hubs.add(hubs)
                 rh_unified_doc.save()
             except Exception as e:
                 print("EXCPETION (add_unified_doc): ", e)
