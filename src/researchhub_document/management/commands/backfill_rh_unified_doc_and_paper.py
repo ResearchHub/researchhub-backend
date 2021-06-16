@@ -34,7 +34,6 @@ class Command(BaseCommand):
                     paper=paper
                 ).exists()
                 if (unified_doc_exists is False):
-                    hubs = paper.hubs.all()
                     hot_score = paper.calculate_hot_score()
                     score = paper.calculate_score()
                     new_rh_unified_doc = UnifiedDocument.objects.create(
@@ -43,7 +42,8 @@ class Command(BaseCommand):
                         paper=paper,
                         score=0 if score is None else score
                     )
-                    new_rh_unified_doc.hubs.add(hubs)
+                    hubs = paper.hubs.all()
+                    new_rh_unified_doc.hubs.add(*hubs)
                     new_rh_unified_doc.save()
                 return None
             except Exception as exception:
