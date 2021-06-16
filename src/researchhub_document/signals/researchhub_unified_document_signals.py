@@ -83,7 +83,7 @@ def sync_scores_uni_doc_and_paper(unified_doc, paper):
 def sync_scores_uni_doc_and_post(unified_doc, post):
     should_save = False
     score = post.calculate_score()  # refer to AbstractGenericReactionModel
-    hot_score = 0  # TODO: Leo - add hot_score calculator for posts
+    hot_score = post.calculate_hot_score()
     if (unified_doc.hot_score != hot_score):
         unified_doc.hot_score = hot_score
         should_save = True
