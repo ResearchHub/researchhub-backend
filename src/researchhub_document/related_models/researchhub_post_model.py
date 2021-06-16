@@ -1,4 +1,10 @@
+import datetime
+import pytz
+
 from django.db import models
+from django.db.models import Avg
+from django.db.models.functions import Extract
+from django.contrib.contenttypes.fields import GenericRelation
 
 from discussion.reaction_models import AbstractGenericReactionModel
 from researchhub_document.related_models.constants.document_type \
@@ -6,8 +12,11 @@ from researchhub_document.related_models.constants.document_type \
 from researchhub_document.related_models.researchhub_unified_document_model \
   import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.editor_type import (
-  CK_EDITOR, EDITOR_TYPES,
+    CK_EDITOR,
+    EDITOR_TYPES,
 )
+from paper.utils import paper_piecewise_log
+from purchase.models import Purchase
 from user.models import User
 
 
@@ -81,7 +90,13 @@ class ResearchhubPost(AbstractGenericReactionModel):
         default=1,
         null=False,
     )
-    
+    purchases = GenericRelation(
+        'purchase.Purchase',
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='post'
+    )
+
     @property
     def is_latest_version(self):
         return self.next_version is None
@@ -93,3 +108,113 @@ class ResearchhubPost(AbstractGenericReactionModel):
     @property
     def paper(self):
         return None
+
+    def calculate_hot_score(self):
+        ALGO_START_UNIX = 1546329600
+        TWITTER_BOOST = 100
+        TIME_DIV = 3600000
+        HOUR_SECONDS = 86400
+        DATE_BOOST = 10
+
+        boosts = self.purchases.filter(
+            paid_status=Purchase.PAID,
+            amount__gt=0,
+            user__moderator=True,
+            boost_time__gte=0
+        )
+
+        today = datetime.datetime.now(
+            tz=pytz.utc
+        ).replace(
+            hour=0,
+            minute=0,
+            second=0
+        )
+        score = self.score
+        original_uploaded_date = self.uploaded_date
+        uploaded_date = original_uploaded_date
+        twitter_score = self.twitter_score
+        day_delta = datetime.timedelta(days=2)
+        timeframe = today - day_delta
+
+        if original_uploaded_date > timeframe:
+            uploaded_date = timeframe.replace(
+                hour=original_uploaded_date.hour,
+                minute=original_uploaded_date.minute,
+                second=original_uploaded_date.second
+            )
+
+        votes = self.votes
+        if votes.exists():
+            vote_avg_epoch = self.votes.aggregate(
+                avg=Avg(
+                    Extract('created_date', 'epoch'),
+                    output_field=models.IntegerField()
+                )
+            )['avg'] or 0
+            num_votes = votes.count()
+        else:
+            num_votes = 0
+            vote_avg_epoch = timeframe.timestamp()
+
+        twitter_boost_score = 0
+        if twitter_score > 0:
+            twitter_epoch = (
+                (uploaded_date.timestamp() - ALGO_START_UNIX) / TIME_DIV
+            )
+            twitter_boost_score = (
+                paper_piecewise_log(twitter_score + 1) * TWITTER_BOOST
+            ) / twitter_epoch
+
+        vote_avg = (
+            max(0, vote_avg_epoch - ALGO_START_UNIX)
+        ) / TIME_DIV
+
+        base_score = paper_piecewise_log(score + 1)
+        uploaded_date_score = uploaded_date.timestamp() / TIME_DIV
+        vote_score = paper_piecewise_log(num_votes + 1)
+        discussion_score = paper_piecewise_log(self.discussion_count + 1)
+
+        # Why we log delta days
+        # Ex: If paper 1 was uploaded 3 days ago with a low score and paper
+        # 2 was uploaded 4 days ago with a very high score, paper 2 will
+        # appear higher in the feed than paper 1. If we remove the delta
+        # days log, paper 1 will appear higher just because time is linear,
+        # and it gives a it better score
+
+        if original_uploaded_date > timeframe:
+            uploaded_date_delta = (
+                original_uploaded_date - timeframe
+            )
+            delta_days = paper_piecewise_log(
+                uploaded_date_delta.total_seconds() / HOUR_SECONDS
+            ) * DATE_BOOST
+            uploaded_date_score += delta_days
+        else:
+            uploaded_date_delta = (
+                timeframe - original_uploaded_date
+            )
+            delta_days = -paper_piecewise_log(
+                (uploaded_date_delta.total_seconds() / HOUR_SECONDS) + 1
+            ) * DATE_BOOST
+            uploaded_date_score += delta_days
+
+        boost_score = 0
+        if boosts.exists():
+            boost_amount = sum(
+                map(int, boosts.values_list(
+                    'amount',
+                    flat=True
+                ))
+            )
+            boost_score = paper_piecewise_log(boost_amount + 1)
+
+        hot_score = (
+            base_score +
+            uploaded_date_score +
+            vote_avg +
+            vote_score +
+            discussion_score +
+            twitter_boost_score +
+            boost_score
+        ) * 1000

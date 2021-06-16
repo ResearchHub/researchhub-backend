@@ -65,4 +65,3 @@ class ResearchhubUnifiedDocument(DefaultModel):
             if (first_post is not None):
                 return first_post.created_by
             return None
-
