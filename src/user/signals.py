@@ -266,7 +266,7 @@ def create_notification(sender, instance, created, action, **kwargs):
                 creator = instance.created_by
                 paper = instance.paper
 
-            if paper.uploaded_by == creator:
+            if paper and paper.uploaded_by == creator:
                 return
 
             if type(recipient) is Author and recipient.user:
