@@ -115,9 +115,11 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 countdown=10
             )
         else:
+            print("I'm HEREEREE")
             post_id = get_post_id_from_path(request)
+            print("POST ID IS: ", 93)
             post = ResearchhubPost.objects.get(id=post_id)
-
+            print("POST IS: ", post)
             if request.query_params.get('created_location') == 'progress':
                 request.data['created_location'] = (
                     BaseComment.CREATED_LOCATION_PROGRESS
