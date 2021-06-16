@@ -47,6 +47,7 @@ def add_unified_doc(created, instance, **kwargs):
                     paper=instance,
                     score=0 if curr_score is None else curr_score
                 )
+                hubs = instance.hubs
                 rh_unified_doc.save()
             except Exception as e:
                 print("EXCPETION (add_unified_doc): ", e)
@@ -69,6 +70,7 @@ def recalc_paper_votes(
         author.author_score = score
         author.save()
     paper.save()
+
 
 def check_file_updated(update_fields, file):
     if update_fields is not None and file:
