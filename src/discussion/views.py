@@ -131,18 +131,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 is_thread=True
             )
             hubs = list(post.unified_document.hubs.all().values_list('id', flat=True))
-            discussion_id = response.data['id']
-            create_contribution.apply_async(
-                (
-                    Contribution.COMMENTER,
-                    {'app_label': 'discussion', 'model': 'thread'},
-                    request.user.id,
-                    post_id,
-                    discussion_id
-                ),
-                priority=2,
-                countdown=10
-            )
 
         reset_cache([0])
         invalidate_top_rated_cache(hubs)
@@ -290,31 +278,46 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         return comments
 
     def create(self, request, *args, **kwargs):
-        paper_id = get_paper_id_from_path(request)
-        paper = Paper.objects.get(id=paper_id)
-        hubs = paper.hubs.values_list('id', flat=True)
+        if self.request.path.split('/')[2] == 'paper':
+            paper_id = get_paper_id_from_path(request)
+            paper = Paper.objects.get(id=paper_id)
+            hubs = paper.hubs.values_list('id', flat=True)
 
-        if request.query_params.get('created_location') == 'progress':
-            request.data['created_location'] = (
-                BaseComment.CREATED_LOCATION_PROGRESS
+            if request.query_params.get('created_location') == 'progress':
+                request.data['created_location'] = (
+                    BaseComment.CREATED_LOCATION_PROGRESS
+                )
+
+            response = super().create(request, *args, **kwargs)
+            response = self.get_self_upvote_response(request, response, Comment)
+            discussion_id = response.data['id']
+            self.sift_track_create_content_comment(request, response, Comment)
+
+            create_contribution.apply_async(
+                (
+                    Contribution.COMMENTER,
+                    {'app_label': 'discussion', 'model': 'comment'},
+                    request.user.id,
+                    paper_id,
+                    discussion_id
+                ),
+                priority=3,
+                countdown=10
             )
+        else:
+            post_id = get_post_id_from_path(self.request)
+            post = ResearchhubPost.objects.get(id=post_id)
+            hubs = list(post.unified_document.hubs.all().values_list('id', flat=True))
 
-        response = super().create(request, *args, **kwargs)
-        response = self.get_self_upvote_response(request, response, Comment)
-        discussion_id = response.data['id']
-        self.sift_track_create_content_comment(request, response, Comment)
+            if request.query_params.get('created_location') == 'progress':
+                request.data['created_location'] = (
+                    BaseComment.CREATED_LOCATION_PROGRESS
+                )
 
-        create_contribution.apply_async(
-            (
-                Contribution.COMMENTER,
-                {'app_label': 'discussion', 'model': 'comment'},
-                request.user.id,
-                paper_id,
-                discussion_id
-            ),
-            priority=3,
-            countdown=10
-        )
+            response = super().create(request, *args, **kwargs)
+            response = self.get_self_upvote_response(request, response, Comment)
+            discussion_id = response.data['id']
+            self.sift_track_create_content_comment(request, response, Comment)
 
         reset_cache([0])
         invalidate_top_rated_cache(hubs)
