@@ -14,7 +14,7 @@ from researchhub_document.related_models.constants.document_type import (
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        today = datetime.now()
+        today = datetime.datetime.now()
         # change stop date after confirming that it's working properly
         paper_sync_stop_date = datetime.datetime(
             year=2021,
