@@ -10,13 +10,10 @@ from utils.models import DefaultModel
 
 
 class ResearchhubUnifiedDocument(DefaultModel):
-    access_group = models.OneToOneField(
-        ResearchhubAccessGroup,
-        blank=True,
-        help_text='Mostly used for ELN',
-        null=True,
-        on_delete=models.SET_NULL,
-        related_name='document'
+    is_removed = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text='Unified Document is removed (deleted)'
     )
     document_type = models.CharField(
       choices=DOCUMENT_TYPES,
@@ -25,14 +22,23 @@ class ResearchhubUnifiedDocument(DefaultModel):
       null=False,
       help_text='Papers are imported from external src. Posts are in-house'
     )
+    published_date = models.DateTimeField(auto_now_add=True)
+    score = models.IntegerField(
+        default=0,
+        db_index=True,
+        help_text='Another feed ranking score.',
+    )
     hot_score = models.IntegerField(
         default=0,
         help_text='Feed ranking score.',
     )
-    hubs = models.ManyToManyField(
-        Hub,
-        related_name='related_documents',
-        blank=True
+    access_group = models.OneToOneField(
+        ResearchhubAccessGroup,
+        blank=True,
+        help_text='Mostly used for ELN',
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name='document'
     )
     paper = models.OneToOneField(
         Paper,
@@ -42,15 +48,10 @@ class ResearchhubUnifiedDocument(DefaultModel):
         on_delete=models.CASCADE,
         related_name='unified_document',
     )
-    score = models.IntegerField(
-        default=0,
-        db_index=True,
-        help_text='Another feed ranking score.',
-    )
-    is_removed = models.BooleanField(
-        default=False,
-        db_index=True,
-        help_text='Unified Document is removed (deleted)'
+    hubs = models.ManyToManyField(
+        Hub,
+        related_name='related_documents',
+        blank=True
     )
 
     @property
