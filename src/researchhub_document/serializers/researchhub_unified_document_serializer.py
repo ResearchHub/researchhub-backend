@@ -32,9 +32,9 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
             'score',
         ]
 
-    access_group = SerializerMethodField(method_name="get_access_group")
-    created_by = SerializerMethodField(method_name="get_created_by")
-    documents = SerializerMethodField(method_name="get_documents")
+    access_group = SerializerMethodField(method_name='get_access_group')
+    created_by = SerializerMethodField(method_name='get_created_by')
+    documents = SerializerMethodField(method_name='get_documents')
     hubs = SimpleHubSerializer(
         many=True,
         required=False,
@@ -54,4 +54,3 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
             return ResearchhubPostSerializer(instance.posts, many=True).data
         else:
             return PaperSerializer(instance.paper).data
-

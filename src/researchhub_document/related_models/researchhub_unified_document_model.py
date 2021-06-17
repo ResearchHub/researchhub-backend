@@ -67,7 +67,7 @@ class ResearchhubUnifiedDocument(DefaultModel):
     @property
     def created_by(self):
         if (self.document_type == PAPER):
-            return self.paper.created_by
+            return self.paper.uploaded_by
         else:
             first_post = self.posts.first()
             if (first_post is not None):
