@@ -447,14 +447,23 @@ def distribute_for_discussion_vote(
     ) and is_eligible_for_discussion_vote(recipient, voter):
         hubs = None
         if isinstance(instance.item, Comment):
-            hubs = instance.item.parent.paper.hubs
+            if instance.item.parent.paper is not None:
+                hubs = instance.item.parent.paper.hubs
+            elif instance.item.parent.post is not None:
+                hubs = instance.item.parent.post.unified_document.hubs
         elif isinstance(instance.item, Reply):
             try:
-                hubs = instance.item.parent.parent.paper.hubs
+                if instance.item.parent.parent.paper is not None:
+                    hubs = instance.item.parent.parent.paper.hubs
+                elif instance.item.parent.parent.post is not None:
+                    hubs = instance.item.parent.parent.post.unified_document.hubs
             except Exception as e:
                 sentry.log_error(e)
         elif isinstance(instance.item, Thread):
-            hubs = instance.item.paper.hubs
+            if instance.item.paper is not None:
+                hubs = instance.item.paper.hubs
+            elif instance.item.post is not None:
+                hubs = instance.item.post.unified_document.hubs
 
         # TODO: This needs to be altered so that if the vote changes the
         # original distribution is deleted if not yet withdrawn
