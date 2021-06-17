@@ -25,8 +25,8 @@ class Command(BaseCommand):
             second=0
         )
         papers = Paper.objects.filter(
-            created_date__lte=today,
-            created_date__gte=paper_sync_stop_date
+            uploaded_date__lte=today,
+            uploaded_date__gte=paper_sync_stop_date
         )
         for paper in papers.iterator():
             try:
