@@ -16,7 +16,9 @@ from researchhub_document.serializers import (
   ResearchhubUnifiedDocumentSerializer
 )
 from researchhub_document.related_models.constants.document_type import (
-    DOCUMENT_TYPES
+    PAPER,
+    DISCUSSION,
+    ELN
 )
 
 
@@ -54,13 +56,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     ):
         if document_type == 'paper':
             qs = self.queryset.filter(
-                document_type=DOCUMENT_TYPES.PAPER
+                document_type=PAPER
             )
         elif document_type == 'posts':
             qs = self.queryset.filter(
                 document_type=(
-                    Q(document_type=DOCUMENT_TYPES.ELN) |
-                    Q(document_type=DOCUMENT_TYPES.DISCUSSION)
+                    Q(document_type=ELN) |
+                    Q(document_type=DISCUSSION)
                 )
             )
         else:
