@@ -45,7 +45,6 @@ class Command(BaseCommand):
                     hubs = paper.hubs.all()
                     new_rh_unified_doc.hubs.add(*hubs)
                     new_rh_unified_doc.save()
-                return None
             except Exception as exception:
                 print(
                   "ERROR (backfill_rh_unified_doc_and_paper): ", exception
