@@ -14,6 +14,7 @@ from researchhub_document.models import (
 from researchhub_document.serializers.researchhub_post_serializer \
     import ResearchhubPostSerializer
 from user.models import User
+from utils.sentry import log_error
 
 
 class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
@@ -60,7 +61,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
         try:
             request_data = request.data
             document_type = request_data.get('document_type')
-            created_by_user = User.objects.get(
+            created_by = User.objects.get(
                 id=request_data.get('created_by')
             )
             is_discussion = document_type == DISCUSSION
@@ -74,7 +75,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                 unified_document.save()
 
             rh_post = ResearchhubPost.objects.create(
-                created_by=created_by_user,
+                created_by=created_by,
                 document_type=document_type,
                 editor_type=CK_EDITOR if editor_type is None else editor_type,
                 prev_version=None,
@@ -83,10 +84,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                 title=request_data.get('title'),
                 unified_document=unified_document,
             )
-            file_name = "RH-POST-{doc_type}-USER-{user_id}.txt".format(
-                doc_type=document_type,
-                user_id=created_by_user.id
-            )
+            file_name = f'RH-POST-{document_type}-USER-{created_by.id}.txt'
             full_src_file = ContentFile(request_data['full_src'].encode())
             if is_discussion:
                 rh_post.discussion_src.save(file_name, full_src_file)
@@ -101,7 +99,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             )
 
         except (KeyError, TypeError) as exception:
-            print("EXCEPTION: ", exception)
+            log_error(exception)
             return Response(exception, status=400)
 
     def update_existing_researchhub_posts(self, request):
