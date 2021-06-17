@@ -39,7 +39,7 @@ class Command(BaseCommand):
                     hot_score = paper.hot_score
                     score = paper.calculate_score()
                     is_removed = paper.is_removed
-                    published_date = paper.paper_published_date
+                    published_date = paper.paper_publish_date
                     kwargs = {
                         'document_type': PAPER,
                         'hot_score': 0 if hot_score is None else hot_score,
