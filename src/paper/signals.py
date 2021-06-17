@@ -39,19 +39,18 @@ def add_unified_doc(created, instance, **kwargs):
         ).first()
         if unified_doc is None:
             try:
-                curr_hot_score = instance.calculate_hot_score()
                 curr_score = instance.calculate_score()
                 rh_unified_doc = ResearchhubUnifiedDocument.objects.create(
                     document_type=PAPER,
-                    hot_score=0 if curr_hot_score is None else curr_hot_score,
                     paper=instance,
                     score=0 if curr_score is None else curr_score
                 )
                 hubs = instance.hubs.all()
                 rh_unified_doc.hubs.add(*hubs)
+                instance.calculate_hot_score()
                 rh_unified_doc.save()
             except Exception as e:
-                print("EXCPETION (add_unified_doc): ", e)
+                print('EXCPETION (add_unified_doc): ', e)
 
 
 @receiver(post_save, sender=Vote, dispatch_uid='recalculate_paper_votes')
