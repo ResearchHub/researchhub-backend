@@ -102,22 +102,23 @@ class AbstractGenericReactionModel(DefaultModel):
     def score_indexing(self):
         return self.calculate_score()
 
+    @property
+    def score(self):
+        return self.calculate_score()
+
     def calculate_score(self):
-        if hasattr(self, 'score'):
-            return self.score
-        else:
-            qs = self.votes.filter(
-                created_by__is_suspended=False,
-                created_by__probable_spammer=False
+        qs = self.votes.filter(
+            created_by__is_suspended=False,
+            created_by__probable_spammer=False
+        )
+        score = qs.aggregate(
+            score=Count(
+                'id', filter=Q(vote_type=Vote.UPVOTE)
+            ) - Count(
+                'id', filter=Q(vote_type=Vote.DOWNVOTE)
             )
-            score = qs.aggregate(
-                score=Count(
-                    'id', filter=Q(vote_type=Vote.UPVOTE)
-                ) - Count(
-                    'id', filter=Q(vote_type=Vote.DOWNVOTE)
-                )
-            ).get('score', 0)
-            return score
+        ).get('score', 0)
+        return score
 
     class Meta:
         abstract = True
