@@ -111,10 +111,9 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     def calculate_hot_score(self):
         ALGO_START_UNIX = 1546329600
-        TWITTER_BOOST = 100
         TIME_DIV = 3600000
         HOUR_SECONDS = 86400
-        DATE_BOOST = 10
+        DATE_BOOST = 11
 
         boosts = self.purchases.filter(
             paid_status=Purchase.PAID,
@@ -131,9 +130,8 @@ class ResearchhubPost(AbstractGenericReactionModel):
             second=0
         )
         score = self.score
-        original_uploaded_date = self.uploaded_date
+        original_uploaded_date = self.created_date
         uploaded_date = original_uploaded_date
-        twitter_score = self.twitter_score
         day_delta = datetime.timedelta(days=2)
         timeframe = today - day_delta
 
@@ -157,15 +155,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
             num_votes = 0
             vote_avg_epoch = timeframe.timestamp()
 
-        twitter_boost_score = 0
-        if twitter_score > 0:
-            twitter_epoch = (
-                (uploaded_date.timestamp() - ALGO_START_UNIX) / TIME_DIV
-            )
-            twitter_boost_score = (
-                paper_piecewise_log(twitter_score + 1) * TWITTER_BOOST
-            ) / twitter_epoch
-
         vote_avg = (
             max(0, vote_avg_epoch - ALGO_START_UNIX)
         ) / TIME_DIV
@@ -175,20 +164,14 @@ class ResearchhubPost(AbstractGenericReactionModel):
         vote_score = paper_piecewise_log(num_votes + 1)
         discussion_score = paper_piecewise_log(self.discussion_count + 1)
 
-        # Why we log delta days
-        # Ex: If paper 1 was uploaded 3 days ago with a low score and paper
-        # 2 was uploaded 4 days ago with a very high score, paper 2 will
-        # appear higher in the feed than paper 1. If we remove the delta
-        # days log, paper 1 will appear higher just because time is linear,
-        # and it gives a it better score
-
         if original_uploaded_date > timeframe:
             uploaded_date_delta = (
                 original_uploaded_date - timeframe
             )
             delta_days = paper_piecewise_log(
                 uploaded_date_delta.total_seconds() / HOUR_SECONDS
-            ) * DATE_BOOST
+            )
+            delta_days *= DATE_BOOST
             uploaded_date_score += delta_days
         else:
             uploaded_date_delta = (
@@ -196,7 +179,8 @@ class ResearchhubPost(AbstractGenericReactionModel):
             )
             delta_days = -paper_piecewise_log(
                 (uploaded_date_delta.total_seconds() / HOUR_SECONDS) + 1
-            ) * DATE_BOOST
+            )
+            delta_days *= DATE_BOOST
             uploaded_date_score += delta_days
 
         boost_score = 0
@@ -215,6 +199,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
             vote_avg +
             vote_score +
             discussion_score +
-            twitter_boost_score +
             boost_score
         ) * 1000
+
+        return hot_score

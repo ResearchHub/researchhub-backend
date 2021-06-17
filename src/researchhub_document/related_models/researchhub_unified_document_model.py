@@ -27,7 +27,6 @@ class ResearchhubUnifiedDocument(DefaultModel):
     )
     hot_score = models.IntegerField(
         default=0,
-        db_index=True,
         help_text='Feed ranking score.',
     )
     hubs = models.ManyToManyField(
@@ -47,6 +46,11 @@ class ResearchhubUnifiedDocument(DefaultModel):
         default=0,
         db_index=True,
         help_text='Another feed ranking score.',
+    )
+    is_removed = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text='Unified Document is removed (deleted)'
     )
 
     @property
