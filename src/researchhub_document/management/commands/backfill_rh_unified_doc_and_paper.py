@@ -40,18 +40,20 @@ class Command(BaseCommand):
                     score = paper.calculate_score()
                     is_removed = paper.is_removed
                     published_date = paper.paper_publish_date
+                    uploaded_date = paper.uploaded_date
                     kwargs = {
                         'document_type': PAPER,
                         'hot_score': 0 if hot_score is None else hot_score,
                         'paper': paper,
                         'score': 0 if score is None else score,
                         'is_removed': is_removed,
-                        'published_date': published_date
+                        'published_date': published_date,
                     }
 
                     new_rh_unified_doc = UnifiedDocument.objects.create(
                         **kwargs
                     )
+                    new_rh_unified_doc.created_date = uploaded_date
                     hubs = paper.hubs.all()
                     new_rh_unified_doc.hubs.add(*hubs)
                     new_rh_unified_doc.save()
