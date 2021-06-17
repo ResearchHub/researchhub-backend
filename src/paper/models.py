@@ -113,7 +113,7 @@ class Paper(models.Model):
     hot_score = models.IntegerField(
         default=0,
         db_index=True,
-        help_text="Legacy. Refer to UnifiedDocument"
+        help_text='Legacy. Refer to UnifiedDocument'
     )
     twitter_score = models.IntegerField(default=1)
 
@@ -466,6 +466,7 @@ class Paper(models.Model):
             second=0
         )
         score = self.score
+        unified_doc = self.unified_document
 
         if score >= 0:
             original_uploaded_date = self.uploaded_date
@@ -565,9 +566,12 @@ class Paper(models.Model):
                 hot_score *= 0.90
 
             self.hot_score = hot_score
+            unified_doc.hot_score = hot_score
         else:
             self.hot_score = 0
+            unified_doc.hot_score = 0
 
+        unified_doc.save()
         self.save()
 
     def calculate_twitter_score(self):
