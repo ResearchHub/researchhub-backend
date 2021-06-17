@@ -54,17 +54,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         start_date,
         end_date
     ):
+
         if document_type == 'paper':
             qs = self.queryset.filter(
                 document_type=PAPER
             )
         elif document_type == 'posts':
-            qs = self.queryset.filter(
-                document_type=(
-                    Q(document_type=ELN) |
-                    Q(document_type=DISCUSSION)
-                )
-            )
+            qs = self.queryset.filter(document_type__in=[DISCUSSION, ELN])
         else:
             qs = self.queryset.all()
 
