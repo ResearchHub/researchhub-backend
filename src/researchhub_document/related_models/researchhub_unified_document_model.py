@@ -22,7 +22,10 @@ class ResearchhubUnifiedDocument(DefaultModel):
       null=False,
       help_text='Papers are imported from external src. Posts are in-house'
     )
-    published_date = models.DateTimeField(auto_now_add=True)
+    published_date = models.DateTimeField(
+        auto_now_add=True,
+        null=True
+    )
     score = models.IntegerField(
         default=0,
         db_index=True,
