@@ -571,7 +571,8 @@ class Paper(models.Model):
             self.hot_score = 0
             unified_doc.hot_score = 0
 
-        unified_doc.save()
+        if unified_doc:
+            unified_doc.save()
         self.save()
 
     def calculate_twitter_score(self):
