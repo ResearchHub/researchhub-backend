@@ -3,14 +3,14 @@ from researchhub_document.tasks import (
 )
 from researchhub_document.related_models.constants.document_type import (
     PAPER,
-    POST,
+    POSTS,
     ALL,
 )
 
 
 def reset_unified_document_cache(
     hub_ids,
-    document_type=[ALL.lower(), POST.lower(), PAPER.lower()],
+    document_type=[ALL.lower(), POSTS.lower(), PAPER.lower()],
     ordering='-hot_score',
     time_difference=0
 ):

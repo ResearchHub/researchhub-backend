@@ -23,7 +23,7 @@ from researchhub_document.related_models.constants.document_type import (
     PAPER,
     DISCUSSION,
     ELN,
-    POST
+    POSTS
 )
 
 
@@ -66,7 +66,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             qs = qs.filter(
                 document_type=PAPER
             )
-        elif document_type == POST.lower():
+        elif document_type == POSTS.lower():
             qs = qs.filter(document_type__in=[DISCUSSION, ELN])
         else:
             qs = qs.all()
