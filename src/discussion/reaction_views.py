@@ -17,6 +17,7 @@ from discussion.reaction_serializers import (
 )
 from reputation.tasks import create_contribution
 from reputation.models import Contribution
+from researchhub_document.utils import reset_unified_document_cache
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.siftscience import (
   decisions_api,
@@ -347,6 +348,7 @@ def update_or_create_vote(request, user, item, vote_type):
         return get_vote_response(vote, 200)
 
     vote = create_vote(user, item, vote_type)
+    reset_unified_document_cache([0])
     # events_api.track_content_vote(user, vote, request)
     # create_contribution.apply_async(
     #     (

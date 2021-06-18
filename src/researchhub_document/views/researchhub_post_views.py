@@ -11,6 +11,7 @@ from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.models import (
     ResearchhubPost, ResearchhubUnifiedDocument
 )
+from researchhub_document.utils import reset_unified_document_cache
 from researchhub_document.serializers.researchhub_post_serializer \
     import ResearchhubPostSerializer
 from user.models import User
@@ -91,6 +92,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             else:
                 rh_post.eln_src.save(file_name, full_src_file)
 
+            reset_unified_document_cache([0])
             return Response(
                 ResearchhubPostSerializer(
                     ResearchhubPost.objects.get(id=rh_post.id)
@@ -103,7 +105,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             return Response(exception, status=400)
 
     def update_existing_researchhub_posts(self, request):
-        return Response("Update currently not supported", status=400)
+        return Response('Update currently not supported', status=400)
 
     def create_access_group(self, request):
         # TODO: calvinhlee - access group is for ELN
@@ -122,4 +124,4 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             uni_doc.save()
             return uni_doc
         except (KeyError, TypeError) as exception:
-            print("create_unified_doc: ", exception)
+            print('create_unified_doc: ', exception)
