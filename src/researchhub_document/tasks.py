@@ -1,17 +1,12 @@
 from datetime import datetime, timedelta
 
-from django.apps import apps
 from django.http.request import HttpRequest
 from django.core.cache import cache
-from celery.decorators import periodic_task
-from celery.task.schedules import crontab
 from rest_framework.request import Request
 
 from paper.utils import get_cache_key
-from paper.serializers import HubPaperSerializer
 from researchhub.celery import app
 from researchhub.settings import (
-    APP_ENV,
     STAGING,
     PRODUCTION
 )
@@ -59,7 +54,7 @@ def preload_trending_documents(
             minute=0,
             second=0,
             microsecond=0
-        ) - timedelta(days=1)
+        )
         cache_pk = f'{document_type}_{hub_id}_{ordering}_today'
 
     query_string_ordering = 'top_rated'
