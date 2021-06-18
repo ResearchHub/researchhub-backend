@@ -71,11 +71,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         else:
             qs = qs.all()
 
-        qs = qs.filter(
-            created_date__gte=start_date,
-            created_date__lte=end_date
-        )
-
         hub_id = int(hub_id)
         if hub_id != 0:
             qs = qs.filter(hub_id__in=[hub_id])
@@ -87,17 +82,38 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 '-created_date'
             )
         elif filtering == '-score':
-            qs = qs.order_by(filtering)
+            qs = qs.filter(
+                created_date__range=[start_date, end_date],
+            ).order_by(
+                filtering
+            )
         elif filtering == '-discussed':
             paper_threads_count = Count('paper__threads')
             paper_comments_count = Count('paper__threads__comments')
             posts_threads__count = Count('posts__threads')
             posts_comments_count = Count('posts__threads__comments')
+
             qs = qs.filter(
                 (
                     Q(paper__threads__isnull=False) |
                     Q(posts__threads__isnull=False)
                 )
+            )
+            qs = qs.filter(
+                (
+                    Q(paper__threads__created_date__range=[
+                        start_date, end_date
+                    ]) |
+                    Q(paper__threads__comments__created_date__range=[
+                        start_date, end_date
+                    ]) |
+                    Q(posts__threads__created_date__range=[
+                        start_date, end_date
+                    ]) |
+                    Q(posts__threads__comments__created_date__range=[
+                        start_date, end_date
+                    ])
+                ),
             ).annotate(
                 discussed=(
                     paper_threads_count +
