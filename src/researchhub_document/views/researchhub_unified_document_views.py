@@ -73,7 +73,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         hub_id = int(hub_id)
         if hub_id != 0:
-            qs = qs.filter(hub_id__in=[hub_id])
+            qs = qs.filter(hubs__in=[hub_id])
 
         if filtering == 'removed':
             qs = qs.filter(
