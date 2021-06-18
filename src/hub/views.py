@@ -4,7 +4,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from datetime import timedelta
 from django.utils import timezone
 from rest_framework import viewsets
-from rest_framework.decorators import action, permission_classes
+from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -25,7 +25,8 @@ from utils.message import send_email_message
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from paper.models import Vote, Paper
-from paper.utils import get_cache_key, reset_cache
+from paper.utils import get_cache_key
+from researchhub_document.utils import reset_unified_document_cache
 
 
 class CustomPageLimitPagination(PageNumberPagination):
@@ -122,7 +123,7 @@ class HubViewSet(viewsets.ModelViewSet):
         hub.discussion_count = hub.get_discussion_count()
 
         hub.save(update_fields=['is_removed', 'paper_count', 'discussion_count'])
-        reset_cache([0])
+        reset_unified_document_cache([0])
 
         return Response(
             self.get_serializer(instance=hub).data,

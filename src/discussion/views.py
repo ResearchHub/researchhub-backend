@@ -41,13 +41,13 @@ from discussion.permissions import (
     UpvoteDiscussionThread,
     Vote as VotePermission
 )
-from paper.models import Paper
 from researchhub_document.models import ResearchhubPost
+from researchhub_document.utils import reset_unified_document_cache
+from paper.models import Paper
 from paper.utils import (
     invalidate_most_discussed_cache,
     invalidate_newest_cache,
     invalidate_top_rated_cache,
-    reset_cache,
 )
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
@@ -132,7 +132,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             )
             hubs = list(post.unified_document.hubs.all().values_list('id', flat=True))
 
-        reset_cache([0])
+        reset_unified_document_cache([0])
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)
         invalidate_most_discussed_cache(hubs)
@@ -318,7 +318,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             response = self.get_self_upvote_response(request, response, Comment)
             self.sift_track_create_content_comment(request, response, Comment)
 
-        reset_cache([0])
+        reset_unified_document_cache([0])
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)
         invalidate_most_discussed_cache(hubs)

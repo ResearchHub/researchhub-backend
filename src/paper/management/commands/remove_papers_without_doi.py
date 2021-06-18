@@ -7,8 +7,9 @@ from django.utils import timezone
 
 from paper.models import Paper
 from paper.tasks import censored_paper_cleanup
-from paper.utils import reset_cache
+from researchhub_document.utils import reset_unified_document_cache
 from hub.models import Hub
+
 
 class Command(BaseCommand):
 
@@ -24,4 +25,4 @@ class Command(BaseCommand):
                 censored_paper_cleanup(paper.id)
         hub_ids = list(Hub.objects.filter(papers__in=list(papers.values_list(flat=True))).values_list(flat=True).distinct())
         print(hub_ids)
-        reset_cache(hub_ids, {}, None)
+        reset_unified_document_cache(hub_ids)

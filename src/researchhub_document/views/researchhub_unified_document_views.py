@@ -22,7 +22,8 @@ from researchhub_document.serializers import (
 from researchhub_document.related_models.constants.document_type import (
     PAPER,
     DISCUSSION,
-    ELN
+    ELN,
+    POST
 )
 
 
@@ -61,11 +62,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     ):
         qs = self.queryset.filter(is_removed=False)
 
-        if document_type == 'paper':
+        if document_type == PAPER.lower():
             qs = qs.filter(
                 document_type=PAPER
             )
-        elif document_type == 'posts':
+        elif document_type == POST.lower():
             qs = qs.filter(document_type__in=[DISCUSSION, ELN])
         else:
             qs = qs.all()
@@ -186,8 +187,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             return Response(cache_hit)
         elif not cache_hit and page_number == 1:
             reset_unified_document_cache(
-                document_request_type,
                 [hub_id],
+                [document_request_type],
                 filtering,
                 time_difference.days
             )
