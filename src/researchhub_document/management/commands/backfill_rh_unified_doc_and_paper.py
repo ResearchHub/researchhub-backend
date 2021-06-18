@@ -23,11 +23,11 @@ class Command(BaseCommand):
             hour=0,
             minute=0,
             second=0
-        ).order_by('uploaded_date')
+        )
         papers = Paper.objects.filter(
             uploaded_date__lte=today,
             uploaded_date__gte=paper_sync_stop_date
-        )
+        ).order_by('uploaded_date')
         count = papers.count()
         for i, paper in enumerate(papers.iterator()):
             print(f'{i + 1}/{count}')
