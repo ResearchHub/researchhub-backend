@@ -13,6 +13,8 @@ from rest_framework.permissions import (
     IsAuthenticated
 )
 
+from rest_framework import status
+
 from paper.utils import get_cache_key
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.utils import reset_unified_document_cache
@@ -25,6 +27,11 @@ from researchhub_document.related_models.constants.document_type import (
     ELN,
     POSTS
 )
+
+from paper.models import Vote as PaperVote
+from paper.serializers import PaperVoteSerializer
+from discussion.reaction_serializers import VoteSerializer as DiscussionVoteSerializer
+from discussion.models import Vote as DiscussionVote
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
@@ -217,8 +224,47 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             end_date
         )
 
+        context = self.get_serializer_context()
+        context['user_no_balance'] = True
+        context['exclude_promoted_score'] = True
+        context['include_wallet'] = False
+
         page = self.paginate_queryset(documents)
-        serializer = self.serializer_class(page, many=True)
+        serializer = self.serializer_class(page, many=True, context=context)
         serializer_data = serializer.data
 
         return self.get_paginated_response(serializer_data)
+    
+    @action(
+        detail=False,
+        methods=['get'],
+    )
+    def check_user_vote(self, request):
+        paper_ids = request.query_params.get('paper_ids', '')
+        post_ids = request.query_params.get('post_ids', '')
+
+        if paper_ids:
+            paper_ids = paper_ids.split(',')
+        
+        if post_ids:
+            post_ids = post_ids.split(',')
+
+        user = request.user
+        response = {
+            'posts': {},
+            'papers': {},
+        }
+
+        if user.is_authenticated:
+            if paper_ids:
+                paper_votes = PaperVote.objects.filter(paper__id__in=paper_ids, created_by=user)
+                for vote in paper_votes.iterator():
+                    paper_id = vote.paper_id
+                    response['papers'][paper_id] = PaperVoteSerializer(instance=vote).data
+            if post_ids:
+                post_votes = DiscussionVote.objects.filter(content_type_id=75, object_id__in=post_ids, created_by=user)
+                for vote in post_votes.iterator():
+                    post_id = vote.object_id
+                    response['posts'][post_id] = DiscussionVoteSerializer(instance=vote).data
+
+        return Response(response, status=status.HTTP_200_OK)
