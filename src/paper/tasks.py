@@ -671,7 +671,8 @@ def celery_preload_hub_papers(hub_ids=None):
     for hub in hubs.iterator():
         hub_name = hub.slug
         papers = hub.papers.get_queryset().filter(
-            is_removed=False
+            is_removed=False,
+            uploaded_by_id__isnull=False
         ).order_by(
             '-hot_score'
         )[:10]
@@ -769,7 +770,7 @@ def preload_trending_papers(hub_id, ordering, time_difference, context):
     req = Request(http_req)
     paper_view.request = req
 
-    papers = paper_view._get_filtered_papers(hub_id, ordering)
+    papers = paper_view._get_filtered_papers(hub_id, ordering).filter(uploaded_by_id__isnull=False)
     order_papers = paper_view.calculate_paper_ordering(
         papers,
         ordering,
