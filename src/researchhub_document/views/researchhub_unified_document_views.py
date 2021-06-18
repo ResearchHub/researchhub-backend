@@ -197,6 +197,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         document_request_type = query_params.get('type', 'all')
         hub_id = query_params.get('hub_id', 0)
+        print("HUB_ID: ", hub_id)
         page_number = int(query_params.get('page', 1))
         start_date = datetime.datetime.fromtimestamp(
             int(request.GET.get('start_date__gte', 0)),

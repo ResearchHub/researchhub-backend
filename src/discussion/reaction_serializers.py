@@ -98,13 +98,11 @@ class GenericReactionSerializerMixin:
     def get_user_vote(self, obj):
         vote = None
         user = get_user_from_request(self.context)
-        if user:
-            try:
-                vote = obj.votes.get(created_by=user.id)
-                vote = VoteSerializer(vote).data
-            except Vote.DoesNotExist:
-                return None
-        return vote
+        try:
+            vote = obj.votes.get(created_by=user)
+            vote = VoteSerializer(vote).data
+        except Vote.DoesNotExist:
+            return None
 
     def get_user_flag(self, obj):
         flag = None
