@@ -596,7 +596,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(request, user, paper, Vote.DOWNVOTE)
 
-        reset_cache(hub_ids)
+        reset_unified_document_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
