@@ -170,7 +170,6 @@ INSTALLED_APPS = [
     # Search
     'django_elasticsearch_dsl',
     'django_elasticsearch_dsl_drf',
-    'algoliasearch_django',
 
     # Emails
     'django_ses',
@@ -524,13 +523,6 @@ if STAGING:
             'timeout': 1,
         },
     }
-
-ALGOLIA = {
-    'APPLICATION_ID': os.environ.get('ALGOLIA_APP_ID', keys.ALGOLIA_APP_ID),
-    'API_KEY': os.environ.get('ALGOLIA_API_KEY', keys.ALGOLIA_API_KEY),
-    'INDEX_SUFFIX': APP_ENV,
-    'AUTO_INDEXING': True # Will auto index whenever indexable models change (e.g. papers)
-}
 
 # TODO: Need to test to ensure this is working correctly
 # ELASTICSEARCH_DSL_AUTO_REFRESH = False  # Disable refresh on every save
