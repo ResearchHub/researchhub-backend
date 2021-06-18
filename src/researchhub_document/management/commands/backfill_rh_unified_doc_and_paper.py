@@ -17,13 +17,13 @@ class Command(BaseCommand):
         today = datetime.datetime.now()
         # change stop date after confirming that it's working properly
         paper_sync_stop_date = datetime.datetime(
-            year=2021,
+            year=2019,
             month=1,
             day=1,
             hour=0,
             minute=0,
             second=0
-        )
+        ).order_by('uploaded_date')
         papers = Paper.objects.filter(
             uploaded_date__lte=today,
             uploaded_date__gte=paper_sync_stop_date

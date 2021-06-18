@@ -1,17 +1,21 @@
 import datetime
 
+from django.core.cache import cache
 from django.db.models import (
     Q,
     Count
 )
 from rest_framework.decorators import action
 from rest_framework.viewsets import ModelViewSet
+from rest_framework.response import Response
 from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated
 )
 
+from paper.utils import get_cache_key
 from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.utils import reset_unified_document_cache
 from researchhub_document.serializers import (
   ResearchhubUnifiedDocumentSerializer
 )
@@ -30,7 +34,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     serializer_class = ResearchhubUnifiedDocumentSerializer
 
     def _get_document_filtering(self, query_params):
-        filtering = query_params.get('filter', None)
+        filtering = query_params.get('ordering', None)
         if filtering == 'removed':
             filtering = 'removed'
         elif filtering == 'top_rated':
@@ -51,23 +55,29 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         self,
         document_type,
         filtering,
+        hub_id,
         start_date,
         end_date
     ):
+        qs = self.queryset.filter(is_removed=False)
 
         if document_type == 'paper':
-            qs = self.queryset.filter(
+            qs = qs.filter(
                 document_type=PAPER
             )
         elif document_type == 'posts':
-            qs = self.queryset.filter(document_type__in=[DISCUSSION, ELN])
+            qs = qs.filter(document_type__in=[DISCUSSION, ELN])
         else:
-            qs = self.queryset.all()
+            qs = qs.all()
 
         qs = qs.filter(
             created_date__gte=start_date,
             created_date__lte=end_date
         )
+
+        hub_id = int(hub_id)
+        if hub_id != 0:
+            qs = qs.filter(hub_id__in=[hub_id])
 
         if filtering == 'removed':
             qs = qs.filter(
@@ -115,6 +125,35 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         return qs
 
+    def _get_unifed_document_cache_hit(
+        self,
+        document_type,
+        filtering,
+        hub_id,
+        page_number,
+        time_difference
+    ):
+        cache_hit = None
+        if page_number == 1 and 'removed' not in filtering:
+            cache_pk = ''
+            if time_difference.days > 365:
+                cache_pk = f'{document_type}_{hub_id}_{filtering}_all_time'
+            elif time_difference.days == 365:
+                cache_pk = f'{document_type}_{hub_id}_{filtering}_year'
+            elif time_difference.days == 30 or time_difference.days == 31:
+                cache_pk = f'{document_type}_{hub_id}_{filtering}_month'
+            elif time_difference.days == 7:
+                cache_pk = f'{document_type}_{hub_id}_{filtering}_week'
+            else:
+                cache_pk = f'{document_type}_{hub_id}_{filtering}_today'
+
+            cache_key_hub = get_cache_key('hub', cache_pk)
+            cache_hit = cache.get(cache_key_hub)
+
+        if cache_hit:
+            return cache_hit
+        return None
+
     @action(
         detail=False,
         methods=['get'],
@@ -123,6 +162,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def get_unified_documents(self, request):
         query_params = request.query_params
         document_request_type = query_params.get('type', 'all')
+        hub_id = query_params.get('hub_id', 0)
+        page_number = int(query_params.get('page', 1))
         start_date = datetime.datetime.fromtimestamp(
             int(request.GET.get('start_date__gte', 0)),
             datetime.timezone.utc
@@ -131,13 +172,34 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             int(request.GET.get('end_date__lte', 0)),
             datetime.timezone.utc
         )
+        time_difference = end_date - start_date
         filtering = self._get_document_filtering(query_params)
+        cache_hit = self._get_unifed_document_cache_hit(
+            document_request_type,
+            filtering,
+            hub_id,
+            page_number,
+            time_difference
+        )
+
+        if cache_hit and page_number == 1:
+            return Response(cache_hit)
+        elif not cache_hit and page_number == 1:
+            reset_unified_document_cache(
+                document_request_type,
+                [hub_id],
+                filtering,
+                time_difference.days
+            )
+
         documents = self.get_filtered_queryset(
             document_request_type,
             filtering,
+            hub_id,
             start_date,
             end_date
         )
+
         page = self.paginate_queryset(documents)
         serializer = self.serializer_class(page, many=True)
         serializer_data = serializer.data
