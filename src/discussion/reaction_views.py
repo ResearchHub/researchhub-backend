@@ -344,16 +344,20 @@ def update_or_create_vote(request, user, item, vote_type):
     if vote is not None:
         vote.vote_type = vote_type
         vote.save(update_fields=['updated_date', 'vote_type'])
+        reset_unified_document_cache([0])
         # events_api.track_content_vote(user, vote, request)
         return get_vote_response(vote, 200)
 
     vote = create_vote(user, item, vote_type)
     reset_unified_document_cache([0])
+
+    # app_label = item._meta.app_label
+    # model = item._meta.model
     # events_api.track_content_vote(user, vote, request)
     # create_contribution.apply_async(
     #     (
     #         Contribution.UPVOTER,
-    #         {'app_label': 'discussion', 'model': 'vote'},
+    #         {'app_label': app_label, 'model': model},
     #         request.user.id,
     #         vote.paper.id,
     #         vote.id
