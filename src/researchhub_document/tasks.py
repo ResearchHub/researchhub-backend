@@ -1,14 +1,25 @@
 from datetime import datetime, timedelta
 
+from celery.decorators import periodic_task
+from celery.task.schedules import crontab
+from django.apps import apps
 from django.http.request import HttpRequest
 from django.core.cache import cache
 from rest_framework.request import Request
 
+from researchhub_document.related_models.constants.document_type import (
+    DISCUSSION,
+    ELN,
+    PAPER,
+    POSTS,
+    ALL,
+)
 from paper.utils import get_cache_key
 from researchhub.celery import app
 from researchhub.settings import (
+    APP_ENV,
     STAGING,
-    PRODUCTION
+    PRODUCTION,
 )
 
 
@@ -125,3 +136,54 @@ def preload_trending_documents(
     )
 
     return paginated_response.data
+
+
+# Executes every 5 minutes
+@periodic_task(
+    run_every=crontab(minute='*/5'),
+    priority=1,
+    options={'queue': f'{APP_ENV}_core_queue'}
+)
+def preload_hub_documents(document_type, hub_ids=None):
+    from researchhub_document.serializers import (
+      ResearchhubUnifiedDocumentSerializer
+    )
+
+    Hub = apps.get_model('hub.Hub')
+    hubs = Hub.objects.all()
+
+    context = {}
+    context['user_no_balance'] = True
+
+    if document_type == ALL.lower():
+        document_types = [PAPER, ELN, DISCUSSION]
+    elif document_type == POSTS.lower():
+        document_types = [ELN, DISCUSSION]
+    else:
+        document_types = [PAPER]
+
+    if hub_ids:
+        hubs = hubs.filter(id__in=hub_ids)
+
+    for hub in hubs.iterator():
+        hub_name = hub.slug
+        cache_pk = f'{document_type}_{hub_name}'
+        documents = hub.related_documents.get_queryset().filter(
+            document_type__in=document_types,
+            is_removed=False
+        ).order_by(
+            '-hot_score'
+        )[:10]
+        cache_key = get_cache_key('documents', cache_pk)
+        serializer = ResearchhubUnifiedDocumentSerializer(
+            documents,
+            many=True,
+            context=context
+        )
+
+        cache.set(
+            cache_key,
+            serializer.data,
+            timeout=None
+        )
+    return True

@@ -1,5 +1,6 @@
 from researchhub_document.tasks import (
-    preload_trending_documents
+    preload_trending_documents,
+    preload_hub_documents
 )
 from researchhub_document.related_models.constants.document_type import (
     PAPER,
@@ -26,3 +27,7 @@ def reset_unified_document_cache(
                 ),
                 priority=1
             )
+        preload_hub_documents.apply_async(
+            (doc_type, hub_ids),
+            priority=1
+        )
