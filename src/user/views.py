@@ -302,6 +302,9 @@ class UserViewSet(viewsets.ModelViewSet):
             Contribution.SUPPORTER,
         ]
 
+        thread_content_type = ContentType.objects.get_for_model(Thread)
+        comment_content_type = ContentType.objects.get_for_model(Comment)
+        reply_content_type = ContentType.objects.get_for_model(Reply)
         removed_threads = Thread.objects.filter(is_removed=True)
         removed_comments = Comment.objects.filter(is_removed=True)
         removed_replies = Reply.objects.filter(is_removed=True)
@@ -315,9 +318,18 @@ class UserViewSet(viewsets.ModelViewSet):
             paper__is_removed=False
         ).exclude(
             (
-                Q(object_id__in=removed_threads) |
-                Q(object_id__in=removed_comments) |
-                Q(object_id__in=removed_replies)
+                (
+                    Q(content_type=thread_content_type) &
+                    Q(object_id__in=removed_threads)
+                ) |
+                (
+                    Q(content_type=comment_content_type) &
+                    Q(object_id__in=removed_comments)
+                ) |
+                (
+                    Q(content_type=reply_content_type) &
+                    Q(object_id__in=removed_replies)
+                )
             )
         )
 
