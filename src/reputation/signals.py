@@ -8,6 +8,7 @@ from django.utils import timezone
 from django.contrib.admin.options import get_content_type_for_model
 
 import reputation.distributions as distributions
+from researchhub_document.models import ResearchhubPost
 from bullet_point.models import (
     BulletPoint,
     Vote as BulletPointVote
@@ -401,6 +402,8 @@ def get_discussion_censored_distribution(instance):
         return distributions.ReplyCensored
     elif item_type == Thread:
         return distributions.ThreadCensored
+    elif item_type == ResearchhubPost:
+        return distributions.ResearchhubPostCensored
     else:
         raise error
 
@@ -446,24 +449,27 @@ def distribute_for_discussion_vote(
         or vote_type_updated(update_fields)
     ) and is_eligible_for_discussion_vote(recipient, voter):
         hubs = None
-        if isinstance(instance.item, Comment):
-            if instance.item.parent.paper is not None:
-                hubs = instance.item.parent.paper.hubs
-            elif instance.item.parent.post is not None:
-                hubs = instance.item.parent.post.unified_document.hubs
-        elif isinstance(instance.item, Reply):
+        item = instance.item
+        if isinstance(item, Comment):
+            if item.parent.paper is not None:
+                hubs = item.parent.paper.hubs
+            elif item.parent.post is not None:
+                hubs = item.parent.post.unified_document.hubs
+        elif isinstance(item, Reply):
             try:
-                if instance.item.parent.parent.paper is not None:
-                    hubs = instance.item.parent.parent.paper.hubs
-                elif instance.item.parent.parent.post is not None:
-                    hubs = instance.item.parent.parent.post.unified_document.hubs
+                if item.parent.parent.paper is not None:
+                    hubs = item.parent.parent.paper.hubs
+                elif item.parent.parent.post is not None:
+                    hubs = item.parent.parent.post.unified_document.hubs
             except Exception as e:
                 sentry.log_error(e)
-        elif isinstance(instance.item, Thread):
-            if instance.item.paper is not None:
-                hubs = instance.item.paper.hubs
-            elif instance.item.post is not None:
-                hubs = instance.item.post.unified_document.hubs
+        elif isinstance(item, Thread):
+            if item.paper is not None:
+                hubs = item.paper.hubs
+            elif item.post is not None:
+                hubs = item.post.unified_document.hubs
+        elif isinstance(item, ResearchhubPost):
+            hubs = item.unified_document.hubs
 
         # TODO: This needs to be altered so that if the vote changes the
         # original distribution is deleted if not yet withdrawn
@@ -540,6 +546,8 @@ def get_discussion_vote_item_distribution(instance):
             return distributions.ReplyUpvoted
         elif item_type == Thread:
             return distributions.ThreadUpvoted
+        elif item_type == ResearchhubPost:
+            return distributions.ResearchhubPostUpvoted
         else:
             raise error
 
@@ -550,6 +558,8 @@ def get_discussion_vote_item_distribution(instance):
             return distributions.ReplyDownvoted
         elif item_type == Thread:
             return distributions.ThreadDownvoted
+        elif item_type == ResearchhubPost:
+            return distributions.ResearchhubPostDownvoted
         else:
             raise error
 
