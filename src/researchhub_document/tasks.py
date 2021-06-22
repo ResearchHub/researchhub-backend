@@ -144,7 +144,10 @@ def preload_trending_documents(
     priority=1,
     options={'queue': f'{APP_ENV}_core_queue'}
 )
-def preload_hub_documents(document_type, hub_ids=None):
+def preload_hub_documents(
+    document_type=[ALL.lower(), POSTS.lower(), PAPER.lower()],
+    hub_ids=None
+):
     from researchhub_document.serializers import (
       ResearchhubUnifiedDocumentSerializer
     )
@@ -165,6 +168,7 @@ def preload_hub_documents(document_type, hub_ids=None):
     if hub_ids:
         hubs = hubs.filter(id__in=hub_ids)
 
+    data = []
     for hub in hubs.iterator():
         hub_name = hub.slug
         cache_pk = f'{document_type}_{hub_name}'
@@ -181,9 +185,11 @@ def preload_hub_documents(document_type, hub_ids=None):
             context=context
         )
 
+        serializer_data = serializer.data
+        data.append(serializer_data)
         cache.set(
             cache_key,
-            serializer.data,
+            serializer_data,
             timeout=None
         )
-    return serializer.data
+    return data

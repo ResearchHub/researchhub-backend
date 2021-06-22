@@ -91,3 +91,6 @@ class ResearchhubPostSerializer(
         return SimpleHubSerializer(
             instance.unified_document.hubs, many=True
         ).data
+
+    def get_promoted_score(self, instance):
+        return False
