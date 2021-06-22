@@ -574,9 +574,6 @@ class PaperSerializer(BasePaperSerializer):
                 return url
             return None
 
-    def get_discussion_users(self, paper):
-        return None
-
 
 class HubPaperSerializer(BasePaperSerializer):
     def get_bullet_points(self, paper):
