@@ -39,6 +39,7 @@ from discussion.models import Vote as DiscussionVote
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
+    # TODO: calvinhlee - look into permissions
     permission_classes = [
         IsAuthenticated,
     ]
