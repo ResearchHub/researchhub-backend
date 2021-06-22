@@ -104,7 +104,7 @@ class GenericReactionSerializerMixin:
             if user and not user.is_anonymous:
                 vote = obj.votes.get(created_by=user)
                 vote = VoteSerializer(vote).data
-            return False
+            return vote
         except Vote.DoesNotExist:
             return None
 
