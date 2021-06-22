@@ -3,6 +3,7 @@ import rest_framework.serializers as serializers
 
 from discussion.models import Endorsement, Flag, Vote
 from utils.http import get_user_from_request
+from utils.sentry import log_error
 
 
 class EndorsementSerializer(serializers.ModelSerializer):
@@ -76,7 +77,8 @@ class GenericReactionSerializerMixin:
     def get_score(self, obj):
         try:
             return obj.calculate_score()
-        except Exception:
+        except Exception as e:
+            log_error(e)
             return None
 
     def get_children_annotated(self, obj):
@@ -99,8 +101,10 @@ class GenericReactionSerializerMixin:
         vote = None
         user = get_user_from_request(self.context)
         try:
-            vote = obj.votes.get(created_by=user)
-            vote = VoteSerializer(vote).data
+            if user and not user.is_anonymous:
+                vote = obj.votes.get(created_by=user)
+                vote = VoteSerializer(vote).data
+            return False
         except Vote.DoesNotExist:
             return None
 
@@ -126,5 +130,6 @@ class GenericReactionSerializerMixin:
             return None
         try:
             return obj.get_promoted_score()
-        except Exception:
+        except Exception as e:
+            log_error(e)
             return None
