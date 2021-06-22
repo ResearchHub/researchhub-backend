@@ -207,9 +207,6 @@ class PaperViewSet(viewsets.ModelViewSet):
     def create(self, *args, **kwargs):
         try:
             response = super().create(*args, **kwargs)
-            request = args[0]
-            hub_ids = list(request.POST['hubs'])
-            reset_unified_document_cache(hub_ids)
             return response
         except IntegrityError as e:
             return self._get_integrity_error_response(e)

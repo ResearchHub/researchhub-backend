@@ -186,4 +186,4 @@ def preload_hub_documents(document_type, hub_ids=None):
             serializer.data,
             timeout=None
         )
-    return True
+    return serializer.data
