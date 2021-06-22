@@ -344,6 +344,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     @action(
         detail=False,
         methods=['get'],
+        permission_classes=[AllowAny]
     )
     def check_user_vote(self, request):
         post_content_type = ContentType.objects.get(model='researchhubpost')

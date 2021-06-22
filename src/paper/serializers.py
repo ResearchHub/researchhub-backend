@@ -43,6 +43,7 @@ from utils.arxiv import Arxiv
 from utils.http import get_user_from_request, check_url_contains_pdf
 from utils.siftscience import events_api, update_user_risk_score
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
+from researchhub_document.utils import update_unified_document_to_paper
 
 
 class BasePaperSerializer(serializers.ModelSerializer):
@@ -349,6 +350,8 @@ class PaperSerializer(BasePaperSerializer):
                 # self._add_references(paper)
 
                 paper.pdf_license = paper.get_license(save=False)
+
+                update_unified_document_to_paper(paper)
 
                 tracked_paper = events_api.track_content_paper(
                     user,
