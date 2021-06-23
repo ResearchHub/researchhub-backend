@@ -665,20 +665,23 @@ def invalidate_most_discussed_cache(hub_ids, with_default=True):
             )
             cache.delete(cache_key)
 
-def get_name(person):
+def parse_author_name(author):
     full_name = []
 
-    if isinstance(person, models.Model):
-        if getattr(person, 'first_name') and isinstance(getattr(person, 'first_name'), str):
-            full_name.append(person.first_name)
-        if getattr(person, 'last_name') and isinstance(getattr(person, 'last_name'), str):
-            full_name.append(person.last_name)
+    if isinstance(author, models.Model):
+        if getattr(author, 'first_name') and not is_blank_str(getattr(author, 'first_name')):
+            full_name.append(author.first_name)
+        if getattr(author, 'last_name') and not is_blank_str(getattr(author, 'last_name')):
+            full_name.append(author.last_name)
 
-    elif isinstance(person, dict):
-        if person.get('first_name') and isinstance(person.get('first_name'), str):
-            full_name.append(person.get('first_name'))
-        if person.get('last_name') and isinstance(person.get('last_name'), str):
-            full_name.append(person.get('last_name'))
+    elif isinstance(author, dict):
+        if author.get('first_name') and not is_blank_str(author.get('first_name')):
+            full_name.append(author.get('first_name'))
+        if author.get('last_name') and not is_blank_str(author.get('last_name')):
+            full_name.append(author.get('last_name'))
+
+    elif isinstance(author, str) and not is_blank_str(author):
+        full_name.append(author)
 
     return ' '.join(full_name)
 
@@ -702,3 +705,9 @@ def paper_piecewise_log(k):
 
     res = k * sign
     return res
+
+def is_blank_str(string):
+    if string and isinstance(string, str) and string.strip() != '':
+        return False
+
+    return True
