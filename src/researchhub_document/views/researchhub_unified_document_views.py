@@ -1,4 +1,5 @@
 import datetime
+from collections import OrderedDict
 
 from django.core.cache import cache
 from django.db.models import (
@@ -263,7 +264,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         filtering = self._get_document_filtering(query_params)
 
         if filtering == '-hot_score' and page_number == 1:
-            documents = {}
+            all_documents = {}
             for hub in hubs.iterator():
                 hub_name = hub.slug
                 cache_pk = f'{document_request_type}_{hub_name}'
@@ -271,52 +272,62 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 cache_hit = cache.get(cache_key)
                 if cache_hit:
                     for hit in cache_hit:
-                        document_id = hit['id']
-                        abstract = hit.get('abstract', None)
-                        if document_id not in documents and abstract:
-                            documents[document_id] = hit
-            documents = list(documents.values())
+                        documents = hit['documents']
+                        documents_type = type(documents)
+                        if documents_type not in (OrderedDict, dict):
+                            # This is hit when the document is a
+                            # researchhub post.
+                            document = documents[0]
+                            document_id = document['id']
+                        else:
+                            # This is hit when the document is a paper
+                            document = documents
 
-            if len(documents) < 1:
-                documents = self.get_filtered_queryset(
+                        abstract = document.get('abstract', None)
+                        if document_id not in all_documents and abstract:
+                            all_documents[document_id] = hit
+            all_documents = list(all_documents.values())
+
+            if len(all_documents) < 1:
+                all_documents = self.get_filtered_queryset(
                     document_request_type,
                     filtering,
                     default_hub_id,
                     start_date,
                     end_date
                 )
-                documents = documents.filter(
+                all_documents = all_documents.filter(
                     hubs__in=hubs.all()
                 ).distinct()
             else:
-                documents = sorted(
-                    documents, key=lambda doc: -doc['hot_score']
+                all_documents = sorted(
+                    all_documents, key=lambda doc: -doc['hot_score']
                 )
-                documents = documents[:10]
+                all_documents = all_documents[:10]
                 next_page = request.build_absolute_uri()
-                if len(documents) < 10:
+                if len(all_documents) < 10:
                     next_page = None
                 else:
                     next_page = replace_query_param(next_page, 'page', 2)
                 res = {
-                    'count': len(documents),
+                    'count': len(all_documents),
                     'next': next_page,
-                    'results': documents
+                    'results': all_documents
                 }
                 return Response(res, status=status.HTTP_200_OK)
         else:
-            documents = self.get_filtered_queryset(
+            all_documents = self.get_filtered_queryset(
                 document_request_type,
                 filtering,
                 default_hub_id,
                 start_date,
                 end_date
             )
-            documents = documents.filter(
+            all_documents = all_documents.filter(
                 hubs__in=hubs.all()
             ).distinct()
 
-        if documents.count() < 1:
+        if all_documents.count() < 1:
             trending_pk = 'all_0_-hot_score_today'
             cache_key_hub = get_cache_key('hub', trending_pk)
             cache_hit = cache.get(cache_key_hub)
@@ -324,7 +335,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             if cache_hit and page_number == 1:
                 return Response(cache_hit)
 
-            documents = self.get_filtered_queryset(
+            all_documents = self.get_filtered_queryset(
                 document_request_type,
                 filtering,
                 default_hub_id,
@@ -337,7 +348,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         context['exclude_promoted_score'] = True
         context['include_wallet'] = False
 
-        page = self.paginate_queryset(documents)
+        page = self.paginate_queryset(all_documents)
         serializer = self.serializer_class(page, many=True, context=context)
         serializer_data = serializer.data
         return self.get_paginated_response(serializer_data)
