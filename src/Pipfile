@@ -64,6 +64,8 @@ manubot = "==0.5.0"
 django-celery-results = "==2.0.1"
 newrelic = "*"
 psycopg2-binary = ">=2.8,<2.9"
+django-elasticsearch-debug-toolbar = "*"
+django-debug-toolbar = "*"
 
 [requires]
 python_version = "3.6"
