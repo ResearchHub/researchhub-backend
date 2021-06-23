@@ -308,6 +308,13 @@ class Reply(BaseComment):
         return paper
 
     @property
+    def post(self):
+        comment = self.get_comment_of_reply()
+        if comment:
+            post = comment.post
+            return post
+
+    @property
     def thread(self):
         comment = self.get_comment_of_reply()
         thread = comment.parent
@@ -394,6 +401,13 @@ class Comment(BaseComment):
         if thread:
             paper = thread.paper
             return paper
+
+    @property
+    def post(self):
+        thread = self.parent
+        if thread:
+            post = thread.post
+            return post
 
     @property
     def thread(self):
