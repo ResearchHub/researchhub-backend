@@ -1,21 +1,3 @@
-# TODO: Refactor this to remove drf package
-# flake8: noqa
-
-from django_elasticsearch_dsl_drf.constants import (
-    LOOKUP_FILTER_TERMS,
-    LOOKUP_FILTER_RANGE,
-    LOOKUP_FILTER_PREFIX,
-    LOOKUP_FILTER_WILDCARD,
-    LOOKUP_QUERY_IN,
-    LOOKUP_QUERY_GT,
-    LOOKUP_QUERY_GTE,
-    LOOKUP_QUERY_LT,
-    LOOKUP_QUERY_LTE,
-    LOOKUP_QUERY_EXCLUDE,
-    SUGGESTER_COMPLETION,
-    SUGGESTER_PHRASE,
-    SUGGESTER_TERM,
-)
 from django_elasticsearch_dsl_drf.filter_backends import (
     CompoundSearchFilterBackend,
     DefaultOrderingFilterBackend,
@@ -46,14 +28,10 @@ class PaperDocumentView(DocumentViewSet):
       MultiMatchSearchFilterBackend,
       HighlightBackend,
       CompoundSearchFilterBackend,
-      # DefaultOrderingFilterBackend,
       FacetedSearchFilterBackend,
       FilteringFilterBackend,
       PostFilterFilteringFilterBackend,
-      # NestedFilteringFilterBackend,
-      # IdsFilterBackend,
       OrderingFilterBackend,
-        # SuggesterFilterBackend,  # This should be the last backend
     ]
 
     search_fields = [
@@ -81,7 +59,6 @@ class PaperDocumentView(DocumentViewSet):
       'publish_date': 'paper_publish_date'
     }
 
-
     ordering_fields = {
       'publish_date': 'paper_publish_date'
     }
@@ -92,16 +69,5 @@ class PaperDocumentView(DocumentViewSet):
                 'pre_tags': ["<em>"],
                 'post_tags': ["</em>"],
             },
-        }
-    }
-
-    suggester_fields = {
-        'title_suggest': {
-            'field': 'title.suggest',
-            'suggesters': [
-                SUGGESTER_COMPLETION,
-                SUGGESTER_TERM,
-                SUGGESTER_PHRASE,
-            ],
         }
     }
