@@ -25,67 +25,74 @@ from django_elasticsearch_dsl_drf.filter_backends import (
     IdsFilterBackend,
     OrderingFilterBackend,
     SuggesterFilterBackend,
+    MultiMatchSearchFilterBackend,
+    PostFilterFilteringFilterBackend,
+    FacetedSearchFilterBackend
 )
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
-from django_elasticsearch_dsl_drf.pagination import PageNumberPagination
+from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
 
 from search.documents.paper import PaperDocument
 from search.serializers.paper import PaperDocumentSerializer
-
+from utils.permissions import ReadOnly
 
 class PaperDocumentView(DocumentViewSet):
     document = PaperDocument
+    permission_classes = [ReadOnly]
     serializer_class = PaperDocumentSerializer
-    pagination_class = PageNumberPagination
+    pagination_class = LimitOffsetPagination
     lookup_field = 'id'
     filter_backends = [
-        CompoundSearchFilterBackend,
-        DefaultOrderingFilterBackend,
-        FilteringFilterBackend,
-        # NestedFilteringFilterBackend,
-        IdsFilterBackend,
-        OrderingFilterBackend,
-        HighlightBackend,
-        SuggesterFilterBackend,  # This should be the last backend
+      MultiMatchSearchFilterBackend,
+      HighlightBackend,
+      CompoundSearchFilterBackend,
+      # DefaultOrderingFilterBackend,
+      FacetedSearchFilterBackend,
+      FilteringFilterBackend,
+      PostFilterFilteringFilterBackend,
+      # NestedFilteringFilterBackend,
+      # IdsFilterBackend,
+      OrderingFilterBackend,
+        # SuggesterFilterBackend,  # This should be the last backend
     ]
 
     search_fields = [
         'title',
-        'tagline',
         'doi',
         'authors',
     ]
 
-    filter_fields = {
-        'title': 'title',
-        'tagline': 'tagline',
-        'doi': 'doi',
-        'authors': 'authors',
+    multi_match_search_fields = {
+        'doi': {'boost': 4},
+        'title': {'boost': 3},
+        'authors': {'boost': 2},
+        'abstract': {'boost': 1},
     }
-    # nested_filter_fields = {
-    #     'vote_type': {
-    #         'field': 'votes',
-    #         'path': 'votes.vote_type',
-    #     },
-    # }
+
+    post_filter_fields = {
+      'hubs': 'hubs',
+    }
+
+    faceted_search_fields = {
+      'hubs': 'hubs'
+    }
+
+    filter_fields = {
+      'publish_date': 'paper_publish_date'
+    }
+
 
     ordering_fields = {
-        'score': 'score',
+      'publish_date': 'paper_publish_date'
     }
 
     highlight_fields = {
         'title': {
             'options': {
-                'pre_tags': ["<b>"],
-                'post_tags': ["</b>"],
+                'pre_tags': ["<em>"],
+                'post_tags': ["</em>"],
             },
-        },
-        'tagline': {
-            'options': {
-                'pre_tags': ["<b>"],
-                'post_tags': ["</b>"],
-            },
-        },
+        }
     }
 
     suggester_fields = {

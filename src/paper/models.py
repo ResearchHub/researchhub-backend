@@ -21,7 +21,7 @@ from paper.utils import (
     populate_pdf_url_from_journal_url,
     populate_metadata_from_pdf,
     populate_metadata_from_crossref,
-    get_name,
+    parse_author_name,
     get_csl_item,
     paper_piecewise_log,
 )
@@ -400,7 +400,7 @@ class Paper(models.Model):
     @property
     def paper_authors(self):
         raw_authors = (self.raw_authors or list())
-        return [get_name(author) for author in raw_authors]
+        return [parse_author_name(author) for author in raw_authors]
 
     @property
     def authors_str(self):
@@ -412,7 +412,7 @@ class Paper(models.Model):
 
     @property
     def authors_indexing(self):
-        return [get_name(author) for author in self.authors.all()]
+        return self.paper_authors
 
     @property
     def discussion_count_indexing(self):
@@ -429,6 +429,10 @@ class Paper(models.Model):
         return self.calculate_score()
 
     @property
+    def hot_score_indexing(self):
+        return self.hot_score
+
+    @property
     def summary_indexing(self):
         if self.summary:
             return self.summary.summary_plain_text
@@ -437,6 +441,10 @@ class Paper(models.Model):
     @property
     def abstract_indexing(self):
         return self.abstract if self.abstract else ''
+
+    @property
+    def doi_indexing(self):
+        return self.doi or ''
 
     @property
     def votes_indexing(self):

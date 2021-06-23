@@ -6,20 +6,28 @@ from researchhub.settings import (
     ELASTICSEARCH_AUTO_REINDEX,
     TESTING
 )
-from search.analyzers import title_analyzer
+from search.analyzers import (
+    title_analyzer,
+    name_analyzer,
+    content_analyzer
+) 
 import utils.sentry as sentry
-
 
 @registry.register_document
 class PaperDocument(Document):
-    authors = es_fields.TextField(attr='authors_indexing')
+    authors = es_fields.TextField(attr='authors_indexing', analyzer=name_analyzer)
+    authors_str = es_fields.TextField(attr='authors_indexing', analyzer=name_analyzer)
     discussion_count = es_fields.IntegerField(attr='discussion_count_indexing')
-    hubs = es_fields.TextField(attr='hubs_indexing')
+    hubs = es_fields.KeywordField(attr='hubs_indexing')
     score = es_fields.IntegerField(attr='score_indexing')
+    hot_score = es_fields.IntegerField(attr='hot_score_indexing')
     summary = es_fields.TextField(attr='summary_indexing')
     title = es_fields.TextField(analyzer=title_analyzer)
     paper_title = es_fields.TextField(analyzer=title_analyzer)
-    abstract = es_fields.TextField(attr='abstract_indexing')
+    paper_publish_date = es_fields.DateField(attr='paper_publish_date', format='yyyy-MM-dd')
+    abstract = es_fields.TextField(attr='abstract_indexing', analyzer=content_analyzer)
+    doi = es_fields.TextField(attr='doi_indexing', analyzer='keyword')
+
 
     class Index:
         name = 'paper'
@@ -28,8 +36,6 @@ class PaperDocument(Document):
         model = Paper
         fields = [
             'id',
-            'doi',
-            'paper_publish_date',
             'publication_type',
             'url',
         ]
