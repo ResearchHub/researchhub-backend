@@ -278,11 +278,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                             # This is hit when the document is a
                             # researchhub post.
                             document = documents[0]
-                            document_id = document['id']
                         else:
                             # This is hit when the document is a paper
                             document = documents
 
+                        document_id = document['id']
                         abstract = document.get('abstract', None)
                         if document_id not in all_documents and abstract:
                             all_documents[document_id] = hit

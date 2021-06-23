@@ -145,7 +145,7 @@ def preload_trending_documents(
     options={'queue': f'{APP_ENV}_core_queue'}
 )
 def preload_hub_documents(
-    document_type=[ALL.lower(), POSTS.lower(), PAPER.lower()],
+    document_type=ALL.lower(),
     hub_ids=None
 ):
     from researchhub_document.serializers import (
