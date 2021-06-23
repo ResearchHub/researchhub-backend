@@ -53,7 +53,14 @@ class Vote(models.Model):
 
     @property
     def unified_document(self):
-        return self.item.unified_document
+        paper = self.item.paper
+        if paper:
+            return paper.unified_document
+
+        post = self.item.post
+        if post:
+            return post.unified_document
+        raise Exception('Vote source is missing unified document')
 
 
 class Flag(models.Model):
