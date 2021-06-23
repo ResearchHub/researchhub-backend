@@ -278,13 +278,16 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                             # This is hit when the document is a
                             # researchhub post.
                             document = documents[0]
+                            # We set abstract here to true so it will show up
+                            # in the feed, even if it doesn't have an abstract
+                            has_abstract = True
                         else:
                             # This is hit when the document is a paper
                             document = documents
+                            has_abstract = document.get('abstract', None)
 
                         document_id = document['id']
-                        abstract = document.get('abstract', None)
-                        if document_id not in all_documents and abstract:
+                        if document_id not in all_documents and has_abstract:
                             all_documents[document_id] = hit
             all_documents = list(all_documents.values())
 
@@ -327,7 +330,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 hubs__in=hubs.all()
             ).distinct()
 
-        if all_documents.count() < 1:
+        if all_documents.count() < 1 and hubs.exists():
             trending_pk = 'all_0_-hot_score_today'
             cache_key_hub = get_cache_key('hub', trending_pk)
             cache_hit = cache.get(cache_key_hub)

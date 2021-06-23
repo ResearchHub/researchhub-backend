@@ -177,7 +177,7 @@ def preload_hub_documents(
             is_removed=False
         ).order_by(
             '-hot_score'
-        )[:10]
+        )[:15]
         cache_key = get_cache_key('documents', cache_pk)
         serializer = ResearchhubUnifiedDocumentSerializer(
             documents,
