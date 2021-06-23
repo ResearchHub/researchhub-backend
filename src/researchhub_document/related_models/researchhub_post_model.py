@@ -109,6 +109,9 @@ class ResearchhubPost(AbstractGenericReactionModel):
     def paper(self):
         return None
 
+    def get_promoted_score(self):
+        return False
+
     def calculate_hot_score(self):
         ALGO_START_UNIX = 1546329600
         TIME_DIV = 3600000
