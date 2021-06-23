@@ -176,12 +176,13 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             )
             self.send_purchase_email(purchase, recipient, paper.id)
 
+        unified_doc_id = paper.unified_document.id
         create_contribution.apply_async(
             (
                 Contribution.SUPPORTER,
                 {'app_label': 'purchase', 'model': 'purchase'},
                 user.id,
-                paper.id,
+                unified_doc_id,
                 purchase.id
             ),
             priority=2,

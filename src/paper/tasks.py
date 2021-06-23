@@ -70,6 +70,7 @@ from utils.twitter import (
     get_twitter_results,
     RATE_LIMIT_CODE
 )
+from researchhub_document.utils import update_unified_document_to_paper
 from utils.http import check_url_contains_pdf
 
 logger = get_task_logger(__name__)
@@ -983,6 +984,7 @@ def pull_papers(start=0, force=False):
 
                         paper.save()
                         paper.set_paper_completeness()
+                        update_unified_document_to_paper(paper)
 
                         if pdf_url:
                             download_pdf.apply_async(
@@ -1201,6 +1203,7 @@ def pull_crossref_papers(start=0, force=False):
 
                         paper.save()
                         paper.set_paper_completeness()
+                        update_unified_document_to_paper(paper)
 
                         celery_calculate_paper_twitter_score.apply_async(
                             (paper.id,),

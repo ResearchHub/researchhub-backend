@@ -29,7 +29,7 @@ def create_contribution(
     contribution_type,
     instance_type,
     user_id,
-    paper_id,
+    unified_doc_id,
     object_id
 ):
     content_type = ContentType.objects.get(
@@ -39,14 +39,14 @@ def create_contribution(
         create_author_contribution(
             Contribution.AUTHOR,
             user_id,
-            paper_id,
+            unified_doc_id,
             object_id
         )
 
     previous_contributions = Contribution.objects.filter(
         contribution_type=contribution_type,
         content_type=content_type,
-        paper_id=paper_id
+        unified_document_id=unified_doc_id
     ).order_by(
         'ordinal'
     )
@@ -59,7 +59,7 @@ def create_contribution(
         contribution_type=contribution_type,
         user_id=user_id,
         ordinal=ordinal,
-        paper_id=paper_id,
+        unified_document_id=unified_doc_id,
         content_type=content_type,
         object_id=object_id
     )
@@ -69,19 +69,19 @@ def create_contribution(
 def create_author_contribution(
     contribution_type,
     user_id,
-    paper_id,
+    unified_doc_id,
     object_id
 ):
     contributions = []
     content_type = ContentType.objects.get(model='author')
-    authors = Paper.objects.get(id=paper_id).authors.all()
+    authors = Paper.objects.get(unified_document=unified_doc_id).authors.all()
     for i, author in enumerate(authors.iterator()):
         if author.user:
             user = author.user
             data = {
                 'contribution_type': contribution_type,
                 'ordinal': i,
-                'paper_id': paper_id,
+                'unified_document_id': unified_doc_id,
                 'content_type': content_type,
                 'object_id': object_id
             }

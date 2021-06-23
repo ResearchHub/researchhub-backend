@@ -360,12 +360,13 @@ class PaperSerializer(BasePaperSerializer):
                 )
                 update_user_risk_score(user, tracked_paper)
 
+                unified_doc_id = paper.unified_document.id
                 create_contribution.apply_async(
                     (
                         Contribution.SUBMITTER,
                         {'app_label': 'paper', 'model': 'paper'},
                         user.id,
-                        paper_id,
+                        unified_doc_id,
                         paper_id
                     ),
                     priority=2,

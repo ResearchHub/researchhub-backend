@@ -51,6 +51,10 @@ class Vote(models.Model):
     def paper(self):
         return self.item.paper
 
+    @property
+    def unified_document(self):
+        return self.item.unified_document
+
 
 class Flag(models.Model):
     content_type = models.ForeignKey(

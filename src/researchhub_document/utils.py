@@ -19,7 +19,6 @@ def reset_unified_document_cache(
 
     for doc_type in document_type:
         for hub_id in hub_ids:
-            # preload_trending_documents(doc_type, hub_id, ordering, time_difference)
             preload_trending_documents.apply_async(
                 (
                     doc_type,
