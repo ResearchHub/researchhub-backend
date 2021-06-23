@@ -111,6 +111,13 @@ Back in the python virtual environment, build the indices
 ```
 python manage.py search_index --rebuild
 ```
+
+Optionally, start Kibana for Elastic dev tools  
+
+```
+./start-kibana.sh
+```
+
 -------
 
 ### ETHEREUM
