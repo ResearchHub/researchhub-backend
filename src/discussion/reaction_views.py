@@ -351,18 +351,18 @@ def update_or_create_vote(request, user, item, vote_type):
     vote = create_vote(user, item, vote_type)
     reset_unified_document_cache([0])
 
-    # app_label = item._meta.app_label
-    # model = item._meta.model
+    app_label = item._meta.app_label
+    model = item._meta.model
     # events_api.track_content_vote(user, vote, request)
-    # create_contribution.apply_async(
-    #     (
-    #         Contribution.UPVOTER,
-    #         {'app_label': app_label, 'model': model},
-    #         request.user.id,
-    #         vote.paper.id,
-    #         vote.id
-    #     ),
-    #     priority=2,
-    #     countdown=10
-    # )
+    create_contribution.apply_async(
+        (
+            Contribution.UPVOTER,
+            {'app_label': app_label, 'model': model},
+            request.user.id,
+            vote.unified_document.id,
+            vote.id
+        ),
+        priority=2,
+        countdown=10
+    )
     return get_vote_response(vote, 201)

@@ -1324,13 +1324,13 @@ def update_or_create_vote(request, user, paper, vote_type):
     vote = create_vote(user, paper, vote_type)
 
     events_api.track_content_vote(user, vote, request)
-
+    unified_doc_id = paper.unified_document.id
     create_contribution.apply_async(
         (
             Contribution.UPVOTER,
             {'app_label': 'paper', 'model': 'vote'},
             user.id,
-            paper.id,
+            unified_doc_id,
             vote.id
         ),
         priority=3,

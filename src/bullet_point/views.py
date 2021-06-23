@@ -119,17 +119,20 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         )
         update_user_risk_score(bullet_point.created_by, tracked_bullet_point)
 
-        create_contribution.apply_async(
-            (
-                Contribution.CURATOR,
-                {'app_label': 'bullet_point', 'model': 'bulletpoint'},
-                request.user.id,
-                paper,
-                bullet_id
-            ),
-            priority=2,
-            countdown=10
-        )
+        # Deprecating bulletpoint contributions until(?)
+        # we bring bulletpoints back
+
+        # create_contribution.apply_async(
+        #     (
+        #         Contribution.CURATOR,
+        #         {'app_label': 'bullet_point', 'model': 'bulletpoint'},
+        #         request.user.id,
+        #         paper,
+        #         bullet_id
+        #     ),
+        #     priority=2,
+        #     countdown=10
+        # )
         return response
 
     def update(self, request, *args, **kwargs):

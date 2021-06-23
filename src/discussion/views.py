@@ -87,6 +87,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         if request.path.split('/')[2] == 'paper':
             paper_id = get_paper_id_from_path(request)
             paper = Paper.objects.get(id=paper_id)
+            unified_doc_id = paper.unified_document.id
 
             if request.query_params.get('created_location') == 'progress':
                 request.data['created_location'] = (
@@ -108,7 +109,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                     Contribution.COMMENTER,
                     {'app_label': 'discussion', 'model': 'thread'},
                     request.user.id,
-                    paper_id,
+                    unified_doc_id,
                     discussion_id
                 ),
                 priority=2,
@@ -281,6 +282,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         if request.path.split('/')[2] == 'paper':
             paper_id = get_paper_id_from_path(request)
             paper = Paper.objects.get(id=paper_id)
+            unified_doc_id = paper.unified_document.id
             hubs = paper.hubs.values_list('id', flat=True)
 
             if request.query_params.get('created_location') == 'progress':
@@ -298,7 +300,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                     Contribution.COMMENTER,
                     {'app_label': 'discussion', 'model': 'comment'},
                     request.user.id,
-                    paper_id,
+                    unified_doc_id,
                     discussion_id
                 ),
                 priority=3,
@@ -398,6 +400,8 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     def create(self, request, *args, **kwargs):
         if request.path.split('/')[2] == 'paper':
             paper_id = get_paper_id_from_path(request)
+            paper = Paper.objects.get(id=paper_id)
+            unified_doc_id = paper.unified_document.id
 
             if request.query_params.get('created_location') == 'progress':
                 request.data['created_location'] = (
@@ -412,7 +416,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                     Contribution.COMMENTER,
                     {'app_label': 'discussion', 'model': 'reply'},
                     request.user.id,
-                    paper_id,
+                    unified_doc_id,
                     discussion_id
                 ),
                 priority=3,

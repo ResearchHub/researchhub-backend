@@ -203,6 +203,12 @@ class Contribution(models.Model):
         on_delete=models.SET_NULL,
         null=True
     )
+    unified_document = models.ForeignKey(
+        'researchhub_document.ResearchhubUnifiedDocument',
+        related_name='contributions',
+        on_delete=models.SET_NULL,
+        null=True
+    )
     content_type = models.ForeignKey(
         ContentType,
         on_delete=models.SET_NULL,
