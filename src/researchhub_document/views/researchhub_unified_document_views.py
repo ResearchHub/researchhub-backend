@@ -337,21 +337,30 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 hubs__in=hubs.all()
             ).distinct()
 
-        if all_documents.count() < 1 and hubs.exists():
-            trending_pk = 'all_0_-hot_score_today'
-            cache_key_hub = get_cache_key('hub', trending_pk)
-            cache_hit = cache.get(cache_key_hub)
+        # if all_documents.count() < 1 and hubs.exists():
+        #     if document_request_type == 'all':
+        #         trending_pk = 'all_0_-hot_score_today'
+        #     elif document_request_type == 'posts':
+        #         trending_pk = 'posts_0_-hot_score_today'
+        #     else:
+        #         trending_pk = 'paper_0_-hot_score_today'
 
-            if cache_hit and page_number == 1:
-                return Response(cache_hit)
+        #     cache_key_hub = get_cache_key('hub', trending_pk)
+        #     cache_hit = cache.get(cache_key_hub)
 
-            all_documents = self.get_filtered_queryset(
-                document_request_type,
-                filtering,
-                default_hub_id,
-                start_date,
-                end_date
-            )
+        #     if cache_hit and page_number == 1:
+        #         return Response(cache_hit)
+
+        #     all_documents = self.get_filtered_queryset(
+        #         document_request_type,
+        #         filtering,
+        #         default_hub_id,
+        #         start_date,
+        #         end_date
+        #     )
+        #     all_documents = all_documents.filter(
+        #         hubs__in=hubs.all()
+        #     ).distinct()
 
         context = self.get_serializer_context()
         context['user_no_balance'] = True
