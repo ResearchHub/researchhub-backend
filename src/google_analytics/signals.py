@@ -21,6 +21,7 @@ from google_analytics.apps import GoogleAnalytics, Hit
 from paper.models import Figure, Paper, Vote as PaperVote
 from researchhub.settings import PRODUCTION
 from researchhub.celery import app
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from summary.models import Summary
 from user.models import User
 
@@ -242,16 +243,18 @@ def send_vote_event(
     action = 'Upvote'
     if instance.vote_type == 2:
         action = 'Downvote'
-
     label = 'Paper'
     paper_id = None
     if hasattr(instance, 'item'):
-        label = type(instance.item).__name__
-        if type(instance.item) is Paper:
+        item_type = type(instance.item)
+        label = item_type.__name__
+        if (item_type is ResearchhubPost):
+            # Posts don't need google analytics at the moment
+            return
+        if item_type is Paper:
             paper_id = instance.item.id
         elif instance.item.paper is not None:
             paper_id = instance.item.paper.id
-
     return get_event_hit_response(
         instance,
         created,

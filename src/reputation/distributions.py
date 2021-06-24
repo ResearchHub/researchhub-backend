@@ -100,6 +100,15 @@ SummaryUpvoted = Distribution(
 SummaryDownvoted = Distribution(
     'SUMMARY_DOWNVOTED', -1
 )
+ResearchhubPostUpvoted = Distribution(
+    'RESEARCHHUB_POST_UPVOTED', 1
+)
+ResearchhubPostDownvoted = Distribution(
+    'RESEARCHHUB_POST_DOWNVOTED', -1
+)
+ResearchhubPostCensored = Distribution(
+    'RESEARCHHUB_POST_CENSORED', -2
+)
 Referral = Distribution(
     'REFERRAL', 0, False
 )

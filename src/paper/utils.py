@@ -606,34 +606,6 @@ def reset_paper_cache(cache_key, data):
     cache.set(cache_key, data, timeout=60*60*24*7)
 
 
-def reset_cache(
-    hub_ids,
-    ordering='-hot_score',
-    time_difference=0
-):
-    from paper.tasks import preload_trending_papers, celery_preload_hub_papers
-
-    context = {}
-    context['user_no_balance'] = True
-    context['exclude_promoted_score'] = True
-    context['include_wallet'] = False
-
-    for hub_id in hub_ids:
-        preload_trending_papers.apply_async(
-            (
-                hub_id,
-                ordering,
-                time_difference,
-                context
-            ),
-            priority=1
-        )
-    celery_preload_hub_papers.apply_async(
-        (hub_ids,),
-        priority=1
-    )
-
-
 def get_cache_key(obj_type, pk):
     return f'{obj_type}_{pk}'
 

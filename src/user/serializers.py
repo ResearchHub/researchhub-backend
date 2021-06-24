@@ -1,4 +1,5 @@
 import logging
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 import rest_framework.serializers as rest_framework_serializers
 import rest_auth.registration.serializers as rest_auth_serializers
 
@@ -45,6 +46,8 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
     total_score = rest_framework_serializers.SerializerMethodField()
     wallet = rest_framework_serializers.SerializerMethodField()
     sift_link = rest_framework_serializers.SerializerMethodField()
+    num_posts = rest_framework_serializers.SerializerMethodField()
+
 
     class Meta:
         model = Author
@@ -54,9 +57,12 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
             'orcid_id',
             'total_score',
             'wallet',
-            'sift_link'
+            'sift_link',
+            'num_posts',
         ]
-
+        read_only_fields = [
+            'num_posts',
+        ]
     def get_reputation(self, obj):
         if obj.user is None:
             return 0
@@ -87,6 +93,11 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
             return sift_link
         return None
 
+    def get_num_posts(self, author):
+        user = author.user
+        if user:
+            return ResearchhubPost.objects.filter(created_by=user).count()
+        return 0
 
 class AuthorEditableSerializer(rest_framework_serializers.ModelSerializer):
     university = rest_framework_serializers.PrimaryKeyRelatedField(
@@ -230,7 +241,7 @@ class UserActions:
         f' and user_id can not both be None'
 
         if not hasattr(UserActions, 'flag_serializer'):
-            from discussion.serializers import FlagSerializer
+            from discussion.reaction_serializers import FlagSerializer
             UserActions.flag_serializer = FlagSerializer
 
             from paper.serializers import FlagSerializer as PaperFlagSerializer

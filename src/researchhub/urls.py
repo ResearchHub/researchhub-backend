@@ -24,8 +24,10 @@ import notification.views
 import analytics.views
 import purchase.views
 import researchhub_case.views as researchhub_case_views
+import researchhub_document.views as researchhub_document_views
 
 from researchhub.settings import CLOUD, NO_SILK
+
 
 router = routers.DefaultRouter()
 
@@ -45,6 +47,24 @@ router.register(
     r'paper/([0-9]+)/discussion',
     discussion.views.ThreadViewSet,
     basename='discussion_threads'
+)
+
+router.register(
+    r'post/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply',
+    discussion.views.ReplyViewSet,
+    basename='post_discussion_thread_comment_replies'
+)
+
+router.register(
+    r'post/([0-9]+)/discussion/([0-9]+)/comment',
+    discussion.views.CommentViewSet,
+    basename='post_discussion_thread_comments'
+)
+
+router.register(
+    r'post/([0-9]+)/discussion',
+    discussion.views.ThreadViewSet,
+    basename='post_discussion_threads'
 )
 
 router.register(
@@ -184,6 +204,18 @@ router.register(
     r'author_claim_case',
     researchhub_case_views.AuthorClaimCaseViewSet,
     basename='author_claim_case'
+)
+
+router.register(
+    r'researchhub_posts',
+    researchhub_document_views.ResearchhubPostViewSet,
+    basename='researchhub_posts'
+)
+
+router.register(
+    r'researchhub_unified_documents',
+    researchhub_document_views.ResearchhubUnifiedDocumentViewSet,
+    basename='researchhub_unified_documents',
 )
 
 urlpatterns = [

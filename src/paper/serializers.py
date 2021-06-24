@@ -43,6 +43,7 @@ from utils.arxiv import Arxiv
 from utils.http import get_user_from_request, check_url_contains_pdf
 from utils.siftscience import events_api, update_user_risk_score
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
+from researchhub_document.utils import update_unified_document_to_paper
 
 
 class BasePaperSerializer(serializers.ModelSerializer):
@@ -60,6 +61,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     promoted = serializers.SerializerMethodField()
     file = serializers.SerializerMethodField()
     discussion_users = serializers.SerializerMethodField()
+    unified_document_id = serializers.SerializerMethodField()
 
     class Meta:
         abstract = True
@@ -69,12 +71,22 @@ class BasePaperSerializer(serializers.ModelSerializer):
             'user_vote',
             'user_flag',
             'users_who_bookmarked',
+            'unified_document_id',
             'slug'
         ]
         model = Paper
 
     # def get_uploaded_by(self, obj):
     #     return UserSerializer(obj.uploaded_by, read_only=True).data
+
+    def get_unified_document_id(self, instance):
+        try:
+            target_unified_doc = instance.unified_document
+            return target_unified_doc.id if (
+                target_unified_doc is not None
+            ) else None
+        except Exception:
+            return None
 
     def to_internal_value(self, data):
         data = self._transform_to_dict(data)
@@ -306,7 +318,7 @@ class PaperSerializer(BasePaperSerializer):
                 paper_id = paper.id
                 paper_title = paper.paper_title or ''
                 self._check_pdf_title(paper, paper_title, file)
-
+                # NOTE: calvinhlee - This is an antipattern. Look into changing
                 Vote.objects.create(
                     paper=paper,
                     created_by=user,
@@ -339,6 +351,8 @@ class PaperSerializer(BasePaperSerializer):
 
                 paper.pdf_license = paper.get_license(save=False)
 
+                update_unified_document_to_paper(paper)
+
                 tracked_paper = events_api.track_content_paper(
                     user,
                     paper,
@@ -346,12 +360,13 @@ class PaperSerializer(BasePaperSerializer):
                 )
                 update_user_risk_score(user, tracked_paper)
 
+                unified_doc_id = paper.unified_document.id
                 create_contribution.apply_async(
                     (
                         Contribution.SUBMITTER,
                         {'app_label': 'paper', 'model': 'paper'},
                         user.id,
-                        paper_id,
+                        unified_doc_id,
                         paper_id
                     ),
                     priority=2,
@@ -559,9 +574,6 @@ class PaperSerializer(BasePaperSerializer):
             elif url:
                 return url
             return None
-
-    def get_discussion_users(self, paper):
-        return None
 
 
 class HubPaperSerializer(BasePaperSerializer):
