@@ -26,7 +26,8 @@ class Command(BaseCommand):
         )
         papers = Paper.objects.filter(
             uploaded_date__lte=today,
-            uploaded_date__gte=paper_sync_stop_date
+            uploaded_date__gte=paper_sync_stop_date,
+            unified_document__isnull=True
         ).order_by('uploaded_date')
         count = papers.count()
         for i, paper in enumerate(papers.iterator()):
