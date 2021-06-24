@@ -27,7 +27,6 @@ class PaperDocumentView(DocumentViewSet):
     pagination_class = LimitOffsetPagination
     lookup_field = 'id'
     filter_backends = [
-        SearchFilterBackend,
       CompoundSearchFilterBackend,
       FacetedSearchFilterBackend,
       FilteringFilterBackend,
