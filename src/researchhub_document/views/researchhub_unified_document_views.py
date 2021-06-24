@@ -274,13 +274,24 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     for hit in cache_hit:
                         documents = hit['documents']
                         documents_type = type(documents)
-                        if documents_type not in (OrderedDict, dict):
-                            # This is hit when the document is a
-                            # researchhub post.
-                            document = documents[0]
+                        if document_request_type == 'all':
+                            if documents_type not in (OrderedDict, dict):
+                                # This is hit when the document is a
+                                # researchhub post.
+                                document = documents[0]
+                            else:
+                                # This is hit when the document is a paper
+                                document = documents
+                        elif document_request_type == 'posts':
+                            if documents_type not in (OrderedDict, dict):
+                                document = documents[0]
+                            else:
+                                continue
                         else:
-                            # This is hit when the document is a paper
-                            document = documents
+                            if documents_type in (OrderedDict, dict):
+                                document = documents
+                            else:
+                                continue
 
                         document_id = document['id']
                         if document_id not in all_documents:
