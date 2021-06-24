@@ -55,14 +55,17 @@ class Vote(models.Model):
     def unified_document(self):
         from paper.models import Paper
         from researchhub_document.models import ResearchhubPost
+        from discussion.models import Thread, Comment, Reply
 
         item = self.item
         item_type = type(item)
 
         if item_type == ResearchhubPost:
-            return item
+            return item.unified_document
         elif item_type == Paper:
-            return item.paper
+            return item.paper.unified_document
+        elif item_type in (Thread, Comment, Reply):
+            return item.unified_document
         raise Exception('Vote source is missing unified document')
 
 
