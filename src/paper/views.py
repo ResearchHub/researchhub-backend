@@ -76,7 +76,6 @@ from paper.utils import (
     invalidate_top_rated_cache,
     invalidate_newest_cache,
     invalidate_most_discussed_cache,
-    reset_cache,
     add_default_hub
 )
 from purchase.models import Purchase
@@ -90,6 +89,7 @@ from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from utils.siftscience import events_api, decisions_api
 from rest_framework.permissions import AllowAny
+from researchhub_document.utils import reset_unified_document_cache
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -207,9 +207,6 @@ class PaperViewSet(viewsets.ModelViewSet):
     def create(self, *args, **kwargs):
         try:
             response = super().create(*args, **kwargs)
-            request = args[0]
-            hub_ids = list(request.POST['hubs'])
-            reset_cache(hub_ids)
             return response
         except IntegrityError as e:
             return self._get_integrity_error_response(e)
@@ -281,7 +278,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         if type(hub_ids) is not list:
             hub_ids = list(hub_ids)
 
-        reset_cache(hub_ids)
+        reset_unified_document_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -353,7 +350,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper.save()
         censored_paper_cleanup.apply_async((paper_id,), priority=3)
 
-        reset_cache(hub_ids)
+        reset_unified_document_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -396,7 +393,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         hub_ids = list(paper.hubs.values_list('id', flat=True))
         hub_ids = add_default_hub(hub_ids)
 
-        reset_cache(hub_ids)
+        reset_unified_document_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -565,7 +562,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(request, user, paper, Vote.UPVOTE)
 
-        reset_cache(hub_ids)
+        reset_unified_document_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -596,7 +593,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(request, user, paper, Vote.DOWNVOTE)
 
-        reset_cache(hub_ids)
+        reset_unified_document_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -823,6 +820,8 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def get_hub_papers(self, request):
+        # TODO: Delete this
+
         subscribed_hubs = request.GET.get('subscribed_hubs', False)
         external_source = request.GET.get('external_source', False)
         is_anonymous = request.user.is_anonymous
@@ -867,8 +866,8 @@ class PaperViewSet(viewsets.ModelViewSet):
         context['exclude_promoted_score'] = True
         context['include_wallet'] = False
 
-        if not cache_hit and page_number == 1:
-            reset_cache([hub_id], ordering, time_difference.days)
+        # if not cache_hit and page_number == 1:
+            # reset_cache([hub_id], ordering, time_difference.days)
 
         papers = self._get_filtered_papers(hub_id, ordering)
         order_papers = self.calculate_paper_ordering(
@@ -1325,13 +1324,13 @@ def update_or_create_vote(request, user, paper, vote_type):
     vote = create_vote(user, paper, vote_type)
 
     events_api.track_content_vote(user, vote, request)
-
+    unified_doc_id = paper.unified_document.id
     create_contribution.apply_async(
         (
             Contribution.UPVOTER,
             {'app_label': 'paper', 'model': 'vote'},
             user.id,
-            paper.id,
+            unified_doc_id,
             vote.id
         ),
         priority=3,

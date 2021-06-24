@@ -10,7 +10,7 @@ from django.contrib.contenttypes.models import ContentType
 from reputation.models import DistributionAmount, Contribution
 from reputation.tasks import create_contribution
 from user.models import Action
-
+    
 
 class Command(BaseCommand):
 

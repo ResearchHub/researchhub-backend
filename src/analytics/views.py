@@ -39,6 +39,7 @@ class PaperEventViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_date']
 
     def create(self, request, *args, **kwargs):
+        # Is deprecated?
         user = request.user
         if not user.is_anonymous:
             request.data['user'] = user.id

@@ -8,6 +8,7 @@ from django.utils import timezone
 from django.contrib.admin.options import get_content_type_for_model
 
 import reputation.distributions as distributions
+from researchhub_document.models import ResearchhubPost
 from bullet_point.models import (
     BulletPoint,
     Vote as BulletPointVote
@@ -17,7 +18,7 @@ from discussion.models import (
     Comment,
     Reply,
     Thread,
-    Vote as DiscussionVote
+    Vote as ReactionVote
 )
 from paper.models import (
     Paper,
@@ -401,6 +402,8 @@ def get_discussion_censored_distribution(instance):
         return distributions.ReplyCensored
     elif item_type == Thread:
         return distributions.ThreadCensored
+    elif item_type == ResearchhubPost:
+        return distributions.ResearchhubPostCensored
     else:
         raise error
 
@@ -421,7 +424,7 @@ def get_discussion_hubs(instance):
     return hubs
 
 
-@receiver(post_save, sender=DiscussionVote, dispatch_uid='discussion_vote')
+@receiver(post_save, sender=ReactionVote, dispatch_uid='discussion_vote')
 def distribute_for_discussion_vote(
     sender,
     instance,
@@ -446,19 +449,32 @@ def distribute_for_discussion_vote(
         or vote_type_updated(update_fields)
     ) and is_eligible_for_discussion_vote(recipient, voter):
         hubs = None
-        if isinstance(instance.item, Comment):
-            hubs = instance.item.parent.paper.hubs
-        elif isinstance(instance.item, Reply):
+        item = instance.item
+        if isinstance(item, Comment):
+            if item.parent.paper is not None:
+                hubs = item.parent.paper.hubs
+            elif item.parent.post is not None:
+                hubs = item.parent.post.unified_document.hubs
+        elif isinstance(item, Reply):
             try:
-                hubs = instance.item.parent.parent.paper.hubs
+                if item.parent.parent.paper is not None:
+                    hubs = item.parent.parent.paper.hubs
+                elif item.parent.parent.post is not None:
+                    hubs = item.parent.parent.post.unified_document.hubs
             except Exception as e:
                 sentry.log_error(e)
-        elif isinstance(instance.item, Thread):
-            hubs = instance.item.paper.hubs
+        elif isinstance(item, Thread):
+            if item.paper is not None:
+                hubs = item.paper.hubs
+            elif item.post is not None:
+                hubs = item.post.unified_document.hubs
+        elif isinstance(item, ResearchhubPost):
+            hubs = item.unified_document.hubs
 
         # TODO: This needs to be altered so that if the vote changes the
         # original distribution is deleted if not yet withdrawn
         try:
+            # NOTE: Only comment seems to be supporting distribution
             distribution = get_discussion_vote_item_distribution(instance)
             distributor = Distributor(
                 distribution,
@@ -470,7 +486,7 @@ def distribute_for_discussion_vote(
         except TypeError as e:
             error = ReputationSignalError(
                 e,
-                'Failed to distribute for discussion vote'
+                'Failed to distribute for reaction vote'
             )
             print(error)
 
@@ -523,23 +539,27 @@ def get_discussion_vote_item_distribution(instance):
 
     error = TypeError(f'Instance of type {item_type} is not supported')
 
-    if vote_type == DiscussionVote.UPVOTE:
+    if vote_type == ReactionVote.UPVOTE:
         if item_type == Comment:
             return distributions.CommentUpvoted
         elif item_type == Reply:
             return distributions.ReplyUpvoted
         elif item_type == Thread:
             return distributions.ThreadUpvoted
+        elif item_type == ResearchhubPost:
+            return distributions.ResearchhubPostUpvoted
         else:
             raise error
 
-    elif vote_type == DiscussionVote.DOWNVOTE:
+    elif vote_type == ReactionVote.DOWNVOTE:
         if item_type == Comment:
             return distributions.CommentDownvoted
         elif item_type == Reply:
             return distributions.ReplyDownvoted
         elif item_type == Thread:
             return distributions.ThreadDownvoted
+        elif item_type == ResearchhubPost:
+            return distributions.ResearchhubPostDownvoted
         else:
             raise error
 

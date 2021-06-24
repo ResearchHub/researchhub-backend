@@ -314,8 +314,8 @@ class UserViewSet(viewsets.ModelViewSet):
             'user',
             'paper__uploaded_by'
         ).filter(
+            Q(unified_document__is_removed=False) | Q(paper__is_removed=False),
             contribution_type__in=contribution_type,
-            paper__is_removed=False
         ).exclude(
             (
                 (
