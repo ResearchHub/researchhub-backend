@@ -13,8 +13,8 @@ eb deploy backend-production
 echo "Deploying to production"
 eb deploy production-worker-2
 
-echo "Deploying to production"
-eb deploy production-worker-3
+# echo "Deploying to production"
+# eb deploy production-worker-3
 
 echo "Deploying to production"
 eb deploy production-worker-cermine
