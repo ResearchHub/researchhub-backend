@@ -8,10 +8,10 @@ title_analyzer = analyzer(
         "apostrophe",
         "lowercase",
         "trim",
-        "unique",
         "stop",
         "asciifolding",
         "shingle",
+        "stemmer",
     ],
     char_filter=["html_strip"]
 )

@@ -8,12 +8,16 @@ from paper.models import Paper
 class PaperDocumentSerializer(DocumentSerializer):
     slug = serializers.SerializerMethodField()
     abstract = serializers.SerializerMethodField()
+    highlight = serializers.SerializerMethodField()
 
     class Meta(object):
         document = PaperDocument
         fields = [
             'id',
             'authors',
+            'raw_authors',
+            'authors_str',
+            'hot_score',
             'discussion_count',
             'doi',
             'hubs',
@@ -22,8 +26,15 @@ class PaperDocumentSerializer(DocumentSerializer):
             'score',
             'summary',
             'title',
+            'abstract',
+            'paper_title',
             'url',
         ]
+
+    def get_highlight(self, obj):
+        if hasattr(obj.meta, 'highlight'):
+            return obj.meta.highlight.__dict__['_d_']
+        return {}
 
     def get_slug(self, hit):
         # TODO: Better way to add slug from a search hit?
