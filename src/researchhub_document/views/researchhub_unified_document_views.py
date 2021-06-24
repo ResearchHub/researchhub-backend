@@ -73,7 +73,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         start_date,
         end_date
     ):
-        qs = self.queryset.filter(is_removed=False)
+        qs = self.queryset.filter(
+            (
+                Q(paper__uploaded_by__isnull=False) |
+                Q(posts__created_by__isnull=False)
+            ),
+            is_removed=False,
+        )
 
         if document_type == PAPER.lower():
             qs = qs.filter(
