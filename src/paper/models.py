@@ -25,6 +25,7 @@ from paper.utils import (
     get_csl_item,
     paper_piecewise_log,
 )
+from hub.serializers import HubSerializer
 
 from .tasks import (
     celery_extract_figures,
@@ -398,21 +399,23 @@ class Paper(models.Model):
         return paper
 
     @property
-    def paper_authors(self):
-        raw_authors = (self.raw_authors or list())
-        return [parse_author_name(author) for author in raw_authors]
+    def raw_authors_indexing(self):
+        authors = []
+        if isinstance(self.raw_authors, list) == False:
+            return authors
 
-    @property
-    def authors_str(self):
-        return ', '.join(self.paper_authors)
+        for author in self.raw_authors:
+            authors.append({
+                'first_name': author.get('first_name'),
+                'last_name': author.get('last_name'),
+                'full_name': f'{author.get("first_name")} {author.get("last_name")}',
+            })
 
-    @property
-    def paper_hubs(self):
-        return [hub.name for hub in self.hubs.all()]
+        return authors
 
     @property
     def authors_indexing(self):
-        return self.paper_authors
+        return [parse_author_name(author) for author in self.authors.all()]
 
     @property
     def discussion_count_indexing(self):
@@ -421,7 +424,11 @@ class Paper(models.Model):
 
     @property
     def hubs_indexing(self):
-        return self.paper_hubs
+        return [HubSerializer(h).data for h in self.hubs.all()]
+
+    @property
+    def hubs_indexing_flat(self):
+        return [hub.name for hub in self.hubs.all()]
 
     @property
     def score_indexing(self):

@@ -7,16 +7,18 @@ from django_elasticsearch_dsl_drf.filter_backends import (
     IdsFilterBackend,
     OrderingFilterBackend,
     SuggesterFilterBackend,
-    MultiMatchSearchFilterBackend,
     PostFilterFilteringFilterBackend,
-    FacetedSearchFilterBackend
+    FacetedSearchFilterBackend,
+    SearchFilterBackend
 )
+
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
 from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
 
 from search.documents.paper import PaperDocument
 from search.serializers.paper import PaperDocumentSerializer
 from utils.permissions import ReadOnly
+import re
 
 class PaperDocumentView(DocumentViewSet):
     document = PaperDocument
@@ -25,34 +27,29 @@ class PaperDocumentView(DocumentViewSet):
     pagination_class = LimitOffsetPagination
     lookup_field = 'id'
     filter_backends = [
-      MultiMatchSearchFilterBackend,
-      HighlightBackend,
+        SearchFilterBackend,
       CompoundSearchFilterBackend,
       FacetedSearchFilterBackend,
       FilteringFilterBackend,
       PostFilterFilteringFilterBackend,
       OrderingFilterBackend,
+      HighlightBackend,
     ]
 
-    search_fields = [
-        'title',
-        'doi',
-        'authors',
-    ]
-
-    multi_match_search_fields = {
-        'doi': {'boost': 4},
-        'title': {'boost': 3},
-        'authors': {'boost': 2},
-        'abstract': {'boost': 1},
+    search_fields = {
+        'doi': {'boost': 3, 'fuzziness': 0},
+        'title': {'boost': 2, 'fuzziness': 1},
+        'authors': {'boost': 1, 'fuzziness': 1},
+        'abstract': {'boost': 1, 'fuzziness': 1},
+        'hubs_flat': {'boost': 1, 'fuzziness': 1},
     }
 
     post_filter_fields = {
-      'hubs': 'hubs',
+      'hubs': 'hubs.name',
     }
 
     faceted_search_fields = {
-      'hubs': 'hubs'
+      'hubs': 'hubs.name'
     }
 
     filter_fields = {
@@ -65,9 +62,34 @@ class PaperDocumentView(DocumentViewSet):
 
     highlight_fields = {
         'title': {
+            'enabled': True,
             'options': {
-                'pre_tags': ["<em>"],
-                'post_tags': ["</em>"],
+                'pre_tags': ["<mark>"],
+                'post_tags': ["</mark>"],
+                'fragment_size': 1000,
+                'number_of_fragments': 1,
             },
-        }
+        },
+        'abstract': {
+            'enabled': True,
+            'options': {
+                'pre_tags': ["<mark>"],
+                'post_tags': ["</mark>"],
+                'fragment_size': 5000,
+                'number_of_fragments': 1,
+            },
+        }        
     }
+
+    def get_queryset(self, **kwargs):
+        query = self.request.query_params.get('search')
+        doi_regex = '(10[.][0-9]{4,}(?:[.][0-9]+)*/(?:(?![%"#? ])\\S)+)'
+
+        # If DOI is detexted, we want to override the configured queries
+        # and insead, execute a single DOI query
+        if re.match(doi_regex, query):
+            self.search_fields = {
+                'doi': {'boost': 3, 'fuzziness': 0}
+            }
+
+        return super().get_queryset(**kwargs)
