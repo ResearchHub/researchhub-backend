@@ -240,6 +240,17 @@ class Thread(BaseComment):
         return self.paper
 
     @property
+    def unified_document(self):
+        paper = self.paper
+        if paper:
+            return paper.unified_document
+
+        post = self.post
+        if post:
+            return post.unified_document
+        return None
+
+    @property
     def children(self):
         return self.comments.filter(is_removed=False)
 
@@ -319,6 +330,18 @@ class Reply(BaseComment):
         comment = self.get_comment_of_reply()
         thread = comment.parent
         return thread
+
+    @property
+    def unified_document(self):
+        thread = self.thread
+        paper = thread.paper
+        if paper:
+            return paper.unified_document
+
+        post = thread.post
+        if post:
+            return post.unified_document
+        return None
 
     @property
     def children(self):
@@ -408,6 +431,18 @@ class Comment(BaseComment):
         if thread:
             post = thread.post
             return post
+
+    @property
+    def unified_document(self):
+        thread = self.thread
+        paper = thread.paper
+        if paper:
+            return paper.unified_document
+
+        post = thread.post
+        if post:
+            return post.unified_document
+        return None
 
     @property
     def thread(self):
