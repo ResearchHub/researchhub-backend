@@ -11,7 +11,7 @@ title_analyzer = analyzer(
         "stop",
         "asciifolding",
         "shingle",
-        "stemmer",
+        "kstem",
     ],
     char_filter=["html_strip"]
 )
@@ -23,7 +23,7 @@ content_analyzer = analyzer(
         "word_delimiter",
         "apostrophe",
         "lowercase",
-        "stemmer",
+        "kstem",
         "trim",
         "stop",
         "asciifolding",
