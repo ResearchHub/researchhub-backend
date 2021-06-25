@@ -37,7 +37,7 @@ class PaperDocumentView(DocumentViewSet):
 
     search_fields = {
         'doi': {'boost': 3, 'fuzziness': 0},
-        'title': {'boost': 2, 'fuzziness': 1},
+        'title': {'boost': 2, 'fuzziness': "AUTO"},
         'raw_authors.full_name': {'boost': 1, 'fuzziness': 1},
         'abstract': {'boost': 1, 'fuzziness': 1},
         'hubs_flat': {'boost': 1, 'fuzziness': 1},
@@ -78,7 +78,7 @@ class PaperDocumentView(DocumentViewSet):
             'options': {
                 'pre_tags': ["<mark>"],
                 'post_tags': ["</mark>"],
-                'fragment_size': 1000,
+                'fragment_size': 2000,
                 'number_of_fragments': 1,
             },
         },
