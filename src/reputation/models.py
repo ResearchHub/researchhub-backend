@@ -197,12 +197,6 @@ class Contribution(models.Model):
         on_delete=models.SET_NULL,
         null=True
     )
-    paper = models.ForeignKey(
-        'paper.Paper',
-        related_name='contributions',
-        on_delete=models.SET_NULL,
-        null=True
-    )
     unified_document = models.ForeignKey(
         'researchhub_document.ResearchhubUnifiedDocument',
         related_name='contributions',
@@ -220,15 +214,9 @@ class Contribution(models.Model):
         'content_type',
         'object_id',
     )
-    # hub = models.ForeignKey(
-    #     'hub.Hub',
-    #     related_name="contributions",
-    #     on_Delete=models.SET_NULL,
-    #     null=True
-    # )
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return 'Paper: {} - {}'.format(self.id, self.contribution_type)
+        return 'Contribution: {} - {}'.format(self.id, self.contribution_type)

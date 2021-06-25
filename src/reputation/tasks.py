@@ -9,6 +9,7 @@ from django.contrib.contenttypes.models import ContentType
 from datetime import timedelta
 from django.utils import timezone
 
+from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub.celery import app
 from paper.models import Paper, Vote as PaperVote, Figure
@@ -74,7 +75,9 @@ def create_author_contribution(
 ):
     contributions = []
     content_type = ContentType.objects.get(model='author')
-    authors = Paper.objects.get(unified_document=unified_doc_id).authors.all()
+    authors = ResearchhubUnifiedDocument.objects.get(
+        id=unified_doc_id
+    ).authors.all()
     for i, author in enumerate(authors.iterator()):
         if author.user:
             user = author.user
@@ -87,7 +90,7 @@ def create_author_contribution(
             }
 
             if user:
-                data['user'] = user.id
+                data['user_id'] = user.id
 
             contributions.append(
                 Contribution(**data)
