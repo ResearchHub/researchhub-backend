@@ -103,12 +103,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
     def update_existing_researchhub_posts(self, request):
         rh_post = ResearchhubPost.objects.get(id=request.data.get('post_id'))
 
-        data = {
-            'preview_img': request.data.get('preview_img'),
-            'renderable_text': request.data.get('renderable_text'),
-            'title': request.data.get('title'),
-        }
-        serializer = ResearchhubPostSerializer(rh_post, data=data, partial=True)
+        serializer = ResearchhubPostSerializer(rh_post, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
@@ -117,7 +112,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
         serializer.instance.discussion_src.save(file_name, full_src_file)
 
         reset_unified_document_cache([0])
-        return Response(data, status=200)
+        return Response(request.data, status=200)
 
     def create_access_group(self, request):
         # TODO: calvinhlee - access group is for ELN
