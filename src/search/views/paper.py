@@ -38,7 +38,7 @@ class PaperDocumentView(DocumentViewSet):
     search_fields = {
         'doi': {'boost': 3, 'fuzziness': 0},
         'title': {'boost': 2, 'fuzziness': 1},
-        'authors': {'boost': 1, 'fuzziness': 1},
+        'raw_authors.full_name': {'boost': 1, 'fuzziness': 1},
         'abstract': {'boost': 1, 'fuzziness': 1},
         'hubs_flat': {'boost': 1, 'fuzziness': 1},
     }
@@ -56,10 +56,23 @@ class PaperDocumentView(DocumentViewSet):
     }
 
     ordering_fields = {
-      'publish_date': 'paper_publish_date'
+      'publish_date': 'paper_publish_date',
+      'discussion_count': 'discussion_count',
+      'score': 'score',
+      'hot_score': 'hot_score',
     }
 
     highlight_fields = {
+        'raw_authors.full_name': {
+            'field': 'raw_authors',
+            'enabled': True,
+            'options': {
+                'pre_tags': ["<mark>"],
+                'post_tags': ["</mark>"],
+                'fragment_size': 1000,
+                'number_of_fragments': 10,
+            },
+        },
         'title': {
             'enabled': True,
             'options': {
@@ -77,7 +90,7 @@ class PaperDocumentView(DocumentViewSet):
                 'fragment_size': 5000,
                 'number_of_fragments': 1,
             },
-        }        
+        }
     }
 
     def get_queryset(self, **kwargs):
