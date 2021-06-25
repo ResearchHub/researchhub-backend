@@ -37,16 +37,25 @@ class PaperDocumentSerializer(DocumentSerializer):
         return {}
 
     def get_slug(self, hit):
-        # TODO: Better way to add slug from a search hit?
-        paper_id = hit['id']
-        paper = Paper.objects.get(id=paper_id)
-        slug = paper.slug
+        slug = ''
+        try:
+            paper_id = hit['id']
+            paper = Paper.objects.get(id=paper_id)
+            slug = paper.slug
+        except:
+            pass
+
         return slug
 
     def get_abstract(self, hit):
-        paper_id = hit['id']
-        paper = Paper.objects.get(id=paper_id)
-        abstract = paper.abstract
+        abstract = ''
+        try:
+            paper_id = hit['id']
+            paper = Paper.objects.get(id=paper_id)
+            abstract = paper.abstract
+        except:
+            pass
+
         return abstract
 
 
