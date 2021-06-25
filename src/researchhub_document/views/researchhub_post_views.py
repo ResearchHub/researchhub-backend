@@ -114,7 +114,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
 
         file_name = f'RH-POST-{request.data.get("document_type")}-USER-{request.user.id}.txt'
         full_src_file = ContentFile(request.data['full_src'].encode())
-        rh_post.discussion_src.save(file_name, full_src_file)
+        serializer.instance.discussion_src.save(file_name, full_src_file)
 
         reset_unified_document_cache([0])
         return Response(data, status=200)
