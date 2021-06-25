@@ -49,9 +49,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
 
     def upsert_researchhub_posts(self, request):
         try:
-            request_data = request.data
-            prev_version_id = request_data.get('prev_version_id')
-            if (prev_version_id is not None):
+            if (request.data.get('post_id') is not None):
                 return self.update_existing_researchhub_posts(request)
             else:
                 return self.create_researchhub_post(request)
@@ -62,9 +60,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
         try:
             request_data = request.data
             document_type = request_data.get('document_type')
-            created_by = User.objects.get(
-                id=request_data.get('created_by')
-            )
+            created_by = request.user
             is_discussion = document_type == DISCUSSION
             editor_type = request_data.get('editor_type')
 
@@ -105,34 +101,23 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             return Response(exception, status=400)
 
     def update_existing_researchhub_posts(self, request):
-        request_data = request.data
-        document_type = request_data.get('document_type')
-        created_by = User.objects.get(
-            id=request_data.get('created_by')
-        )
-        is_discussion = document_type == DISCUSSION
+        rh_post = ResearchhubPost.objects.get(id=request.data.get('post_id'))
 
-        rh_post = ResearchhubPost.objects.get(id=request_data.get('prev_version_id'))
-        rh_post.preview_img = request_data.get('preview_img')
-        rh_post.renderable_text = request_data.get('renderable_text')
-        rh_post.title = request_data.get('title')
+        data = {
+            'preview_img': request.data.get('preview_img'),
+            'renderable_text': request.data.get('renderable_text'),
+            'title': request.data.get('title'),
+        }
+        serializer = ResearchhubPostSerializer(rh_post, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
 
-        file_name = f'RH-POST-{document_type}-USER-{created_by.id}.txt'
-        full_src_file = ContentFile(request_data['full_src'].encode())
-        if is_discussion:
-            rh_post.discussion_src.save(file_name, full_src_file)
-        else:
-            rh_post.eln_src.save(file_name, full_src_file)
-
-        rh_post.save()
+        file_name = f'RH-POST-{request.data.get("document_type")}-USER-{request.user.id}.txt'
+        full_src_file = ContentFile(request.data['full_src'].encode())
+        rh_post.discussion_src.save(file_name, full_src_file)
 
         reset_unified_document_cache([0])
-        return Response(
-            ResearchhubPostSerializer(
-                ResearchhubPost.objects.get(id=rh_post.id)
-            ).data,
-            status=200
-        )
+        return Response(data, status=200)
 
     def create_access_group(self, request):
         # TODO: calvinhlee - access group is for ELN
