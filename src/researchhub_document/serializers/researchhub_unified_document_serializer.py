@@ -52,6 +52,20 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
         context = self.context
         doc_type = instance.document_type
         if (doc_type in [DISCUSSION, ELN]):
-            return ResearchhubPostSerializer(instance.posts, many=True, context=context).data
+            return ResearchhubPostSerializer(
+                instance.posts,
+                many=True,
+                context=context
+            ).data
         else:
             return PaperSerializer(instance.paper, context=context).data
+
+
+class ContributionUnifiedDocumentSerializer(
+    ResearchhubUnifiedDocumentSerializer
+):
+    access_group = None
+    hubs = None
+
+    def get_documents(self, instance):
+        return None

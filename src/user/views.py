@@ -310,11 +310,10 @@ class UserViewSet(viewsets.ModelViewSet):
         removed_replies = Reply.objects.filter(is_removed=True)
 
         contributions = Contribution.objects.prefetch_related(
-            'paper',
             'user',
-            'paper__uploaded_by'
+            'unified_document'
         ).filter(
-            Q(unified_document__is_removed=False) | Q(paper__is_removed=False),
+            unified_document__is_removed=False,
             contribution_type__in=contribution_type,
         ).exclude(
             (
@@ -337,7 +336,7 @@ class UserViewSet(viewsets.ModelViewSet):
             hub_ids = hub_ids.split(',')
             hub_ids = [int(i) for i in hub_ids]
             contributions = contributions.filter(
-                paper__hubs__in=hub_ids
+                unified_document__hubs__in=hub_ids
             ).order_by(
                 ordering
             )

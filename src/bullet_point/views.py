@@ -451,7 +451,7 @@ def update_or_create_vote(request, user, bulletpoint, vote_type):
             Contribution.UPVOTER,
             {'app_label': 'bullet_point', 'model': 'vote'},
             user.id,
-            bulletpoint.paper.id,
+            bulletpoint.paper.unified_document.id,
             vote.id
         ),
         priority=3,

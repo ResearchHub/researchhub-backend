@@ -49,7 +49,8 @@ def get_model_serializer(model_arg):
 
 class ContributionSerializer(serializers.ModelSerializer):
     source = serializers.SerializerMethodField()
-    paper = serializers.SerializerMethodField()
+    # paper = serializers.SerializerMethodField()
+    unified_document = serializers.SerializerMethodField()
     content_type = serializers.SerializerMethodField()
     user = UserSerializer()
 
@@ -57,9 +58,15 @@ class ContributionSerializer(serializers.ModelSerializer):
         model = Contribution
         fields = '__all__'
 
-    def get_paper(self, contribution):
-        from paper.serializers import ContributionPaperSerializer
-        serializer = ContributionPaperSerializer(contribution.paper)
+    # def get_paper(self, contribution):
+    #     return {'id': 1, 'hubs': []}
+
+    def get_unified_document(self, contribution):
+        from researchhub_document.serializers.researchhub_unified_document_serializer \
+         import ContributionUnifiedDocumentSerializer
+        serializer = ContributionUnifiedDocumentSerializer(
+            contribution.unified_document
+        )
         return serializer.data
 
     def get_content_type(self, contribution):
@@ -70,6 +77,10 @@ class ContributionSerializer(serializers.ModelSerializer):
     def get_source(self, contribution):
         from paper.serializers import ContributionPaperSerializer
         from purchase.serializers import PurchaseSerializer
+        from researchhub_document.serializers.researchhub_post_serializer \
+            import (
+                ResearchhubPostSerializer,
+            )
 
         serializer = None
         context = self.context
@@ -102,6 +113,11 @@ class ContributionSerializer(serializers.ModelSerializer):
                 serializer = SummaryVoteSerializer(obj, context=context)
             elif app_label == 'bullet_point':
                 serializer = BulletPointVoteSerializer(obj, context=context)
+        elif model_name == 'researchhub post':
+            serializer = ResearchhubPostSerializer(
+                obj,
+                context=context
+            )
 
         if serializer is not None:
             return serializer.data
