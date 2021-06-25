@@ -26,6 +26,7 @@ import purchase.views
 import debug_toolbar
 import researchhub_case.views as researchhub_case_views
 import researchhub_document.views as researchhub_document_views
+
 from researchhub.settings import CLOUD, NO_SILK
 
 # Register debugger toolbar conditionally
