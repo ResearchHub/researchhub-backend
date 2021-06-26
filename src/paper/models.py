@@ -412,11 +412,12 @@ class Paper(models.Model):
             return authors
 
         for author in self.raw_authors:
-            authors.append({
-                'first_name': author.get('first_name'),
-                'last_name': author.get('last_name'),
-                'full_name': f'{author.get("first_name")} {author.get("last_name")}',
-            })
+            if isinstance(author, dict):
+                authors.append({
+                    'first_name': author.get('first_name'),
+                    'last_name': author.get('last_name'),
+                    'full_name': f'{author.get("first_name")} {author.get("last_name")}',
+                })
 
         return authors
 
