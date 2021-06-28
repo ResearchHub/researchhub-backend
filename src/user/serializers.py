@@ -99,6 +99,7 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
             return ResearchhubPost.objects.filter(created_by=user).count()
         return 0
 
+
 class AuthorEditableSerializer(rest_framework_serializers.ModelSerializer):
     university = rest_framework_serializers.PrimaryKeyRelatedField(
         queryset=University.objects.all(),
@@ -360,6 +361,8 @@ class UserActions:
                 data['tip'] = item.plain_text
             elif isinstance(item, BulletPoint):
                 data['tip'] = item.plain_text
+            elif isinstance(item, ResearchhubPost):
+                data['post_title'] = item.title
 
             if not isinstance(item, Summary) and not isinstance(item, Purchase):
                 data['user_flag'] = None
@@ -392,8 +395,6 @@ class UserActions:
             creator = item.uploaded_by
         elif isinstance(item, User):
             creator = item
-        elif isinstance(item, Purchase):
-            creator = item.user
         elif isinstance(item, Purchase):
             creator = item.user
         else:
