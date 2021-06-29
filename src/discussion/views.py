@@ -485,23 +485,43 @@ class CommentFileUpload(viewsets.ViewSet):
     throttle_classes = THROTTLE_CLASSES
 
     def create(self, request):
-        _, base64_content = request.data.get('content').split(';base64,')
-        base64_content = base64_content.encode()
+        if request.FILES:
+            data = request.FILES['upload']
+            content = data.read()
 
-        content_type = request.data.get('content_type')
-        bucket_directory = f'comment_files/{content_type}'
-        checksum = hashlib.md5(base64_content).hexdigest()
-        path = f'{bucket_directory}/{checksum}.{content_type}'
-        file_data = base64.b64decode(base64_content)
-        data = ContentFile(file_data)
+            content_type = data.content_type.split('/')[1]
+            bucket_directory = f'comment_files/{content_type}'
+            checksum = hashlib.md5(content).hexdigest()
+            path = f'{bucket_directory}/{checksum}.{content_type}'
 
-        if default_storage.exists(path):
-            url = default_storage.url(path)
-            res_status = status.HTTP_200_OK
+            if default_storage.exists(path):
+                url = default_storage.url(path)
+                res_status = status.HTTP_200_OK
+            else:
+                file_path = default_storage.save(path, data)
+                url = default_storage.url(file_path)
+                res_status = status.HTTP_201_CREATED
+
+            url = url.split('?AWSAccessKeyId')[0]
+            return Response({'url': url}, status=res_status)
         else:
-            file_path = default_storage.save(path, data)
-            url = default_storage.url(file_path)
-            res_status = status.HTTP_201_CREATED
+            _, base64_content = request.data.get('content').split(';base64,')
+            base64_content = base64_content.encode()
 
-        url = url.split('?AWSAccessKeyId')[0]
-        return Response(url, status=res_status)
+            content_type = request.data.get('content_type')
+            bucket_directory = f'comment_files/{content_type}'
+            checksum = hashlib.md5(base64_content).hexdigest()
+            path = f'{bucket_directory}/{checksum}.{content_type}'
+            file_data = base64.b64decode(base64_content)
+            data = ContentFile(file_data)
+
+            if default_storage.exists(path):
+                url = default_storage.url(path)
+                res_status = status.HTTP_200_OK
+            else:
+                file_path = default_storage.save(path, data)
+                url = default_storage.url(file_path)
+                res_status = status.HTTP_201_CREATED
+
+            url = url.split('?AWSAccessKeyId')[0]
+            return Response(url, status=res_status)
