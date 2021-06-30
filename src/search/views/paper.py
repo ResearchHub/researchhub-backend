@@ -1,21 +1,3 @@
-# TODO: Refactor this to remove drf package
-# flake8: noqa
-
-from django_elasticsearch_dsl_drf.constants import (
-    LOOKUP_FILTER_TERMS,
-    LOOKUP_FILTER_RANGE,
-    LOOKUP_FILTER_PREFIX,
-    LOOKUP_FILTER_WILDCARD,
-    LOOKUP_QUERY_IN,
-    LOOKUP_QUERY_GT,
-    LOOKUP_QUERY_GTE,
-    LOOKUP_QUERY_LT,
-    LOOKUP_QUERY_LTE,
-    LOOKUP_QUERY_EXCLUDE,
-    SUGGESTER_COMPLETION,
-    SUGGESTER_PHRASE,
-    SUGGESTER_TERM,
-)
 from django_elasticsearch_dsl_drf.filter_backends import (
     CompoundSearchFilterBackend,
     DefaultOrderingFilterBackend,
@@ -25,76 +7,125 @@ from django_elasticsearch_dsl_drf.filter_backends import (
     IdsFilterBackend,
     OrderingFilterBackend,
     SuggesterFilterBackend,
+    PostFilterFilteringFilterBackend,
+    FacetedSearchFilterBackend,
+    MultiMatchSearchFilterBackend,
+    SearchFilterBackend,
 )
+
+from elasticsearch_dsl.query import Q
+
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
-from django_elasticsearch_dsl_drf.pagination import PageNumberPagination
+from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
 
 from search.documents.paper import PaperDocument
 from search.serializers.paper import PaperDocumentSerializer
+from utils.permissions import ReadOnly
+import re
 
 
 class PaperDocumentView(DocumentViewSet):
     document = PaperDocument
+    permission_classes = [ReadOnly]
     serializer_class = PaperDocumentSerializer
-    pagination_class = PageNumberPagination
+    pagination_class = LimitOffsetPagination
     lookup_field = 'id'
     filter_backends = [
+        # PhraseSearchFilterBackend,
+        MultiMatchSearchFilterBackend,
         CompoundSearchFilterBackend,
-        DefaultOrderingFilterBackend,
+        FacetedSearchFilterBackend,
         FilteringFilterBackend,
-        # NestedFilteringFilterBackend,
-        IdsFilterBackend,
+        PostFilterFilteringFilterBackend,
+        DefaultOrderingFilterBackend,
         OrderingFilterBackend,
         HighlightBackend,
-        SuggesterFilterBackend,  # This should be the last backend
     ]
 
-    search_fields = [
-        'title',
-        'tagline',
-        'doi',
-        'authors',
-    ]
+    search_fields = {
+        'doi': {'boost': 3, 'fuzziness': 1},
+        'title': {'boost': 2, 'fuzziness': 1},
+        'raw_authors.full_name': {'boost': 1, 'fuzziness': 1},
+        'abstract': {'boost': 1, 'fuzziness': 1},
+        'hubs_flat': {'boost': 1, 'fuzziness': 1},
+    }
+
+    multi_match_search_fields = {
+        'doi': {'boost': 3, 'fuzziness': 1},
+        'title': {'boost': 2, 'fuzziness': 1},
+        'raw_authors.full_name': {'boost': 1, 'fuzziness': 1},
+        'abstract': {'boost': 1, 'fuzziness': 1},
+        'hubs_flat': {'boost': 1, 'fuzziness': 1},
+    }
+
+    multi_match_options = {
+        'operator': 'and'
+    }
+
+    post_filter_fields = {
+        'hubs': 'hubs.name',
+    }
+
+    faceted_search_fields = {
+        'hubs': 'hubs.name'
+    }
 
     filter_fields = {
-        'title': 'title',
-        'tagline': 'tagline',
-        'doi': 'doi',
-        'authors': 'authors',
+        'publish_date': 'paper_publish_date'
     }
-    # nested_filter_fields = {
-    #     'vote_type': {
-    #         'field': 'votes',
-    #         'path': 'votes.vote_type',
-    #     },
-    # }
+
+    ordering = ('_score', '-hot_score', '-discussion_count', '-paper_publish_date')
 
     ordering_fields = {
+        'publish_date': 'paper_publish_date',
+        'discussion_count': 'discussion_count',
         'score': 'score',
+        'hot_score': 'hot_score',
     }
 
     highlight_fields = {
+        'raw_authors.full_name': {
+            'field': 'raw_authors',
+            'enabled': True,
+            'options': {
+                'pre_tags': ["<mark>"],
+                'post_tags': ["</mark>"],
+                'fragment_size': 1000,
+                'number_of_fragments': 10,
+            },
+        },
         'title': {
+            'enabled': True,
             'options': {
-                'pre_tags': ["<b>"],
-                'post_tags': ["</b>"],
+                'pre_tags': ["<mark>"],
+                'post_tags': ["</mark>"],
+                'fragment_size': 2000,
+                'number_of_fragments': 1,
             },
         },
-        'tagline': {
+        'abstract': {
+            'enabled': True,
             'options': {
-                'pre_tags': ["<b>"],
-                'post_tags': ["</b>"],
+                'pre_tags': ["<mark>"],
+                'post_tags': ["</mark>"],
+                'fragment_size': 5000,
+                'number_of_fragments': 1,
             },
-        },
-    }
-
-    suggester_fields = {
-        'title_suggest': {
-            'field': 'title.suggest',
-            'suggesters': [
-                SUGGESTER_COMPLETION,
-                SUGGESTER_TERM,
-                SUGGESTER_PHRASE,
-            ],
         }
     }
+
+
+    def get_queryset(self, **kwargs):
+        gen_query = super().get_queryset(**kwargs)
+
+        query = self.request.query_params.get('search')
+        doi_regex = '(10[.][0-9]{4,}(?:[.][0-9]+)*/(?:(?![%"#? ])\\S)+)'
+
+        # If DOI is detected, we want to override the configured queries
+        # and insead, execute a single DOI query
+        if re.match(doi_regex, query):
+            self.search_fields = {
+                'doi': {'boost': 3, 'fuzziness': 0}
+            }
+
+        return gen_query

@@ -51,6 +51,14 @@ elif PRODUCTION:
 elif CLOUD:
     BASE_FRONTEND_URL = 'https://staging-web.researchhub.com'
 
+
+# Django Debug Toolbar
+USE_DEBUG_TOOLBAR = False
+try:
+    USE_DEBUG_TOOLBAR = keys.USE_DEBUG_TOOLBAR
+except:
+    pass
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
 
@@ -750,7 +758,6 @@ elif reward_time_day:
     REWARD_SCHEDULE = crontab(minute='0', hour='0')
 elif reward_time_hour:
     REWARD_SCHEDULE = crontab(minute='0', hour='*')
-
 
 # GEOIP_PATH = BASE_DIR + '/utils'
 
