@@ -55,6 +55,7 @@ class CommentSerializer(
     thread_id = serializers.SerializerMethodField()
     paper_id = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
+    document_meta = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -78,7 +79,8 @@ class CommentSerializer(
             'plain_text',
             'thread_id',
             'paper_id',
-            'promoted'
+            'promoted',
+            'document_meta',
         ]
         read_only_fields = [
             'is_public',
@@ -89,6 +91,7 @@ class CommentSerializer(
             'score',
             'user_vote',
             'user_flag',
+            'document_meta',
         ]
         model = Comment
 
@@ -128,6 +131,27 @@ class CommentSerializer(
         else:
             return None
 
+    def get_document_meta(self, obj):
+        paper = obj.paper
+        if paper:
+            data = {
+                'id': paper.id,
+                'title': paper.paper_title,
+                'parent_content_type': 'paper'
+            }
+            return data
+
+        post = obj.post
+        if post:
+            data = {
+                'id': post.id,
+                'title': post.title,
+                'parent_content_type': 'post'
+            }
+            return data
+
+        return None
+
 
 class ThreadSerializer(
     serializers.ModelSerializer, GenericReactionSerializerMixin
@@ -143,6 +167,7 @@ class ThreadSerializer(
     comments = serializers.SerializerMethodField()
     paper_slug = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
+    document_meta = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -170,6 +195,7 @@ class ThreadSerializer(
             'user_flag',
             'user_vote',
             'was_edited',
+            'document_meta',
         ]
         read_only_fields = [
             'is_public',
@@ -177,6 +203,7 @@ class ThreadSerializer(
             'score',
             'user_flag',
             'user_vote',
+            'document_meta'
         ]
         model = Thread
 
@@ -218,6 +245,27 @@ class ThreadSerializer(
         if obj.paper:
             return obj.paper.slug
 
+    def get_document_meta(self, obj):
+        paper = obj.paper
+        if paper:
+            data = {
+                'id': paper.id,
+                'title': paper.paper_title,
+                'parent_content_type': 'paper'
+            }
+            return data
+
+        post = obj.post
+        if post:
+            data = {
+                'id': post.id,
+                'title': post.title,
+                'parent_content_type': 'post'
+            }
+            return data
+
+        return None
+
 
 class SimpleThreadSerializer(ThreadSerializer):
     class Meta:
@@ -248,6 +296,7 @@ class ReplySerializer(
     reply_count = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
+    document_meta = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -269,7 +318,8 @@ class ReplySerializer(
             'plain_text',
             'thread_id',
             'paper_id',
-            'promoted'
+            'promoted',
+            'document_meta'
         ]
         read_only_fields = [
             'is_public',
@@ -280,7 +330,8 @@ class ReplySerializer(
             'user_vote',
             'user_flag',
             'thread_id',
-            'paper_id'
+            'paper_id',
+            'document_meta'
         ]
         model = Reply
 
@@ -321,3 +372,24 @@ class ReplySerializer(
     def get_reply_count(self, obj):
         replies = self._replies_query(obj)
         return replies.count()
+
+    def get_document_meta(self, obj):
+        paper = obj.paper
+        if paper:
+            data = {
+                'id': paper.id,
+                'title': paper.paper_title,
+                'parent_content_type': 'paper'
+            }
+            return data
+
+        post = obj.post
+        if post:
+            data = {
+                'id': post.id,
+                'title': post.title,
+                'parent_content_type': 'post'
+            }
+            return data
+
+        return None
