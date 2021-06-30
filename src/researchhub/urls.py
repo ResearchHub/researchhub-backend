@@ -23,11 +23,11 @@ import user.views
 import notification.views
 import analytics.views
 import purchase.views
+import debug_toolbar
 import researchhub_case.views as researchhub_case_views
 import researchhub_document.views as researchhub_document_views
 
-from researchhub.settings import CLOUD, NO_SILK
-
+from researchhub.settings import CLOUD, NO_SILK, USE_DEBUG_TOOLBAR
 
 router = routers.DefaultRouter()
 
@@ -285,3 +285,6 @@ urlpatterns = [
 
 if not CLOUD and not NO_SILK:
     urlpatterns += [path('silk/', include('silk.urls', namespace='silk'))]
+
+if USE_DEBUG_TOOLBAR:
+    urlpatterns += [path('__debug__/', include(debug_toolbar.urls))]
