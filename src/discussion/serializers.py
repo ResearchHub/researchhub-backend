@@ -137,7 +137,6 @@ class CommentSerializer(
             data = {
                 'id': paper.id,
                 'title': paper.paper_title,
-                'parent_content_type': 'paper'
             }
             return data
 
@@ -146,7 +145,6 @@ class CommentSerializer(
             data = {
                 'id': post.id,
                 'title': post.title,
-                'parent_content_type': 'post'
             }
             return data
 
@@ -251,7 +249,6 @@ class ThreadSerializer(
             data = {
                 'id': paper.id,
                 'title': paper.paper_title,
-                'parent_content_type': 'paper'
             }
             return data
 
@@ -260,7 +257,6 @@ class ThreadSerializer(
             data = {
                 'id': post.id,
                 'title': post.title,
-                'parent_content_type': 'post'
             }
             return data
 
@@ -379,7 +375,6 @@ class ReplySerializer(
             data = {
                 'id': paper.id,
                 'title': paper.paper_title,
-                'parent_content_type': 'paper'
             }
             return data
 
@@ -388,7 +383,6 @@ class ReplySerializer(
             data = {
                 'id': post.id,
                 'title': post.title,
-                'parent_content_type': 'post'
             }
             return data
 
