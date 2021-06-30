@@ -111,6 +111,16 @@ Back in the python virtual environment, build the indices
 ```
 python manage.py search_index --rebuild
 ```
+
+Optionally, start Kibana for Elastic dev tools  
+
+```
+./start-kibana.sh
+```
+
+To view elastic queries via the API, add `DEBUG_TOOLBAR = True` to `keys.py`. Then, visit an API url such as [http://localhost:8000/api/search/paper/?publish_date__gte=2022-01-01](http://localhost:8000/api/search/paper/?publish_date__gte=2022-01-01)
+
+
 -------
 
 ### ETHEREUM
