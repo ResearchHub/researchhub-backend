@@ -54,15 +54,36 @@ class GenericReactionSerializerMixin:
       'score',
       'user_endorsement',
       'user_flag',
-      'user_vote'
+      'user_vote',
     ]
     READ_ONLY_FIELDS = [
       'promoted',
       'score',
       'user_endorsement',
       'user_flag',
-      'user_vote'
+      'user_vote',
     ]
+
+    def get_document_meta(self, obj):
+        paper = obj.paper
+        if paper:
+            data = {
+                'id': paper.id,
+                'title': paper.paper_title,
+                'slug': paper.slug,
+            }
+            return data
+
+        post = obj.post
+        if post:
+            data = {
+                'id': post.id,
+                'title': post.title,
+                'slug': post.slug
+            }
+            return data
+
+        return None
 
     def get_user_endorsement(self, obj):
         user = get_user_from_request(self.context)

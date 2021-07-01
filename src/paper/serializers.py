@@ -33,7 +33,6 @@ from paper.utils import (
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url
 )
-from summary.serializers import SummarySerializer
 from researchhub.lib import get_paper_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
@@ -260,7 +259,9 @@ class BasePaperSerializer(serializers.ModelSerializer):
         return None
 
     def get_discussion_users(self, paper):
-        contributions = Contribution.objects.filter(paper=paper)
+        contributions = Contribution.objects.filter(
+            unified_document=paper.unified_document
+        )
         contribution_users = contributions.values_list(
             'user',
             flat=True

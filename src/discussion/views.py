@@ -103,21 +103,10 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 is_thread=True
             )
             hubs = list(paper.hubs.values_list('id', flat=True))
-            discussion_id = response.data['id']
-            create_contribution.apply_async(
-                (
-                    Contribution.COMMENTER,
-                    {'app_label': 'discussion', 'model': 'thread'},
-                    request.user.id,
-                    unified_doc_id,
-                    discussion_id
-                ),
-                priority=2,
-                countdown=10
-            )
         else:
             post_id = get_post_id_from_path(request)
             post = ResearchhubPost.objects.get(id=post_id)
+            unified_doc_id = post.unified_document.id
 
             if request.query_params.get('created_location') == 'progress':
                 request.data['created_location'] = (
@@ -133,6 +122,18 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             )
             hubs = list(post.unified_document.hubs.all().values_list('id', flat=True))
 
+        discussion_id = response.data['id']
+        create_contribution.apply_async(
+            (
+                Contribution.COMMENTER,
+                {'app_label': 'discussion', 'model': 'thread'},
+                request.user.id,
+                unified_doc_id,
+                discussion_id
+            ),
+            priority=2,
+            countdown=10
+        )
         reset_unified_document_cache([0])
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)
@@ -211,7 +212,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         )
 
         return threads.prefetch_related('paper')
-
 
     @action(
         detail=True,
@@ -292,24 +292,13 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
             response = super().create(request, *args, **kwargs)
             response = self.get_self_upvote_response(request, response, Comment)
-            discussion_id = response.data['id']
             self.sift_track_create_content_comment(request, response, Comment)
 
-            create_contribution.apply_async(
-                (
-                    Contribution.COMMENTER,
-                    {'app_label': 'discussion', 'model': 'comment'},
-                    request.user.id,
-                    unified_doc_id,
-                    discussion_id
-                ),
-                priority=3,
-                countdown=10
-            )
         else:
             post_id = get_post_id_from_path(request)
             post = ResearchhubPost.objects.get(id=post_id)
             hubs = list(post.unified_document.hubs.all().values_list('id', flat=True))
+            unified_doc_id = post.unified_document.id
 
             if request.query_params.get('created_location') == 'progress':
                 request.data['created_location'] = (
@@ -320,6 +309,18 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             response = self.get_self_upvote_response(request, response, Comment)
             self.sift_track_create_content_comment(request, response, Comment)
 
+        discussion_id = response.data['id']
+        create_contribution.apply_async(
+            (
+                Contribution.COMMENTER,
+                {'app_label': 'discussion', 'model': 'comment'},
+                request.user.id,
+                unified_doc_id,
+                discussion_id
+            ),
+            priority=3,
+            countdown=10
+        )
         reset_unified_document_cache([0])
         invalidate_top_rated_cache(hubs)
         invalidate_newest_cache(hubs)
@@ -409,21 +410,11 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 )
 
             response = super().create(request, *args, **kwargs)
-            discussion_id = response.data['id']
             self.sift_track_create_content_comment(request, response, Reply)
-            create_contribution.apply_async(
-                (
-                    Contribution.COMMENTER,
-                    {'app_label': 'discussion', 'model': 'reply'},
-                    request.user.id,
-                    unified_doc_id,
-                    discussion_id
-                ),
-                priority=3,
-                countdown=10
-            )
         else:
             post_id = get_post_id_from_path(request)
+            post = ResearchhubPost.objects.get(id=post_id)
+            unified_doc_id = post.unified_document.id
 
             if request.query_params.get('created_location') == 'progress':
                 request.data['created_location'] = (
@@ -431,7 +422,21 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 )
 
             response = super().create(request, *args, **kwargs)
+            discussion_id = response.data['id']
             self.sift_track_create_content_comment(request, response, Reply)
+
+        discussion_id = response.data['id']
+        create_contribution.apply_async(
+            (
+                Contribution.COMMENTER,
+                {'app_label': 'discussion', 'model': 'reply'},
+                request.user.id,
+                unified_doc_id,
+                discussion_id
+            ),
+            priority=3,
+            countdown=10
+        )
 
         return self.get_self_upvote_response(request, response, Reply)
 

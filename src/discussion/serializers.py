@@ -55,6 +55,7 @@ class CommentSerializer(
     thread_id = serializers.SerializerMethodField()
     paper_id = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
+    document_meta = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -78,7 +79,8 @@ class CommentSerializer(
             'plain_text',
             'thread_id',
             'paper_id',
-            'promoted'
+            'promoted',
+            'document_meta',
         ]
         read_only_fields = [
             'is_public',
@@ -89,6 +91,7 @@ class CommentSerializer(
             'score',
             'user_vote',
             'user_flag',
+            'document_meta',
         ]
         model = Comment
 
@@ -143,6 +146,7 @@ class ThreadSerializer(
     comments = serializers.SerializerMethodField()
     paper_slug = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
+    document_meta = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -170,6 +174,7 @@ class ThreadSerializer(
             'user_flag',
             'user_vote',
             'was_edited',
+            'document_meta',
         ]
         read_only_fields = [
             'is_public',
@@ -177,6 +182,7 @@ class ThreadSerializer(
             'score',
             'user_flag',
             'user_vote',
+            'document_meta'
         ]
         model = Thread
 
@@ -248,6 +254,7 @@ class ReplySerializer(
     reply_count = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
+    document_meta = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -269,7 +276,8 @@ class ReplySerializer(
             'plain_text',
             'thread_id',
             'paper_id',
-            'promoted'
+            'promoted',
+            'document_meta'
         ]
         read_only_fields = [
             'is_public',
@@ -280,7 +288,8 @@ class ReplySerializer(
             'user_vote',
             'user_flag',
             'thread_id',
-            'paper_id'
+            'paper_id',
+            'document_meta'
         ]
         model = Reply
 

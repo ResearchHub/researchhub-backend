@@ -140,6 +140,7 @@ def handle_spam(sender, instance, **kwargs):
 @receiver(post_save, sender=ReactionVote, dispatch_uid='discussion_vote_action')
 @receiver(post_save, sender=BulletPointVote, dispatch_uid='summary_vote_action')
 @receiver(post_save, sender=SummaryVote, dispatch_uid='bulletpoint_vote_action')
+@receiver(post_save, sender=ResearchhubPost, dispatch_uid='researchhubpost_action')
 def create_action(sender, instance, created, **kwargs):
     if created:
         if sender == Summary:
@@ -167,7 +168,8 @@ def create_action(sender, instance, created, **kwargs):
             get_content_type_for_model(Thread),
             get_content_type_for_model(Reply),
             get_content_type_for_model(Comment),
-            get_content_type_for_model(Paper)
+            get_content_type_for_model(Paper),
+            get_content_type_for_model(ResearchhubPost)
         ]
         if (
             user is not None
@@ -175,7 +177,7 @@ def create_action(sender, instance, created, **kwargs):
             and not Action.objects.filter(
                 user=user, content_type__in=referral_content_types
             ).exists()
-            and sender in [Thread, Reply, Comment, Paper]
+            and sender in [Thread, Reply, Comment, Paper, ResearchhubPost]
         ):
             timestamp = time()
             referred = Distributor(
@@ -201,7 +203,10 @@ def create_action(sender, instance, created, **kwargs):
         ]
         display = False if (
             sender in vote_types
-            or sender != ReactionVote and instance.is_removed
+            or sender != ReactionVote and (
+                hasattr(instance, 'is_removed') and
+                instance.is_removed
+            )
         ) else True
 
         action = Action.objects.create(
