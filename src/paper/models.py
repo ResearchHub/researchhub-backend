@@ -132,7 +132,8 @@ class Paper(models.Model):
     authors = models.ManyToManyField(
         'user.Author',
         related_name='authored_papers',
-        blank=True
+        blank=True,
+        help_text='Author that participated in the research paper'
     )
     hubs = models.ManyToManyField(
         'hub.Hub',
@@ -205,7 +206,11 @@ class Paper(models.Model):
         related_name='papers',
         on_delete=models.SET_NULL,
         blank=True,
-        null=True
+        null=True,
+        help_text=(
+            'RH User account that submitted this paper. ' +
+            'NOTE: user didnt necessarily had to be the author'
+        )
     )
 
     # Metadata
