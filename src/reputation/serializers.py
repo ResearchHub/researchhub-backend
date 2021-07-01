@@ -49,7 +49,6 @@ def get_model_serializer(model_arg):
 
 class ContributionSerializer(serializers.ModelSerializer):
     source = serializers.SerializerMethodField()
-    # paper = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     content_type = serializers.SerializerMethodField()
     user = UserSerializer()
@@ -57,9 +56,6 @@ class ContributionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contribution
         fields = '__all__'
-
-    # def get_paper(self, contribution):
-    #     return {'id': 1, 'hubs': []}
 
     def get_unified_document(self, contribution):
         from researchhub_document.serializers.researchhub_unified_document_serializer \
