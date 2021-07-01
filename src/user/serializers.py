@@ -271,8 +271,9 @@ class UserActions:
 
     def _group_and_serialize_actions(self):
         # TODO: Refactor to clean this up
-        from researchhub_document.serializers.researchhub_unified_document_serializer \
-         import ContributionUnifiedDocumentSerializer
+        from researchhub_document.serializers import (
+          ResearchhubUnifiedDocumentSerializer
+        )
 
         for action in self.all:
             item = action.item
@@ -405,7 +406,7 @@ class UserActions:
 
             if hasattr(item, 'unified_document'):
                 unified_document = item.unified_document
-                data['unified_document'] = ContributionUnifiedDocumentSerializer(
+                data['unified_document'] = ResearchhubUnifiedDocumentSerializer(
                     unified_document
                 ).data
 
