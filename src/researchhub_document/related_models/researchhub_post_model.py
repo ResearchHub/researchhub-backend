@@ -96,6 +96,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
         content_type_field='content_type',
         related_query_name='post'
     )
+    slug = models.SlugField(max_length=1024)
 
     @property
     def is_latest_version(self):
@@ -104,6 +105,10 @@ class ResearchhubPost(AbstractGenericReactionModel):
     @property
     def is_root_version(self):
         return self.version_number == 1
+
+    @property
+    def users_to_notify(self):
+        return [self.created_by]
 
     @property
     def paper(self):
