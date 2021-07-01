@@ -317,8 +317,9 @@ class UserActions:
                 }
                 data['sender'] = item.user.full_name()
                 data['support_type'] = item.content_type.model
+            elif isinstance(item, ResearchhubPost):
+                data['post_title'] = item.title
             else:
-                continue
                 raise TypeError(
                     f'Instance of type {type(item)} is not supported'
                 )
@@ -380,8 +381,6 @@ class UserActions:
                 data['tip'] = item.plain_text
             elif isinstance(item, BulletPoint):
                 data['tip'] = item.plain_text
-            elif isinstance(item, ResearchhubPost):
-                data['post_title'] = item.title
 
             if not isinstance(item, Summary) and not isinstance(item, Purchase):
                 data['user_flag'] = None

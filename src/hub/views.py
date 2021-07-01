@@ -232,7 +232,9 @@ class HubViewSet(viewsets.ModelViewSet):
             'comment',
             'reply',
             'summary',
-            'purchase'
+            'purchase',
+            'researchhubpost',
+            'paper'
         ]
 
         # PK == 0 indicates for now that we're on the homepage
@@ -247,7 +249,7 @@ class HubViewSet(viewsets.ModelViewSet):
             user__isnull=False,
             user__is_suspended=False,
             user__probable_spammer=False,
-            content_type__model__in=models+['paper'],
+            content_type__model__in=models,
             display=True
         ).order_by('-created_date')
 
