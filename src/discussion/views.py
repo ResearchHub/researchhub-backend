@@ -480,6 +480,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         return super().downvote(*args, **kwargs)
 
 
+# TODO: https://www.notion.so/researchhub/Make-a-generic-class-to-handle-uploading-files-to-S3-88c40abfbbe04a03aa00f82f9ab7c345
 class CommentFileUpload(viewsets.ViewSet):
     permission_classes = [IsAuthenticated & CreateOrUpdateIfAllowed]
     throttle_classes = THROTTLE_CLASSES
