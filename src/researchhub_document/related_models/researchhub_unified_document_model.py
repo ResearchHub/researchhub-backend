@@ -2,6 +2,7 @@ from django.db import models
 
 from hub.models import Hub
 from paper.models import Paper
+from user.models import Author
 from researchhub_access_group.models import ResearchhubAccessGroup
 from researchhub_document.related_models.constants.document_type import (
   DOCUMENT_TYPES, PAPER
@@ -56,6 +57,23 @@ class ResearchhubUnifiedDocument(DefaultModel):
         related_name='related_documents',
         blank=True
     )
+
+    @property
+    def authors(self):
+        paper = self.paper
+        if paper:
+            return paper.authors.all()
+
+        posts = self.posts
+        if posts:
+            # This property needs to return a queryset
+            # which is why we are filtering by authors
+            post = posts.last()
+            author = Author.objects.filter(
+                user=post.created_by
+            )
+            return author
+        return self.none()
 
     @property
     def is_public(self):

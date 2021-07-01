@@ -329,7 +329,7 @@ def update_or_create_vote(request, user, summary, vote_type):
             Contribution.UPVOTER,
             {'app_label': 'summary', 'model': 'vote'},
             user.id,
-            summary.paper.id,
+            summary.paper.unified_document.id,
             vote.id
         ),
         priority=3,
