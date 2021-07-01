@@ -1,5 +1,4 @@
 import logging
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 import rest_framework.serializers as rest_framework_serializers
 import rest_auth.registration.serializers as rest_auth_serializers
 
@@ -7,6 +6,7 @@ from bullet_point.models import BulletPoint
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from discussion.lib import check_is_discussion_item
 from hub.serializers import HubSerializer
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from paper.models import Vote as PaperVote, Paper
 from user.models import (
     Action,
@@ -48,7 +48,6 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
     sift_link = rest_framework_serializers.SerializerMethodField()
     num_posts = rest_framework_serializers.SerializerMethodField()
 
-
     class Meta:
         model = Author
         fields = [field.name for field in Author._meta.fields] + [
@@ -63,6 +62,7 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
         read_only_fields = [
             'num_posts',
         ]
+
     def get_reputation(self, obj):
         if obj.user is None:
             return 0
@@ -267,6 +267,9 @@ class UserActions:
 
     def _group_and_serialize_actions(self):
         # TODO: Refactor to clean this up
+        from researchhub_document.serializers.researchhub_unified_document_serializer \
+         import ContributionUnifiedDocumentSerializer
+
         for action in self.all:
             item = action.item
             if not item:
@@ -395,6 +398,12 @@ class UserActions:
                 if comment is not None:
                     data['comment_id'] = comment.id
                 data['reply_id'] = item.id
+
+            if hasattr(item, 'unified_document'):
+                unified_document = item.unified_document
+                data['unified_document'] = ContributionUnifiedDocumentSerializer(
+                    unified_document
+                ).data
 
             if not is_removed:
                 self.serialized.append(data)

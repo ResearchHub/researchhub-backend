@@ -131,25 +131,6 @@ class CommentSerializer(
         else:
             return None
 
-    def get_document_meta(self, obj):
-        paper = obj.paper
-        if paper:
-            data = {
-                'id': paper.id,
-                'title': paper.paper_title,
-            }
-            return data
-
-        post = obj.post
-        if post:
-            data = {
-                'id': post.id,
-                'title': post.title,
-            }
-            return data
-
-        return None
-
 
 class ThreadSerializer(
     serializers.ModelSerializer, GenericReactionSerializerMixin
@@ -242,25 +223,6 @@ class ThreadSerializer(
     def get_paper_slug(self, obj):
         if obj.paper:
             return obj.paper.slug
-
-    def get_document_meta(self, obj):
-        paper = obj.paper
-        if paper:
-            data = {
-                'id': paper.id,
-                'title': paper.paper_title,
-            }
-            return data
-
-        post = obj.post
-        if post:
-            data = {
-                'id': post.id,
-                'title': post.title,
-            }
-            return data
-
-        return None
 
 
 class SimpleThreadSerializer(ThreadSerializer):
@@ -368,22 +330,3 @@ class ReplySerializer(
     def get_reply_count(self, obj):
         replies = self._replies_query(obj)
         return replies.count()
-
-    def get_document_meta(self, obj):
-        paper = obj.paper
-        if paper:
-            data = {
-                'id': paper.id,
-                'title': paper.paper_title,
-            }
-            return data
-
-        post = obj.post
-        if post:
-            data = {
-                'id': post.id,
-                'title': post.title,
-            }
-            return data
-
-        return None
