@@ -1,3 +1,4 @@
+import logging
 import time
 import uuid
 
@@ -56,24 +57,28 @@ def send_validation_email(case):
 
 def reward_author_claim_case(requestor_author, target_author_papers):
     vote_reward = 0
-    for paper in target_author_papers.iterator():
-        votes = paper.votes.filter(
-            created_by__is_suspended=False,
-            created_by__probable_spammer=False
-        )
-        score = votes.aggregate(
-            score=Count(
-                'id', filter=Q(vote_type=Vote.UPVOTE)
-            ) - Count(
-                'id', filter=Q(vote_type=Vote.DOWNVOTE)
+    try:
+        for paper in target_author_papers.iterator():
+            votes = paper.votes.filter(
+                created_by__is_suspended=False,
+                created_by__probable_spammer=False
             )
-        ).get('score', 0)
-        vote_reward += score
-    distributor = Distributor(
-        dist('REWARD', vote_reward, False),
-        requestor_author.user,
-        requestor_author,
-        time.time()
-    )
-    distribution = distributor.distribute()
-    return distribution
+            score = votes.aggregate(
+                score=Count(
+                    'id', filter=Q(vote_type=Vote.UPVOTE)
+                ) - Count(
+                    'id', filter=Q(vote_type=Vote.DOWNVOTE)
+                )
+            ).get('score', 0)
+            vote_reward += score
+        distributor = Distributor(
+            dist('REWARD', vote_reward, False),
+            requestor_author.user,
+            requestor_author,
+            time.time()
+        )
+        distribution = distributor.distribute()
+        return distribution
+    except Exception as exception:
+        print("reward_author_claim_case: ", exception)
+        logging.warning(exception)

@@ -61,10 +61,11 @@ def merge_author_upon_approval(
         and instance.target_author.user is None
     ):
         try:
+            # logical ordering
             requestor_author = instance.requestor.author_profile
-            target_author_papers = instance.target_author.authored_papers
-            merge_author_profiles(requestor_author, instance.target_author)
+            target_author_papers = instance.target_author.authored_papers.all()
             reward_author_claim_case(requestor_author, target_author_papers)
+            merge_author_profiles(requestor_author, instance.target_author)
         except Exception as exception:
             print("merge_author_upon_approval: ", exception)
             logging.warning(exception)
