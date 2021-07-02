@@ -1,5 +1,3 @@
-import logging
-
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -11,6 +9,7 @@ from researchhub_case.utils.author_claim_case_utils import (
   send_validation_email,
 )
 from user.utils import merge_author_profiles
+from utils import sentry
 
 
 @receiver(
@@ -39,7 +38,7 @@ def author_claim_case_post_create_signal(
             instance.validation_attempt_count += 1
             instance.save()
         except Exception as exception:
-            logging.warning(exception)
+            sentry.log_error(exception)
 
 
 @receiver(
