@@ -62,7 +62,8 @@ def merge_author_upon_approval(
     ):
         try:
             requestor_author = instance.requestor.author_profile
+            target_author_papers = instance.target_author.authored_papers
             merge_author_profiles(requestor_author, instance.target_author)
-            reward_author_claim_case(requestor_author)
+            reward_author_claim_case(requestor_author, target_author_papers)
         except Exception as exception:
             logging.warning(exception)
