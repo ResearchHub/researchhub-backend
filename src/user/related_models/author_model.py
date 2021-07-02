@@ -125,14 +125,14 @@ class Author(models.Model):
             self.user is not None or
             self.user is None and self.related_claim_cases.filter(
                 status=APPROVED
-            )
+            ).exists()
         )
 
     @property
     def claimed_by_user_author_id(self):
         approved_claim_case = self.related_claim_cases.filter(
             status=APPROVED
-        )
+        ).first()
         if (self.user is not None):
             return self.id
         elif (approved_claim_case is not None):
