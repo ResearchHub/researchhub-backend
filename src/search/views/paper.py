@@ -43,19 +43,19 @@ class PaperDocumentView(DocumentViewSet):
     ]
 
     search_fields = {
-        'doi': {'boost': 3, 'fuzziness': 0},
-        'title': {'boost': 2, 'fuzziness': 0},
-        'raw_authors.full_name': {'boost': 1, 'fuzziness': 0},
-        'abstract': {'boost': 1, 'fuzziness': 0},
-        'hubs_flat': {'boost': 1, 'fuzziness': 0},
+        'doi': {'boost': 3, 'fuzziness': 1},
+        'title': {'boost': 2, 'fuzziness': 1},
+        'raw_authors.full_name': {'boost': 1, 'fuzziness': 1},
+        'abstract': {'boost': 1, 'fuzziness': 1},
+        'hubs_flat': {'boost': 1, 'fuzziness': 1},
     }
 
     multi_match_search_fields = {
-        'doi': {'boost': 3, 'fuzziness': 0},
-        'title': {'boost': 2, 'fuzziness': 0},
-        'raw_authors.full_name': {'boost': 1, 'fuzziness': 0},
-        'abstract': {'boost': 1, 'fuzziness': 0},
-        'hubs_flat': {'boost': 1, 'fuzziness': 0},
+        'doi': {'boost': 3, 'fuzziness': 1},
+        'title': {'boost': 2, 'fuzziness': 1},
+        'raw_authors.full_name': {'boost': 1, 'fuzziness': 1},
+        'abstract': {'boost': 1, 'fuzziness': 1},
+        'hubs_flat': {'boost': 1, 'fuzziness': 1},
     }
 
     multi_match_options = {
@@ -88,7 +88,6 @@ class PaperDocumentView(DocumentViewSet):
             'field': 'raw_authors',
             'enabled': True,
             'options': {
-                'type': 'plain',
                 'pre_tags': ["<mark>"],
                 'post_tags': ["</mark>"],
                 'fragment_size': 1000,
@@ -98,20 +97,18 @@ class PaperDocumentView(DocumentViewSet):
         'title': {
             'enabled': True,
             'options': {
-                'type': 'plain',
                 'pre_tags': ["<mark>"],
                 'post_tags': ["</mark>"],
-                'fragment_size': 1000,
+                'fragment_size': 2000,
                 'number_of_fragments': 1,
             },
         },
         'abstract': {
             'enabled': True,
             'options': {
-                'type': 'plain',
                 'pre_tags': ["<mark>"],
                 'post_tags': ["</mark>"],
-                'fragment_size': 350,
+                'fragment_size': 5000,
                 'number_of_fragments': 1,
             },
         }
