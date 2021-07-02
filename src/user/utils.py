@@ -7,6 +7,7 @@ def merge_author_profiles(source, target):
         paper.authors.remove(target)
         paper.authors.add(source)
         paper.save()
+        paper.reset_cache()
 
     attributes = [
         'description',
