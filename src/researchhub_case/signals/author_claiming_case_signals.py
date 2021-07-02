@@ -67,4 +67,4 @@ def merge_author_upon_approval(
             merge_author_profiles(requestor_author, instance.target_author)
         except Exception as exception:
             print("merge_author_upon_approval: ", exception)
-            logging.warning(exception)
+            sentry.log_error(exception)
