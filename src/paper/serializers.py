@@ -155,6 +155,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
             required=False,
             context=self.context
         )
+        print("HI: ", serializer.data)
         return serializer.data
 
     def get_bullet_points(self, paper):
