@@ -51,15 +51,19 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
     class Meta:
         model = Author
         fields = [field.name for field in Author._meta.fields] + [
-            'university',
-            'reputation',
-            'orcid_id',
-            'total_score',
-            'wallet',
-            'sift_link',
+            'claimed_by_user_author_id',
+            'is_claimed',
             'num_posts',
+            'orcid_id',
+            'reputation',
+            'sift_link',
+            'total_score',
+            'university',
+            'wallet',
         ]
         read_only_fields = [
+            'claimed_by_user_author_id',
+            'is_claimed',
             'num_posts',
         ]
 
