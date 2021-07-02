@@ -72,8 +72,6 @@ def reward_author_claim_case(author):
         ).get('score', 0)
         vote_reward += score
 
-    vote_reward = min(vote_reward, 1000)
-
     distributor = Distributor(
         dist('REWARD', vote_reward, False),
         author.user,
