@@ -30,6 +30,7 @@ class ResearchhubPostSerializer(
             'title',
             'unified_document_id',
             'version_number',
+            'is_removed'
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
@@ -41,6 +42,7 @@ class ResearchhubPostSerializer(
             'post_src',
             'unified_document_id',
             'version_number',
+            'is_removed'
         ]
 
     # GenericReactionSerializerMixin
@@ -55,6 +57,7 @@ class ResearchhubPostSerializer(
     full_markdown = SerializerMethodField(method_name='get_full_markdown')
     hubs = SerializerMethodField(method_name="get_hubs")
     post_src = SerializerMethodField(method_name='get_post_src')
+    is_removed = SerializerMethodField()
     unified_document_id = SerializerMethodField(
         method_name='get_unified_document_id'
     )
@@ -70,6 +73,10 @@ class ResearchhubPostSerializer(
 
     def get_created_by(self, instance):
         return UserSerializer(instance.created_by, read_only=True).data
+
+    def get_is_removed(self, instance):
+        unified_document = instance.unified_document
+        return unified_document.is_removed
 
     def get_unified_document_id(self, instance):
         unified_document = instance.unified_document
