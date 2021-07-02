@@ -21,6 +21,12 @@ from rest_framework.permissions import (
 from paper.utils import get_cache_key
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.utils import reset_unified_document_cache
+from paper.utils import (
+    get_cache_key,
+    invalidate_top_rated_cache,
+    invalidate_newest_cache,
+    invalidate_most_discussed_cache,
+)
 from researchhub_document.serializers import (
   ResearchhubUnifiedDocumentSerializer
 )
@@ -46,6 +52,19 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     ]
     queryset = ResearchhubUnifiedDocument.objects
     serializer_class = ResearchhubUnifiedDocumentSerializer
+
+    def update(self, request, *args, **kwargs):
+        update_response = super().update(request, *args, **kwargs)
+
+        hub_ids = list(self.get_object().hubs.values_list('pk', flat=True))
+        hub_ids.append(0)
+
+        reset_unified_document_cache(hub_ids)
+        invalidate_top_rated_cache(hub_ids)
+        invalidate_newest_cache(hub_ids)
+        invalidate_most_discussed_cache(hub_ids)
+
+        return update_response
 
     def _get_document_filtering(self, query_params):
         filtering = query_params.get('ordering', None)
