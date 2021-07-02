@@ -21,6 +21,7 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
             'hot_score',
             'hubs',
             'score',
+            'is_removed',
         ]
         read_only_fields = [
             'access_group',
