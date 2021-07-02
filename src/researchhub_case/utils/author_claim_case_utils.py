@@ -3,6 +3,7 @@ import uuid
 
 from django.db.models import Count, Q
 from paper.models import Vote
+from utils import sentry
 
 
 from reputation.distributions import Distribution as dist
@@ -36,7 +37,6 @@ def send_validation_email(case):
     validation_token = case.validation_token
     target_author = case.target_author
     requestor = case.requestor
-    print("REQUESTOR: ", requestor)
     requestor_name = f'{requestor.first_name} {requestor.last_name}'
     email_context = {
         **base_email_context,
@@ -57,25 +57,28 @@ def send_validation_email(case):
 
 def reward_author_claim_case(requestor_author, target_author_papers):
     vote_reward = 0
-    for paper in target_author_papers.iterator():
-        votes = paper.votes.filter(
-            created_by__is_suspended=False,
-            created_by__probable_spammer=False
-        )
-        score = votes.aggregate(
-            score=Count(
-                'id', filter=Q(vote_type=Vote.UPVOTE)
-            ) - Count(
-                'id', filter=Q(vote_type=Vote.DOWNVOTE)
+    try:
+        for paper in target_author_papers.iterator():
+            votes = paper.votes.filter(
+                created_by__is_suspended=False,
+                created_by__probable_spammer=False
             )
-        ).get('score', 0)
-        vote_reward += score
-
-    distributor = Distributor(
-        dist('REWARD', vote_reward, False),
-        requestor_author.user,
-        requestor_author,
-        time.time()
-    )
-    distribution = distributor.distribute()
-    return distribution
+            score = votes.aggregate(
+                score=Count(
+                    'id', filter=Q(vote_type=Vote.UPVOTE)
+                ) - Count(
+                    'id', filter=Q(vote_type=Vote.DOWNVOTE)
+                )
+            ).get('score', 0)
+            vote_reward += score
+        distributor = Distributor(
+            dist('REWARD', vote_reward, False),
+            requestor_author.user,
+            requestor_author,
+            time.time()
+        )
+        distribution = distributor.distribute()
+        return distribution
+    except Exception as exception:
+        print("reward_author_claim_case: ", exception)
+        sentry.log_error(exception)
