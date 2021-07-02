@@ -36,7 +36,6 @@ def send_validation_email(case):
     validation_token = case.validation_token
     target_author = case.target_author
     requestor = case.requestor
-    print("REQUESTOR: ", requestor)
     requestor_name = f'{requestor.first_name} {requestor.last_name}'
     email_context = {
         **base_email_context,
@@ -70,7 +69,6 @@ def reward_author_claim_case(requestor_author, target_author_papers):
             )
         ).get('score', 0)
         vote_reward += score
-
     distributor = Distributor(
         dist('REWARD', vote_reward, False),
         requestor_author.user,

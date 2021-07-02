@@ -66,4 +66,5 @@ def merge_author_upon_approval(
             merge_author_profiles(requestor_author, instance.target_author)
             reward_author_claim_case(requestor_author, target_author_papers)
         except Exception as exception:
+            print("merge_author_upon_approval: ", exception)
             logging.warning(exception)
