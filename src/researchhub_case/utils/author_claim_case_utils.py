@@ -55,10 +55,9 @@ def send_validation_email(case):
     )
 
 
-def reward_author_claim_case(author):
+def reward_author_claim_case(requestor_author, target_author_papers):
     vote_reward = 0
-    papers = author.authored_papers.all()
-    for paper in papers.iterator():
+    for paper in target_author_papers.iterator():
         votes = paper.votes.filter(
             created_by__is_suspended=False,
             created_by__probable_spammer=False
@@ -74,8 +73,8 @@ def reward_author_claim_case(author):
 
     distributor = Distributor(
         dist('REWARD', vote_reward, False),
-        author.user,
-        author,
+        requestor_author.user,
+        requestor_author,
         time.time()
     )
     distribution = distributor.distribute()
