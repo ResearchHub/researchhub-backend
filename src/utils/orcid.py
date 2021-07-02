@@ -125,7 +125,7 @@ class OrcidApi:
 orcid_api = OrcidApi()
 
 
-# TODO: calvinhlee - temporarily relocating worker 
+# TODO: calvinhlee - temporarily relocating worker
 # @app.task(queue=f'{APP_ENV}_autopull_queue', ignore_result=False)
 @app.task(queue=f'{APP_ENV}_cermine_queue', ignore_result=False)
 def celery_add_author(result, authors, attempts=2):
