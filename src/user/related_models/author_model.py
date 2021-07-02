@@ -8,7 +8,6 @@ from user.related_models.school_model import University
 from user.related_models.user_model import User
 from researchhub_case.constants.case_constants import APPROVED
 
-
 fs = ProfileImageStorage()
 
 

@@ -66,7 +66,7 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
             'is_claimed',
             'num_posts',
         ]
-
+        
     def get_reputation(self, obj):
         if obj.user is None:
             return 0
