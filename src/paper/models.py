@@ -52,8 +52,6 @@ from utils.twitter import (
     get_twitter_results
 )
 
-from django_elasticsearch_dsl.registries import registry
-
 DOI_IDENTIFIER = '10.'
 ARXIV_IDENTIFIER = 'arXiv:'
 HOT_SCORE_WEIGHT = 5
