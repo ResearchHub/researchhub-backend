@@ -61,6 +61,10 @@ class PaperDocument(Document):
             'id'
         ]
 
+    """
+    Overriding parent method to include an additional bulk
+    operation for removing objects from elastic who are removed
+    """
     def update(self, thing, refresh=None, action='index', parallel=False, **kwargs):
 
         if refresh is not None:
