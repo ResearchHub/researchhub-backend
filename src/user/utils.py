@@ -7,6 +7,7 @@ def merge_author_profiles(source, target):
         paper.authors.remove(target)
         paper.authors.add(source)
         paper.save()
+        paper.reset_cache()
 
     attributes = [
         'description',
@@ -30,10 +31,10 @@ def merge_author_profiles(source, target):
         except Exception as e:
             print(e)
             log_error(e)
-
-    source.save()
+    # logical ordering
     target.user = None
     target.orcid_account = None
     target.orcid_id = None
     target.save()
+    source.save()
     return source

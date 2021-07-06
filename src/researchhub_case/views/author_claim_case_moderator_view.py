@@ -44,7 +44,6 @@ def get_author_claim_cases_for_mods(request):
 def post_author_claim_cases_for_mods(request):
     try:
         request_data = request.data
-        print("RESUQEST_DATA: ", request_data)
         update_status = request_data['update_status']
         if (update_status not in ['APPROVED', 'DENIED']):
             return Response('Base update status', status=400)
