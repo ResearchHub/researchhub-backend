@@ -52,6 +52,8 @@ from utils.twitter import (
     get_twitter_results
 )
 
+from django_elasticsearch_dsl.registries import registry
+
 DOI_IDENTIFIER = '10.'
 ARXIV_IDENTIFIER = 'arXiv:'
 HOT_SCORE_WEIGHT = 5
@@ -460,6 +462,18 @@ class Paper(models.Model):
         if len(all_votes) > 0:
             return [self.get_vote_for_index(vote) for vote in all_votes]
         return {}
+
+    def save(self, **kwargs):
+        super().save(**kwargs)
+
+
+        # if self.is_removed:
+        #     print('***********')
+        #     print('removed')
+        #     print('***********')
+
+            # registry.delete(self)
+
 
     def calculate_hot_score(self):
         ALGO_START_UNIX = 1546329600
