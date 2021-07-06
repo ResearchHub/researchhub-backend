@@ -1,5 +1,3 @@
-import logging
-
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -11,6 +9,7 @@ from researchhub_case.utils.author_claim_case_utils import (
   send_validation_email,
 )
 from user.utils import merge_author_profiles
+from utils import sentry
 
 
 @receiver(
@@ -39,7 +38,7 @@ def author_claim_case_post_create_signal(
             instance.validation_attempt_count += 1
             instance.save()
         except Exception as exception:
-            logging.warning(exception)
+            sentry.log_error(exception)
 
 
 @receiver(
@@ -61,8 +60,11 @@ def merge_author_upon_approval(
         and instance.target_author.user is None
     ):
         try:
+            # logical ordering
             requestor_author = instance.requestor.author_profile
+            target_author_papers = instance.target_author.authored_papers.all()
+            reward_author_claim_case(requestor_author, target_author_papers)
             merge_author_profiles(requestor_author, instance.target_author)
-            reward_author_claim_case(requestor_author)
         except Exception as exception:
-            logging.warning(exception)
+            print("merge_author_upon_approval: ", exception)
+            sentry.log_error(exception)

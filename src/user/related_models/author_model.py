@@ -6,6 +6,7 @@ from django.db.models import Sum
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
 from user.related_models.user_model import User
+from researchhub_case.constants.case_constants import APPROVED
 
 fs = ProfileImageStorage()
 
@@ -116,6 +117,27 @@ class Author(models.Model):
         if self.university is not None:
             return self.university
         return None
+
+    @property
+    def is_claimed(self):
+        return (
+            self.user is not None or
+            self.user is None and self.related_claim_cases.filter(
+                status=APPROVED
+            ).exists()
+        )
+
+    @property
+    def claimed_by_user_author_id(self):
+        approved_claim_case = self.related_claim_cases.filter(
+            status=APPROVED
+        ).first()
+        if (self.user is not None):
+            return self.id
+        elif (approved_claim_case is not None):
+            return approved_claim_case.requestor.author_profile.id
+        else:
+            return None
 
     def calculate_score(self):
         aggregated_score = (
