@@ -22,7 +22,6 @@ from search.serializers.paper import PaperDocumentSerializer
 from utils.permissions import ReadOnly
 
 from search.backends.multi_match_filter import MultiMatchSearchFilterBackend
-import re
 
 class PaperDocumentView(DocumentViewSet):
     document = PaperDocument

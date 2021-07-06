@@ -13,11 +13,12 @@ from search.analyzers import (
     content_analyzer
 )
 
-from elasticsearch_dsl import Q
 import utils.sentry as sentry
 
 @registry.register_document
 class PaperDocument(Document):
+    auto_refresh = True
+
     hubs_flat = es_fields.TextField(attr='hubs_indexing_flat')
     discussion_count = es_fields.IntegerField(attr='discussion_count_indexing')
     score = es_fields.IntegerField(attr='score_indexing')
@@ -49,7 +50,6 @@ class PaperDocument(Document):
         }
     )
 
-    auto_refresh = True
 
 
     class Index:
