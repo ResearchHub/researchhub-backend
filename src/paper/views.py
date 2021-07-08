@@ -350,6 +350,10 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper.save()
         censored_paper_cleanup.apply_async((paper_id,), priority=3)
 
+        unified_document = paper.unified_document
+        unified_document.is_removed = True
+        unified_document.save()
+
         reset_unified_document_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
