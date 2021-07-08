@@ -7,8 +7,7 @@ from search.views import (
     CombinedView,
     PaperDocumentView,
     ThreadDocumentView,
-    # crossref,
-    # orcid
+    HubDocumentView,
 )
 from search.views.combined import MatchingPaperSearch
 
@@ -27,6 +26,12 @@ thread = router.register(
     r'thread',
     ThreadDocumentView,
     basename='thread_document'
+)
+
+hub = router.register(
+    r'hub',
+    HubDocumentView,
+    basename='hub_document'
 )
 
 urlpatterns = [

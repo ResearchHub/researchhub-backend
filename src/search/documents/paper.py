@@ -3,10 +3,7 @@ from django_elasticsearch_dsl.registries import registry
 from django.db import models
 
 from paper.models import Paper
-from researchhub.settings import (
-    ELASTICSEARCH_AUTO_REINDEX,
-    TESTING
-)
+
 from search.analyzers import (
     title_analyzer,
     name_analyzer,
@@ -60,6 +57,8 @@ class PaperDocument(Document):
         fields = [
             'id'
         ]
+
+        queryset_pagination = 250
 
     """
     Overriding parent method to include an additional bulk
