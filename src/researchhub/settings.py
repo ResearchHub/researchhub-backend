@@ -532,23 +532,10 @@ if STAGING:
         },
     }
 
-# TODO: Need to test to ensure this is working correctly
-# ELASTICSEARCH_DSL_AUTO_REFRESH = False  # Disable refresh on every save
+
+ELASTICSEARCH_AUTO_REINDEX = True
 ELASTICSEARCH_DSL_PARALLEL = True
-
 ELASTICSEARCH_DSL_SIGNAL_PROCESSOR = 'search.celery.CelerySignalProcessor'
-
-# For individual documents
-ELASTICSEARCH_AUTO_REINDEX = not PRODUCTION and os.environ.get(
-    'ELASTICSEARCH_AUTO_REINDEX',
-    False
-)
-
-if PRODUCTION:
-    ELASTICSEARCH_AUTO_REINDEX = True
-
-if STAGING:
-    ELASTICSEARCH_AUTO_REINDEX = True
 
 
 # Web3
