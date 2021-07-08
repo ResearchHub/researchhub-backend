@@ -259,6 +259,8 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
+        if instance.uploaded_by != request.user:
+            return Response(status=403)
 
         # TODO: This needs improvement so we guarantee that we are tracking
         # file created location when a file is actually being added and not
