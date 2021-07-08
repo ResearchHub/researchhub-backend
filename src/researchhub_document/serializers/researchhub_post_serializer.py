@@ -102,4 +102,4 @@ class ResearchhubPostSerializer(
         ).data
 
     def get_promoted_score(self, instance):
-        return False
+        return instance.get_promoted_score()
