@@ -9,7 +9,6 @@ from django_elasticsearch_dsl_drf.filter_backends import (
     SuggesterFilterBackend,
     PostFilterFilteringFilterBackend,
     FacetedSearchFilterBackend,
-    MultiMatchSearchFilterBackend,
     SearchFilterBackend,
 )
 
@@ -21,8 +20,8 @@ from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
 from search.documents.paper import PaperDocument
 from search.serializers.paper import PaperDocumentSerializer
 from utils.permissions import ReadOnly
-import re
 
+from search.backends.multi_match_filter import MultiMatchSearchFilterBackend
 
 class PaperDocumentView(DocumentViewSet):
     document = PaperDocument
@@ -31,7 +30,6 @@ class PaperDocumentView(DocumentViewSet):
     pagination_class = LimitOffsetPagination
     lookup_field = 'id'
     filter_backends = [
-        # PhraseSearchFilterBackend,
         MultiMatchSearchFilterBackend,
         CompoundSearchFilterBackend,
         FacetedSearchFilterBackend,
@@ -59,7 +57,8 @@ class PaperDocumentView(DocumentViewSet):
     }
 
     multi_match_options = {
-        'operator': 'and'
+        'operator': 'and',
+        'type': 'best_fields',
     }
 
     post_filter_fields = {
@@ -114,18 +113,3 @@ class PaperDocumentView(DocumentViewSet):
         }
     }
 
-
-    def get_queryset(self, **kwargs):
-        gen_query = super().get_queryset(**kwargs)
-
-        query = self.request.query_params.get('search')
-        doi_regex = '(10[.][0-9]{4,}(?:[.][0-9]+)*/(?:(?![%"#? ])\\S)+)'
-
-        # If DOI is detected, we want to override the configured queries
-        # and insead, execute a single DOI query
-        if re.match(doi_regex, query):
-            self.search_fields = {
-                'doi': {'boost': 3, 'fuzziness': 0}
-            }
-
-        return gen_query

@@ -1,10 +1,16 @@
-from elasticsearch_dsl import analyzer, tokenizer
+from elasticsearch_dsl import analyzer, tokenizer, token_filter
+
+delimeter_filter = token_filter(
+    'word_delimiter_graph',
+    'word_delimiter',
+    split_on_case_change=False
+)
 
 title_analyzer = analyzer(
     "title_analyzer",
     tokenizer="standard",
     filter=[
-        "word_delimiter",
+        delimeter_filter,
         "apostrophe",
         "lowercase",
         "trim",
@@ -20,7 +26,7 @@ content_analyzer = analyzer(
     "content_analyzer",
     tokenizer="standard",
     filter=[
-        "word_delimiter",
+        delimeter_filter,
         "apostrophe",
         "lowercase",
         "kstem",
@@ -36,7 +42,7 @@ name_analyzer = analyzer(
     "name_analyzer",
     tokenizer="standard",
     filter=[
-        "word_delimiter",
+        delimeter_filter,
         "apostrophe",
         "lowercase",
         "trim",
