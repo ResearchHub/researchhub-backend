@@ -7,6 +7,7 @@ from user.serializers import UserActions, UserSerializer
 class NotificationSerializer(serializers.ModelSerializer):
     action_user = UserSerializer(read_only=True)
     paper = serializers.PrimaryKeyRelatedField(read_only=True)
+    unified_document = serializers.PrimaryKeyRelatedField(read_only=True)
     recipient = UserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()

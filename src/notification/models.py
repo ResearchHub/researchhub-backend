@@ -6,6 +6,8 @@ from channels.layers import get_channel_layer
 
 from paper.models import Paper
 from user.models import User, Action
+from researchhub_document.related_models.researchhub_unified_document_model \
+  import ResearchhubUnifiedDocument
 
 # Create your models here.
 
@@ -13,11 +15,19 @@ from user.models import User, Action
 class Notification(models.Model):
     read = models.BooleanField(default=False)
 
+    # TODO: Remove paper field
     paper = models.ForeignKey(
         Paper,
         null=True,
         related_name='notifications',
         on_delete=models.CASCADE
+    )
+
+    unified_document = models.ForeignKey(
+        ResearchhubUnifiedDocument,
+        null=True,
+        on_delete=models.CASCADE,
+        related_name='notifications',
     )
 
     # The user that should receive the notification
