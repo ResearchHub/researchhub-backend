@@ -1,8 +1,8 @@
-from django_elasticsearch_dsl import Document, fields as es_fields
+from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
-from django.db import models
 
 from paper.models import Paper
+from .base import BaseDocument
 
 from search.analyzers import (
     title_analyzer,
@@ -10,12 +10,9 @@ from search.analyzers import (
     content_analyzer
 )
 
-import utils.sentry as sentry
 
 @registry.register_document
-class PaperDocument(Document):
-    auto_refresh = True
-
+class PaperDocument(BaseDocument):
     hubs_flat = es_fields.TextField(attr='hubs_indexing_flat')
     discussion_count = es_fields.IntegerField(attr='discussion_count_indexing')
     score = es_fields.IntegerField(attr='score_indexing')
@@ -48,57 +45,20 @@ class PaperDocument(Document):
     )
 
 
-
     class Index:
         name = 'paper'
 
     class Django:
         model = Paper
+        queryset_pagination = 250
         fields = [
             'id'
         ]
 
-        queryset_pagination = 250
 
-    """
-    Overriding parent method to include an additional bulk
-    operation for removing objects from elastic who are removed
-    """
-    def update(self, thing, refresh=None, action='index', parallel=False, **kwargs):
+    def should_remove_from_index(self, obj):
+        if obj.is_removed:
+            return True
 
-        if refresh is not None:
-            kwargs['refresh'] = refresh
-        elif self.django.auto_refresh:
-            kwargs['refresh'] = self.django.auto_refresh
+        return False
 
-        if isinstance(thing, models.Model):
-            object_list = [thing]
-        else:
-            object_list = thing
-
-
-        objects_to_remove = []
-        objects_to_index = []
-        for obj in object_list:
-            if obj.is_removed:
-                objects_to_remove.append(obj)
-            else:
-                objects_to_index.append(obj)
-
-        try:
-            self._bulk(
-                self._get_actions(objects_to_index, action='index'),
-                parallel=parallel,
-                **kwargs
-            )
-            self._bulk(
-                self._get_actions(objects_to_remove, action='delete'),
-                parallel=parallel,
-                **kwargs
-            )
-        except ConnectionError as e:
-            sentry.log_info(e)
-        except Exception as e:
-            # This scenario is the result of removing objects
-            # that do not exist in elastic search - 404s
-            pass
