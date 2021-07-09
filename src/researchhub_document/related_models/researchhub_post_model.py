@@ -15,6 +15,8 @@ from researchhub_document.related_models.constants.editor_type import (
     CK_EDITOR,
     EDITOR_TYPES,
 )
+
+from hub.serializers import HubSerializer
 from paper.utils import paper_piecewise_log
 from purchase.models import Purchase
 from user.models import User
@@ -113,6 +115,30 @@ class ResearchhubPost(AbstractGenericReactionModel):
     @property
     def paper(self):
         return None
+
+    @property
+    def hubs(self):
+        return self.unified_document.hubs
+
+    @property
+    def is_removed(self):
+        return self.unified_document.is_removed
+
+    @property
+    def hot_score(self):
+        return self.unified_document.hot_score        
+
+    @property
+    def hubs_indexing(self):
+        return [HubSerializer(h).data for h in self.hubs.all()] 
+
+    @property
+    def hubs_indexing_flat(self):
+        return [hub.name for hub in self.hubs.all()]
+
+    @property
+    def hot_score_indexing(self):
+        return self.unified_document.hot_score
 
     def get_promoted_score(self):
         return False

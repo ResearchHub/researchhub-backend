@@ -6,6 +6,7 @@ from search.views import (
     AuthorDocumentView,
     CombinedView,
     PaperDocumentView,
+    PostDocumentView,
     ThreadDocumentView,
     HubDocumentView,
 )
@@ -21,6 +22,11 @@ paper = router.register(
     r'paper',
     PaperDocumentView,
     basename='paper_document'
+)
+post = router.register(
+    r'post',
+    PostDocumentView,
+    basename='post_document'
 )
 thread = router.register(
     r'thread',
