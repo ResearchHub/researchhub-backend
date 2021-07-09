@@ -30,6 +30,7 @@ class BaseDocument(Document):
             object_list = thing
 
 
+
         objects_to_remove = []
         objects_to_index = []
         for obj in object_list:
@@ -52,6 +53,8 @@ class BaseDocument(Document):
         except ConnectionError as e:
             sentry.log_info(e)
         except Exception as e:
-            # This scenario is the result of removing objects
+            print(e)
+            # The likely scenario is the result of removing objects
             # that do not exist in elastic search - 404s
+            sentry.log_info(e)
             pass

@@ -1,15 +1,6 @@
 from django_elasticsearch_dsl_drf.filter_backends import (
     CompoundSearchFilterBackend,
     DefaultOrderingFilterBackend,
-    HighlightBackend,
-    FilteringFilterBackend,
-    NestedFilteringFilterBackend,
-    IdsFilterBackend,
-    OrderingFilterBackend,
-    SuggesterFilterBackend,
-    PostFilterFilteringFilterBackend,
-    FacetedSearchFilterBackend,
-    SearchFilterBackend,
     MultiMatchSearchFilterBackend
 )
 

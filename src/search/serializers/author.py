@@ -14,9 +14,12 @@ class AuthorDocumentSerializer(serializers.ModelSerializer):
             'id',
             'first_name',
             'last_name',
+            'full_name',
             'profile_image',
             'university',
             'headline',
+            'description',
+            'author_score',
         ]
         read_only_fields = fields
 
@@ -28,9 +31,9 @@ class AuthorDocumentSerializer(serializers.ModelSerializer):
         if document.university is not None:
             return document.university.to_dict()
     
-    def get_headline(self, hit):
-        author_id = hit['id']
-        author = Author.objects.get(id=author_id)
-        headline = author.headline
-        return headline
+    def get_headline(self, document):
+        if document.headline is not None:
+            print(document.headline)
+
+            return document.headline.to_dict()
 

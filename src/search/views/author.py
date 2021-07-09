@@ -1,38 +1,50 @@
-from rest_framework import viewsets
-from elasticsearch_dsl import Search
-from elasticsearch_dsl.connections import connections
+from django_elasticsearch_dsl_drf.filter_backends import (
+    CompoundSearchFilterBackend,
+    DefaultOrderingFilterBackend,
+    MultiMatchSearchFilterBackend
+)
 
-from search.filters import ElasticsearchFuzzyFilter
-from search.documents import AuthorDocument
-from search.serializers import AuthorDocumentSerializer
+from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
+from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
+
+from search.documents.author import AuthorDocument
+from search.serializers.author import AuthorDocumentSerializer
 from utils.permissions import ReadOnly
 
 
-class AuthorDocumentView(viewsets.ReadOnlyModelViewSet):
-    serializer_class = AuthorDocumentSerializer
+class AuthorDocumentView(DocumentViewSet):
     document = AuthorDocument
-
     permission_classes = [ReadOnly]
-    filter_backends = [ElasticsearchFuzzyFilter]
+    serializer_class = AuthorDocumentSerializer
+    pagination_class = LimitOffsetPagination
+    lookup_field = 'id'
+    filter_backends = [
+        MultiMatchSearchFilterBackend,
+        CompoundSearchFilterBackend,
+        DefaultOrderingFilterBackend,
+    ]
 
-    search_fields = ['first_name', 'last_name']
+    search_fields = {
+        'full_name': {'boost': 2, 'fuzziness': 1},
+        'description': {'boost': 1, 'fuzziness': 1},
+        'headline': {'boost': 1, 'fuzziness': 1},
+        'university.name': {'boost': 1, 'fuzziness': 1},
+        'university.city': {'boost': 1, 'fuzziness': 1},
+        'university.country': {'boost': 1, 'fuzziness': 1},
+        'university.state': {'boost': 1, 'fuzziness': 1},
+    }
 
-    def __init__(self, *args, **kwargs):
-        assert self.document is not None
+    multi_match_search_fields = {
+        'full_name': {'boost': 2},
+        'description': {'boost': 1},
+        'headline': {'boost': 1},
+        'university.name': {'boost': 1},
+        'university.city': {'boost': 1},
+        'university.country': {'boost': 1},
+        'university.state': {'boost': 1},
+    }
 
-        self.client = connections.get_connection(
-            self.document._get_using()
-        )
-        self.index = self.document._index._name
-        self.mapping = self.document._doc_type.mapping.properties.name
-        self.search = Search(
-            using=self.client,
-            index=self.index,
-            doc_type=self.document._doc_type.name
-        )
-        super(AuthorDocumentView, self).__init__(*args, **kwargs)
-
-    def get_queryset(self):
-        queryset = self.search.query()
-        queryset.model = self.document.Django.model
-        return queryset
+    multi_match_options = {
+        'operator': 'and',
+        'fuzziness': 1,
+    }
