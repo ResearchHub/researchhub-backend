@@ -994,7 +994,6 @@ class Paper(models.Model):
     def get_promoted_score(self):
         purchases = self.purchases.filter(
             paid_status=Purchase.PAID,
-            user__moderator=True,
             amount__gt=0,
             boost_time__gt=0
         )
@@ -1005,6 +1004,19 @@ class Paper(models.Model):
             )
             return base_score + boost_score
         return False
+
+    def get_boost_amount(self):
+        purchases = self.purchases.filter(
+            paid_status=Purchase.PAID,
+            amount__gt=0,
+            boost_time__gt=0
+        )
+        if purchases.exists():
+            boost_score = sum(
+                map(int, purchases.values_list('amount', flat=True))
+            )
+            return boost_score
+        return 0
 
     def reset_cache(self, use_celery=True):
         if use_celery:

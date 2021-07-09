@@ -58,6 +58,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     user_vote = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
+    boost_amount = serializers.SerializerMethodField()
     file = serializers.SerializerMethodField()
     discussion_users = serializers.SerializerMethodField()
     unified_document_id = serializers.SerializerMethodField()
@@ -251,6 +252,9 @@ class BasePaperSerializer(serializers.ModelSerializer):
 
     def get_promoted(self, paper):
         return paper.get_promoted_score()
+
+    def get_boost_amount(self, paper):
+        return paper.get_boost_amount()
 
     def get_file(self, paper):
         file = paper.file

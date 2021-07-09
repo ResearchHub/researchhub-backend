@@ -31,6 +31,7 @@ class ResearchhubPostSerializer(
             'title',
             'unified_document_id',
             'version_number',
+            'boost_amount',
             'is_removed'
         ]
         read_only_fields = [
@@ -44,11 +45,13 @@ class ResearchhubPostSerializer(
             'post_src',
             'unified_document_id',
             'version_number',
+            'boost_amount',
             'is_removed'
         ]
 
     # GenericReactionSerializerMixin
     promoted = SerializerMethodField()
+    boost_amount = SerializerMethodField()
     score = SerializerMethodField()
     user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
@@ -103,3 +106,6 @@ class ResearchhubPostSerializer(
 
     def get_promoted_score(self, instance):
         return instance.get_promoted_score()
+
+    def get_boost_amount(self, instance):
+        return instance.get_boost_amount()
