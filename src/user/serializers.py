@@ -271,8 +271,9 @@ class UserActions:
 
     def _group_and_serialize_actions(self):
         # TODO: Refactor to clean this up
-        from researchhub_document.serializers.researchhub_unified_document_serializer \
-         import ContributionUnifiedDocumentSerializer
+        from researchhub_document.serializers import (
+          ResearchhubUnifiedDocumentSerializer
+        )
 
         for action in self.all:
             item = action.item
@@ -316,8 +317,9 @@ class UserActions:
                 }
                 data['sender'] = item.user.full_name()
                 data['support_type'] = item.content_type.model
+            elif isinstance(item, ResearchhubPost):
+                data['post_title'] = item.title
             else:
-                continue
                 raise TypeError(
                     f'Instance of type {type(item)} is not supported'
                 )
@@ -379,8 +381,6 @@ class UserActions:
                 data['tip'] = item.plain_text
             elif isinstance(item, BulletPoint):
                 data['tip'] = item.plain_text
-            elif isinstance(item, ResearchhubPost):
-                data['post_title'] = item.title
 
             if not isinstance(item, Summary) and not isinstance(item, Purchase):
                 data['user_flag'] = None
@@ -405,7 +405,7 @@ class UserActions:
 
             if hasattr(item, 'unified_document'):
                 unified_document = item.unified_document
-                data['unified_document'] = ContributionUnifiedDocumentSerializer(
+                data['unified_document'] = ResearchhubUnifiedDocumentSerializer(
                     unified_document
                 ).data
 
