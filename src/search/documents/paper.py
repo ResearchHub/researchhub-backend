@@ -13,6 +13,8 @@ from search.analyzers import (
 
 @registry.register_document
 class PaperDocument(BaseDocument):
+    auto_refresh = True
+
     hubs_flat = es_fields.TextField(attr='hubs_indexing_flat')
     discussion_count = es_fields.IntegerField(attr='discussion_count_indexing')
     score = es_fields.IntegerField(attr='score_indexing')

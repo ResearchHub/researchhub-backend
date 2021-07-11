@@ -12,6 +12,8 @@ from search.analyzers import (
 
 @registry.register_document
 class PostDocument(BaseDocument):
+    auto_refresh = True
+
     hubs_flat = es_fields.TextField(attr='hubs_indexing_flat')
     hot_score = es_fields.IntegerField(attr='hot_score')
     score = es_fields.IntegerField(attr='score')

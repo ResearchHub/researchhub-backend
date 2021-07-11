@@ -7,6 +7,8 @@ from .base import BaseDocument
 
 @registry.register_document
 class HubDocument(BaseDocument):
+    auto_refresh = True
+
     paper_count = es_fields.IntegerField(attr='paper_count')
     subscriber_count = es_fields.IntegerField(attr='subscriber_count')
     discussion_count = es_fields.IntegerField(attr='discussion_count')

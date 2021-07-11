@@ -65,13 +65,13 @@ class PostDocumentView(DocumentViewSet):
     }
 
     filter_fields = {
-        'created_date': 'created_date'
+        'publish_date': 'created_date'
     }
 
     ordering = ('_score', '-hot_score', '-discussion_count', '-created_date')
 
     ordering_fields = {
-        'created_date': 'created_date',
+        'publish_date': 'created_date',
         'discussion_count': 'discussion_count',
         'score': 'score',
         'hot_score': 'hot_score',

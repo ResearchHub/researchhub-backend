@@ -29,8 +29,6 @@ class BaseDocument(Document):
         else:
             object_list = thing
 
-
-
         objects_to_remove = []
         objects_to_index = []
         for obj in object_list:
