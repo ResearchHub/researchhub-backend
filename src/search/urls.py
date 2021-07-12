@@ -3,7 +3,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from search.views import (
-    AuthorDocumentView,
+    PersonDocumentView,
     CombinedView,
     PaperDocumentView,
     PostDocumentView,
@@ -13,10 +13,10 @@ from search.views import (
 from search.views.combined import MatchingPaperSearch
 
 router = DefaultRouter()
-author = router.register(
-    r'author',
-    AuthorDocumentView,
-    basename='author_document'
+person = router.register(
+    r'person',
+    PersonDocumentView,
+    basename='person_document'
 )
 paper = router.register(
     r'paper',

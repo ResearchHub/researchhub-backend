@@ -30,9 +30,12 @@ class PostDocumentSerializer(DocumentSerializer):
         ]
 
     def get_created_by(self, obj):
-        author = User.objects.get(
-            id=obj.created_by_id
-        )
-
-        return UserSerializer(author, read_only=True).data
+        try:
+            author = User.objects.get(
+                id=obj.created_by_id
+            )
+            return UserSerializer(author, read_only=True).data
+        except:
+            # The object no longer exist in the DB
+            pass
         

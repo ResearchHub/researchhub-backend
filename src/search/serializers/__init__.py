@@ -1,5 +1,5 @@
 # flake8: noqa
-from .author import AuthorDocumentSerializer
+from .person import PersonDocumentSerializer
 from .hub import HubDocumentSerializer
 from .paper import PaperDocumentSerializer, CrossrefPaperSerializer
 from .summary import SummaryDocumentSerializer

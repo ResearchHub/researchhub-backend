@@ -7,7 +7,6 @@ from paper.models import Paper
 
 class PaperDocumentSerializer(DocumentSerializer):
     slug = serializers.SerializerMethodField()
-    abstract = serializers.SerializerMethodField()
     highlight = serializers.SerializerMethodField()
 
     class Meta(object):
@@ -15,6 +14,7 @@ class PaperDocumentSerializer(DocumentSerializer):
         fields = [
             'id',
             'authors',
+            'abstract',
             'raw_authors',
             'authors_str',
             'hot_score',
@@ -46,17 +46,6 @@ class PaperDocumentSerializer(DocumentSerializer):
             pass
 
         return slug
-
-    def get_abstract(self, hit):
-        abstract = ''
-        try:
-            paper_id = hit['id']
-            paper = Paper.objects.get(id=paper_id)
-            abstract = paper.abstract
-        except:
-            pass
-
-        return abstract
 
 
 class CrossrefPaperSerializer(serializers.Serializer):

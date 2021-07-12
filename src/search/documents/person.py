@@ -9,11 +9,13 @@ from search.analyzers import (
 )
 
 @registry.register_document
-class AuthorDocument(BaseDocument):
+class PersonDocument(BaseDocument):
     profile_image = es_fields.TextField(attr='profile_image_indexing')
+    user_reputation = es_fields.IntegerField(attr='user_reputation_indexing')
     author_score = es_fields.IntegerField(attr='author_score')
     description = es_fields.TextField(attr='description', analyzer=content_analyzer)
     full_name = es_fields.TextField(attr='full_name', analyzer=content_analyzer)
+    person_types = es_fields.KeywordField(attr='person_types_indexing')
     headline = es_fields.ObjectField(
         attr='headline',
         properties={
@@ -22,7 +24,7 @@ class AuthorDocument(BaseDocument):
     )
 
     class Index:
-        name = 'author'
+        name = 'person'
 
     class Django:
         model = Author
