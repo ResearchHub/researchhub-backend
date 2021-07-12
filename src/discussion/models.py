@@ -387,6 +387,7 @@ class Reply(BaseComment):
                 p.created_by
                 and p.created_by.emailrecipient.reply_subscription.replies
                 and not p.created_by.emailrecipient.reply_subscription.none
+                and not p.created_by == self.created_by
             ):
                 users.append(p.created_by)
         else:
@@ -465,6 +466,7 @@ class Comment(BaseComment):
             p.created_by
             and p.created_by.emailrecipient.thread_subscription.comments
             and not p.created_by.emailrecipient.thread_subscription.none
+            and not p.created_by == self.created_by
         ):
             users.append(p.created_by)
         return users
