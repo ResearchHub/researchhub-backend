@@ -1,11 +1,12 @@
 from django.db import models
+from django_elasticsearch_dsl.registries import registry
 
 from hub.models import Hub
 from paper.models import Paper
 from user.models import Author
 from researchhub_access_group.models import ResearchhubAccessGroup
 from researchhub_document.related_models.constants.document_type import (
-  DOCUMENT_TYPES, PAPER
+  DOCUMENT_TYPES, PAPER, POSTS
 )
 from utils.models import DefaultModel
 
@@ -91,3 +92,9 @@ class ResearchhubUnifiedDocument(DefaultModel):
             if (first_post is not None):
                 return first_post.created_by
             return None
+
+    def save(self, **kwargs):
+        super().save(**kwargs)
+
+        for post in self.posts.all():
+            registry.update(post)

@@ -140,6 +140,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
     def hot_score_indexing(self):
         return self.unified_document.hot_score
 
+
     def get_promoted_score(self):
         return False
 
