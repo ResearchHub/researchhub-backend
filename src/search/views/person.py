@@ -1,8 +1,10 @@
 from django_elasticsearch_dsl_drf.filter_backends import (
     CompoundSearchFilterBackend,
     DefaultOrderingFilterBackend,
+    OrderingFilterBackend,
     MultiMatchSearchFilterBackend,
     FacetedSearchFilterBackend,
+    PostFilterFilteringFilterBackend,
 )
 
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
@@ -22,8 +24,10 @@ class PersonDocumentView(DocumentViewSet):
     filter_backends = [
         MultiMatchSearchFilterBackend,
         CompoundSearchFilterBackend,
-        DefaultOrderingFilterBackend,
         FacetedSearchFilterBackend,
+        PostFilterFilteringFilterBackend,
+        DefaultOrderingFilterBackend,
+        OrderingFilterBackend,
     ]
 
     search_fields = {
@@ -49,4 +53,9 @@ class PersonDocumentView(DocumentViewSet):
 
     post_filter_fields = {
         'person_types': 'person_types'
+    }    
+
+    ordering_fields = {
+        'author_score': 'author_score',
+        'user_reputation': 'user_reputation',
     }    
