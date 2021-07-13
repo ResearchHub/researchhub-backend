@@ -567,6 +567,7 @@ class PaperSerializer(BasePaperSerializer):
 
     def get_file(self, paper):
         external_source = paper.external_source
+        file = paper.file
         if external_source and external_source.lower() == 'arxiv':
             pdf_url = paper.pdf_url
             url = paper.url
@@ -575,6 +576,9 @@ class PaperSerializer(BasePaperSerializer):
             elif url:
                 return url
             return None
+        elif file:
+            return file.url
+        return None
 
 
 class HubPaperSerializer(BasePaperSerializer):
