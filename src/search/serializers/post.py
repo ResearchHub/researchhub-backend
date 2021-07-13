@@ -7,8 +7,8 @@ from user.serializers import UserSerializer
 
 
 class PostDocumentSerializer(DocumentSerializer):
-
     created_by = serializers.SerializerMethodField()
+    highlight = serializers.SerializerMethodField()
 
     class Meta(object):
         document = PostDocument
@@ -28,6 +28,11 @@ class PostDocumentSerializer(DocumentSerializer):
             'slug',
             'created_by_id',
         ]
+
+    def get_highlight(self, obj):
+        if hasattr(obj.meta, 'highlight'):
+            return obj.meta.highlight.__dict__['_d_']
+        return {}
 
     def get_created_by(self, obj):
         try:

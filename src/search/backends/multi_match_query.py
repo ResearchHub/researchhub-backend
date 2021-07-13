@@ -161,7 +161,8 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
               phrase_query_opts = copy.copy(query_opts)
               phrase_query_opts['type'] = 'phrase_prefix'
               phrase_query_opts['boost'] = 2
-              del phrase_query_opts['fuzziness']
+              if phrase_query_opts is not None:                
+                del phrase_query_opts['fuzziness']
 
               __queries.append(
                   Q(
