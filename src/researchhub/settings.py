@@ -482,7 +482,8 @@ EMAIL_WHITELIST = [
     'patrick@quantfive.org',
     'val@quantfive.org',
     'patrick.lu@berkeley.edu',
-    'calvinhlee@berkeley.edu'
+    'calvinhlee@berkeley.edu',
+    'pdj7@georgetown.edu'
 ]
 
 # Sentry
