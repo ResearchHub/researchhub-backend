@@ -17,6 +17,7 @@ from django.db.models.functions import Cast
 from purchase.models import Purchase, AggregatePurchase, Wallet, Support
 from analytics.serializers import PaperEventSerializer
 from paper.serializers import BasePaperSerializer
+from researchhub_document.serializers import ResearchhubPostSerializer
 from summary.serializers import SummarySerializer
 from bullet_point.serializers import BulletPointSerializer
 from discussion.serializers import (
@@ -60,6 +61,9 @@ class PurchaseSerializer(serializers.ModelSerializer):
         if model_name == 'paper':
             paper = model_class.objects.get(id=object_id)
             serializer = BasePaperSerializer(paper, context=self.context)
+        elif model_name == 'researchhub post':
+            post = model_class.objects.get(id=object_id)
+            serializer = ResearchhubPostSerializer(post, context=self.context)
         elif model_name == 'thread':
             thread = model_class.objects.get(id=object_id)
             serializer = ThreadSerializer(thread, context=self.context)
@@ -168,6 +172,12 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
             Paper = purchase.content_type.model_class()
             paper = Paper.objects.get(id=purchase.object_id)
             serializer = BasePaperSerializer(paper, context=self.context)
+            data = serializer.data
+            return data
+        elif model_name == 'researchhub post':
+            Post = purchase.content_type.model_class()
+            post = Post.objects.get(id=purchase.object_id)
+            serializer = ResearchhubPostSerializer(post, context=self.context)
             data = serializer.data
             return data
         return None
