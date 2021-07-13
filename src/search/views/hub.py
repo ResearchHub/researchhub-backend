@@ -36,4 +36,5 @@ class HubDocumentView(DocumentViewSet):
 
     multi_match_options = {
         'operator': 'and',
+        'fuzziness': 1,
     }

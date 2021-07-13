@@ -89,11 +89,11 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
         :return:
         """
         if hasattr(view, 'multi_match_search_fields'):
-            view_search_fields = copy.copy(
+            view_search_fields = copy.deepcopy(
                 getattr(view, 'multi_match_search_fields')
             )
         else:
-            view_search_fields = copy.copy(view.search_fields)
+            view_search_fields = copy.deepcopy(view.search_fields)
 
         __is_complex = isinstance(view_search_fields, dict)
 
@@ -138,7 +138,7 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
 
                 # It's a list, see example 2 (simple)
                 else:
-                    query_fields = copy.copy(view_search_fields)
+                    query_fields = copy.deepcopy(view_search_fields)
 
 
             query_opts = cls.get_query_options(request, view, search_backend)
@@ -158,10 +158,11 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
             the goal of which is to boost exact phrases requested.
             """
             if len(__search_term) >= cls.min_len_for_phrase_match_query:
-              phrase_query_opts = copy.copy(query_opts)
+              phrase_query_opts = copy.deepcopy(query_opts)
               phrase_query_opts['type'] = 'phrase_prefix'
               phrase_query_opts['boost'] = 2
-              if phrase_query_opts is not None:                
+              
+              if 'fuzziness' in phrase_query_opts:                
                 del phrase_query_opts['fuzziness']
 
               __queries.append(

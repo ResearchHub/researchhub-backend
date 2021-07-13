@@ -57,7 +57,6 @@ class PaperDocumentView(DocumentViewSet):
     multi_match_options = {
         'operator': 'and',
         'type': 'best_fields',
-        'fuzziness': 1,
     }
 
     post_filter_fields = {
