@@ -2,6 +2,7 @@ from django_elasticsearch_dsl_drf.serializers import DocumentSerializer
 from rest_framework import serializers
 
 from search.documents import PostDocument
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.models import User
 from user.serializers import UserSerializer
 
@@ -9,6 +10,7 @@ from user.serializers import UserSerializer
 class PostDocumentSerializer(DocumentSerializer):
     created_by = serializers.SerializerMethodField()
     highlight = serializers.SerializerMethodField()
+    slug = serializers.SerializerMethodField()
 
     class Meta(object):
         document = PostDocument
@@ -33,6 +35,16 @@ class PostDocumentSerializer(DocumentSerializer):
         if hasattr(obj.meta, 'highlight'):
             return obj.meta.highlight.__dict__['_d_']
         return {}
+
+    def get_slug(self, hit):
+        slug = ''
+        try:
+            obj = ResearchhubPost.objects.get(id=hit['id'])
+            slug = obj.slug
+        except:
+            pass
+
+        return slug
 
     def get_created_by(self, obj):
         try:

@@ -23,7 +23,6 @@ class PostDocument(BaseDocument):
     created_date = es_fields.DateField(attr='created_date')
     updated_date = es_fields.DateField(attr='updated_date')
     preview_img = es_fields.TextField(attr='preview_img')
-    slug = es_fields.TextField(attr='slug')
     renderable_text = es_fields.TextField(attr='renderable_text', analyzer=content_analyzer)
     created_by_id = es_fields.IntegerField(attr='created_by_id')
     hubs = es_fields.ObjectField(
@@ -34,7 +33,6 @@ class PostDocument(BaseDocument):
             'is_locked': es_fields.TextField(),
             'is_removed': es_fields.TextField(),
             'name': es_fields.KeywordField(),
-            'slug': es_fields.TextField(),
         }
     )
 

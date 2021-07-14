@@ -42,7 +42,6 @@ class PaperDocument(BaseDocument):
             'is_locked': es_fields.TextField(),
             'is_removed': es_fields.TextField(),
             'name': es_fields.KeywordField(),
-            'slug': es_fields.TextField(),
         }
     )
 

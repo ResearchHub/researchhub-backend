@@ -39,9 +39,8 @@ class PaperDocumentSerializer(DocumentSerializer):
     def get_slug(self, hit):
         slug = ''
         try:
-            paper_id = hit['id']
-            paper = Paper.objects.get(id=paper_id)
-            slug = paper.slug
+            obj = Paper.objects.get(id=hit['id'])
+            slug = obj.slug
         except:
             pass
 
