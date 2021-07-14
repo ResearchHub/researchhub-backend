@@ -99,25 +99,26 @@ class Action(DefaultModel):
     @property
     def frontend_view_link(self):
         link = BASE_FRONTEND_URL
+        print("ITEM:", item)
         if isinstance(self.item, Summary):
             link += '/paper/{}/'.format(self.item.paper.id)
         elif isinstance(self.item, Paper):
             link += '/paper/{}/'.format(self.item.id)
-        elif isinstance(self.item, Thread):
-            link += '/paper/{}/discussion/{}'.format(
-                self.item.paper.id,
-                self.item.id
-            )
-        elif isinstance(self.item, Comment):
-            link += '/paper/{}/discussion/{}'.format(
-                self.item.paper.id,
-                self.item.thread.id
-            )
-        elif isinstance(self.item, Reply):
-            link += '/paper/{}/discussion/{}'.format(
-                self.item.paper.id,
-                self.item.thread.id,
-            )
+        # elif isinstance(self.item, Thread):
+        #     link += '/paper/{}/discussion/{}'.format(
+        #         self.item.paper.id,
+        #         self.item.id
+        #     )
+        # elif isinstance(self.item, Comment):
+        #     link += '/paper/{}/discussion/{}'.format(
+        #         self.item.paper.id,
+        #         self.item.thread.id
+        #     )
+        # elif isinstance(self.item, Reply):
+        #     link += '/paper/{}/discussion/{}'.format(
+        #         self.item.paper.id,
+        #         self.item.thread.id,
+        #     )
         else:
             raise Exception('frontend_view_link not implemented')
         return link
