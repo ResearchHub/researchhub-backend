@@ -1,5 +1,12 @@
+from datetime import timedelta
+
 from django.db import IntegrityError, models
+from django.db.models import Sum, Q, F
+from django.db.models.functions import Coalesce
+from django.core.cache import cache
+from django.utils import timezone
 from django.utils.decorators import method_decorator
+from django.contrib.contenttypes.models import ContentType
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
@@ -11,20 +18,16 @@ from rest_framework.permissions import (
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Sum, Q, F
-from django.db.models.functions import Coalesce
-from django.contrib.contenttypes.models import ContentType
-from utils.http import DELETE, POST, PATCH, PUT
 
 from discussion.models import Thread, Comment, Reply
 from discussion.serializers import (
     ThreadSerializer
 )
-
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
 from reputation.serializers import ContributionSerializer
 from paper.models import Paper
+from paper.utils import get_cache_key
 from paper.views import PaperViewSet
 from paper.serializers import PaperSerializer, HubPaperSerializer
 from user.filters import AuthorFilter
@@ -47,12 +50,10 @@ from user.serializers import (
     MajorSerializer,
     VerificationSerializer
 )
-
+from utils.http import DELETE, POST, PATCH, PUT
 from utils.http import RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
-from datetime import timedelta
-from django.utils import timezone
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -295,6 +296,13 @@ class UserViewSet(viewsets.ModelViewSet):
         query_params = request.query_params
         ordering = query_params.get('ordering', '-created_date')
         hub_ids = query_params.get('hub_ids', '')
+        page_number = query_params.get('page', 1)
+
+        cache_key = get_cache_key('contributions', hub_ids)
+        cache_hit = cache.get(cache_key)
+        if cache_hit and page_number == 1:
+            return Response(cache_hit)
+
         # following_ids = user.following.values_list('followee')
         contribution_type = [
             Contribution.SUBMITTER,
@@ -348,6 +356,9 @@ class UserViewSet(viewsets.ModelViewSet):
         page = self.paginate_queryset(contributions)
         serializer = ContributionSerializer(page, many=True)
         response = self.get_paginated_response(serializer.data)
+
+        if page_number == 1:
+            cache.set(cache_key, response.data, timeout=60*60*24)
         return response
 
     @action(
