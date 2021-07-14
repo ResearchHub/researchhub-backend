@@ -527,8 +527,7 @@ if STAGING:
             'hosts': ELASTICSEARCH_HOST,  # noqa: E501
             'port': 443,
             'use_ssl': True,
-            'max_retries': 0,
-            'timeout': 1,
+            'max_retries': 5,
         },
     }
 
