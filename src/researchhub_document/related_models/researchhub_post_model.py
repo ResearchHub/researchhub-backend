@@ -2,8 +2,8 @@ import datetime
 import pytz
 
 from django.db import models
-from django.db.models import Avg
-from django.db.models.functions import Extract
+from django.db.models import Avg, Sum, IntegerField
+from django.db.models.functions import Extract, Cast
 from django.contrib.contenttypes.fields import GenericRelation
 
 from discussion.reaction_models import AbstractGenericReactionModel
@@ -161,10 +161,12 @@ class ResearchhubPost(AbstractGenericReactionModel):
         )
         if purchases.exists():
             base_score = self.score
-            boost_score = sum(
-                map(int, purchases.values_list('amount', flat=True))
-            )
-            return base_score + boost_score
+            boost_amount = purchases.annotate(
+                amount_as_int=Cast('amount', IntegerField())
+            ).aggregate(
+                sum=Sum('amount_as_int')
+            ).get('sum', 0)
+            return base_score + boost_amount
         return False
 
     def get_boost_amount(self):
@@ -174,10 +176,12 @@ class ResearchhubPost(AbstractGenericReactionModel):
             boost_time__gt=0
         )
         if purchases.exists():
-            boost_score = sum(
-                map(int, purchases.values_list('amount', flat=True))
-            )
-            return boost_score
+            boost_amount = purchases.annotate(
+                amount_as_int=Cast('amount', IntegerField())
+            ).aggregate(
+                sum=Sum('amount_as_int')
+            ).get('sum', 0)
+            return boost_amount
         return 0
 
     def calculate_hot_score(self):
