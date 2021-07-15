@@ -6,6 +6,7 @@ from discussion.models import Comment, Reply, Thread
 from hub.models import Hub
 from paper.models import Paper
 from researchhub.settings import BASE_FRONTEND_URL, TESTING
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from summary.models import Summary
 from user.related_models.user_model import User
 from utils.models import DefaultModel
@@ -99,26 +100,36 @@ class Action(DefaultModel):
     @property
     def frontend_view_link(self):
         link = BASE_FRONTEND_URL
-        print("ITEM:", item)
+        print("ITEM:", self.item)
+        if self.item.paper:
+            link += '/paper'
+        else:
+            link += '/post'
+
         if isinstance(self.item, Summary):
-            link += '/paper/{}/'.format(self.item.paper.id)
+            link += '/{}/'.format(self.item.paper.id)
         elif isinstance(self.item, Paper):
-            link += '/paper/{}/'.format(self.item.id)
-        # elif isinstance(self.item, Thread):
-        #     link += '/paper/{}/discussion/{}'.format(
-        #         self.item.paper.id,
-        #         self.item.id
-        #     )
-        # elif isinstance(self.item, Comment):
-        #     link += '/paper/{}/discussion/{}'.format(
-        #         self.item.paper.id,
-        #         self.item.thread.id
-        #     )
-        # elif isinstance(self.item, Reply):
-        #     link += '/paper/{}/discussion/{}'.format(
-        #         self.item.paper.id,
-        #         self.item.thread.id,
-        #     )
+            link += '/{}/'.format(self.item.id)
+        elif isinstance(self.item, Thread):
+            # link += '/paper/{}/discussion/{}'.format(
+            #     self.item.paper.id,
+            #     self.item.id
+            # )
+            pass
+        elif isinstance(self.item, Comment):
+            # link += '/paper/{}/discussion/{}'.format(
+            #     self.item.paper.id,
+            #     self.item.thread.id
+            # )
+            pass
+        elif isinstance(self.item, Reply):
+            # link += '/paper/{}/discussion/{}'.format(
+            #     self.item.paper.id,
+            #     self.item.thread.id,
+            # )
+            pass
+        elif isinstance(self.item, ResearchhubPost):
+            link += '/{}/'.format(self.item.id)
         else:
             raise Exception('frontend_view_link not implemented')
         return link
