@@ -30,8 +30,8 @@ class HubDocumentView(DocumentViewSet):
     }
 
     multi_match_search_fields = {
-        'name': {'boost': 1, 'fuzziness': 1},
-        'acronym': {'boost': 1, 'fuzziness': 1},
+        'name': {'boost': 1},
+        'acronym': {'boost': 1},
     }
 
     multi_match_options = {

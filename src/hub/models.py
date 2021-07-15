@@ -104,10 +104,6 @@ class Hub(models.Model):
     def paper_count_indexing(self):
         return self.get_paper_count()
 
-    # @property
-    # def discussion_count_indexing(self):
-    #     return self.get_discussion_count()        
-
     @property
     def subscriber_count_indexing(self):
         return self.get_subscribers_count()

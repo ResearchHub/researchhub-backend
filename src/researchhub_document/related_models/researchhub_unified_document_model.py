@@ -6,7 +6,7 @@ from paper.models import Paper
 from user.models import Author
 from researchhub_access_group.models import ResearchhubAccessGroup
 from researchhub_document.related_models.constants.document_type import (
-  DOCUMENT_TYPES, PAPER, POSTS
+  DOCUMENT_TYPES, PAPER
 )
 from utils.models import DefaultModel
 

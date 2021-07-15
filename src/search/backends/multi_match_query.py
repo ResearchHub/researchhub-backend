@@ -158,21 +158,21 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
             the goal of which is to boost exact phrases requested.
             """
             if len(__search_term) >= cls.min_len_for_phrase_match_query:
-              phrase_query_opts = copy.deepcopy(query_opts)
-              phrase_query_opts['type'] = 'phrase_prefix'
-              phrase_query_opts['boost'] = 2
+                phrase_query_opts = copy.deepcopy(query_opts)
+                phrase_query_opts['type'] = 'phrase_prefix'
+                phrase_query_opts['boost'] = 2
               
-              if 'fuzziness' in phrase_query_opts:                
-                del phrase_query_opts['fuzziness']
+                if 'fuzziness' in phrase_query_opts:                
+                    del phrase_query_opts['fuzziness']
 
-              __queries.append(
-                  Q(
-                      cls.query_type,
-                      query=__search_term,
-                      fields=query_fields,
-                      **phrase_query_opts
-                  )
-              )
+                    __queries.append(
+                        Q(
+                            cls.query_type,
+                            query=__search_term,
+                            fields=query_fields,
+                            **phrase_query_opts
+                        )
+                    )
 
         return __queries
 
