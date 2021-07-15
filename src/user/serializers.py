@@ -17,7 +17,7 @@ from user.models import (
     Major,
     Verification
 )
-from summary.models import Summary
+from summary.models import Summary, Vote as SummaryVote
 from purchase.models import Purchase
 from utils import sentry
 
@@ -322,6 +322,8 @@ class UserActions:
                 data['post_title'] = item.title
             elif isinstance(item, BulletVote):
                 item = item.bulletpoint
+            elif isinstance(item, SummaryVote):
+                item = item.summary
             else:
                 raise TypeError(
                     f'Instance of type {type(item)} is not supported'
