@@ -25,6 +25,14 @@ class PostDocument(BaseDocument):
     preview_img = es_fields.TextField(attr='preview_img')
     renderable_text = es_fields.TextField(attr='renderable_text', analyzer=content_analyzer)
     created_by_id = es_fields.IntegerField(attr='created_by_id')
+    authors = es_fields.ObjectField(
+        attr='authors_indexing',
+        properties={
+            'first_name': es_fields.TextField(),
+            'last_name': es_fields.TextField(),
+            'full_name': es_fields.TextField(),
+        }
+    )
     hubs = es_fields.ObjectField(
         attr='hubs_indexing',
         properties={

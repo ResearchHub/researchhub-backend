@@ -140,6 +140,18 @@ class ResearchhubPost(AbstractGenericReactionModel):
     def hot_score_indexing(self):
         return self.unified_document.hot_score
 
+    @property
+    def authors_indexing(self):
+        authors = []
+
+        for author in self.unified_document.authors:
+            authors.append({
+                'first_name': author.first_name,
+                'last_name': author.last_name,
+                'full_name': author.full_name,
+            })
+
+        return authors
 
     def get_promoted_score(self):
         return False

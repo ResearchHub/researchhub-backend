@@ -39,11 +39,11 @@ class PaperDocumentView(DocumentViewSet):
     ]
 
     search_fields = {
-        'doi': {'boost': 3, 'fuzziness': 1},
-        'title': {'boost': 2, 'fuzziness': 1},
-        'raw_authors.full_name': {'boost': 1, 'fuzziness': 1},
-        'abstract': {'boost': 1, 'fuzziness': 1},
-        'hubs_flat': {'boost': 1, 'fuzziness': 1},
+        'doi': {'boost': 3},
+        'title': {'boost': 2},
+        'raw_authors.full_name': {'boost': 1},
+        'abstract': {'boost': 1},
+        'hubs_flat': {'boost': 1},
     }
 
     multi_match_search_fields = {

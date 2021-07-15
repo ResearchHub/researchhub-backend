@@ -39,14 +39,16 @@ class PostDocumentView(DocumentViewSet):
     ]
 
     search_fields = {
-        'title': {'boost': 2, 'fuzziness': 1},
-        'renderable_text': {'boost': 1, 'fuzziness': 1},
-        'hubs_flat': {'boost': 1, 'fuzziness': 1},
+        'title': {'boost': 2},
+        'renderable_text': {'boost': 1},
+        'hubs_flat': {'boost': 1},
     }
 
     multi_match_search_fields = {
         'title': {'boost': 2},
         'renderable_text': {'boost': 1},
+        'authors.full_name': {'boost': 1},
+        'hubs_flat': {'boost': 1},
         'hubs_flat': {'boost': 1},
     }
 
