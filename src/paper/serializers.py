@@ -495,6 +495,7 @@ class PaperSerializer(BasePaperSerializer):
         if type(file) is not str:
             paper.file = file
             paper.save(update_fields=['file'])
+            paper.extract_pdf_preview()
             celery_extract_pdf_sections.apply_async(
                 (paper_id,),
                 priority=3,
