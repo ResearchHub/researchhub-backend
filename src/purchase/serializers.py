@@ -246,7 +246,7 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
             amount_as_int=Cast('amount', IntegerField())
         ).aggregate(
             sum=Sum('amount_as_int')
-        ).get('sum', 0)
+        ).get('sum', 0) or 0
 
         timedelta = datetime.timedelta(days=int(max_boost))
         end_date = (created_date + timedelta).isoformat()
