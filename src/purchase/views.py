@@ -16,6 +16,7 @@ from rest_framework.permissions import (
 )
 
 from paper.models import Paper
+from researchhub_document.models import ResearchhubPost
 from paper.utils import (
     get_cache_key,
     invalidate_top_rated_cache,
@@ -235,7 +236,12 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         user = User.objects.get(id=pk)
         context = self.get_serializer_context()
         context['purchase_minimal_serialization'] = True
-        groups = AggregatePurchase.objects.filter(user=user)
+        paper_content_type_id = ContentType.objects.get_for_model(Paper).id
+        post_content_type_id = ContentType.objects.get_for_model(ResearchhubPost).id
+        groups = AggregatePurchase.objects.filter(
+            user=user,
+            content_type_id__in=[paper_content_type_id, post_content_type_id],
+        )
 
         page = self.paginate_queryset(groups)
         if page is not None:
