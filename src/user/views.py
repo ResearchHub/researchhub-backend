@@ -40,6 +40,7 @@ from user.models import (
     Follow
 )
 from user.permissions import UpdateAuthor, Censor
+from user.utils import reset_latest_acitvity_cache
 from user.serializers import (
     AuthorSerializer,
     AuthorEditableSerializer,
@@ -303,6 +304,17 @@ class UserViewSet(viewsets.ModelViewSet):
         if cache_hit and page_number == 1:
             return Response(cache_hit)
 
+        contributions = self._get_latest_activity_queryset(hub_ids, ordering)
+
+        page = self.paginate_queryset(contributions)
+        serializer = ContributionSerializer(page, many=True)
+        response = self.get_paginated_response(serializer.data)
+
+        if not cache_hit and page_number == 1:
+            reset_latest_acitvity_cache(hub_ids, ordering)
+        return response
+
+    def _get_latest_activity_queryset(self, hub_ids, ordering):
         # following_ids = user.following.values_list('followee')
         contribution_type = [
             Contribution.SUBMITTER,
@@ -353,13 +365,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 ordering
             )
         contributions = contributions.distinct()
-        page = self.paginate_queryset(contributions)
-        serializer = ContributionSerializer(page, many=True)
-        response = self.get_paginated_response(serializer.data)
-
-        if page_number == 1:
-            cache.set(cache_key, response.data, timeout=60*60*24)
-        return response
+        return contributions
 
     @action(
         detail=True,
