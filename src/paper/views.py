@@ -282,22 +282,16 @@ class PaperViewSet(viewsets.ModelViewSet):
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
-        instance.reset_cache()
+        instance.reset_cache(use_celery=False)
         return response
 
     def _send_created_location_ga_event(self, instance, user):
         created = True
-
         category = 'Paper'
-
         label = 'Pdf from Progress'
-
         action = 'Upload'
-
         user_id = user.id
-
         paper_id = instance.id
-
         date = instance.updated_date
 
         return get_event_hit_response(
@@ -401,7 +395,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
-        paper.reset_cache()
+        paper.reset_cache(use_celery=False)
         return Response(
             self.get_serializer(instance=paper).data,
             status=200
