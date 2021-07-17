@@ -96,5 +96,9 @@ class ResearchhubUnifiedDocument(DefaultModel):
     def save(self, **kwargs):
         super().save(**kwargs)
 
-        for post in self.posts.all():
-            registry.update(post)
+        # Update the Elastic Search index for post records.
+        try:
+            for post in self.posts.all():
+                registry.update(post)
+        except:
+            pass
