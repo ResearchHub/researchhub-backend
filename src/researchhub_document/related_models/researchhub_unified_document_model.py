@@ -99,6 +99,5 @@ class ResearchhubUnifiedDocument(DefaultModel):
         try:
             for post in self.posts.all():
                 update_elastic_registry.apply_async(post)
-                # registry.update(post)
         except:
             pass
