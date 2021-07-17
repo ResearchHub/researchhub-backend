@@ -8,6 +8,7 @@ from discussion.lib import check_is_discussion_item
 from hub.serializers import HubSerializer
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from paper.models import Vote as PaperVote, Paper
+from bullet_point.models import Vote as BulletVote
 from user.models import (
     Action,
     Author,
@@ -16,7 +17,7 @@ from user.models import (
     Major,
     Verification
 )
-from summary.models import Summary
+from summary.models import Summary, Vote as SummaryVote
 from purchase.models import Purchase
 from utils import sentry
 
@@ -319,6 +320,10 @@ class UserActions:
                 data['support_type'] = item.content_type.model
             elif isinstance(item, ResearchhubPost):
                 data['post_title'] = item.title
+            elif isinstance(item, BulletVote):
+                item = item.bulletpoint
+            elif isinstance(item, SummaryVote):
+                item = item.summary
             else:
                 raise TypeError(
                     f'Instance of type {type(item)} is not supported'
