@@ -1,4 +1,19 @@
 from django.contrib import admin
+from django.core.paginator import Paginator
+from django.db import connection, transaction, OperationalError
+from django.utils.functional import cached_property
+
+
+# https://medium.com/@hakibenita/optimizing-django-admin-paginator-53c4eb6bfca3
+class TimeoutPaginator(Paginator):
+    @cached_property
+    def count(self):
+        try:
+            with transaction.atomic(), connection.cursor() as cursor:
+                cursor.execute('SET LOCAL statement_timeout TO 200;')
+                return super().count
+        except OperationalError:
+            return 1300000
 
 
 class InputFilter(admin.SimpleListFilter):

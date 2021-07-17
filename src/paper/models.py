@@ -308,10 +308,12 @@ class Paper(models.Model):
         ordering = ['-paper_publish_date']
 
     def __str__(self):
-        if self.title and self.uploaded_by:
-            return '{} - {}'.format(self.title, self.uploaded_by)
-        elif self.title:
-            return self.title
+        title = self.title
+        uploaded_by = self.uploaded_by
+        if title and uploaded_by:
+            return '{} - {}'.format(title, uploaded_by)
+        elif title:
+            return title
         else:
             return 'titleless paper'
 

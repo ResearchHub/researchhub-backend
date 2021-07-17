@@ -27,7 +27,7 @@ import debug_toolbar
 import researchhub_case.views as researchhub_case_views
 import researchhub_document.views as researchhub_document_views
 
-from researchhub.settings import CLOUD, NO_SILK, USE_DEBUG_TOOLBAR
+from researchhub.settings import USE_DEBUG_TOOLBAR, INSTALLED_APPS
 
 router = routers.DefaultRouter()
 
@@ -283,8 +283,10 @@ urlpatterns = [
     path('', researchhub.views.index, name='index'),
 ]
 
-if not CLOUD and not NO_SILK:
-    urlpatterns += [path('silk/', include('silk.urls', namespace='silk'))]
+if 'silk' in INSTALLED_APPS:
+    urlpatterns = [
+        path('silk/', include('silk.urls', namespace='silk')),
+    ] + urlpatterns
 
 if USE_DEBUG_TOOLBAR:
     urlpatterns += [path('__debug__/', include(debug_toolbar.urls))]
