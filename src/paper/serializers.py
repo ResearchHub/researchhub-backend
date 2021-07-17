@@ -603,7 +603,7 @@ class PaperSerializer(BasePaperSerializer):
             'https://doi.org/api/handles/{}'.format(doi),
             headers=requests.utils.default_headers()
         )
-        if res.status_code >= 200 and res.status_code < 300 and has_doi:
+        if res.status_code >= 200 and res.status_code < 400 and has_doi:
             return True
         else:
             return False

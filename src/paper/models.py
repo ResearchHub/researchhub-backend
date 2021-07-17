@@ -732,7 +732,7 @@ class Paper(models.Model):
             'https://doi.org/api/handles/{}'.format(doi),
             headers=requests.utils.default_headers()
         )
-        if res.status_code >= 200 and res.status_code < 300 and has_doi:
+        if res.status_code >= 200 and res.status_code < 400 and has_doi:
             self.is_removed = False
         else:
             self.is_removed = True
