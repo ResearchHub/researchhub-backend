@@ -1,5 +1,4 @@
 from django.db import models
-from django_elasticsearch_dsl.registries import registry
 
 from hub.models import Hub
 from paper.models import Paper
@@ -99,6 +98,7 @@ class ResearchhubUnifiedDocument(DefaultModel):
         # Update the Elastic Search index for post records.
         try:
             for post in self.posts.all():
-                registry.update(post)
+                update_elastic_registry.apply_async(post)
+                # registry.update(post)
         except:
             pass
