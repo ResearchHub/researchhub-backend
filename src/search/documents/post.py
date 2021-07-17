@@ -1,33 +1,32 @@
 from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 
-from paper.models import Paper
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from .base import BaseDocument
 
 from search.analyzers import (
     title_analyzer,
-    name_analyzer,
     content_analyzer
 )
 
 
 @registry.register_document
-class PaperDocument(BaseDocument):
+class PostDocument(BaseDocument):
     auto_refresh = True
 
     hubs_flat = es_fields.TextField(attr='hubs_indexing_flat')
-    discussion_count = es_fields.IntegerField(attr='discussion_count_indexing')
-    score = es_fields.IntegerField(attr='score_indexing')
-    hot_score = es_fields.IntegerField(attr='hot_score_indexing')
-    summary = es_fields.TextField(attr='summary_indexing')
+    hot_score = es_fields.IntegerField(attr='hot_score')
+    score = es_fields.IntegerField(attr='score')
+    discussion_count = es_fields.IntegerField(attr='discussion_count')
+    unified_document_id = es_fields.IntegerField(attr='unified_document_id')
     title = es_fields.TextField(analyzer=title_analyzer)
-    paper_title = es_fields.TextField(analyzer=title_analyzer)
-    paper_publish_date = es_fields.DateField(attr='paper_publish_date', format='yyyy-MM-dd')
-    abstract = es_fields.TextField(attr='abstract_indexing', analyzer=content_analyzer)
-    doi = es_fields.TextField(attr='doi_indexing', analyzer='keyword')
-    authors = es_fields.TextField(attr='authors_indexing', analyzer=name_analyzer)
-    raw_authors = es_fields.ObjectField(
-        attr='raw_authors_indexing',
+    created_date = es_fields.DateField(attr='created_date')
+    updated_date = es_fields.DateField(attr='updated_date')
+    preview_img = es_fields.TextField(attr='preview_img')
+    renderable_text = es_fields.TextField(attr='renderable_text', analyzer=content_analyzer)
+    created_by_id = es_fields.IntegerField(attr='created_by_id')
+    authors = es_fields.ObjectField(
+        attr='authors_indexing',
         properties={
             'first_name': es_fields.TextField(),
             'last_name': es_fields.TextField(),
@@ -47,13 +46,14 @@ class PaperDocument(BaseDocument):
 
 
     class Index:
-        name = 'paper'
+        name = 'post'
 
     class Django:
-        model = Paper
+        model = ResearchhubPost
         queryset_pagination = 250
         fields = [
-            'id'
+            'id',
+            'document_type',
         ]
 
 
@@ -62,4 +62,3 @@ class PaperDocument(BaseDocument):
             return True
 
         return False
-

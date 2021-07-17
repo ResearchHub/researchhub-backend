@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from django_elasticsearch_dsl.registries import registry
 
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
@@ -193,3 +194,8 @@ def preload_hub_documents(
             timeout=None
         )
     return data
+
+@app.task
+def update_elastic_registry(post):
+    registry.update(post)
+

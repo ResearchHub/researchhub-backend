@@ -4,8 +4,18 @@ from hub.models import Hub
 
 
 class HubDocumentSerializer(serializers.ModelSerializer):
-    paper_count = serializers.SerializerMethodField()
-    subscriber_count = serializers.SerializerMethodField()
+    slug = serializers.SerializerMethodField()
+
+    def get_slug(self, hit):
+        slug = ''
+        try:
+            obj = Hub.objects.get(id=hit['id'])
+            slug = obj.slug
+        except Exception as e:
+            print(e)
+            pass
+
+        return slug
 
     class Meta(object):
         model = Hub
@@ -14,13 +24,9 @@ class HubDocumentSerializer(serializers.ModelSerializer):
             'name',
             'acronym',
             'is_locked',
+            'hub_image',
             'paper_count',
             'subscriber_count',
+            'discussion_count',
+            'slug',
         ]
-        read_only_fields = fields
-
-    def get_paper_count(self, obj):
-        return obj.paper_count
-
-    def get_subscriber_count(self, obj):
-        return obj.subscriber_count

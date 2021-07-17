@@ -113,10 +113,24 @@ class Author(models.Model):
         return None
 
     @property
+    def person_types_indexing(self):
+        person_types = ['author']
+        if self.user is not None:
+            person_types.append('user')
+
+        return person_types
+
+    @property
     def university_indexing(self):
         if self.university is not None:
             return self.university
         return None
+
+    @property
+    def user_reputation_indexing(self):
+        if self.user is not None:
+            return self.user.reputation
+        return 0
 
     @property
     def is_claimed(self):

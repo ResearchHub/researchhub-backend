@@ -91,3 +91,13 @@ class ResearchhubUnifiedDocument(DefaultModel):
             if (first_post is not None):
                 return first_post.created_by
             return None
+
+    def save(self, **kwargs):
+        super().save(**kwargs)
+
+        # Update the Elastic Search index for post records.
+        try:
+            for post in self.posts.all():
+                update_elastic_registry.apply_async(post)
+        except:
+            pass

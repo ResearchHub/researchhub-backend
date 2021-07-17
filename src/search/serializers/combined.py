@@ -3,7 +3,7 @@ from rest_framework import serializers
 from django.utils.html import strip_tags
 
 from search.serializers import (
-    AuthorDocumentSerializer,
+    PersonDocumentSerializer,
     HubDocumentSerializer,
     PaperDocumentSerializer,
     CrossrefPaperSerializer,
@@ -15,7 +15,7 @@ from search.serializers import (
 
 class CombinedSerializer(serializers.BaseSerializer):
     index_serializers = {
-        'author': AuthorDocumentSerializer,
+        'author': PersonDocumentSerializer,
         'discussion_thread': ThreadDocumentSerializer,
         'hub': HubDocumentSerializer,
         'paper': PaperDocumentSerializer,

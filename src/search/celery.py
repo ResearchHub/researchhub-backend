@@ -11,6 +11,7 @@ import utils.sentry as sentry
 
 class CelerySignalProcessor(RealTimeSignalProcessor):
 
+
     def handle_save(self, sender, instance, **kwargs):
         pk = instance.pk
         app_label = instance._meta.app_label
