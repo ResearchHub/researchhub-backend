@@ -331,6 +331,8 @@ class UserActions:
 
             is_removed = False
             paper = None
+            post = None
+            discussion = None
             if isinstance(item, Paper):
                 paper = item
             else:
@@ -339,6 +341,14 @@ class UserActions:
                         purchase_item = item.item
                         if isinstance(purchase_item, Paper):
                             paper = purchase_item
+                        elif isinstance(purchase_item, ResearchhubPost):
+                            post = purchase_item
+                        elif (
+                            isinstance(purchase_item, Thread)
+                            or isinstance(purchase_item, Comment)
+                            or isinstance(purchase_item, Reply)
+                        ):
+                            discussion = purchase_item
                         else:
                             paper = purchase_item.paper
                     else:
@@ -354,6 +364,27 @@ class UserActions:
 
                 if paper.is_removed:
                     is_removed = True
+
+            if post:
+                data['post_id'] = post.id
+                data['post_title'] = post.title
+                data['slug'] = post.slug
+
+            if discussion:
+                data['plain_text'] = discussion.plain_text
+                paper = discussion.paper
+                post = discussion.post
+                if paper:
+                    data['parent_content_type'] = 'paper'
+                    data['paper_id'] = paper.id
+                    data['paper_title'] = paper.title
+                    data['paper_official_title'] = paper.paper_title
+                    data['slug'] = paper.slug
+                elif post:
+                    data['parent_content_type'] = 'post'
+                    data['post_id'] = post.id
+                    data['post_title'] = post.title
+                    data['slug'] = post.slug
 
             if isinstance(item, Thread):
                 thread = item

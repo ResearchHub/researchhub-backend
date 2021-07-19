@@ -6,9 +6,9 @@ import regex as re
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
 from django.db import models, transaction
-from django.db.models import Count, Q, Avg, F
+from django.db.models import Count, Q, Avg, F, Sum, IntegerField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
-from django.db.models.functions import Extract
+from django.db.models.functions import Extract, Cast
 
 from manubot.cite.doi import get_doi_csl_item
 from manubot.cite.unpaywall import Unpaywall
@@ -994,17 +994,33 @@ class Paper(models.Model):
     def get_promoted_score(self):
         purchases = self.purchases.filter(
             paid_status=Purchase.PAID,
-            user__moderator=True,
             amount__gt=0,
             boost_time__gt=0
         )
         if purchases.exists():
             base_score = self.score
-            boost_score = sum(
-                map(int, purchases.values_list('amount', flat=True))
-            )
-            return base_score + boost_score
+            boost_amount = purchases.annotate(
+                amount_as_int=Cast('amount', IntegerField())
+            ).aggregate(
+                sum=Sum('amount_as_int')
+            ).get('sum', 0)
+            return base_score + boost_amount
         return False
+
+    def get_boost_amount(self):
+        purchases = self.purchases.filter(
+            paid_status=Purchase.PAID,
+            amount__gt=0,
+            boost_time__gt=0
+        )
+        if purchases.exists():
+            boost_amount = purchases.annotate(
+                amount_as_int=Cast('amount', IntegerField())
+            ).aggregate(
+                sum=Sum('amount_as_int')
+            ).get('sum', 0)
+            return boost_amount
+        return 0
 
     def reset_cache(self, use_celery=True):
         if use_celery:
