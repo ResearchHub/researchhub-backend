@@ -222,6 +222,8 @@ class PaperViewSet(viewsets.ModelViewSet):
                 error_message = 'A paper with this url already exists.'
             if 'doi' in error_message:
                 error_message = 'A paper with this DOI already exists.'
+            if 'DOI' in error_message:
+                error_message = 'Invalid DOI'
         except IndexError:
             error_message = 'A paper with this url or DOI already exists.'
         return Response(

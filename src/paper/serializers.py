@@ -1,14 +1,17 @@
+import re
+import requests
 import json
 import utils.sentry as sentry
-import rest_framework.serializers as serializers
 
 from django.db import transaction, IntegrityError
 from django.http import QueryDict
+import rest_framework.serializers as serializers
 
 from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
+from paper.lib import journal_hosts
 from paper.exceptions import PaperSerializerError
 from paper.models import (
     AdditionalFile,
@@ -16,7 +19,9 @@ from paper.models import (
     Paper,
     Vote,
     Figure,
-    FeaturedPaper
+    FeaturedPaper,
+    DOI_IDENTIFIER,
+    ARXIV_IDENTIFIER
 )
 from paper.tasks import (
     download_pdf,
@@ -304,6 +309,10 @@ class PaperSerializer(BasePaperSerializer):
 
         try:
             with transaction.atomic():
+                valid_doi = self._check_valid_doi(validated_data)
+                if not valid_doi:
+                    raise IntegrityError('DETAIL: Invalid DOI')
+
                 self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
                 self._add_raw_authors(validated_data)
@@ -319,7 +328,6 @@ class PaperSerializer(BasePaperSerializer):
                 if paper is None:
                     paper = super(PaperSerializer, self).create(validated_data)
 
-                paper.check_doi()
                 paper_id = paper.id
                 paper_title = paper.paper_title or ''
                 self._check_pdf_title(paper, paper_title, file)
@@ -566,6 +574,39 @@ class PaperSerializer(BasePaperSerializer):
         raw_authors = validated_data['raw_authors']
         json_raw_authors = list(map(json.loads, raw_authors))
         validated_data['raw_authors'] = json_raw_authors
+
+    def _check_valid_doi(self, validated_data):
+        url = validated_data.get('url', '')
+        pdf_url = validated_data.get('pdf_url', '')
+        doi = validated_data.get('doi', '')
+
+        for journal_host in journal_hosts:
+            if url and journal_host in url:
+                return True
+            if pdf_url and journal_host in pdf_url:
+                return True
+
+        regex = r'(.*doi\.org\/)(.*)'
+
+        regex_doi = re.search(regex, doi)
+        if regex_doi and len(regex_doi.groups()) > 1:
+            doi = regex_doi.groups()[-1]
+
+        has_doi = doi.startswith(DOI_IDENTIFIER)
+        has_arxiv = doi.startswith(ARXIV_IDENTIFIER)
+
+        # For pdf uploads, checks if doi has an arxiv identifer
+        if has_arxiv:
+            return True
+
+        res = requests.get(
+            'https://doi.org/api/handles/{}'.format(doi),
+            headers=requests.utils.default_headers()
+        )
+        if res.status_code >= 200 and res.status_code < 400 and has_doi:
+            return True
+        else:
+            return False
 
     def get_discussion(self, paper):
         return None
