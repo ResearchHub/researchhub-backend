@@ -229,13 +229,6 @@ def preload_latest_activity(hub_ids, ordering):
     from reputation.serializers import ContributionSerializer
 
     hub_ids_str = hub_ids
-    if hub_ids:
-        hub_ids = hub_ids.split(',')
-        hub_ids = [int(i) for i in hub_ids]
-        for hub_id in hub_ids:
-            # There is no good way to updating a users
-            cache.delete_pattern(f'contributions_*{hub_id}*')
-
     request_path = '/api/user/following_latest_activity/'
     if STAGING:
         http_host = 'staging-backend.researchhub.com'

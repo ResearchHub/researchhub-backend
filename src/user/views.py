@@ -299,8 +299,7 @@ class UserViewSet(viewsets.ModelViewSet):
         hub_ids = query_params.get('hub_ids', '')
         page_number = query_params.get('page', 1)
 
-        cache_key = get_cache_key('contributions', hub_ids)
-        cache_hit = cache.get(cache_key)
+        cache_hit = self._get_latest_activity_cache_hit(hub_ids)
         if cache_hit and page_number == 1:
             return Response(cache_hit)
 
@@ -313,6 +312,15 @@ class UserViewSet(viewsets.ModelViewSet):
         if not cache_hit and page_number == 1:
             reset_latest_acitvity_cache(hub_ids, ordering)
         return response
+
+    def _get_latest_activity_cache_hit(self, hub_ids):
+        hub_ids_list = hub_ids.split(',')
+        if len(hub_ids_list) > 1:
+            pass
+        else:
+            cache_key = get_cache_key('contributions', hub_ids)
+            cache_hit = cache.get(cache_key)
+            return cache_hit
 
     def _get_latest_activity_queryset(self, hub_ids, ordering):
         # following_ids = user.following.values_list('followee')

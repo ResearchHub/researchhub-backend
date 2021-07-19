@@ -42,7 +42,9 @@ def merge_author_profiles(source, target):
 
 
 def reset_latest_acitvity_cache(hub_ids='', ordering='-created_date'):
-    preload_latest_activity.apply_async(
-        (hub_ids, ordering),
-        priority=3
-    )
+    hub_ids_list = hub_ids.split(',')
+    for hub_id in hub_ids_list:
+        preload_latest_activity.apply_async(
+            (hub_id, ordering),
+            priority=3
+        )
