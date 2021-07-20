@@ -99,7 +99,7 @@ class ContributionSerializer(serializers.ModelSerializer):
         elif model_name == 'bullet_point':
             serializer = BulletPointSerializer(obj, context=context)
         elif model_name == 'purchase':
-            context['exclude_source'] = True
+            # context['exclude_source'] = True
             context['exclude_stats'] = True
             serializer = PurchaseSerializer(obj, context=context)
         elif model_name == 'vote':
@@ -115,6 +115,7 @@ class ContributionSerializer(serializers.ModelSerializer):
                 context=context
             )
 
+        # import pdb; pdb.set_trace()
         if serializer is not None:
             return serializer.data
         return None
