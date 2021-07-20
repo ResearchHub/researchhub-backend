@@ -595,7 +595,7 @@ def preload_latest_activity(sender, instance, created, **kwargs):
         elif hasattr(item, 'unified_document'):
             hub_ids = item.unified_document.hubs.values_list('id', flat=True)
         else:
-            return
+            hub_ids = []
 
         hub_ids_str = ','.join([str(hub_id) for hub_id in hub_ids])
         reset_latest_acitvity_cache(hub_ids_str)
