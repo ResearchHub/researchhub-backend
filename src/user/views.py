@@ -10,6 +10,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
+from rest_framework.utils.urls import replace_query_param
 from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated,
@@ -299,7 +300,7 @@ class UserViewSet(viewsets.ModelViewSet):
         hub_ids = query_params.get('hub_ids', '')
         page_number = query_params.get('page', 1)
 
-        cache_hit = self._get_latest_activity_cache_hit(hub_ids)
+        cache_hit = self._get_latest_activity_cache_hit(request, hub_ids)
         if cache_hit and page_number == 1:
             return Response(cache_hit)
 
@@ -313,10 +314,36 @@ class UserViewSet(viewsets.ModelViewSet):
             reset_latest_acitvity_cache(hub_ids, ordering)
         return response
 
-    def _get_latest_activity_cache_hit(self, hub_ids):
+    def _get_latest_activity_cache_hit(self, request, hub_ids):
         hub_ids_list = hub_ids.split(',')
         if len(hub_ids_list) > 1:
-            pass
+            results = []
+            count = 0
+            previous = ''
+            next_url = request.build_absolute_uri()
+            for hub_id in hub_ids_list:
+                cache_key = get_cache_key('contributions', hub_id)
+                cache_hit = cache.get(cache_key)
+                if not cache_hit:
+                    return None
+
+                results += cache_hit.get('results', [])
+                count += cache_hit.get('count', 1)
+
+            results = sorted(
+                results,
+                key=lambda contrib: contrib['created_date'],
+                reverse=True
+            )[:10]
+            next_url = replace_query_param(next_url, 'page', 2)
+
+            data = {
+                'count': count,
+                'next': next_url,
+                'previous': previous,
+                'results': results
+            }
+            return data
         else:
             cache_key = get_cache_key('contributions', hub_ids)
             cache_hit = cache.get(cache_key)
