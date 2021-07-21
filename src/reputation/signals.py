@@ -24,10 +24,12 @@ from paper.models import (
     Paper,
     Vote as PaperVote
 )
+from purchase.models import Purchase
 from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError
-from reputation.models import Distribution
+from reputation.models import Distribution, Contribution
 from summary.models import Summary, Vote as SummaryVote
+from user.utils import reset_latest_acitvity_cache
 from utils import sentry
 
 # TODO: "Suspend" user if their reputation becomes negative
@@ -583,3 +585,25 @@ def is_eligible_for_new_user_bonus(user):
 
 def new_user_cutoff_date():
     return timezone.now() - timedelta(days=NEW_USER_BONUS_DAYS_LIMIT)
+
+
+@receiver(post_save, sender=Contribution, dispatch_uid='preload_latest_activity')
+def preload_latest_activity(sender, instance, created, **kwargs):
+    if created:
+        # Resetting 'all' latest activity
+        reset_latest_acitvity_cache()
+
+        # Resetting latest activity on a per hub basis
+        item = instance.item
+        if isinstance(item, Purchase):
+            item = item.item
+
+        if hasattr(item, 'hubs'):
+            hub_ids = item.hubs.values_list('id', flat=True)
+        elif hasattr(item, 'unified_document'):
+            hub_ids = item.unified_document.hubs.values_list('id', flat=True)
+        else:
+            return
+
+        hub_ids_str = ','.join([str(hub_id) for hub_id in hub_ids])
+        reset_latest_acitvity_cache(hub_ids_str)

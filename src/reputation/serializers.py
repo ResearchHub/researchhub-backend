@@ -58,9 +58,10 @@ class ContributionSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_unified_document(self, contribution):
-        from researchhub_document.serializers.researchhub_unified_document_serializer \
-         import ContributionUnifiedDocumentSerializer
-        serializer = ContributionUnifiedDocumentSerializer(
+        from researchhub_document.serializers import (
+          ResearchhubUnifiedDocumentSerializer
+        )
+        serializer = ResearchhubUnifiedDocumentSerializer(
             contribution.unified_document
         )
         return serializer.data

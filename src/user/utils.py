@@ -1,4 +1,5 @@
 from utils.sentry import log_error
+from user.tasks import preload_latest_activity
 
 
 def merge_author_profiles(source, target):
@@ -38,3 +39,12 @@ def merge_author_profiles(source, target):
     target.save()
     source.save()
     return source
+
+
+def reset_latest_acitvity_cache(hub_ids='', ordering='-created_date'):
+    hub_ids_list = hub_ids.split(',')
+    for hub_id in hub_ids_list:
+        preload_latest_activity.apply_async(
+            (hub_id, ordering),
+            priority=3
+        )
