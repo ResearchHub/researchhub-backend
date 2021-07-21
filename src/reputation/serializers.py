@@ -116,7 +116,6 @@ class ContributionSerializer(serializers.ModelSerializer):
                 context=context
             )
 
-        # import pdb; pdb.set_trace()
         if serializer is not None:
             return serializer.data
         return None
