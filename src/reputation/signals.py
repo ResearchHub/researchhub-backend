@@ -24,6 +24,7 @@ from paper.models import (
     Paper,
     Vote as PaperVote
 )
+from purchase.models import Purchase
 from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError
 from reputation.models import Distribution, Contribution
@@ -594,6 +595,9 @@ def preload_latest_activity(sender, instance, created, **kwargs):
 
         # Resetting latest activity on a per hub basis
         item = instance.item
+        if isinstance(item, Purchase):
+            item = item.item
+
         if hasattr(item, 'hubs'):
             hub_ids = item.hubs.values_list('id', flat=True)
         elif hasattr(item, 'unified_document'):
