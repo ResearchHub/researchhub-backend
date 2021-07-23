@@ -295,10 +295,11 @@ class HubViewSet(viewsets.ModelViewSet):
                 serializer = DynamicActionSerializer(
                     actions,
                     many=True,
-                    conext=context,
+                    context=context,
                     _include_fields={
                         'content_type',
-                        'user'
+                        'user',
+                        'item',
                     }
                 )
                 data = serializer.data
@@ -314,7 +315,8 @@ class HubViewSet(viewsets.ModelViewSet):
                 context=context,
                 _include_fields={
                     'content_type',
-                    'user'
+                    'user',
+                    'item',
                 }
             )
             data = serializer.data
