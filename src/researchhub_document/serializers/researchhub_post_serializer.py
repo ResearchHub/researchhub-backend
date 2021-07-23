@@ -5,6 +5,7 @@ from hub.serializers import SimpleHubSerializer
 from researchhub_document.related_models.constants.document_type \
     import DISCUSSION
 from researchhub_document.models import ResearchhubPost
+from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import UserSerializer
 
 
@@ -110,3 +111,9 @@ class ResearchhubPostSerializer(
 
     def get_boost_amount(self, instance):
         return instance.get_boost_amount()
+
+
+class DynamicPostSerializer(DynamicModelFieldSerializer):
+    class Meta:
+        model = ResearchhubPost
+        fields = '__all__'

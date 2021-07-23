@@ -19,7 +19,7 @@ from .permissions import CreateHub, IsSubscribed, IsNotSubscribed, CensorHub
 from .serializers import HubSerializer, HubCategorySerializer
 from .filters import HubFilter
 from user.models import Action
-from user.serializers import UserActions
+from user.serializers import UserActions, DynamicActionSerializer
 from utils.http import PATCH, POST, PUT, GET, DELETE
 from utils.message import send_email_message
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -27,6 +27,7 @@ from utils.throttles import THROTTLE_CLASSES
 from paper.models import Vote, Paper
 from paper.utils import get_cache_key
 from researchhub_document.utils import reset_unified_document_cache
+from researchhub.settings import SERIALIZER_SWITCH
 
 
 class CustomPageLimitPagination(PageNumberPagination):
@@ -265,11 +266,60 @@ class HubViewSet(viewsets.ModelViewSet):
         # ).order_by('-created_date')
 
         page = self.paginate_queryset(actions)
+        context = {
+            'usr_das_get_created_by': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                ]
+            },
+            'usr_das_get_item': {
+                '_include_fields': [
+                    'slug',
+                    'paper_title',
+                    'title',
+                ]
+            },
+            'pch_dps_get_source': {
+                '_include_fields': [
+                    'id',
+                    'slug',
+                    'paper_title',
+                ]
+            }
+        }
         if page is not None:
-            data = UserActions(data=page, user=request.user).serialized
+            if not SERIALIZER_SWITCH:
+                # New Serializer
+                serializer = DynamicActionSerializer(
+                    actions,
+                    many=True,
+                    conext=context,
+                    _include_fields={
+                        'content_type',
+                        'user'
+                    }
+                )
+                data = serializer.data
+            else:
+                # Old Serializer
+                data = UserActions(data=page, user=request.user).serialized
             return self.get_paginated_response(data)
 
-        data = UserActions(data=actions, user=request.user).serialized
+        if not SERIALIZER_SWITCH:
+            serializer = DynamicActionSerializer(
+                actions,
+                many=True,
+                context=context,
+                _include_fields={
+                    'content_type',
+                    'user'
+                }
+            )
+            data = serializer.data
+        else:
+            data = UserActions(data=actions, user=request.user).serialized
         return Response(data)
 
 

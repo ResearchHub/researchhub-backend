@@ -47,6 +47,7 @@ from utils.arxiv import Arxiv
 from utils.http import get_user_from_request, check_url_contains_pdf
 from utils.siftscience import events_api, update_user_risk_score
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
+from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.utils import update_unified_document_to_paper
 
 
@@ -699,6 +700,12 @@ class PaperReferenceSerializer(serializers.ModelSerializer):
             if figure:
                 return FigureSerializer(figure).data
         return None
+
+
+class DynamicPaperSerializer(DynamicModelFieldSerializer):
+    class Meta:
+        model = Paper
+        fields = '__all__'
 
 
 class AdditionalFileSerializer(serializers.ModelSerializer):

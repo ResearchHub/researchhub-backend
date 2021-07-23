@@ -753,3 +753,6 @@ elif reward_time_hour:
 # from django.contrib.gis.geoip2 import GeoIP2
 
 # geo_ip = GeoIP2()
+
+# Killswitch Variables
+SERIALIZER_SWITCH = os.environ.get('SERIALIZER_SWITCH', True)

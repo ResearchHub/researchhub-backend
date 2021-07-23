@@ -5,6 +5,7 @@ from discussion.reaction_serializers import (
     VoteSerializer, GenericReactionSerializerMixin
 )
 from researchhub.settings import PAGINATION_PAGE_SIZE
+from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import MinimalUserSerializer
 from utils.http import get_user_from_request
 # TODO: Make is_public editable for creator as a delete mechanism
@@ -38,6 +39,33 @@ class CensorMixin:
             and request.user.is_authenticated
             and request.user.moderator
         )
+
+
+class DynamicThreadSerializer(
+    DynamicModelFieldSerializer,
+    GenericReactionSerializerMixin
+):
+    class Meta:
+        model = Thread
+        fields = '__all__'
+
+
+class DynamicCommentSerializer(
+    DynamicModelFieldSerializer,
+    GenericReactionSerializerMixin
+):
+    class Meta:
+        model = Comment
+        fields = '__all__'
+
+
+class DynamicReplySerializer(
+    DynamicModelFieldSerializer,
+    GenericReactionSerializerMixin
+):
+    class Meta:
+        model = Reply
+        fields = '__all__'
 
 
 class CommentSerializer(
