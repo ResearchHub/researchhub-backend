@@ -485,9 +485,9 @@ class UserViewSet(viewsets.ModelViewSet):
             decision_id = request.data['decision']['id']
             user_id = request.data['entity']['id']
             user = User.objects.get(id=user_id)
-            if decision_id == 'mark_as_probable_spammer_content_abuse_1':
+            if 'mark_as_probable_spammer_content_abuse' in decision_id:
                 user.set_probable_spammer()
-            elif decision_id == 'suspend_user_content_abuse_3':
+            elif 'suspend_user_content_abuse' in decision_id:
                 user.set_suspended(is_manual=False)
             serialized = UserSerializer(user)
             return Response(serialized.data, status=200)
