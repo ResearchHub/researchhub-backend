@@ -57,6 +57,9 @@ from utils.http import RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
+from hashlib import sha1
+import hmac
+from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(is_suspended=False)
@@ -459,6 +462,57 @@ class UserViewSet(viewsets.ModelViewSet):
         reinstate_user_task(user.id)
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
+
+    @action(
+        detail=False,
+        methods=[RequestMethods.POST],
+        permission_classes=[AllowAny],
+    )
+    def sift_mark_as_probable_spammer(self, request):
+        # https://sift.com/developers/docs/python/decisions-api/decision-webhooks/authentication
+
+        # Let's check whether this webhook actually came from Sift!
+        # First let's grab the signature from the postback's headers
+        postback_signature = request.headers.get("X-Sift-Science-Signature")
+
+        # Next, let's try to assemble the signature on our side to verify
+        postback_body = request.body
+
+        h = hmac.new(SIFT_WEBHOOK_SECRET_KEY, postback_body, sha1)
+        verification_signature = "sha1={}".format(h.hexdigest())
+
+        if verification_signature == postback_signature:
+            print("INSIDE PROBABLE SPAMMER")
+            breakpoint()
+            return Response({}, status=200)
+        else:
+            raise Exception('Sift verification signature mismatch')
+
+
+    @action(
+        detail=False,
+        methods=[RequestMethods.POST],
+        permission_classes=[AllowAny],
+    )
+    def sift_suspend_user(self, request):
+        # https://sift.com/developers/docs/python/decisions-api/decision-webhooks/authentication
+
+        # Let's check whether this webhook actually came from Sift!
+        # First let's grab the signature from the postback's headers
+        postback_signature = request.headers.get("X-Sift-Science-Signature")
+
+        # Next, let's try to assemble the signature on our side to verify
+        postback_body = request.body
+
+        h = hmac.new(SIFT_WEBHOOK_SECRET_KEY, postback_body, sha1)
+        verification_signature = "sha1={}".format(h.hexdigest())
+
+        if verification_signature == postback_signature:
+            print("INSIDE SUSPEND")
+            breakpoint()
+            return Response({}, status=200)
+        else:
+            raise Exception('Sift verification signature mismatch')
 
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
