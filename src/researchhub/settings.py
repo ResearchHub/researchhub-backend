@@ -723,6 +723,7 @@ RECAPTCHA_SECRET_KEY = os.environ.get(
 # Sift Science
 SIFT_ACCOUNT_ID = os.environ.get('SIFT_ACCOUNT_ID', keys.SIFT_ACCOUNT_ID)
 SIFT_REST_API_KEY = os.environ.get('SIFT_REST_API_KEY', keys.SIFT_REST_API_KEY)
+SIFT_WEBHOOK_SECRET_KEY = os.environ.get('SIFT_WEBHOOK_SECRET_KEY', keys.SIFT_WEBHOOK_SECRET_KEY)
 
 
 # Amplitude and GeoIP

@@ -57,6 +57,9 @@ from utils.http import RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
+from hashlib import sha1
+import hmac
+from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(is_suspended=False)
@@ -459,6 +462,38 @@ class UserViewSet(viewsets.ModelViewSet):
         reinstate_user_task(user.id)
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
+
+    @action(
+        detail=False,
+        methods=[RequestMethods.POST],
+        permission_classes=[AllowAny],
+    )
+    def sift_check_user_content(self, request):
+        # https://sift.com/developers/docs/python/decisions-api/decision-webhooks/authentication
+
+        # Let's check whether this webhook actually came from Sift!
+        # First let's grab the signature from the postback's headers
+        postback_signature = request.headers.get("X-Sift-Science-Signature")
+
+        # Next, let's try to assemble the signature on our side to verify
+        key = SIFT_WEBHOOK_SECRET_KEY.encode('utf-8')
+        postback_body = request.body
+
+        h = hmac.new(key, postback_body, sha1)
+        verification_signature = "sha1={}".format(h.hexdigest())
+
+        if verification_signature == postback_signature:
+            decision_id = request.data['decision']['id']
+            user_id = request.data['entity']['id']
+            user = User.objects.get(id=user_id)
+            if 'mark_as_probable_spammer_content_abuse' in decision_id:
+                user.set_probable_spammer()
+            elif 'suspend_user_content_abuse' in decision_id:
+                user.set_suspended(is_manual=False)
+            serialized = UserSerializer(user)
+            return Response(serialized.data, status=200)
+        else:
+            raise Exception('Sift verification signature mismatch')
 
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
