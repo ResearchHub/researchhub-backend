@@ -476,9 +476,10 @@ class UserViewSet(viewsets.ModelViewSet):
         postback_signature = request.headers.get("X-Sift-Science-Signature")
 
         # Next, let's try to assemble the signature on our side to verify
+        key = SIFT_WEBHOOK_SECRET_KEY.encode('utf-8')
         postback_body = request.body
 
-        h = hmac.new(SIFT_WEBHOOK_SECRET_KEY, postback_body, sha1)
+        h = hmac.new(key, postback_body, sha1)
         verification_signature = "sha1={}".format(h.hexdigest())
 
         if verification_signature == postback_signature:
