@@ -468,7 +468,7 @@ class UserViewSet(viewsets.ModelViewSet):
         methods=[RequestMethods.POST],
         permission_classes=[AllowAny],
     )
-    def sift_mark_as_probable_spammer(self, request):
+    def sift_check_user_content(self, request):
         # https://sift.com/developers/docs/python/decisions-api/decision-webhooks/authentication
 
         # Let's check whether this webhook actually came from Sift!
@@ -482,35 +482,15 @@ class UserViewSet(viewsets.ModelViewSet):
         verification_signature = "sha1={}".format(h.hexdigest())
 
         if verification_signature == postback_signature:
-            print("INSIDE PROBABLE SPAMMER")
-            breakpoint()
-            return Response({}, status=200)
-        else:
-            raise Exception('Sift verification signature mismatch')
-
-
-    @action(
-        detail=False,
-        methods=[RequestMethods.POST],
-        permission_classes=[AllowAny],
-    )
-    def sift_suspend_user(self, request):
-        # https://sift.com/developers/docs/python/decisions-api/decision-webhooks/authentication
-
-        # Let's check whether this webhook actually came from Sift!
-        # First let's grab the signature from the postback's headers
-        postback_signature = request.headers.get("X-Sift-Science-Signature")
-
-        # Next, let's try to assemble the signature on our side to verify
-        postback_body = request.body
-
-        h = hmac.new(SIFT_WEBHOOK_SECRET_KEY, postback_body, sha1)
-        verification_signature = "sha1={}".format(h.hexdigest())
-
-        if verification_signature == postback_signature:
-            print("INSIDE SUSPEND")
-            breakpoint()
-            return Response({}, status=200)
+            decision_id = request.data['decision']['id']
+            user_id = request.data['entity']['id']
+            user = User.objects.get(id=user_id)
+            if decision_id == 'mark_as_probable_spammer_content_abuse_1':
+                user.set_probable_spammer()
+            elif decision_id == 'suspend_user_content_abuse_3':
+                user.set_suspended(is_manual=False)
+            serialized = UserSerializer(user)
+            return Response(serialized.data, status=200)
         else:
             raise Exception('Sift verification signature mismatch')
 
