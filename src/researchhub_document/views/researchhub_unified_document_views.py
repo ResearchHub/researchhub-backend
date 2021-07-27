@@ -59,10 +59,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         hub_ids = list(self.get_object().hubs.values_list('pk', flat=True))
         hub_ids.append(0)
 
-        reset_unified_document_cache(hub_ids, use_celery=False)
+        reset_unified_document_cache(hub_ids)
         reset_latest_acitvity_cache(
-            ','.join([str(hub_id) for hub_id in hub_ids]),
-            use_celery=False
+            ','.join([str(hub_id) for hub_id in hub_ids])
         )
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
