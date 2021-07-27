@@ -1,12 +1,16 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from hub.serializers import SimpleHubSerializer
-from paper.serializers import PaperSerializer
+from paper.serializers import PaperSerializer, DynamicPaperSerializer
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION, ELN
 )
+from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.serializers import ResearchhubPostSerializer
+from researchhub_document.serializers import (
+    ResearchhubPostSerializer,
+    DynamicPostSerializer
+)
 from user.serializers import UserSerializer
 
 
@@ -70,3 +74,30 @@ class ContributionUnifiedDocumentSerializer(
 
     def get_documents(self, instance):
         return None
+
+
+class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
+    documents = SerializerMethodField()
+
+    class Meta:
+        model = ResearchhubUnifiedDocument
+        fields = '__all__'
+
+    def get_documents(self, unified_doc):
+        context = self.context
+        _context_fields = context.get('doc_duds_get_documents', {})
+        doc_type = unified_doc.document_type
+        if (doc_type in [DISCUSSION, ELN]):
+            return DynamicPostSerializer(
+                unified_doc.posts,
+                many=True,
+                context=context,
+                **_context_fields
+            ).data
+        else:
+            serializer = DynamicPaperSerializer(
+                unified_doc.paper,
+                context=context,
+                **_context_fields
+            )
+            return serializer.data

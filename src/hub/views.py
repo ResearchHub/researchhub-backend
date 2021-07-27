@@ -272,6 +272,12 @@ class HubViewSet(viewsets.ModelViewSet):
                     'id',
                     'first_name',
                     'last_name',
+                    'author_profile',
+                ]
+            },
+            'usr_dus_get_item': {
+                '_include_fields': [
+                    'id',
                 ]
             },
             'usr_das_get_item': {
@@ -279,6 +285,11 @@ class HubViewSet(viewsets.ModelViewSet):
                     'slug',
                     'paper_title',
                     'title',
+                    'unified_document',
+                    'content_type',
+                    'source',
+                    'user',
+                    'amount',
                 ]
             },
             'pch_dps_get_source': {
@@ -287,19 +298,69 @@ class HubViewSet(viewsets.ModelViewSet):
                     'slug',
                     'paper_title',
                 ]
+            },
+            'pch_dps_get_user': {
+                '_include_fields': [
+                    'first_name',
+                    'last_name',
+                    'author_profile'
+                ]
+            },
+            'pap_dps_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'documents',
+                    'document_type',
+                ]
+            },
+            'dis_dts_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'document_type',
+                    'documents',
+                ]
+            },
+            'dis_dcs_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'document_type',
+                    'documents',
+                ]
+            },
+            'dis_drs_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'document_type',
+                    'documents',
+                ]
+            },
+            'doc_dps_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'document_type',
+                    'documents',
+                ]
+            },
+            'doc_duds_get_documents': {
+                '_include_fields': [
+                    'title',
+                    'post_title',
+                ]
             }
         }
+
         if page is not None:
-            if not SERIALIZER_SWITCH:
+            if SERIALIZER_SWITCH:
                 # New Serializer
                 serializer = DynamicActionSerializer(
-                    actions,
+                    page,
                     many=True,
                     context=context,
                     _include_fields={
                         'content_type',
-                        'user',
+                        'created_by',
                         'item',
+                        'created_date',
                     }
                 )
                 data = serializer.data
@@ -308,14 +369,14 @@ class HubViewSet(viewsets.ModelViewSet):
                 data = UserActions(data=page, user=request.user).serialized
             return self.get_paginated_response(data)
 
-        if not SERIALIZER_SWITCH:
+        if SERIALIZER_SWITCH:
             serializer = DynamicActionSerializer(
                 actions,
                 many=True,
                 context=context,
                 _include_fields={
                     'content_type',
-                    'user',
+                    'created_by',
                     'item',
                 }
             )

@@ -30,6 +30,7 @@ from discussion.serializers import (
     DynamicReplySerializer
 )
 from analytics.models import PaperEvent, INTERACTIONS
+from user.serializers import DynamicUserSerializer
 from researchhub_document.serializers.researchhub_post_serializer \
  import DynamicPostSerializer
 
@@ -166,6 +167,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
 class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
     content_type = serializers.SerializerMethodField()
     source = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
 
     class Meta:
         model = Purchase
@@ -211,6 +213,16 @@ class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
             return data
 
         return None
+
+    def get_user(self, purchase):
+        context = self.context
+        _context_fields = context.get('pch_dps_get_user', {})
+        serializer = DynamicUserSerializer(
+            purchase.user,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
 
     def get_end_date(self, purchase):
         status = purchase.paid_status

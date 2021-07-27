@@ -114,6 +114,21 @@ class ResearchhubPostSerializer(
 
 
 class DynamicPostSerializer(DynamicModelFieldSerializer):
+    unified_document = SerializerMethodField()
+
     class Meta:
         model = ResearchhubPost
         fields = '__all__'
+
+    def get_unified_document(self, paper):
+        from researchhub_document.serializers import (
+          DynamicUnifiedDocumentSerializer
+        )
+        context = self.context
+        _context_fields = context.get('doc_dps_get_unified_document', {})
+        serializer = DynamicUnifiedDocumentSerializer(
+            paper.unified_document,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data

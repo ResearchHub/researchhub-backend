@@ -703,9 +703,24 @@ class PaperReferenceSerializer(serializers.ModelSerializer):
 
 
 class DynamicPaperSerializer(DynamicModelFieldSerializer):
+    unified_document = serializers.SerializerMethodField()
+
     class Meta:
         model = Paper
         fields = '__all__'
+
+    def get_unified_document(self, paper):
+        from researchhub_document.serializers import (
+          DynamicUnifiedDocumentSerializer
+        )
+        context = self.context
+        _context_fields = context.get('pap_dps_get_unified_document', {})
+        serializer = DynamicUnifiedDocumentSerializer(
+            paper.unified_document,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
 
 
 class AdditionalFileSerializer(serializers.ModelSerializer):

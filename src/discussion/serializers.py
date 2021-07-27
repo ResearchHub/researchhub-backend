@@ -45,27 +45,72 @@ class DynamicThreadSerializer(
     DynamicModelFieldSerializer,
     GenericReactionSerializerMixin
 ):
+    unified_document = serializers.SerializerMethodField()
+
     class Meta:
         model = Thread
         fields = '__all__'
+
+    def get_unified_document(self, thread):
+        from researchhub_document.serializers import (
+          DynamicUnifiedDocumentSerializer
+        )
+        context = self.context
+        _context_fields = context.get('dis_dts_get_unified_document', {})
+        serializer = DynamicUnifiedDocumentSerializer(
+            thread.unified_document,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
 
 
 class DynamicCommentSerializer(
     DynamicModelFieldSerializer,
     GenericReactionSerializerMixin
 ):
+    unified_document = serializers.SerializerMethodField()
+
     class Meta:
         model = Comment
         fields = '__all__'
+
+    def get_unified_document(self, comment):
+        from researchhub_document.serializers import (
+          DynamicUnifiedDocumentSerializer
+        )
+        context = self.context
+        _context_fields = context.get('dis_dcs_get_unified_document', {})
+        serializer = DynamicUnifiedDocumentSerializer(
+            comment.unified_document,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
 
 
 class DynamicReplySerializer(
     DynamicModelFieldSerializer,
     GenericReactionSerializerMixin
 ):
+    unified_document = serializers.SerializerMethodField()
+
     class Meta:
         model = Reply
         fields = '__all__'
+
+    def get_unified_document(self, reply):
+        from researchhub_document.serializers import (
+          DynamicUnifiedDocumentSerializer
+        )
+        context = self.context
+        _context_fields = context.get('dis_drs_get_unified_document', {})
+        serializer = DynamicUnifiedDocumentSerializer(
+            reply.unified_document,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
 
 
 class CommentSerializer(

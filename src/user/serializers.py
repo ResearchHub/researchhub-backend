@@ -68,7 +68,7 @@ class AuthorSerializer(serializers.ModelSerializer):
             'is_claimed',
             'num_posts',
         ]
-        
+
     def get_reputation(self, obj):
         if obj.user is None:
             return 0
@@ -104,6 +104,12 @@ class AuthorSerializer(serializers.ModelSerializer):
         if user:
             return ResearchhubPost.objects.filter(created_by=user).count()
         return 0
+
+
+class DynamicAuthorSerializer(DynamicModelFieldSerializer):
+    class Meta:
+        model = Author
+        fields = '__all__'
 
 
 class AuthorEditableSerializer(serializers.ModelSerializer):
@@ -243,9 +249,21 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
 
 class DynamicUserSerializer(DynamicModelFieldSerializer):
+    author_profile = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = '__all__'
+
+    def get_author_profile(self, user):
+        context = self.context
+        _context_fields = context.get('usr_dus_get_item', {})
+        serializer = DynamicAuthorSerializer(
+            user.author_profile,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
 
 
 class UserActions:
@@ -498,8 +516,7 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
             from paper.serializers import DynamicPaperSerializer
             serializer = DynamicPaperSerializer
         elif isinstance(item, ResearchhubPost):
-            from researchhub_document.serializers.researchhub_post_serializer \
-             import DynamicPostSerializer
+            from researchhub_document.serializers import DynamicPostSerializer
             serializer = DynamicPostSerializer
         elif isinstance(item, Purchase):
             from purchase.serializers import DynamicPurchaseSerializer
