@@ -41,10 +41,28 @@ def merge_author_profiles(source, target):
     return source
 
 
-def reset_latest_acitvity_cache(hub_ids='', ordering='-created_date'):
+def reset_latest_acitvity_cache(
+    hub_ids='',
+    ordering='-created_date',
+    include_default=True,
+    use_celery=True
+):
+    # Resets the 'all' feed
+    if include_default:
+        if use_celery:
+            preload_latest_activity.apply_async(
+                ('', ordering),
+                priority=3
+            )
+        else:
+            preload_latest_activity('', ordering)
+
     hub_ids_list = hub_ids.split(',')
     for hub_id in hub_ids_list:
-        preload_latest_activity.apply_async(
-            (hub_id, ordering),
-            priority=3
-        )
+        if use_celery:
+            preload_latest_activity.apply_async(
+                (hub_id, ordering),
+                priority=3
+            )
+        else:
+            preload_latest_activity(hub_id, ordering)

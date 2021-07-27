@@ -36,13 +36,13 @@ from researchhub_document.related_models.constants.document_type import (
     ELN,
     POSTS
 )
-
 from paper.models import Vote as PaperVote
 from paper.serializers import PaperVoteSerializer
 from discussion.reaction_serializers import (
     VoteSerializer as DiscussionVoteSerializer
 )
 from discussion.models import Vote as DiscussionVote
+from user.utils import reset_latest_acitvity_cache
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
@@ -59,7 +59,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         hub_ids = list(self.get_object().hubs.values_list('pk', flat=True))
         hub_ids.append(0)
 
-        reset_unified_document_cache(hub_ids)
+        reset_unified_document_cache(hub_ids, use_celery=False)
+        reset_latest_acitvity_cache(
+            ','.join([str(hub_id) for hub_id in hub_ids]),
+            use_celery=False
+        )
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
