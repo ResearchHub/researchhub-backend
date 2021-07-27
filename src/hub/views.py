@@ -343,6 +343,7 @@ class HubViewSet(viewsets.ModelViewSet):
             },
             'doc_duds_get_documents': {
                 '_include_fields': [
+                    'id',
                     'title',
                     'post_title',
                 ]
@@ -357,6 +358,7 @@ class HubViewSet(viewsets.ModelViewSet):
                     many=True,
                     context=context,
                     _include_fields={
+                        'id',
                         'content_type',
                         'created_by',
                         'item',
@@ -375,6 +377,7 @@ class HubViewSet(viewsets.ModelViewSet):
                 many=True,
                 context=context,
                 _include_fields={
+                    'id',
                     'content_type',
                     'created_by',
                     'item',
