@@ -29,10 +29,11 @@ class ResearchhubPostSerializer(
             'preview_img',
             'renderable_text',
             'title',
+            'slug',
             'unified_document_id',
             'version_number',
             'boost_amount',
-            'is_removed'
+            'is_removed',
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
@@ -46,7 +47,7 @@ class ResearchhubPostSerializer(
             'unified_document_id',
             'version_number',
             'boost_amount',
-            'is_removed'
+            'is_removed',
         ]
 
     # GenericReactionSerializerMixin
