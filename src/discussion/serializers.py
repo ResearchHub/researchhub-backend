@@ -145,6 +145,7 @@ class ThreadSerializer(
     user_flag = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     paper_slug = serializers.SerializerMethodField()
+    post_slug = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     document_meta = serializers.SerializerMethodField()
 
@@ -164,6 +165,7 @@ class ThreadSerializer(
             'is_removed',
             'paper_slug',
             'paper',
+            'post_slug',
             'post',
             'plain_text',
             'promoted',
@@ -223,6 +225,10 @@ class ThreadSerializer(
     def get_paper_slug(self, obj):
         if obj.paper:
             return obj.paper.slug
+
+    def get_post_slug(self, obj):
+        if obj.post:
+            return obj.post.slug
 
 
 class SimpleThreadSerializer(ThreadSerializer):
