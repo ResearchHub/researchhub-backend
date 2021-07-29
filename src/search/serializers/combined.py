@@ -29,6 +29,10 @@ class CombinedSerializer(serializers.BaseSerializer):
         super(CombinedSerializer, self).__init__(many=many, *args, **kwargs)
 
     def to_representation(self, obj):
+
+        print('-------------')
+        print(obj.meta.index)
+        print('-------------')
         return self.get_hit(obj)
 
     def get_hit(self, obj):
@@ -36,20 +40,5 @@ class CombinedSerializer(serializers.BaseSerializer):
         if obj.meta.index in index_serializers:
             serializer = index_serializers[obj.meta.index]
             hit = serializer(obj).data
-            if hit:
-                hit_meta = obj.meta.to_dict()
-                if hit_meta['index'] == 'paper':
-                    hit_authors = hit['authors']
-                    if 'highlight' in hit_meta:
-                        if 'authors' in hit_meta['highlight']:
-                            meta_authors = hit_meta['highlight']['authors']
-                            authors_set = set()
-                            for meta_author in meta_authors:
-                                cleaned_meta_author = strip_tags(meta_author)
-                                authors_set.add(cleaned_meta_author)
-                            for hit_author in hit_authors:
-                                if hit_author not in authors_set:
-                                    hit_meta['highlight']['authors'].append(hit_author)
-                                    authors_set.add(hit_author)
-                hit['meta'] = hit_meta
+
         return hit

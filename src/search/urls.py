@@ -10,7 +10,7 @@ from search.views import (
     ThreadDocumentView,
     HubDocumentView,
 )
-from search.views.combined import MatchingPaperSearch
+# from search.views.combined import MatchingPaperSearch
 
 router = DefaultRouter()
 person = router.register(
@@ -43,7 +43,7 @@ hub = router.register(
 urlpatterns = [
     url(r'^', include(router.urls)),
     path('all/', CombinedView.as_view(), name='combined_search'),
-    path('match/', MatchingPaperSearch.as_view(), name='matching_search')
+    # path('match/', MatchingPaperSearch.as_view(), name='matching_search')
     # path('crossref/', crossref, name='crossref'),
     # path('orcid/', orcid, name='orcid'),
 ]

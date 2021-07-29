@@ -11,6 +11,7 @@ from django_elasticsearch_dsl_drf.filter_backends import (
     FacetedSearchFilterBackend,
     SearchFilterBackend,
 )
+from elasticsearch_dsl import Search
 
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
 from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
@@ -111,3 +112,23 @@ class PaperDocumentView(DocumentViewSet):
         }
     }
 
+    def __init__(self, *args, **kwargs):
+        self.search = Search(index=['paper'])
+        super(PaperDocumentView, self).__init__(*args, **kwargs)    
+
+    def get_queryset(self):
+        es_response = self.search.query().execute()
+        return es_response
+
+    def filter_queryset(self, request):
+        queryset = self.search
+
+        for backend in list(self.filter_backends):
+            # has_backends = True
+            queryset = backend().filter_queryset(
+            request,
+            queryset,
+            self,
+        )
+
+        return queryset
