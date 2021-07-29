@@ -265,6 +265,47 @@ class HubViewSet(viewsets.ModelViewSet):
         ).order_by('-created_date')
 
         page = self.paginate_queryset(actions)
+        context = self._get_latest_actions_context()
+
+        if page is not None:
+            if SERIALIZER_SWITCH:
+                # New Serializer
+                serializer = DynamicActionSerializer(
+                    page,
+                    many=True,
+                    context=context,
+                    _include_fields={
+                        'id',
+                        'content_type',
+                        'created_by',
+                        'item',
+                        'created_date',
+                    }
+                )
+                data = serializer.data
+            else:
+                # Old Serializer
+                data = UserActions(data=page, user=request.user).serialized
+            return self.get_paginated_response(data)
+
+        if SERIALIZER_SWITCH:
+            serializer = DynamicActionSerializer(
+                actions,
+                many=True,
+                context=context,
+                _include_fields={
+                    'id',
+                    'content_type',
+                    'created_by',
+                    'item',
+                }
+            )
+            data = serializer.data
+        else:
+            data = UserActions(data=actions, user=request.user).serialized
+        return Response(data)
+
+    def _get_latest_actions_context(self):
         context = {
             'usr_das_get_created_by': {
                 '_include_fields': [
@@ -349,44 +390,7 @@ class HubViewSet(viewsets.ModelViewSet):
                 ]
             }
         }
-
-        if page is not None:
-            if SERIALIZER_SWITCH:
-                # New Serializer
-                serializer = DynamicActionSerializer(
-                    page,
-                    many=True,
-                    context=context,
-                    _include_fields={
-                        'id',
-                        'content_type',
-                        'created_by',
-                        'item',
-                        'created_date',
-                    }
-                )
-                data = serializer.data
-            else:
-                # Old Serializer
-                data = UserActions(data=page, user=request.user).serialized
-            return self.get_paginated_response(data)
-
-        if SERIALIZER_SWITCH:
-            serializer = DynamicActionSerializer(
-                actions,
-                many=True,
-                context=context,
-                _include_fields={
-                    'id',
-                    'content_type',
-                    'created_by',
-                    'item',
-                }
-            )
-            data = serializer.data
-        else:
-            data = UserActions(data=actions, user=request.user).serialized
-        return Response(data)
+        return context
 
 
 class HubCategoryViewSet(viewsets.ModelViewSet):
