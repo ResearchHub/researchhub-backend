@@ -244,8 +244,10 @@ class HubViewSet(viewsets.ModelViewSet):
         else:
             actions = Action.objects.filter(
                 hubs=pk
+            ).select_related(
+                'user',
             ).prefetch_related(
-                'item'
+                'item',
             )
 
         actions = actions.filter(
