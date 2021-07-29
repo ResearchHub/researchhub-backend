@@ -228,11 +228,11 @@ class HubViewSet(viewsets.ModelViewSet):
     )
     def latest_actions(self, request, pk=None):
         models = [
-            'bulletpoint',
+            # 'bulletpoint',
+            # 'summary',
             'thread',
             'comment',
             'reply',
-            'summary',
             'purchase',
             'researchhubpost',
             'paper'
@@ -244,26 +244,25 @@ class HubViewSet(viewsets.ModelViewSet):
         else:
             actions = Action.objects.filter(
                 hubs=pk
-            ).prefetch_related('item')
+            ).prefetch_related(
+                'item'
+            )
 
         actions = actions.filter(
+            (
+                Q(papers__is_removed=False) |
+                Q(threads__is_removed=False) |
+                Q(comments__is_removed=False) |
+                Q(replies__is_removed=False) |
+                Q(posts__unified_document__is_removed=False) |
+                Q(content_type__model='purchase')
+            ),
             user__isnull=False,
             user__is_suspended=False,
             user__probable_spammer=False,
             content_type__model__in=models,
-            display=True
+            display=True,
         ).order_by('-created_date')
-
-        # actions = actions.filter(
-        #     (
-        #         Q(papers__is_removed=False) |
-        #         Q(bullet_point__paper__is_removed=False) |
-        #         Q(threads__paper__is_removed=False) |
-        #         Q(summaries__paper__is_removed=False) |
-        #         Q(comments__parent__paper__is_removed=False)
-        #         # Q(replies__parent__parent__paper__is_removed=False)
-        #     )
-        # ).order_by('-created_date')
 
         page = self.paginate_queryset(actions)
         context = {
@@ -278,6 +277,7 @@ class HubViewSet(viewsets.ModelViewSet):
             'usr_dus_get_item': {
                 '_include_fields': [
                     'id',
+                    'profile_image',
                 ]
             },
             'usr_das_get_item': {

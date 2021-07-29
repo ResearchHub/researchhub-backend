@@ -98,6 +98,12 @@ class ResearchhubPost(AbstractGenericReactionModel):
         content_type_field='content_type',
         related_query_name='post'
     )
+    actions = GenericRelation(
+        'user.Action',
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='posts'
+    )
     slug = models.SlugField(max_length=1024)
 
     @property

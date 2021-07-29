@@ -315,6 +315,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     def censor(self, request, pk=None):
         paper = self.get_object()
         paper_id = paper.id
+        unified_doc = paper.unified_document
         cache_key = get_cache_key('paper', paper_id)
         cache.delete(cache_key)
         hub_ids = list(paper.hubs.values_list('id', flat=True))
@@ -341,7 +342,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                 user
             )
 
-        Contribution.objects.filter(paper=paper).delete()
+        Contribution.objects.filter(unified_document=unified_doc).delete()
         paper.is_removed = True
         paper.save()
         censored_paper_cleanup.apply_async((paper_id,), priority=3)
