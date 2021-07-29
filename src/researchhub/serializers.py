@@ -14,14 +14,6 @@ from rest_framework.fields import (
 )
 
 
-def DynamicField(func):
-    def inner(*args, **kwargs):
-        import pdb; pdb.set_trace()
-        ret = func(*args, **kwargs)
-        return ret
-    return inner
-
-
 class DynamicModelFieldSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         # Don't pass the '_include_fields' arg up to the superclass

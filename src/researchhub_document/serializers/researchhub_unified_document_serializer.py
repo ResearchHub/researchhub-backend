@@ -11,7 +11,7 @@ from researchhub_document.serializers import (
     ResearchhubPostSerializer,
     DynamicPostSerializer
 )
-from user.serializers import UserSerializer
+from user.serializers import UserSerializer, DynamicUserSerializer
 
 
 class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
@@ -78,6 +78,8 @@ class ContributionUnifiedDocumentSerializer(
 
 class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     documents = SerializerMethodField()
+    created_by = SerializerMethodField()
+    access_group = SerializerMethodField()
 
     class Meta:
         model = ResearchhubUnifiedDocument
@@ -101,3 +103,17 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
                 **_context_fields
             )
             return serializer.data
+
+    def get_created_by(self, unified_doc):
+        context = self.context
+        _context_fields = context.get('doc_duds_get_created_by', {})
+        serializer = DynamicUserSerializer(
+            unified_doc.created_by,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_access_group(self, unified_doc):
+        # TODO: calvinhlee - access_group is for ELN. Work on this later
+        return

@@ -19,7 +19,7 @@ from user.models import (
 )
 from summary.models import Summary, Vote as SummaryVote
 from purchase.models import Purchase
-from researchhub.serializers import DynamicModelFieldSerializer, DynamicField
+from researchhub.serializers import DynamicModelFieldSerializer
 from utils import sentry
 
 
@@ -552,9 +552,3 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
 
     def get_content_type(self, action):
         return action.content_type.model
-
-    @DynamicField
-    def get_test(self, obj, _include_fields=[], _exclude_fields=[]):
-        print(_include_fields)
-        print(_exclude_fields)
-        return 1
