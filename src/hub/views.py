@@ -341,6 +341,9 @@ class HubViewSet(viewsets.ModelViewSet):
                     'id',
                     'slug',
                     'paper_title',
+                    'title',
+                    'unified_document',
+                    'plain_text',
                 ]
             },
             'pch_dps_get_user': {
