@@ -333,6 +333,7 @@ class HubViewSet(viewsets.ModelViewSet):
                     'source',
                     'user',
                     'amount',
+                    'plain_text'
                 ]
             },
             'pch_dps_get_source': {
