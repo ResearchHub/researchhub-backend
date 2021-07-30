@@ -354,6 +354,7 @@ class HubViewSet(viewsets.ModelViewSet):
                     'id',
                     'documents',
                     'document_type',
+                    'slug',
                 ]
             },
             'dis_dts_get_unified_document': {
@@ -361,6 +362,7 @@ class HubViewSet(viewsets.ModelViewSet):
                     'id',
                     'document_type',
                     'documents',
+                    'slug',
                 ]
             },
             'dis_dcs_get_unified_document': {
@@ -368,6 +370,7 @@ class HubViewSet(viewsets.ModelViewSet):
                     'id',
                     'document_type',
                     'documents',
+                    'slug',
                 ]
             },
             'dis_drs_get_unified_document': {
@@ -375,6 +378,7 @@ class HubViewSet(viewsets.ModelViewSet):
                     'id',
                     'document_type',
                     'documents',
+                    'slug',
                 ]
             },
             'doc_dps_get_unified_document': {
@@ -382,6 +386,7 @@ class HubViewSet(viewsets.ModelViewSet):
                     'id',
                     'document_type',
                     'documents',
+                    'slug',
                 ]
             },
             'doc_duds_get_documents': {
@@ -389,6 +394,7 @@ class HubViewSet(viewsets.ModelViewSet):
                     'id',
                     'title',
                     'post_title',
+                    'slug',
                 ]
             }
         }
