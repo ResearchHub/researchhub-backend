@@ -320,7 +320,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def _get_latest_activity_cache_hit(self, request, hub_ids):
         hub_ids_list = hub_ids.split(',')
         if len(hub_ids_list) > 1:
-            results = []
+            results = {}
             count = 0
             previous = ''
             next_url = request.build_absolute_uri()
@@ -330,9 +330,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 if not cache_hit:
                     return None
 
-                results += cache_hit.get('results', [])
+                for hit in cache_hit['results']:
+                    hit_id = hit['id']
+                    if hit_id not in results:
+                        results[hit_id] = hit
                 count += cache_hit.get('count', 1)
 
+            results = list(results.values())
             results = sorted(
                 results,
                 key=lambda contrib: contrib['created_date'],
