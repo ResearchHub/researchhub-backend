@@ -590,9 +590,6 @@ def new_user_cutoff_date():
 @receiver(post_save, sender=Contribution, dispatch_uid='preload_latest_activity')
 def preload_latest_activity(sender, instance, created, **kwargs):
     if created:
-        # Resetting 'all' latest activity
-        reset_latest_acitvity_cache()
-
         # Resetting latest activity on a per hub basis
         item = instance.item
         if isinstance(item, Purchase):
