@@ -16,16 +16,23 @@ from django.db.models.functions import Cast
 
 from purchase.models import Purchase, AggregatePurchase, Wallet, Support
 from analytics.serializers import PaperEventSerializer
-from paper.serializers import BasePaperSerializer
+from paper.serializers import BasePaperSerializer, DynamicPaperSerializer
+from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import ResearchhubPostSerializer
 from summary.serializers import SummarySerializer
 from bullet_point.serializers import BulletPointSerializer
 from discussion.serializers import (
     ThreadSerializer,
     CommentSerializer,
-    ReplySerializer
+    ReplySerializer,
+    DynamicThreadSerializer,
+    DynamicCommentSerializer,
+    DynamicReplySerializer
 )
 from analytics.models import PaperEvent, INTERACTIONS
+from user.serializers import DynamicUserSerializer
+from researchhub_document.serializers.researchhub_post_serializer \
+ import DynamicPostSerializer
 
 
 class WalletSerializer(serializers.ModelSerializer):
@@ -151,6 +158,83 @@ class PurchaseSerializer(serializers.ModelSerializer):
         views = len(row[row['interaction'] == 'VIEW'])
         clicks = len(row[row['interaction'] == 'CLICK'])
         return pd.Series((views, clicks), index=index)
+
+    def get_content_type(self, purchase):
+        content = purchase.content_type
+        return {'app_label': content.app_label, 'model': content.model}
+
+
+class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
+    content_type = serializers.SerializerMethodField()
+    source = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Purchase
+        fields = '__all__'
+
+    def get_source(self, purchase):
+        context = self.context
+        _context_fields = context.get('pch_dps_get_source', {})
+        model_name = purchase.content_type.name
+
+        serializer = None
+        item = None
+        object_id = purchase.object_id
+        model_class = purchase.content_type.model_class()
+        if model_name == 'paper':
+            item = model_class.objects.get(id=object_id)
+            serializer = DynamicPaperSerializer
+        elif model_name == 'researchhub post':
+            item = model_class.objects.get(id=object_id)
+            serializer = DynamicPostSerializer
+        elif model_name == 'thread':
+            item = model_class.objects.get(id=object_id)
+            serializer = DynamicThreadSerializer
+        elif model_name == 'comment':
+            item = model_class.objects.get(id=object_id)
+            serializer = DynamicCommentSerializer
+        elif model_name == 'reply':
+            item = model_class.objects.get(id=object_id)
+            serializer = DynamicReplySerializer
+        elif model_name == 'summary':
+            item = model_class.objects.get(id=object_id)
+            serializer = None
+        elif model_name == 'bullet_point':
+            item = model_class.objects.get(id=object_id)
+            serializer = None
+
+        if serializer is not None:
+            data = serializer(
+                item,
+                context=context,
+                **_context_fields
+            ).data
+            return data
+
+        return None
+
+    def get_user(self, purchase):
+        context = self.context
+        _context_fields = context.get('pch_dps_get_user', {})
+        serializer = DynamicUserSerializer(
+            purchase.user,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_end_date(self, purchase):
+        status = purchase.paid_status
+        purchase_method = purchase.purchase_method
+
+        if purchase_method == Purchase.ON_CHAIN and status != Purchase.PAID:
+            return None
+
+        created_date = purchase.created_date
+        timedelta = datetime.timedelta(days=int(purchase.amount))
+        end_date = created_date + timedelta
+        return end_date.isoformat()
 
     def get_content_type(self, purchase):
         content = purchase.content_type

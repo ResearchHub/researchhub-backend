@@ -5,6 +5,7 @@ from hub.serializers import SimpleHubSerializer
 from researchhub_document.related_models.constants.document_type \
     import DISCUSSION
 from researchhub_document.models import ResearchhubPost
+from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import UserSerializer
 
 
@@ -110,3 +111,24 @@ class ResearchhubPostSerializer(
 
     def get_boost_amount(self, instance):
         return instance.get_boost_amount()
+
+
+class DynamicPostSerializer(DynamicModelFieldSerializer):
+    unified_document = SerializerMethodField()
+
+    class Meta:
+        model = ResearchhubPost
+        fields = '__all__'
+
+    def get_unified_document(self, paper):
+        from researchhub_document.serializers import (
+          DynamicUnifiedDocumentSerializer
+        )
+        context = self.context
+        _context_fields = context.get('doc_dps_get_unified_document', {})
+        serializer = DynamicUnifiedDocumentSerializer(
+            paper.unified_document,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data

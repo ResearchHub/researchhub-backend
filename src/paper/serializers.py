@@ -42,11 +42,12 @@ from researchhub.lib import get_paper_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from user.models import Author, User
-from user.serializers import AuthorSerializer, UserSerializer
+from user.serializers import AuthorSerializer, UserSerializer, DynamicUserSerializer
 from utils.arxiv import Arxiv
 from utils.http import get_user_from_request, check_url_contains_pdf
 from utils.siftscience import events_api, update_user_risk_score
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
+from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.utils import update_unified_document_to_paper
 
 
@@ -699,6 +700,49 @@ class PaperReferenceSerializer(serializers.ModelSerializer):
             if figure:
                 return FigureSerializer(figure).data
         return None
+
+
+class DynamicPaperSerializer(DynamicModelFieldSerializer):
+    unified_document = serializers.SerializerMethodField()
+    discussion_users = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Paper
+        fields = '__all__'
+
+    def get_unified_document(self, paper):
+        from researchhub_document.serializers import (
+          DynamicUnifiedDocumentSerializer
+        )
+        context = self.context
+        _context_fields = context.get('pap_dps_get_unified_document', {})
+        serializer = DynamicUnifiedDocumentSerializer(
+            paper.unified_document,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_discussion_users(self, paper):
+        context = self.context
+        _context_fields = context.get('pap_dps_get_discussion_users', {})
+
+        contributions = Contribution.objects.filter(
+            unified_document=paper.unified_document
+        )
+        contribution_users = contributions.values_list(
+            'user',
+            flat=True
+        ).distinct()
+        users = User.objects.filter(id__in=contribution_users)
+
+        serializer = DynamicUserSerializer(
+            users,
+            many=True,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
 
 
 class AdditionalFileSerializer(serializers.ModelSerializer):
