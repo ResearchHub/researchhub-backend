@@ -1,5 +1,6 @@
 from rest_framework.generics import ListAPIView
 from search.views.paper import PaperDocumentView
+from search.views.post import PostDocumentView
 from utils.permissions import ReadOnly
 from rest_framework.response import Response
 from elasticsearch_dsl import Search
@@ -38,9 +39,8 @@ class CombinedView(ListAPIView):
 
 
   def __init__(self, *args, **kwargs):
-    # self.paper_search = Search(index=['paper'])
-
     self.paper_view = PaperDocumentView(*args, **kwargs)
+    self.post_view = PostDocumentView(*args, **kwargs)
     super(CombinedView, self).__init__(*args, **kwargs)
 
   def get_queryset(self):
@@ -48,14 +48,19 @@ class CombinedView(ListAPIView):
 
   def list(self, request, *args, **kwargs):
     response = {
-      "papers": None
+      "papers": None,
+      "posts": None,
     }
 
-    papers_raw = self.paper_view.filter_queryset(
-        request,
+    papers_es_res = self.paper_view._filter_queryset(
+      request,
+    )
+    post_es_res = self.post_view._filter_queryset(
+      request,
     )
 
-    response['papers'] = self.get_serializer(papers_raw, many=True)
-    # print(json.dumps(response).data)
-    return Response()
+    response['papers'] = self.get_serializer(papers_es_res, many=True).data
+    response['posts'] = self.get_serializer(post_es_res, many=True).data
+
+    return Response(response)
 

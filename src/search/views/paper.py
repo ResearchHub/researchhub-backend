@@ -116,15 +116,10 @@ class PaperDocumentView(DocumentViewSet):
         self.search = Search(index=['paper'])
         super(PaperDocumentView, self).__init__(*args, **kwargs)    
 
-    def get_queryset(self):
-        es_response = self.search.query().execute()
-        return es_response
-
-    def filter_queryset(self, request):
+    def _filter_queryset(self, request):
         queryset = self.search
 
         for backend in list(self.filter_backends):
-            # has_backends = True
             queryset = backend().filter_queryset(
             request,
             queryset,

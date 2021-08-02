@@ -6,22 +6,16 @@ from search.serializers import (
     PersonDocumentSerializer,
     HubDocumentSerializer,
     PaperDocumentSerializer,
-    CrossrefPaperSerializer,
-    SummaryDocumentSerializer,
-    ThreadDocumentSerializer,
-    UniversityDocumentSerializer
+    PostDocumentSerializer,
 )
 
 
 class CombinedSerializer(serializers.BaseSerializer):
     index_serializers = {
         'author': PersonDocumentSerializer,
-        'discussion_thread': ThreadDocumentSerializer,
         'hub': HubDocumentSerializer,
         'paper': PaperDocumentSerializer,
-        'crossref_paper': CrossrefPaperSerializer,
-        'summary': SummaryDocumentSerializer,
-        'university': UniversityDocumentSerializer,
+        'post': PostDocumentSerializer,
     }
 
     def __init__(self, *args, **kwargs):
@@ -29,10 +23,6 @@ class CombinedSerializer(serializers.BaseSerializer):
         super(CombinedSerializer, self).__init__(many=many, *args, **kwargs)
 
     def to_representation(self, obj):
-
-        print('-------------')
-        print(obj.meta.index)
-        print('-------------')
         return self.get_hit(obj)
 
     def get_hit(self, obj):
