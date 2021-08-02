@@ -24,6 +24,7 @@ from search.backends.multi_match_filter import MultiMatchSearchFilterBackend
 
 
 class CombinedView(ListAPIView):
+  max_results_per_entity = 2
   permission_classes = [ReadOnly]
   serializer_class = CombinedSerializer
   filter_backends = [
@@ -59,8 +60,9 @@ class CombinedView(ListAPIView):
       request,
     )
 
-    response['papers'] = self.get_serializer(papers_es_res, many=True).data
-    response['posts'] = self.get_serializer(post_es_res, many=True).data
+    response['papers'] = self.get_serializer(papers_es_res, many=True).data[0:self.max_results_per_entity]
+    response['posts'] = self.get_serializer(post_es_res, many=True).data[0:self.max_results_per_entity]
+
 
     return Response(response)
 
