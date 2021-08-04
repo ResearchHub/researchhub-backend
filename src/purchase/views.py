@@ -168,7 +168,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 invalidate_newest_cache([])
 
             if unified_doc.is_removed:
-                return Response(status=403)
+                return Response('Content is removed', status=403)
 
             if transfer_rsc and recipient and recipient != user:
                 distribution = create_purchase_distribution(amount)
