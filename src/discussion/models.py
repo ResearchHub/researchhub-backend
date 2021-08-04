@@ -225,6 +225,13 @@ class Thread(BaseComment):
         blank=True,
         null=True
     )
+    hypothesis = models.ForeignKey(
+        'hypothesis.hypothesis',
+        on_delete=models.SET_NULL,
+        related_name='hypothesis',
+        null=True,
+        blank=True,
+    )
     actions = GenericRelation(
         'user.Action',
         object_id_field='object_id',
