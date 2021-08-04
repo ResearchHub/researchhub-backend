@@ -18,6 +18,7 @@ from reputation import distributions
 from reputation.distributor import Distributor
 from researchhub.settings import TESTING
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from hypothesis.models import Hypothesis
 from summary.models import Summary, Vote as SummaryVote
 from summary.serializers import SummaryVoteSerializer
 from utils.siftscience import events_api, decisions_api
@@ -141,6 +142,7 @@ def handle_spam(sender, instance, **kwargs):
 @receiver(post_save, sender=BulletPointVote, dispatch_uid='summary_vote_action')
 @receiver(post_save, sender=SummaryVote, dispatch_uid='bulletpoint_vote_action')
 @receiver(post_save, sender=ResearchhubPost, dispatch_uid='researchhubpost_action')
+@receiver(post_save, sender=Hypothesis, dispatch_uid='create_hypothesis_action')
 def create_action(sender, instance, created, **kwargs):
     if created:
         if sender == Summary:
@@ -169,7 +171,8 @@ def create_action(sender, instance, created, **kwargs):
             get_content_type_for_model(Reply),
             get_content_type_for_model(Comment),
             get_content_type_for_model(Paper),
-            get_content_type_for_model(ResearchhubPost)
+            get_content_type_for_model(ResearchhubPost),
+            get_content_type_for_model(Hypothesis)
         ]
         if (
             user is not None
