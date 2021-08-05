@@ -44,6 +44,68 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
         return query_options
 
     @classmethod
+    def construct_query(cls, request, view, search_backend, query_fields, search_term):
+        query_opts = cls.get_query_options(request, view, search_backend)
+
+        score_field = None
+        try:
+            score_field = getattr(view, 'score_field')    
+        except:
+            pass
+        
+        if score_field is not None:
+            return (
+                Q(
+                    'function_score',
+                    query={
+                        'multi_match': {
+                            'query': search_term,
+                            'fields': query_fields,
+                            **query_opts
+
+                        }
+                    },
+                    field_value_factor= {
+                        "field": score_field,
+                        "factor": 1.2,
+                        "modifier": "sqrt",
+                        "missing": 1                                
+                    }                      
+
+                )
+            )
+        else:
+            return (
+                Q(
+                    cls.query_type,
+                    query=search_term,
+                    fields=query_fields,
+                    **query_opts
+                )
+            )
+
+        """
+        Perform an additional phrase prefix boosted query
+        the goal of which is to boost exact phrases requested.
+        """
+        if len(search_term) >= cls.min_len_for_phrase_match_query:
+            phrase_query_opts = copy.deepcopy(query_opts)
+            phrase_query_opts['type'] = 'phrase_prefix'
+            phrase_query_opts['boost'] = 2
+          
+            if 'fuzziness' in phrase_query_opts:                
+                del phrase_query_opts['fuzziness']
+
+                return (
+                    Q(
+                        cls.query_type,
+                        query=search_term,
+                        fields=query_fields,
+                        **phrase_query_opts
+                    )
+                )    
+
+    @classmethod
     def construct_search(cls, request, view, search_backend):
         """Construct search.
 
@@ -141,69 +203,9 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
                     query_fields = copy.deepcopy(view_search_fields)
 
 
-            query_opts = cls.get_query_options(request, view, search_backend)
+            q = cls.construct_query(request, view, search_backend, query_fields, __search_term)
+            __queries.append(q)
 
-
-            score_field = None
-            try:
-                score_field = getattr(view, 'score_field')    
-            except:
-                pass
-            
-            if score_field is not None:
-                __queries.append(
-                    Q(
-                        'function_score',
-                        query={
-                            'multi_match': {
-                                'query': __search_term,
-                                'fields': query_fields,
-                                **query_opts
-
-                            }
-                        },
-                        functions=[
-                            query.SF(
-                                'script_score',
-                                script={
-                                    'lang': 'painless',
-                                    'inline': "if (doc.containsKey('" + score_field + "')) { return doc.get('" + score_field + "').value * 10 + _score; } else { return _score }"
-                                }
-                            )
-                        ]
-
-                    )
-                )
-            else:
-                __queries.append(
-                    Q(
-                        cls.query_type,
-                        query=__search_term,
-                        fields=query_fields,
-                        **query_opts
-                    )
-                )
-
-            """
-            Perform an additional phrase prefix boosted query
-            the goal of which is to boost exact phrases requested.
-            """
-            if len(__search_term) >= cls.min_len_for_phrase_match_query:
-                phrase_query_opts = copy.deepcopy(query_opts)
-                phrase_query_opts['type'] = 'phrase_prefix'
-                phrase_query_opts['boost'] = 2
-              
-                if 'fuzziness' in phrase_query_opts:                
-                    del phrase_query_opts['fuzziness']
-
-                    __queries.append(
-                        Q(
-                            cls.query_type,
-                            query=__search_term,
-                            fields=query_fields,
-                            **phrase_query_opts
-                        )
-                    )
 
         return __queries
 

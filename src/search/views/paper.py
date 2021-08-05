@@ -28,7 +28,7 @@ class PaperDocumentView(DocumentViewSet):
     pagination_class = LimitOffsetPagination
     lookup_field = 'id'
     # This field will be added to the ES _score
-    score_field = 'hot_score'    
+    score_field = 'score'
     filter_backends = [
         MultiMatchSearchFilterBackend,
         CompoundSearchFilterBackend,
