@@ -58,7 +58,7 @@ class PostDocumentView(DocumentViewSet):
     multi_match_options = {
         'operator': 'and',
         'type': 'cross_fields',
-        'analyzer': 'standard',
+        'analyzer': 'content_analyzer',
     }
 
     post_filter_fields = {
