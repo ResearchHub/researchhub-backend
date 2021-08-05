@@ -12,7 +12,7 @@ from search.serializers import (
 
 class CombinedSerializer(serializers.BaseSerializer):
     index_serializers = {
-        'author': PersonDocumentSerializer,
+        'person': PersonDocumentSerializer,
         'hub': HubDocumentSerializer,
         'paper': PaperDocumentSerializer,
         'post': PostDocumentSerializer,

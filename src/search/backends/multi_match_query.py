@@ -4,7 +4,7 @@ in order to support RH's use case. Changes highlighted below.
 """
 
 from django_elasticsearch_dsl_drf.filter_backends.search.query_backends import BaseSearchQueryBackend
-from elasticsearch_dsl.query import Q
+from elasticsearch_dsl import query, Q
 import copy
 
 
@@ -143,15 +143,46 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
 
             query_opts = cls.get_query_options(request, view, search_backend)
 
-            # The multi match query
-            __queries.append(
-                Q(
-                    cls.query_type,
-                    query=__search_term,
-                    fields=query_fields,
-                    **query_opts
+
+            score_field = None
+            try:
+                score_field = getattr(view, 'score_field')    
+            except:
+                pass
+            
+            if score_field is not None:
+                __queries.append(
+                    Q(
+                        'function_score',
+                        query={
+                            'multi_match': {
+                                'query': __search_term,
+                                'fields': query_fields,
+                                **query_opts
+
+                            }
+                        },
+                        functions=[
+                            query.SF(
+                                'script_score',
+                                script={
+                                    'lang': 'painless',
+                                    'inline': "if (doc.containsKey('" + score_field + "')) { return doc.get('" + score_field + "').value + _score; } else { return _score }"
+                                }
+                            )
+                        ]
+
+                    )
                 )
-            )
+            else:
+                __queries.append(
+                    Q(
+                        cls.query_type,
+                        query=__search_term,
+                        fields=query_fields,
+                        **query_opts
+                    )
+                )
 
             """
             Perform an additional phrase prefix boosted query

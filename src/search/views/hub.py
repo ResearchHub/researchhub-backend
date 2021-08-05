@@ -3,7 +3,7 @@ from django_elasticsearch_dsl_drf.filter_backends import (
     DefaultOrderingFilterBackend,
     MultiMatchSearchFilterBackend
 )
-
+from elasticsearch_dsl import Search
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
 from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
 
@@ -38,3 +38,19 @@ class HubDocumentView(DocumentViewSet):
         'operator': 'and',
         'fuzziness': 1,
     }
+
+    def __init__(self, *args, **kwargs):
+        self.search = Search(index=['hub'])
+        super(HubDocumentView, self).__init__(*args, **kwargs)    
+
+    def _filter_queryset(self, request):
+        queryset = self.search
+
+        for backend in list(self.filter_backends):
+            queryset = backend().filter_queryset(
+            request,
+            queryset,
+            self,
+        )
+
+        return queryset

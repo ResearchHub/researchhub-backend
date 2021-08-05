@@ -12,7 +12,6 @@ from django_elasticsearch_dsl_drf.filter_backends import (
     SearchFilterBackend,
 )
 from elasticsearch_dsl import Search
-
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
 from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
 
@@ -28,6 +27,8 @@ class PaperDocumentView(DocumentViewSet):
     serializer_class = PaperDocumentSerializer
     pagination_class = LimitOffsetPagination
     lookup_field = 'id'
+    # This field will be added to the ES _score
+    score_field = 'score'    
     filter_backends = [
         MultiMatchSearchFilterBackend,
         CompoundSearchFilterBackend,
