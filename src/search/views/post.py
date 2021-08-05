@@ -29,7 +29,7 @@ class PostDocumentView(DocumentViewSet):
     serializer_class = PostDocumentSerializer
     pagination_class = LimitOffsetPagination
     lookup_field = 'id'
-    score_field = 'score'
+    score_field = 'hot_score'
     filter_backends = [
         MultiMatchSearchFilterBackend,
         CompoundSearchFilterBackend,
