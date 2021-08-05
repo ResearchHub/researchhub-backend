@@ -12,6 +12,7 @@ class HubDocument(BaseDocument):
     paper_count = es_fields.IntegerField(attr='paper_count')
     subscriber_count = es_fields.IntegerField(attr='subscriber_count')
     discussion_count = es_fields.IntegerField(attr='discussion_count')
+    description = es_fields.IntegerField(attr='description')
 
     class Index:
         name = 'hub'

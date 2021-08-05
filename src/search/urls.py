@@ -42,7 +42,7 @@ hub = router.register(
 
 urlpatterns = [
     url(r'^', include(router.urls)),
-    path('best/', CombinedView.as_view(), name='combined_search'),
+    path('all/', CombinedView.as_view(), name='combined_search'),
     # path('match/', MatchingPaperSearch.as_view(), name='matching_search')
     # path('crossref/', crossref, name='crossref'),
     # path('orcid/', orcid, name='orcid'),

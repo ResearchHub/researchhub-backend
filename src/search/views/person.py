@@ -47,7 +47,7 @@ class PersonDocumentView(DocumentViewSet):
     multi_match_options = {
         'operator': 'and',
         'type': 'cross_fields',
-        'analyzer': 'standard',
+        'analyzer': 'content_analyzer',
     }
 
     faceted_search_fields = {
