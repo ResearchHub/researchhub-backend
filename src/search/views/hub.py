@@ -36,7 +36,8 @@ class HubDocumentView(DocumentViewSet):
 
     multi_match_options = {
         'operator': 'and',
-        'fuzziness': 1,
+        'type': 'cross_fields',
+        'analyzer': 'standard',
     }
 
     def __init__(self, *args, **kwargs):
