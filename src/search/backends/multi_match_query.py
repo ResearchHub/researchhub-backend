@@ -167,7 +167,7 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
                                 'script_score',
                                 script={
                                     'lang': 'painless',
-                                    'inline': "if (doc.containsKey('" + score_field + "')) { return doc.get('" + score_field + "').value  + _score; } else { return _score }"
+                                    'inline': "if (doc.containsKey('" + score_field + "')) { return doc.get('" + score_field + "').value * 10 + _score; } else { return _score }"
                                 }
                             )
                         ]
