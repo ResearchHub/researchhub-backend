@@ -105,7 +105,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
                 unified_doc.hypothesis,
                 context=context,
                 **_context_fields
-            )
+            ).data
         else:
             serializer = DynamicPaperSerializer(
                 unified_doc.paper,

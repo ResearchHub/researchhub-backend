@@ -147,6 +147,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 '_include_fields': [
                     'author_profile',
                 ]
+            },
+            'hyp_dhs_get_created_by': {
+                '_include_fields': [
+                    'author_profile',
+                ]
             }
         }
         return context
@@ -162,7 +167,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         qs = self.queryset.filter(
             (
                 Q(paper__uploaded_by__isnull=False) |
-                Q(posts__created_by__isnull=False)
+                Q(posts__created_by__isnull=False) |
+                Q(hypothesis__created_by__isnull=False)
             ),
             is_removed=False,
         )
