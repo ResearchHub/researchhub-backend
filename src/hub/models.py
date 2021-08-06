@@ -105,16 +105,6 @@ class Hub(models.Model):
         return self.get_paper_count()
 
     @property
-    def hub_image_indexing(self):
-        img = ''
-        try:
-            img = self.hub_image.url
-        except Exception as e:
-            pass
-
-        return img
-
-    @property
     def subscriber_count_indexing(self):
         return self.get_subscribers_count()
 

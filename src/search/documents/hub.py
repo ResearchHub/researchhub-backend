@@ -18,7 +18,6 @@ class HubDocument(BaseDocument):
     subscriber_count = es_fields.IntegerField(attr='subscriber_count')
     discussion_count = es_fields.IntegerField(attr='discussion_count')
     description = es_fields.TextField(attr='description', analyzer=content_analyzer)
-    hub_image = es_fields.TextField(attr='hub_image_indexing')
     name = es_fields.TextField(attr='name', analyzer=title_analyzer)
 
     class Index:
