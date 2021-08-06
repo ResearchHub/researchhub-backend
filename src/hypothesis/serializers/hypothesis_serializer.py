@@ -5,10 +5,12 @@ from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import (
   DynamicUnifiedDocumentSerializer
 )
-from user.serializers import DynamicUserSerializer
+from user.serializers import UserSerializer, DynamicUserSerializer
 
 
 class HypothesisSerializer(ModelSerializer):
+    created_by = UserSerializer()
+
     class Meta:
         model = Hypothesis
         fields = [
