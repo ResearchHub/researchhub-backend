@@ -3,7 +3,9 @@ from rest_framework.serializers import ModelSerializer, SerializerMethodField
 from hub.serializers import SimpleHubSerializer
 from paper.serializers import PaperSerializer, DynamicPaperSerializer
 from researchhub_document.related_models.constants.document_type import (
-    DISCUSSION, ELN
+    DISCUSSION,
+    ELN,
+    HYPOTHESIS
 )
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -86,6 +88,8 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         fields = '__all__'
 
     def get_documents(self, unified_doc):
+        from hypothesis.serializers import DynamicHypothesisSerializer
+
         context = self.context
         _context_fields = context.get('doc_duds_get_documents', {})
         doc_type = unified_doc.document_type
@@ -96,6 +100,12 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
                 context=context,
                 **_context_fields
             ).data
+        elif doc_type == HYPOTHESIS:
+            return DynamicHypothesisSerializer(
+                unified_doc.hypothesis,
+                context=context,
+                **_context_fields
+            )
         else:
             serializer = DynamicPaperSerializer(
                 unified_doc.paper,

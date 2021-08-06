@@ -44,6 +44,7 @@ def handle_spam_user(
     if instance.probable_spammer:
         handle_spam_user_task.apply_async((instance.id,), priority=3)
 
+
 @receiver(post_save, sender=Author, dispatch_uid='link_author_to_papers')
 def queue_link_author_to_papers(sender, instance, created, **kwargs):
     """Runs a queued task to link the new ORCID author to existing papers."""
@@ -180,7 +181,14 @@ def create_action(sender, instance, created, **kwargs):
             and not Action.objects.filter(
                 user=user, content_type__in=referral_content_types
             ).exists()
-            and sender in [Thread, Reply, Comment, Paper, ResearchhubPost]
+            and sender in [
+                Thread,
+                Reply,
+                Comment,
+                Paper,
+                ResearchhubPost,
+                Hypothesis
+            ]
         ):
             timestamp = time()
             referred = Distributor(
@@ -270,6 +278,10 @@ def create_notification(sender, instance, created, action, **kwargs):
                     instance,
                     context=context
                 ).data
+            elif sender == ResearchhubPost:
+                paper = None
+            elif sender == Hypothesis:
+                paper = None
             else:
                 creator = instance.created_by
                 paper = instance.paper
