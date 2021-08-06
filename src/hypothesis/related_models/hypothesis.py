@@ -22,7 +22,8 @@ class Hypothesis(AbstractGenericReactionModel):
     )
     result_score = models.DecimalField(
         max_digits=5,
-        decimal_places=2
+        decimal_places=2,
+        null=True
     )
     slug = models.SlugField(max_length=1024)
     title = models.TextField(blank=True, default='')
@@ -36,3 +37,7 @@ class Hypothesis(AbstractGenericReactionModel):
 
     def calculate_result_score(self, save=False):
         pass
+
+    @property
+    def users_to_notify(self):
+        return [self.created_by]

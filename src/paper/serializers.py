@@ -10,7 +10,7 @@ import rest_framework.serializers as serializers
 from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
-from hub.serializers import SimpleHubSerializer
+from hub.serializers import SimpleHubSerializer, DynamicHubSerializer
 from paper.lib import journal_hosts
 from paper.exceptions import PaperSerializerError
 from paper.models import (
@@ -705,6 +705,8 @@ class PaperReferenceSerializer(serializers.ModelSerializer):
 class DynamicPaperSerializer(DynamicModelFieldSerializer):
     unified_document = serializers.SerializerMethodField()
     discussion_users = serializers.SerializerMethodField()
+    hubs = serializers.SerializerMethodField()
+    uploaded_by = serializers.SerializerMethodField()
 
     class Meta:
         model = Paper
@@ -739,6 +741,27 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
         serializer = DynamicUserSerializer(
             users,
             many=True,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_hubs(self, paper):
+        context = self.context
+        _context_fields = context.get('pap_dps_get_hubs', {})
+        serializer = DynamicHubSerializer(
+            paper.hubs,
+            many=True,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_uploaded_by(self, paper):
+        context = self.context
+        _context_fields = context.get('pap_dps_get_uploaded_by', {})
+        serializer = DynamicUserSerializer(
+            paper.uploaded_by,
             context=context,
             **_context_fields
         )

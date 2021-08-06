@@ -22,19 +22,19 @@ from paper.utils import get_cache_key
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.utils import reset_unified_document_cache
 from paper.utils import (
-    get_cache_key,
     invalidate_top_rated_cache,
     invalidate_newest_cache,
     invalidate_most_discussed_cache,
 )
 from researchhub_document.serializers import (
-  ResearchhubUnifiedDocumentSerializer
+  DynamicUnifiedDocumentSerializer
 )
 from researchhub_document.related_models.constants.document_type import (
     PAPER,
     DISCUSSION,
     ELN,
-    POSTS
+    POSTS,
+    HYPOTHESIS
 )
 from paper.models import Vote as PaperVote
 from paper.serializers import PaperVoteSerializer
@@ -51,7 +51,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         IsAuthenticated,
     ]
     queryset = ResearchhubUnifiedDocument.objects
-    serializer_class = ResearchhubUnifiedDocumentSerializer
+    serializer_class = DynamicUnifiedDocumentSerializer
 
     def update(self, request, *args, **kwargs):
         update_response = super().update(request, *args, **kwargs)
@@ -87,6 +87,70 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             filtering = '-score'
         return filtering
 
+    def _get_serializer_context(self):
+        context = {
+            'doc_duds_get_documents': {
+                '_include_fields': [
+                    'id',
+                    'created_date',
+                    'uploaded_date',
+                    'title',
+                    'paper_title',
+                    'renderable_text',
+                    'preview_img',
+                    'hubs',
+                    'slug',
+                    'created_by',
+                    'uploaded_by',
+                    'score',
+                ]
+            },
+            'doc_dps_get_hubs': {
+                '_include_fields': [
+                    'id',
+                    'name',
+                    'is_locked',
+                    'slug',
+                    'is_removed',
+                    'hub_image'
+                ]
+            },
+            'pap_dps_get_hubs': {
+                '_include_fields': [
+                    'id',
+                    'name',
+                    'is_locked',
+                    'slug',
+                    'is_removed',
+                    'hub_image',
+                ]
+            },
+            'doc_dps_get_created_by': {
+                '_include_fields': [
+                    'author_profile',
+                ]
+            },
+            'pap_dps_get_uploaded_by': {
+                '_include_fields': [
+                    'author_profile',
+                ]
+            },
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image',
+                ]
+            },
+            'doc_duds_get_created_by': {
+                '_include_fields': [
+                    'author_profile',
+                ]
+            }
+        }
+        return context
+
     def get_filtered_queryset(
         self,
         document_type,
@@ -108,7 +172,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 document_type=PAPER
             )
         elif document_type == POSTS.lower():
-            qs = qs.filter(document_type__in=[DISCUSSION, ELN])
+            qs = qs.filter(
+                document_type__in=[DISCUSSION, ELN]
+            )
+        elif document_type == HYPOTHESIS.lower():
+            qs = qs.filter(
+                document_type=HYPOTHESIS
+            )
         else:
             qs = qs.all()
 
@@ -264,13 +334,18 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             end_date
         )
 
-        context = self.get_serializer_context()
-        context['user_no_balance'] = True
-        context['exclude_promoted_score'] = True
-        context['include_wallet'] = False
-
+        context = self._get_serializer_context()
         page = self.paginate_queryset(documents)
-        serializer = self.serializer_class(page, many=True, context=context)
+        serializer = self.serializer_class(
+            page,
+            _include_fields=[
+                'documents',
+                'document_type',
+                'score'
+            ],
+            many=True,
+            context=context
+        )
         serializer_data = serializer.data
 
         return self.get_paginated_response(serializer_data)
@@ -390,13 +465,18 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         #         hubs__in=hubs.all()
         #     ).distinct()
 
-        context = self.get_serializer_context()
-        context['user_no_balance'] = True
-        context['exclude_promoted_score'] = True
-        context['include_wallet'] = False
-
+        context = self._get_serializer_context()
         page = self.paginate_queryset(all_documents)
-        serializer = self.serializer_class(page, many=True, context=context)
+        serializer = self.serializer_class(
+            page,
+            _include_fields=[
+                'documents',
+                'document_type',
+                'score'
+            ],
+            many=True,
+            context=context
+        )
         serializer_data = serializer.data
         return self.get_paginated_response(serializer_data)
 

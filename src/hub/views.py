@@ -317,7 +317,7 @@ class HubViewSet(viewsets.ModelViewSet):
                     'author_profile',
                 ]
             },
-            'usr_dus_get_item': {
+            'usr_dus_get_author_profile': {
                 '_include_fields': [
                     'id',
                     'profile_image',

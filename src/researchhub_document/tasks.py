@@ -33,7 +33,7 @@ def preload_trending_documents(
 ):
     from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
     from researchhub_document.serializers import (
-      ResearchhubUnifiedDocumentSerializer
+      DynamicUnifiedDocumentSerializer
     )
 
     initial_date = datetime.now().replace(
@@ -122,7 +122,18 @@ def preload_trending_documents(
         end_date
     )
     page = document_view.paginate_queryset(documents)
-    serializer = ResearchhubUnifiedDocumentSerializer(page, many=True)
+    context = document_view._get_serializer_context()
+    serializer = DynamicUnifiedDocumentSerializer(
+        page,
+        _include_fields=[
+            'created_by',
+            'documents',
+            'document_type',
+            'score'
+        ],
+        many=True,
+        context=context,
+    )
     serializer_data = serializer.data
 
     paginated_response = document_view.get_paginated_response(
@@ -149,15 +160,15 @@ def preload_hub_documents(
     document_type=ALL.lower(),
     hub_ids=None
 ):
+    from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
     from researchhub_document.serializers import (
-      ResearchhubUnifiedDocumentSerializer
+      DynamicUnifiedDocumentSerializer
     )
 
     Hub = apps.get_model('hub.Hub')
     hubs = Hub.objects.all()
 
-    context = {}
-    context['user_no_balance'] = True
+    document_view = ResearchhubUnifiedDocumentViewSet()
 
     if document_type == ALL.lower():
         document_types = [PAPER, ELN, DISCUSSION]
@@ -180,8 +191,15 @@ def preload_hub_documents(
             '-hot_score'
         )[:15]
         cache_key = get_cache_key('documents', cache_pk)
-        serializer = ResearchhubUnifiedDocumentSerializer(
+        context = document_view._get_serializer_context()
+        serializer = DynamicUnifiedDocumentSerializer(
             documents,
+            _include_fields=[
+                'created_by',
+                'documents',
+                'document_type',
+                'score'
+            ],
             many=True,
             context=context
         )
@@ -195,7 +213,7 @@ def preload_hub_documents(
         )
     return data
 
+
 @app.task
 def update_elastic_registry(post):
     registry.update(post)
-
