@@ -23,6 +23,7 @@ class HubDocumentSerializer(serializers.ModelSerializer):
             'id',
             'name',
             'acronym',
+            'description',
             'is_locked',
             'hub_image',
             'paper_count',

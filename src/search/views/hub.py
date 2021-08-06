@@ -27,17 +27,19 @@ class HubDocumentView(DocumentViewSet):
     search_fields = {
         'name': {'boost': 1, 'fuzziness': 1},
         'acronym': {'boost': 1, 'fuzziness': 1},
+        'description': {'boost': 1, 'fuzziness': 1},
     }
 
     multi_match_search_fields = {
         'name': {'boost': 1},
         'acronym': {'boost': 1},
+        'description': {'boost': 1},
     }
 
     multi_match_options = {
         'operator': 'and',
         'type': 'cross_fields',
-        'analyzer': 'standard',
+        'analyzer': 'content_analyzer',
     }
 
     def __init__(self, *args, **kwargs):
