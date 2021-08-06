@@ -4,7 +4,7 @@ in order to support RH's use case. Changes highlighted below.
 """
 
 from django_elasticsearch_dsl_drf.filter_backends.search.query_backends import BaseSearchQueryBackend
-from elasticsearch_dsl.query import Q
+from elasticsearch_dsl import query, Q
 import copy
 
 
@@ -16,6 +16,14 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
     Perform prefix phrase match if greater than or equal to length specified.
     """
     min_len_for_phrase_match_query = 6
+    """
+    Add additional weight to exact matches
+    """    
+    boost_for_phrase_query = 2
+    """
+    If score_field is specified on view, control how much weight the field should have
+    """    
+    factor_for_function_score = 1.2
 
     @classmethod
     def get_field(cls, field, options):
@@ -42,6 +50,57 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
         query_options = getattr(view, 'multi_match_options', {})
 
         return query_options
+
+    @classmethod
+    def construct_query(cls, request, view, search_backend, query_fields, search_term, query_opts):
+        score_field = None
+        try:
+            score_field = getattr(view, 'score_field')
+        except:
+            pass
+
+        if score_field is not None:
+            return (
+                Q(
+                    'function_score',
+                    query={
+                        'multi_match': {
+                            'query': search_term,
+                            'fields': query_fields,
+                            **query_opts
+                        }
+                    },
+                    field_value_factor= {
+                        "field": score_field,
+                        "factor": cls.factor_for_function_score,
+                        "modifier": "sqrt",
+                        "missing": 1
+                    }
+
+                )
+            )
+        else:
+            return (
+                Q(
+                    cls.query_type,
+                    query=search_term,
+                    fields=query_fields,
+                    **query_opts
+                )
+            )
+
+
+    @classmethod
+    def construct_phrase_query(cls, request, view, search_backend, query_fields, search_term, query_opts):
+        phrase_query_opts = copy.deepcopy(query_opts)
+        phrase_query_opts['type'] = 'phrase_prefix'
+        phrase_query_opts['boost'] = cls.boost_for_phrase_query
+      
+        # Fuzziness not allowed in phrases
+        if 'fuzziness' in phrase_query_opts:                
+            del phrase_query_opts['fuzziness']
+
+        return cls.construct_query(request, view, search_backend, query_fields, search_term, phrase_query_opts)
 
     @classmethod
     def construct_search(cls, request, view, search_backend):
@@ -142,37 +201,17 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
 
 
             query_opts = cls.get_query_options(request, view, search_backend)
-
-            # The multi match query
-            __queries.append(
-                Q(
-                    cls.query_type,
-                    query=__search_term,
-                    fields=query_fields,
-                    **query_opts
-                )
-            )
+            q = cls.construct_query(request, view, search_backend, query_fields, __search_term, query_opts)
+            __queries.append(q)
 
             """
             Perform an additional phrase prefix boosted query
             the goal of which is to boost exact phrases requested.
             """
             if len(__search_term) >= cls.min_len_for_phrase_match_query:
-                phrase_query_opts = copy.deepcopy(query_opts)
-                phrase_query_opts['type'] = 'phrase_prefix'
-                phrase_query_opts['boost'] = 2
-              
-                if 'fuzziness' in phrase_query_opts:                
-                    del phrase_query_opts['fuzziness']
+                phrase_q = cls.construct_phrase_query(request, view, search_backend, query_fields, __search_term, query_opts)
+                __queries.append(phrase_q)
 
-                    __queries.append(
-                        Q(
-                            cls.query_type,
-                            query=__search_term,
-                            fields=query_fields,
-                            **phrase_query_opts
-                        )
-                    )
 
         return __queries
 

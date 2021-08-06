@@ -51,8 +51,6 @@ class BaseDocument(Document):
         except ConnectionError as e:
             sentry.log_info(e)
         except Exception as e:
-            print(e)
             # The likely scenario is the result of removing objects
             # that do not exist in elastic search - 404s
-            sentry.log_info(e)
             pass

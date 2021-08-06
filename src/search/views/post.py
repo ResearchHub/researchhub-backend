@@ -12,6 +12,8 @@ from django_elasticsearch_dsl_drf.filter_backends import (
     SearchFilterBackend,
 )
 
+from elasticsearch_dsl import Search
+
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
 from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
 
@@ -27,6 +29,7 @@ class PostDocumentView(DocumentViewSet):
     serializer_class = PostDocumentSerializer
     pagination_class = LimitOffsetPagination
     lookup_field = 'id'
+    score_field = 'score'
     filter_backends = [
         MultiMatchSearchFilterBackend,
         CompoundSearchFilterBackend,
@@ -54,7 +57,8 @@ class PostDocumentView(DocumentViewSet):
 
     multi_match_options = {
         'operator': 'and',
-        'type': 'best_fields',
+        'type': 'cross_fields',
+        'analyzer': 'content_analyzer',
     }
 
     post_filter_fields = {
@@ -99,3 +103,18 @@ class PostDocumentView(DocumentViewSet):
         }
     }
 
+    def __init__(self, *args, **kwargs):
+        self.search = Search(index=['post'])
+        super(PostDocumentView, self).__init__(*args, **kwargs)    
+
+    def _filter_queryset(self, request):
+        queryset = self.search
+
+        for backend in list(self.filter_backends):
+            queryset = backend().filter_queryset(
+            request,
+            queryset,
+            self,
+        )
+
+        return queryset
