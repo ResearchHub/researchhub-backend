@@ -1,3 +1,4 @@
+import re
 from django_elasticsearch_dsl_drf.filter_backends import (
     CompoundSearchFilterBackend,
     DefaultOrderingFilterBackend,
@@ -22,6 +23,18 @@ from utils.permissions import ReadOnly
 from search.backends.multi_match_filter import MultiMatchSearchFilterBackend
 
 class PaperDocumentView(DocumentViewSet):
+
+    def _is_doi(search_term):
+        try:
+            # Regex imported from https://stackoverflow.com/questions/27910/finding-a-doi-in-a-document-or-page
+            regex = '(10[.][0-9]{4,}(?:[.][0-9]+)*/(?:(?![%"#? ])\\S)+)'
+            if re.match(regex, search_term):
+                return True
+        except:
+            pass
+
+        return False
+
     document = PaperDocument
     permission_classes = [ReadOnly]
     serializer_class = PaperDocumentSerializer
@@ -49,7 +62,12 @@ class PaperDocumentView(DocumentViewSet):
     }
 
     multi_match_search_fields = {
-        'doi': {'boost': 3},
+        'doi': {
+            'condition': _is_doi, 
+            'options': {
+                'analyzer': 'keyword',
+            }
+        },
         'title': {'boost': 2},
         'raw_authors.full_name': {'boost': 1},
         'abstract': {'boost': 1},
