@@ -1,12 +1,12 @@
 from django_elasticsearch_dsl_drf.filter_backends import (
     CompoundSearchFilterBackend,
     DefaultOrderingFilterBackend,
-    MultiMatchSearchFilterBackend
 )
 from elasticsearch_dsl import Search
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
 from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
 
+from search.backends.multi_match_filter import MultiMatchSearchFilterBackend
 from search.documents.hub import HubDocument
 from search.serializers.hub import HubDocumentSerializer
 from utils.permissions import ReadOnly
