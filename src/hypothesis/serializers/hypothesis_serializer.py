@@ -14,6 +14,7 @@ class HypothesisSerializer(ModelSerializer):
     class Meta:
         model = Hypothesis
         fields = [
+            'id',
             'created_by',
             'result_score',
             'slug',
@@ -21,6 +22,7 @@ class HypothesisSerializer(ModelSerializer):
             'title'
         ]
         read_only_fields = [
+            'id',
             'created_by',
             'result_score',
             'slug',
