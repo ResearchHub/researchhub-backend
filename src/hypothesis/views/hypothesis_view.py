@@ -1,4 +1,4 @@
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -17,7 +17,7 @@ from researchhub_document.related_models.constants.document_type import (
 class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date')
     queryset = Hypothesis.objects
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny] #[IsAuthenticated]
     serializer_class = HypothesisSerializer
 
     def create(self, request, *args, **kwargs):
