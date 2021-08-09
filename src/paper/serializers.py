@@ -11,6 +11,7 @@ from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer, DynamicHubSerializer
+from hypothesis.models import Hypothesis, Citation
 from paper.lib import journal_hosts
 from paper.exceptions import PaperSerializerError
 from paper.models import (
@@ -307,6 +308,7 @@ class PaperSerializer(BasePaperSerializer):
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
+        hypothesis_id = validated_data.get('hypothesis_id', None)
 
         try:
             with transaction.atomic():
@@ -327,7 +329,15 @@ class PaperSerializer(BasePaperSerializer):
                     paper = arxiv_paper.create_paper(uploaded_by=user)
 
                 if paper is None:
+                    # It is important to note that paper signals
+                    # are ran after call to super
                     paper = super(PaperSerializer, self).create(validated_data)
+
+                unified_doc = paper.unified_document
+                unified_doc_id = paper.unified_document.id
+
+                if hypothesis_id:
+                    self._add_citation(user, hypothesis_id, unified_doc)
 
                 paper_id = paper.id
                 paper_title = paper.paper_title or ''
@@ -374,7 +384,6 @@ class PaperSerializer(BasePaperSerializer):
                 )
                 update_user_risk_score(user, tracked_paper)
 
-                unified_doc_id = paper.unified_document.id
                 create_contribution.apply_async(
                     (
                         Contribution.SUBMITTER,
@@ -502,6 +511,17 @@ class PaperSerializer(BasePaperSerializer):
                 add_references(paper.id)
         except Exception as e:
             sentry.log_info(e)
+
+    def _add_citation(self, user, hypothesis_id, unified_document):
+        try:
+            hypothesis = Hypothesis.objects.get(id=hypothesis_id)
+            Citation.objects.create(
+                created_by=user,
+                hypothesis=hypothesis,
+                source=unified_document,
+            )
+        except Exception as e:
+            sentry.log_error(e)
 
     def _add_file(self, paper, file):
         paper_id = paper.id
