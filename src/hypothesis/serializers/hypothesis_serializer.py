@@ -10,24 +10,35 @@ from user.serializers import UserSerializer, DynamicUserSerializer
 
 class HypothesisSerializer(ModelSerializer):
     created_by = UserSerializer()
+    full_markdown = SerializerMethodField()
 
     class Meta:
         model = Hypothesis
         fields = [
             'id',
             'created_by',
+            'full_markdown',
             'result_score',
+            'renderable_text',
             'slug',
+            'src',
+            'title',
             'unified_document',
-            'title'
         ]
         read_only_fields = [
             'id',
             'created_by',
             'result_score',
+            'renderable_text',
             'slug',
+            'src',
             'unified_document'
         ]
+
+    def get_full_markdown(self, hypothesis):
+        byte_string = hypothesis.src.read()
+        full_markdown = byte_string.decode('utf-8')
+        return full_markdown
 
 
 class DynamicHypothesisSerializer(DynamicModelFieldSerializer):

@@ -32,9 +32,9 @@ class Hypothesis(AbstractGenericReactionModel):
     slug = models.SlugField(max_length=1024)
     src = models.FileField(
         blank=True,
+        null=True,
         default=None,
         max_length=512,
-        null=True,
         upload_to='uploads/hypothesis/%Y/%m/%d/',
     )
     title = models.TextField(blank=True, default='')
