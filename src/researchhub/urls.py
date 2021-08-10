@@ -225,6 +225,12 @@ router.register(
     basename='hypothesis'
 )
 
+router.register(
+    r'citation',
+    hypothesis_views.CitationViewSet,
+    basename='citations'
+)
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     re_path(r'^api/', include(router.urls)),

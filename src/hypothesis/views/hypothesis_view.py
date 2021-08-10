@@ -1,11 +1,18 @@
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import (
+    IsAuthenticated,
+    IsAuthenticatedOrReadOnly
+)
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+from rest_framework.decorators import action
 
 from discussion.reaction_views import ReactionViewActionMixin
 from hub.models import Hub
 from hypothesis.models import Hypothesis
-from hypothesis.serializers import HypothesisSerializer
+from hypothesis.serializers import (
+    HypothesisSerializer,
+    DynamicCitationSerializer
+)
 from researchhub_document.models import (
     ResearchhubUnifiedDocument
 )
@@ -16,8 +23,8 @@ from researchhub_document.related_models.constants.document_type import (
 
 class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date')
-    queryset = Hypothesis.objects
-    permission_classes = [AllowAny] #[IsAuthenticated]
+    queryset = Hypothesis.objects.all()
+    permission_classes = [IsAuthenticatedOrReadOnly]
     serializer_class = HypothesisSerializer
 
     def create(self, request, *args, **kwargs):
@@ -44,3 +51,55 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         unified_doc.hubs.add(*hubs)
         unified_doc.save()
         return unified_doc
+
+    @action(detail=True, methods=['get'])
+    def get_citation(self, request, pk=None):
+        hypothesis = self.get_object()
+        citations = hypothesis.citations.all()
+        context = self._get_citation_context()
+        serializer = DynamicCitationSerializer(
+            citations,
+            _include_fields=[
+                'id',
+                'created_by',
+                'source',
+                'created_date',
+                'updated_date',
+            ],
+            many=True,
+            context=context
+        )
+        return Response(serializer.data, status=200)
+
+    def _get_citation_context(self):
+        context = {
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image',
+                ]
+            },
+            'hyp_dcs_get_created_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile'
+                ]
+            },
+            'hyp_dcs_get_source': {
+                '_include_fields': [
+                    'id',
+                    'documents',
+                    'document_type',
+                ]
+            },
+            'doc_duds_get_documents': {
+                '_include_fields': [
+                    'id',
+                    'title',
+                    'paper_title',
+                ]
+            }
+        }
+        return context
