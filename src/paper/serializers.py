@@ -5,6 +5,8 @@ import utils.sentry as sentry
 
 from django.db import transaction, IntegrityError
 from django.http import QueryDict
+from django.db.models import Sum
+
 import rest_framework.serializers as serializers
 
 from bullet_point.serializers import BulletPointTextOnlySerializer
@@ -163,7 +165,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
 
     def get_authors(self, paper):
         serializer = AuthorSerializer(
-            paper.authors.all(),
+            paper.authors.filter(claimed=True),
             many=True,
             read_only=False,
             required=False,
@@ -301,6 +303,20 @@ class ContributionPaperSerializer(BasePaperSerializer):
 
 
 class PaperSerializer(BasePaperSerializer):
+    raw_author_scores = serializers.SerializerMethodField()
+
+    class Meta:
+        exclude = ['references']
+        read_only_fields = [
+            'score',
+            'user_vote',
+            'user_flag',
+            'users_who_bookmarked',
+            'unified_document_id',
+            'slug',
+            'raw_author_scores'
+        ]
+        model = Paper
 
     def create(self, validated_data):
         request = self.context.get('request', None)
@@ -651,6 +667,23 @@ class PaperSerializer(BasePaperSerializer):
         elif file:
             return file.url
         return None
+
+    def get_raw_author_scores(self, paper):
+        raw_authors = paper.raw_authors
+        scores = []
+        for author in raw_authors:
+            score = Paper.objects.filter(
+                raw_authors__contains=[
+                    {
+                        "first_name": author['first_name'],
+                        "last_name": author['last_name']
+                    }
+                ]
+            ).aggregate(
+                Sum('score')
+            )['score__sum']
+            scores.append(score)
+        return scores
 
 
 class HubPaperSerializer(BasePaperSerializer):

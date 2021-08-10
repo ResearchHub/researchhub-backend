@@ -87,6 +87,7 @@ class Author(models.Model):
         blank=True
     )
     academic_verification = models.BooleanField(default=None, null=True)
+    claimed = models.BooleanField(default=True, null=True)
 
     def __str__(self):
         university = self.university
