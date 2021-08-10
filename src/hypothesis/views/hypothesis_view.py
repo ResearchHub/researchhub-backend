@@ -53,10 +53,10 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         return unified_doc
 
     @action(detail=True, methods=['get'])
-    def get_citation(self, request, pk=None):
+    def get_citations(self, request, pk=None):
         hypothesis = self.get_object()
         citations = hypothesis.citations.all()
-        context = self._get_citation_context()
+        context = self._get_citations_context()
         serializer = DynamicCitationSerializer(
             citations,
             _include_fields=[
@@ -71,7 +71,7 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         )
         return Response(serializer.data, status=200)
 
-    def _get_citation_context(self):
+    def _get_citations_context(self):
         context = {
             'usr_dus_get_author_profile': {
                 '_include_fields': [
