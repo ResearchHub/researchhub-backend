@@ -1,3 +1,4 @@
+from django.core.files.base import ContentFile
 from rest_framework.permissions import (
     IsAuthenticated,
     IsAuthenticatedOrReadOnly
@@ -28,14 +29,21 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
     serializer_class = HypothesisSerializer
 
     def create(self, request, *args, **kwargs):
+        user = request.user
         data = request.data
+        renderable_text = data.get('renderable_text', '')
+        src = data.get('full_src', '')
         title = data.get('title', '')
         unified_doc = self._create_unified_doc(request)
+        file_name, file = self._create_src_content_file(unified_doc, src, user)
+
         hypo = Hypothesis.objects.create(
-            created_by=request.user,
+            created_by=user,
             title=title,
+            renderable_text=renderable_text,
             unified_document=unified_doc
         )
+        hypo.src.save(file_name, file)
         serializer = HypothesisSerializer(hypo)
         data = serializer.data
         return Response(data, status=200)
@@ -51,6 +59,11 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         unified_doc.hubs.add(*hubs)
         unified_doc.save()
         return unified_doc
+
+    def _create_src_content_file(self, unified_doc, data, user):
+        file_name = f'HYPOTHESIS-{unified_doc.id}--USER-{user.id}.txt'
+        full_src_file = ContentFile(data.encode())
+        return file_name, full_src_file
 
     @action(detail=True, methods=['get'])
     def get_citations(self, request, pk=None):

@@ -20,12 +20,23 @@ class Hypothesis(AbstractGenericReactionModel):
         on_delete=models.SET_NULL,
         related_name='created_hypotheses',
     )
+    renderable_text = models.TextField(
+        blank=True,
+        default='',
+    )
     result_score = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         null=True
     )
     slug = models.SlugField(max_length=1024)
+    src = models.FileField(
+        blank=True,
+        default=None,
+        max_length=512,
+        null=True,
+        upload_to='uploads/hypothesis/%Y/%m/%d/',
+    )
     title = models.TextField(blank=True, default='')
     unified_document = models.OneToOneField(
         ResearchhubUnifiedDocument,
