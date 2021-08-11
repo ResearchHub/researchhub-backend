@@ -10,16 +10,16 @@ def get_paper_id_from_path(request):
     return paper_id
 
 
-def get_post_id_from_path(request):
-    POST = 2
-    post_id = None
+def get_document_id_from_path(request):
+    DOCUMENT = 2
+    document_id = None
     path_parts = request.path.split('/')
-    if path_parts[POST] == 'post':
+    if path_parts[DOCUMENT] in ('paper', 'post', 'hypothesis'):
         try:
-            post_id = int(path_parts[POST + 1])
+            document_id = int(path_parts[DOCUMENT + 1])
         except ValueError:
-            print('Failed to get post id')
-    return post_id
+            print('Failed to get document id')
+    return document_id
 
 
 def get_thread_id_from_path(request):

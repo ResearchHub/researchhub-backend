@@ -4,6 +4,7 @@ from django.contrib.contenttypes.fields import GenericRelation
 from discussion.reaction_models import AbstractGenericReactionModel
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import User
+from purchase.models import Purchase
 
 
 class Hypothesis(AbstractGenericReactionModel):
@@ -44,6 +45,12 @@ class Hypothesis(AbstractGenericReactionModel):
         on_delete=models.CASCADE,
         related_name='hypothesis'
     )
+    purchases = GenericRelation(
+        'purchase.Purchase',
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='post'
+    )
 
     def calculate_result_score(self, save=False):
         pass
@@ -51,3 +58,18 @@ class Hypothesis(AbstractGenericReactionModel):
     @property
     def users_to_notify(self):
         return [self.created_by]
+
+    def get_boost_amount(self):
+        purchases = self.purchases.filter(
+            paid_status=Purchase.PAID,
+            amount__gt=0,
+            boost_time__gt=0
+        )
+        if purchases.exists():
+            boost_amount = purchases.annotate(
+                amount_as_int=Cast('amount', IntegerField())
+            ).aggregate(
+                sum=Sum('amount_as_int')
+            ).get('sum', 0)
+            return boost_amount
+        return 0
