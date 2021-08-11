@@ -446,6 +446,13 @@ class Comment(BaseComment):
             return post
 
     @property
+    def hypothesis(self):
+        thread = self.parent
+        if thread:
+            hypothesis = thread.hypothesis
+            return hypothesis
+
+    @property
     def unified_document(self):
         thread = self.thread
         paper = thread.paper
