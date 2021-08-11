@@ -61,11 +61,10 @@ from .serializers import (
     ReplySerializer,
     ThreadSerializer,
 )
+from researchhub.lib import get_document_id_from_path
 from .utils import (
+    get_thread_id_from_path,
     get_comment_id_from_path,
-    get_paper_id_from_path,
-    get_document_id_from_path,
-    get_thread_id_from_path
 )
 
 
@@ -85,36 +84,22 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date',)
 
     def create(self, request, *args, **kwargs):
-        if request.path.split('/')[2] == 'paper':
-            paper_id = get_paper_id_from_path(request)
-            paper = Paper.objects.get(id=paper_id)
-            unified_document = paper.unified_document
-            unified_doc_id = unified_document.id
+        document_models = {
+            'paper': Paper,
+            'post': ResearchhubPost,
+            'hypothesis': Hypothesis,
+        }
 
-            if request.query_params.get('created_location') == 'progress':
-                request.data['created_location'] = (
-                    BaseComment.CREATED_LOCATION_PROGRESS
-                )
-        elif request.path.split('/')[2] == 'post':
-            post_id = get_document_id_from_path(request)
-            post = ResearchhubPost.objects.get(id=post_id)
-            unified_document = post.unified_document
-            unified_doc_id = unified_document.id
+        document_type = request.path.split('/')[2]
+        document_id = get_document_id_from_path(request)
+        document = document_models[document_type].objects.get(id=document_id)
+        unified_document = document.unified_document
+        unified_doc_id = unified_document.id
 
-            if request.query_params.get('created_location') == 'progress':
-                request.data['created_location'] = (
-                    BaseComment.CREATED_LOCATION_PROGRESS
-                )
-        elif request.path.split('/')[2] == 'hypothesis':
-            hypothesis_id = get_document_id_from_path(request)
-            hypothesis = Hypothesis.objects.get(id=hypothesis_id)
-            unified_document = hypothesis.unified_document
-            unified_doc_id = unified_document.id
-
-            if request.query_params.get('created_location') == 'progress':
-                request.data['created_location'] = (
-                    BaseComment.CREATED_LOCATION_PROGRESS
-                )
+        if request.query_params.get('created_location') == 'progress':
+            request.data['created_location'] = (
+                BaseComment.CREATED_LOCATION_PROGRESS
+            )
 
         response = super().create(request, *args, **kwargs)
         response = self.get_self_upvote_response(request, response, Thread)
@@ -175,7 +160,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         is_removed = self.request.query_params.get('is_removed', False)
 
         if self.request.path.split('/')[2] == 'paper':
-            paper_id = get_paper_id_from_path(self.request)
+            paper_id = get_document_id_from_path(self.request)
             if source and source == 'twitter':
                 try:
                     Paper.objects.get(
@@ -284,7 +269,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
     def create(self, request, *args, **kwargs):
         if request.path.split('/')[2] == 'paper':
-            paper_id = get_paper_id_from_path(request)
+            paper_id = get_document_id_from_path(request)
             paper = Paper.objects.get(id=paper_id)
             unified_doc_id = paper.unified_document.id
             hubs = paper.hubs.values_list('id', flat=True)
@@ -404,7 +389,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
     def create(self, request, *args, **kwargs):
         if request.path.split('/')[2] == 'paper':
-            paper_id = get_paper_id_from_path(request)
+            paper_id = get_document_id_from_path(request)
             paper = Paper.objects.get(id=paper_id)
             unified_doc_id = paper.unified_document.id
 
