@@ -226,9 +226,9 @@ class Thread(BaseComment):
         null=True
     )
     hypothesis = models.ForeignKey(
-        'hypothesis.hypothesis',
+        'hypothesis.Hypothesis',
         on_delete=models.SET_NULL,
-        related_name='hypothesis',
+        related_name='threads',
         null=True,
         blank=True,
     )

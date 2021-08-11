@@ -41,6 +41,7 @@ from discussion.permissions import (
     UpvoteDiscussionThread,
     Vote as VotePermission
 )
+from hypothesis.models import Hypothesis
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.utils import reset_unified_document_cache
 from paper.models import Paper
@@ -63,7 +64,7 @@ from .serializers import (
 from .utils import (
     get_comment_id_from_path,
     get_paper_id_from_path,
-    get_post_id_from_path,
+    get_document_id_from_path,
     get_thread_id_from_path
 )
 
@@ -103,8 +104,8 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 is_thread=True
             )
             hubs = list(paper.hubs.values_list('id', flat=True))
-        else:
-            post_id = get_post_id_from_path(request)
+        elif request.path.split('/')[2] == 'post':
+            post_id = get_document_id_from_path(request)
             post = ResearchhubPost.objects.get(id=post_id)
             unified_doc_id = post.unified_document.id
 
@@ -113,6 +114,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                     BaseComment.CREATED_LOCATION_PROGRESS
                 )
             response = super().create(request, *args, **kwargs)
+            breakpoint()
             response = self.get_self_upvote_response(request, response, Thread)
             self.sift_track_create_content_comment(
                 request,
@@ -121,6 +123,25 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 is_thread=True
             )
             hubs = list(post.unified_document.hubs.all().values_list('id', flat=True))
+        elif request.path.split('/')[2] == 'hypothesis':
+            hypothesis_id = get_document_id_from_path(request)
+            hypothesis = Hypothesis.objects.get(id=hypothesis_id)
+            unified_doc_id = hypothesis.unified_document.id
+
+            if request.query_params.get('created_location') == 'progress':
+                request.data['created_location'] = (
+                    BaseComment.CREATED_LOCATION_PROGRESS
+                )
+            response = super().create(request, *args, **kwargs)
+            breakpoint()
+            response = self.get_self_upvote_response(request, response, Thread)
+            self.sift_track_create_content_comment(
+                request,
+                response,
+                Thread,
+                is_thread=True
+            )
+            hubs = list(hypothesis.unified_document.hubs.all().values_list('id', flat=True))
 
         discussion_id = response.data['id']
         create_contribution.apply_async(
@@ -201,7 +222,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                     paper=paper_id
                 )
         else:
-            post_id = get_post_id_from_path(self.request)
+            post_id = get_document_id_from_path(self.request)
             threads = Thread.objects.filter(
                 post=post_id,
             )
@@ -295,7 +316,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             self.sift_track_create_content_comment(request, response, Comment)
 
         else:
-            post_id = get_post_id_from_path(request)
+            post_id = get_document_id_from_path(request)
             post = ResearchhubPost.objects.get(id=post_id)
             hubs = list(post.unified_document.hubs.all().values_list('id', flat=True))
             unified_doc_id = post.unified_document.id
@@ -412,7 +433,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             response = super().create(request, *args, **kwargs)
             self.sift_track_create_content_comment(request, response, Reply)
         else:
-            post_id = get_post_id_from_path(request)
+            post_id = get_document_id_from_path(request)
             post = ResearchhubPost.objects.get(id=post_id)
             unified_doc_id = post.unified_document.id
 
