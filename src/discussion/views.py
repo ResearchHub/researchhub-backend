@@ -88,62 +88,45 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         if request.path.split('/')[2] == 'paper':
             paper_id = get_paper_id_from_path(request)
             paper = Paper.objects.get(id=paper_id)
-            unified_doc_id = paper.unified_document.id
+            unified_document = paper.unified_document
+            unified_doc_id = unified_document.id
 
             if request.query_params.get('created_location') == 'progress':
                 request.data['created_location'] = (
                     BaseComment.CREATED_LOCATION_PROGRESS
                 )
-
-            response = super().create(request, *args, **kwargs)
-            response = self.get_self_upvote_response(request, response, Thread)
-            self.sift_track_create_content_comment(
-                request,
-                response,
-                Thread,
-                is_thread=True
-            )
-            hubs = list(paper.hubs.values_list('id', flat=True))
         elif request.path.split('/')[2] == 'post':
             post_id = get_document_id_from_path(request)
             post = ResearchhubPost.objects.get(id=post_id)
-            unified_doc_id = post.unified_document.id
+            unified_document = post.unified_document
+            unified_doc_id = unified_document.id
 
             if request.query_params.get('created_location') == 'progress':
                 request.data['created_location'] = (
                     BaseComment.CREATED_LOCATION_PROGRESS
                 )
-            response = super().create(request, *args, **kwargs)
-            breakpoint()
-            response = self.get_self_upvote_response(request, response, Thread)
-            self.sift_track_create_content_comment(
-                request,
-                response,
-                Thread,
-                is_thread=True
-            )
-            hubs = list(post.unified_document.hubs.all().values_list('id', flat=True))
         elif request.path.split('/')[2] == 'hypothesis':
             hypothesis_id = get_document_id_from_path(request)
             hypothesis = Hypothesis.objects.get(id=hypothesis_id)
-            unified_doc_id = hypothesis.unified_document.id
+            unified_document = hypothesis.unified_document
+            unified_doc_id = unified_document.id
 
             if request.query_params.get('created_location') == 'progress':
                 request.data['created_location'] = (
                     BaseComment.CREATED_LOCATION_PROGRESS
                 )
-            response = super().create(request, *args, **kwargs)
-            breakpoint()
-            response = self.get_self_upvote_response(request, response, Thread)
-            self.sift_track_create_content_comment(
-                request,
-                response,
-                Thread,
-                is_thread=True
-            )
-            hubs = list(hypothesis.unified_document.hubs.all().values_list('id', flat=True))
 
+        response = super().create(request, *args, **kwargs)
+        response = self.get_self_upvote_response(request, response, Thread)
+        hubs = list(unified_document.hubs.all().values_list('id', flat=True))
         discussion_id = response.data['id']
+
+        self.sift_track_create_content_comment(
+            request,
+            response,
+            Thread,
+            is_thread=True
+        )
         create_contribution.apply_async(
             (
                 Contribution.COMMENTER,

@@ -233,6 +233,7 @@ class ThreadSerializer(
             'created_location',
             'entity_key',
             'external_metadata',
+            'hypothesis',
             'id',
             'is_public',
             'is_removed',

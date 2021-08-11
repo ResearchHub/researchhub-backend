@@ -1,3 +1,6 @@
+import hmac
+
+from hashlib import sha1
 from datetime import timedelta
 
 from django.db import IntegrityError, models
@@ -27,6 +30,7 @@ from discussion.serializers import (
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
 from reputation.serializers import ContributionSerializer
+from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY, EMAIL_WHITELIST
 from paper.models import Paper
 from paper.utils import get_cache_key
 from paper.views import PaperViewSet
@@ -57,9 +61,6 @@ from utils.http import RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
-from hashlib import sha1
-import hmac
-from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(is_suspended=False)
@@ -490,10 +491,12 @@ class UserViewSet(viewsets.ModelViewSet):
             decision_id = request.data['decision']['id']
             user_id = request.data['entity']['id']
             user = User.objects.get(id=user_id)
-            if 'mark_as_probable_spammer_content_abuse' in decision_id:
-                user.set_probable_spammer()
-            elif 'suspend_user_content_abuse' in decision_id:
-                user.set_suspended(is_manual=False)
+
+            if not user.moderator or user.email not in EMAIL_WHITELIST:
+                if 'mark_as_probable_spammer_content_abuse' in decision_id:
+                    user.set_probable_spammer()
+                elif 'suspend_user_content_abuse' in decision_id:
+                    user.set_suspended(is_manual=False)
             serialized = UserSerializer(user)
             return Response(serialized.data, status=200)
         else:
