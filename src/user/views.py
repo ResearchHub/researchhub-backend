@@ -25,7 +25,8 @@ from rest_framework.response import Response
 
 from discussion.models import Thread, Comment, Reply
 from discussion.serializers import (
-    ThreadSerializer
+    ThreadSerializer,
+    DynamicThreadSerializer
 )
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
@@ -616,24 +617,61 @@ class AuthorViewSet(viewsets.ModelViewSet):
         methods=['get'],
     )
     def get_user_discussions(self, request, pk=None):
-        authors = Author.objects.filter(id=pk)
-        if authors:
-            context = self.get_serializer_context()
-            context['include_wallet'] = False
-            author = authors.first()
-            user = author.user
-            user_discussions = Thread.objects.exclude(
-                created_by=None
-            ).filter(
-                created_by=user,
-                is_removed=False,
-            ).prefetch_related(
-                'paper', 'comments',
-            ).order_by('-id')
-            page = self.paginate_queryset(user_discussions)
-            serializer = ThreadSerializer(page, many=True, context=context)
-            return self.get_paginated_response(serializer.data)
+        author = self.get_object()
+        user = author.user
+        context = self._get_user_discussion_context()
+        user_discussions = user.thread_set.filter(
+            is_removed=False
+        ).order_by('-id')
+        page = self.paginate_queryset(user_discussions)
+        serializer = DynamicThreadSerializer(
+            page,
+            _include_fields=[
+                'id',
+                'comment_count',
+                'created_by',
+                'paper',
+                'post',
+                'score',
+                'text',
+            ],
+            many=True,
+            context=context
+        )
+        # serializer = ThreadSerializer(page, many=True, context=context)
+        return self.get_paginated_response(serializer.data)
         return Response(status=404)
+
+    def _get_user_discussion_context(self):
+        context = {
+            'dis_dts_get_created_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'dis_dts_get_paper': {
+                '_include_fields': [
+                    'id',
+                    'slug',
+                ]
+            },
+            'dis_dts_get_post': {
+                '_include_fields': [
+                    'id',
+                    'slug',
+                ]
+            },
+            'usr_dus_get_item': {  # TODO: RENAME THIS TO usr_dus_get_author_profile (once hypothesis prs are merged)
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image'
+                ]
+            },
+        }
+        return context
 
     @action(
         detail=True,
