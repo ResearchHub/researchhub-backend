@@ -1,4 +1,4 @@
-from .utils import get_paper_id_from_path
+from researchhub.lib import get_document_id_from_path
 from paper.models import Paper
 from user.models import Author
 from utils.permissions import (
@@ -114,7 +114,7 @@ class DownvoteDiscussionThread(RuleBasedPermission):
 class Endorse(AuthorizationBasedPermission):
 
     def is_authorized(self, request, view, obj):
-        paper_id = get_paper_id_from_path(request)
+        paper_id = get_document_id_from_path(request)
         paper = Paper.objects.get(pk=paper_id)
         author = Author.objects.get(user=request.user)
         return (

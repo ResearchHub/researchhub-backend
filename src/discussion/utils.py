@@ -1,27 +1,3 @@
-def get_paper_id_from_path(request):
-    PAPER = 2
-    paper_id = None
-    path_parts = request.path.split('/')
-    if path_parts[PAPER] == 'paper':
-        try:
-            paper_id = int(path_parts[PAPER + 1])
-        except ValueError:
-            print('Failed to get paper id')
-    return paper_id
-
-
-def get_document_id_from_path(request):
-    DOCUMENT = 2
-    document_id = None
-    path_parts = request.path.split('/')
-    if path_parts[DOCUMENT] in ('paper', 'post', 'hypothesis'):
-        try:
-            document_id = int(path_parts[DOCUMENT + 1])
-        except ValueError:
-            print('Failed to get document id')
-    return document_id
-
-
 def get_thread_id_from_path(request):
     DISCUSSION = 4
     thread_id = None

@@ -79,7 +79,7 @@ from paper.utils import (
     add_default_hub
 )
 from purchase.models import Purchase
-from researchhub.lib import get_paper_id_from_path
+from researchhub.lib import get_document_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from user.models import Author
@@ -1176,7 +1176,7 @@ class AdditionalFileViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        paper_id = get_paper_id_from_path(self.request)
+        paper_id = get_document_id_from_path(self.request)
         if paper_id is not None:
             queryset = queryset.filter(paper=paper_id)
         return queryset
