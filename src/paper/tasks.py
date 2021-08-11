@@ -119,9 +119,10 @@ def download_pdf(paper_id, retry=0):
     paper = Paper.objects.get(id=paper_id)
     paper_url = paper.url
     pdf_url = paper.pdf_url
+    pdf_url_contains_pdf = check_url_contains_pdf(pdf_url)
     url = pdf_url or paper_url
     url_has_pdf = (
-        check_url_contains_pdf(paper_url) or pdf_url
+        check_url_contains_pdf(paper_url) or pdf_url_contains_pdf
     )
 
     if paper_url and url_has_pdf:
