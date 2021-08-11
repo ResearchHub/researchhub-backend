@@ -79,7 +79,8 @@ class BasePaperSerializer(serializers.ModelSerializer):
             'user_flag',
             'users_who_bookmarked',
             'unified_document_id',
-            'slug'
+            'slug',
+            'hypothesis_id',
         ]
         model = Paper
 
@@ -308,7 +309,7 @@ class PaperSerializer(BasePaperSerializer):
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
-        hypothesis_id = validated_data.get('hypothesis_id', None)
+        hypothesis_id = validated_data.pop('hypothesis_id', None)
 
         try:
             with transaction.atomic():
@@ -335,7 +336,6 @@ class PaperSerializer(BasePaperSerializer):
 
                 unified_doc = paper.unified_document
                 unified_doc_id = paper.unified_document.id
-
                 if hypothesis_id:
                     self._add_citation(user, hypothesis_id, unified_doc)
 
