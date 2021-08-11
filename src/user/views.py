@@ -640,7 +640,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
         )
         # serializer = ThreadSerializer(page, many=True, context=context)
         return self.get_paginated_response(serializer.data)
-        return Response(status=404)
 
     def _get_user_discussion_context(self):
         context = {
