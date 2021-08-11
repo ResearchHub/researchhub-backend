@@ -158,8 +158,9 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         downvotes = Count('votes', filter=Q(votes__vote_type=Vote.DOWNVOTE,))
         source = self.request.query_params.get('source')
         is_removed = self.request.query_params.get('is_removed', False)
+        document_type = self.request.path.split('/')[2]
 
-        if self.request.path.split('/')[2] == 'paper':
+        if document_type == 'paper':
             paper_id = get_document_id_from_path(self.request)
             if source and source == 'twitter':
                 try:
@@ -189,10 +190,15 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 threads = Thread.objects.filter(
                     paper=paper_id
                 )
-        else:
+        elif document_type == 'post':
             post_id = get_document_id_from_path(self.request)
             threads = Thread.objects.filter(
                 post=post_id,
+            )
+        elif document_type == 'hypothesis':
+            hypothesis_id = get_document_id_from_path(self.request)
+            threads = Thread.objects.filter(
+                hypothesis=hypothesis_id,
             )
 
         threads = threads.filter(is_removed=is_removed)
