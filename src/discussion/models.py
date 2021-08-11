@@ -338,6 +338,13 @@ class Reply(BaseComment):
             return post
 
     @property
+    def hypothesis(self):
+        comment = self.get_comment_of_reply()
+        if comment:
+            hypothesis = comment.hypothesis
+            return hypothesis
+
+    @property
     def thread(self):
         comment = self.get_comment_of_reply()
         thread = comment.parent

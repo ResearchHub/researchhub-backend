@@ -380,31 +380,20 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         return replies
 
     def create(self, request, *args, **kwargs):
-        if request.path.split('/')[2] == 'paper':
-            paper_id = get_document_id_from_path(request)
-            paper = Paper.objects.get(id=paper_id)
-            unified_doc_id = paper.unified_document.id
+        document_type = request.path.split('/')[2]
+        document_id = get_document_id_from_path(request)
+        document = DOCUMENT_MODELS[document_type].objects.get(id=document_id)
+        unified_document = document.unified_document
+        unified_doc_id = unified_document.id
 
-            if request.query_params.get('created_location') == 'progress':
-                request.data['created_location'] = (
-                    BaseComment.CREATED_LOCATION_PROGRESS
-                )
+        if request.query_params.get('created_location') == 'progress':
+            request.data['created_location'] = (
+                BaseComment.CREATED_LOCATION_PROGRESS
+            )
 
-            response = super().create(request, *args, **kwargs)
-            self.sift_track_create_content_comment(request, response, Reply)
-        else:
-            post_id = get_document_id_from_path(request)
-            post = ResearchhubPost.objects.get(id=post_id)
-            unified_doc_id = post.unified_document.id
-
-            if request.query_params.get('created_location') == 'progress':
-                request.data['created_location'] = (
-                    BaseComment.CREATED_LOCATION_PROGRESS
-                )
-
-            response = super().create(request, *args, **kwargs)
-            discussion_id = response.data['id']
-            self.sift_track_create_content_comment(request, response, Reply)
+        response = super().create(request, *args, **kwargs)
+        hubs = list(unified_document.hubs.all().values_list('id', flat=True))
+        self.sift_track_create_content_comment(request, response, Reply)
 
         discussion_id = response.data['id']
         create_contribution.apply_async(
