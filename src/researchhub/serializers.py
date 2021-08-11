@@ -1,5 +1,8 @@
 import rest_framework.serializers as serializers
 
+from operator import itemgetter
+from collections import OrderedDict
+
 
 class DynamicModelFieldSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
@@ -27,3 +30,10 @@ class DynamicModelFieldSerializer(serializers.ModelSerializer):
                 disallowed = set(_exclude_fields)
                 for field_name in disallowed:
                     self.fields.pop(field_name)
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        # Here we filter the null values and creates a new dictionary
+        # We use OrderedDict like in original method
+        ret = OrderedDict(filter(itemgetter(1), ret.items()))
+        return ret
