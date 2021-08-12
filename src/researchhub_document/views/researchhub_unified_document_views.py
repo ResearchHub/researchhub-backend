@@ -421,7 +421,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 ).distinct()
             else:
                 all_documents = sorted(
-                    all_documents, key=lambda doc: -doc['hot_score']
+                    all_documents, key=lambda doc: -doc['documents']['hot_score']
                 )
                 all_documents = all_documents[:10]
                 next_page = request.build_absolute_uri()
