@@ -2,7 +2,6 @@ from rest_framework import serializers
 
 from .models import Hub, HubCategory
 from researchhub.serializers import DynamicModelFieldSerializer
-from utils.http import get_user_from_request
 
 
 class SimpleHubSerializer(serializers.ModelSerializer):

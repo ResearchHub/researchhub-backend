@@ -31,6 +31,7 @@ from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
 from reputation.serializers import ContributionSerializer
 from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY, EMAIL_WHITELIST
+from researchhub_document.serializers import DynamicPostSerializer
 from paper.models import Paper
 from paper.utils import get_cache_key
 from paper.views import PaperViewSet
@@ -641,7 +642,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
             many=True,
             context=context
         )
-        # serializer = ThreadSerializer(page, many=True, context=context)
         return self.get_paginated_response(serializer.data)
 
     def _get_user_discussion_context(self):
@@ -664,7 +664,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'slug',
                 ]
             },
-            'usr_dus_get_item': {  # TODO: RENAME THIS TO usr_dus_get_author_profile (once hypothesis prs are merged)
+            'usr_dus_get_author_profile': {
                 '_include_fields': [
                     'id',
                     'first_name',
@@ -696,11 +696,14 @@ class AuthorViewSet(viewsets.ModelViewSet):
             page,
             _include_fields=[
                 'id',
+                'boost_amount',
+                'file',
                 'hubs',
                 'paper_title',
                 'score',
                 'title',
                 'uploaded_by',
+                'uploaded_date',
             ],
             many=True,
             context=context
@@ -717,7 +720,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'author_profile',
                 ]
             },
-            'usr_dus_get_item': {  # TODO: RENAME THIS TO usr_dus_get_author_profile (once hypothesis prs are merged)
+            'usr_dus_get_author_profile': {
                 '_include_fields': [
                     'id',
                     'first_name',
@@ -725,5 +728,71 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'profile_image'
                 ]
             },
+            'doc_duds_get_hubs': {
+                '_include_fields': [
+                    'id',
+                    'name',
+                    'slug',
+                    'hub_image',
+                ]
+            }
+        }
+        return context
+
+    @action(
+        detail=True,
+        methods=['get'],
+    )
+    def get_user_posts(self, request, pk=None):
+        author = self.get_object()
+        user = author.user
+        user_posts = user.created_posts.all().prefetch_related(
+            'unified_document',
+            'purchases'
+        )
+        context = self._get_user_posts_context()
+        page = self.paginate_queryset(user_posts)
+        serializer = DynamicPostSerializer(
+            page,
+            _include_fields=[
+                'id',
+                'created_by',
+                'hubs',
+                'boost_amount',
+                'renderable_text',
+                'score',
+                'slug',
+                'title',
+            ],
+            many=True,
+            context=context
+        )
+        response = self.get_paginated_response(serializer.data)
+        return response
+
+    def _get_user_posts_context(self):
+        context = {
+            'doc_dps_get_created_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image'
+                ]
+            },
+            'doc_dps_get_hubs': {
+                '_include_fields': [
+                    'id',
+                    'name',
+                    'slug',
+                    'hub_image',
+                ]
+            }
         }
         return context

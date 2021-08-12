@@ -1,6 +1,6 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
-from hub.serializers import SimpleHubSerializer#, DynamicHubSerializer
+from hub.serializers import SimpleHubSerializer, DynamicHubSerializer
 from paper.serializers import PaperSerializer, DynamicPaperSerializer
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
@@ -129,13 +129,13 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         # TODO: calvinhlee - access_group is for ELN. Work on this later
         return
 
-    # def get_hubs(self, unified_doc):
-    #     context = self.context
-    #     _context_fields = context.get('doc_duds_get_hubs', {})
-    #     serializer = DynamicHubSerializer(
-    #         unified_doc.hubs,
-    #         many=True,
-    #         context=context,
-    #         **_context_fields
-    #     )
-    #     return serializer.data
+    def get_hubs(self, unified_doc):
+        context = self.context
+        _context_fields = context.get('doc_duds_get_hubs', {})
+        serializer = DynamicHubSerializer(
+            unified_doc.hubs,
+            many=True,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data

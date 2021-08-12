@@ -723,6 +723,7 @@ class PaperReferenceSerializer(serializers.ModelSerializer):
 
 
 class DynamicPaperSerializer(DynamicModelFieldSerializer):
+    boost_amount = serializers.SerializerMethodField()
     discussion_users = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
@@ -731,6 +732,9 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = Paper
         fields = '__all__'
+
+    def get_boost_amount(self, paper):
+        return paper.get_boost_amount()
 
     def get_discussion_users(self, paper):
         context = self.context

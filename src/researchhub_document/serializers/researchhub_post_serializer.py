@@ -117,6 +117,8 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     unified_document = SerializerMethodField()
     hubs = SerializerMethodField()
     created_by = SerializerMethodField()
+    boost_amount = SerializerMethodField()
+    score = SerializerMethodField()
 
     class Meta:
         model = ResearchhubPost
@@ -155,3 +157,9 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
             **_context_fields
         )
         return serializer.data
+
+    def get_boost_amount(self, post):
+        return post.get_boost_amount()
+
+    def get_score(self, post):
+        return post.calculate_score()
