@@ -101,6 +101,9 @@ class DynamicCitationSerializer(DynamicModelFieldSerializer):
             {
                 'down_count': votes.filter(vote_type=Vote.DOWNVOTE).count(),
                 'up_count': votes.filter(vote_type=Vote.UPVOTE).count(),
-                'user_vote': VoteSerializer(user_vote).data
+                'user_vote': (
+                    VoteSerializer(user_vote).data
+                    if user_vote is not None else None
+                )
             }
         )
