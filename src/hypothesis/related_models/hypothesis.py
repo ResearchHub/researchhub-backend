@@ -21,8 +21,7 @@ class Hypothesis(AbstractGenericReactionModel):
         related_name='created_hypotheses',
     )
     renderable_text = models.TextField(
-        blank=True,
-        default='',
+        null=True
     )
     result_score = models.DecimalField(
         max_digits=5,
