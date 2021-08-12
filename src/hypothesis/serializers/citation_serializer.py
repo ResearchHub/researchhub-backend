@@ -1,4 +1,9 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
+from discussion.reaction_models import Vote
+from discussion.reaction_serializers import (
+    GenericReactionSerializerMixin,
+    DynamicVoteSerializer
+)
 
 from hypothesis.models import Citation
 from hypothesis.serializers import (
@@ -11,6 +16,7 @@ from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer
 )
 from user.serializers import UserSerializer, DynamicUserSerializer
+from utils.http import get_user_from_request
 
 
 class CitationSerializer(ModelSerializer):
@@ -21,17 +27,28 @@ class CitationSerializer(ModelSerializer):
     class Meta:
         model = Citation
         fields = [
+            *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
             'id',
             'created_by',
             'hypothesis',
             'source',
         ]
         read_only_fields = [
+            *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
             'id',
         ]
 
+    # GenericReactionSerializerMixin
+    promoted = SerializerMethodField()
+    boost_amount = SerializerMethodField()
+    score = SerializerMethodField()
+    user_endorsement = SerializerMethodField()
+    user_flag = SerializerMethodField()
+    user_vote = SerializerMethodField()
+
 
 class DynamicCitationSerializer(DynamicModelFieldSerializer):
+    consensus_meta = SerializerMethodField()
     created_by = SerializerMethodField()
     hypothesis = SerializerMethodField()
     source = SerializerMethodField()
@@ -69,3 +86,32 @@ class DynamicCitationSerializer(DynamicModelFieldSerializer):
             **_context_fields
         )
         return serializer.data
+
+    def get_consensus_meta(self, citation):
+        context = self.context
+        _context_fields = context.get('hyp_dcs_get_consensus_meta', {})
+
+        votes = citation.votes
+        user = get_user_from_request(self.context)
+        user_vote = None
+        try:
+            if user and not user.is_anonymous:
+                user_vote = votes.get(created_by=user)
+                serializer = DynamicVoteSerializer(
+                    user_vote,
+                    context=context,
+                    **_context_fields
+                )
+        except Vote.DoesNotExist:
+            pass
+
+        return (
+            {
+                'down_count': votes.filter(vote_type=Vote.DOWNVOTE).count(),
+                'up_count': votes.filter(vote_type=Vote.UPVOTE).count(),
+                'user_vote': (
+                    serializer.data
+                    if user_vote is not None else None
+                )
+            }
+        )

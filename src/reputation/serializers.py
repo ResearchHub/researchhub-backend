@@ -78,6 +78,7 @@ class ContributionSerializer(serializers.ModelSerializer):
             import (
                 ResearchhubPostSerializer,
             )
+        from hypothesis.serializers import HypothesisSerializer
 
         serializer = None
         context = self.context
@@ -112,6 +113,11 @@ class ContributionSerializer(serializers.ModelSerializer):
                 serializer = BulletPointVoteSerializer(obj, context=context)
         elif model_name == 'researchhub post':
             serializer = ResearchhubPostSerializer(
+                obj,
+                context=context
+            )
+        elif model_name == 'hypothesis':
+            serializer = HypothesisSerializer(
                 obj,
                 context=context
             )

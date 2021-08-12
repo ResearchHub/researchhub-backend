@@ -54,13 +54,13 @@ class ActionableViewSet:
         raise NotImplementedError
 
 
-def get_paper_id_from_path(request):
-    PAPER_INDEX = 2
-    paper_id = None
+def get_document_id_from_path(request):
+    DOCUMENT_INDEX = 2
+    document_id = None
     path_parts = request.path.split('/')
-    if path_parts[PAPER_INDEX] == 'paper':
+    if path_parts[DOCUMENT_INDEX] in ('paper', 'post', 'hypothesis'):
         try:
-            paper_id = int(path_parts[PAPER_INDEX + 1])
+            document_id = int(path_parts[DOCUMENT_INDEX + 1])
         except ValueError:
-            print('Failed to get paper id')
-    return paper_id
+            print('Failed to get document id')
+    return document_id
