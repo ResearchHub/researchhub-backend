@@ -80,7 +80,6 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
                 'score',
                 'source',
                 'updated_date',
-                'user_vote',
             ],
             many=True,
             context=context

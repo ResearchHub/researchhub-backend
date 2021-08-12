@@ -52,7 +52,6 @@ class DynamicCitationSerializer(DynamicModelFieldSerializer):
     created_by = SerializerMethodField()
     hypothesis = SerializerMethodField()
     source = SerializerMethodField()
-    user_vote = SerializerMethodField()
 
     class Meta(object):
         model = Citation
@@ -88,23 +87,20 @@ class DynamicCitationSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
-    def get_user_vote(self, citation):
-        vote = None
-        user = get_user_from_request(self.context)
-        try:
-            if user and not user.is_anonymous:
-                vote = citation.votes.get(created_by=user)
-                vote = VoteSerializer(vote).data
-            return vote
-        except Vote.DoesNotExist:
-            return None
-
     def get_consensus_meta(self, citation):
         votes = citation.votes
-        # TODO: calvinhlee - this should also return user vote information. 
+        user = get_user_from_request(self.context)
+        user_vote = None
+        try:
+            if user and not user.is_anonymous:
+                user_vote = citation.votes.get(created_by=user)
+        except Vote.DoesNotExist:
+            pass
+
         return (
             {
-                'up': votes.filter(vote_type=Vote.UPVOTE).count(),
-                'down': votes.filter(vote_type=Vote.DOWNVOTE).count(),
+                'down_count': votes.filter(vote_type=Vote.DOWNVOTE).count(),
+                'up_count': votes.filter(vote_type=Vote.UPVOTE).count(),
+                'user_vote': VoteSerializer(user_vote).data
             }
         )
