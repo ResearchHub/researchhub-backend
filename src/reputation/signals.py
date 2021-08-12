@@ -9,6 +9,7 @@ from django.contrib.admin.options import get_content_type_for_model
 
 import reputation.distributions as distributions
 from researchhub_document.models import ResearchhubPost
+from hypothesis.models import Hypothesis
 from bullet_point.models import (
     BulletPoint,
     Vote as BulletPointVote
@@ -457,12 +458,16 @@ def distribute_for_discussion_vote(
                 hubs = item.parent.paper.hubs
             elif item.parent.post is not None:
                 hubs = item.parent.post.unified_document.hubs
+            elif item.parent.hypothesis is not None:
+                hubs = item.parent.hypothesis.unified_document.hubs
         elif isinstance(item, Reply):
             try:
                 if item.parent.parent.paper is not None:
                     hubs = item.parent.parent.paper.hubs
                 elif item.parent.parent.post is not None:
                     hubs = item.parent.parent.post.unified_document.hubs
+                elif item.parent.parent.hypothesis is not None:
+                    hubs = item.parent.parent.hypothesis.unified_document.hubs
             except Exception as e:
                 sentry.log_error(e)
         elif isinstance(item, Thread):
@@ -470,7 +475,11 @@ def distribute_for_discussion_vote(
                 hubs = item.paper.hubs
             elif item.post is not None:
                 hubs = item.post.unified_document.hubs
+            elif item.hypothesis is not None:
+                hubs = item.hypothesis.unified_document.hubs
         elif isinstance(item, ResearchhubPost):
+            hubs = item.unified_document.hubs
+        elif isinstance(item, Hypothesis):
             hubs = item.unified_document.hubs
 
         # TODO: This needs to be altered so that if the vote changes the
