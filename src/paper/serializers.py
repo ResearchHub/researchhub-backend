@@ -753,6 +753,17 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
+    def get_hubs(self, paper):
+        context = self.context
+        _context_fields = context.get('pap_dps_get_hubs', {})
+        serializer = DynamicHubSerializer(
+            paper.hubs,
+            many=True,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
     def get_unified_document(self, paper):
         from researchhub_document.serializers import (
           DynamicUnifiedDocumentSerializer
