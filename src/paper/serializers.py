@@ -723,27 +723,14 @@ class PaperReferenceSerializer(serializers.ModelSerializer):
 
 
 class DynamicPaperSerializer(DynamicModelFieldSerializer):
-    unified_document = serializers.SerializerMethodField()
     discussion_users = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
+    unified_document = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
 
     class Meta:
         model = Paper
         fields = '__all__'
-
-    def get_unified_document(self, paper):
-        from researchhub_document.serializers import (
-          DynamicUnifiedDocumentSerializer
-        )
-        context = self.context
-        _context_fields = context.get('pap_dps_get_unified_document', {})
-        serializer = DynamicUnifiedDocumentSerializer(
-            paper.unified_document,
-            context=context,
-            **_context_fields
-        )
-        return serializer.data
 
     def get_discussion_users(self, paper):
         context = self.context
@@ -766,12 +753,14 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
-    def get_hubs(self, paper):
+    def get_unified_document(self, paper):
+        from researchhub_document.serializers import (
+          DynamicUnifiedDocumentSerializer
+        )
         context = self.context
-        _context_fields = context.get('pap_dps_get_hubs', {})
-        serializer = DynamicHubSerializer(
-            paper.hubs,
-            many=True,
+        _context_fields = context.get('pap_dps_get_unified_document', {})
+        serializer = DynamicUnifiedDocumentSerializer(
+            paper.unified_document,
             context=context,
             **_context_fields
         )

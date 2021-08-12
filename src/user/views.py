@@ -25,7 +25,6 @@ from rest_framework.response import Response
 
 from discussion.models import Thread, Comment, Reply
 from discussion.serializers import (
-    ThreadSerializer,
     DynamicThreadSerializer
 )
 from user.tasks import handle_spam_user_task, reinstate_user_task
@@ -35,7 +34,11 @@ from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY, EMAIL_WHITELIST
 from paper.models import Paper
 from paper.utils import get_cache_key
 from paper.views import PaperViewSet
-from paper.serializers import PaperSerializer, HubPaperSerializer
+from paper.serializers import (
+    PaperSerializer,
+    HubPaperSerializer,
+    DynamicPaperSerializer
+)
 from user.filters import AuthorFilter
 from user.models import (
     User,
@@ -677,26 +680,50 @@ class AuthorViewSet(viewsets.ModelViewSet):
         methods=['get'],
     )
     def get_user_contributions(self, request, pk=None):
-        authors = Author.objects.filter(id=pk)
-        if authors:
-            author = authors.first()
-            user = author.user
+        author = self.get_object()
+        user = author.user
 
-            prefetch_lookups = PaperViewSet.prefetch_lookups(self)
-            user_paper_uploads = Paper.objects.exclude(
-                uploaded_by=None
-            ).filter(
-                uploaded_by=user,
-                is_removed=False,
-            ).prefetch_related(
-                *prefetch_lookups
-            )
+        prefetch_lookups = PaperViewSet.prefetch_lookups(self)
+        user_paper_uploads = user.papers.filter(
+            is_removed=False
+        ).prefetch_related(
+            *prefetch_lookups
+        )
 
-            context = self.get_serializer_context()
-            context['include_wallet'] = False
-            page = self.paginate_queryset(user_paper_uploads)
-            serializer = PaperSerializer(page, many=True, context=context)
-            response = self.get_paginated_response(serializer.data)
+        context = self._get_user_contributions_context()
+        page = self.paginate_queryset(user_paper_uploads)
+        serializer = DynamicPaperSerializer(
+            page,
+            _include_fields=[
+                'id',
+                'hubs',
+                'paper_title',
+                'score',
+                'title',
+                'uploaded_by',
+            ],
+            many=True,
+            context=context
+        )
+        response = self.get_paginated_response(serializer.data)
 
-            return response
-        return Response(status=404)
+        return response
+
+    def _get_user_contributions_context(self):
+        context = {
+            'pap_dps_get_uploaded_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'usr_dus_get_item': {  # TODO: RENAME THIS TO usr_dus_get_author_profile (once hypothesis prs are merged)
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image'
+                ]
+            },
+        }
+        return context
