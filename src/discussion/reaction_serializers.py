@@ -2,6 +2,7 @@ from django.db.models import Count, Q
 import rest_framework.serializers as serializers
 
 from discussion.models import Endorsement, Flag, Vote
+from researchhub.serializers import DynamicModelFieldSerializer
 from utils.http import get_user_from_request
 from utils.sentry import log_error
 
@@ -45,6 +46,12 @@ class VoteSerializer(serializers.ModelSerializer):
             'vote_type',
             'item',
         ]
+        model = Vote
+
+
+class DynamicVoteSerializer(DynamicModelFieldSerializer):
+    class Meta:
+        fields = '__all__'
         model = Vote
 
 

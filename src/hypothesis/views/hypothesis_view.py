@@ -73,10 +73,12 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         serializer = DynamicCitationSerializer(
             citations,
             _include_fields=[
-                'id',
+                'consensus_meta',
                 'created_by',
-                'source',
                 'created_date',
+                'id',
+                'score',
+                'source',
                 'updated_date',
             ],
             many=True,
