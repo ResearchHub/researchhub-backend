@@ -69,6 +69,24 @@ router.register(
 )
 
 router.register(
+    r'hypothesis/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply',
+    discussion.views.ReplyViewSet,
+    basename='hypothesis_discussion_thread_comment_replies'
+)
+
+router.register(
+    r'hypothesis/([0-9]+)/discussion/([0-9]+)/comment',
+    discussion.views.CommentViewSet,
+    basename='hypothesis_discussion_thread_comments'
+)
+
+router.register(
+    r'hypothesis/([0-9]+)/discussion',
+    discussion.views.ThreadViewSet,
+    basename='hypothesis_discussion_threads'
+)
+
+router.register(
     r'paper/discussion/file',
     discussion.views.CommentFileUpload,
     basename='discussion_file_upload'
@@ -223,6 +241,12 @@ router.register(
     r'hypothesis',
     hypothesis_views.HypothesisViewSet,
     basename='hypothesis'
+)
+
+router.register(
+    r'citation',
+    hypothesis_views.CitationViewSet,
+    basename='citations'
 )
 
 urlpatterns = [

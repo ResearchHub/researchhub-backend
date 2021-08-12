@@ -11,6 +11,7 @@ from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer, DynamicHubSerializer
+from hypothesis.models import Hypothesis, Citation
 from paper.lib import journal_hosts
 from paper.exceptions import PaperSerializerError
 from paper.models import (
@@ -38,7 +39,7 @@ from paper.utils import (
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url
 )
-from researchhub.lib import get_paper_id_from_path
+from researchhub.lib import get_document_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from user.models import Author, User
@@ -78,7 +79,8 @@ class BasePaperSerializer(serializers.ModelSerializer):
             'user_flag',
             'users_who_bookmarked',
             'unified_document_id',
-            'slug'
+            'slug',
+            'hypothesis_id',
         ]
         model = Paper
 
@@ -307,6 +309,7 @@ class PaperSerializer(BasePaperSerializer):
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
+        hypothesis_id = validated_data.pop('hypothesis_id', None)
 
         try:
             with transaction.atomic():
@@ -327,7 +330,14 @@ class PaperSerializer(BasePaperSerializer):
                     paper = arxiv_paper.create_paper(uploaded_by=user)
 
                 if paper is None:
+                    # It is important to note that paper signals
+                    # are ran after call to super
                     paper = super(PaperSerializer, self).create(validated_data)
+
+                unified_doc = paper.unified_document
+                unified_doc_id = paper.unified_document.id
+                if hypothesis_id:
+                    self._add_citation(user, hypothesis_id, unified_doc)
 
                 paper_id = paper.id
                 paper_title = paper.paper_title or ''
@@ -374,7 +384,6 @@ class PaperSerializer(BasePaperSerializer):
                 )
                 update_user_risk_score(user, tracked_paper)
 
-                unified_doc_id = paper.unified_document.id
                 create_contribution.apply_async(
                     (
                         Contribution.SUBMITTER,
@@ -502,6 +511,17 @@ class PaperSerializer(BasePaperSerializer):
                 add_references(paper.id)
         except Exception as e:
             sentry.log_info(e)
+
+    def _add_citation(self, user, hypothesis_id, unified_document):
+        try:
+            hypothesis = Hypothesis.objects.get(id=hypothesis_id)
+            Citation.objects.create(
+                created_by=user,
+                hypothesis=hypothesis,
+                source=unified_document,
+            )
+        except Exception as e:
+            sentry.log_error(e)
 
     def _add_file(self, paper, file):
         paper_id = paper.id
@@ -790,7 +810,7 @@ class AdditionalFileSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         request = self.context['request']
         user = request.user
-        paper_id = get_paper_id_from_path(request)
+        paper_id = get_document_id_from_path(request)
         validated_data['created_by'] = user
         validated_data['paper'] = Paper.objects.get(pk=paper_id)
         additional_file = super().create(validated_data)
