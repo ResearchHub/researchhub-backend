@@ -96,7 +96,7 @@ class DynamicCitationSerializer(DynamicModelFieldSerializer):
         user_vote = None
         try:
             if user and not user.is_anonymous:
-                user_vote = citation.votes.get(created_by=user)
+                user_vote = votes.get(created_by=user)
                 serializer = DynamicVoteSerializer(
                     user_vote,
                     context=context,
