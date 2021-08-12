@@ -82,7 +82,7 @@ class AuthorSerializer(serializers.ModelSerializer):
 
     def get_wallet(self, obj):
         from purchase.serializers import WalletSerializer
-        if not self.context.get('include_wallet', True):
+        if not self.context.get('include_wallet', False):
             return
 
         try:

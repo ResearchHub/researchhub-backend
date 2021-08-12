@@ -45,7 +45,7 @@ from utils.siftscience import (
 
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
-from researchhub.lib import ActionableViewSet, get_paper_id_from_path
+from researchhub.lib import ActionableViewSet, get_document_id_from_path
 from .filters import BulletPointFilter
 
 
@@ -70,7 +70,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
     def get_queryset(self):
         filters = {}
 
-        paper_id = get_paper_id_from_path(self.request)
+        paper_id = get_document_id_from_path(self.request)
         if paper_id is not None:
             filters['paper'] = paper_id
         bullet_type = self.request.query_params.get('bullet__type', None)
@@ -96,7 +96,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
 
         paper = request.data.get('paper', None)
         if paper is None:
-            paper = get_paper_id_from_path(request)
+            paper = get_document_id_from_path(request)
             if paper is None:
                 return Response('Missing required field `paper`', status=400)
             request.data['paper'] = paper
@@ -204,7 +204,7 @@ class BulletPointViewSet(viewsets.ModelViewSet, ActionableViewSet):
         user = request.user
         paper_id = request.data.get('paper', None)
         if paper_id is None:
-            paper_id = get_paper_id_from_path(request)
+            paper_id = get_document_id_from_path(request)
             if paper_id is None:
                 return Response(
                     'Missing required field `paper`',

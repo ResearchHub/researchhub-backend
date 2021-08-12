@@ -39,7 +39,7 @@ from paper.utils import (
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url
 )
-from researchhub.lib import get_paper_id_from_path
+from researchhub.lib import get_document_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from user.models import Author, User
@@ -810,7 +810,7 @@ class AdditionalFileSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         request = self.context['request']
         user = request.user
-        paper_id = get_paper_id_from_path(request)
+        paper_id = get_document_id_from_path(request)
         validated_data['created_by'] = user
         validated_data['paper'] = Paper.objects.get(pk=paper_id)
         additional_file = super().create(validated_data)
