@@ -600,21 +600,77 @@ class AuthorViewSet(viewsets.ModelViewSet):
         methods=['get'],
     )
     def get_authored_papers(self, request, pk=None):
-        authors = Author.objects.filter(id=pk)
-        if authors:
-            author = authors.first()
-            prefetch_lookups = PaperViewSet.prefetch_lookups(self)
-            authored_papers = author.authored_papers.filter(
-                is_removed=False
-            ).prefetch_related(
-                *prefetch_lookups,
-            ).order_by('-score')
-            context = self.get_serializer_context()
-            context['include_wallet'] = False
-            page = self.paginate_queryset(authored_papers)
-            serializer = PaperSerializer(page, many=True, context=context)
-            return self.get_paginated_response(serializer.data)
-        return Response(status=404)
+        author = self.get_object()
+        prefetch_lookups = PaperViewSet.prefetch_lookups(self)
+        authored_papers = author.authored_papers.filter(
+            is_removed=False
+        ).prefetch_related(
+            *prefetch_lookups,
+        ).order_by('-score')
+        context = self._get_authored_papers_context()
+        page = self.paginate_queryset(authored_papers)
+        serializer = DynamicPaperSerializer(
+            page,
+            _include_fields=[
+                'id',
+                'abstract',
+                'authors',
+                'boost_amount',
+                'file',
+                'first_preview',
+                'hubs',
+                'paper_title',
+                'score',
+                'title',
+                'uploaded_by',
+                'uploaded_date',
+                'url',
+            ],
+            many=True,
+            context=context
+        )
+        response = self.get_paginated_response(serializer.data)
+        return response
+
+    def _get_authored_papers_context(self):
+        context = {
+            'pap_dps_get_authors': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image',
+                ]
+            },
+            'pap_dps_get_uploaded_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'pap_dps_get_first_preview': {
+                '_include_fields': [
+                    'file',
+                ]
+            },
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image'
+                ]
+            },
+            'doc_duds_get_hubs': {
+                '_include_fields': [
+                    'id',
+                    'name',
+                    'slug',
+                    'hub_image',
+                ]
+            }
+        }
+        return context
 
     @action(
         detail=True,

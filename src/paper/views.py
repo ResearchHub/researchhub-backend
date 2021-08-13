@@ -117,20 +117,20 @@ class PaperViewSet(viewsets.ModelViewSet):
             'uploaded_by__subscribed_hubs',
             'authors',
             'authors__user',
-            Prefetch(
-                'bullet_points',
-                queryset=BulletPoint.objects.filter(
-                    is_head=True,
-                    is_removed=False,
-                    ordinal__isnull=False
-                ).order_by('ordinal')
-            ),
-            'summary',
-            'summary__previous',
-            'summary__proposed_by__bookmarks',
-            'summary__proposed_by__subscribed_hubs',
-            'summary__proposed_by__author_profile',
-            'summary__paper',
+            # Prefetch(
+            #     'bullet_points',
+            #     queryset=BulletPoint.objects.filter(
+            #         is_head=True,
+            #         is_removed=False,
+            #         ordinal__isnull=False
+            #     ).order_by('ordinal')
+            # ),
+            # 'summary',
+            # 'summary__previous',
+            # 'summary__proposed_by__bookmarks',
+            # 'summary__proposed_by__subscribed_hubs',
+            # 'summary__proposed_by__author_profile',
+            # 'summary__paper',
             'moderators',
             'hubs',
             'hubs__subscribers',

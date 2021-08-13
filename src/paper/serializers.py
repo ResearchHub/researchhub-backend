@@ -43,7 +43,12 @@ from researchhub.lib import get_document_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from user.models import Author, User
-from user.serializers import AuthorSerializer, UserSerializer, DynamicUserSerializer
+from user.serializers import (
+    AuthorSerializer,
+    UserSerializer,
+    DynamicAuthorSerializer,
+    DynamicUserSerializer
+)
 from utils.arxiv import Arxiv
 from utils.http import get_user_from_request, check_url_contains_pdf
 from utils.siftscience import events_api, update_user_risk_score
@@ -723,15 +728,29 @@ class PaperReferenceSerializer(serializers.ModelSerializer):
 
 
 class DynamicPaperSerializer(DynamicModelFieldSerializer):
+    authors = serializers.SerializerMethodField()
     boost_amount = serializers.SerializerMethodField()
     discussion_users = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
+    first_preview = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
 
     class Meta:
         model = Paper
         fields = '__all__'
+
+    def get_authors(self, paper):
+        context = self.context
+        _context_fields = context.get('pap_dps_get_authors', {})
+
+        serializer = DynamicAuthorSerializer(
+            paper.authors.all(),
+            many=True,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
 
     def get_boost_amount(self, paper):
         return paper.get_boost_amount()
@@ -767,6 +786,31 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
             **_context_fields
         )
         return serializer.data
+
+    def get_first_preview(self, paper):
+        context = self.context
+        _context_fields = context.get('pap_dps_get_first_preview', {})
+        try:
+            if paper.preview_list.exists():
+                figure = paper.preview_list.first()
+                serializer = DynamicFigureSerializer(
+                    figure,
+                    context=context,
+                    **_context_fields
+                )
+                return serializer.data
+        except Exception:
+            figure = paper.figures.filter(
+                figure_type=Figure.PREVIEW
+            ).first()
+            if figure:
+                serializer = DynamicFigureSerializer(
+                    figure,
+                    context=context,
+                    **_context_fields
+                )
+                return serializer.data
+        return None
 
     def get_unified_document(self, paper):
         from researchhub_document.serializers import (
@@ -869,3 +913,9 @@ class FigureSerializer(serializers.ModelSerializer):
         validated_data['created_by'] = user
         figure = super().create(validated_data)
         return figure
+
+
+class DynamicFigureSerializer(DynamicModelFieldSerializer):
+    class Meta:
+        fields = '__all__'
+        model = Figure
