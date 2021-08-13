@@ -784,8 +784,13 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
     def get_uploaded_by(self, paper):
         context = self.context
         _context_fields = context.get('pap_dps_get_uploaded_by', {})
+        uploaded_by = paper.uploaded_by
+
+        if not uploaded_by:
+            return None
+
         serializer = DynamicUserSerializer(
-            paper.uploaded_by,
+            uploaded_by,
             context=context,
             **_context_fields
         )
