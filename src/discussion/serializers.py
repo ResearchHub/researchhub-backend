@@ -71,20 +71,6 @@ class DynamicThreadSerializer(
             *self.context.get('ordering', ['id'])
         )
 
-    def get_comments(self, thread):
-        if self.context.get('depth', 3) <= 0:
-            return []
-        comments_queryset = self._comments_query(thread)[:PAGINATION_PAGE_SIZE]
-        comment_serializer = CommentSerializer(
-            comments_queryset,
-            many=True,
-            context={
-                **self.context,
-                'depth': self.context.get('depth', 3) - 1,
-            },
-        )
-        return comment_serializer.data
-
     def get_comment_count(self, thread):
         return self._comments_query(thread).count()
 
