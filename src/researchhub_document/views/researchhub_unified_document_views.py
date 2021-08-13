@@ -421,7 +421,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     hubs__in=hubs.all()
                 ).distinct()
             else:
-                import pdb; pdb.set_trace()
                 all_documents = sorted(
                     all_documents, key=lambda doc: -doc['hot_score']
                 )
