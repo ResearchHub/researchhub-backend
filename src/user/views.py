@@ -752,6 +752,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             page,
             _include_fields=[
                 'id',
+                'abstract',
                 'boost_amount',
                 'file',
                 'hubs',
