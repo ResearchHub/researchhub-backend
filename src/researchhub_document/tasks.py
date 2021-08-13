@@ -129,6 +129,7 @@ def preload_trending_documents(
             'created_by',
             'documents',
             'document_type',
+            'hot_score',
             'score'
         ],
         many=True,
@@ -198,6 +199,7 @@ def preload_hub_documents(
                 'created_by',
                 'documents',
                 'document_type',
+                'hot_score',
                 'score'
             ],
             many=True,

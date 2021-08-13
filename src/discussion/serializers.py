@@ -6,7 +6,7 @@ from discussion.reaction_serializers import (
 )
 from researchhub.settings import PAGINATION_PAGE_SIZE
 from researchhub.serializers import DynamicModelFieldSerializer
-from user.serializers import MinimalUserSerializer
+from user.serializers import MinimalUserSerializer, DynamicUserSerializer
 from utils.http import get_user_from_request
 # TODO: Make is_public editable for creator as a delete mechanism
 # TODO: undo
@@ -45,11 +45,72 @@ class DynamicThreadSerializer(
     DynamicModelFieldSerializer,
     GenericReactionSerializerMixin
 ):
+    comment_count = serializers.SerializerMethodField()
+    created_by = serializers.SerializerMethodField()
+    paper = serializers.SerializerMethodField()
+    post = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
 
     class Meta:
         model = Thread
         fields = '__all__'
+
+    def get_created_by(self, thread):
+        context = self.context
+        _context_fields = context.get('dis_dts_get_created_by', {})
+        serializer = DynamicUserSerializer(
+            thread.created_by,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def _comments_query(self, thread):
+        return self.get_children_annotated(thread).order_by(
+            *self.context.get('ordering', ['id'])
+        )
+
+    def get_comment_count(self, thread):
+        return self._comments_query(thread).count()
+
+    def get_paper(self, thread):
+        from paper.serializers import DynamicPaperSerializer
+
+        paper = thread.paper
+        if not paper:
+            return None
+
+        context = self.context
+        _context_fields = context.get('dis_dts_get_paper', {})
+
+        serializer = DynamicPaperSerializer(
+            paper,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_post(self, thread):
+        from researchhub_document.serializers import (
+            DynamicPostSerializer
+        )
+
+        post = thread.post
+        if not post:
+            return None
+
+        context = self.context
+        _context_fields = context.get('dis_dts_get_post', {})
+        serializer = DynamicPostSerializer(
+            thread.post,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_score(self, obj):
+        return obj.calculate_score()
 
     def get_unified_document(self, thread):
         from researchhub_document.serializers import (

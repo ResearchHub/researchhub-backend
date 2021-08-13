@@ -350,7 +350,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             _include_fields=[
                 'documents',
                 'document_type',
-                'score'
+                'hot_score',
+                'score',
             ],
             many=True,
             context=context
@@ -423,7 +424,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 ).distinct()
             else:
                 all_documents = sorted(
-                    all_documents, key=lambda doc: -doc['documents']['hot_score']
+                    all_documents, key=lambda doc: -doc['hot_score']
                 )
                 all_documents = all_documents[:10]
                 next_page = request.build_absolute_uri()
@@ -481,6 +482,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             _include_fields=[
                 'documents',
                 'document_type',
+                'hot_score',
                 'score'
             ],
             many=True,
