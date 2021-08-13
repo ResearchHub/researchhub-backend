@@ -27,7 +27,8 @@ from paper.utils import (
     invalidate_most_discussed_cache,
 )
 from researchhub_document.serializers import (
-  DynamicUnifiedDocumentSerializer
+    ResearchhubUnifiedDocumentSerializer,
+    DynamicUnifiedDocumentSerializer
 )
 from researchhub_document.related_models.constants.document_type import (
     PAPER,
@@ -51,7 +52,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         IsAuthenticated,
     ]
     queryset = ResearchhubUnifiedDocument.objects
-    serializer_class = DynamicUnifiedDocumentSerializer
+    serializer_class = ResearchhubUnifiedDocumentSerializer
+    dynamic_serializer_class = DynamicUnifiedDocumentSerializer
 
     def update(self, request, *args, **kwargs):
         update_response = super().update(request, *args, **kwargs)
@@ -343,7 +345,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         context = self._get_serializer_context()
         page = self.paginate_queryset(documents)
-        serializer = self.serializer_class(
+        serializer = self.dynamic_serializer_class(
             page,
             _include_fields=[
                 'documents',
@@ -474,7 +476,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         context = self._get_serializer_context()
         page = self.paginate_queryset(all_documents)
-        serializer = self.serializer_class(
+        serializer = self.dynamic_serializer_class(
             page,
             _include_fields=[
                 'documents',
