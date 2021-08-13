@@ -1,3 +1,6 @@
+import hmac
+
+from hashlib import sha1
 from datetime import timedelta
 
 from django.db import IntegrityError, models
@@ -22,15 +25,21 @@ from rest_framework.response import Response
 
 from discussion.models import Thread, Comment, Reply
 from discussion.serializers import (
-    ThreadSerializer
+    DynamicThreadSerializer
 )
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
 from reputation.serializers import ContributionSerializer
+from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY, EMAIL_WHITELIST
+from researchhub_document.serializers import DynamicPostSerializer
 from paper.models import Paper
 from paper.utils import get_cache_key
 from paper.views import PaperViewSet
-from paper.serializers import PaperSerializer, HubPaperSerializer
+from paper.serializers import (
+    PaperSerializer,
+    HubPaperSerializer,
+    DynamicPaperSerializer
+)
 from user.filters import AuthorFilter
 from user.models import (
     User,
@@ -57,9 +66,6 @@ from utils.http import RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
-from hashlib import sha1
-import hmac
-from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(is_suspended=False)
@@ -490,10 +496,12 @@ class UserViewSet(viewsets.ModelViewSet):
             decision_id = request.data['decision']['id']
             user_id = request.data['entity']['id']
             user = User.objects.get(id=user_id)
-            if 'mark_as_probable_spammer_content_abuse' in decision_id:
-                user.set_probable_spammer()
-            elif 'suspend_user_content_abuse' in decision_id:
-                user.set_suspended(is_manual=False)
+
+            if not user.moderator or user.email not in EMAIL_WHITELIST:
+                if 'mark_as_probable_spammer_content_abuse' in decision_id:
+                    user.set_probable_spammer()
+                elif 'suspend_user_content_abuse' in decision_id:
+                    user.set_suspended(is_manual=False)
             serialized = UserSerializer(user)
             return Response(serialized.data, status=200)
         else:
@@ -592,71 +600,256 @@ class AuthorViewSet(viewsets.ModelViewSet):
         methods=['get'],
     )
     def get_authored_papers(self, request, pk=None):
-        authors = Author.objects.filter(id=pk)
-        if authors:
-            author = authors.first()
-            prefetch_lookups = PaperViewSet.prefetch_lookups(self)
-            authored_papers = author.authored_papers.filter(
-                is_removed=False
-            ).prefetch_related(
-                *prefetch_lookups,
-            ).order_by('-score')
-            context = self.get_serializer_context()
-            context['include_wallet'] = False
-            page = self.paginate_queryset(authored_papers)
-            serializer = PaperSerializer(page, many=True, context=context)
-            return self.get_paginated_response(serializer.data)
-        return Response(status=404)
+        author = self.get_object()
+        prefetch_lookups = PaperViewSet.prefetch_lookups(self)
+        authored_papers = author.authored_papers.filter(
+            is_removed=False
+        ).prefetch_related(
+            *prefetch_lookups,
+        ).order_by('-score')
+        context = self._get_authored_papers_context()
+        page = self.paginate_queryset(authored_papers)
+        serializer = DynamicPaperSerializer(
+            page,
+            _include_fields=[
+                'id',
+                'abstract',
+                'authors',
+                'boost_amount',
+                'file',
+                'first_preview',
+                'hubs',
+                'paper_title',
+                'score',
+                'title',
+                'uploaded_by',
+                'uploaded_date',
+                'url',
+            ],
+            many=True,
+            context=context
+        )
+        response = self.get_paginated_response(serializer.data)
+        return response
+
+    def _get_authored_papers_context(self):
+        context = {
+            'pap_dps_get_authors': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image',
+                ]
+            },
+            'pap_dps_get_uploaded_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'pap_dps_get_first_preview': {
+                '_include_fields': [
+                    'file',
+                ]
+            },
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image'
+                ]
+            },
+            'doc_duds_get_hubs': {
+                '_include_fields': [
+                    'id',
+                    'name',
+                    'slug',
+                    'hub_image',
+                ]
+            }
+        }
+        return context
 
     @action(
         detail=True,
         methods=['get'],
     )
     def get_user_discussions(self, request, pk=None):
-        authors = Author.objects.filter(id=pk)
-        if authors:
-            context = self.get_serializer_context()
-            context['include_wallet'] = False
-            author = authors.first()
-            user = author.user
-            user_discussions = Thread.objects.exclude(
-                created_by=None
-            ).filter(
-                created_by=user,
-                is_removed=False,
-            ).prefetch_related(
-                'paper', 'comments',
-            ).order_by('-id')
-            page = self.paginate_queryset(user_discussions)
-            serializer = ThreadSerializer(page, many=True, context=context)
-            return self.get_paginated_response(serializer.data)
-        return Response(status=404)
+        author = self.get_object()
+        user = author.user
+        context = self._get_user_discussion_context()
+        user_discussions = user.thread_set.filter(
+            is_removed=False
+        ).order_by('-id')
+        page = self.paginate_queryset(user_discussions)
+        serializer = DynamicThreadSerializer(
+            page,
+            _include_fields=[
+                'id',
+                'comment_count',
+                'created_by',
+                'paper',
+                'post',
+                'score',
+                'text',
+            ],
+            many=True,
+            context=context
+        )
+        return self.get_paginated_response(serializer.data)
+
+    def _get_user_discussion_context(self):
+        context = {
+            'dis_dts_get_created_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'dis_dts_get_paper': {
+                '_include_fields': [
+                    'id',
+                    'slug',
+                ]
+            },
+            'dis_dts_get_post': {
+                '_include_fields': [
+                    'id',
+                    'slug',
+                ]
+            },
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image'
+                ]
+            },
+        }
+        return context
 
     @action(
         detail=True,
         methods=['get'],
     )
     def get_user_contributions(self, request, pk=None):
-        authors = Author.objects.filter(id=pk)
-        if authors:
-            author = authors.first()
-            user = author.user
+        author = self.get_object()
+        user = author.user
 
-            prefetch_lookups = PaperViewSet.prefetch_lookups(self)
-            user_paper_uploads = Paper.objects.exclude(
-                uploaded_by=None
-            ).filter(
-                uploaded_by=user,
-                is_removed=False,
-            ).prefetch_related(
-                *prefetch_lookups
-            )
+        prefetch_lookups = PaperViewSet.prefetch_lookups(self)
+        user_paper_uploads = user.papers.filter(
+            is_removed=False
+        ).prefetch_related(
+            *prefetch_lookups
+        )
 
-            context = self.get_serializer_context()
-            context['include_wallet'] = False
-            page = self.paginate_queryset(user_paper_uploads)
-            serializer = PaperSerializer(page, many=True, context=context)
-            response = self.get_paginated_response(serializer.data)
+        context = self._get_user_contributions_context()
+        page = self.paginate_queryset(user_paper_uploads)
+        serializer = DynamicPaperSerializer(
+            page,
+            _include_fields=[
+                'id',
+                'abstract',
+                'boost_amount',
+                'file',
+                'hubs',
+                'paper_title',
+                'score',
+                'title',
+                'uploaded_by',
+                'uploaded_date',
+            ],
+            many=True,
+            context=context
+        )
+        response = self.get_paginated_response(serializer.data)
 
-            return response
-        return Response(status=404)
+        return response
+
+    def _get_user_contributions_context(self):
+        context = {
+            'pap_dps_get_uploaded_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image'
+                ]
+            },
+            'doc_duds_get_hubs': {
+                '_include_fields': [
+                    'id',
+                    'name',
+                    'slug',
+                    'hub_image',
+                ]
+            }
+        }
+        return context
+
+    @action(
+        detail=True,
+        methods=['get'],
+    )
+    def get_user_posts(self, request, pk=None):
+        author = self.get_object()
+        user = author.user
+        user_posts = user.created_posts.all().prefetch_related(
+            'unified_document',
+            'purchases'
+        )
+        context = self._get_user_posts_context()
+        page = self.paginate_queryset(user_posts)
+        serializer = DynamicPostSerializer(
+            page,
+            _include_fields=[
+                'id',
+                'created_by',
+                'hubs',
+                'boost_amount',
+                'renderable_text',
+                'score',
+                'slug',
+                'title',
+            ],
+            many=True,
+            context=context
+        )
+        response = self.get_paginated_response(serializer.data)
+        return response
+
+    def _get_user_posts_context(self):
+        context = {
+            'doc_dps_get_created_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image'
+                ]
+            },
+            'doc_dps_get_hubs': {
+                '_include_fields': [
+                    'id',
+                    'name',
+                    'slug',
+                    'hub_image',
+                ]
+            }
+        }
+        return context

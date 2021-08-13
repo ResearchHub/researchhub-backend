@@ -2,6 +2,7 @@ from django.db.models import Count, Q
 import rest_framework.serializers as serializers
 
 from discussion.models import Endorsement, Flag, Vote
+from researchhub.serializers import DynamicModelFieldSerializer
 from utils.http import get_user_from_request
 from utils.sentry import log_error
 
@@ -48,6 +49,12 @@ class VoteSerializer(serializers.ModelSerializer):
         model = Vote
 
 
+class DynamicVoteSerializer(DynamicModelFieldSerializer):
+    class Meta:
+        fields = '__all__'
+        model = Vote
+
+
 class GenericReactionSerializerMixin:
     EXPOSABLE_FIELDS = [
       'promoted',
@@ -80,6 +87,15 @@ class GenericReactionSerializerMixin:
                 'id': post.id,
                 'title': post.title,
                 'slug': post.slug
+            }
+            return data
+
+        hypothesis = obj.hypothesis
+        if hypothesis:
+            data = {
+                'id': hypothesis.id,
+                'title': hypothesis.title,
+                'slug': hypothesis.slug
             }
             return data
 

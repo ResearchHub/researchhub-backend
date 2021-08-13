@@ -197,6 +197,7 @@ INSTALLED_APPS = [
     'ethereum',
     'google_analytics',
     'hub',
+    'hypothesis',
     'mailing_list',
     'notification',
     'oauth',

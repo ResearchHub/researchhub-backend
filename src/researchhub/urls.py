@@ -26,6 +26,7 @@ import purchase.views
 import debug_toolbar
 import researchhub_case.views as researchhub_case_views
 import researchhub_document.views as researchhub_document_views
+import hypothesis.views as hypothesis_views
 
 from researchhub.settings import USE_DEBUG_TOOLBAR, INSTALLED_APPS
 
@@ -65,6 +66,24 @@ router.register(
     r'post/([0-9]+)/discussion',
     discussion.views.ThreadViewSet,
     basename='post_discussion_threads'
+)
+
+router.register(
+    r'hypothesis/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply',
+    discussion.views.ReplyViewSet,
+    basename='hypothesis_discussion_thread_comment_replies'
+)
+
+router.register(
+    r'hypothesis/([0-9]+)/discussion/([0-9]+)/comment',
+    discussion.views.CommentViewSet,
+    basename='hypothesis_discussion_thread_comments'
+)
+
+router.register(
+    r'hypothesis/([0-9]+)/discussion',
+    discussion.views.ThreadViewSet,
+    basename='hypothesis_discussion_threads'
 )
 
 router.register(
@@ -216,6 +235,18 @@ router.register(
     r'researchhub_unified_documents',
     researchhub_document_views.ResearchhubUnifiedDocumentViewSet,
     basename='researchhub_unified_documents',
+)
+
+router.register(
+    r'hypothesis',
+    hypothesis_views.HypothesisViewSet,
+    basename='hypothesis'
+)
+
+router.register(
+    r'citation',
+    hypothesis_views.CitationViewSet,
+    basename='citations'
 )
 
 urlpatterns = [

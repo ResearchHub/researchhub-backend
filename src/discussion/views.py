@@ -41,6 +41,7 @@ from discussion.permissions import (
     UpvoteDiscussionThread,
     Vote as VotePermission
 )
+from hypothesis.models import Hypothesis
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.utils import reset_unified_document_cache
 from paper.models import Paper
@@ -60,12 +61,17 @@ from .serializers import (
     ReplySerializer,
     ThreadSerializer,
 )
+from researchhub.lib import get_document_id_from_path
 from .utils import (
+    get_thread_id_from_path,
     get_comment_id_from_path,
-    get_paper_id_from_path,
-    get_post_id_from_path,
-    get_thread_id_from_path
 )
+
+DOCUMENT_MODELS = {
+    'paper': Paper,
+    'post': ResearchhubPost,
+    'hypothesis': Hypothesis,
+}
 
 
 class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
@@ -84,45 +90,28 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date',)
 
     def create(self, request, *args, **kwargs):
-        if request.path.split('/')[2] == 'paper':
-            paper_id = get_paper_id_from_path(request)
-            paper = Paper.objects.get(id=paper_id)
-            unified_doc_id = paper.unified_document.id
+        document_type = request.path.split('/')[2]
+        document_id = get_document_id_from_path(request)
+        document = DOCUMENT_MODELS[document_type].objects.get(id=document_id)
+        unified_document = document.unified_document
+        unified_doc_id = unified_document.id
 
-            if request.query_params.get('created_location') == 'progress':
-                request.data['created_location'] = (
-                    BaseComment.CREATED_LOCATION_PROGRESS
-                )
-
-            response = super().create(request, *args, **kwargs)
-            response = self.get_self_upvote_response(request, response, Thread)
-            self.sift_track_create_content_comment(
-                request,
-                response,
-                Thread,
-                is_thread=True
+        if request.query_params.get('created_location') == 'progress':
+            request.data['created_location'] = (
+                BaseComment.CREATED_LOCATION_PROGRESS
             )
-            hubs = list(paper.hubs.values_list('id', flat=True))
-        else:
-            post_id = get_post_id_from_path(request)
-            post = ResearchhubPost.objects.get(id=post_id)
-            unified_doc_id = post.unified_document.id
 
-            if request.query_params.get('created_location') == 'progress':
-                request.data['created_location'] = (
-                    BaseComment.CREATED_LOCATION_PROGRESS
-                )
-            response = super().create(request, *args, **kwargs)
-            response = self.get_self_upvote_response(request, response, Thread)
-            self.sift_track_create_content_comment(
-                request,
-                response,
-                Thread,
-                is_thread=True
-            )
-            hubs = list(post.unified_document.hubs.all().values_list('id', flat=True))
-
+        response = super().create(request, *args, **kwargs)
+        response = self.get_self_upvote_response(request, response, Thread)
+        hubs = list(unified_document.hubs.all().values_list('id', flat=True))
         discussion_id = response.data['id']
+
+        self.sift_track_create_content_comment(
+            request,
+            response,
+            Thread,
+            is_thread=True
+        )
         create_contribution.apply_async(
             (
                 Contribution.COMMENTER,
@@ -169,9 +158,10 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         downvotes = Count('votes', filter=Q(votes__vote_type=Vote.DOWNVOTE,))
         source = self.request.query_params.get('source')
         is_removed = self.request.query_params.get('is_removed', False)
+        document_type = self.request.path.split('/')[2]
 
-        if self.request.path.split('/')[2] == 'paper':
-            paper_id = get_paper_id_from_path(self.request)
+        if document_type == 'paper':
+            paper_id = get_document_id_from_path(self.request)
             if source and source == 'twitter':
                 try:
                     Paper.objects.get(
@@ -200,10 +190,15 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 threads = Thread.objects.filter(
                     paper=paper_id
                 )
-        else:
-            post_id = get_post_id_from_path(self.request)
+        elif document_type == 'post':
+            post_id = get_document_id_from_path(self.request)
             threads = Thread.objects.filter(
                 post=post_id,
+            )
+        elif document_type == 'hypothesis':
+            hypothesis_id = get_document_id_from_path(self.request)
+            threads = Thread.objects.filter(
+                hypothesis=hypothesis_id,
             )
 
         threads = threads.filter(is_removed=is_removed)
@@ -279,35 +274,21 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         return comments
 
     def create(self, request, *args, **kwargs):
-        if request.path.split('/')[2] == 'paper':
-            paper_id = get_paper_id_from_path(request)
-            paper = Paper.objects.get(id=paper_id)
-            unified_doc_id = paper.unified_document.id
-            hubs = paper.hubs.values_list('id', flat=True)
+        document_type = request.path.split('/')[2]
+        document_id = get_document_id_from_path(request)
+        document = DOCUMENT_MODELS[document_type].objects.get(id=document_id)
+        unified_document = document.unified_document
+        unified_doc_id = unified_document.id
 
-            if request.query_params.get('created_location') == 'progress':
-                request.data['created_location'] = (
-                    BaseComment.CREATED_LOCATION_PROGRESS
-                )
+        if request.query_params.get('created_location') == 'progress':
+            request.data['created_location'] = (
+                BaseComment.CREATED_LOCATION_PROGRESS
+            )
 
-            response = super().create(request, *args, **kwargs)
-            response = self.get_self_upvote_response(request, response, Comment)
-            self.sift_track_create_content_comment(request, response, Comment)
-
-        else:
-            post_id = get_post_id_from_path(request)
-            post = ResearchhubPost.objects.get(id=post_id)
-            hubs = list(post.unified_document.hubs.all().values_list('id', flat=True))
-            unified_doc_id = post.unified_document.id
-
-            if request.query_params.get('created_location') == 'progress':
-                request.data['created_location'] = (
-                    BaseComment.CREATED_LOCATION_PROGRESS
-                )
-
-            response = super().create(request, *args, **kwargs)
-            response = self.get_self_upvote_response(request, response, Comment)
-            self.sift_track_create_content_comment(request, response, Comment)
+        response = super().create(request, *args, **kwargs)
+        response = self.get_self_upvote_response(request, response, Comment)
+        hubs = list(unified_document.hubs.all().values_list('id', flat=True))
+        self.sift_track_create_content_comment(request, response, Comment)
 
         discussion_id = response.data['id']
         create_contribution.apply_async(
@@ -399,31 +380,20 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         return replies
 
     def create(self, request, *args, **kwargs):
-        if request.path.split('/')[2] == 'paper':
-            paper_id = get_paper_id_from_path(request)
-            paper = Paper.objects.get(id=paper_id)
-            unified_doc_id = paper.unified_document.id
+        document_type = request.path.split('/')[2]
+        document_id = get_document_id_from_path(request)
+        document = DOCUMENT_MODELS[document_type].objects.get(id=document_id)
+        unified_document = document.unified_document
+        unified_doc_id = unified_document.id
 
-            if request.query_params.get('created_location') == 'progress':
-                request.data['created_location'] = (
-                    BaseComment.CREATED_LOCATION_PROGRESS
-                )
+        if request.query_params.get('created_location') == 'progress':
+            request.data['created_location'] = (
+                BaseComment.CREATED_LOCATION_PROGRESS
+            )
 
-            response = super().create(request, *args, **kwargs)
-            self.sift_track_create_content_comment(request, response, Reply)
-        else:
-            post_id = get_post_id_from_path(request)
-            post = ResearchhubPost.objects.get(id=post_id)
-            unified_doc_id = post.unified_document.id
-
-            if request.query_params.get('created_location') == 'progress':
-                request.data['created_location'] = (
-                    BaseComment.CREATED_LOCATION_PROGRESS
-                )
-
-            response = super().create(request, *args, **kwargs)
-            discussion_id = response.data['id']
-            self.sift_track_create_content_comment(request, response, Reply)
+        response = super().create(request, *args, **kwargs)
+        hubs = list(unified_document.hubs.all().values_list('id', flat=True))
+        self.sift_track_create_content_comment(request, response, Reply)
 
         discussion_id = response.data['id']
         create_contribution.apply_async(

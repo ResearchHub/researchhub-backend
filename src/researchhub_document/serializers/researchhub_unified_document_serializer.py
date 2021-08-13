@@ -1,9 +1,11 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
-from hub.serializers import SimpleHubSerializer
+from hub.serializers import SimpleHubSerializer, DynamicHubSerializer
 from paper.serializers import PaperSerializer, DynamicPaperSerializer
 from researchhub_document.related_models.constants.document_type import (
-    DISCUSSION, ELN
+    DISCUSSION,
+    ELN,
+    HYPOTHESIS
 )
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -80,12 +82,15 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     documents = SerializerMethodField()
     created_by = SerializerMethodField()
     access_group = SerializerMethodField()
+    hubs = SerializerMethodField()
 
     class Meta:
         model = ResearchhubUnifiedDocument
         fields = '__all__'
 
     def get_documents(self, unified_doc):
+        from hypothesis.serializers import DynamicHypothesisSerializer
+
         context = self.context
         _context_fields = context.get('doc_duds_get_documents', {})
         doc_type = unified_doc.document_type
@@ -93,6 +98,12 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
             return DynamicPostSerializer(
                 unified_doc.posts,
                 many=True,
+                context=context,
+                **_context_fields
+            ).data
+        elif doc_type == HYPOTHESIS:
+            return DynamicHypothesisSerializer(
+                unified_doc.hypothesis,
                 context=context,
                 **_context_fields
             ).data
@@ -117,3 +128,14 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     def get_access_group(self, unified_doc):
         # TODO: calvinhlee - access_group is for ELN. Work on this later
         return
+
+    def get_hubs(self, unified_doc):
+        context = self.context
+        _context_fields = context.get('doc_duds_get_hubs', {})
+        serializer = DynamicHubSerializer(
+            unified_doc.hubs,
+            many=True,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data

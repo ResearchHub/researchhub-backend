@@ -1,12 +1,12 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from discussion.reaction_serializers import GenericReactionSerializerMixin
-from hub.serializers import SimpleHubSerializer
+from hub.serializers import SimpleHubSerializer, DynamicHubSerializer
 from researchhub_document.related_models.constants.document_type \
     import DISCUSSION
 from researchhub_document.models import ResearchhubPost
 from researchhub.serializers import DynamicModelFieldSerializer
-from user.serializers import UserSerializer
+from user.serializers import UserSerializer, DynamicUserSerializer
 
 
 class ResearchhubPostSerializer(
@@ -115,20 +115,51 @@ class ResearchhubPostSerializer(
 
 class DynamicPostSerializer(DynamicModelFieldSerializer):
     unified_document = SerializerMethodField()
+    hubs = SerializerMethodField()
+    created_by = SerializerMethodField()
+    boost_amount = SerializerMethodField()
+    score = SerializerMethodField()
 
     class Meta:
         model = ResearchhubPost
         fields = '__all__'
 
-    def get_unified_document(self, paper):
+    def get_unified_document(self, post):
         from researchhub_document.serializers import (
           DynamicUnifiedDocumentSerializer
         )
         context = self.context
         _context_fields = context.get('doc_dps_get_unified_document', {})
         serializer = DynamicUnifiedDocumentSerializer(
-            paper.unified_document,
+            post.unified_document,
             context=context,
             **_context_fields
         )
         return serializer.data
+
+    def get_hubs(self, post):
+        context = self.context
+        _context_fields = context.get('doc_dps_get_hubs', {})
+        serializer = DynamicHubSerializer(
+            post.hubs,
+            many=True,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_created_by(self, post):
+        context = self.context
+        _context_fields = context.get('doc_dps_get_created_by', {})
+        serializer = DynamicUserSerializer(
+            post.created_by,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_boost_amount(self, post):
+        return post.get_boost_amount()
+
+    def get_score(self, post):
+        return post.calculate_score()

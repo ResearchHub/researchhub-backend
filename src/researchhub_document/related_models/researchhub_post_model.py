@@ -132,11 +132,11 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     @property
     def hot_score(self):
-        return self.unified_document.hot_score        
+        return self.unified_document.hot_score
 
     @property
     def hubs_indexing(self):
-        return [HubSerializer(h).data for h in self.hubs.all()] 
+        return [HubSerializer(h).data for h in self.hubs.all()]
 
     @property
     def hubs_indexing_flat(self):

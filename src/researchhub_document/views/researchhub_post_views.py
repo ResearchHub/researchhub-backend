@@ -91,7 +91,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             reset_unified_document_cache([0])
             return Response(
                 ResearchhubPostSerializer(
-                    ResearchhubPost.objects.get(id=rh_post.id)
+                    rh_post
                 ).data,
                 status=200
             )

@@ -225,6 +225,13 @@ class Thread(BaseComment):
         blank=True,
         null=True
     )
+    hypothesis = models.ForeignKey(
+        'hypothesis.Hypothesis',
+        on_delete=models.SET_NULL,
+        related_name='threads',
+        null=True,
+        blank=True,
+    )
     actions = GenericRelation(
         'user.Action',
         object_id_field='object_id',
@@ -281,8 +288,13 @@ class Thread(BaseComment):
 
     @property
     def users_to_notify(self):
+        # TODO: Add notifications to posts and hypotheses
         if self.post:
             return []
+
+        if self.hypothesis:
+            return []
+
         users = list(self.parent.moderators.all())
         paper_authors = self.parent.authors.all()
         for author in paper_authors:
@@ -324,6 +336,13 @@ class Reply(BaseComment):
         if comment:
             post = comment.post
             return post
+
+    @property
+    def hypothesis(self):
+        comment = self.get_comment_of_reply()
+        if comment:
+            hypothesis = comment.hypothesis
+            return hypothesis
 
     @property
     def thread(self):
@@ -432,6 +451,13 @@ class Comment(BaseComment):
         if thread:
             post = thread.post
             return post
+
+    @property
+    def hypothesis(self):
+        thread = self.parent
+        if thread:
+            hypothesis = thread.hypothesis
+            return hypothesis
 
     @property
     def unified_document(self):

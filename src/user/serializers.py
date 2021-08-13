@@ -82,7 +82,7 @@ class AuthorSerializer(serializers.ModelSerializer):
 
     def get_wallet(self, obj):
         from purchase.serializers import WalletSerializer
-        if not self.context.get('include_wallet', True):
+        if not self.context.get('include_wallet', False):
             return
 
         try:
@@ -257,7 +257,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
 
     def get_author_profile(self, user):
         context = self.context
-        _context_fields = context.get('usr_dus_get_item', {})
+        _context_fields = context.get('usr_dus_get_author_profile', {})
         serializer = DynamicAuthorSerializer(
             user.author_profile,
             context=context,

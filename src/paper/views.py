@@ -79,7 +79,7 @@ from paper.utils import (
     add_default_hub
 )
 from purchase.models import Purchase
-from researchhub.lib import get_paper_id_from_path
+from researchhub.lib import get_document_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from user.models import Author
@@ -117,20 +117,20 @@ class PaperViewSet(viewsets.ModelViewSet):
             'uploaded_by__subscribed_hubs',
             'authors',
             'authors__user',
-            Prefetch(
-                'bullet_points',
-                queryset=BulletPoint.objects.filter(
-                    is_head=True,
-                    is_removed=False,
-                    ordinal__isnull=False
-                ).order_by('ordinal')
-            ),
-            'summary',
-            'summary__previous',
-            'summary__proposed_by__bookmarks',
-            'summary__proposed_by__subscribed_hubs',
-            'summary__proposed_by__author_profile',
-            'summary__paper',
+            # Prefetch(
+            #     'bullet_points',
+            #     queryset=BulletPoint.objects.filter(
+            #         is_head=True,
+            #         is_removed=False,
+            #         ordinal__isnull=False
+            #     ).order_by('ordinal')
+            # ),
+            # 'summary',
+            # 'summary__previous',
+            # 'summary__proposed_by__bookmarks',
+            # 'summary__proposed_by__subscribed_hubs',
+            # 'summary__proposed_by__author_profile',
+            # 'summary__paper',
             'moderators',
             'hubs',
             'hubs__subscribers',
@@ -1176,7 +1176,7 @@ class AdditionalFileViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        paper_id = get_paper_id_from_path(self.request)
+        paper_id = get_document_id_from_path(self.request)
         if paper_id is not None:
             queryset = queryset.filter(paper=paper_id)
         return queryset
