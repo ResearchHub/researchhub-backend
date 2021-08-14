@@ -106,6 +106,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     'uploaded_by',
                     'score',
                     'hot_score',
+                    'abstract',
                 ]
             },
             'doc_dps_get_hubs': {
