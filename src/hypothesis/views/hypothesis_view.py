@@ -70,6 +70,7 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         hypothesis = self.get_object()
         citations = hypothesis.citations.all()
         context = self._get_citations_context()
+        context['request'] = request
         serializer = DynamicCitationSerializer(
             citations,
             _include_fields=[
