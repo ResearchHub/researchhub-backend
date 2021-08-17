@@ -6,6 +6,7 @@ from utils.permissions import (
     RuleBasedPermission,
     PermissionDenied
 )
+from hypothesis.models import Citation
 
 
 class CensorDiscussion(AuthorizationBasedPermission):
@@ -40,21 +41,21 @@ class UpdateDiscussionComment(AuthorizationBasedPermission):
     message = 'Action not permitted.'
 
     def is_authorized(self, request, view, obj):
-        return obj.created_by == request.user and obj.is_removed == False
+        return obj.created_by == request.user and obj.is_removed is False
 
 
 class UpdateDiscussionReply(AuthorizationBasedPermission):
     message = 'Action not permitted.'
 
     def is_authorized(self, request, view, obj):
-        return obj.created_by == request.user and obj.is_removed == False
+        return obj.created_by == request.user and obj.is_removed is False
 
 
 class UpdateDiscussionThread(AuthorizationBasedPermission):
     message = 'Action not permitted.'
 
     def is_authorized(self, request, view, obj):
-        return obj.created_by == request.user and obj.is_removed == False
+        return obj.created_by == request.user and obj.is_removed is False
 
 
 class FlagDiscussionComment(RuleBasedPermission):
@@ -82,7 +83,7 @@ class Vote(AuthorizationBasedPermission):
     message = 'Can not vote on own content'
 
     def is_authorized(self, request, view, obj):
-        if request.user == obj.created_by and not isinstance(obj, Vote):
+        if request.user == obj.created_by and not isinstance(obj, Citation):
             raise PermissionDenied(detail=self.message)
         return True
 
