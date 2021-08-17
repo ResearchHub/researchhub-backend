@@ -1,4 +1,4 @@
-from django.db.models import Count, F, Q
+from django.db.models import Count, Q
 
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import (
@@ -6,6 +6,7 @@ from django.contrib.contenttypes.fields import (
     GenericRelation
 )
 from django.db import models
+# from hypothesis.models import Hypothesis, Citation
 from utils.models import DefaultModel
 
 
@@ -56,16 +57,20 @@ class Vote(models.Model):
         from paper.models import Paper
         from researchhub_document.models import ResearchhubPost
         from discussion.models import Thread, Comment, Reply
+        from hypothesis.models import Citation
 
         item = self.item
         item_type = type(item)
 
-        if item_type == ResearchhubPost:
+        if item_type is ResearchhubPost:
             return item.unified_document
-        elif item_type == Paper:
+        elif item_type is Paper:
             return item.paper.unified_document
         elif item_type in (Thread, Comment, Reply):
             return item.unified_document
+        elif item_type is Citation:
+            # citation has 1:1 unifiedDoc edge named "source"
+            return item.source
         raise Exception('Vote source is missing unified document')
 
 

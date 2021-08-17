@@ -1,6 +1,5 @@
 from django.core.files.base import ContentFile
 from rest_framework.permissions import (
-    IsAuthenticated,
     IsAuthenticatedOrReadOnly
 )
 from rest_framework.response import Response
