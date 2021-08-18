@@ -6,7 +6,6 @@ from django.contrib.contenttypes.fields import (
     GenericRelation
 )
 from django.db import models
-# from hypothesis.models import Hypothesis, Citation
 from utils.models import DefaultModel
 
 
