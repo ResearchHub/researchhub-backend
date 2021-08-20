@@ -1,6 +1,5 @@
 from django.core.files.base import ContentFile
 from rest_framework.permissions import (
-    IsAuthenticated,
     IsAuthenticatedOrReadOnly
 )
 from rest_framework.response import Response
@@ -70,6 +69,7 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         hypothesis = self.get_object()
         citations = hypothesis.citations.all()
         context = self._get_citations_context()
+        context['request'] = request
         serializer = DynamicCitationSerializer(
             citations,
             _include_fields=[
