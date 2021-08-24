@@ -18,8 +18,12 @@ from rest_framework.permissions import (
 )
 
 
+from hypothesis.models import Hypothesis
 from paper.utils import get_cache_key
-from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.models import (
+    ResearchhubUnifiedDocument,
+    ResearchhubPost
+)
 from researchhub_document.utils import reset_unified_document_cache
 from paper.utils import (
     invalidate_top_rated_cache,
@@ -37,7 +41,7 @@ from researchhub_document.related_models.constants.document_type import (
     POSTS,
     HYPOTHESIS
 )
-from paper.models import Vote as PaperVote
+from paper.models import Vote as PaperVote, Paper
 from paper.serializers import PaperVoteSerializer
 from discussion.reaction_serializers import (
     VoteSerializer as DiscussionVoteSerializer
@@ -51,7 +55,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     permission_classes = [
         IsAuthenticated,
     ]
-    queryset = ResearchhubUnifiedDocument.objects
+    queryset = ResearchhubUnifiedDocument.objects.all()
     serializer_class = ResearchhubUnifiedDocumentSerializer
     dynamic_serializer_class = DynamicUnifiedDocumentSerializer
 
@@ -168,13 +172,24 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         start_date,
         end_date
     ):
+        papers = Paper.objects.filter(
+            uploaded_by__isnull=False
+        ).values_list(
+            'unified_document'
+        )
+        posts = ResearchhubPost.objects.filter(
+            created_by__isnull=False
+        ).values_list(
+            'unified_document'
+        )
+        hypothesis = Hypothesis.objects.filter(
+            created_by__isnull=False
+        ).values_list(
+            'unified_document'
+        )
+        filtered_ids = papers.union(posts, hypothesis)
         qs = self.queryset.filter(
-            (
-                Q(paper__uploaded_by__isnull=False) |
-                Q(posts__created_by__isnull=False) |
-                Q(hypothesis__created_by__isnull=False)
-            ),
-            is_removed=False,
+            id__in=filtered_ids
         )
 
         if document_type == PAPER.lower():
@@ -286,6 +301,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 cache_pk = f'{document_type}_{hub_id}_{filtering}_today'
 
             cache_key_hub = get_cache_key('hub', cache_pk)
+            print(f'CACHE_KEY ---------- {cache_key_hub}')
             cache_hit = cache.get(cache_key_hub)
 
         if cache_hit:
@@ -333,7 +349,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 [hub_id],
                 [document_request_type],
                 filtering,
-                time_difference.days
+                time_difference.days,
+                use_celery=False
             )
 
         documents = self.get_filtered_queryset(
