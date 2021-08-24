@@ -349,8 +349,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 [hub_id],
                 [document_request_type],
                 filtering,
-                time_difference.days,
-                use_celery=False
+                time_difference.days
             )
 
         documents = self.get_filtered_queryset(
