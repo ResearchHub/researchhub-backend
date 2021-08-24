@@ -16,7 +16,8 @@ from user.models import (
     University,
     User,
     Major,
-    Verification
+    Organization,
+    Verification,
 )
 from summary.models import Summary, Vote as SummaryVote
 from purchase.models import Purchase
@@ -576,3 +577,15 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
 
     def get_content_type(self, action):
         return action.content_type.model
+
+
+class OrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = '__all__'
+
+
+class DynamicOrganizationSerializer(DynamicModelFieldSerializer):
+    class Meta:
+        model = Organization
+        fields = '__all__'

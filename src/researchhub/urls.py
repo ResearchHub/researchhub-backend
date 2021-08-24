@@ -28,6 +28,7 @@ import debug_toolbar
 import researchhub_case.views as researchhub_case_views
 import researchhub_document.views as researchhub_document_views
 import hypothesis.views as hypothesis_views
+import note.views as note_views
 
 from researchhub.settings import USE_DEBUG_TOOLBAR, INSTALLED_APPS
 
@@ -186,6 +187,12 @@ router.register(
 )
 
 router.register(
+    r'organization',
+    user.views.OrganizationViewSet,
+    basename='organization'
+)
+
+router.register(
     r'email_recipient',
     mailing_list.views.EmailRecipientViewSet,
     basename='email_recipient'
@@ -273,6 +280,18 @@ router.register(
     r'citation',
     hypothesis_views.CitationViewSet,
     basename='citations'
+)
+
+router.register(
+    r'note',
+    note_views.NoteViewSet,
+    basename='notes'
+)
+
+router.register(
+    r'note_content',
+    note_views.NoteContentViewSet,
+    basename='note_content'
 )
 
 urlpatterns = [

@@ -14,6 +14,10 @@ from researchhub_document.tasks import (
 
 
 class ResearchhubUnifiedDocument(DefaultModel):
+    is_public = models.BooleanField(
+        default=True,
+        help_text='Unified document is public'
+    )
     is_removed = models.BooleanField(
         default=False,
         db_index=True,

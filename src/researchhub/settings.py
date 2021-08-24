@@ -200,6 +200,7 @@ INSTALLED_APPS = [
     'hub',
     'hypothesis',
     'mailing_list',
+    'note',
     'notification',
     'oauth',
     'paper',

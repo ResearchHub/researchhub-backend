@@ -3,6 +3,8 @@ import hmac
 from hashlib import sha1
 from datetime import timedelta
 
+from django.core.files.base import ContentFile
+from django.db import transaction
 from django.db import IntegrityError, models
 from django.db.models import Sum, Q, F
 from django.db.models.functions import Coalesce
@@ -30,6 +32,7 @@ from discussion.serializers import (
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
 from reputation.serializers import DynamicContributionSerializer
+from researchhub_access_group.models import ResearchhubAccessGroup
 from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY, EMAIL_WHITELIST
 from researchhub_document.serializers import DynamicPostSerializer
 from paper.models import Paper
@@ -47,7 +50,8 @@ from user.models import (
     Author,
     Major,
     Verification,
-    Follow
+    Follow,
+    Organization,
 )
 from user.permissions import UpdateAuthor, Censor
 from user.utils import reset_latest_acitvity_cache
@@ -59,7 +63,8 @@ from user.serializers import (
     UserSerializer,
     UserActions,
     MajorSerializer,
-    VerificationSerializer
+    VerificationSerializer,
+    OrganizationSerializer
 )
 from utils.http import DELETE, POST, PATCH, PUT
 from utils.http import RequestMethods
@@ -936,3 +941,48 @@ class AuthorViewSet(viewsets.ModelViewSet):
             }
         }
         return context
+
+
+class OrganizationViewSet(viewsets.ModelViewSet):
+    queryset = Organization.objects.all()
+    serializer_class = OrganizationSerializer
+    permission_classes = [
+        IsAuthenticated
+    ]
+
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        data = request.data
+        description = data.get('description', None)
+        name = data.get('name', None)
+        image = data.get('image', None)
+
+        with transaction.atomic():
+            access_group = self._create_access_group(user)
+            organization = Organization.objects.create(
+                access_group=access_group,
+                description=description,
+                name=name,
+            )
+
+            if image:
+                file_name, file = self._create_image_file(
+                    image,
+                    organization,
+                    user
+                )
+                organization.cover_image.save(file_name, file)
+
+        serializer = self.serializer_class(organization)
+        data = serializer.data
+        return Response(data, status=200)
+
+    def _create_access_group(self, creator):
+        access_group = ResearchhubAccessGroup.objects.create()
+        access_group.admins.add(creator)
+        return access_group
+
+    def _create_image_file(self, data, organization, user):
+        file_name = f'ORGANIZATION-IMAGE-{organization.id}--USER-{user.id}.txt'
+        full_src_file = ContentFile(data.encode())
+        return file_name, full_src_file
