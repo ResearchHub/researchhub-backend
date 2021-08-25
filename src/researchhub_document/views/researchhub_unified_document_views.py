@@ -348,7 +348,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             reset_unified_document_cache(
                 [hub_id],
                 [document_request_type],
-                filtering,
+                [filtering],
                 time_difference.days
             )
 
