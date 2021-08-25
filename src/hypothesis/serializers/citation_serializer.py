@@ -92,7 +92,7 @@ class DynamicCitationSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get('hyp_dcs_get_consensus_meta', {})
 
         votes = citation.votes
-        user = get_user_from_request(self.context)
+        user = get_user_from_request(context)
         user_vote = None
         try:
             if user and not user.is_anonymous:

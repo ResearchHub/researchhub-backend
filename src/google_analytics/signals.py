@@ -19,6 +19,7 @@ from discussion.models import (
 )
 from google_analytics.apps import GoogleAnalytics, Hit
 from hypothesis.models import Citation
+from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Figure, Paper, Vote as PaperVote
 from researchhub.settings import PRODUCTION
 from researchhub.celery import app
@@ -249,7 +250,7 @@ def send_vote_event(
     if hasattr(instance, 'item'):
         item_type = type(instance.item)
         label = item_type.__name__
-        if (item_type in [ResearchhubPost, Citation]):
+        if (item_type in [Citation,  Hypothesis, ResearchhubPost]):
             # Items here don't need google analytics at the moment
             return
         if item_type is Paper:

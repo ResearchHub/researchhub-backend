@@ -14,7 +14,6 @@ from researchhub_document.models import (
 from researchhub_document.utils import reset_unified_document_cache
 from researchhub_document.serializers.researchhub_post_serializer \
     import ResearchhubPostSerializer
-from user.models import User
 from utils.sentry import log_error
 
 
