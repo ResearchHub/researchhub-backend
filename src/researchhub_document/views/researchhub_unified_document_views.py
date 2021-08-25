@@ -189,7 +189,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         )
         filtered_ids = papers.union(posts, hypothesis)
         qs = self.queryset.filter(
-            id__in=filtered_ids
+            id__in=filtered_ids,
+            is_removed=False
         )
 
         if document_type == PAPER.lower():
