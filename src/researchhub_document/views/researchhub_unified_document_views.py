@@ -301,7 +301,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 cache_pk = f'{document_type}_{hub_id}_{filtering}_today'
 
             cache_key_hub = get_cache_key('hub', cache_pk)
-            print(f'CACHE_KEY ---------- {cache_key_hub}')
             cache_hit = cache.get(cache_key_hub)
 
         if cache_hit:

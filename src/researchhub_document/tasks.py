@@ -113,7 +113,6 @@ def preload_trending_documents(
     req = Request(http_req)
     document_view.request = req
 
-    # import pdb; pdb.set_trace()
     documents = document_view.get_filtered_queryset(
         document_type,
         ordering,
@@ -142,7 +141,6 @@ def preload_trending_documents(
     )
 
     cache_key_hub = get_cache_key('hub', cache_pk)
-    print(f'CACHE_KEY ---------- {cache_key_hub}')
     cache.set(
         cache_key_hub,
         paginated_response.data,
