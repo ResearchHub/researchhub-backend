@@ -125,7 +125,7 @@ def convert_journal_url_to_pdf_url(journal_url):
         if host in journal_url:
             pdf_url = journal_url_to_pdf[host](journal_url)
             break
-    if pdf_url is not None:
+    if pdf_url is not None and check_url_contains_pdf(pdf_url):
         return pdf_url, True
     return journal_url, False
 

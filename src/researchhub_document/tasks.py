@@ -76,7 +76,7 @@ def preload_trending_documents(
         query_string_ordering = 'top_rated'
     elif ordering == '-discussed':
         query_string_ordering = 'most_discussed'
-    elif ordering == '-uploaded_date':
+    elif ordering == '-created_date':
         query_string_ordering = 'newest'
     elif ordering == '-hot_score':
         query_string_ordering = 'hot'
@@ -106,7 +106,6 @@ def preload_trending_documents(
         'HTTP_X_FORWARDED_PROTO': protocol,
     }
 
-    cache_key_hub = get_cache_key('hub', cache_pk)
     document_view = ResearchhubUnifiedDocumentViewSet()
     http_req = HttpRequest()
     http_req.META = http_meta
@@ -116,7 +115,7 @@ def preload_trending_documents(
 
     documents = document_view.get_filtered_queryset(
         document_type,
-        query_string_ordering,
+        ordering,
         hub_id,
         start_date,
         end_date
