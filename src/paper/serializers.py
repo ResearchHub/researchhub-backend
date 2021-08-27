@@ -683,18 +683,19 @@ class PaperSerializer(BasePaperSerializer):
     def get_raw_author_scores(self, paper):
         raw_authors = paper.raw_authors
         scores = []
-        for author in raw_authors:
-            score = Paper.objects.filter(
-                raw_authors__contains=[
-                    {
-                        "first_name": author['first_name'],
-                        "last_name": author['last_name']
-                    }
-                ]
-            ).aggregate(
-                Sum('score')
-            )['score__sum']
-            scores.append(score)
+        if raw_authors:
+            for author in raw_authors:
+                score = Paper.objects.filter(
+                    raw_authors__contains=[
+                        {
+                            "first_name": author['first_name'],
+                            "last_name": author['last_name']
+                        }
+                    ]
+                ).aggregate(
+                    Sum('score')
+                )['score__sum']
+                scores.append(score)
         return scores
 
 
