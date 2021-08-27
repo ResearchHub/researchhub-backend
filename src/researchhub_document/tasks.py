@@ -217,5 +217,4 @@ def preload_hub_documents(
 
 @app.task
 def update_elastic_registry(post):
-    print('updating registry')
     registry.update(post)
