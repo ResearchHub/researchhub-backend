@@ -6,6 +6,7 @@ from django.core.cache import cache
 from rest_framework.request import Request
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
+from django_elasticsearch_dsl.registries import registry
 
 from researchhub.celery import app
 from discussion.lib import (
@@ -22,7 +23,6 @@ from paper.utils import get_cache_key
 from hub.models import Hub
 from researchhub_document.utils import reset_unified_document_cache
 from researchhub.settings import STAGING, PRODUCTION
-
 
 @app.task
 def handle_spam_user_task(user_id):
@@ -274,3 +274,9 @@ def preload_latest_activity(hub_ids, ordering):
     )
 
     return paginated_response.data
+
+@app.task
+def update_elastic_registry(user_id):
+    Author = apps.get_model('user.Author')
+    user_author = Author.objects.get(user_id=user_id)
+    registry.update(user_author)

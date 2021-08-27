@@ -8,7 +8,9 @@ from researchhub_document.related_models.constants.document_type import (
   DOCUMENT_TYPES, PAPER
 )
 from utils.models import DefaultModel
-
+from researchhub_document.tasks import (
+    update_elastic_registry
+)
 
 class ResearchhubUnifiedDocument(DefaultModel):
     is_removed = models.BooleanField(
