@@ -64,6 +64,7 @@ from paper.serializers import (
     FlagSerializer,
     FigureSerializer,
     PaperSerializer,
+    DynamicPaperSerializer,
     PaperReferenceSerializer,
     PaperVoteSerializer,
     FeaturedPaperSerializer,

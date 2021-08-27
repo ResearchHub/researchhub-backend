@@ -21,6 +21,7 @@ from summary.models import Summary, Vote as SummaryVote
 from purchase.models import Purchase
 from researchhub.serializers import DynamicModelFieldSerializer
 from utils import sentry
+from django.db.models import Sum
 
 
 class VerificationSerializer(serializers.ModelSerializer):
@@ -78,7 +79,12 @@ class AuthorSerializer(serializers.ModelSerializer):
         return author.orcid_id
 
     def get_total_score(self, author):
-        return author.author_score
+        if author.author_score > 0:
+            return author.author_score
+        else:
+            return author.authored_papers.aggregate(
+                Sum('score')
+            )['score__sum']
 
     def get_wallet(self, obj):
         from purchase.serializers import WalletSerializer
