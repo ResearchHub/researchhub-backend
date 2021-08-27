@@ -2,6 +2,7 @@ from django_elasticsearch_dsl import Document, fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 
 from user.models import Author
+from user.models import User
 from .base import BaseDocument
 
 from search.analyzers import (
@@ -33,3 +34,14 @@ class PersonDocument(BaseDocument):
             'first_name',
             'last_name',
         ]
+
+    def should_remove_from_index(self, obj):
+        should_delete = False
+        try:
+            author_user = User.objects.get(id=obj.user_id)
+            if author_user.is_suspended:
+                should_delete = True
+        except Exception as e:
+            pass
+
+        return should_delete
