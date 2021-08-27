@@ -304,6 +304,7 @@ class ContributionPaperSerializer(BasePaperSerializer):
 
 class PaperSerializer(BasePaperSerializer):
     raw_author_scores = serializers.SerializerMethodField()
+    authors = serializers.SerializerMethodField()
 
     class Meta:
         exclude = ['references']
@@ -314,7 +315,8 @@ class PaperSerializer(BasePaperSerializer):
             'users_who_bookmarked',
             'unified_document_id',
             'slug',
-            'raw_author_scores'
+            'raw_author_scores',
+            'authors'
         ]
         model = Paper
 
@@ -649,6 +651,16 @@ class PaperSerializer(BasePaperSerializer):
             return True
         else:
             return False
+    
+    def get_authors(self, paper):
+        serializer = AuthorSerializer(
+            paper.authors.all(),
+            many=True,
+            read_only=False,
+            required=False,
+            context=self.context
+        )
+        return serializer.data
 
     def get_discussion(self, paper):
         return None

@@ -169,4 +169,4 @@ class Author(models.Model):
         if aggregated_discussion_count['total_score']:
             paper_scores += 2 * aggregated_discussion_count['total_score']
 
-        return paper_scores + paper_count / 10
+        return paper_scores + paper_count
