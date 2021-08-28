@@ -690,6 +690,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 'id',
                 'comment_count',
                 'created_by',
+                'created_date',
                 'paper',
                 'post',
                 'score',
