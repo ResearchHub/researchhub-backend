@@ -651,7 +651,7 @@ class PaperSerializer(BasePaperSerializer):
             return True
         else:
             return False
-    
+
     def get_authors(self, paper):
         serializer = AuthorSerializer(
             paper.authors.all(),
@@ -681,21 +681,23 @@ class PaperSerializer(BasePaperSerializer):
         return None
 
     def get_raw_author_scores(self, paper):
-        raw_authors = paper.raw_authors
+        get_scores = self.context.get('get_raw_author_scores', False)
         scores = []
-        if raw_authors:
-            for author in raw_authors:
-                score = Paper.objects.filter(
-                    raw_authors__contains=[
-                        {
-                            "first_name": author['first_name'],
-                            "last_name": author['last_name']
-                        }
-                    ]
-                ).aggregate(
-                    Sum('score')
-                )['score__sum']
-                scores.append(score)
+        if get_scores:
+            raw_authors = paper.raw_authors
+            if raw_authors:
+                for author in raw_authors:
+                    score = Paper.objects.filter(
+                        raw_authors__contains=[
+                            {
+                                'first_name': author['first_name'],
+                                'last_name': author['last_name']
+                            }
+                        ]
+                    ).aggregate(
+                        Sum('score')
+                    )['score__sum']
+                    scores.append(score)
         return scores
 
 

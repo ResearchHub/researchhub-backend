@@ -234,11 +234,15 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
+        context = {
+            'request': request,
+            'get_raw_author_scores': True
+        }
         cache_key = get_cache_key('paper', instance.id)
         cache_hit = cache.get(cache_key)
         if cache_hit is not None:
             vote = self.serializer_class(
-                context={'request': request}
+                context=context
             ).get_user_vote(instance)
             cache_hit['user_vote'] = vote
             return Response(cache_hit)
@@ -246,7 +250,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         if request.query_params.get('make_public') and not instance.is_public:
             instance.is_public = True
             instance.save()
-        serializer = self.get_serializer(instance)
+        serializer = self.serializer_class(instance, context=context)
         serializer_data = serializer.data
 
         cache.set(cache_key, serializer_data, timeout=60*60*24*7)
