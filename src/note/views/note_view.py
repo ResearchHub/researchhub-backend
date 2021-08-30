@@ -34,6 +34,7 @@ class NoteViewSet(ModelViewSet):
         data = request.data
         created_by = None
         organization = data.get('organization', None)
+        title = data.get('title', None)
 
         if organization is None:
             created_by = user
@@ -47,6 +48,7 @@ class NoteViewSet(ModelViewSet):
                 created_by=created_by,
                 organization=organization,
                 unified_document=unified_doc,
+                title=title,
             )
         serializer = self.serializer_class(note)
         data = serializer.data

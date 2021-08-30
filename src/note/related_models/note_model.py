@@ -6,6 +6,10 @@ from utils.models import DefaultModel
 
 
 class Note(DefaultModel):
+    title = models.TextField(
+        blank=True,
+        default=''
+    )
     created_by = models.ForeignKey(
         User,
         null=True,
