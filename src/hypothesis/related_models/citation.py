@@ -27,3 +27,7 @@ class Citation(AbstractGenericReactionModel):
         null=False,
         on_delete=models.CASCADE
     )
+
+    def get_promoted_score(self):
+        # TODO: leo | thomasvu - add logic / instance method
+        return 0

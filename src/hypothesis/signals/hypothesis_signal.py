@@ -2,6 +2,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.text import slugify
 from django.utils.crypto import get_random_string
+from discussion.reaction_models import Vote
 
 from hypothesis.models import Hypothesis
 
@@ -21,3 +22,22 @@ def add_hypothesis_slug(
             slug += suffix
         instance.slug = slug
         instance.save()
+
+
+@receiver(
+    post_save,
+    sender=Hypothesis,
+    dispatch_uid='hypothesis_upvote_on_create',
+)
+def hypothesis_upvote_on_create(
+    created,
+    instance,
+    **kwargs
+):
+    if (created):
+        vote = Vote.objects.create(
+          item=instance,
+          created_by=instance.created_by,
+          vote_type=Vote.UPVOTE
+        )
+        vote.save()

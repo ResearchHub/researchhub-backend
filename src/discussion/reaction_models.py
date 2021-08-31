@@ -7,6 +7,7 @@ from django.contrib.contenttypes.fields import (
 )
 from django.db import models
 from utils.models import DefaultModel
+from utils.sentry import log_error
 
 
 class Vote(models.Model):
@@ -53,20 +54,18 @@ class Vote(models.Model):
 
     @property
     def unified_document(self):
+        from discussion.models import Thread, Comment, Reply
+        from hypothesis.models import Citation, Hypothesis
         from paper.models import Paper
         from researchhub_document.models import ResearchhubPost
-        from discussion.models import Thread, Comment, Reply
-        from hypothesis.models import Citation
 
         item = self.item
         item_type = type(item)
 
-        if item_type is ResearchhubPost:
+        if item_type in [ResearchhubPost, Hypothesis, Thread, Comment, Reply]:
             return item.unified_document
         elif item_type is Paper:
             return item.paper.unified_document
-        elif item_type in (Thread, Comment, Reply):
-            return item.unified_document
         elif item_type is Citation:
             # citation has 1:1 unifiedDoc edge named "source"
             return item.source

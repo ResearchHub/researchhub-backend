@@ -1,13 +1,18 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
-from hypothesis.models import Hypothesis
+from discussion.reaction_models import Vote
 from hub.serializers import SimpleHubSerializer, DynamicHubSerializer
+from hypothesis.models import Hypothesis
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import (
   DynamicUnifiedDocumentSerializer
 )
+from discussion.reaction_serializers import (
+    DynamicVoteSerializer,
+    GenericReactionSerializerMixin
+)
 from user.serializers import UserSerializer, DynamicUserSerializer
-from discussion.reaction_serializers import GenericReactionSerializerMixin
+from utils.http import get_user_from_request
 
 
 class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
@@ -19,39 +24,43 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
         model = Hypothesis
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
-            'id',
+            'boost_amount',
             'created_by',
             'created_date',
             'full_markdown',
             'hubs',
-            'result_score',
+            'id',
             'renderable_text',
+            'result_score',
             'slug',
             'src',
             'title',
             'unified_document',
-            'boost_amount',
+            'vote_meta',
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
-            'id',
+            'boost_amount',
             'created_by',
             'created_date',
-            'result_score',
+            'id',
             'renderable_text',
+            'result_score',
             'slug',
             'src',
             'unified_document',
-            'boost_amount',
+            'vote_meta',
         ]
+
+    boost_amount = SerializerMethodField()
+    vote_meta = SerializerMethodField()
 
     # GenericReactionSerializerMixin
     promoted = SerializerMethodField()
-    boost_amount = SerializerMethodField()
     score = SerializerMethodField()
     user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
-    user_vote = SerializerMethodField()
+    user_vote = SerializerMethodField()  # NOTE: calvinhlee - deprecate?
 
     def get_full_markdown(self, hypothesis):
         byte_string = hypothesis.src.read()
@@ -65,8 +74,37 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
         )
         return serializer.data
 
-    def get_boost_amount(self, instance):
-        return instance.get_boost_amount()
+    def get_boost_amount(self, hypothesis):
+        return hypothesis.get_boost_amount()
+
+    def get_vote_meta(self, hypothesis):
+        context = self.context
+        _context_fields = context.get('hyp_dcs_get_vote_meta', {})
+        votes = hypothesis.votes
+        user = get_user_from_request(context)
+        user_vote = None
+
+        try:
+            if user and not user.is_anonymous:
+                user_vote = votes.get(created_by=user)
+                serializer = DynamicVoteSerializer(
+                    user_vote,
+                    context=context,
+                    **_context_fields
+                )
+        except Vote.DoesNotExist:
+            pass
+
+        return (
+            {
+                'down_count': votes.filter(vote_type=Vote.DOWNVOTE).count(),
+                'up_count': votes.filter(vote_type=Vote.UPVOTE).count(),
+                'user_vote': (
+                    serializer.data
+                    if user_vote is not None else None
+                )
+            }
+        )
 
 
 class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
