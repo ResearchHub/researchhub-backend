@@ -28,23 +28,33 @@ class CitationSerializer(ModelSerializer):
         model = Citation
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
+            'boost_amount',
             'id',
             'created_by',
             'hypothesis',
             'source',
+
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
             'id',
         ]
 
+    boost_amount = SerializerMethodField()
+
     # GenericReactionSerializerMixin
     promoted = SerializerMethodField()
-    boost_amount = SerializerMethodField()
     score = SerializerMethodField()
     user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
     user_vote = SerializerMethodField()
+
+    def get_boost_amount(self, citation):
+        # TODO: leo | thomasvu - add logic / instance method
+        return 0
+
+    def get_promoted(self, citation):
+        return citation.get_promoted_score()
 
 
 class DynamicCitationSerializer(DynamicModelFieldSerializer):

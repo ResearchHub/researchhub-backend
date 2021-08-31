@@ -14,9 +14,8 @@ class CitationViewSet(ModelViewSet, ReactionViewActionMixin):
     serializer_class = CitationSerializer
 
     def create(self, request, *args, **kwargs):
-        hypothesis_id = request.data.get('hypothesis')
-        source_id = request.data.get('source')
-
+        hypothesis_id = request.data.get('hypothesis_id')
+        source_id = request.data.get('source_id')
         citation = Citation.objects.create(
             created_by=request.user,
             hypothesis_id=hypothesis_id,

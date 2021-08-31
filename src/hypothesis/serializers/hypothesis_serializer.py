@@ -51,12 +51,12 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             'unified_document',
             'vote_meta',
         ]
-    
+
+    boost_amount = SerializerMethodField()
     vote_meta = SerializerMethodField()
 
     # GenericReactionSerializerMixin
     promoted = SerializerMethodField()
-    boost_amount = SerializerMethodField()
     score = SerializerMethodField()
     user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
