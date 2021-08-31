@@ -31,7 +31,7 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
 
     def get_created_by(self, note):
         context = self.context
-        _context_fields = context.get('not_dns_get_created_by', {})
+        _context_fields = context.get('nte_dns_get_created_by', {})
         serializer = DynamicUserSerializer(
             note.created_by,
             context=context,
@@ -41,7 +41,7 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
 
     def get_latest_version(self, note):
         context = self.context
-        _context_fields = context.get('not_dns_get_latest_version', {})
+        _context_fields = context.get('nte_dns_get_latest_version', {})
         serializer = DynamicNoteContentSerializer(
             note.latest_version,
             context=context,
@@ -51,7 +51,7 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
 
     def get_notes(self, note):
         context = self.context
-        _context_fields = context.get('not_dns_get_notes', {})
+        _context_fields = context.get('nte_dns_get_notes', {})
         serializer = DynamicNoteContentSerializer(
             note.notes,
             context=context,
@@ -61,7 +61,7 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
 
     def get_organization(self, note):
         context = self.context
-        _context_fields = context.get('not_dns_get_organization', {})
+        _context_fields = context.get('nte_dns_get_organization', {})
         serializer = DynamicOrganizationSerializer(
             note.organization,
             context=context,
@@ -71,7 +71,7 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
 
     def get_unified_document(self, note):
         context = self.context
-        _context_fields = context.get('not_dns_get_unified_document', {})
+        _context_fields = context.get('nte_dns_get_unified_document', {})
         serializer = DynamicUnifiedDocumentSerializer(
             note.unified_document,
             context=context,
