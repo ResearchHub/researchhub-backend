@@ -7,6 +7,7 @@ from django.contrib.contenttypes.fields import (
 )
 from django.db import models
 from utils.models import DefaultModel
+from utils.sentry import log_error
 
 
 class Vote(models.Model):
