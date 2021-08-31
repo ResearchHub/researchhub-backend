@@ -4,7 +4,6 @@ from django.contrib.postgres.fields import JSONField
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
-from paper.models import Paper
 from user.models import User, Action
 from researchhub_document.related_models.researchhub_unified_document_model \
   import ResearchhubUnifiedDocument
@@ -14,14 +13,6 @@ from researchhub_document.related_models.researchhub_unified_document_model \
 
 class Notification(models.Model):
     read = models.BooleanField(default=False)
-
-    # TODO: Remove paper field
-    paper = models.ForeignKey(
-        Paper,
-        null=True,
-        related_name='notifications',
-        on_delete=models.CASCADE
-    )
 
     unified_document = models.ForeignKey(
         ResearchhubUnifiedDocument,
