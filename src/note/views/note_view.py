@@ -34,7 +34,7 @@ class NoteViewSet(ModelViewSet):
         data = request.data
         created_by = None
         organization = data.get('organization', None)
-        title = data.get('title', None)
+        title = data.get('title', '')
 
         if organization is None:
             created_by = user
