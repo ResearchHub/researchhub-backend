@@ -19,7 +19,7 @@ from user.serializers import UserSerializer, DynamicUserSerializer
 from utils.http import get_user_from_request
 
 
-class CitationSerializer(ModelSerializer):
+class CitationSerializer(ModelSerializer, GenericReactionSerializerMixin):
     created_by = UserSerializer()
     source = ResearchhubUnifiedDocumentSerializer()
     hypothesis = HypothesisSerializer()
@@ -52,9 +52,6 @@ class CitationSerializer(ModelSerializer):
     def get_boost_amount(self, citation):
         # TODO: leo | thomasvu - add logic / instance method
         return 0
-
-    def get_promoted(self, citation):
-        return citation.get_promoted_score()
 
 
 class DynamicCitationSerializer(DynamicModelFieldSerializer):
