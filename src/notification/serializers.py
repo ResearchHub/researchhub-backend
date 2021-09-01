@@ -4,7 +4,12 @@ from notification.models import Notification
 from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer
 )
-from user.serializers import UserActions, UserSerializer
+from user.serializers import (
+    UserActions,
+    UserSerializer,
+    DynamicActionSerializer,
+    DynamicUserSerializer
+)
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -43,11 +48,44 @@ class NotificationSerializer(serializers.ModelSerializer):
 
 
 class DynamicNotificationSerializer(DynamicUnifiedDocumentSerializer):
+    action = serializers.SerializerMethodField()
+    action_user = serializers.SerializerMethodField()
+    recipient = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
 
     class Meta:
         fields = '__all__'
         model = Notification
+
+    def get_action(self, notification):
+        context = self.context
+        _context_fields = context.get('not_dns_get_action', {})
+        serializer = DynamicActionSerializer(
+            notification.action,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_action_user(self, notification):
+        context = self.context
+        _context_fields = context.get('not_dns_get_action_user', {})
+        serializer = DynamicUserSerializer(
+            notification.action_user,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_recipient(self, notification):
+        context = self.context
+        _context_fields = context.get('not_dns_get_recipient', {})
+        serializer = DynamicUserSerializer(
+            notification.recipient,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
 
     def get_unified_document(self, notification):
         context = self.context
