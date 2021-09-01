@@ -39,7 +39,6 @@ class Notification(models.Model):
         related_name='notifications',
         on_delete=models.CASCADE
     )
-    extra = JSONField(default=dict)
 
     read_date = models.DateTimeField(null=True, blank=True)
     created_date = models.DateTimeField(auto_now_add=True)
