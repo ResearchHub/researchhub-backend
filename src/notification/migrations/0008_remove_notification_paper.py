@@ -3,29 +3,6 @@
 from django.db import migrations
 
 
-def add_unified_document(apps, schema_editor):
-    Notification = apps.get_model('notification', 'notification')
-    Thread = apps.get_model('discussion', 'thread')
-    Comment = apps.get_model('discussion', 'comment')
-    Reply = apps.get_model('discussion', 'reply')
-    Purchase = apps.get_model('purchase', 'purchase')
-
-    notifications = Notification.objects.filter(unified_document__isnull=True)
-    for notification in notifications.iterator():
-        action = notification.action
-        action_content_type = action.content_type.model_class()
-
-        unified_document = None
-        if action_content_type in (Thread, Comment, Reply):
-            unified_document = action.item.unified_document
-            notification.unified_document = unified_document
-            notification.save()
-        elif action_content_type == Purchase:
-            unified_document = action.item.item.unified_document
-            notification.unified_document = unified_document
-            notification.save()
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -37,7 +14,4 @@ class Migration(migrations.Migration):
             model_name='notification',
             name='paper',
         ),
-        migrations.RunSQL('SET CONSTRAINTS ALL IMMEDIATE;'),
-        migrations.RunPython(add_unified_document),
-        migrations.RunSQL('SET CONSTRAINTS ALL DEFERRED;'),
     ]
