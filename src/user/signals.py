@@ -253,7 +253,6 @@ def create_notification(sender, instance, created, action, **kwargs):
         return
 
     if created:
-        extra = {}
         for recipient in action.item.users_to_notify:
             recipient_exists = True
             if sender == Summary:
@@ -265,19 +264,9 @@ def create_notification(sender, instance, created, action, **kwargs):
             elif sender == BulletPointVote:
                 paper = instance.bulletpoint.paper
                 creator = instance.created_by
-                context = {'include_bullet_data': True}
-                extra = BulletPointVoteSerializer(
-                    instance,
-                    context=context
-                ).data
             elif sender == SummaryVote:
                 paper = instance.summary.paper
                 creator = instance.created_by
-                context = {'include_summary_data': True}
-                extra = SummaryVoteSerializer(
-                    instance,
-                    context=context
-                ).data
             elif sender == ResearchhubPost:
                 paper = None
             elif sender == Hypothesis:
@@ -303,7 +292,6 @@ def create_notification(sender, instance, created, action, **kwargs):
                     recipient=recipient,
                     action_user=creator,
                     action=action,
-                    extra={**extra}
                 )
                 if not TESTING:
                     notification.send_notification()
