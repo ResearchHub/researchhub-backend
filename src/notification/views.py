@@ -143,6 +143,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
             'usr_dus_get_author_profile': {
                 '_include_fields': [
                     'id',
+                    'profile_image',
                 ]
             }
         }
