@@ -40,7 +40,21 @@ class NotificationViewSet(viewsets.ModelViewSet):
         notifications = notifications.exclude(action__content_type__in=[
             bulletpoint_ct, summary_ct
         ])
-        return notifications.order_by('-created_date')
+        notifications = notifications.order_by('-created_date').select_related(
+            'action__content_type',
+            'action_user',
+            'action_user__author_profile',
+            'recipient',
+            'recipient__author_profile',
+            'unified_document',
+            'unified_document__paper',
+            'unified_document__hypothesis'
+        ).prefetch_related(
+            'action__item',
+            'action__item__content_type',
+            'unified_document__posts',
+        )
+        return notifications
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
