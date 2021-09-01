@@ -255,30 +255,25 @@ def create_notification(sender, instance, created, action, **kwargs):
     if created:
         for recipient in action.item.users_to_notify:
             recipient_exists = True
-            if sender == Summary:
-                creator = instance.proposed_by
-                paper = instance.paper
-            elif sender == Paper:
-                creator = instance.uploaded_by
-                paper = instance
-            elif sender == BulletPointVote:
-                paper = instance.bulletpoint.paper
-                creator = instance.created_by
-            elif sender == SummaryVote:
-                paper = instance.summary.paper
-                creator = instance.created_by
-            elif sender == ResearchhubPost:
-                paper = None
-            elif sender == Hypothesis:
-                paper = None
-            else:
-                creator = instance.created_by
-                paper = instance.paper
-
-            if paper is None:
+            if sender in (Summary, BulletPointVote, SummaryVote):
                 return
 
-            if paper.uploaded_by == creator:
+            if sender == Paper:
+                creator = instance.uploaded_by
+                if instance.uploaded_by == creator:
+                    return
+                unified_document = instance.unified_document
+            elif sender == ResearchhubPost:
+                creator = instance.created_by
+                unified_document = instance.unified_document
+            elif sender == Hypothesis:
+                creator = instance.created_by
+                unified_document = instance.unified_document
+            else:
+                creator = instance.created_by
+                unified_document = instance.unified_document
+
+            if unified_document is None:
                 return
 
             if type(recipient) is Author and recipient.user:
@@ -288,7 +283,7 @@ def create_notification(sender, instance, created, action, **kwargs):
 
             if recipient != creator and recipient_exists:
                 notification = Notification.objects.create(
-                    paper=paper,
+                    unified_document=unified_document,
                     recipient=recipient,
                     action_user=creator,
                     action=action,
