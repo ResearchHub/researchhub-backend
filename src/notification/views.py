@@ -1,4 +1,5 @@
 from django.utils import timezone
+from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -30,16 +31,24 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return [permission() for permission in permission_classes]
 
     def get_queryset(self):
+        bulletpoint_ct = ContentType.objects.get(model='bulletpoint')
+        summary_ct = ContentType.objects.get(model='summary')
         user = self.request.user
-        return Notification.objects.filter(recipient=user).order_by(
-            '-created_date'
+        notifications = Notification.objects.filter(
+            recipient=user
         )
+        notifications = notifications.exclude(action__content_type__in=[
+            bulletpoint_ct, summary_ct
+        ])
+        return notifications.order_by('-created_date')
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         context = self._get_context()
+
+        page = self.paginate_queryset(queryset)
         serializer = DynamicNotificationSerializer(
-            queryset,
+            page,
             _include_fields=[
                 'action',
                 'action_user',
@@ -54,7 +63,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
             many=True
         )
         data = serializer.data
-        return Response(data, status=200)
+        return self.get_paginated_response(data)
 
     def partial_update(self, request, *args, **kwargs):
         if request.data.get('read') is True:
