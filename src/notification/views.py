@@ -138,6 +138,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 '_include_fields': [
                     'content_type',
                     'id',
+                    'plain_text',
                 ]
             },
             'usr_dus_get_author_profile': {
