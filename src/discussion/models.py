@@ -163,6 +163,16 @@ class BaseComment(models.Model):
                 h.save(update_fields=['discussion_count'])
 
             return new_dis_count
+
+        post = self.post
+        hypothesis = self.hypothesis
+        instance = post or hypothesis
+        if instance:
+            new_dis_count = instance.get_discussion_count()
+            instance.discussion_count = new_dis_count
+            instance.save()
+            return new_dis_count
+
         return 0
 
     def remove_nested(self):
@@ -259,6 +269,7 @@ class Thread(BaseComment):
         hypothesis = self.hypothesis
         if hypothesis:
             return hypothesis.unified_document
+
         return None
 
     @property
@@ -367,8 +378,10 @@ class Reply(BaseComment):
         if post:
             return post.unified_document
 
+        hypothesis = thread.hypothesis
         if hypothesis:
             return hypothesis.unified_document
+
         return None
 
     @property
@@ -482,6 +495,7 @@ class Comment(BaseComment):
         hypothesis = thread.hypothesis
         if hypothesis:
             return hypothesis.unified_document
+
         return None
 
     @property
