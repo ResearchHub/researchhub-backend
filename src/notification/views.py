@@ -136,6 +136,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
             },
             'usr_das_get_item': {
                 '_include_fields': [
+                    'amount',
                     'content_type',
                     'id',
                     'plain_text',
