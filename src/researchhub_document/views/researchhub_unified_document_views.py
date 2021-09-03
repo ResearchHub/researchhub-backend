@@ -219,9 +219,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 '-created_date'
             )
         elif filtering == '-score':
-            qs = qs.filter(
-                created_date__range=[start_date, end_date],
-            ).order_by(
+            qs = qs.order_by(
                 filtering
             )
         elif filtering == '-discussed':
