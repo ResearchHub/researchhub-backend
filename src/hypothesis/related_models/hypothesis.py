@@ -45,6 +45,11 @@ class Hypothesis(AbstractGenericReactionModel):
         on_delete=models.CASCADE,
         related_name='hypothesis'
     )
+    votes = GenericRelation(
+        'discussion.Vote',
+        object_id_field='object_id',
+        content_type_field='content_type'
+    )
     purchases = GenericRelation(
         'purchase.Purchase',
         object_id_field='object_id',
