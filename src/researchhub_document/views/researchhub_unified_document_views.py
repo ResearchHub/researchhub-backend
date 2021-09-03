@@ -220,8 +220,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 '-created_date'
             )
         elif filtering == '-score':
-            post_ct = ContentType.objects.get(model='researchhubpost')
-            hypo_ct = ContentType.objects.get(model='hypothesis')
             paper_votes = PaperVote.objects.filter(
                 created_date__range=(start_date, end_date)
             ).values_list('paper__unified_document', flat=True)
@@ -231,11 +229,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             hypo_votes = Hypothesis.objects.filter(
                 votes__created_date__range=(start_date, end_date)
             ).values_list('unified_document', flat=True)
-            votes = Vote.objects.filter(
-                content_type__in=(post_ct, hypo_ct),
-                created_date__range=(start_date, end_date)
-            )
             unified_document_ids = paper_votes.union(post_votes, hypo_votes)
+
             qs = qs.filter(
                 id__in=unified_document_ids
             ).order_by(
