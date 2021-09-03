@@ -51,7 +51,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
             'unified_document__hypothesis'
         ).prefetch_related(
             'action__item',
-            'action__item__content_type',
             'unified_document__posts',
         )
         return notifications
@@ -103,6 +102,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         context = {
             'not_dns_get_action': {
                 '_include_fields': [
+                    'content_type',
                     'item',
                 ]
             },
