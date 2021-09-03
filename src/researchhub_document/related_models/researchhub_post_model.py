@@ -92,11 +92,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
         default=1,
         null=False,
     )
-    votes = GenericRelation(
-        'discussion.Vote',
-        object_id_field='object_id',
-        content_type_field='content_type'
-    )
     purchases = GenericRelation(
         'purchase.Purchase',
         object_id_field='object_id',
