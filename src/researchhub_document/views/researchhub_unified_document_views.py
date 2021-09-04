@@ -41,6 +41,7 @@ from researchhub_document.related_models.constants.document_type import (
     POSTS,
     HYPOTHESIS
 )
+from discussion.reaction_models import Vote
 from paper.models import Vote as PaperVote, Paper
 from paper.serializers import PaperVoteSerializer
 from discussion.reaction_serializers import (
@@ -219,8 +220,19 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 '-created_date'
             )
         elif filtering == '-score':
+            paper_votes = PaperVote.objects.filter(
+                created_date__range=(start_date, end_date)
+            ).values_list('paper__unified_document', flat=True)
+            post_votes = ResearchhubPost.objects.filter(
+                votes__created_date__range=(start_date, end_date)
+            ).values_list('unified_document', flat=True)
+            hypo_votes = Hypothesis.objects.filter(
+                votes__created_date__range=(start_date, end_date)
+            ).values_list('unified_document', flat=True)
+            unified_document_ids = paper_votes.union(post_votes, hypo_votes)
+
             qs = qs.filter(
-                created_date__range=[start_date, end_date],
+                id__in=unified_document_ids
             ).order_by(
                 filtering
             )
