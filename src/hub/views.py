@@ -140,7 +140,7 @@ class HubViewSet(viewsets.ModelViewSet):
         hub = self.get_object()
         try:
             hub.subscribers.add(request.user)
-            hub.subscriber_count = hub.get_subscriber_count()
+            hub.subscriber_count = hub.get_subscribers_count()
             hub.save(update_fields=['subscriber_count'])
 
             if hub.is_locked and (
@@ -161,7 +161,7 @@ class HubViewSet(viewsets.ModelViewSet):
         hub = self.get_object()
         try:
             hub.subscribers.remove(request.user)
-            hub.subscriber_count = hub.get_subscriber_count()
+            hub.subscriber_count = hub.get_subscribers_count()
             hub.save(update_fields=['subscriber_count'])
             return self._get_hub_serialized_response(hub, 200)
         except Exception as e:
