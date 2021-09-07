@@ -1,5 +1,4 @@
 from django.core.files.base import ContentFile
-from django.db import transaction
 from rest_framework.permissions import (
     IsAuthenticated,
     AllowAny
@@ -37,20 +36,19 @@ class NoteViewSet(ModelViewSet):
         organization = data.get('organization', None)
         title = data.get('title', '')
 
-        if organization is None:
+        if not organization:
             created_by = user
         else:
             organization = Organization.objects.get(id=organization)
 
-        with transaction.atomic():
-            access_group = self._create_access_group(created_by, organization)
-            unified_doc = self._create_unified_doc(request, access_group)
-            note = Note.objects.create(
-                created_by=created_by,
-                organization=organization,
-                unified_document=unified_doc,
-                title=title,
-            )
+        access_group = self._create_access_group(created_by, organization)
+        unified_doc = self._create_unified_doc(request, access_group)
+        note = Note.objects.create(
+            created_by=created_by,
+            organization=organization,
+            unified_document=unified_doc,
+            title=title,
+        )
         serializer = self.serializer_class(note)
         data = serializer.data
         return Response(data, status=200)
@@ -99,17 +97,16 @@ class NoteContentViewSet(ModelViewSet):
         note = data.get('note', None)
         plain_text = data.get('plain_text', None)
 
-        with transaction.atomic():
-            note_content = NoteContent.objects.create(
-                note_id=note,
-                plain_text=plain_text
-            )
-            file_name, file = self._create_src_content_file(
-                note_content,
-                src,
-                user
-            )
-            note_content.src.save(file_name, file)
+        note_content = NoteContent.objects.create(
+            note_id=note,
+            plain_text=plain_text
+        )
+        file_name, file = self._create_src_content_file(
+            note_content,
+            src,
+            user
+        )
+        note_content.src.save(file_name, file)
         serializer = self.serializer_class(note_content)
         data = serializer.data
         return Response(data, status=200)
