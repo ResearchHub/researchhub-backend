@@ -11,7 +11,21 @@ from user.serializers import (
 )
 
 
+class NoteContentSerializer(ModelSerializer):
+    class Meta:
+        model = NoteContent
+        fields = '__all__'
+
+
+class DynamicNoteContentSerializer(DynamicModelFieldSerializer):
+    class Meta:
+        model = NoteContent
+        fields = '__all__'
+
+
 class NoteSerializer(ModelSerializer):
+    latest_version = NoteContentSerializer()
+
     class Meta:
         model = Note
         fields = '__all__'
@@ -78,15 +92,3 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
             **_context_fields
         )
         return serializer.data
-
-
-class NoteContentSerializer(ModelSerializer):
-    class Meta:
-        model = NoteContent
-        fields = '__all__'
-
-
-class DynamicNoteContentSerializer(DynamicModelFieldSerializer):
-    class Meta:
-        model = NoteContent
-        fields = '__all__'

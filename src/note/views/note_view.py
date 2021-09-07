@@ -1,7 +1,8 @@
 from django.core.files.base import ContentFile
 from django.db import transaction
 from rest_framework.permissions import (
-    IsAuthenticated
+    IsAuthenticated,
+    AllowAny
 )
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -26,7 +27,7 @@ from user.models import Organization
 class NoteViewSet(ModelViewSet):
     ordering = ('-created_date')
     queryset = Note.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     serializer_class = NoteSerializer
 
     def create(self, request, *args, **kwargs):
