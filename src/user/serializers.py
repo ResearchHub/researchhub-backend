@@ -496,7 +496,6 @@ class UserActions:
 
 
 class DynamicActionSerializer(DynamicModelFieldSerializer):
-    test = serializers.SerializerMethodField()
     item = serializers.SerializerMethodField()
     content_type = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()

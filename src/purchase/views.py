@@ -187,8 +187,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             self.send_purchase_notification(
                 purchase,
                 unified_doc,
-                recipient,
-                serializer_data
+                recipient
             )
             self.send_purchase_email(purchase, recipient, unified_doc)
 
@@ -294,7 +293,6 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         purchase,
         unified_doc,
         recipient,
-        extra
     ):
         creator = purchase.user
 
@@ -312,7 +310,6 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             recipient=recipient,
             action_user=creator,
             action=action,
-            extra={**extra}
         )
         notification.send_notification()
 
@@ -686,11 +683,6 @@ class StripeViewSet(viewsets.ModelViewSet):
             recipient=user,
             action_user=user,
             action=action,
-            extra={
-                'status': status,
-                'message': message,
-                **kwargs
-            }
         )
 
         notification.send_notification()

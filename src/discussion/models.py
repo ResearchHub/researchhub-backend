@@ -255,6 +255,10 @@ class Thread(BaseComment):
         post = self.post
         if post:
             return post.unified_document
+
+        hypothesis = self.hypothesis
+        if hypothesis:
+            return hypothesis.unified_document
         return None
 
     @property
@@ -354,12 +358,17 @@ class Reply(BaseComment):
     def unified_document(self):
         thread = self.thread
         paper = thread.paper
+        hypothesis = thread.hypothesis
+
         if paper:
             return paper.unified_document
 
         post = thread.post
         if post:
             return post.unified_document
+
+        if hypothesis:
+            return hypothesis.unified_document
         return None
 
     @property
@@ -469,6 +478,10 @@ class Comment(BaseComment):
         post = thread.post
         if post:
             return post.unified_document
+
+        hypothesis = thread.hypothesis
+        if hypothesis:
+            return hypothesis.unified_document
         return None
 
     @property
