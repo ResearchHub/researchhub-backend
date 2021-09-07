@@ -12,9 +12,19 @@ from user.serializers import (
 
 
 class NoteContentSerializer(ModelSerializer):
+    src = SerializerMethodField()
+
     class Meta:
         model = NoteContent
         fields = '__all__'
+
+    def get_src(self, note_content):
+        src = note_content.src
+        if src:
+            byte_string = note_content.src.read()
+            data = byte_string.decode('utf-8')
+            return data
+        return None
 
 
 class DynamicNoteContentSerializer(DynamicModelFieldSerializer):
