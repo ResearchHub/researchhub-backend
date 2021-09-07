@@ -26,7 +26,7 @@ from user.models import Organization
 class NoteViewSet(ModelViewSet):
     ordering = ('-created_date')
     queryset = Note.objects.all()
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     serializer_class = NoteSerializer
 
     def create(self, request, *args, **kwargs):
