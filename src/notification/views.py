@@ -32,13 +32,24 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         bulletpoint_ct = ContentType.objects.get(model='bulletpoint')
+        bulletpoint_vote_ct = ContentType.objects.get(
+            app_label='bullet_point',
+            model='vote'
+        )
         summary_ct = ContentType.objects.get(model='summary')
+        summary_vote_ct = ContentType.objects.get(
+            app_label='summary',
+            model='vote'
+        )
         user = self.request.user
         notifications = Notification.objects.filter(
             recipient=user
         )
         notifications = notifications.exclude(action__content_type__in=[
-            bulletpoint_ct, summary_ct
+            bulletpoint_ct,
+            bulletpoint_vote_ct,
+            summary_ct,
+            summary_vote_ct
         ])
         notifications = notifications.order_by('-created_date').select_related(
             'action__content_type',
