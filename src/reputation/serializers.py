@@ -182,10 +182,6 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
                 context=context,
                 **_context_fields
             )
-        # elif model_name == 'summary':
-        #     serializer = SummarySerializer(obj, context=context)
-        # elif model_name == 'bullet_point':
-        #     serializer = BulletPointSerializer(obj, context=context)
         elif model_name == 'purchase':
             serializer = DynamicPurchaseSerializer(
                 obj,
@@ -199,10 +195,6 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
                     context=context,
                     **_context_fields
                 )
-            # elif app_label == 'summary':
-            #     serializer = SummaryVoteSerializer(obj, context=context)
-            # elif app_label == 'bullet_point':
-            #     serializer = BulletPointVoteSerializer(obj, context=context)
         elif model_name == 'researchhub post':
             serializer = DynamicPostSerializer(
                 obj,
