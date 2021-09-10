@@ -679,11 +679,16 @@ class AuthorViewSet(viewsets.ModelViewSet):
     def get_user_discussions(self, request, pk=None):
         author = self.get_object()
         user = author.user
-        context = self._get_user_discussion_context()
-        user_discussions = user.thread_set.filter(
-            is_removed=False
-        ).order_by('-id')
+
+        if user:
+            user_discussions = user.thread_set.filter(
+                is_removed=False
+            ).order_by('-id')
+        else:
+            user_discussions = self.queryset.none()
+
         page = self.paginate_queryset(user_discussions)
+        context = self._get_user_discussion_context()
         serializer = DynamicThreadSerializer(
             page,
             _include_fields=[
@@ -740,12 +745,15 @@ class AuthorViewSet(viewsets.ModelViewSet):
         author = self.get_object()
         user = author.user
 
-        prefetch_lookups = PaperViewSet.prefetch_lookups(self)
-        user_paper_uploads = user.papers.filter(
-            is_removed=False
-        ).prefetch_related(
-            *prefetch_lookups
-        )
+        if user:
+            prefetch_lookups = PaperViewSet.prefetch_lookups(self)
+            user_paper_uploads = user.papers.filter(
+                is_removed=False
+            ).prefetch_related(
+                *prefetch_lookups
+            )
+        else:
+            user_paper_uploads = self.queryset.none()
 
         context = self._get_user_contributions_context()
         page = self.paginate_queryset(user_paper_uploads)
@@ -804,10 +812,15 @@ class AuthorViewSet(viewsets.ModelViewSet):
     def get_user_posts(self, request, pk=None):
         author = self.get_object()
         user = author.user
-        user_posts = user.created_posts.all().prefetch_related(
-            'unified_document',
-            'purchases'
-        )
+
+        if user:
+            user_posts = user.created_posts.all().prefetch_related(
+                'unified_document',
+                'purchases'
+            )
+        else:
+            user_posts = self.queryset.none()
+
         context = self._get_user_posts_context()
         page = self.paginate_queryset(user_posts)
         serializer = DynamicPostSerializer(

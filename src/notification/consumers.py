@@ -3,8 +3,9 @@ import json
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
 
-from .models import Notification
-from .serializers import NotificationSerializer
+from notification.models import Notification
+from notification.serializers import DynamicNotificationSerializer
+from notification.views import NotificationViewSet
 from user.models import User
 
 
@@ -43,8 +44,22 @@ class NotificationConsumer(WebsocketConsumer):
         # Send message to webSocket (Frontend)
         notification_type = event['notification_type']
         notification_id = event['id']
+        context = NotificationViewSet()._get_context()
         notification = Notification.objects.get(id=notification_id)
-        serialized_data = NotificationSerializer(notification).data
+        serialized_data = DynamicNotificationSerializer(
+            notification,
+            _include_fields=[
+                'action',
+                'action_user',
+                'created_date',
+                'id',
+                'read',
+                'read_date',
+                'recipient',
+                'unified_document',
+            ],
+            context=context,
+        ).data
         data = {
             'notification_type': notification_type,
             'data': serialized_data

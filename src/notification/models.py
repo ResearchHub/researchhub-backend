@@ -1,6 +1,5 @@
 from django.db import models
 
-from django.contrib.postgres.fields import JSONField
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
