@@ -1,3 +1,4 @@
+from django.db.models.deletion import SET_NULL
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.postgres.fields import ArrayField, JSONField
 from django.db import models
@@ -86,8 +87,14 @@ class Author(models.Model):
         null=True,
         blank=True
     )
-    academic_verification = models.BooleanField(default=None, null=True)
-    claimed = models.BooleanField(default=True, null=True)
+    academic_verification = models.BooleanField(default=None, null=True, blank=True)
+    claimed = models.BooleanField(default=True, null=True, blank=True)
+    merged_with = models.ForeignKey(
+        'self',
+        on_delete=SET_NULL,
+        null=True,
+        blank=True
+    )
 
     def __str__(self):
         university = self.university

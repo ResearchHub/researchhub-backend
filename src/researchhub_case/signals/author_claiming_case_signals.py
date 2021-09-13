@@ -65,6 +65,8 @@ def merge_author_upon_approval(
             target_author_papers = instance.target_author.authored_papers.all()
             reward_author_claim_case(requestor_author, target_author_papers)
             merge_author_profiles(requestor_author, instance.target_author)
+            instance.target_author = requestor_author
+            instance.save()
         except Exception as exception:
             print("merge_author_upon_approval: ", exception)
             sentry.log_error(exception)
