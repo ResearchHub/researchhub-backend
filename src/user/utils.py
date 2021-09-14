@@ -32,10 +32,13 @@ def merge_author_profiles(source, target):
         except Exception as e:
             print(e)
             log_error(e)
+
+    target.merged_with = source
     # logical ordering
     target.user = None
     target.orcid_account = None
     target.orcid_id = None
+    target.claimed = True
     target.save()
     source.save()
     return source
