@@ -659,6 +659,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         from the database for `url` (specified via request post data).
         """
         url = request.data.get('url').strip()
+        paper_update = request.data.get('update', True)
         data = {'url': url}
 
         if not url:
@@ -681,7 +682,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         duplicate_papers = Paper.objects.filter(
             Q(url__icontains=url) | Q(pdf_url__icontains=url)
         )
-        if duplicate_papers.exists():
+        if duplicate_papers.exists() and not paper_update:
             duplicate_paper = duplicate_papers.first()
             serializer_data = self.serializer_class(
                 duplicate_paper,
@@ -714,7 +715,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                     'similarity'
                 )[:3]
 
-                if duplicate_papers.exists():
+                if duplicate_papers.exists() and not paper_update:
                     serializer_data = self.serializer_class(
                         duplicate_papers,
                         context={'purchase_minimal_serialization': True},
@@ -741,7 +742,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             doi = csl_item.get('DOI', None)
 
             duplicate_papers = Paper.objects.exclude(doi=None).filter(doi=doi)
-            if duplicate_papers.exists():
+            if duplicate_papers.exists() and not paper_update:
                 duplicate_paper = duplicate_papers.first()
                 serializer_data = self.serializer_class(
                     duplicate_paper,
