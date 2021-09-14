@@ -16,10 +16,6 @@ from utils.http import get_user_from_request
 
 
 class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
-    created_by = UserSerializer()
-    full_markdown = SerializerMethodField()
-    hubs = SerializerMethodField()
-
     class Meta:
         model = Hypothesis
         fields = [
@@ -53,6 +49,9 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
         ]
 
     boost_amount = SerializerMethodField()
+    created_by = UserSerializer()
+    full_markdown = SerializerMethodField()
+    hubs = SerializerMethodField()
     vote_meta = SerializerMethodField()
 
     # GenericReactionSerializerMixin
@@ -111,6 +110,7 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
     created_by = SerializerMethodField()
     hubs = SerializerMethodField()
     unified_document = SerializerMethodField()
+    score = SerializerMethodField()
 
     class Meta(object):
         model = Hypothesis
@@ -146,3 +146,6 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
             **_context_fields
         )
         return serializer.data
+
+    def get_score(self, hypothesis):
+        return hypothesis.calculate_score()
