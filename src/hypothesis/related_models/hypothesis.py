@@ -9,7 +9,7 @@ from django.db import models
 from django.db.models import Sum, IntegerField
 from django.db.models.functions import Cast
 
-from discussion.reaction_models import AbstractGenericReactionModel
+from discussion.reaction_models import AbstractGenericReactionModel, Vote
 from researchhub_document.models import ResearchhubUnifiedDocument
 from purchase.models import Purchase
 from paper.utils import paper_piecewise_log
@@ -71,6 +71,20 @@ class Hypothesis(AbstractGenericReactionModel):
 
     def calculate_result_score(self, save=False):
         pass
+    
+    def get_aggregate_citation_consensus(self):
+        result = {'citation_count': 0, 'down_count': 0,  'up_count': 0}
+        for citation in self.citations.iterator():
+            result['citation_count'] += 1
+            citation_votes = citation.votes
+            result['down_count'] += citation_votes.filter(
+                vote_type=Vote.DOWNVOTE
+            ).count()
+            result['up_count'] += citation_votes.filter(
+                vote_type=Vote.UPVOTE
+            ).count()
+
+        return result
 
     def get_boost_amount(self):
         purchases = self.purchases.filter(
