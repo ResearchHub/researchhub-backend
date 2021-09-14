@@ -13,10 +13,8 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework.utils.urls import replace_query_param
 from rest_framework.permissions import (
-    AllowAny,
     IsAuthenticated
 )
-
 
 from hypothesis.models import Hypothesis
 from paper.utils import get_cache_key
@@ -24,7 +22,10 @@ from researchhub_document.models import (
     ResearchhubUnifiedDocument,
     ResearchhubPost
 )
-from researchhub_document.utils import reset_unified_document_cache
+from researchhub_document.utils import (
+    reset_unified_document_cache,
+    get_feed_cache_key
+)
 from paper.utils import (
     invalidate_top_rated_cache,
     invalidate_newest_cache,
@@ -41,6 +42,11 @@ from researchhub_document.related_models.constants.document_type import (
     POSTS,
     HYPOTHESIS
 )
+<<<<<<< HEAD
+=======
+from researchhub.permissions import ApiPermission
+from discussion.reaction_models import Vote
+>>>>>>> 3b0bb6ff (CTX: Feed, Adding limit, increasing number of docs, updating cache keys)
 from paper.models import Vote as PaperVote, Paper
 from paper.serializers import PaperVoteSerializer
 from discussion.reaction_serializers import (
@@ -48,16 +54,15 @@ from discussion.reaction_serializers import (
 )
 from discussion.models import Vote as ReactionVote
 from user.utils import reset_latest_acitvity_cache
-
+from researchhub_document.pagination import FeedPagination
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
-    # TODO: calvinhlee - look into permissions
-    permission_classes = [
-        IsAuthenticated,
-    ]
+    permission_classes = [ApiPermission|IsAuthenticated]
     queryset = ResearchhubUnifiedDocument.objects.all()
     serializer_class = ResearchhubUnifiedDocumentSerializer
     dynamic_serializer_class = DynamicUnifiedDocumentSerializer
+    pagination_class = FeedPagination
+
 
     def update(self, request, *args, **kwargs):
         update_response = super().update(request, *args, **kwargs)
@@ -75,23 +80,23 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         return update_response
 
-    def _get_document_filtering(self, query_params):
-        filtering = query_params.get('ordering', None)
-        if filtering == 'removed':
-            filtering = 'removed'
-        elif filtering == 'top_rated':
-            filtering = '-score'
-        elif filtering == 'most_discussed':
-            filtering = '-discussed'
-        elif filtering == 'newest':
-            filtering = '-created_date'
-        elif filtering == 'hot':
-            filtering = '-hot_score'
-        elif filtering == 'user_uploaded':
-            filtering = 'user_uploaded'
+    def _get_document_ordering(self, query_params):
+        ordering = query_params.get('ordering', None)
+        if ordering == 'removed':
+            ordering = 'removed'
+        elif ordering == 'top_rated':
+            ordering = '-score'
+        elif ordering == 'most_discussed':
+            ordering = '-discussed'
+        elif ordering == 'newest':
+            ordering = '-created_date'
+        elif ordering == 'hot':
+            ordering = '-hot_score'
+        elif ordering == 'user_uploaded':
+            ordering = 'user_uploaded'
         else:
-            filtering = '-score'
-        return filtering
+            ordering = '-score'
+        return ordering
 
     def _get_serializer_context(self):
         context = {
@@ -168,7 +173,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def get_filtered_queryset(
         self,
         document_type,
-        filtering,
+        ordering,
         hub_id,
         start_date,
         end_date
@@ -213,13 +218,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         if hub_id != 0:
             qs = qs.filter(hubs__in=[hub_id])
 
-        if filtering == 'removed':
+        if ordering == 'removed':
             qs = qs.filter(
                 is_removed=True
             ).order_by(
                 '-created_date'
             )
-        elif filtering == '-score':
+        elif ordering == '-score':
             paper_votes = PaperVote.objects.filter(
                 created_date__range=(start_date, end_date)
             ).values_list('paper__unified_document', flat=True)
@@ -234,9 +239,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             qs = qs.filter(
                 id__in=unified_document_ids
             ).order_by(
-                filtering
+                ordering
             )
-        elif filtering == '-discussed':
+        elif ordering == '-discussed':
             paper_threads_count = Count('paper__threads')
             paper_comments_count = Count('paper__threads__comments')
             posts_threads__count = Count('posts__threads')
@@ -273,11 +278,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             ).order_by(
                 '-discussed'
             )
-        elif filtering == '-created_date':
-            qs = qs.order_by(filtering)
-        elif filtering == '-hot_score':
-            qs = qs.order_by(filtering)
-        elif filtering == 'user_uploaded':
+        elif ordering == '-created_date':
+            qs = qs.order_by(ordering)
+        elif ordering == '-hot_score':
+            qs = qs.order_by(ordering)
+        elif ordering == 'user_uploaded':
             qs = qs.filter(
                 (
                     Q(paper__uploaded_by__isnull=False) |
@@ -294,36 +299,53 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def _get_unifed_document_cache_hit(
         self,
         document_type,
-        filtering,
+        ordering,
         hub_id,
         page_number,
-        time_difference
+        time_difference,
+        limit
     ):
+
         cache_hit = None
-        if page_number == 1 and 'removed' not in filtering:
+        if page_number == 1 and 'removed' not in ordering:
             cache_pk = ''
             if time_difference.days > 365:
-                cache_pk = f'{document_type}_{hub_id}_{filtering}_all_time'
+                cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'all_time', limit)
             elif time_difference.days == 365:
-                cache_pk = f'{document_type}_{hub_id}_{filtering}_year'
+                cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'year', limit)
             elif time_difference.days == 30 or time_difference.days == 31:
-                cache_pk = f'{document_type}_{hub_id}_{filtering}_month'
+                cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'month', limit)
             elif time_difference.days == 7:
-                cache_pk = f'{document_type}_{hub_id}_{filtering}_week'
+                cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'week', limit)
             else:
-                cache_pk = f'{document_type}_{hub_id}_{filtering}_today'
+                cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'today', limit)
 
             cache_key_hub = get_cache_key('hub', cache_pk)
             cache_hit = cache.get(cache_key_hub)
+
+        print(cache_pk)
+        print('cache_hit', cache_hit)
 
         if cache_hit:
             return cache_hit
         return None
 
+
+    def get_result_limit(self, request):
+        query_params = request.query_params
+        limit = FeedPagination.page_size
+
+        print('limit', query_params.get('limit'))
+        print('limit', int(query_params.get('limit')) <= FeedPagination.max_page_size)
+
+        if query_params.get('limit') and int(query_params.get('limit')) <= FeedPagination.max_page_size:
+            limit = query_params.get('limit')
+
+        return limit
+
     @action(
         detail=False,
         methods=['get'],
-        permission_classes=[AllowAny]
     )
     def get_unified_documents(self, request):
         is_anonymous = request.user.is_anonymous
@@ -334,6 +356,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             return self._get_subscribed_unified_documents(request)
 
         document_request_type = query_params.get('type', 'all')
+        limit = self.get_result_limit(request)
+
         hub_id = query_params.get('hub_id', 0)
         page_number = int(query_params.get('page', 1))
         start_date = datetime.datetime.fromtimestamp(
@@ -345,13 +369,14 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             datetime.timezone.utc
         )
         time_difference = end_date - start_date
-        filtering = self._get_document_filtering(query_params)
+        ordering = self._get_document_ordering(query_params)
         cache_hit = self._get_unifed_document_cache_hit(
             document_request_type,
-            filtering,
+            ordering,
             hub_id,
             page_number,
-            time_difference
+            time_difference,
+            limit
         )
 
         if cache_hit and page_number == 1:
@@ -360,13 +385,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             reset_unified_document_cache(
                 [hub_id],
                 [document_request_type],
-                [filtering],
+                [ordering],
                 time_difference.days
             )
 
         documents = self.get_filtered_queryset(
             document_request_type,
-            filtering,
+            ordering,
             hub_id,
             start_date,
             end_date
@@ -403,9 +428,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             int(request.GET.get('end_date__lte', 0)),
             datetime.timezone.utc
         )
-        filtering = self._get_document_filtering(query_params)
+        ordering = self._get_document_ordering(query_params)
 
-        if filtering == '-hot_score' and page_number == 1:
+        if ordering == '-hot_score' and page_number == 1:
             all_documents = {}
             for hub in hubs.iterator():
                 hub_name = hub.slug
@@ -443,7 +468,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             if len(all_documents) < 1:
                 all_documents = self.get_filtered_queryset(
                     document_request_type,
-                    filtering,
+                    ordering,
                     default_hub_id,
                     start_date,
                     end_date
@@ -470,7 +495,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         else:
             all_documents = self.get_filtered_queryset(
                 document_request_type,
-                filtering,
+                ordering,
                 default_hub_id,
                 start_date,
                 end_date
@@ -495,7 +520,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         #     all_documents = self.get_filtered_queryset(
         #         document_request_type,
-        #         filtering,
+        #         ordering,
         #         default_hub_id,
         #         start_date,
         #         end_date
@@ -523,7 +548,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     @action(
         detail=False,
         methods=['get'],
-        permission_classes=[AllowAny]
+        # permission_classes=[AllowAny]
     )
     def check_user_vote(self, request):
         paper_ids = request.query_params.get('paper_ids', '')

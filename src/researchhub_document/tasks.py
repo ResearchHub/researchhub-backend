@@ -29,8 +29,9 @@ def preload_trending_documents(
     document_type,
     hub_id,
     ordering,
-    time_difference
+    time_difference,
 ):
+    from researchhub_document.utils import get_feed_cache_key
     from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
     from researchhub_document.serializers import (
       DynamicUnifiedDocumentSerializer
@@ -44,7 +45,7 @@ def preload_trending_documents(
     )
     end_date = datetime.now()
     if time_difference > 365:
-        cache_pk = f'{document_type}_{hub_id}_{ordering}_all_time'
+        cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'all_time')
         start_date = datetime(
             year=2018,
             month=12,
@@ -52,13 +53,13 @@ def preload_trending_documents(
             hour=7
         )
     elif time_difference == 365:
-        cache_pk = f'{document_type}_{hub_id}_{ordering}_year'
+        cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'year')
         start_date = initial_date - timedelta(days=365)
     elif time_difference == 30 or time_difference == 31:
-        cache_pk = f'{document_type}_{hub_id}_{ordering}_month'
+        cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'month')
         start_date = initial_date - timedelta(days=30)
     elif time_difference == 7:
-        cache_pk = f'{document_type}_{hub_id}_{ordering}_week'
+        cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'week')
         start_date = initial_date - timedelta(days=7)
     else:
         start_date = datetime.now().replace(
@@ -67,7 +68,7 @@ def preload_trending_documents(
             second=0,
             microsecond=0
         )
-        cache_pk = f'{document_type}_{hub_id}_{ordering}_today'
+        cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'today')
 
     query_string_ordering = 'top_rated'
     if ordering == 'removed':
