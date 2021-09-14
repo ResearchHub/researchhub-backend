@@ -525,7 +525,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         permission_classes=[AllowAny]
     )
     def check_user_vote(self, request):
-        post_content_type = 
         paper_ids = request.query_params.get('paper_ids', '')
         post_ids = request.query_params.get('post_ids', '')
         hypothesis_ids = request.query_params.get('hypothesis_ids', '')

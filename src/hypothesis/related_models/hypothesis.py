@@ -59,7 +59,7 @@ class Hypothesis(AbstractGenericReactionModel):
         'purchase.Purchase',
         object_id_field='object_id',
         content_type_field='content_type',
-        related_query_name='post'
+        related_query_name='hypothesis'
     )
 
     @property
