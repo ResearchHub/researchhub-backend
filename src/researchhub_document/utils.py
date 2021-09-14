@@ -11,8 +11,8 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.pagination import FeedPagination
 from utils.sentry import log_error
 
-def get_feed_cache_key(document_type, ordering, hub_id, time_period, limit = FeedPagination.page_size):
-    return f'type[{document_type}]_hub[{hub_id}]_ordering[{ordering}]_limit[{limit}]_time[{time_period}]'
+def get_feed_cache_key(document_type, ordering, hub_id, time_period):
+    return f'type[{document_type}]_hub[{hub_id}]_ordering[{ordering}]_time[{time_period}]'
 
 def reset_unified_document_cache(
     hub_ids,
