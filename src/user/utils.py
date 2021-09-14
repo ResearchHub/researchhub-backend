@@ -41,7 +41,6 @@ def merge_author_profiles(source, target):
     target.claimed = True
     target.save()
     source.save()
-    import pdb; pdb.set_trace()
     return source
 
 
