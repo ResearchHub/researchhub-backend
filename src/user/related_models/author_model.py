@@ -7,6 +7,7 @@ from django.db.models import Sum
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
 from user.related_models.user_model import User
+from paper.models import Paper
 from researchhub_case.constants.case_constants import APPROVED
 
 fs = ProfileImageStorage()
@@ -175,5 +176,19 @@ class Author(models.Model):
 
         if aggregated_discussion_count['total_score']:
             paper_scores += 2 * aggregated_discussion_count['total_score']
+        
+        raw_scores = Paper.objects.filter(
+            raw_authors__contains=[
+                {
+                    'first_name': self.first_name,
+                    'last_name': self.last_name
+                }
+            ]
+        ).aggregate(
+            Sum('score')
+        )['score__sum']
+
+        if raw_scores:
+            paper_scores += raw_scores
 
         return paper_scores + paper_count
