@@ -30,10 +30,10 @@ class CitationViewSet(ModelViewSet, ReactionViewActionMixin):
                 created_by=request.user,
                 source_id=source_id,
             )
-            hypothesis = Hypothesis.objects.get(
-                id=request.data.get('hypothesis_id')
-            )
-            citation.hypothesis = hypothesis
+            import pdb; pdb.set_trace()
+            citation.hypothesis.set([
+                Hypothesis.objects.get(id=hypothesis_id)
+            ])
             citation.save()
             serializer = self.serializer_class(citation)
             return Response(serializer.data, status=200)
