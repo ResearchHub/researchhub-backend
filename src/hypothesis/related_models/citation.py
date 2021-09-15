@@ -14,11 +14,10 @@ class Citation(AbstractGenericReactionModel):
         on_delete=models.SET_NULL,
         related_name='created_citations',
     )
-    hypothesis = models.ForeignKey(
+    hypothesis = models.ManyToManyField(
         Hypothesis,
         db_index=True,
         null=False,
-        on_delete=models.CASCADE,
         related_name='citations'
     )
     source = models.OneToOneField(
