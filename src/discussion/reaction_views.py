@@ -171,7 +171,7 @@ class ReactionViewActionMixin:
             & CreateOrUpdateIfAllowed
         ]
     )
-    def neutral_vote(self, request, pk=None):
+    def neutralvote(self, request, pk=None):
         item = self.get_object()
         user = request.user
         vote_exists = find_vote(user, item, Vote.NEUTRAL)
