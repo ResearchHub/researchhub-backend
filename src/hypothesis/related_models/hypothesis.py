@@ -11,6 +11,7 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 from purchase.models import Purchase
 from paper.utils import paper_piecewise_log
 from user.models import User
+from utils import sentry
 
 
 class Hypothesis(AbstractGenericReactionModel):
@@ -66,20 +67,19 @@ class Hypothesis(AbstractGenericReactionModel):
     def users_to_notify(self):
         return [self.created_by]
 
-    def calculate_result_score(self, save=False):
-        pass
-    
     def get_aggregate_citation_consensus(self):
         result = {'citation_count': 0, 'down_count': 0,  'up_count': 0}
-        for citation in self.citations.iterator():
-            result['citation_count'] += 1
-            citation_votes = citation.votes
-            result['down_count'] += citation_votes.filter(
+        try:
+            citation_votes = self.citations.all().values('vote')
+            result['citation_count'] = citation_votes.count()
+            result['down_count'] = citation_votes.filter(
                 vote_type=Vote.DOWNVOTE
             ).count()
-            result['up_count'] += citation_votes.filter(
+            result['up_count'] = citation_votes.filter(
                 vote_type=Vote.UPVOTE
             ).count()
+        except Exception as error:
+            sentry.log_error(error)
 
         return result
 
