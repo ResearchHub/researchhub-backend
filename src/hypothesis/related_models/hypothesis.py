@@ -68,20 +68,19 @@ class Hypothesis(AbstractGenericReactionModel):
         return [self.created_by]
 
     def get_aggregate_citation_consensus(self):
-        result = {'citation_count': 0, 'down_count': 0,  'up_count': 0}
         try:
-            citation_votes = self.citations.all().values('vote')
-            result['citation_count'] = citation_votes.count()
-            result['down_count'] = citation_votes.filter(
-                vote_type=Vote.DOWNVOTE
-            ).count()
-            result['up_count'] = citation_votes.filter(
-                vote_type=Vote.UPVOTE
-            ).count()
+            return self.citations.aggregate(
+                citation_count=Count('id'),
+                down_count=Count(
+                    'votes', filter=Q(votes__vote_type=Vote.DOWNVOTE)
+                ),
+                up_count=Count(
+                    'votes', filter=Q(votes__vote_type=Vote.UPVOTE)
+                )
+            )
         except Exception as error:
             sentry.log_error(error)
-
-        return result
+            return {'citation_count': 0, 'down_count': 0,  'up_count': 0}
 
     def get_boost_amount(self):
         purchases = self.purchases.filter(
