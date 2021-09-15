@@ -74,11 +74,6 @@ def sync_scores_uni_doc_and_paper(unified_doc, paper):
     sender=Vote,
     dispatch_uid='rh_unified_doc_sync_scores_vote',
 )
-@receiver(
-    post_save,
-    sender=Citation, 
-    dispatch_uid='rh_unified_doc_sync_citation_vote',
-)
 def rh_unified_doc_sync_scores_on_related_docs(instance, sender, **kwargs):
     unified_document = instance.unified_document
     if not unified_document:
