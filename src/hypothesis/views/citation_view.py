@@ -30,7 +30,6 @@ class CitationViewSet(ModelViewSet, ReactionViewActionMixin):
                 created_by=request.user,
                 source_id=source_id,
             )
-            import pdb; pdb.set_trace()
             citation.hypothesis.set([
                 Hypothesis.objects.get(id=hypothesis_id)
             ])
