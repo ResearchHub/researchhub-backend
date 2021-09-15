@@ -17,10 +17,9 @@ class Citation(AbstractGenericReactionModel):
     hypothesis = models.ManyToManyField(
         Hypothesis,
         db_index=True,
-        null=False,
         related_name='citations'
     )
-    source = models.OneToOneField(
+    source = models.ForeignKey(
         ResearchhubUnifiedDocument,
         related_name='citation',
         null=False,
