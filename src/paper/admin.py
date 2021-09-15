@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from researchhub.admin import IdFilter, UploadedDateFilter, TimeoutPaginator
 
-from .models import Paper, Vote
+from .models import Paper, Vote, Flag
 
 
 class PaperAdmin(admin.ModelAdmin):
@@ -13,4 +13,5 @@ class PaperAdmin(admin.ModelAdmin):
 
 
 admin.site.register(Vote)
+admin.site.register(Flag)
 admin.site.register(Paper, PaperAdmin)
