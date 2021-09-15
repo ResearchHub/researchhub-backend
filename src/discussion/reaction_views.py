@@ -163,7 +163,7 @@ class ReactionViewActionMixin:
         response = update_or_create_vote(request, user, item, Vote.UPVOTE)
         return response
 
-     @action(
+    @action(
         detail=True,
         methods=['post'],
         permission_classes=[
