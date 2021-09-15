@@ -29,7 +29,7 @@ from discussion.serializers import (
 )
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
-from reputation.serializers import ContributionSerializer
+from reputation.serializers import DynamicContributionSerializer
 from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY, EMAIL_WHITELIST
 from researchhub_document.serializers import DynamicPostSerializer
 from paper.models import Paper
@@ -316,7 +316,20 @@ class UserViewSet(viewsets.ModelViewSet):
         contributions = self._get_latest_activity_queryset(hub_ids, ordering)
 
         page = self.paginate_queryset(contributions)
-        serializer = ContributionSerializer(page, many=True)
+        context = self._get_latest_activity_context()
+        serializer = DynamicContributionSerializer(
+            page,
+            _include_fields=[
+                'contribution_type',
+                'created_date',
+                'id',
+                'source',
+                'unified_document',
+                'user'
+            ],
+            context=context,
+            many=True,
+        )
         response = self.get_paginated_response(serializer.data)
 
         if not cache_hit and page_number == 1:
@@ -377,9 +390,13 @@ class UserViewSet(viewsets.ModelViewSet):
         removed_comments = Comment.objects.filter(is_removed=True)
         removed_replies = Reply.objects.filter(is_removed=True)
 
-        contributions = Contribution.objects.prefetch_related(
+        contributions = Contribution.objects.select_related(
+            'content_type',
             'user',
-            'unified_document'
+            'user__author_profile',
+            'unified_document',
+        ).prefetch_related(
+            'unified_document__hubs',
         ).filter(
             unified_document__is_removed=False,
             contribution_type__in=contribution_type,
@@ -414,6 +431,58 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         contributions = contributions.distinct()
         return contributions
+
+    def _get_latest_activity_context(self):
+        context = {
+            'doc_duds_get_documents': {
+                '_include_fields': [
+                    'id',
+                    'slug',
+                    'title',
+                ]
+            },
+            'doc_duds_get_hubs': {
+                '_include_fields': [
+                    'name',
+                    'is_locked',
+                    'slug',
+                    'is_removed',
+                    'hub_image'
+                ]
+            },
+            'rep_dcs_get_source': {
+                '_include_fields': [
+                    'abstract',
+                    'amount',
+                    'id',
+                    'paper_title',
+                    'slug',
+                    'text',
+                    'title',
+                ]
+            },
+            'rep_dcs_get_unified_document': {
+                '_include_fields': [
+                    'documents',
+                    'document_type',
+                    'hubs',
+                ]
+            },
+            'rep_dcs_get_user': {
+                '_include_fields': [
+                    'author_profile',
+                ]
+            },
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image',
+                ]
+            }
+        }
+        return context
 
     @action(
         detail=True,

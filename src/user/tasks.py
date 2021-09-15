@@ -24,6 +24,7 @@ from hub.models import Hub
 from researchhub_document.utils import reset_unified_document_cache
 from researchhub.settings import STAGING, PRODUCTION
 
+
 @app.task
 def handle_spam_user_task(user_id):
     User = apps.get_model('user.User')
@@ -226,7 +227,7 @@ def filter_comments_on_my_threads(comments, threads):
 @app.task
 def preload_latest_activity(hub_ids, ordering):
     from user.views import UserViewSet
-    from reputation.serializers import ContributionSerializer
+    from reputation.serializers import DynamicContributionSerializer
 
     hub_ids_str = hub_ids
     request_path = '/api/user/following_latest_activity/'
@@ -260,7 +261,20 @@ def preload_latest_activity(hub_ids, ordering):
         ordering
     )
     page = user_view.paginate_queryset(latest_activities)
-    serializer = ContributionSerializer(page, many=True)
+    context = user_view._get_latest_activity_context()
+    serializer = DynamicContributionSerializer(
+        page,
+        _include_fields=[
+            'contribution_type',
+            'created_date',
+            'id',
+            'source',
+            'unified_document',
+            'user'
+        ],
+        context=context,
+        many=True,
+    )
     serializer_data = serializer.data
 
     paginated_response = user_view.get_paginated_response(
@@ -274,6 +288,7 @@ def preload_latest_activity(hub_ids, ordering):
     )
 
     return paginated_response.data
+
 
 @app.task
 def update_elastic_registry(user_id):

@@ -2,7 +2,9 @@ import rest_framework.serializers as serializers
 
 from discussion.models import Comment, Thread, Reply
 from discussion.reaction_serializers import (
-    VoteSerializer, GenericReactionSerializerMixin
+    VoteSerializer,
+    GenericReactionSerializerMixin,
+    DynamicVoteSerializer  # Import is needed for discussion serializer imports
 )
 from researchhub.settings import PAGINATION_PAGE_SIZE
 from researchhub.serializers import DynamicModelFieldSerializer
