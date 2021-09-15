@@ -5,9 +5,6 @@ from django.db import models
 from django.db.models import Q, Avg, Sum, IntegerField, Count
 from django.db.models.functions import Extract, Cast
 from django.contrib.contenttypes.fields import GenericRelation
-from django.db import models
-from django.db.models import Sum, IntegerField
-from django.db.models.functions import Cast
 
 from discussion.reaction_models import AbstractGenericReactionModel, Vote
 from researchhub_document.models import ResearchhubUnifiedDocument
