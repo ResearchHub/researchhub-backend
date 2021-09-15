@@ -5,6 +5,7 @@ from researchhub_document.tasks import (
 from researchhub_document.related_models.constants.document_type import (
     PAPER,
     POSTS,
+    HYPOTHESIS,
     ALL,
 )
 from utils.sentry import log_error
@@ -12,7 +13,12 @@ from utils.sentry import log_error
 
 def reset_unified_document_cache(
     hub_ids,
-    document_type=[ALL.lower(), POSTS.lower(), PAPER.lower()],
+    document_type=[
+        ALL.lower(),
+        POSTS.lower(),
+        PAPER.lower(),
+        HYPOTHESIS.lower()
+    ],
     ordering=['-hot_score', '-created_date', '-score'],
     time_difference=0,
     use_celery=True
