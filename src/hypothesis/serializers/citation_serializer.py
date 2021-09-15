@@ -22,7 +22,6 @@ from utils.http import get_user_from_request
 class CitationSerializer(ModelSerializer, GenericReactionSerializerMixin):
     created_by = UserSerializer()
     source = ResearchhubUnifiedDocumentSerializer()
-    hypothesis = HypothesisSerializer()
 
     class Meta:
         model = Citation
@@ -31,7 +30,6 @@ class CitationSerializer(ModelSerializer, GenericReactionSerializerMixin):
             'boost_amount',
             'id',
             'created_by',
-            'hypothesis',
             'source',
 
         ]

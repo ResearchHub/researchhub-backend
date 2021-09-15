@@ -69,7 +69,7 @@ class Hypothesis(AbstractGenericReactionModel):
 
     def get_aggregate_citation_consensus(self):
         try:
-            return self.citations.aggregate(
+            return self.citations.all().aggregate(
                 citation_count=Count('id'),
                 down_count=Count(
                     'votes', filter=Q(votes__vote_type=Vote.DOWNVOTE)
