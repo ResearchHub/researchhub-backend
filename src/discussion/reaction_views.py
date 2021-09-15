@@ -163,6 +163,27 @@ class ReactionViewActionMixin:
         response = update_or_create_vote(request, user, item, Vote.UPVOTE)
         return response
 
+     @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[
+            VotePermission
+            & CreateOrUpdateIfAllowed
+        ]
+    )
+    def neutral_vote(self, request, pk=None):
+        item = self.get_object()
+        user = request.user
+        vote_exists = find_vote(user, item, Vote.NEUTRAL)
+
+        if vote_exists:
+            return Response(
+                'This vote already exists',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        response = update_or_create_vote(request, user, item, Vote.NEUTRAL)
+        return response
+
     @action(
         detail=True,
         methods=['post'],
