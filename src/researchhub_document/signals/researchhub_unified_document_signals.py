@@ -86,7 +86,7 @@ def rh_unified_doc_sync_scores_on_related_docs(instance, sender, **kwargs):
 
 
 def sync_scores(unified_doc, instance):
-    if not type(instance) in (Citation, Hypothesis, ResearchhubPost):
+    if not type(instance) in (Hypothesis, ResearchhubPost):
         return
 
     should_save = False
