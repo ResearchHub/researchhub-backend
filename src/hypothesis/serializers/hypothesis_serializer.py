@@ -102,6 +102,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             {
                 'down_count': votes.filter(vote_type=Vote.DOWNVOTE).count(),
                 'up_count': votes.filter(vote_type=Vote.UPVOTE).count(),
+                'neutral_count': votes.filter(vote_type=Vote.NEUTRAL).count(),
                 'user_vote': (
                     serializer.data
                     if user_vote is not None else None
