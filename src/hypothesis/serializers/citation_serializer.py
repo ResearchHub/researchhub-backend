@@ -7,7 +7,6 @@ from discussion.reaction_serializers import (
 
 from hypothesis.models import Citation
 from hypothesis.serializers import (
-    HypothesisSerializer,
     DynamicHypothesisSerializer
 )
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -113,6 +112,7 @@ class DynamicCitationSerializer(DynamicModelFieldSerializer):
         return (
             {
                 'down_count': votes.filter(vote_type=Vote.DOWNVOTE).count(),
+                'neutral_count': votes.filter(vote_type=Vote.NEUTRAL).count(),
                 'up_count': votes.filter(vote_type=Vote.UPVOTE).count(),
                 'user_vote': (
                     serializer.data
