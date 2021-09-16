@@ -986,3 +986,28 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         file_name = f'ORGANIZATION-IMAGE-{organization.id}--USER-{user.id}.txt'
         full_src_file = ContentFile(data.encode())
         return file_name, full_src_file
+
+    @action(
+        detail=True,
+        methods=['get'],
+    )
+    def get_user_organizations(self, request, pk=None):
+        user = User.objects.get(id=pk)
+        admin_organizations = user.access_admin_groups.filter(
+            organization__isnull=False
+        ).values('organization')
+        editor_organizations = user.access_editor_groups.filter(
+            organization__isnull=False
+        ).values('organization')
+        viewer_organizations = user.access_viewing_groups.filter(
+            organization__isnull=False
+        ).values('organization')
+
+        organizations = admin_organizations.union(
+            editor_organizations,
+            viewer_organizations
+        )
+        user_organizations = Organization.objects.filter(id__in=organizations)
+        serializer = OrganizationSerializer(user_organizations, many=True)
+
+        return Response(serializer.data, status=200)
