@@ -258,6 +258,7 @@ class HubViewSet(viewsets.ModelViewSet):
                 Q(comments__is_removed=False) |
                 Q(replies__is_removed=False) |
                 Q(posts__unified_document__is_removed=False) |
+                Q(hypothesis__unified_document__is_removed=False) |
                 Q(content_type__model='purchase')
             ),
             user__isnull=False,
