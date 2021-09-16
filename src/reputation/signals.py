@@ -436,6 +436,9 @@ def distribute_for_discussion_vote(
     **kwargs
 ):
     """Distributes reputation to the creator of the item voted on."""
+    if instance.vote_type == ReactionVote.NEUTRAL:
+        return
+
     timestamp = time()
     distributor = None
     try:
