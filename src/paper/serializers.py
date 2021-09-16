@@ -538,11 +538,11 @@ class PaperSerializer(BasePaperSerializer):
     def _add_citation(self, user, hypothesis_id, unified_document):
         try:
             hypothesis = Hypothesis.objects.get(id=hypothesis_id)
-            Citation.objects.create(
+            citation = Citation.objects.create(
                 created_by=user,
-                hypothesis=hypothesis,
                 source=unified_document,
             )
+            citation.hypothesis.set([hypothesis])
         except Exception as e:
             sentry.log_error(e)
 

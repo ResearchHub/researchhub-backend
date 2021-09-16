@@ -235,7 +235,8 @@ class HubViewSet(viewsets.ModelViewSet):
             'reply',
             'purchase',
             'researchhubpost',
-            'paper'
+            'paper',
+            'hypothesis',
         ]
 
         # PK == 0 indicates for now that we're on the homepage

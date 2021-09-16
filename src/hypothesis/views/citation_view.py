@@ -39,4 +39,3 @@ class CitationViewSet(ModelViewSet, ReactionViewActionMixin):
         except Exception as error:
             sentry.log_error(error)
             return Response(error, status=400)
-

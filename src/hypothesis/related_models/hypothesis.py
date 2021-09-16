@@ -224,3 +224,19 @@ class Hypothesis(AbstractGenericReactionModel):
         ) * 1000
 
         return hot_score
+
+    def get_promoted_score(self):
+        purchases = self.purchases.filter(
+            paid_status=Purchase.PAID,
+            amount__gt=0,
+            boost_time__gt=0
+        )
+        if purchases.exists():
+            base_score = self.score
+            boost_amount = purchases.annotate(
+                amount_as_int=Cast('amount', IntegerField())
+            ).aggregate(
+                sum=Sum('amount_as_int')
+            ).get('sum', 0)
+            return base_score + boost_amount
+        return False
