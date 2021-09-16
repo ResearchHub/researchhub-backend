@@ -212,6 +212,7 @@ INSTALLED_APPS = [
     'search',
     'summary',
     'user',
+    'new_feature_release',
 ]
 
 SITE_ID = 1
