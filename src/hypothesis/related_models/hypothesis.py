@@ -74,6 +74,9 @@ class Hypothesis(AbstractGenericReactionModel):
                 down_count=Count(
                     'votes', filter=Q(votes__vote_type=Vote.DOWNVOTE)
                 ),
+                neutral_count=Count(
+                    'votes', filter=Q(votes__vote_type=Vote.NEUTRAL)
+                ),
                 up_count=Count(
                     'votes', filter=Q(votes__vote_type=Vote.UPVOTE)
                 )
