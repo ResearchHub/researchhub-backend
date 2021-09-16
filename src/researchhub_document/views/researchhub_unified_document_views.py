@@ -559,9 +559,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 post_votes = get_user_votes(
                     user,
                     post_ids,
-                    ContentType.objects.get(
-                        model=ResearchhubPost.__name__.lower()
-                    )
+                    ContentType.objects.get_for_model(ResearchhubPost)
                 )
                 for vote in post_votes.iterator():
                     response['posts'][vote.object_id] = (
@@ -571,7 +569,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 hypo_votes = get_user_votes(
                     user,
                     hypothesis_ids,
-                    ContentType.objects.get(model=Hypothesis.__name__.lower())
+                    ContentType.objects.get_for_model(Hypothesis)
                 )
                 for vote in hypo_votes.iterator():
                     response['hypothesis'][vote.object_id] = (
