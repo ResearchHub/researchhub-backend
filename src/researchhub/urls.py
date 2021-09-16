@@ -294,6 +294,12 @@ router.register(
     basename='note_content'
 )
 
+router.register(
+    r'note_template',
+    note_views.NoteTemplateViewSet,
+    basename='note_template'
+)
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     re_path(r'^api/', include(router.urls)),

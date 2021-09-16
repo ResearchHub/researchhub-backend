@@ -6,10 +6,6 @@ from utils.models import DefaultModel
 
 
 class Note(DefaultModel):
-    title = models.TextField(
-        blank=True,
-        default=''
-    )
     created_by = models.ForeignKey(
         User,
         null=True,
@@ -27,6 +23,10 @@ class Note(DefaultModel):
         null=True,
         related_name='created_notes',
         on_delete=models.SET_NULL
+    )
+    title = models.TextField(
+        blank=True,
+        default=''
     )
     unified_document = models.OneToOneField(
         ResearchhubUnifiedDocument,
@@ -46,6 +46,7 @@ class NoteContent(models.Model):
          related_name='notes',
          on_delete=models.CASCADE
     )
+    plain_text = models.TextField(null=True)
     src = models.FileField(
         max_length=512,
         upload_to='note/uploads/%Y/%m/%d',
@@ -53,4 +54,3 @@ class NoteContent(models.Model):
         null=True,
         blank=True
     )
-    plain_text = models.TextField(null=True)
