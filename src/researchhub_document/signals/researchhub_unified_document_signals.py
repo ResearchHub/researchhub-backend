@@ -3,7 +3,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from discussion.reaction_models import Vote
-from hypothesis.models import Hypothesis
+from hypothesis.models import Citation, Hypothesis
 from paper.models import Paper
 from researchhub_document.models import (
     ResearchhubUnifiedDocument, ResearchhubPost
@@ -14,6 +14,8 @@ from researchhub_document.related_models.constants.document_type import (
 
 
 # Ensures that scores are sync-ed when either is updated
+# NOTE: we have separate method to sync paper votes because paper has
+# its own voting mechanism
 @receiver(
     post_save,
     sender=ResearchhubUnifiedDocument,
@@ -45,6 +47,18 @@ def rh_unified_doc_sync_scores_paper(instance, sender, **kwargs):
         return None
 
 
+def sync_scores_uni_doc_and_paper(unified_doc, paper):
+    should_save = False
+    if (unified_doc.hot_score != paper.hot_score):
+        unified_doc.hot_score = paper.hot_score
+        should_save = True
+    if (unified_doc.score != paper.score):
+        unified_doc.score = paper.score
+        should_save = True
+    if (should_save):
+        unified_doc.save()
+
+
 @receiver(
     post_save,
     sender=ResearchhubPost,
@@ -60,7 +74,7 @@ def rh_unified_doc_sync_scores_paper(instance, sender, **kwargs):
     sender=Vote,
     dispatch_uid='rh_unified_doc_sync_scores_vote',
 )
-def rh_unified_doc_sync_scores_post(instance, sender, **kwargs):
+def rh_unified_doc_sync_scores_on_related_docs(instance, sender, **kwargs):
     unified_document = instance.unified_document
     if not unified_document:
         return
@@ -71,25 +85,13 @@ def rh_unified_doc_sync_scores_post(instance, sender, **kwargs):
     sync_scores(unified_document, instance)
 
 
-def sync_scores_uni_doc_and_paper(unified_doc, paper):
-    should_save = False
-    if (unified_doc.hot_score != paper.hot_score):
-        unified_doc.hot_score = paper.hot_score
-        should_save = True
-    if (unified_doc.score != paper.score):
-        unified_doc.score = paper.score
-        should_save = True
-    if (should_save):
-        unified_doc.save()
-
-
 def sync_scores(unified_doc, instance):
-    if not type(instance) in (Hypothesis, ResearchhubPost):
+    if not type(instance) in (Citation, Hypothesis, ResearchhubPost):
         return
 
     should_save = False
     score = instance.calculate_score()  # refer to AbstractGenericReactionModel
-    hot_score = instance.calculate_hot_score()
+    hot_score = instance.calculate_hot_score()  # AbstractGenericReactionModel
     if unified_doc.hot_score != hot_score:
         unified_doc.hot_score = hot_score
         should_save = True

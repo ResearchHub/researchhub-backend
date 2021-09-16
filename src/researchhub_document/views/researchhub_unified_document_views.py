@@ -41,13 +41,12 @@ from researchhub_document.related_models.constants.document_type import (
     POSTS,
     HYPOTHESIS
 )
-from discussion.reaction_models import Vote
 from paper.models import Vote as PaperVote, Paper
 from paper.serializers import PaperVoteSerializer
 from discussion.reaction_serializers import (
-    VoteSerializer as DiscussionVoteSerializer
+    VoteSerializer as ReactionVoteSerializer
 )
-from discussion.models import Vote as DiscussionVote
+from discussion.models import Vote as ReactionVote
 from user.utils import reset_latest_acitvity_cache
 
 
@@ -98,20 +97,21 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         context = {
             'doc_duds_get_documents': {
                 '_include_fields': [
-                    'id',
-                    'created_date',
-                    'uploaded_date',
-                    'title',
-                    'paper_title',
-                    'renderable_text',
-                    'preview_img',
-                    'hubs',
-                    'slug',
-                    'created_by',
-                    'uploaded_by',
-                    'score',
-                    'hot_score',
                     'abstract',
+                    'aggregate_citation_consensus',
+                    'created_by',
+                    'created_date',
+                    'hot_score',
+                    'hubs',
+                    'id',
+                    'paper_title',
+                    'preview_img',
+                    'renderable_text',
+                    'score',
+                    'slug',
+                    'title',
+                    'uploaded_by',
+                    'uploaded_date',
                 ]
             },
             'doc_dps_get_hubs': {
@@ -526,20 +526,22 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         permission_classes=[AllowAny]
     )
     def check_user_vote(self, request):
-        post_content_type = ContentType.objects.get(model='researchhubpost')
         paper_ids = request.query_params.get('paper_ids', '')
         post_ids = request.query_params.get('post_ids', '')
+        hypothesis_ids = request.query_params.get('hypothesis_ids', '')
 
         if paper_ids:
             paper_ids = paper_ids.split(',')
-
         if post_ids:
             post_ids = post_ids.split(',')
+        if hypothesis_ids:
+            hypothesis_ids = hypothesis_ids.split(',')
 
         user = request.user
         response = {
-            'posts': {},
+            'hypothesis': {},
             'papers': {},
+            'posts': {},
         }
 
         if user.is_authenticated:
@@ -554,15 +556,31 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                         instance=vote
                     ).data
             if post_ids:
-                post_votes = DiscussionVote.objects.filter(
-                    content_type=post_content_type,
-                    object_id__in=post_ids,
-                    created_by=user
+                post_votes = get_user_votes(
+                    user,
+                    post_ids,
+                    ContentType.objects.get_for_model(ResearchhubPost)
                 )
                 for vote in post_votes.iterator():
-                    post_id = vote.object_id
-                    response['posts'][post_id] = DiscussionVoteSerializer(
-                        instance=vote
-                    ).data
-
+                    response['posts'][vote.object_id] = (
+                        ReactionVoteSerializer(instance=vote).data
+                    )
+            if hypothesis_ids:
+                hypo_votes = get_user_votes(
+                    user,
+                    hypothesis_ids,
+                    ContentType.objects.get_for_model(Hypothesis)
+                )
+                for vote in hypo_votes.iterator():
+                    response['hypothesis'][vote.object_id] = (
+                        ReactionVoteSerializer(instance=vote).data
+                    )
         return Response(response, status=status.HTTP_200_OK)
+
+
+def get_user_votes(created_by, doc_ids, reaction_content_type):
+    return ReactionVote.objects.filter(
+        content_type=reaction_content_type,
+        object_id__in=doc_ids,
+        created_by=created_by
+    )

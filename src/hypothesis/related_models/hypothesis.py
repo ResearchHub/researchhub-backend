@@ -6,11 +6,12 @@ from django.db.models import Q, Avg, Sum, IntegerField, Count
 from django.db.models.functions import Extract, Cast
 from django.contrib.contenttypes.fields import GenericRelation
 
-from discussion.reaction_models import AbstractGenericReactionModel
+from discussion.reaction_models import AbstractGenericReactionModel, Vote
 from researchhub_document.models import ResearchhubUnifiedDocument
 from purchase.models import Purchase
 from paper.utils import paper_piecewise_log
 from user.models import User
+from utils import sentry
 
 
 class Hypothesis(AbstractGenericReactionModel):
@@ -59,15 +60,27 @@ class Hypothesis(AbstractGenericReactionModel):
         'purchase.Purchase',
         object_id_field='object_id',
         content_type_field='content_type',
-        related_query_name='post'
+        related_query_name='hypothesis'
     )
 
     @property
     def users_to_notify(self):
         return [self.created_by]
 
-    def calculate_result_score(self, save=False):
-        pass
+    def get_aggregate_citation_consensus(self):
+        try:
+            return self.citations.all().aggregate(
+                citation_count=Count('id'),
+                down_count=Count(
+                    'votes', filter=Q(votes__vote_type=Vote.DOWNVOTE)
+                ),
+                up_count=Count(
+                    'votes', filter=Q(votes__vote_type=Vote.UPVOTE)
+                )
+            )
+        except Exception as error:
+            sentry.log_error(error)
+            return {'citation_count': 0, 'down_count': 0,  'up_count': 0}
 
     def get_boost_amount(self):
         purchases = self.purchases.filter(
