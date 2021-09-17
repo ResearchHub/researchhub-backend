@@ -117,6 +117,8 @@ ReferralApproved = Distribution(
     'REFERRAL_APPROVED', 1000, False
 )
 
+NeutralVote = Distribution('NEUTRAL_VOTE', 0)
+
 
 def create_purchase_distribution(amount):
     return Distribution(

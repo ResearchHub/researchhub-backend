@@ -6,6 +6,7 @@ from bullet_point.models import BulletPoint
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from discussion.lib import check_is_discussion_item
 from hub.serializers import HubSerializer
+from hypothesis.models import Hypothesis
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from paper.models import Vote as PaperVote, Paper
 from bullet_point.models import Vote as BulletVote
@@ -523,6 +524,9 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
         elif isinstance(item, ResearchhubPost):
             from researchhub_document.serializers import DynamicPostSerializer
             serializer = DynamicPostSerializer
+        elif isinstance(item, Hypothesis):
+            from hypothesis.serializers import DynamicHypothesisSerializer
+            serializer = DynamicHypothesisSerializer
         elif isinstance(item, Purchase):
             from purchase.serializers import DynamicPurchaseSerializer
             serializer = DynamicPurchaseSerializer

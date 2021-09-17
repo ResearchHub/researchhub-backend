@@ -99,25 +99,41 @@ class Action(DefaultModel):
 
     @property
     def frontend_view_link(self):
+        from hypothesis.models import Hypothesis
+        from researchhub_document.models import (
+            ResearchhubPost
+        )
+
         link = BASE_FRONTEND_URL
-        if isinstance(self.item, Summary):
-            link += '/paper/{}/'.format(self.item.paper.id)
-        elif isinstance(self.item, Paper):
-            link += '/paper/{}/'.format(self.item.id)
-        elif isinstance(self.item, Thread):
+        item = self.item
+        if isinstance(item, Summary):
+            link += '/paper/{}/'.format(item.paper.id)
+        elif isinstance(item, Paper):
+            link += '/paper/{}/'.format(item.id)
+        elif isinstance(item, Thread):
             link += '/paper/{}/discussion/{}'.format(
-                self.item.paper.id,
-                self.item.id
+                item.paper.id,
+                item.id
             )
-        elif isinstance(self.item, Comment):
+        elif isinstance(item, Comment):
             link += '/paper/{}/discussion/{}'.format(
-                self.item.paper.id,
-                self.item.thread.id
+                item.paper.id,
+                item.thread.id
             )
-        elif isinstance(self.item, Reply):
+        elif isinstance(item, Reply):
             link += '/paper/{}/discussion/{}'.format(
-                self.item.paper.id,
-                self.item.thread.id,
+                item.paper.id,
+                item.thread.id,
+            )
+        elif isinstance(item, ResearchhubPost):
+            link += '/post/{}/{}'.format(
+                item.id,
+                item.title
+            )
+        elif isinstance(item, Hypothesis):
+            link += '/Hypothesis/{}/{}'.format(
+                item.id,
+                item.title
             )
         else:
             raise Exception('frontend_view_link not implemented')

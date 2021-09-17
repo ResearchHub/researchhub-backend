@@ -23,6 +23,7 @@ import user.views
 import notification.views
 import analytics.views
 import purchase.views
+import new_feature_release.views
 import debug_toolbar
 import researchhub_case.views as researchhub_case_views
 import researchhub_document.views as researchhub_document_views
@@ -31,6 +32,11 @@ import hypothesis.views as hypothesis_views
 from researchhub.settings import USE_DEBUG_TOOLBAR, INSTALLED_APPS
 
 router = routers.DefaultRouter()
+
+router.register(r'new_feature_release',
+    new_feature_release.views.NewFeatureViewSet,
+    basename='new_feature_release',
+)
 
 router.register(
     r'paper/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply',

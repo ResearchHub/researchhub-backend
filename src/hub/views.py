@@ -235,7 +235,8 @@ class HubViewSet(viewsets.ModelViewSet):
             'reply',
             'purchase',
             'researchhubpost',
-            'paper'
+            'paper',
+            # 'hypothesis',  # Need FE support
         ]
 
         # PK == 0 indicates for now that we're on the homepage
@@ -257,6 +258,7 @@ class HubViewSet(viewsets.ModelViewSet):
                 Q(comments__is_removed=False) |
                 Q(replies__is_removed=False) |
                 Q(posts__unified_document__is_removed=False) |
+                Q(hypothesis__unified_document__is_removed=False) |
                 Q(content_type__model='purchase')
             ),
             user__isnull=False,
@@ -390,6 +392,14 @@ class HubViewSet(viewsets.ModelViewSet):
                     'id',
                     'document_type',
                     'documents',
+                    'slug',
+                ]
+            },
+            'hyp_dhs_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'renderable_text',
+                    'title',
                     'slug',
                 ]
             },

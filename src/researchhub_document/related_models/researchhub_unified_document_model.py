@@ -12,6 +12,7 @@ from researchhub_document.tasks import (
     update_elastic_registry
 )
 
+
 class ResearchhubUnifiedDocument(DefaultModel):
     is_removed = models.BooleanField(
         default=False,
@@ -62,14 +63,21 @@ class ResearchhubUnifiedDocument(DefaultModel):
 
     @property
     def authors(self):
+        # This property needs to return a queryset
+        # which is why we are filtering by authors
+
         paper = self.paper
         if paper:
             return paper.authors.all()
 
+        if hasattr(self, 'hypothesis'):
+            author = Author.objects.filter(
+                user=self.hypothesis.created_by
+            )
+            return author
+
         posts = self.posts
-        if posts:
-            # This property needs to return a queryset
-            # which is why we are filtering by authors
+        if posts.exists():
             post = posts.last()
             author = Author.objects.filter(
                 user=post.created_by

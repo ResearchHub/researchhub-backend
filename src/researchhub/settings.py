@@ -212,6 +212,7 @@ INSTALLED_APPS = [
     'search',
     'summary',
     'user',
+    'new_feature_release',
 ]
 
 SITE_ID = 1
@@ -486,7 +487,8 @@ EMAIL_WHITELIST = [
     'val@quantfive.org',
     'patrick.lu@berkeley.edu',
     'calvinhlee@berkeley.edu',
-    'pdj7@georgetown.edu'
+    'pdj7@georgetown.edu',
+    'bank@researchhub.com',
 ]
 
 # Sentry

@@ -16,14 +16,11 @@ from utils.http import get_user_from_request
 
 
 class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
-    created_by = UserSerializer()
-    full_markdown = SerializerMethodField()
-    hubs = SerializerMethodField()
-
     class Meta:
         model = Hypothesis
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
+            'aggregate_citation_consensus',
             'boost_amount',
             'created_by',
             'created_date',
@@ -31,7 +28,6 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             'hubs',
             'id',
             'renderable_text',
-            'result_score',
             'slug',
             'src',
             'title',
@@ -40,19 +36,23 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
+            'aggregate_citation_consensus',
             'boost_amount',
             'created_by',
             'created_date',
             'id',
             'renderable_text',
-            'result_score',
             'slug',
             'src',
             'unified_document',
             'vote_meta',
         ]
 
+    aggregate_citation_consensus = SerializerMethodField()
     boost_amount = SerializerMethodField()
+    created_by = UserSerializer()
+    full_markdown = SerializerMethodField()
+    hubs = SerializerMethodField()
     vote_meta = SerializerMethodField()
 
     # GenericReactionSerializerMixin
@@ -61,6 +61,9 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
     user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
     user_vote = SerializerMethodField()  # NOTE: calvinhlee - deprecate?
+
+    def get_aggregate_citation_consensus(self, hypothesis):
+        return hypothesis.get_aggregate_citation_consensus()
 
     def get_full_markdown(self, hypothesis):
         byte_string = hypothesis.src.read()
@@ -108,13 +111,18 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
 
 
 class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
+    aggregate_citation_consensus = SerializerMethodField()
     created_by = SerializerMethodField()
     hubs = SerializerMethodField()
     unified_document = SerializerMethodField()
+    score = SerializerMethodField()
 
     class Meta(object):
         model = Hypothesis
         fields = '__all__'
+
+    def get_aggregate_citation_consensus(self, hypothesis):
+        return hypothesis.get_aggregate_citation_consensus()
 
     def get_created_by(self, hypothesis):
         context = self.context
@@ -146,3 +154,6 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
             **_context_fields
         )
         return serializer.data
+
+    def get_score(self, hypothesis):
+        return hypothesis.calculate_score()

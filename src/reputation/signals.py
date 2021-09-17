@@ -9,7 +9,7 @@ from django.contrib.admin.options import get_content_type_for_model
 
 import reputation.distributions as distributions
 from researchhub_document.models import ResearchhubPost
-from hypothesis.models import Hypothesis
+from hypothesis.models import Hypothesis, Citation
 from bullet_point.models import (
     BulletPoint,
     Vote as BulletPointVote
@@ -481,6 +481,8 @@ def distribute_for_discussion_vote(
             hubs = item.unified_document.hubs
         elif isinstance(item, Hypothesis):
             hubs = item.unified_document.hubs
+        elif isinstance(item, Citation):
+            hubs = item.source.hubs
 
         # TODO: This needs to be altered so that if the vote changes the
         # original distribution is deleted if not yet withdrawn
@@ -561,7 +563,6 @@ def get_discussion_vote_item_distribution(instance):
             return distributions.ResearchhubPostUpvoted
         else:
             raise error
-
     elif vote_type == ReactionVote.DOWNVOTE:
         if item_type == Comment:
             return distributions.CommentDownvoted
@@ -573,6 +574,8 @@ def get_discussion_vote_item_distribution(instance):
             return distributions.ResearchhubPostDownvoted
         else:
             raise error
+    elif vote_type == ReactionVote.NEUTRAL:
+        return distributions.NeutralVote
 
 
 @receiver(post_delete, sender=Distribution, dispatch_uid='delete_distribution')

@@ -7,7 +7,6 @@ from discussion.reaction_serializers import (
 
 from hypothesis.models import Citation
 from hypothesis.serializers import (
-    HypothesisSerializer,
     DynamicHypothesisSerializer
 )
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -22,7 +21,6 @@ from utils.http import get_user_from_request
 class CitationSerializer(ModelSerializer, GenericReactionSerializerMixin):
     created_by = UserSerializer()
     source = ResearchhubUnifiedDocumentSerializer()
-    hypothesis = HypothesisSerializer()
 
     class Meta:
         model = Citation
@@ -31,7 +29,6 @@ class CitationSerializer(ModelSerializer, GenericReactionSerializerMixin):
             'boost_amount',
             'id',
             'created_by',
-            'hypothesis',
             'source',
 
         ]
@@ -115,6 +112,7 @@ class DynamicCitationSerializer(DynamicModelFieldSerializer):
         return (
             {
                 'down_count': votes.filter(vote_type=Vote.DOWNVOTE).count(),
+                'neutral_count': votes.filter(vote_type=Vote.NEUTRAL).count(),
                 'up_count': votes.filter(vote_type=Vote.UPVOTE).count(),
                 'user_vote': (
                     serializer.data
