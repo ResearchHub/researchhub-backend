@@ -6,6 +6,8 @@ from django.dispatch import receiver
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.contrib.admin.options import get_content_type_for_model
+from django.utils.crypto import get_random_string
+from django.utils.text import slugify
 
 from bullet_point.models import BulletPoint, Vote as BulletPointVote
 from bullet_point.serializers import BulletPointVoteSerializer
@@ -22,10 +24,27 @@ from hypothesis.models import Hypothesis
 from summary.models import Summary, Vote as SummaryVote
 from summary.serializers import SummaryVoteSerializer
 from utils.siftscience import events_api, decisions_api
-from user.models import Action, Author, User
+from user.models import Action, Author, User, Organization
 from user.tasks import (
     link_author_to_papers, link_paper_to_authors, handle_spam_user_task
 )
+
+
+@receiver(post_save, sender=Organization, dispatch_uid='add_organization_slug')
+def add_organization_slug(
+    sender,
+    instance,
+    created,
+    update_fields,
+    **kwargs
+):
+    if created:
+        suffix = get_random_string(length=32)
+        slug = slugify(instance.name)
+        if not slug:
+            slug += suffix
+        instance.slug = slug
+        instance.save()
 
 
 @receiver(
