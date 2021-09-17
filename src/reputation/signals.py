@@ -482,7 +482,7 @@ def distribute_for_discussion_vote(
         elif isinstance(item, Hypothesis):
             hubs = item.unified_document.hubs
         elif isinstance(item, Citation):
-            hubs = item.unified_document.hubs
+            hubs = item.source.hubs
 
         # TODO: This needs to be altered so that if the vote changes the
         # original distribution is deleted if not yet withdrawn
