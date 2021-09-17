@@ -69,8 +69,8 @@ class Hypothesis(AbstractGenericReactionModel):
 
     def get_aggregate_citation_consensus(self):
         try:
-            return self.citations.all().aggregate(
-                citation_count=Count('id'),
+            citations = self.citations
+            data = citations.aggregate(
                 down_count=Count(
                     'votes', filter=Q(votes__vote_type=Vote.DOWNVOTE)
                 ),
@@ -81,6 +81,8 @@ class Hypothesis(AbstractGenericReactionModel):
                     'votes', filter=Q(votes__vote_type=Vote.UPVOTE)
                 )
             )
+            data['citation_count'] = citations.count()
+            return data
         except Exception as error:
             sentry.log_error(error)
             return {'citation_count': 0, 'down_count': 0,  'up_count': 0}
