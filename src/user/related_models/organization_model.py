@@ -19,3 +19,4 @@ class Organization(DefaultModel):
     )
     description = models.CharField(max_length=256)
     name = models.CharField(max_length=64)
+    slug = models.SlugField(default='', max_length=1024)
