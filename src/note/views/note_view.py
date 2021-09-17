@@ -83,6 +83,23 @@ class NoteViewSet(ModelViewSet):
         }
         return context
 
+    @action(
+        detail=True,
+        methods=['get'],
+    )
+    def get_organization_notes(self, request, pk=None):
+        user = request.user
+        path_parts = request.path.split('/')
+        organization_id = int(path_parts[3])
+
+        if organization_id == 0:
+            notes = self.queryset.filter(created_by__id=user.id)
+        else:
+            notes = self.queryset.filter(organization__id=organization_id)
+
+        serializer = self.serializer_class(notes, many=True)
+        return Response(serializer.data, status=200)
+
 
 class NoteContentViewSet(ModelViewSet):
     ordering = ('-created_date')
