@@ -6,6 +6,9 @@ from researchhub.settings import (
 
 class ApiPermission(permissions.BasePermission):
     def has_permission(self, request, view):
+        print('request.get_host()', request.get_host())
+        print('urlparse(host).netloc', urlparse(request.get_host()).netloc)
+        return True
         if APP_ENV == "development":
             return True
         else:
