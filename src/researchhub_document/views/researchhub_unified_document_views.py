@@ -42,11 +42,8 @@ from researchhub_document.related_models.constants.document_type import (
     POSTS,
     HYPOTHESIS
 )
-<<<<<<< HEAD
-=======
 from researchhub.permissions import ApiPermission
 from discussion.reaction_models import Vote
->>>>>>> 3b0bb6ff (CTX: Feed, Adding limit, increasing number of docs, updating cache keys)
 from paper.models import Vote as PaperVote, Paper
 from paper.serializers import PaperVoteSerializer
 from discussion.reaction_serializers import (
@@ -303,28 +300,45 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         hub_id,
         page_number,
         time_difference,
+        limit
     ):
 
         cache_hit = None
         if page_number == 1 and 'removed' not in ordering:
             cache_pk = ''
             if time_difference.days > 365:
-                cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'all_time')
+                cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'all_time', limit)
             elif time_difference.days == 365:
-                cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'year')
+                cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'year', limit)
             elif time_difference.days == 30 or time_difference.days == 31:
-                cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'month')
+                cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'month', limit)
             elif time_difference.days == 7:
-                cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'week')
+                cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'week', limit)
             else:
-                cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'today')
+                cache_pk = get_feed_cache_key(document_type, ordering, hub_id, 'today', limit)
 
             cache_key_hub = get_cache_key('hub', cache_pk)
             cache_hit = cache.get(cache_key_hub)
 
+        print(cache_pk)
+        print('cache_hit', cache_hit)
+
         if cache_hit:
             return cache_hit
         return None
+
+
+    def get_result_limit(self, request):
+        query_params = request.query_params
+        limit = FeedPagination.page_size
+
+        print('limit', query_params.get('limit'))
+        print('limit', int(query_params.get('limit')) <= FeedPagination.max_page_size)
+
+        if query_params.get('limit') and int(query_params.get('limit')) <= FeedPagination.max_page_size:
+            limit = query_params.get('limit')
+
+        return limit
 
     @action(
         detail=False,
@@ -339,6 +353,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             return self._get_subscribed_unified_documents(request)
 
         document_request_type = query_params.get('type', 'all')
+        limit = self.get_result_limit(request)
 
         hub_id = query_params.get('hub_id', 0)
         page_number = int(query_params.get('page', 1))
@@ -358,6 +373,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             hub_id,
             page_number,
             time_difference,
+            limit
         )
 
         if cache_hit and page_number == 1:
