@@ -111,9 +111,11 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
             },
             'doc_duds_get_documents': {
                 '_include_fields': [
+                    'created_date',
                     'id',
-                    'title',
                     'paper_title',
+                    'slug',
+                    'title',
                 ]
             }
         }
