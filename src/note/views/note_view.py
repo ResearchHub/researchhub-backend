@@ -32,14 +32,15 @@ class NoteViewSet(ModelViewSet):
     def create(self, request, *args, **kwargs):
         user = request.user
         data = request.data
-        created_by = None
-        organization = data.get('organization', None)
+        organization_id = data.get('organization', None)
         title = data.get('title', '')
 
-        if not organization:
-            created_by = user
+        if organization_id:
+            created_by = None
+            organization = Organization.objects.get(id=organization_id)
         else:
-            organization = Organization.objects.get(id=organization)
+            created_by = user
+            organization = None
 
         access_group = self._create_access_group(created_by, organization)
         unified_doc = self._create_unified_doc(request, access_group)
