@@ -16,7 +16,6 @@ from rest_framework.permissions import (
     IsAuthenticated,
     AllowAny
 )   
-
 from hypothesis.models import Hypothesis
 from paper.utils import get_cache_key
 from researchhub_document.models import (
