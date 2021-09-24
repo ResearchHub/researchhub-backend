@@ -83,9 +83,24 @@ class AuthorSerializer(serializers.ModelSerializer):
         if author.author_score > 0:
             return author.author_score
         else:
-            return author.authored_papers.aggregate(
+            raw_score = Paper.objects.filter(
+                raw_authors__contains=[
+                    {
+                        'first_name': author.first_name,
+                        'last_name': author.last_name
+                    }
+                ]
+            ).aggregate(
                 Sum('score')
-            )['score__sum']
+            ).get('score__sum', 0) or 0
+            
+            authored_score = author.authored_papers.aggregate(Sum('score')).get('score__sum', 0) or 0
+            total = raw_score + authored_score
+
+            if total > 0:
+                author.author_score = total
+                author.save()
+            return total
 
     def get_wallet(self, obj):
         from purchase.serializers import WalletSerializer
