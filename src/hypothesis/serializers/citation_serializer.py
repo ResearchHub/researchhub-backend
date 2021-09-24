@@ -30,7 +30,6 @@ class CitationSerializer(ModelSerializer, GenericReactionSerializerMixin):
             'id',
             'created_by',
             'source',
-
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
@@ -56,6 +55,7 @@ class DynamicCitationSerializer(DynamicModelFieldSerializer):
     created_by = SerializerMethodField()
     hypothesis = SerializerMethodField()
     source = SerializerMethodField()
+    publish_date = SerializerMethodField()
 
     class Meta(object):
         model = Citation
@@ -80,6 +80,9 @@ class DynamicCitationSerializer(DynamicModelFieldSerializer):
             **_context_fields
         )
         return serializer.data
+    
+    def get_publish_date(self, citation):
+        return citation.source.paper.paper_publish_date
 
     def get_source(self, citation):
         context = self.context
