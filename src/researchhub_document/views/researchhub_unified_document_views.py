@@ -13,8 +13,9 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework.utils.urls import replace_query_param
 from rest_framework.permissions import (
-    IsAuthenticated
-)
+    IsAuthenticated,
+    AllowAny
+)   
 
 from hypothesis.models import Hypothesis
 from paper.utils import get_cache_key
@@ -526,7 +527,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     @action(
         detail=False,
         methods=['get'],
-        # permission_classes=[AllowAny]
+        permission_classes=[AllowAny]
     )
     def check_user_vote(self, request):
         paper_ids = request.query_params.get('paper_ids', '')
