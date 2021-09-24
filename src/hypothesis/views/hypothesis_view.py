@@ -1,3 +1,4 @@
+from researchhub_document.utils import reset_unified_document_cache
 from django.core.files.base import ContentFile
 from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly
@@ -59,6 +60,27 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         unified_doc.save()
         return unified_doc
 
+    @action(detail=True, methods=['post'])
+    def upsert(self, request, *args, **kwargs):
+        user = request.user
+        hypo = Hypothesis.objects.get(id=request.data.get('hypothesis_id'))
+        unified_doc = hypo.unified_document
+        serializer = HypothesisSerializer(
+            hypo,
+            data=request.data,
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        file_name, full_src_file = self._create_src_content_file(
+            unified_doc, request.data['full_src'], user
+        )
+        serializer.instance.src.save(file_name, full_src_file)
+
+        reset_unified_document_cache([0])
+        return Response(request.data, status=200)
+
     def _create_src_content_file(self, unified_doc, data, user):
         file_name = f'HYPOTHESIS-{unified_doc.id}--USER-{user.id}.txt'
         full_src_file = ContentFile(data.encode())
@@ -111,9 +133,11 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
             },
             'doc_duds_get_documents': {
                 '_include_fields': [
+                    'created_date',
                     'id',
-                    'title',
                     'paper_title',
+                    'slug',
+                    'title',
                 ]
             }
         }
