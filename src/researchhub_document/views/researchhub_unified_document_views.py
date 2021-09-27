@@ -427,7 +427,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                             else:
                                 # This is hit when the document is a paper
                                 document = documents
-                        elif document_request_type == 'posts':
+                        elif document_request_type == 'post':
                             if documents_type not in (OrderedDict, dict):
                                 document = documents[0]
                             else:
