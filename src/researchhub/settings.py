@@ -199,6 +199,7 @@ INSTALLED_APPS = [
     'google_analytics',
     'hub',
     'hypothesis',
+    'invite',
     'mailing_list',
     'note',
     'notification',

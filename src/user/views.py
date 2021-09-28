@@ -29,10 +29,12 @@ from discussion.models import Thread, Comment, Reply
 from discussion.serializers import (
     DynamicThreadSerializer
 )
+from invite.models import OrganizationInvitation
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
 from reputation.serializers import DynamicContributionSerializer
 from researchhub_access_group.models import ResearchhubAccessGroup
+from researchhub_access_group.permissions import IsAdmin
 from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY, EMAIL_WHITELIST
 from researchhub_document.serializers import DynamicPostSerializer
 from paper.models import Paper
@@ -1011,3 +1013,25 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         serializer = OrganizationSerializer(user_organizations, many=True)
 
         return Response(serializer.data, status=200)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[IsAuthenticated, IsAdmin]
+    )
+    def invite_user(self, request, pk=None):
+        inviter = request.user
+        data = request.data
+        organization = self.get_object()
+        access_type = data.get('access_type')
+        recipient_email = data.get('email')
+
+        recipient = User.objects.get(email=recipient_email)
+        invite = OrganizationInvitation.create(
+            inviter=inviter,
+            recipient=recipient,
+            organization=organization,
+            invite_type=access_type
+        )
+        invite.send_invitation()
+        return Response(status=200)
