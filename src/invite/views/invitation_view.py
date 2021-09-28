@@ -23,7 +23,7 @@ class OrganizationInvitationViewSet(ModelViewSet):
             return Response('Invitation has expired', status=403)
 
         if user != invite.recipient:
-            return Response('Invalid inivtation', status=400)
+            return Response('Invalid invitation', status=400)
 
         invite_type = invite.invite_type
         access_group = invite.organization.access_group
