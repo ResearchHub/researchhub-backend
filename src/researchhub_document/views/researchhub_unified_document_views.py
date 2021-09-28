@@ -48,16 +48,16 @@ from discussion.reaction_serializers import (
 )
 from discussion.models import Vote as ReactionVote
 from user.utils import reset_latest_acitvity_cache
-
+from researchhub_document.pagination import FeedPagination
+from researchhub.permissions import ApiPermission
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     # TODO: calvinhlee - look into permissions
-    permission_classes = [
-        IsAuthenticated,
-    ]
+    permission_classes = [IsAuthenticated|ApiPermission]
     queryset = ResearchhubUnifiedDocument.objects.all()
     serializer_class = ResearchhubUnifiedDocumentSerializer
     dynamic_serializer_class = DynamicUnifiedDocumentSerializer
+    pagination_class = FeedPagination
 
     def update(self, request, *args, **kwargs):
         update_response = super().update(request, *args, **kwargs)
