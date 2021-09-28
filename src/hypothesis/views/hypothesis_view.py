@@ -98,6 +98,7 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
                 'consensus_meta',
                 'created_by',
                 'created_date',
+                'publish_date',
                 'id',
                 'score',
                 'source',
