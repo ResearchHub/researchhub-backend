@@ -6,7 +6,7 @@ from datetime import timedelta
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db import IntegrityError, models
-from django.db.models import Sum, Q, F
+from django.db.models import Sum, Q, F, Case, When
 from django.db.models.functions import Coalesce
 from django.core.cache import cache
 from django.utils import timezone
@@ -66,7 +66,8 @@ from user.serializers import (
     UserActions,
     MajorSerializer,
     VerificationSerializer,
-    OrganizationSerializer
+    OrganizationSerializer,
+    DynamicUserSerializer
 )
 from utils.http import DELETE, POST, PATCH, PUT
 from utils.http import RequestMethods
@@ -989,6 +990,64 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         full_src_file = ContentFile(data.encode())
         return file_name, full_src_file
 
+    def _get_organization_users_context(self):
+        context = {
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image',
+                ]
+            },
+        }
+        return context
+
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[IsAuthenticated]
+    )
+    def get_organization_users(self, request, pk=None):
+        organization = self.get_object()
+        access_group = organization.access_group
+        invited_users = organization.invited_users.distinct(
+            'recipient'
+        ).values(
+            'recipient'
+        )
+        users = access_group.admins.all()
+        users = users.union(
+            access_group.editors.all(),
+            access_group.viewers.all(),
+            User.objects.filter(id__in=invited_users)
+        )
+        # .values('id')
+        # users = User.objects.filter(id__in=users)
+        # users = users.annotate(
+        #     accepted=Case(
+        #         When(
+        #             Q(
+        #                 invitations__accepted=True
+        #             ) & Q(
+        #                 invitations__organization=organization
+        #             ),
+        #             then=True
+        #         ),
+        #         default=False,
+        #         output_field=models.BooleanField()
+        #     )
+        # ).distinct()
+        # import pdb; pdb.set_trace()
+        context = self._get_organization_users_context()
+        serializer = DynamicUserSerializer(
+            users,
+            many=True,
+            context=context,
+            _include_fields=['author_profile']
+        )
+        return Response(serializer.data, status=200)
+
     @action(
         detail=True,
         methods=['get'],
@@ -1013,6 +1072,41 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         serializer = OrganizationSerializer(user_organizations, many=True)
 
         return Response(serializer.data, status=200)
+
+    @action(
+        detail=True,
+        methods=['delete'],
+        permission_classes=[IsAuthenticated, IsAdmin]
+    )
+    def remove_user(self, request, pk=None):
+        data = request.data
+        user_id = data.get('user')
+        organization = self.get_object()
+        access_group = organization.access_group
+        user = User.objects.get(id=user_id)
+
+        success_response = Response(
+            'User removed from Organization',
+            status=200
+        )
+        try:
+            access_group.admins.remove(user)
+            return success_response
+        except Exception:
+            pass
+
+        try:
+            access_group.editors.remove(user)
+            return success_response
+        except Exception:
+            pass
+
+        try:
+            access_group.viewers.remove(user)
+            return success_response
+        except Exception:
+            pass
+        return Response('User could not be removed', status=404)
 
     @action(
         detail=True,
