@@ -1,0 +1,1 @@
+from invite.serializers.organization_invitation_serializer import OrganizationInvitationSerializer

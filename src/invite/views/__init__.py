@@ -1,0 +1,1 @@
+from invite.views.invitation_view import OrganizationInvitationViewSet
