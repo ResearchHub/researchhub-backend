@@ -269,12 +269,12 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
         'utils.renderers.PlainTextRenderer',
     ],
-    'DEFAULT_THROTTLE_CLASSES': [
-        'rest_framework.throttling.AnonRateThrottle',
-    ],
-    'DEFAULT_THROTTLE_RATES': {
-        'anon': '50/minute',
-    }
+    # 'DEFAULT_THROTTLE_CLASSES': [
+    #     'rest_framework.throttling.AnonRateThrottle',
+    # ],
+    # 'DEFAULT_THROTTLE_RATES': {
+    #     'anon': '50/minute',
+    # }
 }
 
 

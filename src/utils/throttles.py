@@ -124,6 +124,6 @@ def captcha_unlock(request):
     UserBurstRateThrottle().captcha_complete(request)
 
 THROTTLE_CLASSES = [
-    UserBurstRateThrottle,
-    UserSustainedRateThrottle,
+    # UserBurstRateThrottle,
+    # UserSustainedRateThrottle,
 ]
