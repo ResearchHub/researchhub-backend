@@ -47,10 +47,13 @@
               <p class="header-message">
                 Dear {{ user_name }},
                 <br/><br/>
-                You've have been invited to join {{ organization_title }} as an {{ access_type }}.
+                  You've have been invited to join 
+                  <b> {{ organization_title }} </b>
+                  as an
+                  <b> {{ access_type }}. </b>
               </p>
               <div class="email-action-container">
-                <a class="email-action-button" href="{{ user_profile }}"> 
+                <a class="email-action-button" href="{{ organization_link }}"> 
                   Go to Organization
                 </a>
               </div>

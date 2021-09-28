@@ -1026,7 +1026,12 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         access_type = data.get('access_type')
         recipient_email = data.get('email')
 
-        recipient = User.objects.get(email=recipient_email)
+        recipient = User.objects.filter(email=recipient_email)
+        if recipient.exists():
+            recipient = recipient.first()
+        else:
+            return Response('User with email does not exist', status=404)
+
         invite = OrganizationInvitation.create(
             inviter=inviter,
             recipient=recipient,
@@ -1034,4 +1039,4 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             invite_type=access_type
         )
         invite.send_invitation()
-        return Response(status=200)
+        return Response('Invite sent', status=200)
