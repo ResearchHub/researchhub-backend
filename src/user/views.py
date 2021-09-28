@@ -1025,7 +1025,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         organization = self.get_object()
         access_type = data.get('access_type')
         recipient_email = data.get('email')
-        time_to_expire = data.get('expire', 1440)
+        time_to_expire = int(data.get('expire', 1440))
 
         recipient = User.objects.filter(email=recipient_email)
         if recipient.exists():
