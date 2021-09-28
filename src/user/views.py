@@ -1025,6 +1025,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         organization = self.get_object()
         access_type = data.get('access_type')
         recipient_email = data.get('email')
+        time_to_expire = data.get('expire', 1440)
 
         recipient = User.objects.filter(email=recipient_email)
         if recipient.exists():
@@ -1036,7 +1037,8 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             inviter=inviter,
             recipient=recipient,
             organization=organization,
-            invite_type=access_type
+            invite_type=access_type,
+            expiration_time=time_to_expire
         )
         invite.send_invitation()
         return Response('Invite sent', status=200)
