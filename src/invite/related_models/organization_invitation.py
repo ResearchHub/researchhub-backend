@@ -24,6 +24,7 @@ class OrganizationInvitation(Invitation):
     organization = models.ForeignKey(
         Organization,
         on_delete=models.CASCADE,
+        related_name='invited_users'
     )
 
     def send_invitation(self):
