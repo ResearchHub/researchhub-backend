@@ -2,7 +2,6 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import (
-    AllowAny,
     IsAuthenticated,
 )
 
@@ -12,7 +11,7 @@ from invite.serializers import OrganizationInvitationSerializer
 
 class OrganizationInvitationViewSet(ModelViewSet):
     queryset = OrganizationInvitation.objects.all()
-    permission_classes = IsAuthenticated
+    permission_classes = [IsAuthenticated]
     serializer_class = OrganizationInvitationSerializer
 
     @action(detail=True, methods=['post'])
@@ -23,6 +22,9 @@ class OrganizationInvitationViewSet(ModelViewSet):
         if invite.is_expired():
             return Response('Invitation has expired', status=403)
 
+        if user != invite.recipient:
+            return Response('Invalid inivtation', status=400)
+
         invite_type = invite.invite_type
         access_group = invite.organization.access_group
         if invite_type == OrganizationInvitation.ADMIN:
@@ -31,5 +33,7 @@ class OrganizationInvitationViewSet(ModelViewSet):
             access_group.editors.add(user)
         else:
             access_group.viewers.add(user)
+
+        invite.accept()
 
         return Response('User has accepted invitation', status=200)

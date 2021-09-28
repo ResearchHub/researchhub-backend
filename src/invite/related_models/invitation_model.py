@@ -1,3 +1,5 @@
+import pytz
+
 from django.db import models
 from django.utils.crypto import get_random_string
 from datetime import datetime, timedelta
@@ -33,7 +35,7 @@ class Invitation(DefaultModel):
     @classmethod
     def create(cls, expiration_time=1440, recipient=None, **kwargs):
         expiration_delta = timedelta(minutes=expiration_time)
-        expiration_date = datetime.now() + expiration_delta
+        expiration_date = datetime.now(pytz.utc) + expiration_delta
         key = get_random_string(32).lower()
         instance = cls._default_manager.create(
             expiration_date=expiration_date,
@@ -43,8 +45,12 @@ class Invitation(DefaultModel):
         )
         return instance
 
+    def accept(self):
+        self.accepted = True
+        self.save()
+
     def is_expired(self):
-        return datetime.now() > self.expiration_date()
+        return datetime.now(pytz.utc) > self.expiration_date
 
     def send_invitation(self):
         raise NotImplementedError(
