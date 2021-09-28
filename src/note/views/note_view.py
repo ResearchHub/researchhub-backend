@@ -91,7 +91,7 @@ class NoteViewSet(ModelViewSet):
     def get_organization_notes(self, request, pk=None):
         user = request.user
 
-        if pk == 0:
+        if pk == '0':
             notes = self.queryset.filter(created_by__id=user.id)
         else:
             notes = self.queryset.filter(organization__id=pk)
