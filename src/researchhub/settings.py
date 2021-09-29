@@ -761,5 +761,3 @@ SERIALIZER_SWITCH = os.environ.get('SERIALIZER_SWITCH', True)
 # Key to access our API without throttling. Used by some nextjs
 # server side functions.
 RH_API_KEY = os.environ.get('RH_API_KEY', keys.RH_API_KEY)
-
-print('RH_API_KEY', RH_API_KEY)
