@@ -31,3 +31,4 @@ SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
 APM_URL = os.environ.get('APM_URL', '')
 
 ELASTICSEARCH_HOST = os.environ.get('ELASTICSEARCH_HOST', '')
+RH_API_Key = os.environ.get('RH_API_Key', '')
