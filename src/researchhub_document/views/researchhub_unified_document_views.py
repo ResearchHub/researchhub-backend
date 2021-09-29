@@ -49,15 +49,16 @@ from discussion.reaction_serializers import (
 from discussion.models import Vote as ReactionVote
 from user.utils import reset_latest_acitvity_cache
 from researchhub_document.pagination import FeedPagination
-from researchhub.permissions import ApiPermission
+from utils.throttles import THROTTLE_CLASSES
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     # TODO: calvinhlee - look into permissions
-    permission_classes = [IsAuthenticated|ApiPermission]
+    permission_classes = [IsAuthenticated]
     queryset = ResearchhubUnifiedDocument.objects.all()
     serializer_class = ResearchhubUnifiedDocumentSerializer
     dynamic_serializer_class = DynamicUnifiedDocumentSerializer
     pagination_class = FeedPagination
+    throttle_classes = THROTTLE_CLASSES
 
     def update(self, request, *args, **kwargs):
         update_response = super().update(request, *args, **kwargs)

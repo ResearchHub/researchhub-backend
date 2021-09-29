@@ -123,8 +123,6 @@ if ELASTIC_BEANSTALK:
         pass
 
 
-# Cors
-
 CORS_ORIGIN_WHITELIST = [
     "http://localhost:3000",
     "http://localhost:3003",
@@ -136,7 +134,6 @@ CORS_ORIGIN_WHITELIST = [
     'https://researchhub.com',
     'http://10.0.2.2:3000',
 ]
-
 
 # Application definition
 
@@ -269,12 +266,12 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
         'utils.renderers.PlainTextRenderer',
     ],
-    # 'DEFAULT_THROTTLE_CLASSES': [
-    #     'rest_framework.throttling.AnonRateThrottle',
-    # ],
-    # 'DEFAULT_THROTTLE_RATES': {
-    #     'anon': '50/minute',
-    # }
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '50/minute',
+    }
 }
 
 
@@ -760,3 +757,9 @@ elif reward_time_hour:
 
 # Killswitch Variables
 SERIALIZER_SWITCH = os.environ.get('SERIALIZER_SWITCH', True)
+
+# Key to access our API without throttling. Used by some nextjs
+# server side functions.
+RH_API_KEY = os.environ.get('RH_API_KEY', keys.RH_API_KEY)
+
+print('RH_API_KEY', RH_API_KEY)

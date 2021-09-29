@@ -73,6 +73,7 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticatedOrReadOnly]
     filter_backends = (DjangoFilterBackend,)
     filterset_fields = ['referral_code', 'invited_by']
+    throttle_classes = THROTTLE_CLASSES
 
     def get_serializer_class(self):
         if self.request.GET.get('referral_code') or self.request.GET.get('invited_by'):

@@ -1,6 +1,9 @@
 from oauth.models import Throttle
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
+from researchhub.settings import (
+    RH_API_KEY
+)
 
 THROTTLE_RATES = {
     'user.burst': '7/min',
@@ -29,8 +32,16 @@ class UserCaptchaThrottle(UserRateThrottle):
         return THROTTLE_RATES[self.scope]
 
     def allow_request(self, request, view):
+        has_api_access = request.META.get('HTTP_RH_API_KEY') == RH_API_KEY
+        
+        print(request.META)
+        print('has_api_access', has_api_access)
+        print('META', request.META.get('HTTP_RH_API_KEY'))
+        print('server', RH_API_KEY)
+
         if (
-            (self.rate is None)
+            has_api_access
+            or (self.rate is None)
             or (request.method in SAFE_METHODS)
             or (
                 request.user.is_authenticated
@@ -124,6 +135,6 @@ def captcha_unlock(request):
     UserBurstRateThrottle().captcha_complete(request)
 
 THROTTLE_CLASSES = [
-    # UserBurstRateThrottle,
-    # UserSustainedRateThrottle,
+    UserBurstRateThrottle,
+    UserSustainedRateThrottle,
 ]
