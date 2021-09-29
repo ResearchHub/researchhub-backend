@@ -33,11 +33,6 @@ class UserCaptchaThrottle(UserRateThrottle):
 
     def allow_request(self, request, view):
         has_api_access = request.META.get('HTTP_RH_API_KEY') == RH_API_KEY
-        
-        print(request.META)
-        print('has_api_access', has_api_access)
-        print('META', request.META.get('HTTP_RH_API_KEY'))
-        print('server', RH_API_KEY)
 
         if (
             has_api_access
