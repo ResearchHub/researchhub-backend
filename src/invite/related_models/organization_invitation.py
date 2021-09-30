@@ -27,7 +27,7 @@ class OrganizationInvitation(Invitation):
         related_name='invited_users'
     )
 
-    def send_invitation(self):
+    def send_invitation(self, email=None):
         key = self.key
         recipient = self.recipient
         organization = self.organization
@@ -39,10 +39,18 @@ class OrganizationInvitation(Invitation):
             'access_type': invite_type.lower(),
             'organization_title': organization.name,
             'organization_link': f'{BASE_FRONTEND_URL}/placeholder/{key}/join',
-            'user_name': f'{recipient.first_name} {recipient.last_name}'
         }
+
+        if recipient:
+            email_context['user_name'] = f'{recipient.first_name} {recipient.last_name}'
+        else:
+            email_context['user_name'] = 'User'
+
+        if not email:
+            email = recipient.email
+
         send_email_message(
-            [recipient.email],
+            [email],
             template,
             subject,
             email_context,

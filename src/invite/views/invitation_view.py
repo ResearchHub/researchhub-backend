@@ -20,10 +20,10 @@ class OrganizationInvitationViewSet(ModelViewSet):
         user = request.user
         invite = self.queryset.get(key=pk)
 
-        if invite.is_expired():
+        if invite.is_expired() or invite.accepted:
             return Response('Invitation has expired', status=403)
 
-        if user != invite.recipient:
+        if invite.recipient and user != invite.recipient:
             return Response('Invalid invitation', status=400)
 
         invite_type = invite.invite_type
