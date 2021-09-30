@@ -1124,7 +1124,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         if recipient.exists():
             recipient = recipient.first()
         else:
-            return Response('User with email does not exist', status=404)
+            recipient = None
 
         invite = OrganizationInvitation.create(
             inviter=inviter,
@@ -1133,5 +1133,5 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             invite_type=access_type,
             expiration_time=time_to_expire
         )
-        invite.send_invitation()
+        invite.send_invitation(recipient_email)
         return Response('Invite sent', status=200)
