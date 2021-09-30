@@ -956,25 +956,24 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         user = request.user
         data = request.data
-        description = data.get('description', None)
+        description = data.get('description', '')
         name = data.get('name', None)
         image = data.get('image', None)
 
-        with transaction.atomic():
-            access_group = self._create_access_group(user)
-            organization = Organization.objects.create(
-                access_group=access_group,
-                description=description,
-                name=name,
-            )
+        access_group = self._create_access_group(user)
+        organization = Organization.objects.create(
+            access_group=access_group,
+            description=description,
+            name=name,
+        )
 
-            if image:
-                file_name, file = self._create_image_file(
-                    image,
-                    organization,
-                    user
-                )
-                organization.cover_image.save(file_name, file)
+        if image:
+            file_name, file = self._create_image_file(
+                image,
+                organization,
+                user
+            )
+            organization.cover_image.save(file_name, file)
 
         serializer = self.serializer_class(organization)
         data = serializer.data
