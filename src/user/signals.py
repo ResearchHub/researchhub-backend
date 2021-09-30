@@ -30,21 +30,21 @@ from user.tasks import (
 )
 
 
-@receiver(post_save, sender=Organization, dispatch_uid='add_organization_slug')
+@receiver(pre_save, sender=Organization, dispatch_uid='add_organization_slug')
 def add_organization_slug(
     sender,
     instance,
-    created,
     update_fields,
     **kwargs
 ):
-    if created:
+    if not instance.slug:
         suffix = get_random_string(length=32)
         slug = slugify(instance.name)
         if not slug:
             slug += suffix
+        if sender.objects.filter(slug=slug).exists():
+            slug += f'-{suffix}'
         instance.slug = slug
-        instance.save()
 
 
 @receiver(
