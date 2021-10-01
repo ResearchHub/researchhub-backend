@@ -27,9 +27,10 @@ class OrganizationInvitation(Invitation):
         related_name='invited_users'
     )
 
-    def send_invitation(self, email=None):
+    def send_invitation(self):
         key = self.key
         recipient = self.recipient
+        email = self.recipient_email
         organization = self.organization
         invite_type = self.invite_type.lower()
         template = 'organization_invite.txt'
@@ -45,9 +46,6 @@ class OrganizationInvitation(Invitation):
             email_context['user_name'] = f'{recipient.first_name} {recipient.last_name}'
         else:
             email_context['user_name'] = 'User'
-
-        if not email:
-            email = recipient.email
 
         send_email_message(
             [email],
