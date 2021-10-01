@@ -30,6 +30,7 @@ from discussion.serializers import (
     DynamicThreadSerializer
 )
 from invite.models import OrganizationInvitation
+from invite.serializers import DynamicOrganizationInvitationSerializer
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
 from reputation.serializers import DynamicContributionSerializer
@@ -1011,41 +1012,57 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         organization = self.get_object()
         access_group = organization.access_group
         invited_users = organization.invited_users.distinct(
-            'recipient'
-        ).values(
-            'recipient'
+            'recipient_email'
         )
-        users = access_group.admins.all()
-        users = users.union(
-            access_group.editors.all(),
-            access_group.viewers.all(),
-            User.objects.filter(id__in=invited_users)
+        admins = access_group.admins.all()
+        editors = access_group.editors.all()
+        viewers = access_group.viewers.all()
+
+        all_users = admins.union(
+            editors,
+            viewers,
         )
-        # .values('id')
-        # users = User.objects.filter(id__in=users)
-        # users = users.annotate(
-        #     accepted=Case(
-        #         When(
-        #             Q(
-        #                 invitations__accepted=True
-        #             ) & Q(
-        #                 invitations__organization=organization
-        #             ),
-        #             then=True
-        #         ),
-        #         default=False,
-        #         output_field=models.BooleanField()
-        #     )
-        # ).distinct()
-        # import pdb; pdb.set_trace()
+
+        invited_users = invited_users.exclude(
+            recipient__in=all_users.values('id')
+        )
+        invitation_serializer = DynamicOrganizationInvitationSerializer(
+            invited_users,
+            _include_fields=[
+                'accepted',
+                'created_date',
+                'expiration_date',
+                'recipient_email',
+            ],
+            many=True
+        )
+
         context = self._get_organization_users_context()
-        serializer = DynamicUserSerializer(
-            users,
+        admin_serializer = DynamicUserSerializer(
+            admins,
             many=True,
             context=context,
             _include_fields=['author_profile']
         )
-        return Response(serializer.data, status=200)
+        editor_serializer = DynamicUserSerializer(
+            editors,
+            many=True,
+            context=context,
+            _include_fields=['author_profile']
+        )
+        viewer_serializer = DynamicUserSerializer(
+            viewers,
+            many=True,
+            context=context,
+            _include_fields=['author_profile']
+        )
+        data = {
+            'admins': admin_serializer.data,
+            'editors': editor_serializer.data,
+            'viewers': viewer_serializer.data,
+            'invited_users': invitation_serializer.data
+        }
+        return Response(data, status=200)
 
     @action(
         detail=True,
@@ -1129,9 +1146,10 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         invite = OrganizationInvitation.create(
             inviter=inviter,
             recipient=recipient,
+            recipient_email=recipient_email,
             organization=organization,
             invite_type=access_type,
             expiration_time=time_to_expire
         )
-        invite.send_invitation(recipient_email)
+        invite.send_invitation()
         return Response('Invite sent', status=200)

@@ -31,6 +31,9 @@ class Invitation(DefaultModel):
         related_name='invitations',
         on_delete=models.CASCADE
     )
+    recipient_email = models.CharField(
+        max_length=64
+    )
 
     @classmethod
     def create(cls, expiration_time=1440, recipient=None, **kwargs):
