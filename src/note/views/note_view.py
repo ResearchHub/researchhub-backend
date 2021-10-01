@@ -92,11 +92,29 @@ class NoteViewSet(ModelViewSet):
         user = request.user
 
         if pk == '0':
-            notes = self.queryset.filter(created_by__id=user.id)
+            notes = self.queryset.filter(
+                created_by__id=user.id,
+                unified_document__is_removed=False,
+            )
         else:
-            notes = self.queryset.filter(organization__id=pk)
+            notes = self.queryset.filter(
+                organization__id=pk,
+                unified_document__is_removed=False,
+            )
 
         serializer = self.serializer_class(notes, many=True)
+        return Response(serializer.data, status=200)
+
+    @action(
+        detail=True,
+        methods=['post'],
+    )
+    def delete(self, request, pk=None):
+        note = self.queryset.get(id=pk)
+        unified_document = note.unified_document
+        unified_document.is_removed = True
+        unified_document.save()
+        serializer = self.serializer_class(note)
         return Response(serializer.data, status=200)
 
 
