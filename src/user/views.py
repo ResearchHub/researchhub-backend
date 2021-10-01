@@ -1,7 +1,8 @@
 import hmac
+import pytz
 
 from hashlib import sha1
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.core.files.base import ContentFile
 from django.db import transaction
@@ -1024,7 +1025,9 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         )
 
         invited_users = invited_users.exclude(
-            recipient__in=all_users.values('id')
+            recipient__in=all_users.values('id'),
+        ).filter(
+            expiration_date__gt=datetime.now(pytz.utc)
         )
         invitation_serializer = DynamicOrganizationInvitationSerializer(
             invited_users,
@@ -1153,3 +1156,36 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         )
         invite.send_invitation()
         return Response('Invite sent', status=200)
+
+    @action(
+        detail=True,
+        methods=['patch'],
+        permission_classes=[IsAuthenticated, IsAdmin]
+    )
+    def remove_invited_user(self, request, pk=None):
+        inviter = request.user
+        data = request.data
+        organization = self.get_object()
+        recipient_email = data.get('email')
+
+        invites = OrganizationInvitation.objects.filter(
+            inviter=inviter,
+            recipient_email=recipient_email,
+            organization=organization,
+        )
+        invites.update(expiration_date=datetime.now(pytz.utc))
+        return Response(f'Invite removed for {recipient_email}', status=200)
+
+    @action(
+        detail=True,
+        methods=['patch'],
+        permission_classes=[IsAuthenticated, IsAdmin]
+    )
+    def update_user_permission(self, request, pk=None):
+        organization = self.get_object()
+        access_group = organization.access_group
+        data = request.data
+        user_id = data.get('user')
+        access_type = data.get('access_type')
+        user = User.objects.get(user=user_id)
+        pass
