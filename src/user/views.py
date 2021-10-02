@@ -999,6 +999,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                     'first_name',
                     'last_name',
                     'profile_image',
+                    'email',
                 ]
             },
         }
