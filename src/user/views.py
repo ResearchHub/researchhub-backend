@@ -999,7 +999,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                     'first_name',
                     'last_name',
                     'profile_image',
-                    'email',
                 ]
             },
         }
@@ -1046,19 +1045,19 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             admins,
             many=True,
             context=context,
-            _include_fields=['author_profile']
+            _include_fields=['author_profile', 'email']
         )
         editor_serializer = DynamicUserSerializer(
             editors,
             many=True,
             context=context,
-            _include_fields=['author_profile']
+            _include_fields=['author_profile', 'email']
         )
         viewer_serializer = DynamicUserSerializer(
             viewers,
             many=True,
             context=context,
-            _include_fields=['author_profile']
+            _include_fields=['author_profile', 'email']
         )
         data = {
             'admins': admin_serializer.data,
