@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import (
     IsAuthenticated,
+    AllowAny
 )
 
 from invite.models import OrganizationInvitation
@@ -15,7 +16,11 @@ class OrganizationInvitationViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = OrganizationInvitationSerializer
 
-    @action(detail=True, methods=['post'])
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[AllowAny]
+    )
     def accept_invite(self, request, pk=None):
         user = request.user
         invite = self.queryset.get(key=pk)
