@@ -1098,7 +1098,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['get'],
-        permission_classes=[IsAuthenticated]
+        permission_classes=[AllowAny]
     )
     def get_organization_by_key(self, request, pk=None):
         invite = OrganizationInvitation.objects.get(key=pk)
