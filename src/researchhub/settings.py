@@ -491,6 +491,10 @@ EMAIL_WHITELIST = [
     'calvinhlee@berkeley.edu',
     'pdj7@georgetown.edu',
     'bank@researchhub.com',
+    'kobeattias@gmail.com',
+    'kobe@researchhub.com',
+    'kobe+1@researchhub.com',
+    'contact@notesalong.com',
 ]
 
 # Sentry
