@@ -5,7 +5,7 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 
 from hub.models import Hub
 from note.models import (
@@ -21,6 +21,14 @@ from researchhub_document.related_models.constants.document_type import (
     NOTE
 )
 from user.models import Organization
+from django.http import HttpResponse
+from utils.http import RequestMethods
+from jwt import encode
+from datetime import datetime
+from researchhub.settings import (
+    CKEDITOR_CLOUD_ACCESS_KEY,
+    CKEDITOR_CLOUD_ENVIRONMENT_ID
+)
 
 
 class NoteViewSet(ModelViewSet):
@@ -149,3 +157,30 @@ class NoteContentViewSet(ModelViewSet):
         file_name = f'NOTE-CONTENT-{note}--USER-{user.id}.txt'
         full_src_file = ContentFile(data.encode())
         return file_name, full_src_file
+
+
+@api_view([RequestMethods.GET])
+@permission_classes([IsAuthenticated])
+def ckeditor_token(request):
+    user = request.user
+
+    payload = {
+        'aud': CKEDITOR_CLOUD_ENVIRONMENT_ID,
+        'iat': datetime.utcnow(),
+        'sub': f'user-{user.id}',
+        'user': {
+            'email': user.email,
+            'name': f'{user.first_name} {user.last_name}',
+            'avatar': user.author_profile.profile_image.url,
+        },
+        'auth': {
+            'collaboration': {
+                '*': {
+                    'role': 'writer'
+                }
+            }
+        },
+    }
+
+    encoded = encode(payload, CKEDITOR_CLOUD_ACCESS_KEY, algorithm='HS256')
+    return HttpResponse(encoded)
