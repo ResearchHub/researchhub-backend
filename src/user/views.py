@@ -1072,6 +1072,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['get'],
+        permission_classes=[IsAuthenticated]
     )
     def get_user_organizations(self, request, pk=None):
         user = User.objects.get(id=pk)
@@ -1092,6 +1093,17 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         user_organizations = Organization.objects.filter(id__in=organizations)
         serializer = OrganizationSerializer(user_organizations, many=True)
 
+        return Response(serializer.data, status=200)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[IsAuthenticated]
+    )
+    def get_organization_by_key(self, request, pk=None):
+        invite = OrganizationInvitation.objects.get(key=pk)
+        organization = invite.organization
+        serializer = self.serializer_class(organization)
         return Response(serializer.data, status=200)
 
     @action(
