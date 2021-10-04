@@ -39,7 +39,7 @@ class OrganizationInvitation(Invitation):
         email_context = {
             'access_type': invite_type.lower(),
             'organization_title': organization.name,
-            'organization_link': f'{BASE_FRONTEND_URL}/placeholder/{key}/join',
+            'organization_link': f'{BASE_FRONTEND_URL}/org/join/{key}',
         }
 
         if recipient:
