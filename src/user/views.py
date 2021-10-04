@@ -1039,6 +1039,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             ],
             many=True
         )
+        user_count = all_users.count() + invited_users.count()
 
         context = self._get_organization_users_context()
         admin_serializer = DynamicUserSerializer(
@@ -1063,7 +1064,8 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             'admins': admin_serializer.data,
             'editors': editor_serializer.data,
             'viewers': viewer_serializer.data,
-            'invited_users': invitation_serializer.data
+            'invited_users': invitation_serializer.data,
+            'user_count': user_count
         }
         return Response(data, status=200)
 
