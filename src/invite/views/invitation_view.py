@@ -8,6 +8,7 @@ from rest_framework.permissions import (
 
 from invite.models import OrganizationInvitation
 from invite.serializers import OrganizationInvitationSerializer
+from researchhub_access_group.models import Permission
 from user.models import Organization
 
 
@@ -26,19 +27,18 @@ class OrganizationInvitationViewSet(ModelViewSet):
         invite = self.queryset.get(key=pk)
 
         if invite.is_expired() or invite.accepted:
-            return Response('Invitation has expired', status=403)
+            return Response({'data': 'Invitation has expired'}, status=403)
 
         if invite.recipient and user != invite.recipient:
-            return Response('Invalid invitation', status=400)
+            return Response({'data': 'Invalid invitation'}, status=400)
 
         invite_type = invite.invite_type
         access_group = invite.organization.access_group
-        if invite_type == OrganizationInvitation.ADMIN:
-            access_group.admins.add(user)
-        elif invite_type == OrganizationInvitation.EDITOR:
-            access_group.editors.add(user)
-        else:
-            access_group.viewers.add(user)
+        Permission.objects.create(
+            access_group=access_group,
+            access_type=invite_type,
+            user=user
+        )
 
         invite.accept()
 

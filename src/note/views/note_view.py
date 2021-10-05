@@ -83,8 +83,8 @@ class NoteViewSet(ModelViewSet):
         access_group = ResearchhubAccessGroup.objects.create()
         Permission.objects.create(
             access_group=access_group,
+            access_type=Permission.ADMIN,
             user=creator,
-            access_type=Permission.ADMIN
         )
         return access_group
 

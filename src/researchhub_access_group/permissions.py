@@ -15,7 +15,7 @@ class IsAdmin(AuthorizationBasedPermission):
         ).exists()
 
 
-class IsAdminOrCreateOnly:
+class IsAdminOrCreateOnly(AuthorizationBasedPermission):
     message = 'User is not an admin of the organization'
 
     def is_authorized(self, request, view, obj):
