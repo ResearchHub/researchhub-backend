@@ -5,7 +5,7 @@ from utils.models import DefaultModel
 
 
 class Organization(DefaultModel):
-    access_group = models.OneToOneField(
+    access_group = models.ForeignKey(
         ResearchhubAccessGroup,
         related_name='organization',
         on_delete=models.CASCADE,

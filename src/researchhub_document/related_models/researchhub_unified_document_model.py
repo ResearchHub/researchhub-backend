@@ -43,12 +43,9 @@ class ResearchhubUnifiedDocument(DefaultModel):
         default=0,
         help_text='Feed ranking score.',
     )
-    access_group = models.OneToOneField(
+    access_group = models.ManyToManyField(
         ResearchhubAccessGroup,
-        blank=True,
         help_text='Mostly used for ELN',
-        null=True,
-        on_delete=models.SET_NULL,
         related_name='document'
     )
     paper = models.OneToOneField(

@@ -13,7 +13,7 @@ from note.models import (
     NoteContent
 )
 from note.serializers import NoteSerializer, NoteContentSerializer
-from researchhub_access_group.models import ResearchhubAccessGroup
+from researchhub_access_group.models import ResearchhubAccessGroup, Permission
 from researchhub_document.models import (
     ResearchhubUnifiedDocument
 )
@@ -68,23 +68,24 @@ class NoteViewSet(ModelViewSet):
             id__in=data.get('hubs', [])
         ).all()
         unified_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=NOTE,
-            access_group=access_group,
+            document_type=NOTE
         )
+        unified_doc.access_group.add(access_group)
         unified_doc.hubs.add(*hubs)
         unified_doc.save()
         return unified_doc
 
     def _create_access_group(self, creator, organization):
         if organization:
-            # This copies the access group
             access_group = organization.access_group
-            access_group.pk = None
-            access_group.save()
             return access_group
 
         access_group = ResearchhubAccessGroup.objects.create()
-        access_group.admins.add(creator)
+        Permission.objects.create(
+            access_group=access_group,
+            user=creator,
+            access_type=Permission.ADMIN
+        )
         return access_group
 
     def _get_context(self):

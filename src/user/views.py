@@ -35,8 +35,8 @@ from invite.serializers import DynamicOrganizationInvitationSerializer
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
 from reputation.serializers import DynamicContributionSerializer
-from researchhub_access_group.models import ResearchhubAccessGroup
-from researchhub_access_group.permissions import IsAdmin
+from researchhub_access_group.models import ResearchhubAccessGroup, Permission
+from researchhub_access_group.permissions import IsAdmin, IsAdminOrCreateOnly
 from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY, EMAIL_WHITELIST
 from researchhub_document.serializers import DynamicPostSerializer
 from paper.models import Paper
@@ -952,7 +952,8 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
     permission_classes = [
-        IsAuthenticated
+        IsAuthenticated,
+        IsAdminOrCreateOnly
     ]
 
     def create(self, request, *args, **kwargs):
@@ -962,7 +963,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         name = data.get('name', None)
         image = data.get('image', None)
 
-        access_group = self._create_access_group(user)
+        access_group = self._create_access_group(user, name)
         organization = Organization.objects.create(
             access_group=access_group,
             description=description,
@@ -981,9 +982,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         data = serializer.data
         return Response(data, status=200)
 
-    def _create_access_group(self, creator):
-        access_group = ResearchhubAccessGroup.objects.create()
-        access_group.admins.add(creator)
+    def _create_access_group(self, creator, name):
+        access_group = ResearchhubAccessGroup.objects.create(name=name)
+        Permission.objects.create(
+            access_group=access_group,
+            user=creator,
+            access_type=Permission.ADMIN
+        )
         return access_group
 
     def _create_image_file(self, data, organization, user):
@@ -1007,7 +1012,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['get'],
-        permission_classes=[IsAuthenticated]
+        permission_classes=[AllowAny]
     )
     def get_organization_users(self, request, pk=None):
         organization = self.get_object()
@@ -1015,17 +1020,11 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         invited_users = organization.invited_users.distinct(
             'recipient_email'
         )
-        admins = access_group.admins.all()
-        editors = access_group.editors.all()
-        viewers = access_group.viewers.all()
-
-        all_users = admins.union(
-            editors,
-            viewers,
-        )
+        organization_users = access_group.permissions.values('user')
+        users = User.objects.filter(id__in=organization_users)
 
         invited_users = invited_users.exclude(
-            recipient__in=all_users.values('id'),
+            recipient__in=organization_users,
         ).filter(
             expiration_date__gt=datetime.now(pytz.utc)
         )
@@ -1039,32 +1038,18 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             ],
             many=True
         )
-        user_count = all_users.count() + invited_users.count()
+        user_count = organization_users.count() + invited_users.count()
         note_count = organization.created_notes.count()
 
         context = self._get_organization_users_context()
-        admin_serializer = DynamicUserSerializer(
-            admins,
-            many=True,
-            context=context,
-            _include_fields=['author_profile', 'email']
-        )
-        editor_serializer = DynamicUserSerializer(
-            editors,
-            many=True,
-            context=context,
-            _include_fields=['author_profile', 'email']
-        )
-        viewer_serializer = DynamicUserSerializer(
-            viewers,
+        serializer = DynamicUserSerializer(
+            users,
             many=True,
             context=context,
             _include_fields=['author_profile', 'email']
         )
         data = {
-            'admins': admin_serializer.data,
-            'editors': editor_serializer.data,
-            'viewers': viewer_serializer.data,
+            'users': serializer.data,
             'invited_users': invitation_serializer.data,
             'user_count': user_count,
             'note_count': note_count,
