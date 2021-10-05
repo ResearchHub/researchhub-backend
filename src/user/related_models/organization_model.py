@@ -7,7 +7,7 @@ from utils.models import DefaultModel
 class Organization(DefaultModel):
     access_group = models.ForeignKey(
         ResearchhubAccessGroup,
-        related_name='organization',
+        related_name='organizations',
         on_delete=models.CASCADE,
     )
     cover_image = models.FileField(

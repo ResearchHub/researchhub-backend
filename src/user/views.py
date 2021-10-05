@@ -1020,11 +1020,28 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         invited_users = organization.invited_users.distinct(
             'recipient_email'
         )
-        organization_users = access_group.permissions.values('user')
-        users = User.objects.filter(id__in=organization_users)
+        admin_user_ids = access_group.permissions.filter(
+            access_type=Permission.ADMIN
+        ).values(
+            'user'
+        )
+        editor_user_ids = access_group.permissions.filter(
+            access_type=Permission.EDITOR
+        ).values(
+            'user'
+        )
+        viewer_user_ids = access_group.permissions.filter(
+            access_type=Permission.VIEWER
+        ).values(
+            'user'
+        )
+        admins = User.objects.filter(id__in=admin_user_ids)
+        editors = User.objects.filter(id__in=editor_user_ids)
+        viewers = User.objects.filter(id__in=viewer_user_ids)
+        all_users = admins.union(editors, viewers)
 
         invited_users = invited_users.exclude(
-            recipient__in=organization_users,
+            recipient__in=all_users.values('id'),
         ).filter(
             expiration_date__gt=datetime.now(pytz.utc)
         )
@@ -1038,18 +1055,32 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             ],
             many=True
         )
-        user_count = organization_users.count() + invited_users.count()
+        user_count = all_users.count() + invited_users.count()
         note_count = organization.created_notes.count()
 
         context = self._get_organization_users_context()
-        serializer = DynamicUserSerializer(
-            users,
+        admin_serializer = DynamicUserSerializer(
+            admins,
+            many=True,
+            context=context,
+            _include_fields=['author_profile', 'email']
+        )
+        editor_serializer = DynamicUserSerializer(
+            editors,
+            many=True,
+            context=context,
+            _include_fields=['author_profile', 'email']
+        )
+        viewer_serializer = DynamicUserSerializer(
+            viewers,
             many=True,
             context=context,
             _include_fields=['author_profile', 'email']
         )
         data = {
-            'users': serializer.data,
+            'admins': admin_serializer.data,
+            'editors': editor_serializer.data,
+            'viewers': viewer_serializer.data,
             'invited_users': invitation_serializer.data,
             'user_count': user_count,
             'note_count': note_count,
@@ -1063,23 +1094,12 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     )
     def get_user_organizations(self, request, pk=None):
         user = User.objects.get(id=pk)
-        admin_organizations = user.access_admin_groups.filter(
-            organization__isnull=False
-        ).values('organization')
-        editor_organizations = user.access_editor_groups.filter(
-            organization__isnull=False
-        ).values('organization')
-        viewer_organizations = user.access_viewing_groups.filter(
-            organization__isnull=False
-        ).values('organization')
-
-        organizations = admin_organizations.union(
-            editor_organizations,
-            viewer_organizations
+        organization_ids = user.permissions.values_list(
+            'access_group__organizations'
         )
-        user_organizations = Organization.objects.filter(id__in=organizations)
-        serializer = OrganizationSerializer(user_organizations, many=True)
+        organizations = self.queryset.filter(id__in=organization_ids)
 
+        serializer = OrganizationSerializer(organizations, many=True)
         return Response(serializer.data, status=200)
 
     @action(
@@ -1103,30 +1123,10 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         user_id = data.get('user')
         organization = self.get_object()
         access_group = organization.access_group
-        user = User.objects.get(id=user_id)
+        user_permission = access_group.permissions.get(user=user_id)
+        user_permission.delete()
 
-        success_response = Response(
-            'User removed from Organization',
-            status=200
-        )
-        try:
-            access_group.admins.remove(user)
-            return success_response
-        except Exception:
-            pass
-
-        try:
-            access_group.editors.remove(user)
-            return success_response
-        except Exception:
-            pass
-
-        try:
-            access_group.viewers.remove(user)
-            return success_response
-        except Exception:
-            pass
-        return Response('User could not be removed', status=404)
+        return Response({'data': 'User removed from Organization'}, status=200)
 
     @action(
         detail=True,
@@ -1156,7 +1156,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             expiration_time=time_to_expire
         )
         invite.send_invitation()
-        return Response('Invite sent', status=200)
+        return Response({'data': 'Invite sent'}, status=200)
 
     @action(
         detail=True,
@@ -1175,7 +1175,10 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             organization=organization,
         )
         invites.update(expiration_date=datetime.now(pytz.utc))
-        return Response(f'Invite removed for {recipient_email}', status=200)
+        return Response(
+            {'data': f'Invite removed for {recipient_email}'},
+            status=200
+        )
 
     @action(
         detail=True,
@@ -1184,9 +1187,12 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     )
     def update_user_permission(self, request, pk=None):
         organization = self.get_object()
-        access_group = organization.access_group
         data = request.data
         user_id = data.get('user')
         access_type = data.get('access_type')
-        user = User.objects.get(user=user_id)
-        pass
+        access_group = organization.access_group
+        user_permission = access_group.permissions.filter(
+            user=user_id
+        )
+        user_permission.access_type = access_type
+        return Response({'data': 'User permission updated'}, status=200)
