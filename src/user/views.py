@@ -1191,8 +1191,9 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         user_id = data.get('user')
         access_type = data.get('access_type')
         access_group = organization.access_group
-        user_permission = access_group.permissions.filter(
+        user_permission = access_group.permissions.get(
             user=user_id
         )
         user_permission.access_type = access_type
+        user_permission.save()
         return Response({'data': 'User permission updated'}, status=200)
