@@ -42,7 +42,7 @@ def add_organization_slug(
         slug = slugify(instance.name)
         if not slug:
             slug += suffix
-        if sender.objects.filter(slug=slug).exists():
+        if sender.objects.filter(slug__icontains=slug).exists():
             slug += f'-{suffix}'
         instance.slug = slug
 
