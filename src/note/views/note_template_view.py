@@ -53,24 +53,3 @@ class NoteTemplateViewSet(ModelViewSet):
         file_name = f'NOTE-TEMPLATE-{template.id}--TITLE-{template.name}.txt'
         full_src_file = ContentFile(data.encode())
         return file_name, full_src_file
-
-    @action(
-        detail=True,
-        methods=['get'],
-    )
-    def get_organization_templates(self, request, pk=None):
-        user = request.user
-
-        if pk == '0':
-            templates = self.queryset.filter(
-                Q(created_by__id=user.id) |
-                Q(is_default=True)
-            )
-        else:
-            templates = self.queryset.filter(
-                Q(organization__id=pk) |
-                Q(is_default=True)
-            )
-
-        serializer = self.serializer_class(templates, many=True)
-        return Response(serializer.data, status=200)

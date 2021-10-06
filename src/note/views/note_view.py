@@ -1,3 +1,6 @@
+from jwt import encode
+from datetime import datetime
+from django.http import HttpResponse
 from django.core.files.base import ContentFile
 from rest_framework.permissions import (
     IsAuthenticated,
@@ -12,21 +15,22 @@ from note.models import (
     Note,
     NoteContent
 )
+from invite.models import NoteInvitation
 from note.serializers import NoteSerializer, NoteContentSerializer
 from researchhub_access_group.models import ResearchhubAccessGroup, Permission
 from researchhub_access_group.constants import ADMIN
-from researchhub_access_group.permissions import HasAccessPermission
+from researchhub_access_group.permissions import (
+    HasAccessPermission,
+    HasAdminPermission
+)
 from researchhub_document.models import (
     ResearchhubUnifiedDocument
 )
 from researchhub_document.related_models.constants.document_type import (
     NOTE
 )
-from user.models import Organization
-from django.http import HttpResponse
+from user.models import Organization, User
 from utils.http import RequestMethods
-from jwt import encode
-from datetime import datetime
 from researchhub.settings import (
     CKEDITOR_CLOUD_ACCESS_KEY,
     CKEDITOR_CLOUD_ENVIRONMENT_ID
@@ -51,6 +55,8 @@ class NoteViewSet(ModelViewSet):
         if organization_id:
             created_by = None
             organization = Organization.objects.get(id=organization_id)
+            if not organization.org_has_admin_user(user):
+                return Response({'data': 'Invalid permissions'}, status=403)
         else:
             created_by = user
             organization = None
@@ -93,43 +99,47 @@ class NoteViewSet(ModelViewSet):
         )
         return access_group
 
-    def _get_context(self):
-        context = {
-        }
-        return context
-
     @action(
         detail=True,
-        methods=['get'],
-    )
-    def get_organization_notes(self, request, pk=None):
-        user = request.user
-
-        if pk == '0':
-            notes = self.queryset.filter(
-                created_by__id=user.id,
-                unified_document__is_removed=False,
-            )
-        else:
-            notes = self.queryset.filter(
-                organization__id=pk,
-                unified_document__is_removed=False,
-            )
-
-        serializer = self.serializer_class(notes, many=True)
-        return Response(serializer.data, status=200)
-
-    @action(
-        detail=True,
-        methods=['post'],
+        methods=['post', 'delete'],
     )
     def delete(self, request, pk=None):
-        note = self.queryset.get(id=pk)
+        note = self.get_object()
         unified_document = note.unified_document
         unified_document.is_removed = True
         unified_document.save()
         serializer = self.serializer_class(note)
         return Response(serializer.data, status=200)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[HasAdminPermission]
+    )
+    def invite_user(self, request, pk=None):
+        inviter = request.user
+        data = request.data
+        note = self.get_object()
+        access_type = data.get('access_type')
+        recipient_email = data.get('email')
+        time_to_expire = int(data.get('expire', 1440))
+
+        recipient = User.objects.filter(email=recipient_email)
+        if recipient.exists():
+            recipient = recipient.first()
+        else:
+            recipient = None
+
+        invite = NoteInvitation.create(
+            inviter=inviter,
+            recipient=recipient,
+            recipient_email=recipient_email,
+            note=note,
+            invite_type=access_type,
+            expiration_time=time_to_expire
+        )
+        invite.send_invitation()
+        return Response({'data': 'Invite sent'}, status=200)
 
 
 class NoteContentViewSet(ModelViewSet):

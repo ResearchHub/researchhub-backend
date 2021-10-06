@@ -18,7 +18,7 @@ class Invitation(DefaultModel):
     expiration_date = models.DateTimeField()
     inviter = models.ForeignKey(
         User,
-        related_name='sent_invites',
+        related_name='%(class)s_sent_invites',
         on_delete=models.CASCADE
     )
     key = models.CharField(
@@ -28,7 +28,7 @@ class Invitation(DefaultModel):
     recipient = models.ForeignKey(
         User,
         null=True,
-        related_name='invitations',
+        related_name='%(class)s_invitations',
         on_delete=models.CASCADE
     )
     recipient_email = models.CharField(
