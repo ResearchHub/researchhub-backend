@@ -22,7 +22,7 @@ class Organization(DefaultModel):
     name = models.CharField(max_length=64, unique=True)
     slug = models.SlugField(default='', max_length=1024, unique=True)
 
-    def has_user(self, user, **filters):
+    def org_has_user(self, user, **filters):
         access_group = self.access_group
         return access_group.permissions.filter(
             user=user,
@@ -30,10 +30,10 @@ class Organization(DefaultModel):
         ).exists()
 
     def org_has_admin_user(self, user):
-        return self.has_user(user, access_type=ADMIN)
+        return self.org_has_user(user, access_type=ADMIN)
 
     def org_has_editor_user(self, user):
-        return self.has_user(user, access_type=EDITOR)
+        return self.org_has_user(user, access_type=EDITOR)
 
     def org_has_viewer_user(self, user):
-        return self.has_user(user, access_type=VIEWER)
+        return self.org_has_user(user, access_type=VIEWER)
