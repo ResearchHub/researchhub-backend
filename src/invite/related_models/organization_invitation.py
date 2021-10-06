@@ -3,22 +3,15 @@ from django.db import models
 from invite.models import Invitation
 from user.models import Organization
 from utils.message import send_email_message
+from researchhub_access_group.constants import ACCESS_TYPE_CHOICES, VIEWER
 from researchhub.settings import BASE_FRONTEND_URL
 
 
 class OrganizationInvitation(Invitation):
-    ADMIN = 'ADMIN'
-    EDITOR = 'EDITOR'
-    VIEWER = 'VIEWER'
-    INVITE_TYPE_CHOICES = (
-        (ADMIN, ADMIN),
-        (EDITOR, EDITOR),
-        (VIEWER, VIEWER)
-    )
 
     invite_type = models.CharField(
         max_length=8,
-        choices=INVITE_TYPE_CHOICES,
+        choices=ACCESS_TYPE_CHOICES,
         default=VIEWER
     )
     organization = models.ForeignKey(

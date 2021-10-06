@@ -1,4 +1,4 @@
-from researchhub_access_group.models import Permission
+from researchhub_access_group.constants import ADMIN
 from utils.permissions import AuthorizationBasedPermission
 from utils.http import POST
 
@@ -11,7 +11,7 @@ class IsAdmin(AuthorizationBasedPermission):
         user = request.user
         return access_group.permissions.filter(
             user=user,
-            access_type=Permission.ADMIN
+            access_type=ADMIN
         ).exists()
 
 
@@ -26,5 +26,12 @@ class IsAdminOrCreateOnly(AuthorizationBasedPermission):
         user = request.user
         return access_group.permissions.filter(
             user=user,
-            access_type=Permission.ADMIN
+            access_type=ADMIN
         ).exists()
+
+
+class HasAccessPermission(AuthorizationBasedPermission):
+    message = ''
+
+    def is_authorized(self, request, view, obj):
+        pass

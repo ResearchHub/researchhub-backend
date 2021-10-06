@@ -36,6 +36,7 @@ from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
 from reputation.serializers import DynamicContributionSerializer
 from researchhub_access_group.models import ResearchhubAccessGroup, Permission
+from researchhub_access_group.constants import ADMIN, EDITOR, VIEWER
 from researchhub_access_group.permissions import IsAdmin, IsAdminOrCreateOnly
 from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY, EMAIL_WHITELIST
 from researchhub_document.serializers import DynamicPostSerializer
@@ -987,7 +988,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         Permission.objects.create(
             access_group=access_group,
             user=creator,
-            access_type=Permission.ADMIN
+            access_type=ADMIN
         )
         return access_group
 
@@ -1021,17 +1022,17 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             'recipient_email'
         )
         admin_user_ids = access_group.permissions.filter(
-            access_type=Permission.ADMIN
+            access_type=ADMIN
         ).values(
             'user'
         )
         editor_user_ids = access_group.permissions.filter(
-            access_type=Permission.EDITOR
+            access_type=EDITOR
         ).values(
             'user'
         )
         viewer_user_ids = access_group.permissions.filter(
-            access_type=Permission.VIEWER
+            access_type=VIEWER
         ).values(
             'user'
         )
