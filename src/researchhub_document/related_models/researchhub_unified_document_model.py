@@ -43,7 +43,7 @@ class ResearchhubUnifiedDocument(DefaultModel):
         default=0,
         help_text='Feed ranking score.',
     )
-    access_group = models.ManyToManyField(
+    access_groups = models.ManyToManyField(
         ResearchhubAccessGroup,
         help_text='Mostly used for ELN',
         related_name='document'
@@ -85,13 +85,6 @@ class ResearchhubUnifiedDocument(DefaultModel):
             )
             return author
         return self.none()
-
-    @property
-    def is_public(self):
-        if (self.access_group is None):
-            return True
-        else:
-            return self.access_group.is_public
 
     @property
     def created_by(self):

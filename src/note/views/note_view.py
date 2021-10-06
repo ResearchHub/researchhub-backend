@@ -15,6 +15,7 @@ from note.models import (
 from note.serializers import NoteSerializer, NoteContentSerializer
 from researchhub_access_group.models import ResearchhubAccessGroup, Permission
 from researchhub_access_group.constants import ADMIN
+from researchhub_access_group.permissions import HasAccessPermission
 from researchhub_document.models import (
     ResearchhubUnifiedDocument
 )
@@ -35,7 +36,10 @@ from researchhub.settings import (
 class NoteViewSet(ModelViewSet):
     ordering = ('-created_date')
     queryset = Note.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [
+        IsAuthenticated,
+        HasAccessPermission
+    ]
     serializer_class = NoteSerializer
 
     def create(self, request, *args, **kwargs):
@@ -71,7 +75,7 @@ class NoteViewSet(ModelViewSet):
         unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=NOTE
         )
-        unified_doc.access_group.add(access_group)
+        unified_doc.access_groups.add(access_group)
         unified_doc.hubs.add(*hubs)
         unified_doc.save()
         return unified_doc

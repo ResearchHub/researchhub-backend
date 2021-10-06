@@ -31,7 +31,16 @@ class IsAdminOrCreateOnly(AuthorizationBasedPermission):
 
 
 class HasAccessPermission(AuthorizationBasedPermission):
-    message = ''
+    message = 'User does not have permission to view or create'
 
     def is_authorized(self, request, view, obj):
-        pass
+        # import pdb; pdb.set_trace()
+        if not hasattr(obj, 'unified_document'):
+            raise Exception('Object has no reference to unified document')
+
+        unified_document = obj.unified_document
+        access_groups = unified_document.access_groups
+        user_in_permissions = access_groups.filter(
+            permissions__user=request.user
+        )
+        return user_in_permissions.exists()
