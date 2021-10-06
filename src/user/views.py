@@ -32,12 +32,17 @@ from discussion.serializers import (
 )
 from invite.models import OrganizationInvitation
 from invite.serializers import DynamicOrganizationInvitationSerializer
+from note.models import Note, NoteTemplate
+from note.serializers import NoteSerializer, NoteTemplateSerializer
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
 from reputation.serializers import DynamicContributionSerializer
 from researchhub_access_group.models import ResearchhubAccessGroup, Permission
 from researchhub_access_group.constants import ADMIN, EDITOR, VIEWER
-from researchhub_access_group.permissions import IsAdmin, IsAdminOrCreateOnly
+from researchhub_access_group.permissions import (
+    IsOrganizationAdmin,
+    IsOrganizationUser
+)
 from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY, EMAIL_WHITELIST
 from researchhub_document.serializers import DynamicPostSerializer
 from paper.models import Paper
@@ -953,8 +958,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
     permission_classes = [
-        IsAuthenticated,
-        IsAdminOrCreateOnly
+        IsAuthenticated
     ]
 
     def create(self, request, *args, **kwargs):
@@ -1117,7 +1121,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['delete'],
-        permission_classes=[IsAuthenticated, IsAdmin]
+        permission_classes=[IsAuthenticated, IsOrganizationAdmin]
     )
     def remove_user(self, request, pk=None):
         data = request.data
@@ -1132,7 +1136,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['post'],
-        permission_classes=[IsAuthenticated, IsAdmin]
+        permission_classes=[IsAuthenticated, IsOrganizationAdmin]
     )
     def invite_user(self, request, pk=None):
         inviter = request.user
@@ -1162,7 +1166,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['patch'],
-        permission_classes=[IsAuthenticated, IsAdmin]
+        permission_classes=[IsAuthenticated, IsOrganizationAdmin]
     )
     def remove_invited_user(self, request, pk=None):
         inviter = request.user
@@ -1184,7 +1188,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['patch'],
-        permission_classes=[IsAuthenticated, IsAdmin]
+        permission_classes=[IsAuthenticated, IsOrganizationAdmin]
     )
     def update_user_permission(self, request, pk=None):
         organization = self.get_object()
@@ -1198,3 +1202,49 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         user_permission.access_type = access_type
         user_permission.save()
         return Response({'data': 'User permission updated'}, status=200)
+
+    @action(
+        detail=True,
+        methods=['patch'],
+        permission_classes=[IsAuthenticated, IsOrganizationUser]
+    )
+    def get_organization_notes(self, request, pk=None):
+        user = request.user
+        if pk == '0' or pk == 0:
+            # No organization notes, retrieve user's notes
+            # No permission necessary
+            notes = Note.objects.filter(
+                created_by=user,
+                unified_document__is_removed=False
+            )
+
+        else:
+            organization = self.get_object()
+            notes = organization.created_notes.filter(
+                created_by=user,
+                unified_document__is_removed=False
+            )
+
+        serializer = NoteSerializer(notes, many=True)
+        return Response(serializer.data, status=200)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[IsAuthenticated, IsOrganizationUser]
+    )
+    def get_organization_templates(self, request, pk=None):
+        user = request.user
+
+        if pk == '0':
+            # No organization notes, retrieve user's templates
+            # No permission necessary
+            templates = NoteTemplate.objects.filter(
+                created_by=user
+            )
+        else:
+            organization = self.get_object()
+            templates = organization.created_templates.all()
+
+        serializer = NoteTemplateSerializer(templates, many=True)
+        return Response(serializer.data, status=200)

@@ -35,7 +35,8 @@ from researchhub.settings import USE_DEBUG_TOOLBAR, INSTALLED_APPS
 
 router = routers.DefaultRouter()
 
-router.register(r'new_feature_release',
+router.register(
+    r'new_feature_release',
     new_feature_release.views.NewFeatureViewSet,
     basename='new_feature_release',
 )
@@ -305,6 +306,12 @@ router.register(
     r'invite/organization',
     invite_views.OrganizationInvitationViewSet,
     basename='organization_invite'
+)
+
+router.register(
+    r'invite/note',
+    invite_views.NoteInvitationViewSet,
+    basename='note_invite'
 )
 
 urlpatterns = [

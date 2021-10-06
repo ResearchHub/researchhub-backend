@@ -1,46 +1,67 @@
-from researchhub_access_group.constants import ADMIN
-from utils.permissions import AuthorizationBasedPermission
+from rest_framework.permissions import BasePermission
+
 from utils.http import POST
 
 
-class IsAdmin(AuthorizationBasedPermission):
+class IsOrganizationAdmin(BasePermission):
+    # This permission is used for Organization based views
+
     message = 'User is not an admin of the organization'
 
-    def is_authorized(self, request, view, obj):
+    def has_object_permission(self, request, view, obj):
         access_group = obj.access_group
         user = request.user
-        return access_group.permissions.filter(
-            user=user,
-            access_type=ADMIN
-        ).exists()
+        return access_group.has_admin_user(user)
 
 
-class IsAdminOrCreateOnly(AuthorizationBasedPermission):
+class IsAdminOrCreateOnly(BasePermission):
     message = 'User is not an admin of the organization'
 
-    def is_authorized(self, request, view, obj):
+    def has_object_permission(self, request, view, obj):
         if request.method == POST:
             return True
 
-        access_group = obj.access_group
         user = request.user
-        return access_group.permissions.filter(
-            user=user,
-            access_type=ADMIN
-        ).exists()
+        return obj.org_has_admin_user(user)
 
 
-class HasAccessPermission(AuthorizationBasedPermission):
+class IsOrganizationUser(BasePermission):
+    message = 'User is not an admin of the organization'
+
+    def has_object_permission(self, request, view, obj):
+        if request.method == POST:
+            return True
+
+        user = request.user
+        return obj.org_has_user(user)
+
+
+class HasAdminPermission(BasePermission):
+    # This permission is used for unified documents
+
     message = 'User does not have permission to view or create'
 
-    def is_authorized(self, request, view, obj):
-        # import pdb; pdb.set_trace()
+    def has_permission(self, request, view):
+        return True
+
+    def has_object_permission(self, request, view, obj):
         if not hasattr(obj, 'unified_document'):
             raise Exception('Object has no reference to unified document')
 
         unified_document = obj.unified_document
         access_groups = unified_document.access_groups
-        user_in_permissions = access_groups.filter(
-            permissions__user=request.user
-        )
-        return user_in_permissions.exists()
+        return access_groups.has_admin_user(request.user)
+
+
+class HasAccessPermission(BasePermission):
+    # This permission is used for unified documents
+
+    message = 'User does not have permission to view or create'
+
+    def has_object_permission(self, request, view, obj):
+        if not hasattr(obj, 'unified_document'):
+            raise Exception('Object has no reference to unified document')
+
+        unified_document = obj.unified_document
+        access_groups = unified_document.access_groups
+        return access_groups.has_user(request.user)
