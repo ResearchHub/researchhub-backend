@@ -38,6 +38,7 @@ router.register(r'new_feature_release',
     basename='new_feature_release',
 )
 
+# NOTE: calvinhlee - the way coments are handled is very inefficient. We need to refactor this
 router.register(
     r'paper/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply',
     discussion.views.ReplyViewSet,
@@ -91,6 +92,25 @@ router.register(
     discussion.views.ThreadViewSet,
     basename='hypothesis_discussion_threads'
 )
+
+router.register(
+    r'citation/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply',
+    discussion.views.ReplyViewSet,
+    basename='citation_discussion_thread_comment_replies'
+)
+
+router.register(
+    r'citation/([0-9]+)/discussion/([0-9]+)/comment',
+    discussion.views.CommentViewSet,
+    basename='citation_discussion_thread_comments'
+)
+
+router.register(
+    r'citation/([0-9]+)/discussion',
+    discussion.views.ThreadViewSet,
+    basename='citation_discussion_threads'
+)
+
 
 router.register(
     r'paper/discussion/file',

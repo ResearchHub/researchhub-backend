@@ -41,7 +41,7 @@ from discussion.permissions import (
     UpvoteDiscussionThread,
     Vote as VotePermission
 )
-from hypothesis.models import Hypothesis
+from hypothesis.models import Hypothesis, Citation
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.utils import reset_unified_document_cache
 from paper.models import Paper
@@ -54,7 +54,6 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from utils import sentry
 from utils.permissions import CreateOrUpdateIfAllowed
-
 from .reaction_views import ReactionViewActionMixin
 from .serializers import (
     CommentSerializer,
@@ -68,9 +67,10 @@ from .utils import (
 )
 
 DOCUMENT_MODELS = {
+    'citation': Citation,
+    'hypothesis': Hypothesis,
     'paper': Paper,
     'post': ResearchhubPost,
-    'hypothesis': Hypothesis,
 }
 
 
@@ -199,6 +199,11 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             hypothesis_id = get_document_id_from_path(self.request)
             threads = Thread.objects.filter(
                 hypothesis=hypothesis_id,
+            )
+        elif document_type == 'citation':
+            citation_id = get_document_id_from_path(self.request)
+            threads = Thread.objects.filter(
+                citation=citation_id,
             )
 
         threads = threads.filter(is_removed=is_removed)
