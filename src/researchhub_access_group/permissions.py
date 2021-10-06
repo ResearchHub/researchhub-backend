@@ -53,6 +53,26 @@ class HasAdminPermission(BasePermission):
         return access_groups.has_admin_user(request.user)
 
 
+class HasEditingPermission(BasePermission):
+    # This permission is used for unified documents
+
+    message = 'User does not have permission to view or create'
+
+    def has_permission(self, request, view):
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        if not hasattr(obj, 'unified_document'):
+            raise Exception('Object has no reference to unified document')
+
+        user = request.user
+        unified_document = obj.unified_document
+        access_groups = unified_document.access_groups
+        is_admin = access_groups.has_admin_user(user)
+        is_editor = access_groups.has_editor_user(user)
+        return is_admin or is_editor
+
+
 class HasAccessPermission(BasePermission):
     # This permission is used for unified documents
 
