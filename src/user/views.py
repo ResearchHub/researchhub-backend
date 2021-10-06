@@ -1205,7 +1205,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=['patch'],
+        methods=['get'],
         permission_classes=[IsAuthenticated, IsOrganizationUser]
     )
     def get_organization_notes(self, request, pk=None):
@@ -1221,7 +1221,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         else:
             organization = self.get_object()
             notes = organization.created_notes.filter(
-                created_by=user,
                 unified_document__is_removed=False
             )
 
