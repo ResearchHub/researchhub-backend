@@ -93,7 +93,10 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         document_type = request.path.split('/')[2]
         document_id = get_document_id_from_path(request)
         document = DOCUMENT_MODELS[document_type].objects.get(id=document_id)
-        unified_document = document.unified_document
+        unified_document = document.unified_document if (
+            document_type != 'citation'
+        ) else document.source  # citation's unidoc is called "source"
+
         unified_doc_id = unified_document.id
 
         if request.query_params.get('created_location') == 'progress':
@@ -179,7 +182,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             elif source == "researchhub":
                 threads = Thread.objects.filter(
                     paper=paper_id,
-                    source__in=[source, "inline_paper_body"]
+                    source__in=[source, Thread.INLINE_PAPER_BODY]
                 )
             elif source:
                 threads = Thread.objects.filter(
@@ -204,6 +207,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             citation_id = get_document_id_from_path(self.request)
             threads = Thread.objects.filter(
                 citation=citation_id,
+                source__in=[source, Thread.CITATION_COMMENT]
             )
 
         threads = threads.filter(is_removed=is_removed)
