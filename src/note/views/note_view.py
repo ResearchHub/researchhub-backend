@@ -1,6 +1,7 @@
 from jwt import encode
 from datetime import datetime
 from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from django.core.files.base import ContentFile
 from rest_framework.permissions import (
     IsAuthenticated,
@@ -21,7 +22,8 @@ from researchhub_access_group.models import ResearchhubAccessGroup, Permission
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.permissions import (
     HasAccessPermission,
-    HasAdminPermission
+    HasAdminPermission,
+    HasEditingPermission
 )
 from researchhub_document.models import (
     ResearchhubUnifiedDocument
@@ -145,18 +147,47 @@ class NoteViewSet(ModelViewSet):
 class NoteContentViewSet(ModelViewSet):
     ordering = ('-created_date')
     queryset = NoteContent.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasEditingPermission]
     serializer_class = NoteContentSerializer
+
+    def get_object(self):
+        request_method = self.request.method
+        if request_method == RequestMethods.POST:
+            queryset = Note.objects.all()
+        else:
+            queryset = self.filter_queryset(self.get_queryset())
+
+        # Perform the lookup filtering.
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+
+        assert lookup_url_kwarg in self.kwargs, (
+            'Expected view %s to be called with a URL keyword argument '
+            'named "%s". Fix your URL conf, or set the `.lookup_field` '
+            'attribute on the view correctly.' %
+            (self.__class__.__name__, lookup_url_kwarg)
+        )
+
+        filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
+        obj = get_object_or_404(queryset, **filter_kwargs)
+
+        if request_method != RequestMethods.POST:
+            self.check_object_permissions(self.request, obj.note)
+        else:
+            self.check_object_permissions(self.request, obj)
+
+        return obj
 
     def create(self, request, *args, **kwargs):
         user = request.user
         data = request.data
         src = data.get('full_src', '')
-        note = data.get('note', None)
+        note_id = data.get('note', None)
         plain_text = data.get('plain_text', None)
+        self.kwargs['pk'] = note_id
 
+        note = self.get_object()
         note_content = NoteContent.objects.create(
-            note_id=note,
+            note=note,
             plain_text=plain_text
         )
         file_name, file = self._create_src_content_file(
