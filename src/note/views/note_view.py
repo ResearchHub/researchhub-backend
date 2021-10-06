@@ -14,6 +14,7 @@ from note.models import (
 )
 from note.serializers import NoteSerializer, NoteContentSerializer
 from researchhub_access_group.models import ResearchhubAccessGroup, Permission
+from researchhub_access_group.constants import ADMIN
 from researchhub_document.models import (
     ResearchhubUnifiedDocument
 )
@@ -83,7 +84,7 @@ class NoteViewSet(ModelViewSet):
         access_group = ResearchhubAccessGroup.objects.create()
         Permission.objects.create(
             access_group=access_group,
-            access_type=Permission.ADMIN,
+            access_type=ADMIN,
             user=creator,
         )
         return access_group

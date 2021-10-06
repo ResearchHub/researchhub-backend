@@ -1,6 +1,7 @@
 from django.db import models
 
 from researchhub.settings import BASE_FRONTEND_URL
+from researchhub_access_group.constants import ACCESS_TYPE_CHOICES, VIEWER
 from user.models import User
 from utils.models import DefaultModel
 
@@ -16,15 +17,6 @@ class ResearchhubAccessGroup(DefaultModel):
 
 
 class Permission(DefaultModel):
-    ADMIN = 'ADMIN'
-    EDITOR = 'EDITOR'
-    VIEWER = 'VIEWER'
-    ACCESS_TYPE_CHOICES = (
-        (ADMIN, ADMIN),
-        (EDITOR, EDITOR),
-        (VIEWER, VIEWER),
-    )
-
     access_group = models.ForeignKey(
         ResearchhubAccessGroup,
         related_name='permissions',
