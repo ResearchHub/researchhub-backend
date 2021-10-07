@@ -196,13 +196,15 @@ class BaseComment(models.Model):
 
 
 class Thread(BaseComment):
-    RESEARCHHUB = 'researchhub'
+    CITATION_COMMENT = 'citation_comment'
     INLINE_ABSTRACT = 'inline_abstract'
     INLINE_PAPER_BODY = 'inline_paper_body'
+    RESEARCHHUB = 'researchhub'
     THREAD_SOURCE_CHOICES = [
-        (RESEARCHHUB, 'researchhub'),
+        (CITATION_COMMENT, 'Citation Comment'),
         (INLINE_ABSTRACT, 'Inline Abstract'),
-        (INLINE_PAPER_BODY, 'Inline Paper Body')
+        (INLINE_PAPER_BODY, 'Inline Paper Body'),
+        (RESEARCHHUB, 'researchhub'),
     ]
     source = models.CharField(
         default=RESEARCHHUB,
@@ -242,6 +244,13 @@ class Thread(BaseComment):
         null=True,
         blank=True,
     )
+    citation = models.ForeignKey(
+        'hypothesis.Citation', 
+        on_delete=models.SET_NULL,
+        related_name='threads',
+        null=True,
+        blank=True,
+    )
     actions = GenericRelation(
         'user.Action',
         object_id_field='object_id',
@@ -269,6 +278,10 @@ class Thread(BaseComment):
         hypothesis = self.hypothesis
         if hypothesis:
             return hypothesis.unified_document
+
+        citation = self.citation
+        if citation:
+            return citation.source
 
         return None
 
@@ -304,10 +317,7 @@ class Thread(BaseComment):
     @property
     def users_to_notify(self):
         # TODO: Add notifications to posts and hypotheses
-        if self.post:
-            return []
-
-        if self.hypothesis:
+        if self.post or self.hypothesis or self.citation:
             return []
 
         users = list(self.parent.moderators.all())

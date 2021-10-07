@@ -297,6 +297,7 @@ class ThreadSerializer(
             'entity_key',
             'external_metadata',
             'hypothesis',
+            'citation',
             'id',
             'is_public',
             'is_removed',
