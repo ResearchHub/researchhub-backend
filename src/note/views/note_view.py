@@ -57,12 +57,12 @@ class NoteViewSet(ModelViewSet):
     def create(self, request, *args, **kwargs):
         user = request.user
         data = request.data
-        organization_id = data.get('organization', None)
+        organization_slug = data.get('organization', None)
         title = data.get('title', '')
 
-        if organization_id:
+        if organization_slug:
             created_by = None
-            organization = Organization.objects.get(id=organization_id)
+            organization = Organization.objects.get(slug=organization_slug)
             if not organization.org_has_admin_user(user):
                 return Response({'data': 'Invalid permissions'}, status=403)
         else:
