@@ -1,15 +1,14 @@
 from django.db import models
 
-from researchhub_access_group.models import ResearchhubAccessGroup
+from researchhub_access_group.models import Permission
 from researchhub_access_group.constants import ADMIN, EDITOR, VIEWER
 from utils.models import DefaultModel
 
 
 class Organization(DefaultModel):
-    access_group = models.ForeignKey(
-        ResearchhubAccessGroup,
-        related_name='organizations',
-        on_delete=models.CASCADE,
+    permissions = models.ManyToManyField(
+        Permission,
+        related_name='direct_organization',
     )
     cover_image = models.FileField(
         max_length=512,
@@ -23,8 +22,8 @@ class Organization(DefaultModel):
     slug = models.SlugField(default='', max_length=1024, unique=True)
 
     def org_has_user(self, user, **filters):
-        access_group = self.access_group
-        return access_group.permissions.filter(
+        permissions = self.permissions
+        return permissions.filter(
             user=user,
             **filters
         ).exists()

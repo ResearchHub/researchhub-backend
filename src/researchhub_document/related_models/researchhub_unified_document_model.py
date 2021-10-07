@@ -3,7 +3,7 @@ from django.db import models
 from hub.models import Hub
 from paper.models import Paper
 from user.models import Author
-from researchhub_access_group.models import ResearchhubAccessGroup
+from researchhub_access_group.models import Permission
 from researchhub_document.related_models.constants.document_type import (
   DOCUMENT_TYPES, PAPER
 )
@@ -43,8 +43,8 @@ class ResearchhubUnifiedDocument(DefaultModel):
         default=0,
         help_text='Feed ranking score.',
     )
-    access_groups = models.ManyToManyField(
-        ResearchhubAccessGroup,
+    permissions = models.ManyToManyField(
+        Permission,
         help_text='Mostly used for ELN',
         related_name='document'
     )
