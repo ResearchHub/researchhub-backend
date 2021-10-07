@@ -38,7 +38,7 @@ from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
 from reputation.serializers import DynamicContributionSerializer
 from researchhub_access_group.models import Permission
-from researchhub_access_group.constants import ADMIN, EDITOR, VIEWER
+from researchhub_access_group.constants import ADMIN, VIEWER, MEMBER
 from researchhub_access_group.permissions import (
     IsOrganizationAdmin,
     IsOrganizationUser
@@ -75,7 +75,8 @@ from user.serializers import (
     MajorSerializer,
     VerificationSerializer,
     OrganizationSerializer,
-    DynamicUserSerializer
+    DynamicUserSerializer,
+    DynamicOrganizationSerializer
 )
 from utils.http import DELETE, POST, PATCH, PUT
 from utils.http import RequestMethods
@@ -1030,7 +1031,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             'user'
         )
         editor_user_ids = permissions.filter(
-            access_type=EDITOR,
+            access_type=MEMBER,
             organization__isnull=True
         ).values(
             'user'
@@ -1106,7 +1107,27 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         )
         organizations = self.queryset.filter(id__in=organization_ids)
 
-        serializer = OrganizationSerializer(organizations, many=True)
+        serializer = DynamicOrganizationSerializer(
+            organizations,
+            context={
+                'user': user,
+                'usr_dos_get_user_permissions': {
+                    '_include_fields': [
+                        'access_type'
+                    ]
+                }
+            },
+            _include_fields=[
+                'created_date',
+                'cover_image',
+                'description',
+                'id',
+                'name',
+                'slug',
+                'user_permission'
+            ],
+            many=True
+        )
         return Response(serializer.data, status=200)
 
     @action(
@@ -1145,6 +1166,9 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         access_type = data.get('access_type')
         recipient_email = data.get('email')
         time_to_expire = int(data.get('expire', 1440))
+
+        if access_type not in (ADMIN, MEMBER):
+            return Response({'data': 'Invalid access type'}, status=400)
 
         recipient = User.objects.filter(email=recipient_email)
         if recipient.exists():

@@ -8,6 +8,7 @@ from discussion.lib import check_is_discussion_item
 from hub.serializers import HubSerializer
 from hypothesis.models import Hypothesis
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_access_group.serializers import DynamicPermissionSerializer
 from paper.models import Vote as PaperVote, Paper
 from bullet_point.models import Vote as BulletVote
 from user.models import (
@@ -587,6 +588,21 @@ class OrganizationSerializer(serializers.ModelSerializer):
 
 
 class DynamicOrganizationSerializer(DynamicModelFieldSerializer):
+    user_permission = serializers.SerializerMethodField()
+
     class Meta:
         model = Organization
         fields = '__all__'
+
+    def get_user_permission(self, organization):
+        context = self.context
+        _context_fields = context.get('usr_dos_get_user_permissions', {})
+        user = context.get('user')
+
+        permission = organization.permissions.get(user=user)
+        serializer = DynamicPermissionSerializer(
+            permission,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data

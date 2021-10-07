@@ -4,13 +4,13 @@ from researchhub_access_group.models import Permission
 from researchhub.serializers import DynamicModelFieldSerializer
 
 
-# class AccessGroupSerializer(ModelSerializer):
-#     class Meta:
-#         model = ResearchhubAccessGroup
-#         fields = '__all__'
+class PermissionSerializer(ModelSerializer):
+    class Meta:
+        model = Permission
+        fields = '__all__'
 
 
-# class DynamicAccessGroupSerializer(DynamicModelFieldSerializer):
-#     class Meta:
-#         model = ResearchhubAccessGroup
-#         fields = '__all__'
+class DynamicPermissionSerializer(DynamicModelFieldSerializer):
+    class Meta:
+        model = Permission
+        fields = '__all__'
