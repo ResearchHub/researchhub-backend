@@ -57,7 +57,7 @@ class NoteViewSet(ModelViewSet):
     def create(self, request, *args, **kwargs):
         user = request.user
         data = request.data
-        organization_slug = data.get('organization', None)
+        organization_slug = data.get('organization_slug', None)
         title = data.get('title', '')
 
         if organization_slug:
