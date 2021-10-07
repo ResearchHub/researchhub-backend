@@ -1,3 +1,5 @@
+import pytz
+
 from jwt import encode
 from datetime import datetime
 from django.http import HttpResponse
@@ -7,6 +9,7 @@ from rest_framework.permissions import (
     IsAuthenticated,
     AllowAny
 )
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action, api_view, permission_classes
@@ -19,7 +22,8 @@ from note.models import (
 from invite.models import NoteInvitation
 from note.serializers import NoteSerializer, NoteContentSerializer
 from researchhub_access_group.models import Permission
-from researchhub_access_group.constants import ADMIN
+from researchhub_access_group.constants import ADMIN, MEMBER
+from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_access_group.permissions import (
     HasAccessPermission,
     HasAdminPermission,
@@ -47,6 +51,8 @@ class NoteViewSet(ModelViewSet):
         HasAccessPermission
     ]
     serializer_class = NoteSerializer
+    pagination_class = PageNumberPagination
+    page_size = 100
 
     def create(self, request, *args, **kwargs):
         user = request.user
@@ -138,6 +144,119 @@ class NoteViewSet(ModelViewSet):
         )
         invite.send_invitation()
         return Response({'data': 'Invite sent'}, status=200)
+
+    @action(
+        detail=True,
+        methods=['patch'],
+        permission_classes=[IsAuthenticated, HasAdminPermission]
+    )
+    def remove_invited_user(self, request, pk=None):
+        inviter = request.user
+        data = request.data
+        note = self.get_object()
+        recipient_email = data.get('email')
+
+        invites = NoteInvitation.objects.filter(
+            inviter=inviter,
+            recipient_email=recipient_email,
+            note=note,
+        )
+        invites.update(expiration_date=datetime.now(pytz.utc))
+        return Response(
+            {'data': f'Invite removed for {recipient_email}'},
+            status=200
+        )
+
+    @action(
+        detail=True,
+        methods=['patch'],
+        permission_classes=[HasAdminPermission]
+    )
+    def update_permissions(self, request, pk=None):
+        data = request.data
+        organization_id = data.get('organization')
+        user_id = data.get('user')
+        access_type = data.get('access_type')
+        note = self.get_object()
+        unified_document = note.unified_document
+
+        if organization_id:
+            permission = unified_document.permissions.get(
+                organization=organization_id
+            )
+            if access_type not in (ADMIN, MEMBER):
+                return Response({'data': 'Invalid access type'}, status=400)
+        else:
+            permission = unified_document.permissions.get(
+                user=user_id
+            )
+
+        permission.access_type = access_type
+        permission.save()
+        return Response({'data': 'Permission updated'}, status=200)
+
+    @action(
+        detail=True,
+        methods=['delete'],
+        permission_classes=[HasAdminPermission]
+    )
+    def remove_user_permission(self, request, pk=None):
+        data = request.data
+        user_id = data.get('user')
+        note = self.get_object()
+        unified_document = note.unified_document
+        permission = unified_document.permission.get(user=user_id)
+        unified_document.permissions.remove(permission)
+        return Response({'data': 'User permission removed'}, status=200)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[HasAccessPermission]
+    )
+    def get_note_permissions(self, request, pk=None):
+        note = self.get_object()
+        permissions = note.unified_document.permissions.all()
+        context = self._get_note_permissions_context()
+        serializer = DynamicPermissionSerializer(
+            permissions,
+            many=True,
+            context=context,
+            _include_fields=[
+                'access_type',
+                'created_date',
+                'organization',
+                'user',
+            ]
+        )
+        return Response(serializer.data, status=200)
+
+    def _get_note_permissions_context(self):
+        context = {
+            'rag_dps_get_user': {
+                '_include_fields': [
+                    'author_profile',
+                    'email',
+                    'id',
+                ]
+            },
+            'rag_dps_get_organization': {
+                '_include_fields': [
+                    'cover_image',
+                    'name',
+                    'slug',
+                ]
+            },
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image',
+                ]
+            }
+        }
+        return context
 
 
 class NoteContentViewSet(ModelViewSet):

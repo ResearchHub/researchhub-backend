@@ -9,6 +9,7 @@ from django.db import transaction
 from django.db import IntegrityError, models
 from django.db.models import Sum, Q, F, Case, When
 from django.db.models.functions import Coalesce
+from django.shortcuts import get_object_or_404
 from django.core.cache import cache
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -961,6 +962,30 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     permission_classes = [
         IsAuthenticated
     ]
+    page_size = 100
+
+    def get_object(self, slug=False):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # Perform the lookup filtering.
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+
+        assert lookup_url_kwarg in self.kwargs, (
+            'Expected view %s to be called with a URL keyword argument '
+            'named "%s". Fix your URL conf, or set the `.lookup_field` '
+            'attribute on the view correctly.' %
+            (self.__class__.__name__, lookup_url_kwarg)
+        )
+
+        if slug:
+            filter_kwargs = {'slug': self.kwargs[lookup_url_kwarg]}
+        else:
+            filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
+        obj = get_object_or_404(queryset, **filter_kwargs)
+
+        self.check_object_permissions(self.request, obj)
+
+        return obj
 
     def create(self, request, *args, **kwargs):
         user = request.user
@@ -1238,15 +1263,15 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 created_by=user,
                 unified_document__is_removed=False
             )
-
         else:
-            organization = self.get_object()
+            organization = self.get_object(slug=True)
             notes = organization.created_notes.filter(
                 unified_document__is_removed=False
             )
 
-        serializer = NoteSerializer(notes, many=True)
-        return Response(serializer.data, status=200)
+        page = self.paginate_queryset(notes)
+        serializer_data = NoteSerializer(page, many=True).data
+        return self.get_paginated_response(serializer_data)
 
     @action(
         detail=True,
@@ -1263,7 +1288,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 created_by=user
             )
         else:
-            organization = self.get_object()
+            organization = self.get_object(slug=True)
             templates = organization.created_templates.all()
 
         serializer = NoteTemplateSerializer(templates, many=True)
