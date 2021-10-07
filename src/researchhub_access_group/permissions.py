@@ -9,9 +9,8 @@ class IsOrganizationAdmin(BasePermission):
     message = 'User is not an admin of the organization'
 
     def has_object_permission(self, request, view, obj):
-        access_group = obj.access_group
         user = request.user
-        return access_group.has_admin_user(user)
+        return obj.org_has_admin_user(user)
 
 
 class IsAdminOrCreateOnly(BasePermission):
@@ -49,8 +48,8 @@ class HasAdminPermission(BasePermission):
             raise Exception('Object has no reference to unified document')
 
         unified_document = obj.unified_document
-        access_groups = unified_document.access_groups
-        return access_groups.has_admin_user(request.user)
+        permissions = unified_document.permissions
+        return permissions.has_admin_user(request.user)
 
 
 class HasEditingPermission(BasePermission):
@@ -67,9 +66,9 @@ class HasEditingPermission(BasePermission):
 
         user = request.user
         unified_document = obj.unified_document
-        access_groups = unified_document.access_groups
-        is_admin = access_groups.has_admin_user(user)
-        is_editor = access_groups.has_editor_user(user)
+        permissions = unified_document.permissions
+        is_admin = permissions.has_admin_user(user)
+        is_editor = permissions.has_editor_user(user)
         return is_admin or is_editor
 
 
@@ -83,5 +82,5 @@ class HasAccessPermission(BasePermission):
             raise Exception('Object has no reference to unified document')
 
         unified_document = obj.unified_document
-        access_groups = unified_document.access_groups
-        return access_groups.has_user(request.user)
+        permissions = unified_document.permissions
+        return permissions.has_user(request.user)

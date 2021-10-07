@@ -18,7 +18,7 @@ from note.models import (
 )
 from invite.models import NoteInvitation
 from note.serializers import NoteSerializer, NoteContentSerializer
-from researchhub_access_group.models import ResearchhubAccessGroup, Permission
+from researchhub_access_group.models import Permission
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.permissions import (
     HasAccessPermission,
@@ -63,8 +63,8 @@ class NoteViewSet(ModelViewSet):
             created_by = user
             organization = None
 
-        access_group = self._create_access_group(created_by, organization)
-        unified_doc = self._create_unified_doc(request, access_group)
+        permission = self._create_permission(created_by, organization)
+        unified_doc = self._create_unified_doc(request, permission)
         note = Note.objects.create(
             created_by=created_by,
             organization=organization,
@@ -75,7 +75,7 @@ class NoteViewSet(ModelViewSet):
         data = serializer.data
         return Response(data, status=200)
 
-    def _create_unified_doc(self, request, access_group):
+    def _create_unified_doc(self, request, permission):
         data = request.data
         hubs = Hub.objects.filter(
             id__in=data.get('hubs', [])
@@ -83,27 +83,23 @@ class NoteViewSet(ModelViewSet):
         unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=NOTE
         )
-        unified_doc.access_groups.add(access_group)
+        unified_doc.permissions.add(permission)
         unified_doc.hubs.add(*hubs)
         unified_doc.save()
         return unified_doc
 
-    def _create_access_group(self, creator, organization):
-        if organization:
-            access_group = organization.access_group
-            return access_group
-
-        access_group = ResearchhubAccessGroup.objects.create()
-        Permission.objects.create(
-            access_group=access_group,
+    def _create_permission(self, creator, organization):
+        permission = Permission.objects.create(
             access_type=ADMIN,
+            organization=organization,
             user=creator,
         )
-        return access_group
+        return permission
 
     @action(
         detail=True,
         methods=['post', 'delete'],
+        permission_classes=[HasAdminPermission]
     )
     def delete(self, request, pk=None):
         note = self.get_object()
@@ -147,7 +143,10 @@ class NoteViewSet(ModelViewSet):
 class NoteContentViewSet(ModelViewSet):
     ordering = ('-created_date')
     queryset = NoteContent.objects.all()
-    permission_classes = [IsAuthenticated, HasEditingPermission]
+    permission_classes = [
+        IsAuthenticated,
+        HasEditingPermission
+    ]
     serializer_class = NoteContentSerializer
 
     def get_object(self):

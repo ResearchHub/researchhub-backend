@@ -33,16 +33,16 @@ class OrganizationInvitationViewSet(ModelViewSet):
             return Response({'data': 'Invalid invitation'}, status=400)
 
         invite_type = invite.invite_type
-        access_group = invite.organization.access_group
-        Permission.objects.create(
-            access_group=access_group,
+        organization = invite.organization
+        permission = Permission.objects.create(
             access_type=invite_type,
             user=user
         )
+        organization.permissions.add(permission)
 
         invite.accept()
 
-        return Response('User has accepted invitation', status=200)
+        return Response({'data': 'User has accepted invitation'}, status=200)
 
     @action(detail=False, methods=['post'])
     def check_user_status(self, request):

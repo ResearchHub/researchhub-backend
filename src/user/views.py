@@ -37,7 +37,7 @@ from note.serializers import NoteSerializer, NoteTemplateSerializer
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
 from reputation.serializers import DynamicContributionSerializer
-from researchhub_access_group.models import ResearchhubAccessGroup, Permission
+from researchhub_access_group.models import Permission
 from researchhub_access_group.constants import ADMIN, EDITOR, VIEWER
 from researchhub_access_group.permissions import (
     IsOrganizationAdmin,
@@ -968,12 +968,11 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         name = data.get('name', None)
         image = data.get('image', None)
 
-        access_group = self._create_access_group(user, name)
         organization = Organization.objects.create(
-            access_group=access_group,
             description=description,
             name=name,
         )
+        self._create_permissions(user, organization)
 
         if image:
             file_name, file = self._create_image_file(
@@ -987,14 +986,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         data = serializer.data
         return Response(data, status=200)
 
-    def _create_access_group(self, creator, name):
-        access_group = ResearchhubAccessGroup.objects.create(name=name)
-        Permission.objects.create(
-            access_group=access_group,
-            user=creator,
+    def _create_permissions(self, user, organization):
+        permission = Permission.objects.create(
+            user=user,
             access_type=ADMIN
         )
-        return access_group
+        organization.permissions.add(permission)
+        return permission
 
     def _create_image_file(self, data, organization, user):
         file_name = f'ORGANIZATION-IMAGE-{organization.id}--USER-{user.id}.txt'
@@ -1021,22 +1019,25 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     )
     def get_organization_users(self, request, pk=None):
         organization = self.get_object()
-        access_group = organization.access_group
+        permissions = organization.permissions
         invited_users = organization.invited_users.distinct(
             'recipient_email'
         )
-        admin_user_ids = access_group.permissions.filter(
-            access_type=ADMIN
+        admin_user_ids = permissions.filter(
+            access_type=ADMIN,
+            organization__isnull=True
         ).values(
             'user'
         )
-        editor_user_ids = access_group.permissions.filter(
-            access_type=EDITOR
+        editor_user_ids = permissions.filter(
+            access_type=EDITOR,
+            organization__isnull=True
         ).values(
             'user'
         )
-        viewer_user_ids = access_group.permissions.filter(
-            access_type=VIEWER
+        viewer_user_ids = permissions.filter(
+            access_type=VIEWER,
+            organization__isnull=True
         ).values(
             'user'
         )
@@ -1099,8 +1100,9 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     )
     def get_user_organizations(self, request, pk=None):
         user = User.objects.get(id=pk)
+        # TODO: Check this call
         organization_ids = user.permissions.values_list(
-            'access_group__organizations'
+            'direct_organization'
         )
         organizations = self.queryset.filter(id__in=organization_ids)
 
@@ -1127,10 +1129,8 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         data = request.data
         user_id = data.get('user')
         organization = self.get_object()
-        access_group = organization.access_group
-        user_permission = access_group.permissions.get(user=user_id)
-        user_permission.delete()
-
+        user_permission = organization.permissions.get(user_id=user_id)
+        user_permission = organization.permissions.remove(user_permission)
         return Response({'data': 'User removed from Organization'}, status=200)
 
     @action(
@@ -1195,10 +1195,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         data = request.data
         user_id = data.get('user')
         access_type = data.get('access_type')
-        access_group = organization.access_group
-        user_permission = access_group.permissions.get(
-            user=user_id
-        )
+        user_permission = organization.permissions.get(user=user_id)
         user_permission.access_type = access_type
         user_permission.save()
         return Response({'data': 'User permission updated'}, status=200)

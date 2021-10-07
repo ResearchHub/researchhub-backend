@@ -8,7 +8,7 @@ from rest_framework.permissions import (
 
 from invite.models import NoteInvitation
 from invite.serializers import NoteInvitationSerializer
-from researchhub_access_group.models import ResearchhubAccessGroup, Permission
+from researchhub_access_group.models import Permission
 
 
 class NoteInvitationViewSet(ModelViewSet):
@@ -33,14 +33,12 @@ class NoteInvitationViewSet(ModelViewSet):
 
         note = invite.note
         invite_type = invite.invite_type
-        access_group = ResearchhubAccessGroup.objects.create()
-        Permission.objects.create(
-            access_group=access_group,
+        permission = Permission.objects.create(
             access_type=invite_type,
             user=user
         )
 
-        note.unified_document.access_groups.add(access_group)
+        note.unified_document.permissions.add(permission)
         invite.accept()
 
-        return Response('User has accepted invitation', status=200)
+        return Response({'data': 'User has accepted invitation'}, status=200)
