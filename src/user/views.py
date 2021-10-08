@@ -1127,7 +1127,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     )
     def get_user_organizations(self, request, pk=None):
         user = User.objects.get(id=pk)
-        # TODO: Check this call
         organization_ids = user.permissions.values_list(
             'direct_organization'
         )
@@ -1139,7 +1138,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 'user': user,
                 'usr_dos_get_user_permissions': {
                     '_include_fields': [
-                        'access_type'
+                        'access_type',
+                    ]
+                },
+                'rag_dps_get_organization': {
+                    '_include_fields': [
+                        'id',
+                        'slug',
                     ]
                 }
             },
@@ -1147,6 +1152,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 'created_date',
                 'cover_image',
                 'description',
+                'member_count',
                 'id',
                 'name',
                 'slug',
