@@ -1048,7 +1048,8 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         organization = self.get_object()
         permissions = organization.permissions
         invited_users = organization.invited_users.filter(
-            accepted=False,
+            accepted=False
+        ).exclude(
             expiration_date__lt=datetime.now(pytz.utc)
         ).distinct(
             'recipient_email'
