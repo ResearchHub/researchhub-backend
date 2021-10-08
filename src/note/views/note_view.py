@@ -152,7 +152,10 @@ class NoteViewSet(ModelViewSet):
     )
     def get_invited_users(self, request, pk=None):
         note = self.get_object()
-        invited_users = note.invited_users.distinct('recipient_email')
+        invited_users = note.invited_users.filter(
+            accepted=False,
+            expiration_date__lt=datetime.now(pytz.utc)
+        ).distinct('recipient_email')
         serializer = DynamicNoteInvitationSerializer(
             invited_users,
             many=True,
