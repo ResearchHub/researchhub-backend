@@ -1278,15 +1278,18 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     def get_organization_templates(self, request, pk=None):
         user = request.user
 
-        if pk == '0':
+        if pk == 'me':
             # No organization notes, retrieve user's templates
             # No permission necessary
             templates = NoteTemplate.objects.filter(
-                created_by=user
+                Q(created_by=user) |
+                Q(is_default=True)
             )
         else:
-            organization = self.get_object(slug=True)
-            templates = organization.created_templates.all()
+            templates = NoteTemplate.objects.filter(
+                Q(organization__slug=pk) |
+                Q(is_default=True)
+            )
 
         serializer = NoteTemplateSerializer(templates, many=True)
         return Response(serializer.data, status=200)
