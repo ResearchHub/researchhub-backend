@@ -15,6 +15,7 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action, api_view, permission_classes
 
 from hub.models import Hub
+from invite.serializers import DynamicNoteInvitationSerializer
 from note.models import (
     Note,
     NoteContent
@@ -147,6 +148,25 @@ class NoteViewSet(ModelViewSet):
 
     @action(
         detail=True,
+        methods=['get']
+    )
+    def get_invited_users(self, request, pk=None):
+        note = self.get_object()
+        invited_users = note.invited_users.distinct('recipient_email')
+        serializer = DynamicNoteInvitationSerializer(
+            invited_users,
+            many=True,
+            _include_fields=[
+                'accepted',
+                'created_date',
+                'expiration_date',
+                'recipient_email',
+            ],
+        )
+        return Response(serializer.data, status=200)
+
+    @action(
+        detail=True,
         methods=['patch'],
         permission_classes=[IsAuthenticated, HasAdminPermission]
     )
@@ -166,6 +186,44 @@ class NoteViewSet(ModelViewSet):
             {'data': f'Invite removed for {recipient_email}'},
             status=200
         )
+
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[AllowAny]
+    )
+    def get_note_by_key(self, request, pk=None):
+        invite = NoteInvitation.objects.get(key=pk)
+        serializer = DynamicNoteInvitationSerializer(
+            invite,
+            context={
+                'inv_dnis_get_inviter': {
+                    '_include_fields': [
+                        'author_profile',
+                    ]
+                },
+                'inv_dnis_get_note': {
+                    '_include_fields': [
+                        'created_date',
+                        'title',
+                    ]
+                },
+                'usr_dus_get_author_profile': {
+                    '_include_fields': [
+                        'id',
+                        'first_name',
+                        'last_name',
+                        'profile_image',
+                    ]
+                },
+            },
+            _include_fields=[
+                'inviter',
+                'note',
+                'recipient_email',
+            ]
+        )
+        return Response(serializer.data, status=200)
 
     @action(
         detail=True,
