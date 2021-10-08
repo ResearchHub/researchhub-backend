@@ -45,6 +45,7 @@ from researchhub_access_group.permissions import (
     IsOrganizationUser
 )
 from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY, EMAIL_WHITELIST
+from researchhub.pagination import MediumPageLimitPagination
 from researchhub_document.serializers import DynamicPostSerializer
 from paper.models import Paper
 from paper.utils import get_cache_key
@@ -962,7 +963,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     permission_classes = [
         IsAuthenticated
     ]
-    page_size = 100
+    pagination_class = MediumPageLimitPagination
 
     def get_object(self, slug=False):
         queryset = self.filter_queryset(self.get_queryset())

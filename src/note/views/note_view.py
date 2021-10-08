@@ -35,6 +35,7 @@ from researchhub_document.models import (
 from researchhub_document.related_models.constants.document_type import (
     NOTE
 )
+from researchhub.pagination import MediumPageLimitPagination
 from user.models import Organization, User
 from utils.http import RequestMethods
 from researchhub.settings import (
@@ -51,8 +52,7 @@ class NoteViewSet(ModelViewSet):
         HasAccessPermission
     ]
     serializer_class = NoteSerializer
-    pagination_class = PageNumberPagination
-    page_size = 100
+    pagination_class = MediumPageLimitPagination
 
     def create(self, request, *args, **kwargs):
         user = request.user
