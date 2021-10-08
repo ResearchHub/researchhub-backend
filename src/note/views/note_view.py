@@ -160,6 +160,7 @@ class NoteViewSet(ModelViewSet):
                 'accepted',
                 'created_date',
                 'expiration_date',
+                'invite_type',
                 'recipient_email',
             ],
         )
