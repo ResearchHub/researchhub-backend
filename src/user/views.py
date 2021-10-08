@@ -1056,22 +1056,15 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         ).values(
             'user'
         )
-        editor_user_ids = permissions.filter(
+        member_user_ids = permissions.filter(
             access_type=MEMBER,
             organization__isnull=True
         ).values(
             'user'
         )
-        viewer_user_ids = permissions.filter(
-            access_type=VIEWER,
-            organization__isnull=True
-        ).values(
-            'user'
-        )
         admins = User.objects.filter(id__in=admin_user_ids)
-        editors = User.objects.filter(id__in=editor_user_ids)
-        viewers = User.objects.filter(id__in=viewer_user_ids)
-        all_users = admins.union(editors, viewers)
+        members = User.objects.filter(id__in=member_user_ids)
+        all_users = admins.union(members)
 
         invited_users = invited_users.exclude(
             recipient__in=all_users.values('id'),
@@ -1098,22 +1091,15 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             context=context,
             _include_fields=['author_profile', 'email']
         )
-        editor_serializer = DynamicUserSerializer(
-            editors,
-            many=True,
-            context=context,
-            _include_fields=['author_profile', 'email']
-        )
-        viewer_serializer = DynamicUserSerializer(
-            viewers,
+        member_serializer = DynamicUserSerializer(
+            members,
             many=True,
             context=context,
             _include_fields=['author_profile', 'email']
         )
         data = {
             'admins': admin_serializer.data,
-            'editors': editor_serializer.data,
-            'viewers': viewer_serializer.data,
+            'members': member_serializer.data,
             'invited_users': invitation_serializer.data,
             'user_count': user_count,
             'note_count': note_count,
