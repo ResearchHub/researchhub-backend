@@ -1047,7 +1047,10 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     def get_organization_users(self, request, pk=None):
         organization = self.get_object()
         permissions = organization.permissions
-        invited_users = organization.invited_users.distinct(
+        invited_users = organization.invited_users.filter(
+            accepted=False,
+            expiration_date__lt=datetime.now(pytz.utc)
+        ).distinct(
             'recipient_email'
         )
         admin_user_ids = permissions.filter(
