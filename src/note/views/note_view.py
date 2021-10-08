@@ -243,6 +243,7 @@ class NoteViewSet(ModelViewSet):
             'rag_dps_get_organization': {
                 '_include_fields': [
                     'cover_image',
+                    'id',
                     'name',
                     'slug',
                 ]

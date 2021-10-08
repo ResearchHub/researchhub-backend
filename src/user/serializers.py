@@ -588,11 +588,17 @@ class OrganizationSerializer(serializers.ModelSerializer):
 
 
 class DynamicOrganizationSerializer(DynamicModelFieldSerializer):
+    member_count = serializers.SerializerMethodField()
     user_permission = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
         fields = '__all__'
+
+    def get_member_count(self, organization):
+        permissions = organization.permissions
+        users = permissions.filter(user__isnull=False)
+        return users.count()
 
     def get_user_permission(self, organization):
         context = self.context
