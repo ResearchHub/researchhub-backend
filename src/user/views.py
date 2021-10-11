@@ -5,9 +5,8 @@ from hashlib import sha1
 from datetime import datetime, timedelta
 
 from django.core.files.base import ContentFile
-from django.db import transaction
 from django.db import IntegrityError, models
-from django.db.models import Sum, Q, F, Case, When
+from django.db.models import Sum, Q, F, Case, When, Value, Count
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.core.cache import cache
@@ -39,7 +38,12 @@ from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
 from reputation.serializers import DynamicContributionSerializer
 from researchhub_access_group.models import Permission
-from researchhub_access_group.constants import ADMIN, VIEWER, MEMBER
+from researchhub_access_group.constants import (
+    ADMIN,
+    VIEWER,
+    MEMBER,
+    NO_ACCESS
+)
 from researchhub_access_group.permissions import (
     IsOrganizationAdmin,
     IsOrganizationUser
@@ -958,7 +962,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
 
 class OrganizationViewSet(viewsets.ModelViewSet):
-    queryset = Organization.objects.all()
+    queryset = Organization.objects.all().order_by('-created_date')
     serializer_class = OrganizationSerializer
     permission_classes = [
         IsAuthenticated
@@ -1265,6 +1269,61 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             notes = organization.created_notes.filter(
                 unified_document__is_removed=False
             )
+
+        # notes = org.created_notes.order_by('id')
+        notes = notes.annotate(
+            org_permission_count=Count(
+                'unified_document__permissions',
+                filter=(
+                    Q(
+                        unified_document__permissions__organization__isnull=False
+                    ) &
+                    (
+                        Q(
+                            unified_document__permissions__access_type=ADMIN
+                        ) |
+                        Q(
+                            unified_document__permissions__access_type=MEMBER
+                        )
+                    )
+                )
+            ),
+            note_permission_count=Count(
+                'unified_document__permissions',
+                filter=(
+                    Q(
+                        unified_document__permissions__organization__isnull=True
+                    ) &
+                    Q(
+                        unified_document__permissions__user__isnull=False
+                    )
+                )
+            )
+        )
+        notes = notes.annotate(
+            access=Case(
+                When(
+                    org_permission_count=1,
+                    then=Value('WORKSPACE')
+                ),
+                When(
+                    (
+                        Q(org_permission_count=0) &
+                        Q(note_permission_count__gte=1)
+                    ),
+                    then=Value('SHARED')
+                ),
+                When(
+                    (
+                        Q(org_permission_count=0) &
+                        Q(note_permission_count=1)
+                    ),
+                    then=Value('PRIVATE')
+                ),
+                default=Value('PRIVATE'),
+                output_field=models.CharField()
+            )
+        ).order_by('created_date')
 
         page = self.paginate_queryset(notes)
         serializer_data = NoteSerializer(page, many=True).data

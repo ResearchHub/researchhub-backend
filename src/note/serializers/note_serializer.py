@@ -35,11 +35,17 @@ class DynamicNoteContentSerializer(DynamicModelFieldSerializer):
 
 class NoteSerializer(ModelSerializer):
     latest_version = NoteContentSerializer()
+    access = SerializerMethodField()
 
     class Meta:
         model = Note
         fields = '__all__'
         read_only_fields = ['unified_document']
+
+    def get_access(self, note):
+        if hasattr(note, 'access'):
+            return note.access
+        return None
 
 
 class DynamicNoteSerializer(DynamicModelFieldSerializer):
