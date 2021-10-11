@@ -6,6 +6,7 @@ from researchhub_document.serializers import (
   DynamicUnifiedDocumentSerializer
 )
 from user.serializers import (
+    OrganizationSerializer,
     DynamicOrganizationSerializer,
     DynamicUserSerializer
 )
@@ -36,6 +37,7 @@ class DynamicNoteContentSerializer(DynamicModelFieldSerializer):
 class NoteSerializer(ModelSerializer):
     latest_version = NoteContentSerializer()
     access = SerializerMethodField()
+    organization = OrganizationSerializer()
 
     class Meta:
         model = Note
