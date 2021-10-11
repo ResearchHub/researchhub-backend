@@ -64,7 +64,10 @@ class NoteViewSet(ModelViewSet):
         if organization_slug:
             created_by = None
             organization = Organization.objects.get(slug=organization_slug)
-            if not organization.org_has_admin_user(user):
+            if not (
+                organization.org_has_admin_user(user) or
+                organization.org_has_editor_user(user)
+            ):
                 return Response({'data': 'Invalid permissions'}, status=403)
         else:
             created_by = user
@@ -106,7 +109,7 @@ class NoteViewSet(ModelViewSet):
     @action(
         detail=True,
         methods=['post', 'delete'],
-        permission_classes=[HasAdminPermission]
+        permission_classes=[HasEditingPermission]
     )
     def delete(self, request, pk=None):
         note = self.get_object()
