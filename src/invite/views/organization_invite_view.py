@@ -38,7 +38,9 @@ class OrganizationInvitationViewSet(ModelViewSet):
             access_type=invite_type,
             user=user
         )
-        organization.permissions.add(permission)
+        permissions = organization.permissions
+        if not permissions.filter(user=user).exists():
+            permissions.add(permission)
 
         invite.accept()
 

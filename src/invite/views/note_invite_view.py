@@ -38,7 +38,9 @@ class NoteInvitationViewSet(ModelViewSet):
             user=user
         )
 
-        note.unified_document.permissions.add(permission)
+        permissions = note.unified_document.permissions
+        if not permissions.filter(user=user).exists():
+            permissions.add(permission)
         invite.accept()
 
         return Response({'data': 'User has accepted invitation'}, status=200)
