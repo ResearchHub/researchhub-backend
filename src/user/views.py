@@ -1270,7 +1270,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 unified_document__is_removed=False
             )
 
-        # notes = org.created_notes.order_by('id')
         notes = notes.annotate(
             org_permission_count=Count(
                 'unified_document__permissions',
@@ -1324,6 +1323,26 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 output_field=models.CharField()
             )
         ).order_by('created_date')
+
+        # notes = notes.prefetch_related(
+        #     # models.Prefetch(
+        #     #     'unified_document__permissions',
+        #     #     queryset=Permission.objects.all()
+        #     # ),
+        #     models.Prefetch(
+        #         'unified_document__permissions__organization__permissions',
+        #         queryset=Permission.objects.all()
+        #     )
+        # )
+
+        # notes = notes.prefetch_related(
+        #     'access',
+        #     'org_permission_count',
+        #     # 'unified_document',
+        #     # 'unified_document__permissions',
+        #     # 'unified_document__permissions__organization',
+        #     # 'unified_document__permissions__organization__permissions'
+        # )
 
         page = self.paginate_queryset(notes)
         serializer_data = NoteSerializer(page, many=True).data
