@@ -581,10 +581,27 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
+    user_permission = serializers.SerializerMethodField()
+
     class Meta:
         model = Organization
         fields = '__all__'
         read_only_fields = ['id', 'slug']
+
+    def get_user_permission(self, organization):
+        context = self.context
+
+        if 'request' in context:
+            request = context.get('request')
+            user = request.user
+        else:
+            return None
+
+        if not user.is_anonymous:
+            permission = organization.permissions.get(user=user)
+            access_type = permission.access_type
+            return {'access_type': access_type}
+        return None
 
 
 class DynamicOrganizationSerializer(DynamicModelFieldSerializer):
