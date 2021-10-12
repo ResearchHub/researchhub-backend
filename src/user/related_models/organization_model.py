@@ -1,7 +1,7 @@
 from django.db import models
 
 from researchhub_access_group.models import Permission
-from researchhub_access_group.constants import ADMIN, EDITOR, VIEWER
+from researchhub_access_group.constants import ADMIN, MEMBER, VIEWER
 from utils.models import DefaultModel
 
 
@@ -31,8 +31,8 @@ class Organization(DefaultModel):
     def org_has_admin_user(self, user):
         return self.org_has_user(user, access_type=ADMIN)
 
-    def org_has_editor_user(self, user):
-        return self.org_has_user(user, access_type=EDITOR)
+    def org_has_member_user(self, user):
+        return self.org_has_user(user, access_type=MEMBER)
 
     def org_has_viewer_user(self, user):
         return self.org_has_user(user, access_type=VIEWER)
