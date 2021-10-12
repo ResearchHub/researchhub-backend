@@ -66,7 +66,7 @@ class NoteViewSet(ModelViewSet):
             organization = Organization.objects.get(slug=organization_slug)
             if not (
                 organization.org_has_admin_user(user) or
-                organization.org_has_editor_user(user)
+                organization.org_has_member_user(user)
             ):
                 return Response({'data': 'Invalid permissions'}, status=403)
         else:
