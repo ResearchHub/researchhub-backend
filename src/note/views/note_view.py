@@ -47,7 +47,7 @@ from researchhub.settings import (
 
 class NoteViewSet(ModelViewSet):
     ordering = ('-created_date')
-    queryset = Note.objects.all()
+    queryset = Note.objects.filter(unified_document__is_removed=False)
     permission_classes = [
         IsAuthenticated,
         HasAccessPermission
@@ -112,12 +112,17 @@ class NoteViewSet(ModelViewSet):
         permission_classes=[HasEditingPermission]
     )
     def delete(self, request, pk=None):
-        note = self.get_object()
+        note = Note.objects.get(id=pk)
+        self.check_object_permissions(self.request, note)
+
         unified_document = note.unified_document
         unified_document.is_removed = True
         unified_document.save()
         serializer = self.serializer_class(note)
         return Response(serializer.data, status=200)
+
+    def destroy(self, request, pk=None):
+        return self.delete(request, pk)
 
     @action(
         detail=True,

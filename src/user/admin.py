@@ -11,7 +11,7 @@ from django.http import JsonResponse, HttpRequest
 from django.shortcuts import render, redirect
 from django.urls import path
 
-from .models import User, Action, Verification
+from .models import User, Action, Verification, Organization
 from reputation.distributor import Distributor
 from reputation import distributions
 from mailing_list.lib import base_email_context
@@ -381,3 +381,4 @@ class VerificationAdminPanel(admin.ModelAdmin):
 admin.site.register(AnalyticModel, AnalyticAdminPanel)
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(Verification, VerificationAdminPanel)
+admin.site.register(Organization)

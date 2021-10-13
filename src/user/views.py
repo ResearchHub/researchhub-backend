@@ -1324,16 +1324,16 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             )
         ).order_by('created_date')
 
-        # notes = notes.prefetch_related(
-        #     # models.Prefetch(
-        #     #     'unified_document__permissions',
-        #     #     queryset=Permission.objects.all()
-        #     # ),
-        #     models.Prefetch(
-        #         'unified_document__permissions__organization__permissions',
-        #         queryset=Permission.objects.all()
-        #     )
-        # )
+        notes = notes.prefetch_related(
+            # models.Prefetch(
+            #     'unified_document__permissions',
+            #     queryset=Permission.objects.all()
+            # ),
+            models.Prefetch(
+                'unified_document__permissions__organization__permissions',
+                queryset=Permission.objects.all()
+            )
+        )
 
         # notes = notes.prefetch_related(
         #     'access',
