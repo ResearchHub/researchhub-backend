@@ -1000,7 +1000,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         image = data.get('image', None)
 
         if Organization.objects.filter(name=name).exists():
-            return Response({'data': 'Name is already in use.'}, status=200)
+            return Response({'data': 'Name is already in use.'}, status=409)
 
         organization = Organization.objects.create(
             description=description,
