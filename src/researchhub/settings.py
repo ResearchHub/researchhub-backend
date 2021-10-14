@@ -496,7 +496,8 @@ EMAIL_WHITELIST = [
     'kobe+1@researchhub.com',
     'contact@notesalong.com',
     'patricklu@researchhub.com',
-    'thomas@researchhub.com'
+    'thomas@researchhub.com',
+    'pat@researchhub.com'
 ]
 
 # Sentry
