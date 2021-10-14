@@ -33,16 +33,14 @@ from discussion.serializers import (
 from invite.models import OrganizationInvitation
 from invite.serializers import DynamicOrganizationInvitationSerializer
 from note.models import Note, NoteTemplate
-from note.serializers import NoteSerializer, NoteTemplateSerializer
+from note.serializers import DynamicNoteSerializer, NoteTemplateSerializer
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
 from reputation.serializers import DynamicContributionSerializer
 from researchhub_access_group.models import Permission
 from researchhub_access_group.constants import (
     ADMIN,
-    VIEWER,
     MEMBER,
-    NO_ACCESS
 )
 from researchhub_access_group.permissions import (
     IsOrganizationAdmin,
@@ -1353,9 +1351,35 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         #     # 'unified_document__permissions__organization__permissions'
         # )
 
+        context = self._get_org_notes_context()
         page = self.paginate_queryset(notes)
-        serializer_data = NoteSerializer(page, many=True).data
+        serializer_data = DynamicNoteSerializer(
+            page,
+            _include_fields=[
+                'access',
+                'created_date',
+                'id',
+                'organization',
+                'title',
+                'updated_date',
+            ],
+            context=context,
+            many=True
+        ).data
         return self.get_paginated_response(serializer_data)
+
+    def _get_org_notes_context(self):
+        context = {
+            'nte_dns_get_organization': {
+                '_include_fields': [
+                    'cover_image',
+                    'id',
+                    'name',
+                    'slug',
+                ]
+            }
+        }
+        return context
 
     @action(
         detail=True,
