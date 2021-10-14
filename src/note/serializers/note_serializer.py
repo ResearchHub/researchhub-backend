@@ -51,6 +51,7 @@ class NoteSerializer(ModelSerializer):
 
 
 class DynamicNoteSerializer(DynamicModelFieldSerializer):
+    access = SerializerMethodField()
     created_by = SerializerMethodField()
     latest_version = SerializerMethodField()
     notes = SerializerMethodField()
@@ -60,6 +61,11 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = Note
         fields = '__all__'
+
+    def get_access(self, note):
+        if hasattr(note, 'access'):
+            return note.access
+        return None
 
     def get_created_by(self, note):
         context = self.context
