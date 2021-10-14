@@ -999,6 +999,9 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         name = data.get('name', None)
         image = data.get('image', None)
 
+        if Organization.objects.filter(name=name).exists():
+            return Response({'data': 'Name is already in use.'}, status=200)
+
         organization = Organization.objects.create(
             description=description,
             name=name,
@@ -1013,7 +1016,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             )
             organization.cover_image.save(file_name, file)
 
-        serializer = self.serializer_class(organization)
+        context = self.get_serializer_context()
+        context['request'] = request
+
+        serializer = self.serializer_class(
+            organization,
+            context=context
+        )
         data = serializer.data
         return Response(data, status=200)
 
@@ -1324,16 +1333,16 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             )
         ).order_by('created_date')
 
-        notes = notes.prefetch_related(
-            # models.Prefetch(
-            #     'unified_document__permissions',
-            #     queryset=Permission.objects.all()
-            # ),
-            models.Prefetch(
-                'unified_document__permissions__organization__permissions',
-                queryset=Permission.objects.all()
-            )
-        )
+        # notes = notes.prefetch_related(
+        #     # models.Prefetch(
+        #     #     'unified_document__permissions',
+        #     #     queryset=Permission.objects.all()
+        #     # ),
+        #     models.Prefetch(
+        #         'unified_document__permissions__organization__permissions',
+        #         queryset=Permission.objects.all()
+        #     )
+        # )
 
         # notes = notes.prefetch_related(
         #     'access',
