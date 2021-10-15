@@ -1,8 +1,6 @@
 from django.core.files.base import ContentFile
-from django.db.models import Q
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
-from rest_framework.decorators import action
 from rest_framework.permissions import (
     IsAuthenticated,
     AllowAny
@@ -30,6 +28,11 @@ class NoteTemplateViewSet(ModelViewSet):
         if organization_id:
             created_by = None
             organization = Organization.objects.get(id=organization_id)
+            if not (
+                organization.org_has_admin_user(user) or
+                organization.org_has_member_user(user)
+            ):
+                return Response({'data': 'Invalid permissions'}, status=403)
         else:
             created_by = user
             organization = None
