@@ -1183,8 +1183,15 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         data = request.data
         user_id = data.get('user')
         organization = self.get_object()
-        user_permission = organization.permissions.get(user_id=user_id)
-        user_permission = organization.permissions.remove(user_permission)
+        permissions = organization.permissions
+        user_permission = permissions.get(user_id=user_id)
+
+        if permissions.count() <= 1:
+            return Response(
+                {'data': 'Organization needs at least one member'},
+                status=403
+            )
+        user_permission = permissions.remove(user_permission)
         return Response({'data': 'User removed from Organization'}, status=200)
 
     @action(
@@ -1331,26 +1338,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             )
         ).order_by('created_date')
 
-        # notes = notes.prefetch_related(
-        #     # models.Prefetch(
-        #     #     'unified_document__permissions',
-        #     #     queryset=Permission.objects.all()
-        #     # ),
-        #     models.Prefetch(
-        #         'unified_document__permissions__organization__permissions',
-        #         queryset=Permission.objects.all()
-        #     )
-        # )
-
-        # notes = notes.prefetch_related(
-        #     'access',
-        #     'org_permission_count',
-        #     # 'unified_document',
-        #     # 'unified_document__permissions',
-        #     # 'unified_document__permissions__organization',
-        #     # 'unified_document__permissions__organization__permissions'
-        # )
-
         context = self._get_org_notes_context()
         page = self.paginate_queryset(notes)
         serializer_data = DynamicNoteSerializer(
@@ -1397,9 +1384,12 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 Q(is_default=True)
             )
         else:
-            templates = NoteTemplate.objects.filter(
-                Q(organization__slug=pk) |
-                Q(is_default=True)
+            organization = self.get_object(slug=True)
+            templates = organization.created_templates.all()
+            templates = templates.union(
+                NoteTemplate.objects.filter(
+                    is_default=True
+                )
             )
 
         serializer = NoteTemplateSerializer(templates, many=True)
