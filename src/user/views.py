@@ -966,6 +966,10 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         IsAuthenticated
     ]
     pagination_class = MediumPageLimitPagination
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = [
+        'slug',
+    ]
 
     def get_object(self, slug=False):
         queryset = self.filter_queryset(self.get_queryset())
