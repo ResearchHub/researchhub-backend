@@ -1037,6 +1037,9 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         full_src_file = ContentFile(data.encode())
         return file_name, full_src_file
 
+    def destroy(self, request, pk=None):
+        return Response(status=403)
+
     def _get_organization_users_context(self):
         context = {
             'usr_dus_get_author_profile': {
