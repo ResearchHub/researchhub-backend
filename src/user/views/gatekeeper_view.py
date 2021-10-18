@@ -3,25 +3,27 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from user.related_models.gatekeeper_model import Gatekeeper
+from user.serializers import GatekeeperSerializer
 
 from utils.http import GET
 
 
 class GatekeeperViewSet(ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     queryset = Gatekeeper.objects.all()
-    # serializer_class = GatekeeperSerializer -> no need for it yet
-
+    serializer_class = GatekeeperSerializer
+    
     @action(
-        detail=True,
+        detail=False,
         methods=[GET],
-        permission_classes=[IsAuthenticated]
+        permission_classes=[AllowAny]
     )
-    def check_email(self, request, pk=None):
+    def check_current_user(self, request, pk=None):
+        # import pdb; pdb.set_trace()
         curr_user = request.user
-        gatekeeper_type = request.data.get('type')
+        gatekeeper_type = request.query_params.get('type')
         vote_exists = Gatekeeper.objects.filter(
           email=curr_user.email,
           type=gatekeeper_type
