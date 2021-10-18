@@ -391,15 +391,16 @@ class NoteContentViewSet(ModelViewSet):
         )
         file_name, full_src_file = self._create_src_content_file(
             note_content,
-            full_src
+            full_src,
+            user
         )
         note_content.src.save(file_name, full_src_file)
         serializer = self.serializer_class(note_content)
         data = serializer.data
         return Response(data, status=200)
 
-    def _create_src_content_file(self, note_content, full_src):
-        file_name = f'NOTE-CONTENT-{note_content.id}.txt'
+    def _create_src_content_file(self, note_content, full_src, user):
+        file_name = f'NOTE-CONTENT-{note_content.id}--USER-{user.id}.txt'
         full_src_file = ContentFile(full_src.encode())
         return file_name, full_src_file
 
@@ -419,7 +420,7 @@ def ckeditor_webhook_document_removed(request):
         note=note,
         plain_text=None
     )
-    file_name = f'NOTE-CONTENT-{note_content.id}.txt'
+    file_name = f'NOTE-CONTENT-{note_content.id}--WEBHOOK.txt'
     full_src_file = ContentFile(document_data.encode())
     note_content.src.save(file_name, full_src_file)
 
