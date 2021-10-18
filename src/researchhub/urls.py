@@ -314,6 +314,12 @@ router.register(
     basename='note_invite'
 )
 
+router.register(
+    r'gatekeeper',
+    invite_views.NoteInvitationViewSet,
+    basename='note_invite'
+)
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     re_path(r'^api/', include(router.urls)),
