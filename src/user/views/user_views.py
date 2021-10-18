@@ -81,7 +81,7 @@ from user.serializers import (
     DynamicUserSerializer,
     DynamicOrganizationSerializer
 )
-from utils.http import  POST
+from utils.http import POST
 from utils.http import RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
