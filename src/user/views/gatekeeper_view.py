@@ -21,7 +21,6 @@ class GatekeeperViewSet(ModelViewSet):
         permission_classes=[AllowAny]
     )
     def check_current_user(self, request, pk=None):
-        # import pdb; pdb.set_trace()
         curr_user = request.user
         gatekeeper_type = request.query_params.get('type')
         vote_exists = Gatekeeper.objects.filter(
