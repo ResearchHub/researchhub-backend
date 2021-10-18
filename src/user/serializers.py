@@ -23,8 +23,7 @@ from user.models import (
 from summary.models import Summary, Vote as SummaryVote
 from purchase.models import Purchase
 from researchhub.serializers import DynamicModelFieldSerializer
-from utils import sentry
-from django.db.models import Sum
+from user.related_models.gatekeeper_model import Gatekeeper
 
 
 class VerificationSerializer(serializers.ModelSerializer):
@@ -43,6 +42,13 @@ class MajorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Major
         fields = '__all__'
+
+
+class GatekeeperSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Gatekeeper
+        fields = '__all__'
+        read_only_fields = [field.name for field in Gatekeeper._meta.fields]
 
 
 class AuthorSerializer(serializers.ModelSerializer):

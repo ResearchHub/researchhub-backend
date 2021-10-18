@@ -319,7 +319,7 @@ router.register(
 router.register(
     r'gatekeeper',
     GatekeeperViewSet,
-    basename='gate_keeper'
+    basename='gatekeeper'
 )
 
 urlpatterns = [
