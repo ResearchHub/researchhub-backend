@@ -1,38 +1,36 @@
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-from rest_framework.permissions import IsAuthenticated
 
-from researchhub_case.models import AuthorClaimCase
-from researchhub_case.serializers import AuthorClaimCaseSerializer
+from rest_framework.permissions import IsAuthenticated
+from user.related_models.gatekeeper_model import Gatekeeper
+
 from utils.http import GET
 
 
 class GatekeeperViewSet(ModelViewSet):
-    permission_classes = [
-        IsAuthenticated,
-    ]
-    queryset = AuthorClaimCase.objects.all().order_by("-created_date")
-    serializer_class = AuthorClaimCaseSerializer
-
+    permission_classes = [IsAuthenticated]
+    queryset = Gatekeeper.objects.all()
+    # serializer_class = GatekeeperSerializer -> no need for it yet
 
     @action(
         detail=True,
         methods=[GET],
-        permission_classes=[
-            CreateOrUpdateIfAllowed
-        ]
+        permission_classes=[IsAuthenticated]
     )
     def check_email(self, request, pk=None):
-        item = self.get_object()
-        user = request.user
+        curr_user = request.user
+        gatekeeper_type = request.data.get('type')
+        vote_exists = Gatekeeper.objects.filter(
+          email=curr_user.email,
+          type=gatekeeper_type
+        ).exists()
 
-        # vote_exists = find_vote(user, item, Vote.UPVOTE)
+        if (vote_exists):
+            return Response(True, status=status.HTTP_200_OK)
 
         return Response(
-            'This vote already exists',
-            status=status.HTTP_400_BAD_REQUEST
+            'Cannot find given user & type',
+            status=status.HTTP_404_NOT_FOUND
         )
-        # if vote_exists:
-        # response = update_or_create_vote(request, user, item, Vote.UPVOTE)
-        # return response
