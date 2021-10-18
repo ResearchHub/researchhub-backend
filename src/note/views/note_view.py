@@ -379,7 +379,7 @@ class NoteContentViewSet(ModelViewSet):
     def create(self, request, *args, **kwargs):
         user = request.user
         data = request.data
-        src = data.get('full_src', '')
+        full_src = data.get('full_src', '')
         note_id = data.get('note', None)
         plain_text = data.get('plain_text', None)
         self.kwargs['pk'] = note_id
@@ -389,20 +389,43 @@ class NoteContentViewSet(ModelViewSet):
             note=note,
             plain_text=plain_text
         )
-        file_name, file = self._create_src_content_file(
+        file_name, full_src_file = self._create_src_content_file(
             note_content,
-            src,
-            user
+            full_src
         )
-        note_content.src.save(file_name, file)
+        note_content.src.save(file_name, full_src_file)
         serializer = self.serializer_class(note_content)
         data = serializer.data
         return Response(data, status=200)
 
-    def _create_src_content_file(self, note, data, user):
-        file_name = f'NOTE-CONTENT-{note}--USER-{user.id}.txt'
-        full_src_file = ContentFile(data.encode())
+    def _create_src_content_file(self, note_content, full_src):
+        file_name = f'NOTE-CONTENT-{note_content.id}.txt'
+        full_src_file = ContentFile(full_src.encode())
         return file_name, full_src_file
+
+
+@api_view([RequestMethods.POST])
+@permission_classes([AllowAny])
+def ckeditor_webhook_document_removed(request):
+    document = request.data['payload']['document']
+    try:
+        document_data = document['data']
+    except KeyError:
+        return HttpResponse('Missing document data.')
+
+    note_id = document['id'].split('-')[-1]
+    note = Note.objects.get(id=note_id)
+    note_content = NoteContent.objects.create(
+        note=note,
+        plain_text=None
+    )
+    file_name = f'NOTE-CONTENT-{note_content.id}.txt'
+    full_src_file = ContentFile(document_data.encode())
+    note_content.src.save(file_name, full_src_file)
+
+    serializer = NoteContentSerializer(note_content)
+    data = serializer.data
+    return Response(data, status=200)
 
 
 @api_view([RequestMethods.GET])
@@ -413,7 +436,7 @@ def ckeditor_token(request):
     payload = {
         'aud': CKEDITOR_CLOUD_ENVIRONMENT_ID,
         'iat': datetime.utcnow(),
-        'sub': f'user-{user.id}',
+        'sub': str(user.author_profile.id),
         'user': {
             'email': user.email,
             'name': f'{user.first_name} {user.last_name}',
