@@ -604,8 +604,9 @@ class OrganizationSerializer(serializers.ModelSerializer):
             return None
 
         if not user.is_anonymous:
-            permission = organization.permissions.get(user=user)
-            access_type = permission.access_type
+            # permission = organization.permissions.get(owner__user=user)
+            # access_type = permission.access_type
+            access_type = None
             return {'access_type': access_type}
         return None
 
@@ -620,10 +621,11 @@ class DynamicOrganizationSerializer(DynamicModelFieldSerializer):
 
     def get_member_count(self, organization):
         permissions = organization.permissions
-        users = permissions.filter(user__isnull=False)
+        users = permissions.filter(owner__isnull=False)
         return users.count()
 
     def get_user_permission(self, organization):
+        return None
         context = self.context
         _context_fields = context.get('usr_dos_get_user_permissions', {})
         user = context.get('user')

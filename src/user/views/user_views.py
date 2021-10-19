@@ -41,6 +41,7 @@ from researchhub_access_group.models import Permission
 from researchhub_access_group.constants import (
     ADMIN,
     MEMBER,
+    NO_ACCESS
 )
 from researchhub_access_group.permissions import (
     IsOrganizationAdmin,
@@ -1029,11 +1030,14 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         return Response(data, status=200)
 
     def _create_permissions(self, user, organization):
+        user_org = user.organization
+        content_type = ContentType.objects.get_for_model(Organization)
         permission = Permission.objects.create(
-            user=user,
-            access_type=ADMIN
+            access_type=ADMIN,
+            content_type=content_type,
+            object_id=organization.id,
+            owner=user_org,
         )
-        organization.permissions.add(permission)
         return permission
 
     def _create_image_file(self, data, organization, user):
@@ -1074,15 +1078,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         )
         admin_user_ids = permissions.filter(
             access_type=ADMIN,
-            organization__isnull=True
         ).values(
-            'user'
+            'owner__user'
         )
         member_user_ids = permissions.filter(
             access_type=MEMBER,
-            organization__isnull=True
         ).values(
-            'user'
+            'owner__user'
         )
         admins = User.objects.filter(id__in=admin_user_ids)
         members = User.objects.filter(id__in=member_user_ids)
@@ -1111,13 +1113,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             admins,
             many=True,
             context=context,
-            _include_fields=['author_profile', 'email']
+            _include_fields=['author_profile', 'email', 'id']
         )
         member_serializer = DynamicUserSerializer(
             members,
             many=True,
             context=context,
-            _include_fields=['author_profile', 'email']
+            _include_fields=['author_profile', 'email', 'id']
         )
         data = {
             'admins': admin_serializer.data,
@@ -1135,8 +1137,9 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     )
     def get_user_organizations(self, request, pk=None):
         user = User.objects.get(id=pk)
-        organization_ids = user.permissions.values_list(
-            'direct_organization'
+        user_organization = user.organization
+        organization_ids = user_organization.permissions.values_list(
+            'owner'
         )
         organizations = self.queryset.filter(id__in=organization_ids)
 
@@ -1191,7 +1194,14 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         user_id = data.get('user')
         organization = self.get_object()
         permissions = organization.permissions
-        user_permission = permissions.get(user_id=user_id)
+        user_permission = permissions.get(owner__user=user_id)
+
+        if organization.user and organization.user.id == user_id:
+            # Prevents a user from removing themself from their own private org
+            return Response(
+                {'data': "You can't remove yourself!"},
+                status=403
+            )
 
         if permissions.count() <= 1:
             return Response(
@@ -1266,7 +1276,14 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         data = request.data
         user_id = data.get('user')
         access_type = data.get('access_type')
-        user_permission = organization.permissions.get(user=user_id)
+
+        if organization.user and organization.user.id == user_id:
+            # Prevents a user from updating themself from their own private org
+            return Response(
+                {'data': "You can't update your own permission!"},
+                status=403
+            )
+        user_permission = organization.permissions.get(owner__user=user_id)
         user_permission.access_type = access_type
         user_permission.save()
         return Response({'data': 'User permission updated'}, status=200)
@@ -1278,72 +1295,69 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     )
     def get_organization_notes(self, request, pk=None):
         user = request.user
-        if pk == '0' or pk == 0:
+        if pk == 'me':
             # No organization notes, retrieve user's notes
             # No permission necessary
+            organization = user.organization
             notes = Note.objects.filter(
-                created_by=user,
+                Q(created_by=user) |
+                Q(organization=user.organization),
                 unified_document__is_removed=False
+            ).annotate(
+                user_org=Value(
+                    True,
+                    output_field=models.BooleanField()
+                )
             )
         else:
             organization = self.get_object(slug=True)
             notes = organization.created_notes.filter(
                 unified_document__is_removed=False
+            ).annotate(
+                user_org=Value(
+                    False,
+                    output_field=models.BooleanField()
+                )
             )
 
+        org_access_permission = organization.permissions.filter(
+            owner__user__isnull=True
+        )
+        if org_access_permission.exists():
+            org_access_permission = org_access_permission.values_list(
+                'access_type',
+                flat=True
+            )[0]
+        else:
+            org_access_permission = NO_ACCESS
+
         notes = notes.annotate(
-            org_permission_count=Count(
-                'unified_document__permissions',
-                filter=(
-                    Q(
-                        unified_document__permissions__organization__isnull=False
-                    ) &
-                    (
-                        Q(
-                            unified_document__permissions__access_type=ADMIN
-                        ) |
-                        Q(
-                            unified_document__permissions__access_type=MEMBER
-                        )
-                    )
-                )
+            org_access=Value(
+                f'{org_access_permission}',
+                output_field=models.CharField()
             ),
             note_permission_count=Count(
-                'unified_document__permissions',
-                filter=(
-                    Q(
-                        unified_document__permissions__organization__isnull=True
-                    ) &
-                    Q(
-                        unified_document__permissions__user__isnull=False
-                    )
-                )
-            )
-        )
-        notes = notes.annotate(
+                'unified_document__permissions__id'
+            ),
             access=Case(
                 When(
-                    org_permission_count=1,
+                    Q(user_org=False) &
+                    ~Q(org_access=NO_ACCESS),
                     then=Value('WORKSPACE')
                 ),
                 When(
-                    (
-                        Q(org_permission_count=0) &
-                        Q(note_permission_count__gte=1)
-                    ),
+                    Q(org_access=NO_ACCESS) &
+                    Q(note_permission_count__gt=1),
                     then=Value('SHARED')
-                ),
-                When(
-                    (
-                        Q(org_permission_count=0) &
-                        Q(note_permission_count=1)
-                    ),
-                    then=Value('PRIVATE')
                 ),
                 default=Value('PRIVATE'),
                 output_field=models.CharField()
             )
         ).order_by('created_date')
+
+        notes = notes.filter(
+            unified_document__permissions__owner__user=user
+        )
 
         context = self._get_org_notes_context()
         page = self.paginate_queryset(notes)

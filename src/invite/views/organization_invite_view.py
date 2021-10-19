@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -34,14 +35,16 @@ class OrganizationInvitationViewSet(ModelViewSet):
 
         invite_type = invite.invite_type
         organization = invite.organization
-        permission = Permission.objects.create(
-            access_type=invite_type,
-            user=user
-        )
-        permissions = organization.permissions
-        if not permissions.filter(user=user).exists():
-            permissions.add(permission)
-
+        content_type = ContentType.objects.get_for_model(Organization)
+        if not organization.permissions.filter(
+            owner__user=user
+        ).exists():
+            Permission.objects.create(
+                access_type=invite_type,
+                content_type=content_type,
+                object_id=organization.id,
+                owner=user.organization
+            )
         invite.accept()
 
         return Response({'data': 'User has accepted invitation'}, status=200)

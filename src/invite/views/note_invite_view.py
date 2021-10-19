@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -33,14 +34,19 @@ class NoteInvitationViewSet(ModelViewSet):
 
         note = invite.note
         invite_type = invite.invite_type
-        permission = Permission.objects.create(
-            access_type=invite_type,
-            user=user
+        unified_document = note.unified_document
+        permissions = note.unified_document.permissions
+        content_type = ContentType.objects.get_for_model(
+            unified_document
         )
 
-        permissions = note.unified_document.permissions
-        if not permissions.filter(user=user).exists():
-            permissions.add(permission)
+        if not permissions.filter(owner__user=user).exists():
+            Permission.objects.create(
+                access_type=invite_type,
+                content_type=content_type,
+                object_id=unified_document.id,
+                owner=user.organization
+            )
         invite.accept()
 
         return Response({'data': 'User has accepted invitation'}, status=200)

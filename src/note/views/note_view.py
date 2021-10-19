@@ -5,6 +5,7 @@ from datetime import datetime
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.core.files.base import ContentFile
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.permissions import (
     IsAuthenticated,
     AllowAny
@@ -61,7 +62,11 @@ class NoteViewSet(ModelViewSet):
         organization_slug = data.get('organization_slug', None)
         title = data.get('title', '')
 
-        if organization_slug:
+        is_user_org = Organization.objects.filter(
+            slug=organization_slug,
+            permissions__owner__user__isnull=False
+        ).exists()
+        if organization_slug and not is_user_org:
             created_by = None
             organization = Organization.objects.get(slug=organization_slug)
             if not (
@@ -71,21 +76,22 @@ class NoteViewSet(ModelViewSet):
                 return Response({'data': 'Invalid permissions'}, status=403)
         else:
             created_by = user
-            organization = None
+            organization = user.organization
 
-        permission = self._create_permission(created_by, organization)
-        unified_doc = self._create_unified_doc(request, permission)
+        owner = organization or created_by.organization
+        unified_doc = self._create_unified_doc(request)
         note = Note.objects.create(
             created_by=created_by,
             organization=organization,
             unified_document=unified_doc,
             title=title,
         )
+        self._create_permission(owner, unified_doc)
         serializer = self.serializer_class(note)
         data = serializer.data
         return Response(data, status=200)
 
-    def _create_unified_doc(self, request, permission):
+    def _create_unified_doc(self, request):
         data = request.data
         hubs = Hub.objects.filter(
             id__in=data.get('hubs', [])
@@ -93,16 +99,19 @@ class NoteViewSet(ModelViewSet):
         unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=NOTE
         )
-        unified_doc.permissions.add(permission)
         unified_doc.hubs.add(*hubs)
         unified_doc.save()
         return unified_doc
 
-    def _create_permission(self, creator, organization):
+    def _create_permission(self, owner, unified_document):
+        content_type = ContentType.objects.get_for_model(
+            ResearchhubUnifiedDocument
+        )
         permission = Permission.objects.create(
             access_type=ADMIN,
-            organization=organization,
-            user=creator,
+            content_type=content_type,
+            object_id=unified_document.id,
+            owner=owner,
         )
         return permission
 
@@ -245,21 +254,21 @@ class NoteViewSet(ModelViewSet):
     )
     def update_permissions(self, request, pk=None):
         data = request.data
+        access_type = data.get('access_type')
         organization_id = data.get('organization')
         user_id = data.get('user')
-        access_type = data.get('access_type')
         note = self.get_object()
         unified_document = note.unified_document
 
         if organization_id:
             permission = unified_document.permissions.get(
-                organization=organization_id
+                owner=organization_id
             )
             if access_type not in (ADMIN, MEMBER):
                 return Response({'data': 'Invalid access type'}, status=400)
         else:
             permission = unified_document.permissions.get(
-                user=user_id
+                owner__user=user_id
             )
 
         permission.access_type = access_type
@@ -276,8 +285,8 @@ class NoteViewSet(ModelViewSet):
         user_id = data.get('user')
         note = self.get_object()
         unified_document = note.unified_document
-        permission = unified_document.permission.get(user=user_id)
-        unified_document.permissions.remove(permission)
+        permission = unified_document.permission.get(owner__user=user_id)
+        permission.delete()
         return Response({'data': 'User permission removed'}, status=200)
 
     @action(
