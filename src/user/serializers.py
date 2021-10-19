@@ -235,6 +235,7 @@ class MinimalUserSerializer(serializers.ModelSerializer):
 class UserEditableSerializer(serializers.ModelSerializer):
     author_profile = AuthorSerializer()
     balance = serializers.SerializerMethodField()
+    organization_slug = serializers.SerializerMethodField()
     subscribed = serializers.SerializerMethodField()
 
     class Meta:
@@ -252,6 +253,9 @@ class UserEditableSerializer(serializers.ModelSerializer):
 
     def get_balance(self, obj):
         return obj.get_balance()
+
+    def get_organization_slug(self, obj):
+        return obj.organization.slug
 
     def get_subscribed(self, obj):
         if self.context.get('get_subscribed'):
