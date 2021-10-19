@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='permission',
             name='organization',
-            field=models.ForeignKey(default=None, on_delete=django.db.models.deletion.CASCADE, related_name='permissions', to='user.Organization'),
+            field=models.ForeignKey(null=True, default=None, on_delete=django.db.models.deletion.CASCADE, related_name='permissions', to='user.Organization'),
             preserve_default=False,
         ),
     ]
