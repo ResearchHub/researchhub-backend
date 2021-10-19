@@ -348,7 +348,8 @@ def attach_author_and_email_preference(
 def create_user_organization(sender, instance, created, **kwargs):
     if created and not hasattr(instance, 'organization'):
         suffix = get_random_string(length=32)
-        slug = slugify(f'{instance.first_name} {instance.last_name}')
+        name = f'{instance.first_name} {instance.last_name} Notebook'
+        slug = slugify(name)
         if not slug:
             slug += suffix
         if Organization.objects.filter(slug__icontains=slug).exists():
@@ -356,7 +357,7 @@ def create_user_organization(sender, instance, created, **kwargs):
 
         content_type = ContentType.objects.get_for_model(Organization)
         org = Organization.objects.create(
-            name=slug,
+            name=name,
             slug=slug,
             user=instance
         )

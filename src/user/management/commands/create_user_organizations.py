@@ -18,8 +18,10 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         users = User.objects.filter(organization__isnull=True)
         for user in users.iterator():
+            print(user.email)
             suffix = get_random_string(length=32)
-            slug = slugify(f'{user.first_name} {user.last_name}')
+            name = f'{user.first_name} {user.last_name} Notebook'
+            slug = slugify(name)
             if not slug:
                 slug += suffix
             if Organization.objects.filter(slug__icontains=slug).exists():

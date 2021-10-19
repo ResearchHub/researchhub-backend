@@ -17,7 +17,7 @@ class Organization(DefaultModel):
     )
     note_created = models.BooleanField(default=False, null=True, blank=True)
     description = models.CharField(default='', max_length=256)
-    name = models.CharField(max_length=64, unique=True)
+    name = models.CharField(max_length=64)
     permissions = GenericRelation(
         Permission,
         related_name='organization'
