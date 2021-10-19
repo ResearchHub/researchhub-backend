@@ -31,6 +31,8 @@ INFURA_PROJECT_SECRET = ''
 INFURA_RINKEBY_ENDPOINT = f'https://rinkeby.infura.io/v3/{INFURA_PROJECT_ID}'
 ```
 
+Add local config files by copying files from `src/config` to `src/config_local`. Ask somebody to provide all the keys.
+
 Set executable permissions on scripts
 
 ```
@@ -81,15 +83,28 @@ docker run \
 ### ENVIRONMENT
 
 The project environment is managed using [Pipenv](https://pipenv.kennethreitz.org/en/latest/).
-Run the following commands from the [`src`](src) directory:
+
+The project uses Python version 3.6, so you will need to install it (use pyenv e.g.). The recommended version is 3.6.12 or 3.6.13.
+
+If you're installing on macOS 11.x, additional step is required for which the explanation can be found [here](https://stackoverflow.com/questions/66482346/problems-installing-python-3-6-with-pyenv-on-mac-os-big-sur) or [here](https://docs.google.com/document/d/1tObZtc_GLf1h2OY9Ig6LjYub5zNMARG_ge3pUXKV3HI/edit?usp=sharing), that basically installs the right version of Python with extra flags (notice Python version within the script):
+
+```
+CFLAGS="-I$(brew --prefix openssl)/include -I$(brew --prefix bzip2)/include -I$(brew --prefix readline)/include -I$(xcrun --show-sdk-path)/usr/include" LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix readline)/lib -L$(brew --prefix zlib)/lib -L$(brew --prefix bzip2)/lib" pyenv install --patch 3.6.12 < <(curl -sSL https://github.com/python/cpython/commit/8ea6353.patch\?full_index\=1)
+```
+
+After installing Python 3.6.x, run the following commands from the [`src`](src) directory:
 
 ```shell
-# install the project environment
+# installs the project environment and packages
 pipenv install
 
-# activate the environment
+# activates the environment and enters shell
 pipenv shell
+```
 
+In general, when adding new packages, follow these steps:
+
+```shell
 # add a package to the project environment
 pipenv install package_name
 
@@ -99,7 +114,7 @@ pipenv lock --requirements >| requirements.txt
 
 ### ELASTICSEARCH
 
-In a new shell, run this Docker image script (make sure Redis is running in the background ```redis-server```) 
+In a new shell, run this Docker image script (make sure Redis is running in the background `redis-server`)
 
 ```
  # Let this run for ~30 minutes in the background before terminating, be patient :)
@@ -112,16 +127,13 @@ Back in the python virtual environment, build the indices
 python manage.py search_index --rebuild
 ```
 
-Optionally, start Kibana for Elastic dev tools  
+Optionally, start Kibana for Elastic dev tools
 
 ```
 ./start-kibana.sh
 ```
 
-To view elastic queries via the API, add `DEBUG_TOOLBAR = True` to `keys.py`. Then, visit an API url such as [http://localhost:8000/api/search/paper/?publish_date__gte=2022-01-01](http://localhost:8000/api/search/paper/?publish_date__gte=2022-01-01)
-
-
--------
+To view elastic queries via the API, add `DEBUG_TOOLBAR = True` to `keys.py`. Then, visit an API url such as [http://localhost:8000/api/search/paper/?publish_date\_\_gte=2022-01-01](http://localhost:8000/api/search/paper/?publish_date__gte=2022-01-01)
 
 ### ETHEREUM
 
@@ -145,26 +157,32 @@ Add the keystore file to the config directory
 
 Make sure you have added the Infura keys (see above^)
 
+### REDIS
+
+Setup `redis-server` to run in a separate terminal, or use Redis Docker image. Default config is used (i.e. port 6379).
+
 ### DEVELOPMENT
 
 This sections contains some helpful commands for development.
 
+> Run these from within `pipenv shell` from `src`, like it was previously mentioned.
+
 Update the database schema:
 
 ```shell
-python src/manage.py makemigrations
-python src/manage.py migrate
+python manage.py makemigrations
+python manage.py migrate
 ```
 
 Run a development server and make the API available at <http://localhost:8000/api/>:
 
 ```shell
 # create a superuser and retrieve an authentication token
-python src/manage.py createsuperuser --username=<username> --email=<email>
-python src/manage.py drf_create_token <email>
+python manage.py createsuperuser --username=<username> --email=<email>
+python manage.py drf_create_token <email>
 
 # run the development server
-python src/manage.py runserver
+python manage.py runserver
 
 # query the API
 curl --silent \
