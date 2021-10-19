@@ -41,7 +41,11 @@ class DynamicPermissionSerializer(DynamicModelFieldSerializer):
         context = self.context
         _context_fields = context.get('rag_dps_get_user', {})
 
-        user = permission.user
+        org = permission.owner
+        if not org:
+            return None
+
+        user = org.user
         if not user:
             return None
 
