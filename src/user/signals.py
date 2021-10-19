@@ -346,7 +346,7 @@ def attach_author_and_email_preference(
 
 @receiver(post_save, sender=User, dispatch_uid='user_create_org')
 def create_user_organization(sender, instance, created, **kwargs):
-    if not hasattr(instance, 'organization'):
+    if created and not hasattr(instance, 'organization'):
         suffix = get_random_string(length=32)
         slug = slugify(f'{instance.first_name} {instance.last_name}')
         if not slug:
@@ -364,5 +364,5 @@ def create_user_organization(sender, instance, created, **kwargs):
             access_type=ADMIN,
             content_type=content_type,
             object_id=org.id,
-            organization=org
+            owner=org
         )
