@@ -17,6 +17,7 @@ class Organization(DefaultModel):
         null=True,
         blank=True
     )
+    note_created = models.BooleanField(default=False, null=True, blank=True)
     description = models.CharField(default='', max_length=256)
     name = models.CharField(max_length=64, unique=True)
     slug = models.SlugField(default='', max_length=1024, unique=True)
