@@ -53,6 +53,7 @@ from paper.models import Paper
 from paper.utils import get_cache_key
 from paper.views import PaperViewSet
 from paper.serializers import (
+    PaperSerializer,
     HubPaperSerializer,
     DynamicPaperSerializer
 )
@@ -81,7 +82,7 @@ from user.serializers import (
     DynamicUserSerializer,
     DynamicOrganizationSerializer
 )
-from utils.http import POST
+from utils.http import DELETE, POST, PATCH, PUT
 from utils.http import RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
