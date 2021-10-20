@@ -226,8 +226,11 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     )
     def get_user_organizations(self, request, pk=None):
         user = User.objects.get(id=pk)
-        organization_ids = user.permissions.values_list(
-            'direct_organization'
+        org_content_type = ContentType.objects.get_for_model(Organization)
+        organization_ids = user.permissions.filter(
+            content_type=org_content_type
+        ).values(
+            'object_id'
         )
         organizations = self.queryset.filter(id__in=organization_ids)
 
@@ -369,7 +372,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     )
     def get_organization_notes(self, request, pk=None):
         user = request.user
-        if pk == '0' or pk == 0:
+        if pk == 'me':
             # No organization notes, retrieve user's notes
             # No permission necessary
             notes = Note.objects.filter(
@@ -435,6 +438,11 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 output_field=models.CharField()
             )
         ).order_by('created_date')
+
+        # TODO: Filter out notes based off permissions (private, shared, etc)
+        # notes = notes.filter(
+        #     Q(unified_document__permissions__user=user)
+        # )
 
         context = self._get_org_notes_context()
         page = self.paginate_queryset(notes)

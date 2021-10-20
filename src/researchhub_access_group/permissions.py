@@ -25,7 +25,7 @@ class IsAdminOrCreateOnly(BasePermission):
 
 
 class IsOrganizationUser(BasePermission):
-    message = 'User is not an admin of the organization'
+    message = 'User is not part of the organization'
 
     def has_object_permission(self, request, view, obj):
         if request.method == POST:
