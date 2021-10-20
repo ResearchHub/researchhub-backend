@@ -237,3 +237,17 @@ insert into socialaccount_socialapp_sites (socialapp_id, site_id) values (1, 1);
 There's a CSV file in `/misc/hub_hub.csv` with hub data that you can use to seed hubs data.
 
 > If you encounter problems importing CSV due to DB tool thinking that empty fields are nulls for `acronym` and `description` columns, temporarily update `hub_hub` table to allow null values for those columns, import CSV, then execute `update hub_hub set acronym='', description='';` to populate with non-null yet empty values, then update table to disallow nulls again.
+
+#### Seeding papers data
+
+From your terminal, follow these steps:
+
+```shell
+cd src
+pipenv shell
+python manage.py shell_plus # enters Python shell within pipenv shell
+
+from paper.tasks import pull_crossref_papers, pull_papers
+pull_crossref_papers()
+pull_papers()
+```
