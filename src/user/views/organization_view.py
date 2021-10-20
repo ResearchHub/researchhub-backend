@@ -112,14 +112,20 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
     def _create_permissions(self, user, organization):
         content_type = ContentType.objects.get_for_model(Organization)
-        permission = Permission.objects.create(
+        org_permission = Permission.objects.create(
+            access_type=ADMIN,
+            content_type=content_type,
+            object_id=organization.id,
+            organization=organization,
+        )
+
+        user_permission = Permission.objects.create(
             access_type=ADMIN,
             content_type=content_type,
             object_id=organization.id,
             user=user,
         )
-        organization.permissions.add(permission)
-        return permission
+        return org_permission, user_permission
 
     def _create_image_file(self, data, organization, user):
         file_name = f'ORGANIZATION-IMAGE-{organization.id}--USER-{user.id}.txt'

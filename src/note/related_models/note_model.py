@@ -35,6 +35,10 @@ class Note(DefaultModel):
     )
 
     @property
+    def permissions(self):
+        return self.unified_document.permissions
+
+    @property
     def owner(self):
         pass
 

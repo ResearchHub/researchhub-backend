@@ -72,8 +72,8 @@ class Permission(DefaultModel):
     organization = models.ForeignKey(
         'user.Organization',
         null=True,
-        related_name='permissions',
-        on_delete=models.CASCADE
+        on_delete=models.CASCADE,
+        related_name='org_permissions',
     )
     source = GenericForeignKey(
         'content_type',
@@ -82,8 +82,8 @@ class Permission(DefaultModel):
     user = models.ForeignKey(
         User,
         null=True,
+        on_delete=models.CASCADE,
         related_name='permissions',
-        on_delete=models.CASCADE
     )
 
     objects = PermissionManager()
