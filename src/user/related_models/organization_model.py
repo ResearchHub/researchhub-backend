@@ -39,6 +39,9 @@ class Organization(DefaultModel):
         on_delete=models.CASCADE,
     )
 
+    def __str__(self):
+        return f'Id: {self.id} Name: {self.name}'
+
     def org_has_user(self, user, **filters):
         permissions = self.permissions
         return permissions.filter(

@@ -41,5 +41,6 @@ class Command(BaseCommand):
                 access_type=ADMIN,
                 content_type=content_type,
                 object_id=org.id,
-                owner=org
+                organization=org,
+                user=user,
             )

@@ -369,5 +369,6 @@ def create_user_organization(sender, instance, created, **kwargs):
             access_type=ADMIN,
             content_type=content_type,
             object_id=org.id,
-            owner=org
+            organization=org,
+            user=instance
         )

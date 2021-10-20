@@ -608,7 +608,11 @@ class OrganizationSerializer(serializers.ModelSerializer):
             return None
 
         if not user.is_anonymous:
-            permission = organization.permissions.get(user=user)
+            permission = organization.permissions.filter(user=user)
+            if permission.exists():
+                permission = permission.first()
+            else:
+                return None
             access_type = permission.access_type
             return {'access_type': access_type}
         return None
@@ -644,7 +648,12 @@ class DynamicOrganizationSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get('usr_dos_get_user_permissions', {})
         user = context.get('user')
 
-        permission = organization.permissions.get(user=user)
+        permission = organization.permissions.filter(user=user)
+        if permission.exists():
+            permission = permission.first()
+        else:
+            return None
+
         serializer = DynamicPermissionSerializer(
             permission,
             context=context,

@@ -72,7 +72,7 @@ class Permission(DefaultModel):
     organization = models.ForeignKey(
         'user.Organization',
         null=True,
-        related_name='unified_doc_permissions',
+        related_name='permissions',
         on_delete=models.CASCADE
     )
     source = GenericForeignKey(

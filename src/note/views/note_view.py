@@ -5,6 +5,7 @@ from datetime import datetime
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.core.files.base import ContentFile
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.permissions import (
     IsAuthenticated,
     AllowAny
@@ -73,8 +74,8 @@ class NoteViewSet(ModelViewSet):
             created_by = user
             organization = None
 
-        permission = self._create_permission(created_by, organization)
-        unified_doc = self._create_unified_doc(request, permission)
+        unified_doc = self._create_unified_doc(request)
+        self._create_permission(created_by, organization, unified_doc)
         note = Note.objects.create(
             created_by=created_by,
             organization=organization,
@@ -85,7 +86,7 @@ class NoteViewSet(ModelViewSet):
         data = serializer.data
         return Response(data, status=200)
 
-    def _create_unified_doc(self, request, permission):
+    def _create_unified_doc(self, request):
         data = request.data
         hubs = Hub.objects.filter(
             id__in=data.get('hubs', [])
@@ -93,14 +94,19 @@ class NoteViewSet(ModelViewSet):
         unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=NOTE
         )
-        unified_doc.permissions.add(permission)
         unified_doc.hubs.add(*hubs)
         unified_doc.save()
         return unified_doc
 
-    def _create_permission(self, creator, organization):
+    def _create_permission(self, creator, organization, unified_document):
+        content_type = ContentType.objects.get_for_model(
+            ResearchhubUnifiedDocument
+        )
+
         permission = Permission.objects.create(
             access_type=ADMIN,
+            content_type=content_type,
+            object_id=unified_document.id,
             organization=organization,
             user=creator,
         )
