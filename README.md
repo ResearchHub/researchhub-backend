@@ -238,6 +238,14 @@ There's a CSV file in `/misc/hub_hub.csv` with hub data that you can use to seed
 
 > If you encounter problems importing CSV due to DB tool thinking that empty fields are nulls for `acronym` and `description` columns, temporarily update `hub_hub` table to allow null values for those columns, import CSV, then execute `update hub_hub set acronym='', description='';` to populate with non-null yet empty values, then update table to disallow nulls again.
 
+Then run this from `pipenv shell`:
+
+```shell
+python manage.py create-categories
+python manage.py migrate-hubs
+python manage.py categorize-hubs
+```
+
 #### Seeding papers data
 
 From your terminal, follow these steps:
