@@ -2,6 +2,7 @@
 from time import time
 from django.db import models
 from django.db.models.signals import post_save, post_delete, pre_save
+from django.contrib.contenttypes.models import ContentType
 from django.dispatch import receiver
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
@@ -20,10 +21,17 @@ from reputation import distributions
 from reputation.distributor import Distributor
 from researchhub.settings import TESTING
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_access_group.models import Permission
+from researchhub_access_group.constants import (
+    ADMIN,
+)
 from hypothesis.models import Hypothesis
 from summary.models import Summary, Vote as SummaryVote
 from summary.serializers import SummaryVoteSerializer
 from utils.siftscience import events_api, decisions_api
+from user.constants.organization_constants import (
+    PERSONAL
+)
 from user.models import Action, Author, User, Organization
 from user.tasks import (
     link_author_to_papers, link_paper_to_authors, handle_spam_user_task
@@ -337,3 +345,29 @@ def attach_author_and_email_preference(
             last_name=instance.last_name,
         )
         Wallet.objects.create(author=author)
+
+
+@receiver(post_save, sender=User, dispatch_uid='user_create_org')
+def create_user_organization(sender, instance, created, **kwargs):
+    if created and not hasattr(instance, 'organization'):
+        suffix = get_random_string(length=32)
+        name = f'{instance.first_name} {instance.last_name}'
+        slug = slugify(name)
+        if not slug:
+            slug += suffix
+        if Organization.objects.filter(slug__icontains=slug).exists():
+            slug += f'-{suffix}'
+
+        content_type = ContentType.objects.get_for_model(Organization)
+        org = Organization.objects.create(
+            name=name,
+            org_type=PERSONAL,
+            slug=slug,
+            user=instance
+        )
+        Permission.objects.create(
+            access_type=ADMIN,
+            content_type=content_type,
+            object_id=org.id,
+            owner=org
+        )

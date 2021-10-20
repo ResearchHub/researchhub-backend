@@ -382,7 +382,11 @@ urlpatterns = [
     path(r'api/auth/', include('rest_auth.urls')),
     re_path(r'^auth/signup/', include(oauth.urls.registration_urls)),
     re_path(r'^auth/', include(oauth.urls.default_urls)),
-    path('api/ckeditor_token/', note_views.note_view.ckeditor_token),
+    path(
+        'api/ckeditor/webhook/document_removed/',
+        note_views.note_view.ckeditor_webhook_document_removed
+    ),
+    path('api/ckeditor/token/', note_views.note_view.ckeditor_token),
     path('email_notifications/', mailing_list.views.email_notifications),
     path('health/', researchhub.views.healthcheck),
     path('', researchhub.views.index, name='index'),

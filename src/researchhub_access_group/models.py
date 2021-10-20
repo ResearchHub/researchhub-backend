@@ -1,5 +1,7 @@
 from django.db import models
 from django.db.models import Q
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 
 from researchhub_access_group.constants import (
     ACCESS_TYPE_CHOICES,
@@ -61,17 +63,26 @@ class Permission(DefaultModel):
         default=VIEWER,
         max_length=16
     )
-    user = models.ForeignKey(
-        User,
-        null=True,
-        related_name='permissions',
-        on_delete=models.CASCADE
+    content_type = models.ForeignKey(
+        ContentType,
+        related_name='%(class)s_permission',
+        on_delete=models.CASCADE,
     )
-
+    object_id = models.PositiveIntegerField()
     organization = models.ForeignKey(
         'user.Organization',
         null=True,
         related_name='unified_doc_permissions',
+        on_delete=models.CASCADE
+    )
+    source = GenericForeignKey(
+        'content_type',
+        'object_id'
+    )
+    user = models.ForeignKey(
+        User,
+        null=True,
+        related_name='permissions',
         on_delete=models.CASCADE
     )
 

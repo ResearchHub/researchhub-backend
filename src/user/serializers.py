@@ -235,6 +235,7 @@ class MinimalUserSerializer(serializers.ModelSerializer):
 class UserEditableSerializer(serializers.ModelSerializer):
     author_profile = AuthorSerializer()
     balance = serializers.SerializerMethodField()
+    organization_slug = serializers.SerializerMethodField()
     subscribed = serializers.SerializerMethodField()
 
     class Meta:
@@ -252,6 +253,9 @@ class UserEditableSerializer(serializers.ModelSerializer):
 
     def get_balance(self, obj):
         return obj.get_balance()
+
+    def get_organization_slug(self, obj):
+        return obj.organization.slug
 
     def get_subscribed(self, obj):
         if self.context.get('get_subscribed'):
@@ -612,6 +616,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
 
 class DynamicOrganizationSerializer(DynamicModelFieldSerializer):
     member_count = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
     user_permission = serializers.SerializerMethodField()
 
     class Meta:
@@ -622,6 +627,17 @@ class DynamicOrganizationSerializer(DynamicModelFieldSerializer):
         permissions = organization.permissions
         users = permissions.filter(user__isnull=False)
         return users.count()
+
+    def get_user(self, organization):
+        context = self.context
+        _context_fields = context.get('usr_dos_get_user', {})
+
+        serializer = DynamicUserSerializer(
+            organization.user,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
 
     def get_user_permission(self, organization):
         context = self.context
