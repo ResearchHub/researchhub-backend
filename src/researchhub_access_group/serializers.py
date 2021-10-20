@@ -12,7 +12,7 @@ class PermissionSerializer(ModelSerializer):
 
 class DynamicPermissionSerializer(DynamicModelFieldSerializer):
     organization = SerializerMethodField()
-    user = SerializerMethodField()
+    # user = SerializerMethodField()
 
     class Meta:
         model = Permission
@@ -35,23 +35,23 @@ class DynamicPermissionSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
-    def get_user(self, permission):
-        from user.serializers import DynamicUserSerializer
+    # def get_user(self, permission):
+    #     from user.serializers import DynamicUserSerializer
 
-        context = self.context
-        _context_fields = context.get('rag_dps_get_user', {})
+    #     context = self.context
+    #     _context_fields = context.get('rag_dps_get_user', {})
 
-        org = permission.owner
-        if not org:
-            return None
+    #     org = permission.owner
+    #     if not org:
+    #         return None
 
-        user = org.user
-        if not user:
-            return None
+    #     user = org.user
+    #     if not user:
+    #         return None
 
-        serializer = DynamicUserSerializer(
-            user,
-            context=context,
-            **_context_fields
-        )
-        return serializer.data
+    #     serializer = DynamicUserSerializer(
+    #         user,
+    #         context=context,
+    #         **_context_fields
+    #     )
+    #     return serializer.data

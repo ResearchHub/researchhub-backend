@@ -1136,11 +1136,15 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated]
     )
     def get_user_organizations(self, request, pk=None):
+        org_content_type = ContentType.objects.get_for_model(Organization)
         user = User.objects.get(id=pk)
         user_organization = user.organization
-        organization_ids = user_organization.permissions.values_list(
-            'owner'
+        organization_ids = user_organization.user_permissions.filter(
+            content_type=org_content_type
+        ).values(
+            'object_id'
         )
+
         organizations = self.queryset.filter(id__in=organization_ids)
 
         serializer = DynamicOrganizationSerializer(
