@@ -235,7 +235,7 @@ insert into socialaccount_socialapp_sites (socialapp_id, site_id) values (1, 1);
 
 (make sure that IDs are the right one in the last query)
 
-#### Seeding hubs data
+#### Seeding hub data
 
 There's a CSV file in `/misc/hub_hub.csv` with hub data that you can use to seed hubs data.
 
@@ -249,7 +249,7 @@ python manage.py migrate-hubs
 python manage.py categorize-hubs
 ```
 
-#### Seeding papers data
+#### Seeding paper data
 
 From your terminal, follow these steps:
 
