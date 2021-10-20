@@ -217,3 +217,23 @@ Both celery commands in one (for development only)
 ```shell
 celery -A researchhub worker -l info -B
 ```
+
+---
+
+#### Google Auth
+
+Run this SQL query to seed the right data for Google login to work:
+
+```sql
+insert into socialaccount_socialapp (provider, name, client_id, secret, key) values ('google','Google','708688924921-aqjof10cjpd7n3ie33kltloiughp14vh.apps.googleusercontent.com','aZaetr1qkjKbYLbloWv5uhSj', '');
+insert into django_site (domain, name) values ('http://google.com', 'google.com');
+insert into socialaccount_socialapp_sites (socialapp_id, site_id) values (1, 1);
+```
+
+(make sure that IDs are the right one in the last query)
+
+#### Seeding hubs data
+
+There's a CSV file in `/misc/hub_hub.csv` with hub data that you can use to seed hubs data.
+
+> If you encounter problems importing CSV due to DB tool thinking that empty fields are nulls for `acronym` and `description` columns, temporarily update `hub_hub` table to allow null values for those columns, import CSV, then execute `update hub_hub set acronym='', description='';` to populate with non-null yet empty values, then update table to disallow nulls again.
