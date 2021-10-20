@@ -112,6 +112,10 @@ pipenv install package_name
 pipenv lock --requirements >| requirements.txt
 ```
 
+### REDIS
+
+Make sure to run `redis-server` in a separate terminal.
+
 ### ELASTICSEARCH
 
 In a new shell, run this Docker image script (make sure Redis is running in the background `redis-server`)
@@ -156,10 +160,6 @@ Add the keystore file to the config directory
 > https://www.myetherwallet.com/create-wallet
 
 Make sure you have added the Infura keys (see above^)
-
-### REDIS
-
-Setup `redis-server` to run in a separate terminal, or use Redis Docker image. Default config is used (i.e. port 6379).
 
 ### DEVELOPMENT
 
@@ -222,11 +222,14 @@ celery -A researchhub worker -l info -B
 
 #### Google Auth
 
-Run this SQL query to seed the right data for Google login to work:
+Ask somebody to provide you with `CLIENT_ID` and `SECRET` config, and run this SQL query (with updated configs) to seed the right data for Google login to work:
 
 ```sql
-insert into socialaccount_socialapp (provider, name, client_id, secret, key) values ('google','Google','708688924921-aqjof10cjpd7n3ie33kltloiughp14vh.apps.googleusercontent.com','aZaetr1qkjKbYLbloWv5uhSj', '');
+insert into socialaccount_socialapp (provider, name, client_id, secret, key)
+values ('google','Google','<CLIENT_ID>', '<SECRET>');
+
 insert into django_site (domain, name) values ('http://google.com', 'google.com');
+
 insert into socialaccount_socialapp_sites (socialapp_id, site_id) values (1, 1);
 ```
 
