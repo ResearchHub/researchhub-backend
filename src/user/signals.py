@@ -349,7 +349,8 @@ def attach_author_and_email_preference(
 
 @receiver(post_save, sender=User, dispatch_uid='user_create_org')
 def create_user_organization(sender, instance, created, **kwargs):
-    if created and not hasattr(instance, 'organization'):
+    if created:
+        profile_image = instance.author_profile.profile_image
         suffix = get_random_string(length=32)
         name = f'{instance.first_name} {instance.last_name}'
         slug = slugify(name)
@@ -361,6 +362,7 @@ def create_user_organization(sender, instance, created, **kwargs):
         content_type = ContentType.objects.get_for_model(Organization)
         org = Organization.objects.create(
             name=name,
+            cover_image=profile_image,
             org_type=PERSONAL,
             slug=slug,
             user=instance

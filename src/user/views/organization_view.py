@@ -398,59 +398,95 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 unified_document__is_removed=False
             )
 
+        # org_content_type = ContentType.objects.get_for_model(
+        #     Organization
+        # )
+        # notes = user.created_notes
         notes = notes.annotate(
-            org_permission_count=Count(
+            user_permissions=Count(
                 'unified_document__permissions',
-                filter=(
-                    Q(
-                        unified_document__permissions__organization__isnull=False
-                    ) &
-                    (
-                        Q(
-                            unified_document__permissions__access_type=ADMIN
-                        ) |
-                        Q(
-                            unified_document__permissions__access_type=MEMBER
-                        )
-                    )
-                )
+                filter=Q(unified_document__permissions__user__isnull=False)
             ),
-            note_permission_count=Count(
+            org_permissions=Count(
                 'unified_document__permissions',
                 filter=(
-                    Q(
-                        unified_document__permissions__organization__isnull=True
-                    ) &
-                    Q(
-                        unified_document__permissions__user__isnull=False
-                    )
+                    Q(unified_document__permissions__access_type=ADMIN) &
+                    Q(unified_document__permissions__user__isnull=True)
+                    # Q(unified_document__permissions__content_type=org_content_type)
                 )
             )
         )
         notes = notes.annotate(
             access=Case(
                 When(
-                    org_permission_count=1,
+                    org_permissions__gte=1,
                     then=Value('WORKSPACE')
                 ),
                 When(
-                    (
-                        Q(org_permission_count=0) &
-                        Q(note_permission_count__gte=1)
-                    ),
+                    org_permissions__lt=1,
+                    user_permissions__gt=1,
                     then=Value('SHARED')
-                ),
-                When(
-                    (
-                        Q(org_permission_count=0) &
-                        Q(note_permission_count=1)
-                    ),
-                    then=Value('PRIVATE')
                 ),
                 default=Value('PRIVATE'),
                 output_field=models.CharField()
             )
         ).order_by('created_date')
+
+        # notes.values('access')
+
+        # notes = notes.annotate(
+        #     org_permission_count=Count(
+        #         'unified_document__permissions',
+        #         filter=(
+        #             Q(
+        #                 unified_document__permissions__organization__isnull=False
+        #             ) &
+        #             (
+        #                 Q(
+        #                     unified_document__permissions__access_type=ADMIN
+        #                 ) |
+        #                 Q(
+        #                     unified_document__permissions__access_type=MEMBER
+        #                 )
+        #             )
+        #         )
+        #     ),
+        #     note_permission_count=Count(
+        #         'unified_document__permissions',
+        #         filter=(
+        #             Q(
+        #                 unified_document__permissions__organization__isnull=True
+        #             ) &
+        #             Q(
+        #                 unified_document__permissions__user__isnull=False
+        #             )
+        #         )
+        #     )
+        # )
+        # notes = notes.annotate(
+        #     access=Case(
+        #         When(
+        #             org_permission_count=1,
+        #             then=Value('WORKSPACE')
+        #         ),
+        #         When(
+        #             (
+        #                 Q(org_permission_count=0) &
+        #                 Q(note_permission_count__gte=1)
+        #             ),
+        #             then=Value('SHARED')
+        #         ),
+        #         When(
+        #             (
+        #                 Q(org_permission_count=0) &
+        #                 Q(note_permission_count=1)
+        #             ),
+        #             then=Value('PRIVATE')
+        #         ),
+        #         default=Value('PRIVATE'),
+        #         output_field=models.CharField()
+        #     )
+        # ).order_by('created_date')
 
         # TODO: Filter out notes based off permissions (private, shared, etc)
         # notes = notes.filter(

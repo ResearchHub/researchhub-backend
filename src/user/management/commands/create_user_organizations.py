@@ -22,6 +22,7 @@ class Command(BaseCommand):
         users = User.objects.filter(organization__isnull=True)
         for user in users.iterator():
             print(user.email)
+            profile_image = user.author_profile.profile_image
             suffix = get_random_string(length=32)
             name = f'{user.first_name} {user.last_name}'
             slug = slugify(name)
@@ -33,9 +34,10 @@ class Command(BaseCommand):
             content_type = ContentType.objects.get_for_model(Organization)
             org = Organization.objects.create(
                 name=name,
+                cover_image=profile_image,
                 org_type=PERSONAL,
                 slug=slug,
-                user=user
+                user=user,
             )
             Permission.objects.create(
                 access_type=ADMIN,

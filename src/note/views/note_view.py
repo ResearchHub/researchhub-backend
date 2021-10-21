@@ -10,7 +10,6 @@ from rest_framework.permissions import (
     IsAuthenticated,
     AllowAny
 )
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action, api_view, permission_classes
@@ -24,7 +23,13 @@ from note.models import (
 from invite.models import NoteInvitation
 from note.serializers import NoteSerializer, NoteContentSerializer
 from researchhub_access_group.models import Permission
-from researchhub_access_group.constants import ADMIN, MEMBER
+from researchhub_access_group.constants import (
+    ADMIN,
+    MEMBER,
+    NO_ACCESS,
+    WORKSPACE,
+    PRIVATE
+)
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_access_group.permissions import (
     HasAccessPermission,
@@ -61,10 +66,11 @@ class NoteViewSet(ModelViewSet):
         data = request.data
         organization_slug = data.get('organization_slug', None)
         title = data.get('title', '')
+        grouping = data.get('grouping', WORKSPACE)
 
         if organization_slug:
-            created_by = None
             organization = Organization.objects.get(slug=organization_slug)
+            created_by = organization.user
             if not (
                 organization.org_has_admin_user(user) or
                 organization.org_has_member_user(user)
@@ -72,10 +78,15 @@ class NoteViewSet(ModelViewSet):
                 return Response({'data': 'Invalid permissions'}, status=403)
         else:
             created_by = user
-            organization = None
+            organization = user.organization
 
         unified_doc = self._create_unified_doc(request)
-        self._create_permission(created_by, organization, unified_doc)
+        self._create_permission(
+            created_by,
+            organization,
+            unified_doc,
+            grouping
+        )
         note = Note.objects.create(
             created_by=created_by,
             organization=organization,
@@ -98,13 +109,32 @@ class NoteViewSet(ModelViewSet):
         unified_doc.save()
         return unified_doc
 
-    def _create_permission(self, creator, organization, unified_document):
+    def _create_permission(
+        self,
+        creator,
+        organization,
+        unified_document,
+        grouping
+    ):
         content_type = ContentType.objects.get_for_model(
             ResearchhubUnifiedDocument
         )
 
+        if grouping == WORKSPACE:
+            org_access = ADMIN
+        elif grouping == PRIVATE:
+            org_access = NO_ACCESS
+            Permission.objects.create(
+                access_type=ADMIN,
+                content_type=content_type,
+                object_id=unified_document.id,
+                user=creator,
+            )
+        else:
+            org_access = ADMIN
+
         permission = Permission.objects.create(
-            access_type=ADMIN,
+            access_type=org_access,
             content_type=content_type,
             object_id=unified_document.id,
             organization=organization,

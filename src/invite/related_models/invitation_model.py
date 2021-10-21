@@ -4,7 +4,8 @@ from django.db import models
 from django.utils.crypto import get_random_string
 from datetime import datetime, timedelta
 
-from user.models import User
+from user.constants.gatekeeper_constants import ELN
+from user.models import User, Gatekeeper
 from utils.models import DefaultModel
 
 
@@ -51,6 +52,11 @@ class Invitation(DefaultModel):
     def accept(self):
         self.accepted = True
         self.save()
+
+        Gatekeeper.objects.create(
+            email=self.recipient_email,
+            type=ELN
+        )
 
     def is_expired(self):
         return datetime.now(pytz.utc) > self.expiration_date
