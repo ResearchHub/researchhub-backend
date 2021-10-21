@@ -24,6 +24,7 @@ from researchhub_access_group.models import Permission
 from researchhub_access_group.constants import (
     ADMIN,
     MEMBER,
+    NO_ACCESS
 )
 from researchhub_access_group.permissions import (
     IsOrganizationAdmin,
@@ -489,9 +490,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         # ).order_by('created_date')
 
         # TODO: Filter out notes based off permissions (private, shared, etc)
-        # notes = notes.filter(
-        #     Q(unified_document__permissions__user=user)
-        # )
+        notes = notes.filter(
+            Q(unified_document__permissions__user=user) |
+            (
+                ~Q(unified_document__permissions__access_type=NO_ACCESS) &
+                Q(unified_document__permissions__organization__permissions__user=user)
+            )
+        )
 
         context = self._get_org_notes_context()
         page = self.paginate_queryset(notes)
