@@ -46,7 +46,8 @@ class ResearchhubUnifiedDocument(DefaultModel):
     )
     permissions = GenericRelation(
         Permission,
-        related_name='unified_document'
+        related_name='unified_document',
+        related_query_name='uni_doc_source',
     )
     paper = models.OneToOneField(
         Paper,

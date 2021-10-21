@@ -227,10 +227,23 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     def get_user_organizations(self, request, pk=None):
         user = User.objects.get(id=pk)
         org_content_type = ContentType.objects.get_for_model(Organization)
-        organization_ids = user.permissions.filter(
-            content_type=org_content_type
+
+        organization_ids = user.permissions.annotate(
+            org_id=Case(
+                When(
+                    content_type=org_content_type,
+                    then='object_id'
+                ),
+                When(
+                    uni_doc_source__note__organization__isnull=False,
+                    then='uni_doc_source__note__organization'
+                ),
+                output_field=models.PositiveIntegerField()
+            )
+        ).filter(
+            org_id__isnull=False
         ).values(
-            'object_id'
+            'org_id'
         )
         organizations = self.queryset.filter(id__in=organization_ids)
 

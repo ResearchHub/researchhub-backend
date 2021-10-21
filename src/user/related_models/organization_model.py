@@ -29,7 +29,8 @@ class Organization(DefaultModel):
     )
     permissions = GenericRelation(
         Permission,
-        related_name='organization'
+        related_name='organization',
+        related_query_name='org_source',
     )
     slug = models.SlugField(default='', max_length=1024, unique=True)
     user = models.OneToOneField(
