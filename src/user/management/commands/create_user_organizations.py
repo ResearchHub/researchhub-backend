@@ -49,12 +49,13 @@ class Command(BaseCommand):
             )
 
             profile_image = user.author_profile.profile_image
-            request = requests.get(profile_image.url)
-            if request.status_code == 200:
-                profile_image_content = request.content
-                profile_image_file = ContentFile(profile_image_content)
-                org.cover_image.save(
-                    f'org_image_{user.id}_{slug}.png',
-                    profile_image_file,
-                    save=True
-                )
+            if profile_image:
+                request = requests.get(profile_image.url)
+                if request.status_code == 200:
+                    profile_image_content = request.content
+                    profile_image_file = ContentFile(profile_image_content)
+                    org.cover_image.save(
+                        f'org_image_{user.id}_{slug}.png',
+                        profile_image_file,
+                        save=True
+                    )

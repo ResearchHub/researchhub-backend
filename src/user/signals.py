@@ -376,16 +376,21 @@ def create_user_organization(sender, instance, created, **kwargs):
             organization=org,
             user=instance
         )
+
         profile_image = instance.author_profile.profile_image
         try:
-            request = requests.get(profile_image.url, allow_redirects=False)
-            if request.status_code == 200:
-                profile_image_content = request.content
-                profile_image_file = ContentFile(profile_image_content)
-                org.cover_image.save(
-                    f'org_image_{instance.id}_{slug}.png',
-                    profile_image_file,
-                    save=True
+            if profile_image:
+                request = requests.get(
+                    profile_image.url,
+                    allow_redirects=False
                 )
+                if request.status_code == 200:
+                    profile_image_content = request.content
+                    profile_image_file = ContentFile(profile_image_content)
+                    org.cover_image.save(
+                        f'org_image_{instance.id}_{slug}.png',
+                        profile_image_file,
+                        save=True
+                    )
         except Exception as e:
             log_error(e)
