@@ -13,7 +13,7 @@ from utils.models import DefaultModel
 
 class Organization(DefaultModel):
     cover_image = models.FileField(
-        max_length=512,
+        max_length=1024,
         upload_to='organizations/cover_image/%Y/%m/%d',
         default=None,
         null=True,
