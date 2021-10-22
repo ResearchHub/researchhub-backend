@@ -3,7 +3,7 @@ import hmac
 from hashlib import sha1
 from datetime import timedelta
 
-from django.db import IntegrityError, models
+from django.db import IntegrityError
 from django.db.models import Sum, Q, F
 from django.db.models.functions import Coalesce
 from django.core.cache import cache
@@ -36,7 +36,6 @@ from paper.models import Paper
 from paper.utils import get_cache_key
 from paper.views import PaperViewSet
 from paper.serializers import (
-    PaperSerializer,
     HubPaperSerializer,
     DynamicPaperSerializer
 )
@@ -47,7 +46,7 @@ from user.models import (
     Author,
     Major,
     Verification,
-    Follow
+    Follow,
 )
 from user.permissions import UpdateAuthor, Censor
 from user.utils import reset_latest_acitvity_cache
@@ -59,7 +58,7 @@ from user.serializers import (
     UserSerializer,
     UserActions,
     MajorSerializer,
-    VerificationSerializer
+    VerificationSerializer,
 )
 from utils.http import DELETE, POST, PATCH, PUT
 from utils.http import RequestMethods

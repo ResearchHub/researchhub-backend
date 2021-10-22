@@ -5,6 +5,8 @@ from .related_models.profile_image_storage import ProfileImageStorage
 from .related_models.school_model import Major, University
 from .related_models.user_model import User
 from .related_models.verification_model import Verification
+from .related_models.organization_model import Organization
+from .related_models.gatekeeper_model import Gatekeeper
 
 migratables = (
     Action,
@@ -14,5 +16,7 @@ migratables = (
     ProfileImageStorage,
     University,
     User,
-    Verification
+    Verification,
+    Organization,
+    Gatekeeper,
 )

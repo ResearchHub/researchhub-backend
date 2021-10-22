@@ -199,7 +199,9 @@ INSTALLED_APPS = [
     'google_analytics',
     'hub',
     'hypothesis',
+    'invite',
     'mailing_list',
+    'note',
     'notification',
     'oauth',
     'paper',
@@ -489,6 +491,14 @@ EMAIL_WHITELIST = [
     'calvinhlee@berkeley.edu',
     'pdj7@georgetown.edu',
     'bank@researchhub.com',
+    'kobeattias@gmail.com',
+    'kobe@researchhub.com',
+    'kobe+1@researchhub.com',
+    'contact@notesalong.com',
+    'patricklu@researchhub.com',
+    'thomazvu@gmail.com',
+    'thomas@researchhub.com',
+    'pat@researchhub.com'
 ]
 
 # Sentry
@@ -673,7 +683,7 @@ if elastic_token:
             'elasticapm.processors.sanitize_http_request_cookies',
             'elasticapm.processors.sanitize_http_headers',
             'elasticapm.processors.sanitize_http_wsgi_env',
-            'elasticapm.processors.sanitize_http_request_querystring',
+            # 'elasticapm.processors.sanitize_http_request_querystring',  Breaking in elasticapm 6.x
             'elasticapm.processors.sanitize_http_request_body',
         ),
     }
@@ -760,3 +770,7 @@ elif reward_time_hour:
 
 # Killswitch Variables
 SERIALIZER_SWITCH = os.environ.get('SERIALIZER_SWITCH', True)
+
+# CKEditor Cloud Services
+CKEDITOR_CLOUD_ACCESS_KEY = os.environ.get('CKEDITOR_CLOUD_ACCESS_KEY', keys.CKEDITOR_CLOUD_ACCESS_KEY)
+CKEDITOR_CLOUD_ENVIRONMENT_ID = os.environ.get('CKEDITOR_CLOUD_ENVIRONMENT_ID', keys.CKEDITOR_CLOUD_ENVIRONMENT_ID)

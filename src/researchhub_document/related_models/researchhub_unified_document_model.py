@@ -1,9 +1,10 @@
 from django.db import models
+from django.contrib.contenttypes.fields import GenericRelation
 
 from hub.models import Hub
 from paper.models import Paper
 from user.models import Author
-from researchhub_access_group.models import ResearchhubAccessGroup
+from researchhub_access_group.models import Permission
 from researchhub_document.related_models.constants.document_type import (
   DOCUMENT_TYPES, PAPER
 )
@@ -14,6 +15,10 @@ from researchhub_document.tasks import (
 
 
 class ResearchhubUnifiedDocument(DefaultModel):
+    is_public = models.BooleanField(
+        default=True,
+        help_text='Unified document is public'
+    )
     is_removed = models.BooleanField(
         default=False,
         db_index=True,
@@ -39,13 +44,10 @@ class ResearchhubUnifiedDocument(DefaultModel):
         default=0,
         help_text='Feed ranking score.',
     )
-    access_group = models.OneToOneField(
-        ResearchhubAccessGroup,
-        blank=True,
-        help_text='Mostly used for ELN',
-        null=True,
-        on_delete=models.SET_NULL,
-        related_name='document'
+    permissions = GenericRelation(
+        Permission,
+        related_name='unified_document',
+        related_query_name='uni_doc_source',
     )
     paper = models.OneToOneField(
         Paper,
@@ -84,13 +86,6 @@ class ResearchhubUnifiedDocument(DefaultModel):
             )
             return author
         return self.none()
-
-    @property
-    def is_public(self):
-        if (self.access_group is None):
-            return True
-        else:
-            return self.access_group.is_public
 
     @property
     def created_by(self):

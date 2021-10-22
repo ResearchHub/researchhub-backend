@@ -67,7 +67,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             access_group = self.create_access_group(request)
             unified_document = self.create_unified_doc(request)
             if (access_group is not None):
-                unified_document.access_group = access_group
+                unified_document.access_groups = access_group
                 unified_document.save()
 
             rh_post = ResearchhubPost.objects.create(
