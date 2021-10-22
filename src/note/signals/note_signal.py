@@ -12,8 +12,7 @@ def update_latest_version(
     update_fields,
     **kwargs
 ):
-    pass
-    # if created:
-    #     source = instance.note
-    #     source.latest_version = instance
-    #     source.save()
+    if created:
+        source = instance.note
+        source.latest_version = instance
+        source.save()
