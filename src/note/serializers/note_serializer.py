@@ -6,6 +6,7 @@ from researchhub_document.serializers import (
   DynamicUnifiedDocumentSerializer
 )
 from user.serializers import (
+    OrganizationSerializer,
     DynamicOrganizationSerializer,
     DynamicUserSerializer
 )
@@ -35,14 +36,22 @@ class DynamicNoteContentSerializer(DynamicModelFieldSerializer):
 
 class NoteSerializer(ModelSerializer):
     latest_version = NoteContentSerializer()
+    access = SerializerMethodField()
+    organization = OrganizationSerializer()
 
     class Meta:
         model = Note
         fields = '__all__'
         read_only_fields = ['unified_document']
 
+    def get_access(self, note):
+        if hasattr(note, 'access'):
+            return note.access
+        return None
+
 
 class DynamicNoteSerializer(DynamicModelFieldSerializer):
+    access = SerializerMethodField()
     created_by = SerializerMethodField()
     latest_version = SerializerMethodField()
     notes = SerializerMethodField()
@@ -52,6 +61,11 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = Note
         fields = '__all__'
+
+    def get_access(self, note):
+        if hasattr(note, 'access'):
+            return note.access
+        return None
 
     def get_created_by(self, note):
         context = self.context

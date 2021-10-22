@@ -1,8 +1,6 @@
 from django.core.files.base import ContentFile
-from django.db.models import Q
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
-from rest_framework.decorators import action
 from rest_framework.permissions import (
     IsAuthenticated,
     AllowAny
@@ -30,6 +28,11 @@ class NoteTemplateViewSet(ModelViewSet):
         if organization_id:
             created_by = None
             organization = Organization.objects.get(id=organization_id)
+            if not (
+                organization.org_has_admin_user(user) or
+                organization.org_has_member_user(user)
+            ):
+                return Response({'data': 'Invalid permissions'}, status=403)
         else:
             created_by = user
             organization = None
@@ -53,24 +56,3 @@ class NoteTemplateViewSet(ModelViewSet):
         file_name = f'NOTE-TEMPLATE-{template.id}--TITLE-{template.name}.txt'
         full_src_file = ContentFile(data.encode())
         return file_name, full_src_file
-
-    @action(
-        detail=True,
-        methods=['get'],
-    )
-    def get_organization_templates(self, request, pk=None):
-        user = request.user
-
-        if pk == '0':
-            templates = self.queryset.filter(
-                Q(created_by__id=user.id) |
-                Q(is_default=True)
-            )
-        else:
-            templates = self.queryset.filter(
-                Q(organization__id=pk) |
-                Q(is_default=True)
-            )
-
-        serializer = self.serializer_class(templates, many=True)
-        return Response(serializer.data, status=200)

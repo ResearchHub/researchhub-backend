@@ -16,6 +16,7 @@ User objects have the following fields by default:
     https://docs.djangoproject.com/en/2.2/ref/contrib/auth/#django.contrib.auth.models.User
 """
 
+
 class User(AbstractUser):
     country_code = models.CharField(max_length=4, null=True, blank=True)
     reputation = models.IntegerField(default=100)

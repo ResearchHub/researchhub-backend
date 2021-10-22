@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -8,6 +9,7 @@ from rest_framework.permissions import (
 
 from invite.models import OrganizationInvitation
 from invite.serializers import OrganizationInvitationSerializer
+from researchhub_access_group.models import Permission
 from user.models import Organization
 
 
@@ -26,23 +28,26 @@ class OrganizationInvitationViewSet(ModelViewSet):
         invite = self.queryset.get(key=pk)
 
         if invite.is_expired() or invite.accepted:
-            return Response('Invitation has expired', status=403)
+            return Response({'data': 'Invitation has expired'}, status=403)
 
         if invite.recipient and user != invite.recipient:
-            return Response('Invalid invitation', status=400)
+            return Response({'data': 'Invalid invitation'}, status=400)
 
+        content_type = ContentType.objects.get_for_model(Organization)
         invite_type = invite.invite_type
-        access_group = invite.organization.access_group
-        if invite_type == OrganizationInvitation.ADMIN:
-            access_group.admins.add(user)
-        elif invite_type == OrganizationInvitation.EDITOR:
-            access_group.editors.add(user)
-        else:
-            access_group.viewers.add(user)
+        organization = invite.organization
+        permissions = organization.permissions
 
+        if not permissions.filter(user=user).exists():
+            Permission.objects.create(
+                access_type=invite_type,
+                content_type=content_type,
+                object_id=organization.id,
+                user=user
+            )
         invite.accept()
 
-        return Response('User has accepted invitation', status=200)
+        return Response({'data': 'User has accepted invitation'}, status=200)
 
     @action(detail=False, methods=['post'])
     def check_user_status(self, request):

@@ -1,13 +1,10 @@
 import hmac
-import pytz
 
 from hashlib import sha1
-from datetime import datetime, timedelta
+from datetime import timedelta
 
-from django.core.files.base import ContentFile
-from django.db import transaction
-from django.db import IntegrityError, models
-from django.db.models import Sum, Q, F, Case, When
+from django.db import IntegrityError
+from django.db.models import Sum, Q, F
 from django.db.models.functions import Coalesce
 from django.core.cache import cache
 from django.utils import timezone
@@ -30,20 +27,15 @@ from discussion.models import Thread, Comment, Reply
 from discussion.serializers import (
     DynamicThreadSerializer
 )
-from invite.models import OrganizationInvitation
-from invite.serializers import DynamicOrganizationInvitationSerializer
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from reputation.models import Distribution, Contribution
 from reputation.serializers import DynamicContributionSerializer
-from researchhub_access_group.models import ResearchhubAccessGroup
-from researchhub_access_group.permissions import IsAdmin
 from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY, EMAIL_WHITELIST
 from researchhub_document.serializers import DynamicPostSerializer
 from paper.models import Paper
 from paper.utils import get_cache_key
 from paper.views import PaperViewSet
 from paper.serializers import (
-    PaperSerializer,
     HubPaperSerializer,
     DynamicPaperSerializer
 )
@@ -55,7 +47,6 @@ from user.models import (
     Major,
     Verification,
     Follow,
-    Organization,
 )
 from user.permissions import UpdateAuthor, Censor
 from user.utils import reset_latest_acitvity_cache
@@ -68,8 +59,6 @@ from user.serializers import (
     UserActions,
     MajorSerializer,
     VerificationSerializer,
-    OrganizationSerializer,
-    DynamicUserSerializer
 )
 from utils.http import DELETE, POST, PATCH, PUT
 from utils.http import RequestMethods
@@ -946,262 +935,3 @@ class AuthorViewSet(viewsets.ModelViewSet):
             }
         }
         return context
-
-
-class OrganizationViewSet(viewsets.ModelViewSet):
-    queryset = Organization.objects.all()
-    serializer_class = OrganizationSerializer
-    permission_classes = [
-        IsAuthenticated
-    ]
-
-    def create(self, request, *args, **kwargs):
-        user = request.user
-        data = request.data
-        description = data.get('description', '')
-        name = data.get('name', None)
-        image = data.get('image', None)
-
-        access_group = self._create_access_group(user)
-        organization = Organization.objects.create(
-            access_group=access_group,
-            description=description,
-            name=name,
-        )
-
-        if image:
-            file_name, file = self._create_image_file(
-                image,
-                organization,
-                user
-            )
-            organization.cover_image.save(file_name, file)
-
-        serializer = self.serializer_class(organization)
-        data = serializer.data
-        return Response(data, status=200)
-
-    def _create_access_group(self, creator):
-        access_group = ResearchhubAccessGroup.objects.create()
-        access_group.admins.add(creator)
-        return access_group
-
-    def _create_image_file(self, data, organization, user):
-        file_name = f'ORGANIZATION-IMAGE-{organization.id}--USER-{user.id}.txt'
-        full_src_file = ContentFile(data.encode())
-        return file_name, full_src_file
-
-    def _get_organization_users_context(self):
-        context = {
-            'usr_dus_get_author_profile': {
-                '_include_fields': [
-                    'id',
-                    'first_name',
-                    'last_name',
-                    'profile_image',
-                ]
-            },
-        }
-        return context
-
-    @action(
-        detail=True,
-        methods=['get'],
-        permission_classes=[IsAuthenticated]
-    )
-    def get_organization_users(self, request, pk=None):
-        organization = self.get_object()
-        access_group = organization.access_group
-        invited_users = organization.invited_users.distinct(
-            'recipient_email'
-        )
-        admins = access_group.admins.all()
-        editors = access_group.editors.all()
-        viewers = access_group.viewers.all()
-
-        all_users = admins.union(
-            editors,
-            viewers,
-        )
-
-        invited_users = invited_users.exclude(
-            recipient__in=all_users.values('id'),
-        ).filter(
-            expiration_date__gt=datetime.now(pytz.utc)
-        )
-        invitation_serializer = DynamicOrganizationInvitationSerializer(
-            invited_users,
-            _include_fields=[
-                'accepted',
-                'created_date',
-                'expiration_date',
-                'recipient_email',
-            ],
-            many=True
-        )
-        user_count = all_users.count() + invited_users.count()
-        note_count = organization.created_notes.count()
-
-        context = self._get_organization_users_context()
-        admin_serializer = DynamicUserSerializer(
-            admins,
-            many=True,
-            context=context,
-            _include_fields=['author_profile', 'email']
-        )
-        editor_serializer = DynamicUserSerializer(
-            editors,
-            many=True,
-            context=context,
-            _include_fields=['author_profile', 'email']
-        )
-        viewer_serializer = DynamicUserSerializer(
-            viewers,
-            many=True,
-            context=context,
-            _include_fields=['author_profile', 'email']
-        )
-        data = {
-            'admins': admin_serializer.data,
-            'editors': editor_serializer.data,
-            'viewers': viewer_serializer.data,
-            'invited_users': invitation_serializer.data,
-            'user_count': user_count,
-            'note_count': note_count,
-        }
-        return Response(data, status=200)
-
-    @action(
-        detail=True,
-        methods=['get'],
-        permission_classes=[IsAuthenticated]
-    )
-    def get_user_organizations(self, request, pk=None):
-        user = User.objects.get(id=pk)
-        admin_organizations = user.access_admin_groups.filter(
-            organization__isnull=False
-        ).values('organization')
-        editor_organizations = user.access_editor_groups.filter(
-            organization__isnull=False
-        ).values('organization')
-        viewer_organizations = user.access_viewing_groups.filter(
-            organization__isnull=False
-        ).values('organization')
-
-        organizations = admin_organizations.union(
-            editor_organizations,
-            viewer_organizations
-        )
-        user_organizations = Organization.objects.filter(id__in=organizations)
-        serializer = OrganizationSerializer(user_organizations, many=True)
-
-        return Response(serializer.data, status=200)
-
-    @action(
-        detail=True,
-        methods=['get'],
-        permission_classes=[AllowAny]
-    )
-    def get_organization_by_key(self, request, pk=None):
-        invite = OrganizationInvitation.objects.get(key=pk)
-        organization = invite.organization
-        serializer = self.serializer_class(organization)
-        return Response(serializer.data, status=200)
-
-    @action(
-        detail=True,
-        methods=['delete'],
-        permission_classes=[IsAuthenticated, IsAdmin]
-    )
-    def remove_user(self, request, pk=None):
-        data = request.data
-        user_id = data.get('user')
-        organization = self.get_object()
-        access_group = organization.access_group
-        user = User.objects.get(id=user_id)
-
-        success_response = Response(
-            'User removed from Organization',
-            status=200
-        )
-        try:
-            access_group.admins.remove(user)
-            return success_response
-        except Exception:
-            pass
-
-        try:
-            access_group.editors.remove(user)
-            return success_response
-        except Exception:
-            pass
-
-        try:
-            access_group.viewers.remove(user)
-            return success_response
-        except Exception:
-            pass
-        return Response('User could not be removed', status=404)
-
-    @action(
-        detail=True,
-        methods=['post'],
-        permission_classes=[IsAuthenticated, IsAdmin]
-    )
-    def invite_user(self, request, pk=None):
-        inviter = request.user
-        data = request.data
-        organization = self.get_object()
-        access_type = data.get('access_type')
-        recipient_email = data.get('email')
-        time_to_expire = int(data.get('expire', 1440))
-
-        recipient = User.objects.filter(email=recipient_email)
-        if recipient.exists():
-            recipient = recipient.first()
-        else:
-            recipient = None
-
-        invite = OrganizationInvitation.create(
-            inviter=inviter,
-            recipient=recipient,
-            recipient_email=recipient_email,
-            organization=organization,
-            invite_type=access_type,
-            expiration_time=time_to_expire
-        )
-        invite.send_invitation()
-        return Response('Invite sent', status=200)
-
-    @action(
-        detail=True,
-        methods=['patch'],
-        permission_classes=[IsAuthenticated, IsAdmin]
-    )
-    def remove_invited_user(self, request, pk=None):
-        inviter = request.user
-        data = request.data
-        organization = self.get_object()
-        recipient_email = data.get('email')
-
-        invites = OrganizationInvitation.objects.filter(
-            inviter=inviter,
-            recipient_email=recipient_email,
-            organization=organization,
-        )
-        invites.update(expiration_date=datetime.now(pytz.utc))
-        return Response(f'Invite removed for {recipient_email}', status=200)
-
-    @action(
-        detail=True,
-        methods=['patch'],
-        permission_classes=[IsAuthenticated, IsAdmin]
-    )
-    def update_user_permission(self, request, pk=None):
-        organization = self.get_object()
-        access_group = organization.access_group
-        data = request.data
-        user_id = data.get('user')
-        access_type = data.get('access_type')
-        user = User.objects.get(user=user_id)
-        pass
