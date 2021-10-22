@@ -393,7 +393,6 @@ DATABASES = {
         'PORT': DB_PORT,
         'USER': DB_USER,
         'PASSWORD': DB_PASS,
-        'ATOMIC_REQUESTS': True,
     },
 }
 
