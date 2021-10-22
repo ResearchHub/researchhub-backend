@@ -1,4 +1,7 @@
+import requests
+
 from django.core.management.base import BaseCommand
+from django.core.files.base import ContentFile
 from django.contrib.contenttypes.models import ContentType
 from django.utils.crypto import get_random_string
 from django.utils.text import slugify
@@ -22,9 +25,8 @@ class Command(BaseCommand):
         users = User.objects.filter(organization__isnull=True)
         for user in users.iterator():
             print(user.email)
-            profile_image = user.author_profile.profile_image
             suffix = get_random_string(length=32)
-            name = f'{user.first_name} {user.last_name}'
+            name = f"{user.first_name} {user.last_name}'s Notebook"
             slug = slugify(name)
             if not slug:
                 slug += suffix
@@ -34,7 +36,6 @@ class Command(BaseCommand):
             content_type = ContentType.objects.get_for_model(Organization)
             org = Organization.objects.create(
                 name=name,
-                cover_image=profile_image,
                 org_type=PERSONAL,
                 slug=slug,
                 user=user,
@@ -46,3 +47,14 @@ class Command(BaseCommand):
                 organization=org,
                 user=user,
             )
+
+            profile_image = user.author_profile.profile_image
+            request = requests.get(profile_image.url)
+            if request.status_code == 200:
+                profile_image_content = request.content
+                profile_image_file = ContentFile(profile_image_content)
+                org.cover_image.save(
+                    f'org_image_{user.id}_{slug}.png',
+                    profile_image_file,
+                    save=True
+                )
