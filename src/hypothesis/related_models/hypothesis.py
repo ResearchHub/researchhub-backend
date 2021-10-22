@@ -67,6 +67,10 @@ class Hypothesis(AbstractGenericReactionModel):
     def users_to_notify(self):
         return [self.created_by]
 
+    @property
+    def is_removed(self):
+        return self.unified_document.is_removed
+
     def get_aggregate_citation_consensus(self):
         try:
             citations = self.citations
