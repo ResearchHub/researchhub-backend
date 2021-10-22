@@ -203,13 +203,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             admins,
             many=True,
             context=context,
-            _include_fields=['author_profile', 'email']
+            _include_fields=['author_profile', 'email', 'id']
         )
         member_serializer = DynamicUserSerializer(
             members,
             many=True,
             context=context,
-            _include_fields=['author_profile', 'email']
+            _include_fields=['author_profile', 'email', 'id']
         )
         data = {
             'admins': admin_serializer.data,
