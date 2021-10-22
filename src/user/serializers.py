@@ -25,6 +25,8 @@ from purchase.models import Purchase
 from researchhub.serializers import DynamicModelFieldSerializer
 from user.related_models.gatekeeper_model import Gatekeeper
 
+from utils import sentry
+
 
 class VerificationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -255,7 +257,11 @@ class UserEditableSerializer(serializers.ModelSerializer):
         return obj.get_balance()
 
     def get_organization_slug(self, obj):
-        return obj.organization.slug
+        try:
+            return obj.organization.slug
+        except Exception as e:
+            sentry.log_error(e)
+            return None
 
     def get_subscribed(self, obj):
         if self.context.get('get_subscribed'):
