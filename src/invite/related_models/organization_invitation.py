@@ -22,17 +22,20 @@ class OrganizationInvitation(Invitation):
 
     def send_invitation(self):
         key = self.key
+        inviter = self.inviter
         recipient = self.recipient
         email = self.recipient_email
         organization = self.organization
         invite_type = self.invite_type.lower()
         template = 'organization_invite.txt'
         html_template = 'organization_invite.html'
-        subject = 'ResearchHub | Organization Invitation'
+        inviter_name = f'{inviter.first_name} {inviter.last_name}'
+        subject = f'{inviter_name} has invited you to join {organization.name}'
         email_context = {
             'access_type': invite_type.lower(),
             'organization_title': organization.name,
             'organization_link': f'{BASE_FRONTEND_URL}/org/join/{key}',
+            'inviter_name': inviter_name
         }
 
         if recipient:

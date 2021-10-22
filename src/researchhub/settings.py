@@ -496,6 +496,7 @@ EMAIL_WHITELIST = [
     'kobe+1@researchhub.com',
     'contact@notesalong.com',
     'patricklu@researchhub.com',
+    'thomazvu@gmail.com',
     'thomas@researchhub.com',
     'pat@researchhub.com'
 ]

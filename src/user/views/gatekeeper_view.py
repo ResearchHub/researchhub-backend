@@ -14,7 +14,7 @@ class GatekeeperViewSet(ModelViewSet):
     permission_classes = [AllowAny]
     queryset = Gatekeeper.objects.all()
     serializer_class = GatekeeperSerializer
-    
+
     @action(
         detail=False,
         methods=[GET],

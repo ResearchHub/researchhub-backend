@@ -5,11 +5,11 @@ from datetime import datetime
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.core.files.base import ContentFile
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.permissions import (
     IsAuthenticated,
     AllowAny
 )
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action, api_view, permission_classes
@@ -23,7 +23,13 @@ from note.models import (
 from invite.models import NoteInvitation
 from note.serializers import NoteSerializer, NoteContentSerializer
 from researchhub_access_group.models import Permission
-from researchhub_access_group.constants import ADMIN, MEMBER
+from researchhub_access_group.constants import (
+    ADMIN,
+    MEMBER,
+    NO_ACCESS,
+    WORKSPACE,
+    PRIVATE
+)
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_access_group.permissions import (
     HasAccessPermission,
@@ -60,10 +66,11 @@ class NoteViewSet(ModelViewSet):
         data = request.data
         organization_slug = data.get('organization_slug', None)
         title = data.get('title', '')
+        grouping = data.get('grouping', WORKSPACE)
 
         if organization_slug:
-            created_by = None
             organization = Organization.objects.get(slug=organization_slug)
+            created_by = organization.user
             if not (
                 organization.org_has_admin_user(user) or
                 organization.org_has_member_user(user)
@@ -71,10 +78,15 @@ class NoteViewSet(ModelViewSet):
                 return Response({'data': 'Invalid permissions'}, status=403)
         else:
             created_by = user
-            organization = None
+            organization = user.organization
 
-        permission = self._create_permission(created_by, organization)
-        unified_doc = self._create_unified_doc(request, permission)
+        unified_doc = self._create_unified_doc(request)
+        self._create_permission(
+            created_by,
+            organization,
+            unified_doc,
+            grouping
+        )
         note = Note.objects.create(
             created_by=created_by,
             organization=organization,
@@ -85,7 +97,7 @@ class NoteViewSet(ModelViewSet):
         data = serializer.data
         return Response(data, status=200)
 
-    def _create_unified_doc(self, request, permission):
+    def _create_unified_doc(self, request):
         data = request.data
         hubs = Hub.objects.filter(
             id__in=data.get('hubs', [])
@@ -93,14 +105,38 @@ class NoteViewSet(ModelViewSet):
         unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=NOTE
         )
-        unified_doc.permissions.add(permission)
         unified_doc.hubs.add(*hubs)
         unified_doc.save()
         return unified_doc
 
-    def _create_permission(self, creator, organization):
+    def _create_permission(
+        self,
+        creator,
+        organization,
+        unified_document,
+        grouping
+    ):
+        content_type = ContentType.objects.get_for_model(
+            ResearchhubUnifiedDocument
+        )
+
+        if grouping == WORKSPACE:
+            org_access = ADMIN
+        elif grouping == PRIVATE:
+            org_access = NO_ACCESS
+            Permission.objects.create(
+                access_type=ADMIN,
+                content_type=content_type,
+                object_id=unified_document.id,
+                user=creator,
+            )
+        else:
+            org_access = ADMIN
+
         permission = Permission.objects.create(
-            access_type=ADMIN,
+            access_type=org_access,
+            content_type=content_type,
+            object_id=unified_document.id,
             organization=organization,
             user=creator,
         )
@@ -232,6 +268,7 @@ class NoteViewSet(ModelViewSet):
             },
             _include_fields=[
                 'inviter',
+                'invite_type',
                 'note',
                 'recipient_email',
             ]
@@ -370,7 +407,7 @@ class NoteContentViewSet(ModelViewSet):
     def create(self, request, *args, **kwargs):
         user = request.user
         data = request.data
-        src = data.get('full_src', '')
+        full_src = data.get('full_src', '')
         note_id = data.get('note', None)
         plain_text = data.get('plain_text', None)
         self.kwargs['pk'] = note_id
@@ -380,20 +417,44 @@ class NoteContentViewSet(ModelViewSet):
             note=note,
             plain_text=plain_text
         )
-        file_name, file = self._create_src_content_file(
+        file_name, full_src_file = self._create_src_content_file(
             note_content,
-            src,
+            full_src,
             user
         )
-        note_content.src.save(file_name, file)
+        note_content.src.save(file_name, full_src_file)
         serializer = self.serializer_class(note_content)
         data = serializer.data
         return Response(data, status=200)
 
-    def _create_src_content_file(self, note, data, user):
-        file_name = f'NOTE-CONTENT-{note}--USER-{user.id}.txt'
-        full_src_file = ContentFile(data.encode())
+    def _create_src_content_file(self, note_content, full_src, user):
+        file_name = f'NOTE-CONTENT-{note_content.id}--USER-{user.id}.txt'
+        full_src_file = ContentFile(full_src.encode())
         return file_name, full_src_file
+
+
+@api_view([RequestMethods.POST])
+@permission_classes([AllowAny])
+def ckeditor_webhook_document_removed(request):
+    document = request.data['payload']['document']
+    try:
+        document_data = document['data']
+    except KeyError:
+        return HttpResponse('Missing document data.')
+
+    note_id = document['id'].split('-')[-1]
+    note = Note.objects.get(id=note_id)
+    note_content = NoteContent.objects.create(
+        note=note,
+        plain_text=None
+    )
+    file_name = f'NOTE-CONTENT-{note_content.id}--WEBHOOK.txt'
+    full_src_file = ContentFile(document_data.encode())
+    note_content.src.save(file_name, full_src_file)
+
+    serializer = NoteContentSerializer(note_content)
+    data = serializer.data
+    return Response(data, status=200)
 
 
 @api_view([RequestMethods.GET])
@@ -404,7 +465,7 @@ def ckeditor_token(request):
     payload = {
         'aud': CKEDITOR_CLOUD_ENVIRONMENT_ID,
         'iat': datetime.utcnow(),
-        'sub': f'user-{user.id}',
+        'sub': str(user.author_profile.id),
         'user': {
             'email': user.email,
             'name': f'{user.first_name} {user.last_name}',

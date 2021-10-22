@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.contenttypes.fields import GenericRelation
 
 from hub.models import Hub
 from paper.models import Paper
@@ -43,10 +44,10 @@ class ResearchhubUnifiedDocument(DefaultModel):
         default=0,
         help_text='Feed ranking score.',
     )
-    permissions = models.ManyToManyField(
+    permissions = GenericRelation(
         Permission,
-        help_text='Mostly used for ELN',
-        related_name='document'
+        related_name='unified_document',
+        related_query_name='uni_doc_source',
     )
     paper = models.OneToOneField(
         Paper,
