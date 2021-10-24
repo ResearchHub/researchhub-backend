@@ -836,6 +836,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 'paper_title',
                 'score',
                 'title',
+                'slug',
                 'uploaded_by',
                 'uploaded_date',
             ],
