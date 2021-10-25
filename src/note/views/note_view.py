@@ -312,7 +312,7 @@ class NoteViewSet(ModelViewSet):
         data = request.data
         user_id = data.get('user')
         note = self.get_object()
-        permission = note.permission.get(user=user_id)
+        permission = note.permissions.get(user=user_id)
         permission.delete()
         return Response({'data': 'User permission removed'}, status=200)
 
