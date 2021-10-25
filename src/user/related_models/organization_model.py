@@ -43,12 +43,22 @@ class Organization(DefaultModel):
     def __str__(self):
         return f'Id: {self.id} Name: {self.name}'
 
+    def org_content_has_user(self, user, **filters):
+        # Since organizations only contains notes for now,
+        # check if notes have user permission
+        notes = self.created_notes.filter(
+            unified_document__permissions__user=user
+        )
+        return notes.exists()
+
     def org_has_user(self, user, **filters):
-        permissions = self.permissions
-        return permissions.filter(
+        permissions = self.org_permissions
+        org_permission = permissions.filter(
             user=user,
             **filters
         ).exists()
+        has_perm = org_permission or self.org_content_has_user(user, **filters)
+        return has_perm
 
     def org_has_admin_user(self, user):
         return self.org_has_user(user, access_type=ADMIN)
