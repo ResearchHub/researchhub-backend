@@ -312,9 +312,8 @@ class NoteViewSet(ModelViewSet):
         data = request.data
         user_id = data.get('user')
         note = self.get_object()
-        unified_document = note.unified_document
-        permission = unified_document.permission.get(user=user_id)
-        unified_document.permissions.remove(permission)
+        permission = note.permission.get(user=user_id)
+        permission.delete()
         return Response({'data': 'User permission removed'}, status=200)
 
     @action(
