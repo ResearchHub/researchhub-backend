@@ -8,6 +8,7 @@ from discussion.lib import check_is_discussion_item
 from hub.serializers import HubSerializer
 from hypothesis.models import Hypothesis
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_access_group.serializers import DynamicPermissionSerializer
 from paper.models import Vote as PaperVote, Paper
 from bullet_point.models import Vote as BulletVote
 from user.models import (
@@ -16,13 +17,15 @@ from user.models import (
     University,
     User,
     Major,
-    Verification
+    Organization,
+    Verification,
 )
 from summary.models import Summary, Vote as SummaryVote
 from purchase.models import Purchase
 from researchhub.serializers import DynamicModelFieldSerializer
+from user.related_models.gatekeeper_model import Gatekeeper
+
 from utils import sentry
-from django.db.models import Sum
 
 
 class VerificationSerializer(serializers.ModelSerializer):
@@ -41,6 +44,13 @@ class MajorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Major
         fields = '__all__'
+
+
+class GatekeeperSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Gatekeeper
+        fields = '__all__'
+        read_only_fields = [field.name for field in Gatekeeper._meta.fields]
 
 
 class AuthorSerializer(serializers.ModelSerializer):
@@ -227,6 +237,7 @@ class MinimalUserSerializer(serializers.ModelSerializer):
 class UserEditableSerializer(serializers.ModelSerializer):
     author_profile = AuthorSerializer()
     balance = serializers.SerializerMethodField()
+    organization_slug = serializers.SerializerMethodField()
     subscribed = serializers.SerializerMethodField()
 
     class Meta:
@@ -244,6 +255,13 @@ class UserEditableSerializer(serializers.ModelSerializer):
 
     def get_balance(self, obj):
         return obj.get_balance()
+
+    def get_organization_slug(self, obj):
+        try:
+            return obj.organization.slug
+        except Exception as e:
+            sentry.log_error(e)
+            return None
 
     def get_subscribed(self, obj):
         if self.context.get('get_subscribed'):
@@ -576,3 +594,81 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
 
     def get_content_type(self, action):
         return action.content_type.model
+
+
+class OrganizationSerializer(serializers.ModelSerializer):
+    member_count = serializers.SerializerMethodField()
+    user_permission = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Organization
+        fields = '__all__'
+        read_only_fields = ['id', 'slug']
+
+    def get_member_count(self, organization):
+        permissions = organization.permissions
+        users = permissions.filter(user__isnull=False)
+        return users.count()
+
+    def get_user_permission(self, organization):
+        context = self.context
+
+        if 'request' in context:
+            request = context.get('request')
+            user = request.user
+        else:
+            return None
+
+        if not user.is_anonymous:
+            permission = organization.permissions.filter(user=user)
+            if permission.exists():
+                permission = permission.first()
+            else:
+                return None
+            access_type = permission.access_type
+            return {'access_type': access_type}
+        return None
+
+
+class DynamicOrganizationSerializer(DynamicModelFieldSerializer):
+    member_count = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
+    user_permission = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Organization
+        fields = '__all__'
+
+    def get_member_count(self, organization):
+        permissions = organization.permissions
+        users = permissions.filter(user__isnull=False)
+        return users.count()
+
+    def get_user(self, organization):
+        context = self.context
+        _context_fields = context.get('usr_dos_get_user', {})
+
+        serializer = DynamicUserSerializer(
+            organization.user,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_user_permission(self, organization):
+        context = self.context
+        _context_fields = context.get('usr_dos_get_user_permissions', {})
+        user = context.get('user')
+
+        permission = organization.permissions.filter(user=user)
+        if permission.exists():
+            permission = permission.first()
+        else:
+            return None
+
+        serializer = DynamicPermissionSerializer(
+            permission,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data

@@ -1,10 +1,7 @@
 import time
 import uuid
 
-from django.db.models import Count, Q
-from paper.models import Vote
 from utils import sentry
-
 
 from reputation.distributions import Distribution as dist
 from reputation.distributor import Distributor
