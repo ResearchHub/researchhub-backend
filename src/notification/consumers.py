@@ -10,6 +10,8 @@ from user.models import User
 
 
 class NotificationConsumer(WebsocketConsumer):
+    # rooms = {}
+
     def connect(self):
         kwargs = self.scope['url_route']['kwargs']
         if 'user' in self.scope:
@@ -24,7 +26,7 @@ class NotificationConsumer(WebsocketConsumer):
             self.user = user
             room = f'notification_{user.id}'
             self.room_group_name = room
-
+            # NotificationConsumer.rooms[user.id] = self
             async_to_sync(self.channel_layer.group_add)(
                 self.room_group_name,
                 self.channel_name
@@ -35,6 +37,7 @@ class NotificationConsumer(WebsocketConsumer):
         if close_code == 401 or not hasattr(self, 'room_group_name'):
             return
         else:
+            # NotificationConsumer.rooms.pop(self.room_group_name)
             async_to_sync(self.channel_layer.group_discard)(
                 self.room_group_name,
                 self.channel_name

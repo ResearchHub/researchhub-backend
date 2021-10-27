@@ -565,6 +565,26 @@ def celery_extract_pdf_sections(paper_id):
 
         sentry.log_error(e, message=message)
     finally:
+        User = apps.get_model('user.User')
+        Notification = apps.get_model('notification.Notification')
+        
+        # we have paper: paper
+        # we have user id: paper.uploaded_by
+        user = User.objects.get(id=paper.uploaded_by)
+
+        # action = Action.objects.create(
+        #     user=recipient,
+        #     content_type=content_type,
+        #     object_id=purchase.id,
+        # )
+        notification = Notification.objects.create(
+            unified_document=paper.unified_document,
+            recipient=user,
+            action_user=None, # todo
+            action=None, # todo
+        )
+        notification.send_notification()
+        
         shutil.rmtree(path)
         return True, return_code
 
