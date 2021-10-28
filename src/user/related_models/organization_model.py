@@ -52,7 +52,7 @@ class Organization(DefaultModel):
         return notes.exists()
 
     def org_has_user(self, user, **filters):
-        permissions = self.org_permissions
+        permissions = self.permissions
         org_permission = permissions.filter(
             user=user,
             **filters
