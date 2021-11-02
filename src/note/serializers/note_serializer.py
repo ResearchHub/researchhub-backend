@@ -1,6 +1,16 @@
+from django.db.models import Q
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from note.models import Note, NoteContent
+from researchhub_access_group.constants import (
+    ADMIN,
+    EDITOR,
+    MEMBER,
+    NO_ACCESS,
+    PRIVATE,
+    WORKSPACE,
+    SHARED
+)
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import (
   DynamicUnifiedDocumentSerializer
@@ -63,9 +73,24 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
         fields = '__all__'
 
     def get_access(self, note):
-        if hasattr(note, 'access'):
-            return note.access
-        return None
+        permissions = note.permissions
+
+        is_workspace = permissions.filter(
+            Q(access_type=ADMIN) &
+            Q(user__isnull=True)
+        ).exists()
+
+        is_private = permissions.filter(
+            Q(access_type__in=[ADMIN, MEMBER, EDITOR]) &
+            Q(user__isnull=False)
+        ).count() <= 1
+
+        if is_workspace:
+            return WORKSPACE
+        elif is_private:
+            return PRIVATE
+        else:
+            return SHARED
 
     def get_created_by(self, note):
         context = self.context

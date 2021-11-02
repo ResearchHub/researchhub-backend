@@ -166,7 +166,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         )
         admin_user_ids = permissions.filter(
             access_type=ADMIN,
-            organization__isnull=True
         ).values(
             'user'
         )
@@ -403,37 +402,35 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         #     Organization
         # )
         # notes = user.created_notes
-        notes = notes.annotate(
-            user_permissions=Count(
-                'unified_document__permissions',
-                filter=Q(unified_document__permissions__user__isnull=False)
-            ),
-            org_permissions=Count(
-                'unified_document__permissions',
-                filter=(
-                    Q(unified_document__permissions__access_type=ADMIN) &
-                    Q(unified_document__permissions__user__isnull=True)
-                    # Q(unified_document__permissions__content_type=org_content_type)
-                )
-            )
-        )
-        notes = notes.annotate(
-            access=Case(
-                When(
-                    org_permissions__gte=1,
-                    then=Value('WORKSPACE')
-                ),
-                When(
-                    org_permissions__lt=1,
-                    user_permissions__gt=1,
-                    then=Value('SHARED')
-                ),
-                default=Value('PRIVATE'),
-                output_field=models.CharField()
-            )
-        ).order_by('created_date')
-
-        # notes.values('access')
+        # notes = notes.annotate(
+        #     user_permissions=Count(
+        #         'unified_document__permissions',
+        #         filter=Q(unified_document__permissions__user__isnull=False)
+        #     ),
+        #     org_permissions=Count(
+        #         'unified_document__permissions',
+        #         filter=(
+        #             Q(unified_document__permissions__access_type=ADMIN) &
+        #             Q(unified_document__permissions__user__isnull=True)
+        #             # Q(unified_document__permissions__content_type=org_content_type)
+        #         )
+        #     )
+        # )
+        # notes = notes.annotate(
+        #     access=Case(
+        #         When(
+        #             org_permissions__gte=1,
+        #             then=Value('WORKSPACE')
+        #         ),
+        #         When(
+        #             org_permissions__lt=1,
+        #             user_permissions__gt=1,
+        #             then=Value('SHARED')
+        #         ),
+        #         default=Value('PRIVATE'),
+        #         output_field=models.CharField()
+        #     )
+        # ).order_by('created_date')
 
         # notes = notes.annotate(
         #     org_permission_count=Count(
@@ -496,7 +493,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 ~Q(unified_document__permissions__access_type=NO_ACCESS) &
                 Q(unified_document__permissions__organization__permissions__user=user)
             )
-        )
+        ).distinct()
 
         context = self._get_org_notes_context()
         page = self.paginate_queryset(notes)

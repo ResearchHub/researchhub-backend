@@ -254,7 +254,13 @@ class NoteViewSet(ModelViewSet):
                 'inv_dnis_get_note': {
                     '_include_fields': [
                         'created_date',
+                        'organization',
                         'title',
+                    ]
+                },
+                'nte_dns_get_organization': {
+                    '_include_fields': [
+                        'slug',
                     ]
                 },
                 'usr_dus_get_author_profile': {
