@@ -256,6 +256,7 @@ class NoteViewSet(ModelViewSet):
                         'created_date',
                         'organization',
                         'title',
+                        'id',
                     ]
                 },
                 'nte_dns_get_organization': {
