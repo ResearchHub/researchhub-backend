@@ -55,9 +55,24 @@ class NoteSerializer(ModelSerializer):
         read_only_fields = ['unified_document']
 
     def get_access(self, note):
-        if hasattr(note, 'access'):
-            return note.access
-        return None
+        permissions = note.permissions
+
+        is_workspace = permissions.filter(
+            Q(access_type=ADMIN) &
+            Q(user__isnull=True)
+        ).exists()
+
+        is_private = permissions.filter(
+            Q(access_type__in=[ADMIN, MEMBER, EDITOR]) &
+            Q(user__isnull=False)
+        ).count() <= 1
+
+        if is_workspace:
+            return WORKSPACE
+        elif is_private:
+            return PRIVATE
+        else:
+            return SHARED
 
 
 class DynamicNoteSerializer(DynamicModelFieldSerializer):
