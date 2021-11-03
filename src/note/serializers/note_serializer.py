@@ -15,6 +15,9 @@ from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import (
   DynamicUnifiedDocumentSerializer
 )
+from user.constants.organization_constants import (
+    PERSONAL
+)
 from user.serializers import (
     OrganizationSerializer,
     DynamicOrganizationSerializer,
@@ -57,27 +60,29 @@ class NoteSerializer(ModelSerializer):
     def get_access(self, note):
         permissions = note.permissions
 
-        # Organization has admin permission
-        # or note creator is org creator
-        is_workspace = permissions.filter(
-            (
-                Q(access_type=ADMIN) &
-                Q(user__isnull=True)
-            ) |
-            (
-                Q(access_type=ADMIN) &
-                Q(user=note.created_by)
-            )
+        is_user_org = permissions.filter(
+            organization__org_type=PERSONAL
         ).exists()
+
+        if is_user_org:
+            is_workspace = permissions.filter(
+                user__isnull=False
+            ).count() <= 1
+        else:
+            is_workspace = permissions.filter(
+                access_type=ADMIN
+            ).exists()
 
         is_private = permissions.filter(
             Q(access_type__in=[ADMIN, MEMBER, EDITOR]) &
             Q(user__isnull=False)
         ).count() <= 1
 
+        has_invited_users = note.has_invited_users.exists()
+
         if is_workspace:
             return WORKSPACE
-        elif is_private:
+        elif is_private and not has_invited_users:
             return PRIVATE
         else:
             return SHARED
@@ -98,18 +103,18 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
     def get_access(self, note):
         permissions = note.permissions
 
-        # Organization has admin permission
-        # or note creator is org creator
-        is_workspace = permissions.filter(
-            (
-                Q(access_type=ADMIN) &
-                Q(user__isnull=True)
-            ) |
-            (
-                Q(access_type=ADMIN) &
-                Q(user=note.created_by)
-            )
+        is_user_org = permissions.filter(
+            organization__org_type=PERSONAL
         ).exists()
+
+        if is_user_org:
+            is_workspace = permissions.filter(
+                user__isnull=False
+            ).count() <= 1
+        else:
+            is_workspace = permissions.filter(
+                access_type=ADMIN
+            ).exists()
 
         is_private = permissions.filter(
             Q(access_type__in=[ADMIN, MEMBER, EDITOR]) &
