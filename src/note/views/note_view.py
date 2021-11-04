@@ -123,7 +123,10 @@ class NoteViewSet(ModelViewSet):
         if grouping == WORKSPACE:
             org_access = ADMIN
         elif grouping == PRIVATE:
-            org_access = NO_ACCESS
+            if organization.user == creator:
+                org_access = ADMIN
+            else:
+                org_access = NO_ACCESS
             Permission.objects.create(
                 access_type=ADMIN,
                 content_type=content_type,
@@ -163,7 +166,7 @@ class NoteViewSet(ModelViewSet):
     @action(
         detail=True,
         methods=['post'],
-        permission_classes=[HasAdminPermission]
+        permission_classes=[HasEditingPermission]
     )
     def invite_user(self, request, pk=None):
         inviter = request.user
@@ -217,7 +220,7 @@ class NoteViewSet(ModelViewSet):
     @action(
         detail=True,
         methods=['patch'],
-        permission_classes=[IsAuthenticated, HasAdminPermission]
+        permission_classes=[IsAuthenticated, HasEditingPermission]
     )
     def remove_invited_user(self, request, pk=None):
         inviter = request.user
@@ -359,6 +362,7 @@ class NoteViewSet(ModelViewSet):
                     'cover_image',
                     'id',
                     'name',
+                    'member_count',
                     'slug',
                 ]
             },
