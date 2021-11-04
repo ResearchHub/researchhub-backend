@@ -78,7 +78,7 @@ class NoteSerializer(ModelSerializer):
             Q(user__isnull=False)
         ).count() <= 1
 
-        has_invited_users = note.has_invited_users.exists()
+        has_invited_users = note.invited_users.exists()
 
         if is_workspace:
             return WORKSPACE
@@ -121,9 +121,11 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
             Q(user__isnull=False)
         ).count() <= 1
 
+        has_invited_users = note.invited_users.exists()
+
         if is_workspace:
             return WORKSPACE
-        elif is_private:
+        elif is_private and not has_invited_users:
             return PRIVATE
         else:
             return SHARED
