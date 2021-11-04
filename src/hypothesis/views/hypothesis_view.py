@@ -88,12 +88,16 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
 
     @action(detail=True, methods=['get'])
     def get_citations(self, request, pk=None):
+        citation_type = request.GET.get('citation_type')
         hypothesis = self.get_object()
         citations = hypothesis.citations.all()
+        citation_set = citations.filter(type=citation_type) if citation_type \
+            else citations
+
         context = self._get_citations_context()
         context['request'] = request
         serializer = DynamicCitationSerializer(
-            citations,
+            citation_set,
             _include_fields=[
                 'consensus_meta',
                 'created_by',
