@@ -17,8 +17,9 @@ class CitationViewSet(ModelViewSet, ReactionViewActionMixin):
     serializer_class = CitationSerializer
 
     def create(self, request, *args, **kwargs):
-        hypothesis_id = request.data.get('hypothesis_id')
-        source_id = request.data.get('source_id')
+        request_data = request.data
+        hypothesis_id = request_data.get('hypothesis_id')
+        source_id = request_data.get('source_id')
         try:
             if (hypothesis_id is None or source_id is None):
                 raise ParseError(
@@ -29,6 +30,7 @@ class CitationViewSet(ModelViewSet, ReactionViewActionMixin):
             citation = Citation.objects.create(
                 created_by=request.user,
                 source_id=source_id,
+                type=request_data.get('type'),
             )
             citation.hypothesis.set([
                 Hypothesis.objects.get(id=hypothesis_id)

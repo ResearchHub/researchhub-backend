@@ -30,6 +30,7 @@ class CitationSerializer(ModelSerializer, GenericReactionSerializerMixin):
             'id',
             'created_by',
             'source',
+            'type',
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
