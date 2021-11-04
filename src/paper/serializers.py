@@ -333,7 +333,7 @@ class PaperSerializer(BasePaperSerializer):
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
         hypothesis_id = validated_data.pop('hypothesis_id', None)
-
+        citation_type = validated_data.pop('citation_type', None)
         try:
             with transaction.atomic():
                 valid_doi = self._check_valid_doi(validated_data)
@@ -360,7 +360,12 @@ class PaperSerializer(BasePaperSerializer):
                 unified_doc = paper.unified_document
                 unified_doc_id = paper.unified_document.id
                 if hypothesis_id:
-                    self._add_citation(user, hypothesis_id, unified_doc)
+                    self._add_citation(
+                        user,
+                        hypothesis_id,
+                        unified_doc,
+                        citation_type
+                    )
 
                 paper_id = paper.id
                 paper_title = paper.paper_title or ''
@@ -535,12 +540,13 @@ class PaperSerializer(BasePaperSerializer):
         except Exception as e:
             sentry.log_info(e)
 
-    def _add_citation(self, user, hypothesis_id, unified_document):
+    def _add_citation(self, user, hypothesis_id, unified_document, type):
         try:
             hypothesis = Hypothesis.objects.get(id=hypothesis_id)
             citation = Citation.objects.create(
                 created_by=user,
                 source=unified_document,
+                type=type
             )
             citation.hypothesis.set([hypothesis])
         except Exception as e:
