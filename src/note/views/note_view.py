@@ -130,12 +130,12 @@ class NoteViewSet(ModelViewSet):
                 org_access = ADMIN
             else:
                 org_access = NO_ACCESS
-            Permission.objects.create(
-                access_type=ADMIN,
-                content_type=content_type,
-                object_id=unified_document.id,
-                user=creator,
-            )
+                Permission.objects.create(
+                    access_type=ADMIN,
+                    content_type=content_type,
+                    object_id=unified_document.id,
+                    user=creator,
+                )
         else:
             org_access = ADMIN
 
