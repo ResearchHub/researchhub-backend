@@ -7,6 +7,7 @@ from django.db.models.functions import Extract, Cast
 from django.contrib.contenttypes.fields import GenericRelation
 
 from discussion.reaction_models import AbstractGenericReactionModel, Vote
+from hypothesis.constants.constants import CITATION_TYPE
 from researchhub_document.models import ResearchhubUnifiedDocument
 from purchase.models import Purchase
 from paper.utils import paper_piecewise_log
@@ -74,7 +75,11 @@ class Hypothesis(AbstractGenericReactionModel):
     def get_aggregate_citation_consensus(self):
         try:
             citations = self.citations
-            data = citations.aggregate(
+            result = {'citation_count': citations.count()}
+
+            reject_pile = citations.filter(
+                type=CITATION_TYPE['REJECT']
+            ).aggregate(
                 down_count=Count(
                     'votes', filter=Q(votes__vote_type=Vote.DOWNVOTE)
                 ),
@@ -85,8 +90,33 @@ class Hypothesis(AbstractGenericReactionModel):
                     'votes', filter=Q(votes__vote_type=Vote.UPVOTE)
                 )
             )
-            data['citation_count'] = citations.count()
-            return data
+
+            support_pile = citations.filter(
+                type=CITATION_TYPE['SUPPORT']
+            ).aggregate(
+                down_count=Count(
+                    'votes', filter=Q(votes__vote_type=Vote.DOWNVOTE)
+                ),
+                neutral_count=Count(
+                    'votes', filter=Q(votes__vote_type=Vote.NEUTRAL)
+                ),
+                up_count=Count(
+                    'votes', filter=Q(votes__vote_type=Vote.UPVOTE)
+                )
+            )
+
+            # NOTE: down / upvotes counteracting based on citation type ON hypo
+            result['down_count'] = (
+                reject_pile['up_count'] + support_pile['down_count']
+            )
+            result['neutral_count'] = (
+                reject_pile['neutral_count'] + support_pile['neutral_count']
+            )
+            result['up_count'] = (
+                reject_pile['down_count'] + support_pile['up_count']
+            )
+            return result
+
         except Exception as error:
             sentry.log_error(error)
             return {'citation_count': 0, 'down_count': 0,  'up_count': 0}

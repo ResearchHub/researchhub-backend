@@ -31,6 +31,7 @@ class Citation(AbstractGenericReactionModel):
         choices=CITATION_TYPE_CHOICES,
         db_index=True,
         default=CITATION_TYPE['SUPPORT'],
+        help_text="Why citation was added to a hypothesis",
         max_length=255,
     )
 
