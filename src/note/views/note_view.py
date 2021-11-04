@@ -44,6 +44,9 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub.pagination import MediumPageLimitPagination
 from user.models import Organization, User
+from user.constants.organization_constants import (
+    PERSONAL
+)
 from utils.http import RequestMethods
 from researchhub.settings import (
     CKEDITOR_CLOUD_ACCESS_KEY,
@@ -123,7 +126,7 @@ class NoteViewSet(ModelViewSet):
         if grouping == WORKSPACE:
             org_access = ADMIN
         elif grouping == PRIVATE:
-            if organization.user == creator:
+            if organization.org_type == PERSONAL:
                 org_access = ADMIN
             else:
                 org_access = NO_ACCESS
