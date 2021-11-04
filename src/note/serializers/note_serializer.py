@@ -58,6 +58,13 @@ class NoteSerializer(ModelSerializer):
         read_only_fields = ['unified_document']
 
     def get_access(self, note):
+        context = self.context
+        request = context.get('request')
+
+        user = None
+        if request and not request.user.is_anonymous:
+            user = request.user
+
         permissions = note.permissions
 
         is_user_org = permissions.filter(
@@ -67,6 +74,8 @@ class NoteSerializer(ModelSerializer):
         if is_user_org:
             is_workspace = permissions.filter(
                 user__isnull=False
+            ).exclude(
+                user=user
             ).count() <= 1
         else:
             is_workspace = permissions.filter(

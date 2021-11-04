@@ -514,6 +514,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
     def _get_org_notes_context(self):
         context = {
+            'request': self.request,
             'nte_dns_get_organization': {
                 '_include_fields': [
                     'cover_image',
