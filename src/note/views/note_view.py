@@ -315,13 +315,21 @@ class NoteViewSet(ModelViewSet):
         methods=['delete'],
         permission_classes=[HasAdminPermission]
     )
-    def remove_user_permission(self, request, pk=None):
+    def remove_permission(self, request, pk=None):
         data = request.data
-        user_id = data.get('user')
+        user_id = data.get('user', None)
+        organization_id = data.get('organization', None)
+
         note = self.get_object()
-        permission = note.permissions.get(user=user_id)
-        permission.delete()
-        return Response({'data': 'User permission removed'}, status=200)
+        if user_id:
+            permission = note.permissions.get(user=user_id)
+            permission.delete()
+        else:
+            permission = note.permissions.get(organization=organization_id)
+            permission.access_type = NO_ACCESS
+            permission.save()
+
+        return Response({'data': 'Permission removed'}, status=200)
 
     @action(
         detail=True,
