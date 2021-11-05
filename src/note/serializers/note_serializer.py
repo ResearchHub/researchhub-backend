@@ -6,7 +6,6 @@ from researchhub_access_group.constants import (
     ADMIN,
     EDITOR,
     MEMBER,
-    NO_ACCESS,
     PRIVATE,
     WORKSPACE,
     SHARED
@@ -58,13 +57,6 @@ class NoteSerializer(ModelSerializer):
         read_only_fields = ['unified_document']
 
     def get_access(self, note):
-        context = self.context
-        request = context.get('request')
-
-        user = None
-        if request and not request.user.is_anonymous:
-            user = request.user
-
         permissions = note.permissions
 
         is_user_org = permissions.filter(
@@ -74,8 +66,6 @@ class NoteSerializer(ModelSerializer):
         if is_user_org:
             is_workspace = permissions.filter(
                 user__isnull=False
-            ).exclude(
-                user=user
             ).count() <= 1
         else:
             is_workspace = permissions.filter(
@@ -110,13 +100,6 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
         fields = '__all__'
 
     def get_access(self, note):
-        context = self.context
-        request = context.get('request')
-
-        user = None
-        if request and not request.user.is_anonymous:
-            user = request.user
-
         permissions = note.permissions
 
         is_user_org = permissions.filter(
@@ -125,12 +108,12 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
 
         if is_user_org:
             is_workspace = permissions.filter(
-                user__isnull=False
-            ).exclude(
-                user=user
-            ).count() <= 1
+                access_type=ADMIN,
+                organization__isnull=False
+            ).exists()
         else:
             is_workspace = permissions.filter(
+                organization__isnull=False,
                 access_type=ADMIN
             ).exists()
 
@@ -139,7 +122,9 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
             Q(user__isnull=False)
         ).count() <= 1
 
-        has_invited_users = note.invited_users.exists()
+        has_invited_users = note.invited_users.filter(
+            accepted=False
+        ).exists()
 
         if is_workspace:
             return WORKSPACE

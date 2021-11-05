@@ -90,9 +90,9 @@ class Permission(DefaultModel):
 
     def __str__(self):
         user = self.user
+        org = self.organization
         access_type = self.access_type
-        if user:
+        if user and not org:
             return f'Permission User: {user.email} - {access_type}'
         else:
-            org = self.organization
             return f'Permission Org: {org.name} - {access_type}'

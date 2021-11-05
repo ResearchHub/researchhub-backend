@@ -44,9 +44,6 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub.pagination import MediumPageLimitPagination
 from user.models import Organization, User
-from user.constants.organization_constants import (
-    PERSONAL
-)
 from utils.http import RequestMethods
 from researchhub.settings import (
     CKEDITOR_CLOUD_ACCESS_KEY,
@@ -73,7 +70,7 @@ class NoteViewSet(ModelViewSet):
 
         if organization_slug:
             organization = Organization.objects.get(slug=organization_slug)
-            created_by = organization.user
+            created_by = user
             if not (
                 organization.org_has_admin_user(user) or
                 organization.org_has_member_user(user)
@@ -126,16 +123,13 @@ class NoteViewSet(ModelViewSet):
         if grouping == WORKSPACE:
             org_access = ADMIN
         elif grouping == PRIVATE:
-            if organization.org_type == PERSONAL:
-                org_access = ADMIN
-            else:
-                org_access = NO_ACCESS
-                Permission.objects.create(
-                    access_type=ADMIN,
-                    content_type=content_type,
-                    object_id=unified_document.id,
-                    user=creator,
-                )
+            org_access = NO_ACCESS
+            Permission.objects.create(
+                access_type=ADMIN,
+                content_type=content_type,
+                object_id=unified_document.id,
+                user=creator,
+            )
         else:
             org_access = ADMIN
 
