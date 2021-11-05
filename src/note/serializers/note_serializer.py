@@ -65,10 +65,12 @@ class NoteSerializer(ModelSerializer):
 
         if is_user_org:
             is_workspace = permissions.filter(
-                user__isnull=False
-            ).count() <= 1
+                access_type=ADMIN,
+                organization__isnull=False
+            ).exists()
         else:
             is_workspace = permissions.filter(
+                organization__isnull=False,
                 access_type=ADMIN
             ).exists()
 
@@ -77,7 +79,9 @@ class NoteSerializer(ModelSerializer):
             Q(user__isnull=False)
         ).count() <= 1
 
-        has_invited_users = note.invited_users.exists()
+        has_invited_users = note.invited_users.filter(
+            accepted=False
+        ).exists()
 
         if is_workspace:
             return WORKSPACE
