@@ -59,20 +59,10 @@ class NoteSerializer(ModelSerializer):
     def get_access(self, note):
         permissions = note.permissions
 
-        is_user_org = permissions.filter(
-            organization__org_type=PERSONAL
+        is_workspace = permissions.filter(
+            organization__isnull=False,
+            access_type=ADMIN
         ).exists()
-
-        if is_user_org:
-            is_workspace = permissions.filter(
-                access_type=ADMIN,
-                organization__isnull=False
-            ).exists()
-        else:
-            is_workspace = permissions.filter(
-                organization__isnull=False,
-                access_type=ADMIN
-            ).exists()
 
         is_private = permissions.filter(
             Q(access_type__in=[ADMIN, MEMBER, EDITOR]) &
@@ -106,20 +96,10 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
     def get_access(self, note):
         permissions = note.permissions
 
-        is_user_org = permissions.filter(
-            organization__org_type=PERSONAL
+        is_workspace = permissions.filter(
+            organization__isnull=False,
+            access_type=ADMIN
         ).exists()
-
-        if is_user_org:
-            is_workspace = permissions.filter(
-                access_type=ADMIN,
-                organization__isnull=False
-            ).exists()
-        else:
-            is_workspace = permissions.filter(
-                organization__isnull=False,
-                access_type=ADMIN
-            ).exists()
 
         is_private = permissions.filter(
             Q(access_type__in=[ADMIN, MEMBER, EDITOR]) &
