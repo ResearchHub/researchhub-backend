@@ -276,7 +276,8 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_THROTTLE_RATES': {
         'anon': '50/minute',
-    }
+    },
+    'TEST_REQUEST_DEFAULT_FORMAT': 'json',
 }
 
 
@@ -393,7 +394,10 @@ DATABASES = {
         'PORT': DB_PORT,
         'USER': DB_USER,
         'PASSWORD': DB_PASS,
-    },
+        'TEST': {
+            'NAME': 'test_researchhub',
+        }        
+    }
 }
 
 

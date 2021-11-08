@@ -145,7 +145,7 @@ class NoteViewSet(ModelViewSet):
     @action(
         detail=True,
         methods=['post', 'delete'],
-        permission_classes=[HasEditingPermission]
+        permission_classes=[HasAdminPermission]
     )
     def delete(self, request, pk=None):
         note = Note.objects.get(id=pk)
@@ -163,7 +163,7 @@ class NoteViewSet(ModelViewSet):
     @action(
         detail=True,
         methods=['post'],
-        permission_classes=[HasEditingPermission]
+        permission_classes=[HasAdminPermission]
     )
     def invite_user(self, request, pk=None):
         inviter = request.user
@@ -217,7 +217,7 @@ class NoteViewSet(ModelViewSet):
     @action(
         detail=True,
         methods=['patch'],
-        permission_classes=[IsAuthenticated, HasEditingPermission]
+        permission_classes=[IsAuthenticated, HasAdminPermission]
     )
     def remove_invited_user(self, request, pk=None):
         inviter = request.user
