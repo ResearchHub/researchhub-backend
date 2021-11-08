@@ -117,6 +117,7 @@ class DynamicCitationSerializer(DynamicModelFieldSerializer):
             {
                 'down_count': votes.filter(vote_type=Vote.DOWNVOTE).count(),
                 'neutral_count': votes.filter(vote_type=Vote.NEUTRAL).count(),
+                'total_count': votes.count(),
                 'up_count': votes.filter(vote_type=Vote.UPVOTE).count(),
                 'user_vote': (
                     serializer.data
