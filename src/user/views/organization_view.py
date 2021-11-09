@@ -429,6 +429,9 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             )
         ).distinct()
 
+        notes = notes.prefetch_related(
+            'unified_document__permissions',
+        )
         context = self._get_org_notes_context()
         page = self.paginate_queryset(notes)
         serializer_data = DynamicNoteSerializer(

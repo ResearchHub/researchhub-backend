@@ -251,13 +251,11 @@ class NoteViewSet(ModelViewSet):
         permission_classes=[IsAuthenticated, HasAdminPermission]
     )
     def remove_invited_user(self, request, pk=None):
-        inviter = request.user
         data = request.data
         note = self.get_object()
         recipient_email = data.get('email')
 
         invites = NoteInvitation.objects.filter(
-            inviter=inviter,
             recipient_email=recipient_email,
             note=note,
         )
