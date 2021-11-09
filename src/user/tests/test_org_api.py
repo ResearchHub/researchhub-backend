@@ -1,5 +1,3 @@
-from django.urls import reverse
-from rest_framework import status
 from rest_framework.test import APITestCase
 from researchhub_access_group.models import Permission
 from django.contrib.contenttypes.models import ContentType
@@ -9,11 +7,12 @@ from allauth.utils import (
     get_user_model,
 )
 
+
 class OrganizationTests(APITestCase):
     def setUp(self):
         # Create + auth user
-        self.admin_user = get_user_model().objects.create_user(username="admin@example.com", password="password", email="admin@example.com")
-        self.member_user = get_user_model().objects.create_user(username="test@example.com", password="password", email="test@example.com")
+        self.admin_user = get_user_model().objects.create_user(username="admin@researchhub_test.com", password="password", email="admin@researchhub_test.com")
+        self.member_user = get_user_model().objects.create_user(username="test@researchhub_test.com", password="password", email="test@researchhub_test.com")
         self.client.force_authenticate(self.admin_user)
 
         # Create org
@@ -35,7 +34,7 @@ class OrganizationTests(APITestCase):
     def test_member_cannot_invite_others(self):
         self.client.force_authenticate(self.member_user)
 
-        response = self.client.post(f"/api/organization/{self.org['id']}/invite_user/", {"access_type": "MEMBER", "email": "email@example.com"})
+        response = self.client.post(f"/api/organization/{self.org['id']}/invite_user/", {"access_type": "MEMBER", "email": "email@researchhub_test.com"})
         self.assertEqual(response.status_code, 403)
 
         # Refecth org members list and ensure it did not grow
@@ -45,7 +44,7 @@ class OrganizationTests(APITestCase):
     def test_admin_can_invite_others(self):
         self.client.force_authenticate(self.admin_user)
 
-        response = self.client.post(f"/api/organization/{self.org['id']}/invite_user/", {"access_type": "MEMBER", "email": "email@example.com"})
+        response = self.client.post(f"/api/organization/{self.org['id']}/invite_user/", {"access_type": "MEMBER", "email": "email@researchhub_test.com"})
         self.assertEqual(response.status_code, 200)
 
         # Refecth org members list and ensure it grew
@@ -54,7 +53,7 @@ class OrganizationTests(APITestCase):
 
     def test_admin_of_org_A_cannot_update_details_of_org_B(self):
         # Create + auth user
-        self.org_b_admin = get_user_model().objects.create_user(username="org_b_admin@example.com", password="password", email="org_b_admin@example.com")
+        self.org_b_admin = get_user_model().objects.create_user(username="org_b_admin@researchhub_test.com", password="password", email="org_b_admin@researchhub_test.com")
         self.client.force_authenticate(self.org_b_admin)
 
         # Create org B
@@ -71,7 +70,7 @@ class OrganizationTests(APITestCase):
 
     def test_admin_of_org_A_cannot_invite_users_in_org_B(self):
         # Create + auth user
-        self.org_b_admin = get_user_model().objects.create_user(username="org_b_admin@example.com", password="password", email="org_b_admin@example.com")
+        self.org_b_admin = get_user_model().objects.create_user(username="org_b_admin@researchhub_test.com", password="password", email="org_b_admin@researchhub_test.com")
         self.client.force_authenticate(self.org_b_admin)
 
         # Create org B
@@ -79,7 +78,7 @@ class OrganizationTests(APITestCase):
         orb_b = response.data
 
         # Invite user for org A
-        response = self.client.post(f"/api/organization/{self.org['id']}/invite_user/", {"access_type": "MEMBER", "email": "email@example.com"})
+        response = self.client.post(f"/api/organization/{self.org['id']}/invite_user/", {"access_type": "MEMBER", "email": "email@researchhub_test.com"})
         self.assertEqual(response.status_code, 403)
 
         # Refecth org members list and ensure it did not grow
@@ -88,7 +87,7 @@ class OrganizationTests(APITestCase):
 
     def test_admin_of_org_A_cannot_create_notes_in_org_B(self):
         # Create + auth user
-        self.org_b_admin = get_user_model().objects.create_user(username="org_b_admin@example.com", password="password", email="org_b_admin@example.com")
+        self.org_b_admin = get_user_model().objects.create_user(username="org_b_admin@researchhub_test.com", password="password", email="org_b_admin@researchhub_test.com")
         self.client.force_authenticate(self.org_b_admin)
 
         # Create org B
@@ -96,6 +95,6 @@ class OrganizationTests(APITestCase):
         orb_b = response.data
 
         # Update name of ORG A
-        response = self.client.post("/api/note/", {"grouping": "WORKSPACE", "organization_slug": self.org["slug"], "title": "TEST" })       
+        response = self.client.post("/api/note/", {"grouping": "WORKSPACE", "organization_slug": self.org["slug"], "title": "TEST" })
         self.assertEqual(response.status_code, 403)
 

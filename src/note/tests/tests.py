@@ -1,1 +1,1 @@
-from .test_api import NoteTests
+from note.tests.test_api import NoteTests

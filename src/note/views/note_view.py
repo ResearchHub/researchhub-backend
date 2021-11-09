@@ -72,8 +72,8 @@ class NoteViewSet(ModelViewSet):
             organization = Organization.objects.get(slug=organization_slug)
             created_by = user
             if not (
-                organization.org_has_admin_user(user) or
-                organization.org_has_member_user(user)
+                organization.org_has_admin_user(user, content_user=False) or
+                organization.org_has_member_user(user, content_user=False)
             ):
                 return Response({'data': 'Invalid permissions'}, status=403)
         else:
@@ -156,6 +156,37 @@ class NoteViewSet(ModelViewSet):
         unified_document.save()
         serializer = self.serializer_class(note)
         return Response(serializer.data, status=200)
+
+    def _create_image_file(self, data, organization, user):
+        file_name = f'ORGANIZATION-IMAGE-{organization.id}--USER-{user.id}.txt'
+        full_src_file = ContentFile(data.encode())
+        return file_name, full_src_file
+
+    def update(self, request, *args, **kwargs):
+        user = request.user
+        partial = kwargs.pop('partial', False)
+        note = self.get_object()
+        permissions = note.unified_document.permissions
+        is_admin = permissions.has_admin_user(user)
+        is_editor = permissions.has_editor_user(user)
+
+        if not (is_admin or is_editor):
+            return Response({'data': 'Invalid permissions'}, status=403)
+
+        serializer = self.get_serializer(
+            note,
+            data=request.data,
+            partial=partial
+        )
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if getattr(note, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied to a queryset, we need to
+            # forcibly invalidate the prefetch cache on the instance.
+            note._prefetched_objects_cache = {}
+
+        return Response(serializer.data)
 
     def destroy(self, request, pk=None):
         return self.delete(request, pk)

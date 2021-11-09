@@ -51,20 +51,39 @@ class Organization(DefaultModel):
         )
         return notes.exists()
 
-    def org_has_user(self, user, **filters):
+    def org_has_user(self, user, content_user=True, **filters):
         permissions = self.permissions
         org_permission = permissions.filter(
             user=user,
             **filters
         ).exists()
-        has_perm = org_permission or self.org_content_has_user(user, **filters)
+
+        if content_user:
+            has_perm = org_permission or self.org_content_has_user(
+                user,
+                **filters
+            )
+        else:
+            has_perm = org_permission
         return has_perm
 
-    def org_has_admin_user(self, user):
-        return self.org_has_user(user, access_type=ADMIN)
+    def org_has_admin_user(self, user, content_user=True):
+        return self.org_has_user(
+            user,
+            content_user=content_user,
+            access_type=ADMIN
+        )
 
-    def org_has_member_user(self, user):
-        return self.org_has_user(user, access_type=MEMBER)
+    def org_has_member_user(self, user, content_user=True):
+        return self.org_has_user(
+            user,
+            content_user=content_user,
+            access_type=MEMBER
+        )
 
-    def org_has_viewer_user(self, user):
-        return self.org_has_user(user, access_type=VIEWER)
+    def org_has_viewer_user(self, user, content_user=True):
+        return self.org_has_user(
+            user,
+            content_user=content_user,
+            access_type=VIEWER
+        )
