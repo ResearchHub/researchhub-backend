@@ -34,7 +34,8 @@ from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_access_group.permissions import (
     HasAccessPermission,
     HasAdminPermission,
-    HasEditingPermission
+    HasEditingPermission,
+    HasOrgEditingPermission
 )
 from researchhub_document.models import (
     ResearchhubUnifiedDocument
@@ -414,7 +415,7 @@ class NoteViewSet(ModelViewSet):
     @action(
         detail=True,
         methods=['post'],
-        permission_classes=[HasAccessPermission]
+        permission_classes=[HasAdminPermission | HasOrgEditingPermission]
     )
     def make_private(self, request, pk=None):
         user = request.user

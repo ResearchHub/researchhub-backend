@@ -463,7 +463,14 @@ class NoteTests(APITestCase):
 
     def test_note_admin_can_make_private(self):
         # Create workspace note
-        response = self.client.post('/api/note/', {'grouping': 'WORKSPACE', 'organization_slug': self.org['slug'], 'title': 'original title'})
+        response = self.client.post(
+            '/api/note/',
+            {
+                'grouping': 'WORKSPACE',
+                'organization_slug': self.org['slug'],
+                'title': 'original title'
+            }
+        )
         note = response.data
 
         # Create another user
@@ -490,7 +497,14 @@ class NoteTests(APITestCase):
 
     def test_note_editor_cannot_make_private(self):
         # Create workspace note
-        response = self.client.post('/api/note/', {'grouping': 'WORKSPACE', 'organization_slug': self.org['slug'], 'title': 'original title'})
+        response = self.client.post(
+            '/api/note/',
+            {
+                'grouping': 'WORKSPACE',
+                'organization_slug': self.org['slug'],
+                'title': 'original title'
+            }
+        )
         note = response.data
 
         # Create another user
@@ -517,7 +531,14 @@ class NoteTests(APITestCase):
 
     def test_org_member_can_make_private(self):
         # Create workspace note
-        response = self.client.post('/api/note/', {'grouping': 'WORKSPACE', 'organization_slug': self.org['slug'], 'title': 'original title'})
+        response = self.client.post(
+            '/api/note/',
+            {
+                'grouping': 'WORKSPACE',
+                'organization_slug': self.org['slug'],
+                'title': 'original title'
+            }
+        )
         note = response.data
 
         # Create another user
@@ -540,4 +561,5 @@ class NoteTests(APITestCase):
 
         # Make Private
         response = self.client.post(f"/api/note/{note['id']}/make_private/")
-        self.assertEqual(response.data["access"], "PRIVATE")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['access'], 'PRIVATE')

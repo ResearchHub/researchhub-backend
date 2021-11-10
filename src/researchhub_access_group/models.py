@@ -20,11 +20,17 @@ class PermissionManager(models.Manager):
         main_perm_filter = Q(user=user)
         main_org_filter = Q(organization__permissions__user=user)
 
-        for extra_filter in perm_filters:
-            main_perm_filter &= extra_filter
+        if perm_filters:
+            for extra_filter in perm_filters:
+                main_perm_filter &= extra_filter
+        else:
+            main_perm_filter = Q()
 
-        for extra_filter in org_filters:
-            main_org_filter &= extra_filter
+        if org_filters:
+            for extra_filter in org_filters:
+                main_org_filter &= extra_filter
+        else:
+            main_org_filter = Q()
 
         user_exists = self.filter(
             (main_org_filter) |
@@ -32,28 +38,49 @@ class PermissionManager(models.Manager):
         ).exists()
         return user_exists
 
-    def has_admin_user(self, user):
+    def has_admin_user(self, user, perm=True, org=True):
+        perm_filters = None
+        org_filters = None
+
+        if perm:
+            perm_filters = (Q(access_type=ADMIN),)
+        if org:
+            org_filters = (Q(organization__permissions__access_type=ADMIN),)
         return self.has_user(
             user,
-            perm_filters=(Q(access_type=ADMIN),),
-            org_filters=(Q(organization__permissions__access_type=ADMIN),)
+            perm_filters=perm_filters,
+            org_filters=org_filters
         )
 
-    def has_editor_user(self, user):
+    def has_editor_user(self, user, perm=True, org=True):
+        perm_filters = None
+        org_filters = None
+
+        if perm:
+            perm_filters = (Q(access_type=EDITOR),)
+        if org:
+            org_filters = (Q(organization__permissions__access_type=MEMBER),)
         return self.has_user(
             user,
-            perm_filters=(Q(access_type=EDITOR),),
-            org_filters=(Q(organization__permissions__access_type=MEMBER),)
+            perm_filters=perm_filters,
+            org_filters=org_filters
         )
 
-    def has_viewer_user(self, user):
-        return self.has_user(
-            user,
-            perm_filters=(Q(access_type=VIEWER),),
-            org_filters=(
+    def has_viewer_user(self, user, perm=True, org=True):
+        perm_filters = None
+        org_filters = None
+
+        if perm:
+            perm_filters = (Q(access_type=VIEWER),)
+        if org:
+            org_filters = (
                 Q(organization__permissions__access_type=MEMBER) |
                 Q(organization__permissions__access_type=ADMIN),
             )
+        return self.has_user(
+            user,
+            perm_filters=perm_filters,
+            org_filters=org_filters
         )
 
 
