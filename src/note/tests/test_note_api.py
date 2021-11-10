@@ -460,3 +460,84 @@ class NoteTests(APITestCase):
         # refetch note
         response = self.client.patch(f"/api/note/{note['id']}/")
         self.assertEqual(response.data['title'], 'some title')
+
+    def test_note_admin_can_make_private(self):
+        # Create workspace note
+        response = self.client.post('/api/note/', {'grouping': 'WORKSPACE', 'organization_slug': self.org['slug'], 'title': 'original title'})
+        note = response.data
+
+        # Create another user
+        admin_user = get_user_model().objects.create_user(
+            username='admin@researchhub_test.com',
+            password='password',
+            email='admin@researchhub_test.com'
+        )
+
+        # Add permission to user
+        perms = Permission.objects.create(
+            access_type='ADMIN',
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=note['unified_document'],
+            user=admin_user
+        )
+
+        # Authenticate as viewer
+        self.client.force_authenticate(admin_user)
+
+        # Make Private
+        response = self.client.post(f"/api/note/{note['id']}/make_private/")
+        self.assertEqual(response.data["access"], "PRIVATE")
+
+    def test_note_editor_cannot_make_private(self):
+        # Create workspace note
+        response = self.client.post('/api/note/', {'grouping': 'WORKSPACE', 'organization_slug': self.org['slug'], 'title': 'original title'})
+        note = response.data
+
+        # Create another user
+        editor_user = get_user_model().objects.create_user(
+            username='editor@researchhub_test.com',
+            password='password',
+            email='editor@researchhub_test.com'
+        )
+
+        # Add permission to user
+        perms = Permission.objects.create(
+            access_type='EDITOR',
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=note['unified_document'],
+            user=editor_user
+        )
+
+        # Authenticate as viewer
+        self.client.force_authenticate(editor_user)
+
+        # Make Private
+        response = self.client.post(f"/api/note/{note['id']}/make_private/")
+        self.assertEqual(response.status_code, 403)
+
+    def test_org_member_can_make_private(self):
+        # Create workspace note
+        response = self.client.post('/api/note/', {'grouping': 'WORKSPACE', 'organization_slug': self.org['slug'], 'title': 'original title'})
+        note = response.data
+
+        # Create another user
+        member_user = get_user_model().objects.create_user(
+            username='member@researchhub_test.com',
+            password='password',
+            email='member@researchhub_test.com'
+        )
+
+        # Add second user
+        perms = Permission.objects.create(
+            access_type='MEMBER',
+            content_type=ContentType.objects.get_for_model(Organization),
+            object_id=self.org['id'],
+            user=member_user
+        )
+
+        # Authenticate as viewer
+        self.client.force_authenticate(member_user)
+
+        # Make Private
+        response = self.client.post(f"/api/note/{note['id']}/make_private/")
+        self.assertEqual(response.data["access"], "PRIVATE")

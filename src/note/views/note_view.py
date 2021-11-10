@@ -434,7 +434,7 @@ class NoteViewSet(ModelViewSet):
         )
 
         # Updating all note invites
-        note.invited_notes.update(
+        note.invited_users.update(
             expiration_date=datetime.now(pytz.utc)
         )
 
