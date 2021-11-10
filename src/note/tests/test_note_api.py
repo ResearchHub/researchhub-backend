@@ -563,3 +563,42 @@ class NoteTests(APITestCase):
         response = self.client.post(f"/api/note/{note['id']}/make_private/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['access'], 'PRIVATE')
+
+    def test_org_member_can_remove_workspace_note(self):
+        # Create workspace note
+        response = self.client.post(
+            '/api/note/',
+            {
+                'grouping': 'WORKSPACE',
+                'organization_slug': self.org['slug'],
+                'title': 'some note to be deleted'
+            }
+        )
+        note = response.data
+
+        # Create another user
+        member_user = get_user_model().objects.create_user(
+            username='member@researchhub_test.com',
+            password='password',
+            email='member@researchhub_test.com'
+        )
+
+        # Add user
+        perms = Permission.objects.create(
+            access_type='MEMBER',
+            content_type=ContentType.objects.get_for_model(Organization),
+            object_id=self.org['id'],
+            user=member_user
+        )
+
+        # Authenticate as viewer
+        self.client.force_authenticate(member_user)
+
+        # Delete
+        response = self.client.delete(f"/api/note/{note['id']}/delete/")
+        self.assertEqual(response.status_code, 403)
+
+        # Make sure note is removed
+        response = self.client.get(f"/api/organization/{self.org['slug']}/get_organization_notes/")
+        self.assertEqual(response.data['count'], 0)
+
