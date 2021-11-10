@@ -13,6 +13,12 @@ from note.models import (
 from user.models import Organization
 
 
+unified_doc_content_type = ContentType.objects.get_for_model(
+    ResearchhubUnifiedDocument
+)
+organization_content_type = ContentType.objects.get_for_model(Organization)
+
+
 class NoteTests(APITestCase):
     def setUp(self):
         # Create + auth user
@@ -89,7 +95,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         perms = Permission.objects.create(
             access_type='EDITOR',
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            content_type=unified_doc_content_type,
             object_id=note['unified_document'],
             user=editor_user
         )
@@ -130,7 +136,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         perms = Permission.objects.create(
             access_type='EDITOR',
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            content_type=unified_doc_content_type,
             object_id=note['unified_document'],
             user=editor_user
         )
@@ -159,7 +165,14 @@ class NoteTests(APITestCase):
 
     def test_note_viewer_cannot_update_contents(self):
         # Create workspace note
-        response = self.client.post('/api/note/', {'grouping': 'WORKSPACE', 'organization_slug': self.org['slug'], 'title': 'original title'})
+        response = self.client.post(
+            '/api/note/',
+            {
+                'grouping': 'WORKSPACE',
+                'organization_slug': self.org['slug'],
+                'title': 'original title'
+            }
+        )
         note = response.data
 
         # Create another user
@@ -172,7 +185,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         perms = Permission.objects.create(
             access_type='VIEWER',
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            content_type=unified_doc_content_type,
             object_id=note['unified_document'],
             user=viewer_user
         )
@@ -226,7 +239,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         perms = Permission.objects.create(
             access_type='VIEWER',
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            content_type=unified_doc_content_type,
             object_id=note['unified_document'],
             user=invited_viewer
         )
@@ -258,12 +271,16 @@ class NoteTests(APITestCase):
         note = response.data
 
         # Create another user
-        invited_note_admin = get_user_model().objects.create_user(username='admin@researchhub_test.com', password='password', email='admin@researchhub_test.com')
+        invited_note_admin = get_user_model().objects.create_user(
+            username='admin@researchhub_test.com',
+            password='password',
+            email='admin@researchhub_test.com'
+        )
 
         # Add permission to user
         perms = Permission.objects.create(
             access_type='ADMIN',
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            content_type=unified_doc_content_type,
             object_id=note['unified_document'],
             user=invited_note_admin
         )
@@ -307,7 +324,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         perms = Permission.objects.create(
             access_type='ADMIN',
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            content_type=unified_doc_content_type,
             object_id=note['unified_document'],
             user=invited_note_admin
         )
@@ -375,7 +392,7 @@ class NoteTests(APITestCase):
         response = self.client.get(f"/api/note/{note['id']}/")
         note = response.data
 
-        self.assertEqual(note["access"], "SHARED")
+        self.assertEqual(note['access'], 'SHARED')
 
     def test_removing_invited_user_from_shared_note_moves_note_to_private_context(self):
         # create private note
@@ -415,7 +432,7 @@ class NoteTests(APITestCase):
         note = response.data
         self.assertEqual(note['access'], 'PRIVATE')
 
-    def test_user_with_both_viewer_and_org_permission_should_be_able_to_edit_note(self):
+    def test_user_with_both_viewer_and_org_permission_able_to_edit_note(self):
         # create note
         response = self.client.post(
             '/api/note/',
@@ -437,7 +454,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         perms = Permission.objects.create(
             access_type='VIEWER',
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            content_type=unified_doc_content_type,
             object_id=note['unified_document'],
             user=viewer_user
         )
@@ -445,7 +462,7 @@ class NoteTests(APITestCase):
         # Upgrade user to org member
         perms = Permission.objects.create(
             access_type='MEMBER',
-            content_type=ContentType.objects.get_for_model(Organization),
+            content_type=organization_content_type,
             object_id=self.org['id'],
             user=viewer_user
         )
@@ -483,7 +500,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         perms = Permission.objects.create(
             access_type='ADMIN',
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            content_type=unified_doc_content_type,
             object_id=note['unified_document'],
             user=admin_user
         )
@@ -517,7 +534,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         perms = Permission.objects.create(
             access_type='EDITOR',
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            content_type=unified_doc_content_type,
             object_id=note['unified_document'],
             user=editor_user
         )
@@ -551,7 +568,7 @@ class NoteTests(APITestCase):
         # Add second user
         perms = Permission.objects.create(
             access_type='MEMBER',
-            content_type=ContentType.objects.get_for_model(Organization),
+            content_type=organization_content_type,
             object_id=self.org['id'],
             user=member_user
         )
@@ -586,7 +603,7 @@ class NoteTests(APITestCase):
         # Add user
         perms = Permission.objects.create(
             access_type='MEMBER',
-            content_type=ContentType.objects.get_for_model(Organization),
+            content_type=organization_content_type,
             object_id=self.org['id'],
             user=member_user
         )
@@ -596,9 +613,10 @@ class NoteTests(APITestCase):
 
         # Delete
         response = self.client.delete(f"/api/note/{note['id']}/delete/")
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
 
         # Make sure note is removed
-        response = self.client.get(f"/api/organization/{self.org['slug']}/get_organization_notes/")
+        response = self.client.get(
+            f"/api/organization/{self.org['slug']}/get_organization_notes/"
+        )
         self.assertEqual(response.data['count'], 0)
-

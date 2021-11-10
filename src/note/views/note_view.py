@@ -146,7 +146,7 @@ class NoteViewSet(ModelViewSet):
     @action(
         detail=True,
         methods=['post', 'delete'],
-        permission_classes=[HasAdminPermission]
+        permission_classes=[HasOrgEditingPermission]
     )
     def delete(self, request, pk=None):
         note = Note.objects.get(id=pk)
