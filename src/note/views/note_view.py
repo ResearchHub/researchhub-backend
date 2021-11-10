@@ -411,6 +411,46 @@ class NoteViewSet(ModelViewSet):
         }
         return context
 
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[HasAccessPermission]
+    )
+    def make_private(self, request, pk=None):
+        user = request.user
+        note = self.get_object()
+        note_permissions = note.permissions.all()
+
+        # Remove all non-organization permissions
+        note_permissions.filter(
+            organization__isnull=True
+        ).delete()
+
+        # Set org permission to no access
+        note_permissions.filter(
+            organization__isnull=False
+        ).update(
+            access_type=NO_ACCESS
+        )
+
+        # Updating all note invites
+        note.invited_notes.update(
+            expiration_date=datetime.now(pytz.utc)
+        )
+
+        # Set current user as note admin
+        content_type = ContentType.objects.get_for_model(
+            ResearchhubUnifiedDocument
+        )
+        Permission.objects.create(
+            access_type=ADMIN,
+            content_type=content_type,
+            object_id=note.unified_document.id,
+            user=user,
+        )
+        serializer = self.serializer_class(note)
+        return Response(serializer.data, status=200)
+
 
 class NoteContentViewSet(ModelViewSet):
     ordering = ('-created_date')
