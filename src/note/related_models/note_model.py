@@ -34,6 +34,9 @@ class Note(DefaultModel):
         on_delete=models.CASCADE
     )
 
+    def __str__(self):
+        return f'Id: {self.id}, Title: {self.title}'
+
     @property
     def permissions(self):
         return self.unified_document.permissions

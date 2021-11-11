@@ -34,7 +34,8 @@ from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_access_group.permissions import (
     HasAccessPermission,
     HasAdminPermission,
-    HasEditingPermission
+    HasEditingPermission,
+    HasOrgEditingPermission
 )
 from researchhub_document.models import (
     ResearchhubUnifiedDocument
@@ -70,10 +71,10 @@ class NoteViewSet(ModelViewSet):
 
         if organization_slug:
             organization = Organization.objects.get(slug=organization_slug)
-            created_by = organization.user
+            created_by = user
             if not (
-                organization.org_has_admin_user(user) or
-                organization.org_has_member_user(user)
+                organization.org_has_admin_user(user, content_user=False) or
+                organization.org_has_member_user(user, content_user=False)
             ):
                 return Response({'data': 'Invalid permissions'}, status=403)
         else:
@@ -145,7 +146,7 @@ class NoteViewSet(ModelViewSet):
     @action(
         detail=True,
         methods=['post', 'delete'],
-        permission_classes=[HasEditingPermission]
+        permission_classes=[HasOrgEditingPermission]
     )
     def delete(self, request, pk=None):
         note = Note.objects.get(id=pk)
@@ -156,6 +157,37 @@ class NoteViewSet(ModelViewSet):
         unified_document.save()
         serializer = self.serializer_class(note)
         return Response(serializer.data, status=200)
+
+    def _create_image_file(self, data, organization, user):
+        file_name = f'ORGANIZATION-IMAGE-{organization.id}--USER-{user.id}.txt'
+        full_src_file = ContentFile(data.encode())
+        return file_name, full_src_file
+
+    def update(self, request, *args, **kwargs):
+        user = request.user
+        partial = kwargs.pop('partial', False)
+        note = self.get_object()
+        permissions = note.unified_document.permissions
+        is_admin = permissions.has_admin_user(user)
+        is_editor = permissions.has_editor_user(user)
+
+        if not (is_admin or is_editor):
+            return Response({'data': 'Invalid permissions'}, status=403)
+
+        serializer = self.get_serializer(
+            note,
+            data=request.data,
+            partial=partial
+        )
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if getattr(note, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied to a queryset, we need to
+            # forcibly invalidate the prefetch cache on the instance.
+            note._prefetched_objects_cache = {}
+
+        return Response(serializer.data)
 
     def destroy(self, request, pk=None):
         return self.delete(request, pk)
@@ -220,13 +252,11 @@ class NoteViewSet(ModelViewSet):
         permission_classes=[IsAuthenticated, HasAdminPermission]
     )
     def remove_invited_user(self, request, pk=None):
-        inviter = request.user
         data = request.data
         note = self.get_object()
         recipient_email = data.get('email')
 
         invites = NoteInvitation.objects.filter(
-            inviter=inviter,
             recipient_email=recipient_email,
             note=note,
         )
@@ -254,7 +284,14 @@ class NoteViewSet(ModelViewSet):
                 'inv_dnis_get_note': {
                     '_include_fields': [
                         'created_date',
+                        'organization',
                         'title',
+                        'id',
+                    ]
+                },
+                'nte_dns_get_organization': {
+                    '_include_fields': [
+                        'slug',
                     ]
                 },
                 'usr_dus_get_author_profile': {
@@ -308,14 +345,21 @@ class NoteViewSet(ModelViewSet):
         methods=['delete'],
         permission_classes=[HasAdminPermission]
     )
-    def remove_user_permission(self, request, pk=None):
+    def remove_permission(self, request, pk=None):
         data = request.data
-        user_id = data.get('user')
+        user_id = data.get('user', None)
+        organization_id = data.get('organization', None)
+
         note = self.get_object()
-        unified_document = note.unified_document
-        permission = unified_document.permission.get(user=user_id)
-        unified_document.permissions.remove(permission)
-        return Response({'data': 'User permission removed'}, status=200)
+        if user_id:
+            permission = note.permissions.get(user=user_id)
+            permission.delete()
+        else:
+            permission = note.permissions.get(organization=organization_id)
+            permission.access_type = NO_ACCESS
+            permission.save()
+
+        return Response({'data': 'Permission removed'}, status=200)
 
     @action(
         detail=True,
@@ -353,6 +397,7 @@ class NoteViewSet(ModelViewSet):
                     'cover_image',
                     'id',
                     'name',
+                    'member_count',
                     'slug',
                 ]
             },
@@ -366,6 +411,46 @@ class NoteViewSet(ModelViewSet):
             }
         }
         return context
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[HasAdminPermission | HasOrgEditingPermission]
+    )
+    def make_private(self, request, pk=None):
+        user = request.user
+        note = self.get_object()
+        note_permissions = note.permissions.all()
+
+        # Remove all non-organization permissions
+        note_permissions.filter(
+            organization__isnull=True
+        ).delete()
+
+        # Set org permission to no access
+        note_permissions.filter(
+            organization__isnull=False
+        ).update(
+            access_type=NO_ACCESS
+        )
+
+        # Updating all note invites
+        note.invited_users.update(
+            expiration_date=datetime.now(pytz.utc)
+        )
+
+        # Set current user as note admin
+        content_type = ContentType.objects.get_for_model(
+            ResearchhubUnifiedDocument
+        )
+        Permission.objects.create(
+            access_type=ADMIN,
+            content_type=content_type,
+            object_id=note.unified_document.id,
+            user=user,
+        )
+        serializer = self.serializer_class(note)
+        return Response(serializer.data, status=200)
 
 
 class NoteContentViewSet(ModelViewSet):

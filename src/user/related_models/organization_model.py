@@ -43,18 +43,47 @@ class Organization(DefaultModel):
     def __str__(self):
         return f'Id: {self.id} Name: {self.name}'
 
-    def org_has_user(self, user, **filters):
+    def org_content_has_user(self, user, **filters):
+        # Since organizations only contains notes for now,
+        # check if notes have user permission
+        notes = self.created_notes.filter(
+            unified_document__permissions__user=user
+        )
+        return notes.exists()
+
+    def org_has_user(self, user, content_user=True, **filters):
         permissions = self.permissions
-        return permissions.filter(
+        org_permission = permissions.filter(
             user=user,
             **filters
         ).exists()
 
-    def org_has_admin_user(self, user):
-        return self.org_has_user(user, access_type=ADMIN)
+        if content_user:
+            has_perm = org_permission or self.org_content_has_user(
+                user,
+                **filters
+            )
+        else:
+            has_perm = org_permission
+        return has_perm
 
-    def org_has_member_user(self, user):
-        return self.org_has_user(user, access_type=MEMBER)
+    def org_has_admin_user(self, user, content_user=True):
+        return self.org_has_user(
+            user,
+            content_user=content_user,
+            access_type=ADMIN
+        )
 
-    def org_has_viewer_user(self, user):
-        return self.org_has_user(user, access_type=VIEWER)
+    def org_has_member_user(self, user, content_user=True):
+        return self.org_has_user(
+            user,
+            content_user=content_user,
+            access_type=MEMBER
+        )
+
+    def org_has_viewer_user(self, user, content_user=True):
+        return self.org_has_user(
+            user,
+            content_user=content_user,
+            access_type=VIEWER
+        )

@@ -133,6 +133,29 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         full_src_file = ContentFile(data.encode())
         return file_name, full_src_file
 
+    def update(self, request, *args, **kwargs):
+        user = request.user
+        partial = kwargs.pop('partial', False)
+        organization = self.get_object()
+
+        if not organization.org_has_admin_user(user):
+            return Response({'data': 'Invalid permissions'}, status=403)
+
+        serializer = self.get_serializer(
+            organization,
+            data=request.data,
+            partial=partial
+        )
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if getattr(organization, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied to a queryset, we need to
+            # forcibly invalidate the prefetch cache on the instance.
+            organization._prefetched_objects_cache = {}
+
+        return Response(serializer.data)
+
     def destroy(self, request, pk=None):
         return Response(status=403)
 
@@ -166,7 +189,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         )
         admin_user_ids = permissions.filter(
             access_type=ADMIN,
-            organization__isnull=True
         ).values(
             'user'
         )
@@ -399,105 +421,17 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 unified_document__is_removed=False
             )
 
-        # org_content_type = ContentType.objects.get_for_model(
-        #     Organization
-        # )
-        # notes = user.created_notes
-        notes = notes.annotate(
-            user_permissions=Count(
-                'unified_document__permissions',
-                filter=Q(unified_document__permissions__user__isnull=False)
-            ),
-            org_permissions=Count(
-                'unified_document__permissions',
-                filter=(
-                    Q(unified_document__permissions__access_type=ADMIN) &
-                    Q(unified_document__permissions__user__isnull=True)
-                    # Q(unified_document__permissions__content_type=org_content_type)
-                )
-            )
-        )
-        notes = notes.annotate(
-            access=Case(
-                When(
-                    org_permissions__gte=1,
-                    then=Value('WORKSPACE')
-                ),
-                When(
-                    org_permissions__lt=1,
-                    user_permissions__gt=1,
-                    then=Value('SHARED')
-                ),
-                default=Value('PRIVATE'),
-                output_field=models.CharField()
-            )
-        ).order_by('created_date')
-
-        # notes.values('access')
-
-        # notes = notes.annotate(
-        #     org_permission_count=Count(
-        #         'unified_document__permissions',
-        #         filter=(
-        #             Q(
-        #                 unified_document__permissions__organization__isnull=False
-        #             ) &
-        #             (
-        #                 Q(
-        #                     unified_document__permissions__access_type=ADMIN
-        #                 ) |
-        #                 Q(
-        #                     unified_document__permissions__access_type=MEMBER
-        #                 )
-        #             )
-        #         )
-        #     ),
-        #     note_permission_count=Count(
-        #         'unified_document__permissions',
-        #         filter=(
-        #             Q(
-        #                 unified_document__permissions__organization__isnull=True
-        #             ) &
-        #             Q(
-        #                 unified_document__permissions__user__isnull=False
-        #             )
-        #         )
-        #     )
-        # )
-        # notes = notes.annotate(
-        #     access=Case(
-        #         When(
-        #             org_permission_count=1,
-        #             then=Value('WORKSPACE')
-        #         ),
-        #         When(
-        #             (
-        #                 Q(org_permission_count=0) &
-        #                 Q(note_permission_count__gte=1)
-        #             ),
-        #             then=Value('SHARED')
-        #         ),
-        #         When(
-        #             (
-        #                 Q(org_permission_count=0) &
-        #                 Q(note_permission_count=1)
-        #             ),
-        #             then=Value('PRIVATE')
-        #         ),
-        #         default=Value('PRIVATE'),
-        #         output_field=models.CharField()
-        #     )
-        # ).order_by('created_date')
-
-        # TODO: Filter out notes based off permissions (private, shared, etc)
         notes = notes.filter(
             Q(unified_document__permissions__user=user) |
             (
                 ~Q(unified_document__permissions__access_type=NO_ACCESS) &
                 Q(unified_document__permissions__organization__permissions__user=user)
             )
-        )
+        ).distinct()
 
+        notes = notes.prefetch_related(
+            'unified_document__permissions',
+        )
         context = self._get_org_notes_context()
         page = self.paginate_queryset(notes)
         serializer_data = DynamicNoteSerializer(

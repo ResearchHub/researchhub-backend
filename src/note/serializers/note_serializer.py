@@ -1,9 +1,24 @@
+import pytz
+
+from datetime import datetime
+from django.db.models import Q
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from note.models import Note, NoteContent
+from researchhub_access_group.constants import (
+    ADMIN,
+    EDITOR,
+    MEMBER,
+    PRIVATE,
+    WORKSPACE,
+    SHARED
+)
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import (
   DynamicUnifiedDocumentSerializer
+)
+from user.constants.organization_constants import (
+    PERSONAL
 )
 from user.serializers import (
     OrganizationSerializer,
@@ -45,9 +60,29 @@ class NoteSerializer(ModelSerializer):
         read_only_fields = ['unified_document']
 
     def get_access(self, note):
-        if hasattr(note, 'access'):
-            return note.access
-        return None
+        permissions = note.permissions
+
+        is_workspace = permissions.filter(
+            organization__isnull=False,
+            access_type=ADMIN
+        ).exists()
+
+        is_private = permissions.filter(
+            Q(access_type__in=[ADMIN, MEMBER, EDITOR]) &
+            Q(user__isnull=False)
+        ).count() <= 1
+
+        has_invited_users = note.invited_users.filter(
+            accepted=False,
+            expiration_date__gt=datetime.now(pytz.utc)
+        ).exists()
+
+        if is_workspace:
+            return WORKSPACE
+        elif is_private and not has_invited_users:
+            return PRIVATE
+        else:
+            return SHARED
 
 
 class DynamicNoteSerializer(DynamicModelFieldSerializer):
@@ -63,9 +98,29 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
         fields = '__all__'
 
     def get_access(self, note):
-        if hasattr(note, 'access'):
-            return note.access
-        return None
+        permissions = note.permissions
+
+        is_workspace = permissions.filter(
+            organization__isnull=False,
+            access_type=ADMIN
+        ).exists()
+
+        is_private = permissions.filter(
+            Q(access_type__in=[ADMIN, MEMBER, EDITOR]) &
+            Q(user__isnull=False)
+        ).count() <= 1
+
+        has_invited_users = note.invited_users.filter(
+            accepted=False,
+            expiration_date__gt=datetime.now(pytz.utc)
+        ).exists()
+
+        if is_workspace:
+            return WORKSPACE
+        elif is_private and not has_invited_users:
+            return PRIVATE
+        else:
+            return SHARED
 
     def get_created_by(self, note):
         context = self.context
