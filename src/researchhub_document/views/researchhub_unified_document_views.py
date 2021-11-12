@@ -104,6 +104,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     'hot_score',
                     'hubs',
                     'id',
+                    'discussion_count',
                     'paper_title',
                     'preview_img',
                     'renderable_text',
@@ -374,6 +375,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         context = self._get_serializer_context()
         page = self.paginate_queryset(documents)
+
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=[
