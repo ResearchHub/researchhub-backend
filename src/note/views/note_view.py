@@ -157,6 +157,7 @@ class NoteViewSet(ModelViewSet):
         unified_document.is_removed = True
         unified_document.save()
         serializer = self.serializer_class(note)
+        note.send_note_deleted()
         return Response(serializer.data, status=200)
 
     def _create_image_file(self, data, organization, user):

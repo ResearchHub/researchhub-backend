@@ -37,6 +37,18 @@ class NoteConsumer(WebsocketConsumer):
         note = Note.objects.get(id=note_id)
         serialized_data = NoteSerializer(note).data
         data = {
-            'data': serialized_data
+            'type': 'create',
+            'data': serialized_data,
+        }
+        self.send(text_data=json.dumps(data))
+
+    def send_note_deleted(self, event):
+        # Send message to webSocket (Frontend)
+        note_id = event['id']
+        note = Note.objects.get(id=note_id)
+        serialized_data = NoteSerializer(note).data
+        data = {
+            'type': 'delete',
+            'data': serialized_data,
         }
         self.send(text_data=json.dumps(data))
