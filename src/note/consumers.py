@@ -52,3 +52,14 @@ class NoteConsumer(WebsocketConsumer):
             'data': serialized_data,
         }
         self.send(text_data=json.dumps(data))
+
+    def send_note_updated(self, event):
+        # Send message to webSocket (Frontend)
+        note_id = event['id']
+        note = Note.objects.get(id=note_id)
+        serialized_data = NoteSerializer(note).data
+        data = {
+            'type': 'update',
+            'data': serialized_data,
+        }
+        self.send(text_data=json.dumps(data))

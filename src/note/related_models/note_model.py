@@ -71,6 +71,18 @@ class Note(DefaultModel):
             }
         )
 
+    def send_note_updated(self):
+        organization_slug = self.organization.slug
+        room = f'{organization_slug}_notebook'
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            room,
+            {
+                'type': 'send_note_updated',
+                'id': self.id,
+            }
+        )
+
 
 class NoteContent(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)

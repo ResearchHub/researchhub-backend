@@ -189,6 +189,7 @@ class NoteViewSet(ModelViewSet):
             # forcibly invalidate the prefetch cache on the instance.
             note._prefetched_objects_cache = {}
 
+        note.send_note_updated()
         return Response(serializer.data)
 
     def destroy(self, request, pk=None):
