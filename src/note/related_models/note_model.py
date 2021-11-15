@@ -71,14 +71,26 @@ class Note(DefaultModel):
             }
         )
 
-    def send_note_updated(self):
+    def send_note_updated_title(self):
         organization_slug = self.organization.slug
         room = f'{organization_slug}_notebook'
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             room,
             {
-                'type': 'send_note_updated',
+                'type': 'send_note_updated_title',
+                'id': self.id,
+            }
+        )
+
+    def send_note_updated_permission(self):
+        organization_slug = self.organization.slug
+        room = f'{organization_slug}_notebook'
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            room,
+            {
+                'type': 'send_note_updated_permission',
                 'id': self.id,
             }
         )

@@ -189,7 +189,7 @@ class NoteViewSet(ModelViewSet):
             # forcibly invalidate the prefetch cache on the instance.
             note._prefetched_objects_cache = {}
 
-        note.send_note_updated()
+        note.send_note_updated_title()
         return Response(serializer.data)
 
     def destroy(self, request, pk=None):
@@ -341,6 +341,7 @@ class NoteViewSet(ModelViewSet):
 
         permission.access_type = access_type
         permission.save()
+        note.send_note_updated_permission()
         return Response({'data': 'Permission updated'}, status=200)
 
     @action(
@@ -362,6 +363,7 @@ class NoteViewSet(ModelViewSet):
             permission.access_type = NO_ACCESS
             permission.save()
 
+        note.send_note_updated_permission()
         return Response({'data': 'Permission removed'}, status=200)
 
     @action(
@@ -453,6 +455,7 @@ class NoteViewSet(ModelViewSet):
             user=user,
         )
         serializer = self.serializer_class(note)
+        note.send_note_updated_permission()
         return Response(serializer.data, status=200)
 
 
