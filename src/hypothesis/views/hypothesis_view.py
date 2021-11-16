@@ -90,10 +90,9 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
     def get_citations(self, request, pk=None):
         citation_type = request.GET.get('citation_type')
         hypothesis = self.get_object()
-        citations = hypothesis.citations.all()
+        citations = hypothesis.citations.all().order_by('-vote_score')
         citation_set = citations.filter(type=citation_type) if citation_type \
             else citations
-
         context = self._get_citations_context()
         context['request'] = request
         serializer = DynamicCitationSerializer(

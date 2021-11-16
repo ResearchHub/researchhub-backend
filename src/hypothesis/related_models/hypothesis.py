@@ -64,6 +64,9 @@ class Hypothesis(AbstractGenericReactionModel):
         related_query_name='hypothesis'
     )
 
+    def __str__(self):
+        return f'{self.__class__}'
+
     @property
     def users_to_notify(self):
         return [self.created_by]
