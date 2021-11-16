@@ -540,13 +540,13 @@ class PaperSerializer(BasePaperSerializer):
         except Exception as e:
             sentry.log_info(e)
 
-    def _add_citation(self, user, hypothesis_id, unified_document, type):
+    def _add_citation(self, user, hypothesis_id, unified_document, citation_type):
         try:
             hypothesis = Hypothesis.objects.get(id=hypothesis_id)
             citation = Citation.objects.create(
                 created_by=user,
                 source=unified_document,
-                type=type
+                type=citation_type
             )
             citation.hypothesis.set([hypothesis])
         except Exception as e:
