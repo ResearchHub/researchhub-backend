@@ -96,7 +96,7 @@ class NoteViewSet(ModelViewSet):
         )
         serializer = self.serializer_class(note)
         data = serializer.data
-        note.send_note_created()
+        note.notify_note_created()
         return Response(data, status=200)
 
     def _create_unified_doc(self, request):
@@ -157,7 +157,7 @@ class NoteViewSet(ModelViewSet):
         unified_document.is_removed = True
         unified_document.save()
         serializer = self.serializer_class(note)
-        note.send_note_deleted()
+        note.notify_note_deleted()
         return Response(serializer.data, status=200)
 
     def _create_image_file(self, data, organization, user):
@@ -189,7 +189,7 @@ class NoteViewSet(ModelViewSet):
             # forcibly invalidate the prefetch cache on the instance.
             note._prefetched_objects_cache = {}
 
-        note.send_note_updated_title()
+        note.notify_note_updated_title()
         return Response(serializer.data)
 
     def destroy(self, request, pk=None):
@@ -341,7 +341,7 @@ class NoteViewSet(ModelViewSet):
 
         permission.access_type = access_type
         permission.save()
-        note.send_note_updated_permission()
+        note.notify_note_updated_permission()
         return Response({'data': 'Permission updated'}, status=200)
 
     @action(
@@ -363,7 +363,7 @@ class NoteViewSet(ModelViewSet):
             permission.access_type = NO_ACCESS
             permission.save()
 
-        note.send_note_updated_permission()
+        note.notify_note_updated_permission()
         return Response({'data': 'Permission removed'}, status=200)
 
     @action(
@@ -455,7 +455,7 @@ class NoteViewSet(ModelViewSet):
             user=user,
         )
         serializer = self.serializer_class(note)
-        note.send_note_updated_permission()
+        note.notify_note_updated_permission()
         return Response(serializer.data, status=200)
 
 

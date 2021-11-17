@@ -47,50 +47,50 @@ class Note(DefaultModel):
     def owner(self):
         pass
 
-    def send_note_created(self):
+    def notify_note_created(self):
         organization_slug = self.organization.slug
         room = f'{organization_slug}_notebook'
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             room,
             {
-                'type': 'send_note_created',
+                'type': 'notify_note_created',
                 'id': self.id,
             }
         )
 
-    def send_note_deleted(self):
+    def notify_note_deleted(self):
         organization_slug = self.organization.slug
         room = f'{organization_slug}_notebook'
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             room,
             {
-                'type': 'send_note_deleted',
+                'type': 'notify_note_deleted',
                 'id': self.id,
             }
         )
 
-    def send_note_updated_title(self):
+    def notify_note_updated_title(self):
         organization_slug = self.organization.slug
         room = f'{organization_slug}_notebook'
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             room,
             {
-                'type': 'send_note_updated_title',
+                'type': 'notify_note_updated_title',
                 'id': self.id,
             }
         )
 
-    def send_note_updated_permission(self):
+    def notify_note_updated_permission(self):
         organization_slug = self.organization.slug
         room = f'{organization_slug}_notebook'
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             room,
             {
-                'type': 'send_note_updated_permission',
+                'type': 'notify_note_updated_permission',
                 'id': self.id,
             }
         )

@@ -31,7 +31,7 @@ class NoteConsumer(WebsocketConsumer):
                 self.channel_name
             )
 
-    def send_note_created(self, event):
+    def notify_note_created(self, event):
         # Send message to webSocket (Frontend)
         note_id = event['id']
         note = Note.objects.get(id=note_id)
@@ -42,7 +42,7 @@ class NoteConsumer(WebsocketConsumer):
         }
         self.send(text_data=json.dumps(data))
 
-    def send_note_deleted(self, event):
+    def notify_note_deleted(self, event):
         # Send message to webSocket (Frontend)
         note_id = event['id']
         note = Note.objects.get(id=note_id)
@@ -53,7 +53,7 @@ class NoteConsumer(WebsocketConsumer):
         }
         self.send(text_data=json.dumps(data))
 
-    def send_note_updated_title(self, event):
+    def notify_note_updated_title(self, event):
         # Send message to webSocket (Frontend)
         note_id = event['id']
         note = Note.objects.get(id=note_id)
@@ -64,7 +64,7 @@ class NoteConsumer(WebsocketConsumer):
         }
         self.send(text_data=json.dumps(data))
 
-    def send_note_updated_permission(self, event):
+    def notify_note_updated_permission(self, event):
         # Send message to webSocket (Frontend)
         note_id = event['id']
         note = Note.objects.get(id=note_id)
