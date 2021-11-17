@@ -59,6 +59,19 @@ class NoteTests(APITestCase):
         created_note = response.data
         self.assertEqual(created_note['access'], 'PRIVATE')
 
+    def test_delete_private_note(self):
+        created_response = self.client.post(
+            '/api/note/',
+            {
+                'grouping': 'PRIVATE',
+                'organization_slug': self.org['slug'],
+                'title': 'TO BE DELETED'
+            }
+        )
+        created_note = created_response.data
+        response = self.client.post(f"/api/note/{created_note['id']}/delete/")
+        self.assertEqual(response.status_code, 200)
+
     def test_cannot_create_shared_note_manually(self):
         response = self.client.post(
             '/api/note/',
