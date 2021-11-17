@@ -83,7 +83,7 @@ class Note(DefaultModel):
             }
         )
 
-    def notify_note_updated_permission(self, requestor):
+    def notify_note_updated_permission(self, requester):
         organization_slug = self.organization.slug
         room = f'{organization_slug}_notebook'
         channel_layer = get_channel_layer()
@@ -92,7 +92,7 @@ class Note(DefaultModel):
             {
                 'type': 'notify_note_updated_permission',
                 'id': self.id,
-                'requestor_id': requestor.id
+                'requester_id': requester.id
             }
         )
 
