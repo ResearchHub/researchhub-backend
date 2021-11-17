@@ -620,3 +620,89 @@ class NoteTests(APITestCase):
             f"/api/organization/{self.org['slug']}/get_organization_notes/"
         )
         self.assertEqual(response.data['count'], 0)
+
+    def test_org_member_making_private_note(self):
+        """
+        Tests creating a private note, moving it to the workspace,
+        and having another user set the note back to private
+        """
+        # Create a user
+        alice = get_user_model().objects.create_user(
+            username='alice@researchhub_test.com',
+            password='password',
+            email='alice@researchhub_test.com'
+        )
+        alice_org = alice.organization
+
+        self.client.force_authenticate(alice)
+
+        bob = get_user_model().objects.create_user(
+            username='bob@researchhub_test.com',
+            password='password',
+            email='bob@researchhub_test.com'
+        )
+        # Add Bob as Admin to Alice Org
+        content_type = ContentType.objects.get_for_model(Organization)
+        Permission.objects.create(
+            access_type='ADMIN',
+            content_type=content_type,
+            object_id=alice_org.id,
+            user=bob
+        )
+
+        response = self.client.post(
+            '/api/note/',
+            {
+                'grouping': 'PRIVATE',
+                'organization_slug': alice_org.slug,
+                'title': 'private to workspace to private'
+            }
+        )
+        note = response.data
+
+        # Change note to workspace
+        perm_response = self.client.patch(
+            f"/api/note/{note['id']}/update_permissions/",
+            {
+                'access_type': 'ADMIN',
+                'organization': alice_org.id,
+            }
+        )
+        updated_note = self.client.get(
+            f"/api/note/{note['id']}/"
+        )
+        self.assertEqual(updated_note.data['access'], 'WORKSPACE')
+
+        # Switch to Bob
+        self.client.force_authenticate(bob)
+
+        # Make the note private
+        response = self.client.post(
+            f"/api/note/{note['id']}/make_private/"
+        )
+        self.assertEqual(response.data['access'], 'PRIVATE')
+
+        bobs_notes_from_alice_org = self.client.get(
+            f'/api/organization/{alice_org.slug}/get_organization_notes/'
+        )
+        self.assertEqual(
+            bobs_notes_from_alice_org.data['results'][0]['access'],
+            'PRIVATE'
+        )
+
+        # Switch to Alice
+        self.client.force_authenticate(alice)
+
+        alice_notes_from_alice_org = self.client.get(
+            f'/api/organization/{alice_org.slug}/get_organization_notes/'
+        )
+
+        self.assertEqual(
+            alice_notes_from_alice_org.data['count'],
+            0
+        )
+
+        response = self.client.get(
+            f"/api/note/{note['id']}/"
+        )
+        self.assertEqual(response.status_code, 403)
