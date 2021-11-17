@@ -351,13 +351,26 @@ class NoteViewSet(ModelViewSet):
         organization_id = data.get('organization', None)
 
         note = self.get_object()
+        permissions = note.permissions
         if user_id:
-            permission = note.permissions.get(user=user_id)
+            permission = permissions.get(user=user_id)
             permission.delete()
         else:
-            permission = note.permissions.get(organization=organization_id)
+            permission = permissions.get(organization=organization_id)
             permission.access_type = NO_ACCESS
             permission.save()
+
+            # Add user as admin if there is only an org permission
+            if permissions.count() == 1:
+                content_type = ContentType.objects.get_for_model(
+                    ResearchhubUnifiedDocument
+                )
+                Permission.objects.create(
+                    access_type=ADMIN,
+                    content_type=content_type,
+                    object_id=note.unified_document.id,
+                    user=request.user
+                )
 
         return Response({'data': 'Permission removed'}, status=200)
 

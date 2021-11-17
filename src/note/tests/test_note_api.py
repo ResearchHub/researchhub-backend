@@ -701,3 +701,8 @@ class NoteTests(APITestCase):
             alice_notes_from_alice_org.data['count'],
             0
         )
+
+        response = self.client.get(
+            f"/api/note/{note['id']}/"
+        )
+        self.assertEqual(response.status_code, 403)
