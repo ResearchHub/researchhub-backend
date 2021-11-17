@@ -1,5 +1,7 @@
 from django.db import models
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import User, Organization
 from utils.models import DefaultModel
@@ -44,6 +46,54 @@ class Note(DefaultModel):
     @property
     def owner(self):
         pass
+
+    def notify_note_created(self):
+        organization_slug = self.organization.slug
+        room = f'{organization_slug}_notebook'
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            room,
+            {
+                'type': 'notify_note_created',
+                'id': self.id,
+            }
+        )
+
+    def notify_note_deleted(self):
+        organization_slug = self.organization.slug
+        room = f'{organization_slug}_notebook'
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            room,
+            {
+                'type': 'notify_note_deleted',
+                'id': self.id,
+            }
+        )
+
+    def notify_note_updated_title(self):
+        organization_slug = self.organization.slug
+        room = f'{organization_slug}_notebook'
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            room,
+            {
+                'type': 'notify_note_updated_title',
+                'id': self.id,
+            }
+        )
+
+    def notify_note_updated_permission(self):
+        organization_slug = self.organization.slug
+        room = f'{organization_slug}_notebook'
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            room,
+            {
+                'type': 'notify_note_updated_permission',
+                'id': self.id,
+            }
+        )
 
 
 class NoteContent(models.Model):
