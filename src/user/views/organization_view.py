@@ -422,7 +422,10 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             )
 
         notes = notes.filter(
-            Q(unified_document__permissions__user=user) |
+            (
+                Q(unified_document__permissions__user=user) &
+                ~Q(unified_document__permissions__access_type=NO_ACCESS)
+            ) |
             (
                 ~Q(unified_document__permissions__access_type=NO_ACCESS) &
                 Q(unified_document__permissions__organization__permissions__user=user)

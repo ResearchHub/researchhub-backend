@@ -8,7 +8,8 @@ from researchhub_access_group.constants import (
     ADMIN,
     EDITOR,
     VIEWER,
-    MEMBER
+    MEMBER,
+    NO_ACCESS
 )
 from user.models import User
 from utils.models import DefaultModel
@@ -17,16 +18,22 @@ from utils.models import DefaultModel
 class PermissionManager(models.Manager):
     def has_user(self, user, perm_filters=list(), org_filters=list()):
         # Checks if the user exists within the permission or organization
-        main_perm_filter = Q(user=user)
-        main_org_filter = Q(organization__permissions__user=user)
+        main_perm_filter = (
+            Q(user=user) &
+            ~Q(access_type=NO_ACCESS)
+        )
+        main_org_filter = (
+            Q(organization__permissions__user=user) &
+            ~Q(access_type=NO_ACCESS)
+        )
 
-        if perm_filters:
+        if perm_filters is not None:
             for extra_filter in perm_filters:
                 main_perm_filter &= extra_filter
         else:
             main_perm_filter = Q()
 
-        if org_filters:
+        if org_filters is not None:
             for extra_filter in org_filters:
                 main_org_filter &= extra_filter
         else:

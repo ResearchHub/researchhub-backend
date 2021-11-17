@@ -96,6 +96,7 @@ class NoteViewSet(ModelViewSet):
         )
         serializer = self.serializer_class(note)
         data = serializer.data
+        note.notify_note_created()
         return Response(data, status=200)
 
     def _create_unified_doc(self, request):
@@ -156,6 +157,7 @@ class NoteViewSet(ModelViewSet):
         unified_document.is_removed = True
         unified_document.save()
         serializer = self.serializer_class(note)
+        note.notify_note_deleted()
         return Response(serializer.data, status=200)
 
     def _create_image_file(self, data, organization, user):
@@ -187,6 +189,7 @@ class NoteViewSet(ModelViewSet):
             # forcibly invalidate the prefetch cache on the instance.
             note._prefetched_objects_cache = {}
 
+        note.notify_note_updated_title()
         return Response(serializer.data)
 
     def destroy(self, request, pk=None):
@@ -338,6 +341,7 @@ class NoteViewSet(ModelViewSet):
 
         permission.access_type = access_type
         permission.save()
+        note.notify_note_updated_permission()
         return Response({'data': 'Permission updated'}, status=200)
 
     @action(
@@ -351,14 +355,28 @@ class NoteViewSet(ModelViewSet):
         organization_id = data.get('organization', None)
 
         note = self.get_object()
+        permissions = note.permissions
         if user_id:
-            permission = note.permissions.get(user=user_id)
+            permission = permissions.get(user=user_id)
             permission.delete()
         else:
-            permission = note.permissions.get(organization=organization_id)
+            permission = permissions.get(organization=organization_id)
             permission.access_type = NO_ACCESS
             permission.save()
 
+            # Add user as admin if there is only an org permission
+            if permissions.count() == 1:
+                content_type = ContentType.objects.get_for_model(
+                    ResearchhubUnifiedDocument
+                )
+                Permission.objects.create(
+                    access_type=ADMIN,
+                    content_type=content_type,
+                    object_id=note.unified_document.id,
+                    user=request.user
+                )
+
+        note.notify_note_updated_permission()
         return Response({'data': 'Permission removed'}, status=200)
 
     @action(
@@ -450,6 +468,7 @@ class NoteViewSet(ModelViewSet):
             user=user,
         )
         serializer = self.serializer_class(note)
+        note.notify_note_updated_permission()
         return Response(serializer.data, status=200)
 
 
