@@ -323,6 +323,7 @@ class NoteViewSet(ModelViewSet):
         permission_classes=[HasAdminPermission]
     )
     def update_permissions(self, request, pk=None):
+        user = request.user
         data = request.data
         organization_id = data.get('organization')
         user_id = data.get('user')
@@ -343,7 +344,7 @@ class NoteViewSet(ModelViewSet):
 
         permission.access_type = access_type
         permission.save()
-        note.notify_note_updated_permission()
+        note.notify_note_updated_permission(user)
         return Response({'data': 'Permission updated'}, status=200)
 
     @action(
@@ -353,6 +354,7 @@ class NoteViewSet(ModelViewSet):
     )
     def remove_permission(self, request, pk=None):
         data = request.data
+        user = request.user
         user_id = data.get('user', None)
         organization_id = data.get('organization', None)
 
@@ -375,10 +377,10 @@ class NoteViewSet(ModelViewSet):
                     access_type=ADMIN,
                     content_type=content_type,
                     object_id=note.unified_document.id,
-                    user=request.user
+                    user=user
                 )
 
-        note.notify_note_updated_permission()
+        note.notify_note_updated_permission(user)
         return Response({'data': 'Permission removed'}, status=200)
 
     @action(
@@ -470,7 +472,7 @@ class NoteViewSet(ModelViewSet):
             user=user,
         )
         serializer = self.serializer_class(note)
-        note.notify_note_updated_permission()
+        note.notify_note_updated_permission(user)
         return Response(serializer.data, status=200)
 
 
