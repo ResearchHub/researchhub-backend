@@ -134,11 +134,13 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
                     'id',
                     'documents',
                     'document_type',
+                    'doi',
                 ]
             },
             'doc_duds_get_documents': {
                 '_include_fields': [
                     'created_date',
+                    'doi',
                     'id',
                     'paper_title',
                     'slug',
