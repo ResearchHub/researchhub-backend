@@ -16,6 +16,6 @@ def update_citation_vote_score(
     **kwargs
 ):
     vote_item = instance.item
-    if (vote_item.__class__ is Citation):
+    if (isinstance(vote_item, Citation)):
         vote_item.vote_score = vote_item.get_vote_score()
         vote_item.save()
