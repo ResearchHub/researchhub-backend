@@ -546,7 +546,7 @@ class PaperSerializer(BasePaperSerializer):
             citation = Citation.objects.create(
                 created_by=user,
                 source=unified_document,
-                type=citation_type
+                citation_type=citation_type
             )
             citation.hypothesis.set([hypothesis])
         except Exception as e:
