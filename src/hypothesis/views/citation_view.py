@@ -30,7 +30,7 @@ class CitationViewSet(ModelViewSet, ReactionViewActionMixin):
             citation = Citation.objects.create(
                 created_by=request.user,
                 source_id=source_id,
-                type=request_data.get('type'),
+                citation_type=request_data.get('citation_type'),
             )
             citation.hypothesis.set([
                 Hypothesis.objects.get(id=hypothesis_id)
