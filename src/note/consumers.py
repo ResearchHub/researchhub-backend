@@ -67,10 +67,12 @@ class NoteConsumer(WebsocketConsumer):
     def notify_note_updated_permission(self, event):
         # Send message to webSocket (Frontend)
         note_id = event['id']
+        requester_id = event['requester_id']
         note = Note.objects.get(id=note_id)
         serialized_data = NoteSerializer(note).data
         data = {
             'type': 'update_permission',
             'data': serialized_data,
+            'requester': requester_id
         }
         self.send(text_data=json.dumps(data))
