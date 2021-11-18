@@ -27,7 +27,7 @@ class Citation(AbstractGenericReactionModel):
         null=False,
         on_delete=models.CASCADE
     )
-    type = models.CharField(
+    citation_type = models.CharField(
         blank=False,
         choices=CITATION_TYPE_CHOICES,
         db_index=True,

@@ -27,10 +27,10 @@ class CitationSerializer(ModelSerializer, GenericReactionSerializerMixin):
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
             'boost_amount',
-            'id',
+            'citation_type',
             'created_by',
+            'id',
             'source',
-            'type',
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
