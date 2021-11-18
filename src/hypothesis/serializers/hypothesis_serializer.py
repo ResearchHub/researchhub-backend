@@ -24,6 +24,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             'boost_amount',
             'created_by',
             'created_date',
+            'discussion_count',
             'full_markdown',
             'hubs',
             'id',
@@ -41,6 +42,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             'boost_amount',
             'created_by',
             'created_date',
+            'discussion_count',
             'id',
             'is_removed',
             'renderable_text',
@@ -53,6 +55,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
     aggregate_citation_consensus = SerializerMethodField()
     boost_amount = SerializerMethodField()
     created_by = UserSerializer()
+    discussion_count = SerializerMethodField()
     full_markdown = SerializerMethodField()
     hubs = SerializerMethodField()
     vote_meta = SerializerMethodField()
@@ -66,6 +69,9 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
 
     def get_aggregate_citation_consensus(self, hypothesis):
         return hypothesis.get_aggregate_citation_consensus()
+
+    def get_discussion_count(self, hypotheis):
+        return hypotheis.get_discussion_count()
 
     def get_full_markdown(self, hypothesis):
         byte_string = hypothesis.src.read()
@@ -115,10 +121,11 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
 class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
     aggregate_citation_consensus = SerializerMethodField()
     created_by = SerializerMethodField()
+    discussion_count = SerializerMethodField()
     hubs = SerializerMethodField()
-    unified_document = SerializerMethodField()
     score = SerializerMethodField()
-
+    unified_document = SerializerMethodField()
+    
     class Meta(object):
         model = Hypothesis
         fields = '__all__'
@@ -135,6 +142,9 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
             **_context_fields
         )
         return serializer.data
+
+    def get_discussion_count(self, hypotheis):
+        return hypotheis.get_discussion_count()
 
     def get_hubs(self, hypothesis):
         context = self.context

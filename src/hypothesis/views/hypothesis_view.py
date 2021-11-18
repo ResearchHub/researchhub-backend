@@ -88,18 +88,26 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
 
     @action(detail=True, methods=['get'])
     def get_citations(self, request, pk=None):
+        citation_type = request.GET.get('citation_type')
         hypothesis = self.get_object()
-        citations = hypothesis.citations.all()
+        citations = hypothesis.citations.all().order_by('-vote_score')
+
+        citation_set = citations.filter(
+            citation_type=citation_type
+        ) if citation_type else citations
+
         context = self._get_citations_context()
         context['request'] = request
+        
         serializer = DynamicCitationSerializer(
-            citations,
+            citation_set,
             _include_fields=[
+                'citation_type',
                 'consensus_meta',
                 'created_by',
                 'created_date',
-                'publish_date',
                 'id',
+                'publish_date',
                 'score',
                 'source',
                 'updated_date',
@@ -130,11 +138,13 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
                     'id',
                     'documents',
                     'document_type',
+                    'doi',
                 ]
             },
             'doc_duds_get_documents': {
                 '_include_fields': [
                     'created_date',
+                    'doi',
                     'id',
                     'paper_title',
                     'slug',
