@@ -81,7 +81,7 @@ class Hypothesis(AbstractGenericReactionModel):
             result = {'citation_count': citations.count()}
 
             reject_pile = citations.filter(
-                type=CITATION_TYPE['REJECT']
+                citation_type=CITATION_TYPE['REJECT']
             ).aggregate(
                 down_count=Count(
                     'votes', filter=Q(votes__vote_type=Vote.DOWNVOTE)
@@ -95,7 +95,7 @@ class Hypothesis(AbstractGenericReactionModel):
             )
 
             support_pile = citations.filter(
-                type=CITATION_TYPE['SUPPORT']
+                citation_type=CITATION_TYPE['SUPPORT']
             ).aggregate(
                 down_count=Count(
                     'votes', filter=Q(votes__vote_type=Vote.DOWNVOTE)
