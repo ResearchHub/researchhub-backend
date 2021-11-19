@@ -24,7 +24,6 @@ jobs:
     - name: Install Dependencies
       working-directory: ./src
       run: |
-        python -m pip install
         pip install pipenv
         pipenv install
     - name: Run Tests
