@@ -46,5 +46,6 @@ jobs:
     - name: Run Tests
       working-directory: ./src    
       run: |
-        pipenv run python manage.py test note.tests.test_note_api.NoteTests.test_create_workspace_note
+        pipenv shell
+        python3 manage.py test note.tests.test_note_api.NoteTests.test_create_workspace_note
         echo DONE
