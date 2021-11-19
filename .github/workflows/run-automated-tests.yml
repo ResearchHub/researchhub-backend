@@ -26,6 +26,10 @@ jobs:
       run: |
         pip install pipenv
         pipenv install
+    - name: Prepare Django
+      working-directory: ./src
+      run: |
+        cp config/ci/* config
     - name: Run Tests
       working-directory: ./src    
       run: |
