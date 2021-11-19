@@ -29,4 +29,4 @@ jobs:
     - name: Run Tests
       working-directory: ./src    
       run: |
-        pipenv run python test note/tests --keepdb
+        pipenv run python manage.py test note/tests --keepdb
