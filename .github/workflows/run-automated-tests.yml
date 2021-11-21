@@ -10,6 +10,7 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       max-parallel: 4
       matrix:
@@ -38,12 +39,9 @@ jobs:
       run: |
         pip install pipenv
         pipenv install
-    - name: Prepare Django
-      working-directory: ./src
-      run: |
-        cp config/ci/* config
-        pipenv run python manage.py migrate
     - name: Run Tests
       working-directory: ./src    
       run: |
-        pipenv run python manage.py test note/tests --keepdb
+        cp config/ci/* config
+        pipenv run python manage.py migrate      
+        pipenv run python manage.py test note.tests.test_note_api.NoteTests.test_create_workspace_note --verbosity=2
