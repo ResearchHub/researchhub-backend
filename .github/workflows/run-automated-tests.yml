@@ -44,4 +44,4 @@ jobs:
       run: |
         cp config/ci/* config
         pipenv run python manage.py migrate      
-        pipenv run python manage.py test note.tests.test_note_api.NoteTests.test_create_workspace_note --verbosity=2
+        pipenv run python manage.py test note.tests.test_note_api.NoteTests.test_create_workspace_note --noinput --verbosity=2
