@@ -43,6 +43,7 @@ jobs:
       working-directory: ./src
       run: |
         cp config/ci/* config
+        pipenv run python manage.py migrate
     - name: Run Tests
       working-directory: ./src    
       run: |
