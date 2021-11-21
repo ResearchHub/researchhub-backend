@@ -21,7 +21,7 @@ jobs:
       postgres:
         image: postgres:12
         env:
-          POSTGRES_DB: test_researchhub
+          POSTGRES_DB: researchhub
           POSTGRES_USER: rh_developer
           POSTGRES_PASSWORD: not_secure
         ports:
