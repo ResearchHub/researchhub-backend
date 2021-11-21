@@ -21,7 +21,7 @@ jobs:
       postgres:
         image: postgres:12
         env:
-          POSTGRES_DB: researchhub
+          POSTGRES_DB: test_researchhub
           POSTGRES_USER: rh_developer
           POSTGRES_PASSWORD: not_secure
         ports:
@@ -43,7 +43,6 @@ jobs:
       working-directory: ./src
       run: |
         cp config/ci/* config
-        pipenv run python manage.py migrate
     - name: Run Tests
       working-directory: ./src    
       run: |
