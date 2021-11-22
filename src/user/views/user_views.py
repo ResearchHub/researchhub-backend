@@ -209,11 +209,16 @@ class UserViewSet(viewsets.ModelViewSet):
                 ).order_by(
                     '-score'
                 )
+            context = {
+                **context,
+                **self._get_latest_activity_context()
+            }
             serializer_kwargs = {
                 '_include_fields': [
                     'id',
                     'abstract',
                     'boost_amount',
+                    'discussion_count',
                     'file',
                     'hubs',
                     'paper_title',
