@@ -27,18 +27,18 @@ jobs:
       DB_PASS: rh_developer
 
     
-    services:
-      env:
-        POSTGRES_DB: researchhub
-        POSTGRES_USER: rh_developer
-        POSTGRES_PASSWORD: not_secure
-        LC_ALL: C.UTF-8
-        LANG: C.UTF-8
-        DB_PORT: 5432
-        DB_HOST: localhost
-        DB_USER: rh_developer
-        DB_PASS: rh_developer      
+    services:      
       postgres:
+        env:
+          POSTGRES_DB: researchhub
+          POSTGRES_USER: rh_developer
+          POSTGRES_PASSWORD: not_secure
+          LC_ALL: C.UTF-8
+          LANG: C.UTF-8
+          DB_PORT: 5432
+          DB_HOST: localhost
+          DB_USER: rh_developer
+          DB_PASS: rh_developer      
         image: postgres:latest
         ports:
           - 5432:5432
