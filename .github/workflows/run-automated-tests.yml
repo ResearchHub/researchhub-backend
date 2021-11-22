@@ -15,7 +15,6 @@ jobs:
       max-parallel: 4
       matrix:
         python-version: [3.6.12]
-
     env:
       POSTGRES_DB: researchhub
       POSTGRES_USER: rh_developer
@@ -26,6 +25,7 @@ jobs:
       DB_HOST: localhost
       DB_USER: rh_developer
       DB_PASS: rh_developer
+
     
     services:
       postgres:
