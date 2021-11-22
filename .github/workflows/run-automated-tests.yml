@@ -12,11 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     env:
-      POSTGRES_DB: test_researchhub
+      POSTGRES_DB: researchhub
       POSTGRES_USER: rh_developer
       POSTGRES_PASSWORD: not_secure
-      LC_ALL: C.UTF-8
-      LANG: C.UTF-8
       DB_PORT: 5432
       DB_HOST: localhost
       DB_USER: rh_developer
@@ -25,16 +23,6 @@ jobs:
     
     services:      
       postgres:
-        env:
-          POSTGRES_DB: test_researchhub
-          POSTGRES_USER: rh_developer
-          POSTGRES_PASSWORD: not_secure
-          LC_ALL: C.UTF-8
-          LANG: C.UTF-8
-          DB_PORT: 5432
-          DB_HOST: localhost
-          DB_USER: rh_developer
-          DB_PASS: not_secure      
         image: postgres:latest
         ports:
           - 5432:5432
@@ -43,6 +31,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5          
+        ports:
+          - 6379:6379
 
     steps:
     - uses: actions/checkout@v2
@@ -56,17 +53,7 @@ jobs:
         pip install pipenv
         pipenv install
     - name: Run Tests
-      working-directory: ./src    
-      env:
-        POSTGRES_DB: test_researchhub
-        POSTGRES_USER: rh_developer
-        POSTGRES_PASSWORD: not_secure
-        LC_ALL: C.UTF-8
-        LANG: C.UTF-8
-        DB_PORT: 5432
-        DB_HOST: localhost
-        DB_USER: rh_developer
-        DB_PASS: not_secure      
+      working-directory: ./src        
       run: |
         cp config/ci/* config
         pipenv run python manage.py migrate      
