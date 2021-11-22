@@ -28,6 +28,16 @@ jobs:
 
     
     services:
+      env:
+        POSTGRES_DB: researchhub
+        POSTGRES_USER: rh_developer
+        POSTGRES_PASSWORD: not_secure
+        LC_ALL: C.UTF-8
+        LANG: C.UTF-8
+        DB_PORT: 5432
+        DB_HOST: localhost
+        DB_USER: rh_developer
+        DB_PASS: rh_developer      
       postgres:
         image: postgres:latest
         ports:
@@ -51,6 +61,16 @@ jobs:
         pipenv install
     - name: Run Tests
       working-directory: ./src    
+      env:
+        POSTGRES_DB: researchhub
+        POSTGRES_USER: rh_developer
+        POSTGRES_PASSWORD: not_secure
+        LC_ALL: C.UTF-8
+        LANG: C.UTF-8
+        DB_PORT: 5432
+        DB_HOST: localhost
+        DB_USER: rh_developer
+        DB_PASS: rh_developer      
       run: |
         cp config/ci/* config
         pipenv run python manage.py migrate      
