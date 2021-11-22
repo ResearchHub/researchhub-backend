@@ -386,6 +386,15 @@ DB_PORT = os.environ.get('DB_PORT', db.PORT)
 DB_USER = os.environ.get('DB_USER', db.USER)
 DB_PASS = os.environ.get('DB_PASS', db.PASS)
 
+print('-------------')
+print('DB_NAME', DB_NAME)
+print('DB_HOST', DB_HOST)
+print('DB_PORT', DB_PORT)
+print('DB_USER', DB_USER)
+print('DB_PASS', DB_PASS)
+print('-------------')
+
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',

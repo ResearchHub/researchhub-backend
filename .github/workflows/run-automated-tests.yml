@@ -11,10 +11,6 @@ jobs:
 
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    strategy:
-      max-parallel: 4
-      matrix:
-        python-version: [3.6.12]
     env:
       POSTGRES_DB: researchhub
       POSTGRES_USER: rh_developer
@@ -53,7 +49,7 @@ jobs:
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: '3.6.12'
     - name: Install Dependencies
       working-directory: ./src
       run: |
