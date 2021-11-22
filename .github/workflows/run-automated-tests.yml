@@ -24,7 +24,7 @@ jobs:
       DB_PORT: 5432
       DB_HOST: localhost
       DB_USER: rh_developer
-      DB_PASS: rh_developer
+      DB_PASS: not_secure
 
     
     services:      
@@ -38,7 +38,7 @@ jobs:
           DB_PORT: 5432
           DB_HOST: localhost
           DB_USER: rh_developer
-          DB_PASS: rh_developer      
+          DB_PASS: not_secure      
         image: postgres:latest
         ports:
           - 5432:5432
@@ -70,7 +70,7 @@ jobs:
         DB_PORT: 5432
         DB_HOST: localhost
         DB_USER: rh_developer
-        DB_PASS: rh_developer      
+        DB_PASS: not_secure      
       run: |
         cp config/ci/* config
         pipenv run python manage.py migrate      
