@@ -10,7 +10,7 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     env:
       POSTGRES_DB: test_researchhub
       POSTGRES_USER: rh_developer

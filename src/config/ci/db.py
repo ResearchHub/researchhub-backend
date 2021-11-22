@@ -1,6 +1,6 @@
 import os
 
-NAME = 'researchhub'
+NAME = 'test_researchhub'
 HOST = os.environ.get('DB_HOST', 'localhost')
 PORT = os.environ.get('DB_PORT', '5432')
 USER = os.environ.get('DB_USER', 'rh_developer')
