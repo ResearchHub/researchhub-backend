@@ -163,6 +163,8 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         timeframe = request.GET.get('timeframe', 'all_time')
 
+        context = {'request': request}
+        serializer_kwargs = {}
         time_filter = {}
         if leaderboard_type == 'papers':
             if created_by_options == 'created_date':
@@ -189,7 +191,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         items = []
         if leaderboard_type == 'papers':
-            serializerClass = HubPaperSerializer
+            serializerClass = DynamicPaperSerializer
             if hub_id and hub_id != 0:
                 items = Paper.objects.exclude(
                     is_public=False,
@@ -207,6 +209,21 @@ class UserViewSet(viewsets.ModelViewSet):
                 ).order_by(
                     '-score'
                 )
+            serializer_kwargs = {
+                '_include_fields': [
+                    'id',
+                    'abstract',
+                    'boost_amount',
+                    'file',
+                    'hubs',
+                    'paper_title',
+                    'score',
+                    'title',
+                    'slug',
+                    'uploaded_by',
+                    'uploaded_date',
+                ]
+            }
         elif leaderboard_type == 'users':
             serializerClass = UserSerializer
             if hub_id and hub_id != 0:
@@ -242,7 +259,8 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = serializerClass(
             page,
             many=True,
-            context={'request': request}
+            context=context,
+            **serializer_kwargs
         )
 
         return self.get_paginated_response(serializer.data)
@@ -435,6 +453,7 @@ class UserViewSet(viewsets.ModelViewSet):
         context = {
             'doc_duds_get_documents': {
                 '_include_fields': [
+                    'created_date',
                     'id',
                     'slug',
                     'title',
@@ -462,6 +481,7 @@ class UserViewSet(viewsets.ModelViewSet):
             },
             'rep_dcs_get_unified_document': {
                 '_include_fields': [
+                    'created_date',
                     'documents',
                     'document_type',
                     'hubs',
