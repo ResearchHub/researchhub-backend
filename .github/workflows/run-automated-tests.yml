@@ -55,5 +55,6 @@ jobs:
       working-directory: ./src        
       run: |
         cp config/ci/* config
-        pipenv run python manage.py migrate      
+        pipenv run python manage.py migrate
+        pipenv run python manage.py collectstatic --noinput
         pipenv run python manage.py test
