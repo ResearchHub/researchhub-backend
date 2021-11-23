@@ -10,7 +10,7 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 20
     
     services:      
       postgres:
@@ -56,4 +56,4 @@ jobs:
       run: |
         cp config/ci/* config
         pipenv run python manage.py migrate      
-        pipenv run python manage.py test note.tests.test_note_api.NoteTests.test_create_workspace_note --noinput --verbosity=2 --keepdb
+        pipenv run python manage.py test

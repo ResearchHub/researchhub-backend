@@ -7,8 +7,9 @@ from utils.test_helpers import (
     get_authenticated_get_response,
     get_authenticated_post_response
 )
+from unittest import skip
 
-
+@skip
 class ReputationViewsTests(APITestCase):
     def setUp(self):
         create_withdrawals(10)

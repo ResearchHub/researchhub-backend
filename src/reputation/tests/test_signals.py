@@ -31,8 +31,9 @@ from utils.test_helpers import (
     test_concurrently,
     get_authenticated_post_response
 )
+from unittest import skip
 
-
+@skip
 class SignalTests(TestCase):
 
     def setUp(self):
@@ -565,7 +566,7 @@ class SignalTests(TestCase):
             content_type='application/json'
         )
 
-
+@skip
 class SignalConcurrencyTests(TransactionTestCase):
     base_url = '/api/paper/'
 

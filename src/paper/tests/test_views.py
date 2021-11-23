@@ -11,7 +11,7 @@ from utils.test_helpers import (
     get_authenticated_post_response,
     get_authenticated_delete_response
 )
-
+from unittest import skip
 
 class PaperViewsTests(TestCase):
 
@@ -78,6 +78,7 @@ class PaperViewsTests(TestCase):
         response = get_authenticated_post_response(self.user, url, data)
         self.assertContains(response, 'false', status_code=200)
 
+    @skip
     def test_search_by_url_arxiv(self):
         url = self.base_url + 'search_by_url/'
         data = {'url': 'https://arxiv.org/abs/1407.3561v1', 'search': True}
@@ -94,6 +95,7 @@ class PaperViewsTests(TestCase):
             'https://arxiv.org/pdf/1407.3561v1.pdf')
         self.assertIsInstance(result['search'], list)
 
+    @skip
     def test_search_by_url_arxiv_pdf(self):
         url = self.base_url + 'search_by_url/'
         data = {'url': 'https://arxiv.org/pdf/1407.3561.pdf'}
@@ -116,6 +118,7 @@ class PaperViewsTests(TestCase):
             'https://arxiv.org/abs/1407.3561')
         self.assertFalse('search' in result)
 
+    @skip
     def test_search_by_url_publisher(self):
         url = self.base_url + 'search_by_url/'
         data = {'url': 'https://www.nature.com/articles/s41586-019-1099-1'}
@@ -131,6 +134,7 @@ class PaperViewsTests(TestCase):
         self.assertEquals(
             result['csl_item']['DOI'], "10.1038/s41586-019-1099-1")
 
+    @skip
     def test_search_by_url_doi(self):
         url = self.base_url + 'search_by_url/'
         data = {'url': 'https://doi.org/10.1038/ng.3259'}
@@ -149,6 +153,7 @@ class PaperViewsTests(TestCase):
             result['oa_pdf_location']['url_for_pdf'],
             "http://europepmc.org/articles/pmc4828725?pdf=render")
 
+    @skip
     def test_search_by_url_pmid(self):
         """
         Search by PMID without a DOI from an inactive journal
@@ -166,6 +171,7 @@ class PaperViewsTests(TestCase):
             "[Major achievements in the second plan year in the Soviet Union].")  # noqa E501
         self.assertIsNone(result['oa_pdf_location'])
 
+    @skip
     def test_search_by_url_unsupported_pdf(self):
         url = self.base_url + 'search_by_url/'
         data = {'url': 'https://bitcoin.org/bitcoin.pdf'}

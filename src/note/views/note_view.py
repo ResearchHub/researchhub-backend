@@ -96,7 +96,7 @@ class NoteViewSet(ModelViewSet):
         )
         serializer = self.serializer_class(note)
         data = serializer.data
-        # note.notify_note_created()
+        note.notify_note_created()
         return Response(data, status=200)
 
     def _create_unified_doc(self, request):
