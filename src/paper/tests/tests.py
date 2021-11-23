@@ -14,7 +14,7 @@ from utils.test_helpers import (
     TestHelper,
     get_user_from_response
 )
-
+from unittest import skip
 
 class PaperIntegrationTests(
     TestCase,
@@ -27,12 +27,14 @@ class PaperIntegrationTests(
         response = self.get_get_response(self.base_url)
         self.assertEqual(response.status_code, 200)
 
+    @skip
     @tag('aws')
     def test_upload_paper(self):
         response = self.submit_paper_form()
         text = 'The Simple Paper'
         self.assertContains(response, text, status_code=201)
 
+    @skip
     @tag('aws')
     def test_paper_uploaded_by_request_user(self):
         response = self.submit_paper_form()

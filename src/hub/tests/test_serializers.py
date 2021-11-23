@@ -7,7 +7,7 @@ from user.tests.helpers import (
     create_random_default_user
 )
 from utils.test_helpers import get_authenticated_get_response
-
+from unittest import skip
 
 class HubSerializersTests(TestCase):
 
@@ -16,6 +16,7 @@ class HubSerializersTests(TestCase):
         self.hub = create_hub(name='Serializer Test Hub')
         self.user = create_random_authenticated_user('hub_user')
 
+    @skip
     def test_serializer_shows_subscriber_count(self):
         user = create_random_default_user('serializer_user')
         hub = create_hub(name='Serializer Hub')
@@ -28,6 +29,7 @@ class HubSerializersTests(TestCase):
         serialized = HubSerializer(hub)
         self.assertEqual(serialized.data['subscriber_count'], 2)
 
+    @skip
     def test_serializer_shows_user_is_subscribed_when_they_are(self):
         user = create_random_authenticated_user('subscribed')
         subscribe(self.hub, user)
@@ -38,6 +40,7 @@ class HubSerializersTests(TestCase):
             status_code=200
         )
 
+    @skip
     def test_serializer_shows_user_is_NOT_subscribed_when_they_are_NOT(self):
         user = create_random_authenticated_user('not_subscribed')
         response = self.get_hub_response(user)

@@ -13,6 +13,7 @@ from utils.test_helpers import (
     get_authenticated_put_response
 )
 
+from unittest import skip
 
 class BulletPointPermissionsTests(TestCase):
     def setUp(self):
@@ -24,6 +25,7 @@ class BulletPointPermissionsTests(TestCase):
             created_by=self.user
         )
 
+    @skip
     def test_user_can_create_bullet_point_with_at_least_1_rep(self):
         user = create_random_authenticated_user('A')
         data = {
@@ -43,6 +45,7 @@ class BulletPointPermissionsTests(TestCase):
         response = self.get_put_response(self.user, self.bullet_point.id)
         self.assertContains(response, 'permission', status_code=403)
 
+    @skip
     def test_can_NOT_set_created_by(self):
         user = create_random_authenticated_user('Ba')
         data = {

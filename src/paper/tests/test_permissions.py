@@ -12,7 +12,7 @@ from utils.test_helpers import (
     IntegrationTestHelper,
     TestHelper
 )
-
+from unittest import skip
 
 class BaseIntegrationMixin(
     TestHelper,
@@ -47,6 +47,7 @@ class PaperPermissionsIntegrationTests(
         self.flag_reason = 'Inappropriate'
 
     @tag('aws')
+    @skip
     def test_can_post_paper_with_minimum_reputation(self):
         reputation = 1
         self.assertPostWithReputationResponds(reputation, 201)
@@ -66,6 +67,7 @@ class PaperPermissionsIntegrationTests(
         self.assertEqual(response.status_code, 403)
 
     @tag('aws')
+    @skip
     def test_author_can_update_paper(self):
         user = self.create_random_authenticated_user('author')
         author = Author.objects.get(user=user)
@@ -78,6 +80,7 @@ class PaperPermissionsIntegrationTests(
         self.assertEqual(response.status_code, 200)
 
     @tag('aws')
+    @skip
     def test_moderator_can_update_paper(self):
         moderator = self.create_random_authenticated_user('moderator')
         paper = self.create_paper_with_moderators([moderator.id])
@@ -118,6 +121,7 @@ class PaperPermissionsIntegrationTests(
         response = self.get_downvote_response(user)
         self.assertEqual(response.status_code, 403)
 
+    @skip
     def test_author_can_assign_moderator(self):
         author = self.create_random_authenticated_user('author1')
         paper = self.create_paper_with_authors([author.id])
