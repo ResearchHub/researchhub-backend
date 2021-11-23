@@ -33,7 +33,6 @@ class SummaryPermissionsTests(TestCase):
         # TODO: Get reputation from json
         user = create_random_authenticated_user_with_reputation(1, 1)
         response = self.get_summary_post_response(user)
-        print(response.__dict__)
         self.assertEqual(response.status_code, 201)
 
     def test_can_NOT_propose_summary_edit_below_minimum_reputation(self):
