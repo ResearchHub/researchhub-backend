@@ -1,6 +1,6 @@
 # researchhub-backend
 
-[![GitHub Actions Status Badge](https://github.com/ResearchHub/researchhub-backend/workflows/Backend%20CI/badge.svg?branch=master)](https://github.com/ResearchHub/researchhub-backend/actions)
+[![Automated Tests](https://github.com/ResearchHub/researchhub-backend-internal/actions/workflows/run-automated-tests.yml/badge.svg)](https://github.com/ResearchHub/researchhub-backend-internal/actions/workflows/run-automated-tests.yml)
 
 This repository contains the Django backend for <https://www.researchhub.com/>.
 
