@@ -64,7 +64,7 @@ PASS = 'not_secure'   # replace as needed
 ```
 
 Create a local postgres db called `researchhub`.
-To use docker for local development, run the following:
+Alternatively, to use docker for local development, run the following:
 
 ```shell
 # https://docs.docker.com/samples/library/postgres/
@@ -84,7 +84,7 @@ docker run \
 
 The project environment is managed using [Pipenv](https://pipenv.kennethreitz.org/en/latest/).
 
-The project uses Python version 3.6, so you will need to install it (use pyenv e.g.). The recommended version is 3.6.12 or 3.6.13.
+The project uses Python version 3.6.12, so you will need to install it (use pyenv e.g.)
 
 If you're installing on macOS 11.x, additional step is required for which the explanation can be found [here](https://stackoverflow.com/questions/66482346/problems-installing-python-3-6-with-pyenv-on-mac-os-big-sur) or [here](https://docs.google.com/document/d/1tObZtc_GLf1h2OY9Ig6LjYub5zNMARG_ge3pUXKV3HI/edit?usp=sharing), that basically installs the right version of Python with extra flags (notice Python version within the script):
 
@@ -92,7 +92,7 @@ If you're installing on macOS 11.x, additional step is required for which the ex
 CFLAGS="-I$(brew --prefix openssl)/include -I$(brew --prefix bzip2)/include -I$(brew --prefix readline)/include -I$(xcrun --show-sdk-path)/usr/include" LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix readline)/lib -L$(brew --prefix zlib)/lib -L$(brew --prefix bzip2)/lib" pyenv install --patch 3.6.12 < <(curl -sSL https://github.com/python/cpython/commit/8ea6353.patch\?full_index\=1)
 ```
 
-After installing Python 3.6.x, run the following commands from the [`src`](src) directory:
+After installing Python, run the following commands from the [`src`](src) directory:
 
 ```shell
 # installs the project environment and packages
@@ -112,11 +112,11 @@ pipenv install package_name
 pipenv lock --requirements >| requirements.txt
 ```
 
-### REDIS
+### REDIS (Required)
 
 Make sure to run `redis-server` in a separate terminal.
 
-### ELASTICSEARCH
+### ELASTICSEARCH (Optional)
 
 In a new shell, run this Docker image script (make sure Redis is running in the background `redis-server`)
 
@@ -139,7 +139,7 @@ Optionally, start Kibana for Elastic dev tools
 
 To view elastic queries via the API, add `DEBUG_TOOLBAR = True` to `keys.py`. Then, visit an API url such as [http://localhost:8000/api/search/paper/?publish_date\_\_gte=2022-01-01](http://localhost:8000/api/search/paper/?publish_date__gte=2022-01-01)
 
-### ETHEREUM
+### ETHEREUM (Optional)
 
 Create a wallet file in config
 
@@ -194,10 +194,14 @@ Run the test suite:
 
 ```shell
 # run all tests
+# Note: Add --keepdb flag to speed up the process of running tests locally
 python manage.py test
 
 # run tests for the paper app, excluding ones that require AWS secrets
 python manage.py test paper --exclude-tag=aws
+
+# run a specific test example:
+run python manage.py test note.tests.test_note_api.NoteTests.test_create_workspace_note --keepdb
 ```
 
 Run in the background for async tasks:
