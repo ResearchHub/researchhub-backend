@@ -1,14 +1,20 @@
+import re
+import requests
 import json
 import utils.sentry as sentry
-import rest_framework.serializers as serializers
 
 from django.db import transaction, IntegrityError
 from django.http import QueryDict
+from django.db.models import Sum
+
+import rest_framework.serializers as serializers
 
 from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
-from hub.serializers import SimpleHubSerializer
+from hub.serializers import SimpleHubSerializer, DynamicHubSerializer
+from hypothesis.models import Hypothesis, Citation
+from paper.lib import journal_hosts
 from paper.exceptions import PaperSerializerError
 from paper.models import (
     AdditionalFile,
@@ -16,7 +22,9 @@ from paper.models import (
     Paper,
     Vote,
     Figure,
-    FeaturedPaper
+    FeaturedPaper,
+    DOI_IDENTIFIER,
+    ARXIV_IDENTIFIER
 )
 from paper.tasks import (
     download_pdf,
@@ -33,15 +41,21 @@ from paper.utils import (
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url
 )
-from researchhub.lib import get_paper_id_from_path
+from researchhub.lib import get_document_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from user.models import Author, User
-from user.serializers import AuthorSerializer, UserSerializer
+from user.serializers import (
+    AuthorSerializer,
+    UserSerializer,
+    DynamicAuthorSerializer,
+    DynamicUserSerializer
+)
 from utils.arxiv import Arxiv
 from utils.http import get_user_from_request, check_url_contains_pdf
 from utils.siftscience import events_api, update_user_risk_score
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
+from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.utils import update_unified_document_to_paper
 
 
@@ -58,6 +72,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     user_vote = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
+    boost_amount = serializers.SerializerMethodField()
     file = serializers.SerializerMethodField()
     discussion_users = serializers.SerializerMethodField()
     unified_document_id = serializers.SerializerMethodField()
@@ -71,7 +86,8 @@ class BasePaperSerializer(serializers.ModelSerializer):
             'user_flag',
             'users_who_bookmarked',
             'unified_document_id',
-            'slug'
+            'slug',
+            'hypothesis_id',
         ]
         model = Paper
 
@@ -149,7 +165,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
 
     def get_authors(self, paper):
         serializer = AuthorSerializer(
-            paper.authors.all(),
+            paper.authors.filter(claimed=True),
             many=True,
             read_only=False,
             required=False,
@@ -252,6 +268,9 @@ class BasePaperSerializer(serializers.ModelSerializer):
     def get_promoted(self, paper):
         return paper.get_promoted_score()
 
+    def get_boost_amount(self, paper):
+        return paper.get_boost_amount()
+
     def get_file(self, paper):
         file = paper.file
         if file:
@@ -284,6 +303,22 @@ class ContributionPaperSerializer(BasePaperSerializer):
 
 
 class PaperSerializer(BasePaperSerializer):
+    raw_author_scores = serializers.SerializerMethodField()
+    authors = serializers.SerializerMethodField()
+
+    class Meta:
+        exclude = ['references']
+        read_only_fields = [
+            'score',
+            'user_vote',
+            'user_flag',
+            'users_who_bookmarked',
+            'unified_document_id',
+            'slug',
+            'raw_author_scores',
+            'authors'
+        ]
+        model = Paper
 
     def create(self, validated_data):
         request = self.context.get('request', None)
@@ -297,9 +332,14 @@ class PaperSerializer(BasePaperSerializer):
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
         file = validated_data.pop('file')
-
+        hypothesis_id = validated_data.pop('hypothesis_id', None)
+        citation_type = validated_data.pop('citation_type', None)
         try:
             with transaction.atomic():
+                valid_doi = self._check_valid_doi(validated_data)
+                if not valid_doi:
+                    raise IntegrityError('DETAIL: Invalid DOI')
+
                 self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
                 self._add_raw_authors(validated_data)
@@ -313,9 +353,20 @@ class PaperSerializer(BasePaperSerializer):
                     paper = arxiv_paper.create_paper(uploaded_by=user)
 
                 if paper is None:
+                    # It is important to note that paper signals
+                    # are ran after call to super
                     paper = super(PaperSerializer, self).create(validated_data)
 
-                paper.check_doi()
+                unified_doc = paper.unified_document
+                unified_doc_id = paper.unified_document.id
+                if hypothesis_id:
+                    self._add_citation(
+                        user,
+                        hypothesis_id,
+                        unified_doc,
+                        citation_type
+                    )
+
                 paper_id = paper.id
                 paper_title = paper.paper_title or ''
                 self._check_pdf_title(paper, paper_title, file)
@@ -361,7 +412,6 @@ class PaperSerializer(BasePaperSerializer):
                 )
                 update_user_risk_score(user, tracked_paper)
 
-                unified_doc_id = paper.unified_document.id
                 create_contribution.apply_async(
                     (
                         Contribution.SUBMITTER,
@@ -490,11 +540,24 @@ class PaperSerializer(BasePaperSerializer):
         except Exception as e:
             sentry.log_info(e)
 
+    def _add_citation(self, user, hypothesis_id, unified_document, citation_type):
+        try:
+            hypothesis = Hypothesis.objects.get(id=hypothesis_id)
+            citation = Citation.objects.create(
+                created_by=user,
+                source=unified_document,
+                citation_type=citation_type
+            )
+            citation.hypothesis.set([hypothesis])
+        except Exception as e:
+            sentry.log_error(e)
+
     def _add_file(self, paper, file):
         paper_id = paper.id
         if type(file) is not str:
             paper.file = file
             paper.save(update_fields=['file'])
+            paper.extract_pdf_preview()
             celery_extract_pdf_sections.apply_async(
                 (paper_id,),
                 priority=3,
@@ -562,11 +625,55 @@ class PaperSerializer(BasePaperSerializer):
         json_raw_authors = list(map(json.loads, raw_authors))
         validated_data['raw_authors'] = json_raw_authors
 
+    def _check_valid_doi(self, validated_data):
+        url = validated_data.get('url', '')
+        pdf_url = validated_data.get('pdf_url', '')
+        doi = validated_data.get('doi', '')
+
+        for journal_host in journal_hosts:
+            if url and journal_host in url:
+                return True
+            if pdf_url and journal_host in pdf_url:
+                return True
+
+        regex = r'(.*doi\.org\/)(.*)'
+
+        regex_doi = re.search(regex, doi)
+        if regex_doi and len(regex_doi.groups()) > 1:
+            doi = regex_doi.groups()[-1]
+
+        has_doi = doi.startswith(DOI_IDENTIFIER)
+        has_arxiv = doi.startswith(ARXIV_IDENTIFIER)
+
+        # For pdf uploads, checks if doi has an arxiv identifer
+        if has_arxiv:
+            return True
+
+        res = requests.get(
+            'https://doi.org/api/handles/{}'.format(doi),
+            headers=requests.utils.default_headers()
+        )
+        if res.status_code >= 200 and res.status_code < 400 and has_doi:
+            return True
+        else:
+            return False
+
+    def get_authors(self, paper):
+        serializer = AuthorSerializer(
+            paper.authors.all(),
+            many=True,
+            read_only=False,
+            required=False,
+            context=self.context
+        )
+        return serializer.data
+
     def get_discussion(self, paper):
         return None
 
     def get_file(self, paper):
         external_source = paper.external_source
+        file = paper.file
         if external_source and external_source.lower() == 'arxiv':
             pdf_url = paper.pdf_url
             url = paper.url
@@ -575,6 +682,29 @@ class PaperSerializer(BasePaperSerializer):
             elif url:
                 return url
             return None
+        elif file:
+            return file.url
+        return None
+
+    def get_raw_author_scores(self, paper):
+        get_scores = self.context.get('get_raw_author_scores', False)
+        scores = []
+        if get_scores:
+            raw_authors = paper.raw_authors
+            if raw_authors:
+                for author in raw_authors:
+                    score = Paper.objects.filter(
+                        raw_authors__contains=[
+                            {
+                                'first_name': author['first_name'],
+                                'last_name': author['last_name']
+                            }
+                        ]
+                    ).aggregate(
+                        Sum('score')
+                    )['score__sum']
+                    scores.append(score)
+        return scores
 
 
 class HubPaperSerializer(BasePaperSerializer):
@@ -651,6 +781,120 @@ class PaperReferenceSerializer(serializers.ModelSerializer):
         return None
 
 
+class DynamicPaperSerializer(DynamicModelFieldSerializer):
+    authors = serializers.SerializerMethodField()
+    boost_amount = serializers.SerializerMethodField()
+    discussion_users = serializers.SerializerMethodField()
+    hubs = serializers.SerializerMethodField()
+    first_preview = serializers.SerializerMethodField()
+    unified_document = serializers.SerializerMethodField()
+    uploaded_by = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Paper
+        fields = '__all__'
+
+    def get_authors(self, paper):
+        context = self.context
+        _context_fields = context.get('pap_dps_get_authors', {})
+
+        serializer = DynamicAuthorSerializer(
+            paper.authors.all(),
+            many=True,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_boost_amount(self, paper):
+        return paper.get_boost_amount()
+
+    def get_discussion_users(self, paper):
+        context = self.context
+        _context_fields = context.get('pap_dps_get_discussion_users', {})
+
+        contributions = Contribution.objects.filter(
+            unified_document=paper.unified_document
+        )
+        contribution_users = contributions.values_list(
+            'user',
+            flat=True
+        ).distinct()
+        users = User.objects.filter(id__in=contribution_users)
+
+        serializer = DynamicUserSerializer(
+            users,
+            many=True,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_hubs(self, paper):
+        context = self.context
+        _context_fields = context.get('pap_dps_get_hubs', {})
+        serializer = DynamicHubSerializer(
+            paper.hubs,
+            many=True,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_first_preview(self, paper):
+        context = self.context
+        _context_fields = context.get('pap_dps_get_first_preview', {})
+        try:
+            if paper.preview_list.exists():
+                figure = paper.preview_list.first()
+                serializer = DynamicFigureSerializer(
+                    figure,
+                    context=context,
+                    **_context_fields
+                )
+                return serializer.data
+        except Exception:
+            figure = paper.figures.filter(
+                figure_type=Figure.PREVIEW
+            ).first()
+            if figure:
+                serializer = DynamicFigureSerializer(
+                    figure,
+                    context=context,
+                    **_context_fields
+                )
+                return serializer.data
+        return None
+
+    def get_unified_document(self, paper):
+        from researchhub_document.serializers import (
+          DynamicUnifiedDocumentSerializer
+        )
+        context = self.context
+        _context_fields = context.get('pap_dps_get_unified_document', {})
+        serializer = DynamicUnifiedDocumentSerializer(
+            paper.unified_document,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_uploaded_by(self, paper):
+        context = self.context
+        _context_fields = context.get('pap_dps_get_uploaded_by', {})
+        uploaded_by = paper.uploaded_by
+
+        if not uploaded_by:
+            return None
+
+        serializer = DynamicUserSerializer(
+            uploaded_by,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+
 class AdditionalFileSerializer(serializers.ModelSerializer):
     class Meta:
         fields = [
@@ -673,7 +917,7 @@ class AdditionalFileSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         request = self.context['request']
         user = request.user
-        paper_id = get_paper_id_from_path(request)
+        paper_id = get_document_id_from_path(request)
         validated_data['created_by'] = user
         validated_data['paper'] = Paper.objects.get(pk=paper_id)
         additional_file = super().create(validated_data)
@@ -723,3 +967,9 @@ class FigureSerializer(serializers.ModelSerializer):
         validated_data['created_by'] = user
         figure = super().create(validated_data)
         return figure
+
+
+class DynamicFigureSerializer(DynamicModelFieldSerializer):
+    class Meta:
+        fields = '__all__'
+        model = Figure

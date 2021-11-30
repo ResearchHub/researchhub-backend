@@ -1,11 +1,11 @@
 from django.db import models
 
-from django.contrib.postgres.fields import JSONField
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
-from paper.models import Paper
 from user.models import User, Action
+from researchhub_document.related_models.researchhub_unified_document_model \
+  import ResearchhubUnifiedDocument
 
 # Create your models here.
 
@@ -13,11 +13,11 @@ from user.models import User, Action
 class Notification(models.Model):
     read = models.BooleanField(default=False)
 
-    paper = models.ForeignKey(
-        Paper,
+    unified_document = models.ForeignKey(
+        ResearchhubUnifiedDocument,
         null=True,
+        on_delete=models.CASCADE,
         related_name='notifications',
-        on_delete=models.CASCADE
     )
 
     # The user that should receive the notification
@@ -38,7 +38,6 @@ class Notification(models.Model):
         related_name='notifications',
         on_delete=models.CASCADE
     )
-    extra = JSONField(default=dict)
 
     read_date = models.DateTimeField(null=True, blank=True)
     created_date = models.DateTimeField(auto_now_add=True)

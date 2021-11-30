@@ -16,6 +16,7 @@ from rest_framework.permissions import (
 )
 
 from paper.models import Paper
+from researchhub_document.models import ResearchhubPost
 from paper.utils import (
     get_cache_key,
     invalidate_top_rated_cache,
@@ -121,8 +122,12 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 'purchase_minimal_serialization': True,
                 'exclude_stats': True
             }
+
+            #  transfer_rsc is set each time just in case we want
+            #  to disable rsc transfer for a specific item
             if content_type_str == 'paper':
                 paper = Paper.objects.get(id=object_id)
+                unified_doc = paper.unified_document
                 paper.calculate_hot_score()
                 recipient = paper.uploaded_by
                 cache_key = get_cache_key('paper', object_id)
@@ -136,23 +141,34 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             elif content_type_str == 'thread':
                 transfer_rsc = True
                 recipient = item.created_by
-                paper = item.paper
+                unified_doc = item.unified_document
             elif content_type_str == 'comment':
                 transfer_rsc = True
-                paper = item.paper
+                unified_doc = item.unified_document
                 recipient = item.created_by
             elif content_type_str == 'reply':
                 transfer_rsc = True
-                paper = item.paper
+                unified_doc = item.unified_document
                 recipient = item.created_by
             elif content_type_str == 'summary':
                 transfer_rsc = True
                 recipient = item.proposed_by
-                paper = item.paper
+                unified_doc = item.paper.unified_document
             elif content_type_str == 'bulletpoint':
                 transfer_rsc = True
                 recipient = item.created_by
-                paper = item.paper
+                unified_doc = item.paper.unified_document
+            elif content_type_str == 'researchhubpost':
+                transfer_rsc = True
+                recipient = item.created_by
+                unified_doc = item.unified_document
+
+                invalidate_top_rated_cache([])
+                invalidate_most_discussed_cache([])
+                invalidate_newest_cache([])
+
+            if unified_doc.is_removed:
+                return Response('Content is removed', status=403)
 
             if transfer_rsc and recipient and recipient != user:
                 distribution = create_purchase_distribution(amount)
@@ -170,19 +186,17 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         if recipient and user:
             self.send_purchase_notification(
                 purchase,
-                paper,
-                recipient,
-                serializer_data
+                unified_doc,
+                recipient
             )
-            self.send_purchase_email(purchase, recipient, paper.id)
+            self.send_purchase_email(purchase, recipient, unified_doc)
 
-        unified_doc_id = paper.unified_document.id
         create_contribution.apply_async(
             (
                 Contribution.SUPPORTER,
                 {'app_label': 'purchase', 'model': 'purchase'},
                 user.id,
-                unified_doc_id,
+                unified_doc.id,
                 purchase.id
             ),
             priority=2,
@@ -224,7 +238,12 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         user = User.objects.get(id=pk)
         context = self.get_serializer_context()
         context['purchase_minimal_serialization'] = True
-        groups = AggregatePurchase.objects.filter(user=user)
+        paper_content_type_id = ContentType.objects.get_for_model(Paper).id
+        post_content_type_id = ContentType.objects.get_for_model(ResearchhubPost).id
+        groups = AggregatePurchase.objects.filter(
+            user=user,
+            content_type_id__in=[paper_content_type_id, post_content_type_id],
+        )
 
         page = self.paginate_queryset(groups)
         if page is not None:
@@ -269,7 +288,12 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def send_purchase_notification(self, purchase, paper, recipient, extra):
+    def send_purchase_notification(
+        self,
+        purchase,
+        unified_doc,
+        recipient,
+    ):
         creator = purchase.user
 
         if creator == recipient:
@@ -282,18 +306,24 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             object_id=purchase.id,
         )
         notification = Notification.objects.create(
-            paper=paper,
+            unified_document=unified_doc,
             recipient=recipient,
             action_user=creator,
             action=action,
-            extra={**extra}
         )
         notification.send_notification()
 
-    def send_purchase_email(self, purchase, recipient, paper_id):
+    def send_purchase_email(self, purchase, recipient, unified_doc):
         sender = purchase.user
         if sender == recipient:
             return
+
+        # TODO: Add email support for posts
+        paper = unified_doc.paper
+        if not paper:
+            return
+        else:
+            paper_id = paper.id
 
         sender_balance_date = datetime.datetime.now().strftime(
             '%m/%d/%Y'
@@ -653,11 +683,6 @@ class StripeViewSet(viewsets.ModelViewSet):
             recipient=user,
             action_user=user,
             action=action,
-            extra={
-                'status': status,
-                'message': message,
-                **kwargs
-            }
         )
 
         notification.send_notification()

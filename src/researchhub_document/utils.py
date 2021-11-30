@@ -5,6 +5,7 @@ from researchhub_document.tasks import (
 from researchhub_document.related_models.constants.document_type import (
     PAPER,
     POSTS,
+    HYPOTHESIS,
     ALL,
 )
 from utils.sentry import log_error
@@ -12,26 +13,44 @@ from utils.sentry import log_error
 
 def reset_unified_document_cache(
     hub_ids,
-    document_type=[ALL.lower(), POSTS.lower(), PAPER.lower()],
-    ordering='-hot_score',
-    time_difference=0
+    document_type=[
+        ALL.lower(),
+        POSTS.lower(),
+        PAPER.lower(),
+        HYPOTHESIS.lower()
+    ],
+    ordering=['-hot_score', '-created_date', '-score'],
+    time_difference=0,
+    use_celery=True
 ):
 
     for doc_type in document_type:
         for hub_id in hub_ids:
-            preload_trending_documents.apply_async(
-                (
-                    doc_type,
-                    hub_id,
-                    ordering,
-                    time_difference,
-                ),
+            for order in ordering:
+                if use_celery:
+                    preload_trending_documents.apply_async(
+                        (
+                            doc_type,
+                            hub_id,
+                            order,
+                            time_difference,
+                        ),
+                        priority=1
+                    )
+                else:
+                    preload_trending_documents(
+                        doc_type,
+                        hub_id,
+                        order,
+                        time_difference
+                    )
+        if use_celery:
+            preload_hub_documents.apply_async(
+                (doc_type, hub_ids),
                 priority=1
             )
-        preload_hub_documents.apply_async(
-            (doc_type, hub_ids),
-            priority=1
-        )
+        else:
+            preload_hub_documents(doc_type, hub_ids)
 
 
 def update_unified_document_to_paper(paper):

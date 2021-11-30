@@ -31,6 +31,8 @@ INFURA_PROJECT_SECRET = ''
 INFURA_RINKEBY_ENDPOINT = f'https://rinkeby.infura.io/v3/{INFURA_PROJECT_ID}'
 ```
 
+Add local config files by copying files from `src/config` to `src/config_local`. Ask somebody to provide all the keys.
+
 Set executable permissions on scripts
 
 ```
@@ -81,15 +83,28 @@ docker run \
 ### ENVIRONMENT
 
 The project environment is managed using [Pipenv](https://pipenv.kennethreitz.org/en/latest/).
-Run the following commands from the [`src`](src) directory:
+
+The project uses Python version 3.6, so you will need to install it (use pyenv e.g.). The recommended version is 3.6.12 or 3.6.13.
+
+If you're installing on macOS 11.x, additional step is required for which the explanation can be found [here](https://stackoverflow.com/questions/66482346/problems-installing-python-3-6-with-pyenv-on-mac-os-big-sur) or [here](https://docs.google.com/document/d/1tObZtc_GLf1h2OY9Ig6LjYub5zNMARG_ge3pUXKV3HI/edit?usp=sharing), that basically installs the right version of Python with extra flags (notice Python version within the script):
+
+```
+CFLAGS="-I$(brew --prefix openssl)/include -I$(brew --prefix bzip2)/include -I$(brew --prefix readline)/include -I$(xcrun --show-sdk-path)/usr/include" LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix readline)/lib -L$(brew --prefix zlib)/lib -L$(brew --prefix bzip2)/lib" pyenv install --patch 3.6.12 < <(curl -sSL https://github.com/python/cpython/commit/8ea6353.patch\?full_index\=1)
+```
+
+After installing Python 3.6.x, run the following commands from the [`src`](src) directory:
 
 ```shell
-# install the project environment
+# installs the project environment and packages
 pipenv install
 
-# activate the environment
+# activates the environment and enters shell
 pipenv shell
+```
 
+In general, when adding new packages, follow these steps:
+
+```shell
 # add a package to the project environment
 pipenv install package_name
 
@@ -97,9 +112,13 @@ pipenv install package_name
 pipenv lock --requirements >| requirements.txt
 ```
 
+### REDIS
+
+Make sure to run `redis-server` in a separate terminal.
+
 ### ELASTICSEARCH
 
-In a new shell, run this Docker image script (make sure Redis is running in the background ```redis-server```) 
+In a new shell, run this Docker image script (make sure Redis is running in the background `redis-server`)
 
 ```
  # Let this run for ~30 minutes in the background before terminating, be patient :)
@@ -112,16 +131,13 @@ Back in the python virtual environment, build the indices
 python manage.py search_index --rebuild
 ```
 
-Optionally, start Kibana for Elastic dev tools  
+Optionally, start Kibana for Elastic dev tools
 
 ```
 ./start-kibana.sh
 ```
 
-To view elastic queries via the API, add `DEBUG_TOOLBAR = True` to `keys.py`. Then, visit an API url such as [http://localhost:8000/api/search/paper/?publish_date__gte=2022-01-01](http://localhost:8000/api/search/paper/?publish_date__gte=2022-01-01)
-
-
--------
+To view elastic queries via the API, add `DEBUG_TOOLBAR = True` to `keys.py`. Then, visit an API url such as [http://localhost:8000/api/search/paper/?publish_date\_\_gte=2022-01-01](http://localhost:8000/api/search/paper/?publish_date__gte=2022-01-01)
 
 ### ETHEREUM
 
@@ -149,22 +165,24 @@ Make sure you have added the Infura keys (see above^)
 
 This sections contains some helpful commands for development.
 
+> Run these from within `pipenv shell` from `src`, like it was previously mentioned.
+
 Update the database schema:
 
 ```shell
-python src/manage.py makemigrations
-python src/manage.py migrate
+python manage.py makemigrations
+python manage.py migrate
 ```
 
 Run a development server and make the API available at <http://localhost:8000/api/>:
 
 ```shell
 # create a superuser and retrieve an authentication token
-python src/manage.py createsuperuser --username=<username> --email=<email>
-python src/manage.py drf_create_token <email>
+python manage.py createsuperuser --username=<username> --email=<email>
+python manage.py drf_create_token <email>
 
 # run the development server
-python src/manage.py runserver
+python manage.py runserver
 
 # query the API
 curl --silent \
@@ -198,4 +216,49 @@ Both celery commands in one (for development only)
 
 ```shell
 celery -A researchhub worker -l info -B
+```
+
+---
+
+#### Google Auth
+
+Ask somebody to provide you with `CLIENT_ID` and `SECRET` config, and run this SQL query (with updated configs) to seed the right data for Google login to work:
+
+```sql
+insert into socialaccount_socialapp (provider, name, client_id, secret, key)
+values ('google','Google','<CLIENT_ID>', '<SECRET>');
+
+insert into django_site (domain, name) values ('http://google.com', 'google.com');
+
+insert into socialaccount_socialapp_sites (socialapp_id, site_id) values (1, 1);
+```
+
+(make sure that IDs are the right one in the last query)
+
+#### Seeding hub data
+
+There's a CSV file in `/misc/hub_hub.csv` with hub data that you can use to seed hubs data.
+
+> If you encounter problems importing CSV due to DB tool thinking that empty fields are nulls for `acronym` and `description` columns, temporarily update `hub_hub` table to allow null values for those columns, import CSV, then execute `update hub_hub set acronym='', description='';` to populate with non-null yet empty values, then update table to disallow nulls again.
+
+Then run this from `pipenv shell`:
+
+```shell
+python manage.py create-categories
+python manage.py migrate-hubs
+python manage.py categorize-hubs
+```
+
+#### Seeding paper data
+
+From your terminal, follow these steps:
+
+```shell
+cd src
+pipenv shell
+python manage.py shell_plus # enters Python shell within pipenv shell
+
+from paper.tasks import pull_crossref_papers, pull_papers
+pull_crossref_papers()
+pull_papers()
 ```

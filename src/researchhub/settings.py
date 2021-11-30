@@ -132,6 +132,7 @@ CORS_ORIGIN_WHITELIST = [
     'https://researchnow.researchhub.com',
     'https://www.researchhub.com',
     'https://staging-web.researchhub.com',
+    'https://staging-web2.researchhub.com',
     'https://researchhub.com',
     'http://10.0.2.2:3000',
 ]
@@ -197,7 +198,10 @@ INSTALLED_APPS = [
     'ethereum',
     'google_analytics',
     'hub',
+    'hypothesis',
+    'invite',
     'mailing_list',
+    'note',
     'notification',
     'oauth',
     'paper',
@@ -210,11 +214,13 @@ INSTALLED_APPS = [
     'search',
     'summary',
     'user',
+    'new_feature_release',
 ]
 
 SITE_ID = 1
 
 MIDDLEWARE = [
+    'django.middleware.gzip.GZipMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'researchhub.middleware.csrf_disable.DisableCSRF',
     'django.middleware.security.SecurityMiddleware',
@@ -270,7 +276,8 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_THROTTLE_RATES': {
         'anon': '50/minute',
-    }
+    },
+    'TEST_REQUEST_DEFAULT_FORMAT': 'json',
 }
 
 
@@ -387,7 +394,10 @@ DATABASES = {
         'PORT': DB_PORT,
         'USER': DB_USER,
         'PASSWORD': DB_PASS,
-    },
+        'TEST': {
+            'NAME': 'test_researchhub',
+        }        
+    }
 }
 
 
@@ -482,7 +492,17 @@ EMAIL_WHITELIST = [
     'patrick@quantfive.org',
     'val@quantfive.org',
     'patrick.lu@berkeley.edu',
-    'calvinhlee@berkeley.edu'
+    'calvinhlee@berkeley.edu',
+    'pdj7@georgetown.edu',
+    'bank@researchhub.com',
+    'kobeattias@gmail.com',
+    'kobe@researchhub.com',
+    'kobe+1@researchhub.com',
+    'contact@notesalong.com',
+    'patricklu@researchhub.com',
+    'thomazvu@gmail.com',
+    'thomas@researchhub.com',
+    'pat@researchhub.com'
 ]
 
 # Sentry
@@ -527,8 +547,7 @@ if STAGING:
             'hosts': ELASTICSEARCH_HOST,  # noqa: E501
             'port': 443,
             'use_ssl': True,
-            'max_retries': 0,
-            'timeout': 1,
+            'max_retries': 5,
         },
     }
 
@@ -668,7 +687,7 @@ if elastic_token:
             'elasticapm.processors.sanitize_http_request_cookies',
             'elasticapm.processors.sanitize_http_headers',
             'elasticapm.processors.sanitize_http_wsgi_env',
-            'elasticapm.processors.sanitize_http_request_querystring',
+            # 'elasticapm.processors.sanitize_http_request_querystring',  Breaking in elasticapm 6.x
             'elasticapm.processors.sanitize_http_request_body',
         ),
     }
@@ -722,6 +741,7 @@ RECAPTCHA_SECRET_KEY = os.environ.get(
 # Sift Science
 SIFT_ACCOUNT_ID = os.environ.get('SIFT_ACCOUNT_ID', keys.SIFT_ACCOUNT_ID)
 SIFT_REST_API_KEY = os.environ.get('SIFT_REST_API_KEY', keys.SIFT_REST_API_KEY)
+SIFT_WEBHOOK_SECRET_KEY = os.environ.get('SIFT_WEBHOOK_SECRET_KEY', keys.SIFT_WEBHOOK_SECRET_KEY)
 
 
 # Amplitude and GeoIP
@@ -751,3 +771,10 @@ elif reward_time_hour:
 # from django.contrib.gis.geoip2 import GeoIP2
 
 # geo_ip = GeoIP2()
+
+# Killswitch Variables
+SERIALIZER_SWITCH = os.environ.get('SERIALIZER_SWITCH', True)
+
+# CKEditor Cloud Services
+CKEDITOR_CLOUD_ACCESS_KEY = os.environ.get('CKEDITOR_CLOUD_ACCESS_KEY', keys.CKEDITOR_CLOUD_ACCESS_KEY)
+CKEDITOR_CLOUD_ENVIRONMENT_ID = os.environ.get('CKEDITOR_CLOUD_ENVIRONMENT_ID', keys.CKEDITOR_CLOUD_ENVIRONMENT_ID)

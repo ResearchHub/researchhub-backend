@@ -18,31 +18,36 @@ from rest_framework.permissions import (
 )
 
 
+from hypothesis.models import Hypothesis
 from paper.utils import get_cache_key
-from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.models import (
+    ResearchhubUnifiedDocument,
+    ResearchhubPost
+)
 from researchhub_document.utils import reset_unified_document_cache
 from paper.utils import (
-    get_cache_key,
     invalidate_top_rated_cache,
     invalidate_newest_cache,
     invalidate_most_discussed_cache,
 )
 from researchhub_document.serializers import (
-  ResearchhubUnifiedDocumentSerializer
+    ResearchhubUnifiedDocumentSerializer,
+    DynamicUnifiedDocumentSerializer
 )
 from researchhub_document.related_models.constants.document_type import (
     PAPER,
     DISCUSSION,
     ELN,
-    POSTS
+    POSTS,
+    HYPOTHESIS
 )
-
-from paper.models import Vote as PaperVote
+from paper.models import Vote as PaperVote, Paper
 from paper.serializers import PaperVoteSerializer
 from discussion.reaction_serializers import (
-    VoteSerializer as DiscussionVoteSerializer
+    VoteSerializer as ReactionVoteSerializer
 )
-from discussion.models import Vote as DiscussionVote
+from discussion.models import Vote as ReactionVote
+from user.utils import reset_latest_acitvity_cache
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
@@ -50,8 +55,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     permission_classes = [
         IsAuthenticated,
     ]
-    queryset = ResearchhubUnifiedDocument.objects
+    queryset = ResearchhubUnifiedDocument.objects.all()
     serializer_class = ResearchhubUnifiedDocumentSerializer
+    dynamic_serializer_class = DynamicUnifiedDocumentSerializer
 
     def update(self, request, *args, **kwargs):
         update_response = super().update(request, *args, **kwargs)
@@ -60,6 +66,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         hub_ids.append(0)
 
         reset_unified_document_cache(hub_ids)
+        reset_latest_acitvity_cache(
+            ','.join([str(hub_id) for hub_id in hub_ids])
+        )
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
@@ -84,6 +93,79 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             filtering = '-score'
         return filtering
 
+    def _get_serializer_context(self):
+        context = {
+            'doc_duds_get_documents': {
+                '_include_fields': [
+                    'abstract',
+                    'aggregate_citation_consensus',
+                    'created_by',
+                    'created_date',
+                    'hot_score',
+                    'hubs',
+                    'id',
+                    'discussion_count',
+                    'paper_title',
+                    'preview_img',
+                    'renderable_text',
+                    'score',
+                    'slug',
+                    'title',
+                    'uploaded_by',
+                    'uploaded_date',
+                ]
+            },
+            'doc_dps_get_hubs': {
+                '_include_fields': [
+                    'id',
+                    'name',
+                    'is_locked',
+                    'slug',
+                    'is_removed',
+                    'hub_image'
+                ]
+            },
+            'pap_dps_get_hubs': {
+                '_include_fields': [
+                    'id',
+                    'name',
+                    'is_locked',
+                    'slug',
+                    'is_removed',
+                    'hub_image',
+                ]
+            },
+            'doc_dps_get_created_by': {
+                '_include_fields': [
+                    'author_profile',
+                ]
+            },
+            'pap_dps_get_uploaded_by': {
+                '_include_fields': [
+                    'author_profile',
+                ]
+            },
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image',
+                ]
+            },
+            'doc_duds_get_created_by': {
+                '_include_fields': [
+                    'author_profile',
+                ]
+            },
+            'hyp_dhs_get_created_by': {
+                '_include_fields': [
+                    'author_profile',
+                ]
+            }
+        }
+        return context
+
     def get_filtered_queryset(
         self,
         document_type,
@@ -92,12 +174,25 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         start_date,
         end_date
     ):
+        papers = Paper.objects.filter(
+            uploaded_by__isnull=False
+        ).values_list(
+            'unified_document'
+        )
+        posts = ResearchhubPost.objects.filter(
+            created_by__isnull=False
+        ).values_list(
+            'unified_document'
+        )
+        hypothesis = Hypothesis.objects.filter(
+            created_by__isnull=False
+        ).values_list(
+            'unified_document'
+        )
+        filtered_ids = papers.union(posts, hypothesis)
         qs = self.queryset.filter(
-            (
-                Q(paper__uploaded_by__isnull=False) |
-                Q(posts__created_by__isnull=False)
-            ),
-            is_removed=False,
+            id__in=filtered_ids,
+            is_removed=False
         )
 
         if document_type == PAPER.lower():
@@ -105,7 +200,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 document_type=PAPER
             )
         elif document_type == POSTS.lower():
-            qs = qs.filter(document_type__in=[DISCUSSION, ELN])
+            qs = qs.filter(
+                document_type__in=[DISCUSSION, ELN]
+            )
+        elif document_type == HYPOTHESIS.lower():
+            qs = qs.filter(
+                document_type=HYPOTHESIS
+            )
         else:
             qs = qs.all()
 
@@ -120,8 +221,19 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 '-created_date'
             )
         elif filtering == '-score':
+            paper_votes = PaperVote.objects.filter(
+                created_date__range=(start_date, end_date)
+            ).values_list('paper__unified_document', flat=True)
+            post_votes = ResearchhubPost.objects.filter(
+                votes__created_date__range=(start_date, end_date)
+            ).values_list('unified_document', flat=True)
+            hypo_votes = Hypothesis.objects.filter(
+                votes__created_date__range=(start_date, end_date)
+            ).values_list('unified_document', flat=True)
+            unified_document_ids = paper_votes.union(post_votes, hypo_votes)
+
             qs = qs.filter(
-                created_date__range=[start_date, end_date],
+                id__in=unified_document_ids
             ).order_by(
                 filtering
             )
@@ -249,7 +361,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             reset_unified_document_cache(
                 [hub_id],
                 [document_request_type],
-                filtering,
+                [filtering],
                 time_difference.days
             )
 
@@ -261,13 +373,20 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             end_date
         )
 
-        context = self.get_serializer_context()
-        context['user_no_balance'] = True
-        context['exclude_promoted_score'] = True
-        context['include_wallet'] = False
-
+        context = self._get_serializer_context()
         page = self.paginate_queryset(documents)
-        serializer = self.serializer_class(page, many=True, context=context)
+
+        serializer = self.dynamic_serializer_class(
+            page,
+            _include_fields=[
+                'documents',
+                'document_type',
+                'hot_score',
+                'score',
+            ],
+            many=True,
+            context=context
+        )
         serializer_data = serializer.data
 
         return self.get_paginated_response(serializer_data)
@@ -387,13 +506,19 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         #         hubs__in=hubs.all()
         #     ).distinct()
 
-        context = self.get_serializer_context()
-        context['user_no_balance'] = True
-        context['exclude_promoted_score'] = True
-        context['include_wallet'] = False
-
+        context = self._get_serializer_context()
         page = self.paginate_queryset(all_documents)
-        serializer = self.serializer_class(page, many=True, context=context)
+        serializer = self.dynamic_serializer_class(
+            page,
+            _include_fields=[
+                'documents',
+                'document_type',
+                'hot_score',
+                'score'
+            ],
+            many=True,
+            context=context
+        )
         serializer_data = serializer.data
         return self.get_paginated_response(serializer_data)
 
@@ -403,20 +528,22 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         permission_classes=[AllowAny]
     )
     def check_user_vote(self, request):
-        post_content_type = ContentType.objects.get(model='researchhubpost')
         paper_ids = request.query_params.get('paper_ids', '')
         post_ids = request.query_params.get('post_ids', '')
+        hypothesis_ids = request.query_params.get('hypothesis_ids', '')
 
         if paper_ids:
             paper_ids = paper_ids.split(',')
-
         if post_ids:
             post_ids = post_ids.split(',')
+        if hypothesis_ids:
+            hypothesis_ids = hypothesis_ids.split(',')
 
         user = request.user
         response = {
-            'posts': {},
+            'hypothesis': {},
             'papers': {},
+            'posts': {},
         }
 
         if user.is_authenticated:
@@ -431,15 +558,31 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                         instance=vote
                     ).data
             if post_ids:
-                post_votes = DiscussionVote.objects.filter(
-                    content_type=post_content_type,
-                    object_id__in=post_ids,
-                    created_by=user
+                post_votes = get_user_votes(
+                    user,
+                    post_ids,
+                    ContentType.objects.get_for_model(ResearchhubPost)
                 )
                 for vote in post_votes.iterator():
-                    post_id = vote.object_id
-                    response['posts'][post_id] = DiscussionVoteSerializer(
-                        instance=vote
-                    ).data
-
+                    response['posts'][vote.object_id] = (
+                        ReactionVoteSerializer(instance=vote).data
+                    )
+            if hypothesis_ids:
+                hypo_votes = get_user_votes(
+                    user,
+                    hypothesis_ids,
+                    ContentType.objects.get_for_model(Hypothesis)
+                )
+                for vote in hypo_votes.iterator():
+                    response['hypothesis'][vote.object_id] = (
+                        ReactionVoteSerializer(instance=vote).data
+                    )
         return Response(response, status=status.HTTP_200_OK)
+
+
+def get_user_votes(created_by, doc_ids, reaction_content_type):
+    return ReactionVote.objects.filter(
+        content_type=reaction_content_type,
+        object_id__in=doc_ids,
+        created_by=created_by
+    )

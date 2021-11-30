@@ -19,5 +19,3 @@ database/
 
 # Celery local files
 celerybeat-schedule
-
-.ebextensions

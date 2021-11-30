@@ -163,6 +163,16 @@ class BaseComment(models.Model):
                 h.save(update_fields=['discussion_count'])
 
             return new_dis_count
+
+        post = self.post
+        hypothesis = self.hypothesis
+        instance = post or hypothesis
+        if instance:
+            new_dis_count = instance.get_discussion_count()
+            instance.discussion_count = new_dis_count
+            instance.save()
+            return new_dis_count
+
         return 0
 
     def remove_nested(self):
@@ -186,13 +196,15 @@ class BaseComment(models.Model):
 
 
 class Thread(BaseComment):
-    RESEARCHHUB = 'researchhub'
+    CITATION_COMMENT = 'citation_comment'
     INLINE_ABSTRACT = 'inline_abstract'
     INLINE_PAPER_BODY = 'inline_paper_body'
+    RESEARCHHUB = 'researchhub'
     THREAD_SOURCE_CHOICES = [
-        (RESEARCHHUB, 'researchhub'),
+        (CITATION_COMMENT, 'Citation Comment'),
         (INLINE_ABSTRACT, 'Inline Abstract'),
-        (INLINE_PAPER_BODY, 'Inline Paper Body')
+        (INLINE_PAPER_BODY, 'Inline Paper Body'),
+        (RESEARCHHUB, 'researchhub'),
     ]
     source = models.CharField(
         default=RESEARCHHUB,
@@ -225,6 +237,20 @@ class Thread(BaseComment):
         blank=True,
         null=True
     )
+    hypothesis = models.ForeignKey(
+        'hypothesis.Hypothesis',
+        on_delete=models.SET_NULL,
+        related_name='threads',
+        null=True,
+        blank=True,
+    )
+    citation = models.ForeignKey(
+        'hypothesis.Citation', 
+        on_delete=models.SET_NULL,
+        related_name='threads',
+        null=True,
+        blank=True,
+    )
     actions = GenericRelation(
         'user.Action',
         object_id_field='object_id',
@@ -248,6 +274,15 @@ class Thread(BaseComment):
         post = self.post
         if post:
             return post.unified_document
+
+        hypothesis = self.hypothesis
+        if hypothesis:
+            return hypothesis.unified_document
+
+        citation = self.citation
+        if citation:
+            return citation.source
+
         return None
 
     @property
@@ -281,8 +316,10 @@ class Thread(BaseComment):
 
     @property
     def users_to_notify(self):
-        if self.post:
+        # TODO: Add notifications to posts and hypotheses
+        if self.post or self.hypothesis or self.citation:
             return []
+
         users = list(self.parent.moderators.all())
         paper_authors = self.parent.authors.all()
         for author in paper_authors:
@@ -326,6 +363,13 @@ class Reply(BaseComment):
             return post
 
     @property
+    def hypothesis(self):
+        comment = self.get_comment_of_reply()
+        if comment:
+            hypothesis = comment.hypothesis
+            return hypothesis
+
+    @property
     def thread(self):
         comment = self.get_comment_of_reply()
         thread = comment.parent
@@ -335,12 +379,19 @@ class Reply(BaseComment):
     def unified_document(self):
         thread = self.thread
         paper = thread.paper
+        hypothesis = thread.hypothesis
+
         if paper:
             return paper.unified_document
 
         post = thread.post
         if post:
             return post.unified_document
+
+        hypothesis = thread.hypothesis
+        if hypothesis:
+            return hypothesis.unified_document
+
         return None
 
     @property
@@ -387,6 +438,7 @@ class Reply(BaseComment):
                 p.created_by
                 and p.created_by.emailrecipient.reply_subscription.replies
                 and not p.created_by.emailrecipient.reply_subscription.none
+                and not p.created_by == self.created_by
             ):
                 users.append(p.created_by)
         else:
@@ -433,6 +485,13 @@ class Comment(BaseComment):
             return post
 
     @property
+    def hypothesis(self):
+        thread = self.parent
+        if thread:
+            hypothesis = thread.hypothesis
+            return hypothesis
+
+    @property
     def unified_document(self):
         thread = self.thread
         paper = thread.paper
@@ -442,6 +501,11 @@ class Comment(BaseComment):
         post = thread.post
         if post:
             return post.unified_document
+
+        hypothesis = thread.hypothesis
+        if hypothesis:
+            return hypothesis.unified_document
+
         return None
 
     @property
@@ -465,6 +529,7 @@ class Comment(BaseComment):
             p.created_by
             and p.created_by.emailrecipient.thread_subscription.comments
             and not p.created_by.emailrecipient.thread_subscription.none
+            and not p.created_by == self.created_by
         ):
             users.append(p.created_by)
         return users

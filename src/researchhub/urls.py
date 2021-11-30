@@ -7,30 +7,43 @@ from django.contrib import admin
 from django.urls import include, path, re_path
 from rest_framework import routers
 
+import analytics.views
 import bullet_point.views
+import debug_toolbar
 import discussion.views
 import google_analytics.views
 import hub.views
+import hypothesis.views as hypothesis_views
+import invite.views as invite_views
 import mailing_list.views
+import new_feature_release.views
+import note.views as note_views
+import notification.views
 import oauth.urls
 import oauth.views
 import paper.views
+import purchase.views
 import reputation.views
+import researchhub_case.views as researchhub_case_views
+import researchhub_document.views as researchhub_document_views
 import researchhub.views
 import search.urls
 import summary.views
 import user.views
-import notification.views
-import analytics.views
-import purchase.views
-import debug_toolbar
-import researchhub_case.views as researchhub_case_views
-import researchhub_document.views as researchhub_document_views
 
-from researchhub.settings import CLOUD, NO_SILK, USE_DEBUG_TOOLBAR
+from user.views import GatekeeperViewSet
+
+from researchhub.settings import USE_DEBUG_TOOLBAR, INSTALLED_APPS
 
 router = routers.DefaultRouter()
 
+router.register(
+    r'new_feature_release',
+    new_feature_release.views.NewFeatureViewSet,
+    basename='new_feature_release',
+)
+
+# NOTE: calvinhlee - the way coments are handled is very inefficient. We need to refactor this
 router.register(
     r'paper/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply',
     discussion.views.ReplyViewSet,
@@ -66,6 +79,43 @@ router.register(
     discussion.views.ThreadViewSet,
     basename='post_discussion_threads'
 )
+
+router.register(
+    r'hypothesis/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply',
+    discussion.views.ReplyViewSet,
+    basename='hypothesis_discussion_thread_comment_replies'
+)
+
+router.register(
+    r'hypothesis/([0-9]+)/discussion/([0-9]+)/comment',
+    discussion.views.CommentViewSet,
+    basename='hypothesis_discussion_thread_comments'
+)
+
+router.register(
+    r'hypothesis/([0-9]+)/discussion',
+    discussion.views.ThreadViewSet,
+    basename='hypothesis_discussion_threads'
+)
+
+router.register(
+    r'citation/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply',
+    discussion.views.ReplyViewSet,
+    basename='citation_discussion_thread_comment_replies'
+)
+
+router.register(
+    r'citation/([0-9]+)/discussion/([0-9]+)/comment',
+    discussion.views.CommentViewSet,
+    basename='citation_discussion_thread_comments'
+)
+
+router.register(
+    r'citation/([0-9]+)/discussion',
+    discussion.views.ThreadViewSet,
+    basename='citation_discussion_threads'
+)
+
 
 router.register(
     r'paper/discussion/file',
@@ -138,6 +188,12 @@ router.register(
     r'major',
     user.views.MajorViewSet,
     basename='major'
+)
+
+router.register(
+    r'organization',
+    user.views.OrganizationViewSet,
+    basename='organization'
 )
 
 router.register(
@@ -218,6 +274,54 @@ router.register(
     basename='researchhub_unified_documents',
 )
 
+router.register(
+    r'hypothesis',
+    hypothesis_views.HypothesisViewSet,
+    basename='hypothesis'
+)
+
+router.register(
+    r'citation',
+    hypothesis_views.CitationViewSet,
+    basename='citations'
+)
+
+router.register(
+    r'note',
+    note_views.NoteViewSet,
+    basename='notes'
+)
+
+router.register(
+    r'note_content',
+    note_views.NoteContentViewSet,
+    basename='note_content'
+)
+
+router.register(
+    r'note_template',
+    note_views.NoteTemplateViewSet,
+    basename='note_template'
+)
+
+router.register(
+    r'invite/organization',
+    invite_views.OrganizationInvitationViewSet,
+    basename='organization_invite'
+)
+
+router.register(
+    r'invite/note',
+    invite_views.NoteInvitationViewSet,
+    basename='note_invite'
+)
+
+router.register(
+    r'gatekeeper',
+    GatekeeperViewSet,
+    basename='gatekeeper'
+)
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     re_path(r'^api/', include(router.urls)),
@@ -278,13 +382,20 @@ urlpatterns = [
     path(r'api/auth/', include('rest_auth.urls')),
     re_path(r'^auth/signup/', include(oauth.urls.registration_urls)),
     re_path(r'^auth/', include(oauth.urls.default_urls)),
+    path(
+        'api/ckeditor/webhook/document_removed/',
+        note_views.note_view.ckeditor_webhook_document_removed
+    ),
+    path('api/ckeditor/token/', note_views.note_view.ckeditor_token),
     path('email_notifications/', mailing_list.views.email_notifications),
     path('health/', researchhub.views.healthcheck),
     path('', researchhub.views.index, name='index'),
 ]
 
-if not CLOUD and not NO_SILK:
-    urlpatterns += [path('silk/', include('silk.urls', namespace='silk'))]
+if 'silk' in INSTALLED_APPS:
+    urlpatterns = [
+        path('silk/', include('silk.urls', namespace='silk')),
+    ] + urlpatterns
 
 if USE_DEBUG_TOOLBAR:
     urlpatterns += [path('__debug__/', include(debug_toolbar.urls))]

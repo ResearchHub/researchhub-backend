@@ -9,6 +9,7 @@ from django.contrib.admin.options import get_content_type_for_model
 
 import reputation.distributions as distributions
 from researchhub_document.models import ResearchhubPost
+from hypothesis.models import Hypothesis, Citation
 from bullet_point.models import (
     BulletPoint,
     Vote as BulletPointVote
@@ -24,10 +25,12 @@ from paper.models import (
     Paper,
     Vote as PaperVote
 )
+from purchase.models import Purchase
 from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError
-from reputation.models import Distribution
+from reputation.models import Distribution, Contribution
 from summary.models import Summary, Vote as SummaryVote
+from user.utils import reset_latest_acitvity_cache
 from utils import sentry
 
 # TODO: "Suspend" user if their reputation becomes negative
@@ -455,12 +458,16 @@ def distribute_for_discussion_vote(
                 hubs = item.parent.paper.hubs
             elif item.parent.post is not None:
                 hubs = item.parent.post.unified_document.hubs
+            elif item.parent.hypothesis is not None:
+                hubs = item.parent.hypothesis.unified_document.hubs
         elif isinstance(item, Reply):
             try:
                 if item.parent.parent.paper is not None:
                     hubs = item.parent.parent.paper.hubs
                 elif item.parent.parent.post is not None:
                     hubs = item.parent.parent.post.unified_document.hubs
+                elif item.parent.parent.hypothesis is not None:
+                    hubs = item.parent.parent.hypothesis.unified_document.hubs
             except Exception as e:
                 sentry.log_error(e)
         elif isinstance(item, Thread):
@@ -468,8 +475,14 @@ def distribute_for_discussion_vote(
                 hubs = item.paper.hubs
             elif item.post is not None:
                 hubs = item.post.unified_document.hubs
+            elif item.hypothesis is not None:
+                hubs = item.hypothesis.unified_document.hubs
         elif isinstance(item, ResearchhubPost):
             hubs = item.unified_document.hubs
+        elif isinstance(item, Hypothesis):
+            hubs = item.unified_document.hubs
+        elif isinstance(item, Citation):
+            hubs = item.source.hubs
 
         # TODO: This needs to be altered so that if the vote changes the
         # original distribution is deleted if not yet withdrawn
@@ -550,7 +563,6 @@ def get_discussion_vote_item_distribution(instance):
             return distributions.ResearchhubPostUpvoted
         else:
             raise error
-
     elif vote_type == ReactionVote.DOWNVOTE:
         if item_type == Comment:
             return distributions.CommentDownvoted
@@ -562,6 +574,8 @@ def get_discussion_vote_item_distribution(instance):
             return distributions.ResearchhubPostDownvoted
         else:
             raise error
+    elif vote_type == ReactionVote.NEUTRAL:
+        return distributions.NeutralVote
 
 
 @receiver(post_delete, sender=Distribution, dispatch_uid='delete_distribution')
@@ -583,3 +597,22 @@ def is_eligible_for_new_user_bonus(user):
 
 def new_user_cutoff_date():
     return timezone.now() - timedelta(days=NEW_USER_BONUS_DAYS_LIMIT)
+
+
+@receiver(post_save, sender=Contribution, dispatch_uid='preload_latest_activity')
+def preload_latest_activity(sender, instance, created, **kwargs):
+    if created:
+        # Resetting latest activity on a per hub basis
+        item = instance.item
+        if isinstance(item, Purchase):
+            item = item.item
+
+        if hasattr(item, 'hubs'):
+            hub_ids = item.hubs.values_list('id', flat=True)
+        elif hasattr(item, 'unified_document'):
+            hub_ids = item.unified_document.hubs.values_list('id', flat=True)
+        else:
+            return
+
+        hub_ids_str = ','.join([str(hub_id) for hub_id in hub_ids])
+        reset_latest_acitvity_cache(hub_ids_str)

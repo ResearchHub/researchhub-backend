@@ -1,52 +1,66 @@
 import logging
-import rest_framework.serializers as rest_framework_serializers
+import rest_framework.serializers as serializers
 import rest_auth.registration.serializers as rest_auth_serializers
 
 from bullet_point.models import BulletPoint
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from discussion.lib import check_is_discussion_item
 from hub.serializers import HubSerializer
+from hypothesis.models import Hypothesis
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_access_group.serializers import DynamicPermissionSerializer
 from paper.models import Vote as PaperVote, Paper
+from bullet_point.models import Vote as BulletVote
 from user.models import (
     Action,
     Author,
     University,
     User,
     Major,
-    Verification
+    Organization,
+    Verification,
 )
-from summary.models import Summary
+from summary.models import Summary, Vote as SummaryVote
 from purchase.models import Purchase
+from researchhub.serializers import DynamicModelFieldSerializer
+from user.related_models.gatekeeper_model import Gatekeeper
+
 from utils import sentry
 
 
-class VerificationSerializer(rest_framework_serializers.ModelSerializer):
+class VerificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Verification
         fields = '__all__'
 
 
-class UniversitySerializer(rest_framework_serializers.ModelSerializer):
+class UniversitySerializer(serializers.ModelSerializer):
     class Meta:
         model = University
         fields = '__all__'
 
 
-class MajorSerializer(rest_framework_serializers.ModelSerializer):
+class MajorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Major
         fields = '__all__'
 
 
-class AuthorSerializer(rest_framework_serializers.ModelSerializer):
+class GatekeeperSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Gatekeeper
+        fields = '__all__'
+        read_only_fields = [field.name for field in Gatekeeper._meta.fields]
+
+
+class AuthorSerializer(serializers.ModelSerializer):
     university = UniversitySerializer(required=False)
-    reputation = rest_framework_serializers.SerializerMethodField()
-    orcid_id = rest_framework_serializers.SerializerMethodField()
-    total_score = rest_framework_serializers.SerializerMethodField()
-    wallet = rest_framework_serializers.SerializerMethodField()
-    sift_link = rest_framework_serializers.SerializerMethodField()
-    num_posts = rest_framework_serializers.SerializerMethodField()
+    reputation = serializers.SerializerMethodField()
+    orcid_id = serializers.SerializerMethodField()
+    total_score = serializers.SerializerMethodField()
+    wallet = serializers.SerializerMethodField()
+    sift_link = serializers.SerializerMethodField()
+    num_posts = serializers.SerializerMethodField()
 
     class Meta:
         model = Author
@@ -66,7 +80,7 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
             'is_claimed',
             'num_posts',
         ]
-        
+
     def get_reputation(self, obj):
         if obj.user is None:
             return 0
@@ -76,11 +90,31 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
         return author.orcid_id
 
     def get_total_score(self, author):
-        return author.author_score
+        if author.author_score > 0:
+            return author.author_score
+        # else:
+        #     raw_score = Paper.objects.filter(
+        #         raw_authors__contains=[
+        #             {
+        #                 'first_name': author.first_name,
+        #                 'last_name': author.last_name
+        #             }
+        #         ]
+        #     ).aggregate(
+        #         Sum('score')
+        #     ).get('score__sum', 0) or 0
+            
+        #     authored_score = author.authored_papers.aggregate(Sum('score')).get('score__sum', 0) or 0
+        #     total = raw_score + authored_score
+
+        #     if total > 0:
+        #         author.author_score = total
+        #         author.save()
+        #     return total
 
     def get_wallet(self, obj):
         from purchase.serializers import WalletSerializer
-        if not self.context.get('include_wallet', True):
+        if not self.context.get('include_wallet', False):
             return
 
         try:
@@ -104,8 +138,14 @@ class AuthorSerializer(rest_framework_serializers.ModelSerializer):
         return 0
 
 
-class AuthorEditableSerializer(rest_framework_serializers.ModelSerializer):
-    university = rest_framework_serializers.PrimaryKeyRelatedField(
+class DynamicAuthorSerializer(DynamicModelFieldSerializer):
+    class Meta:
+        model = Author
+        fields = '__all__'
+
+
+class AuthorEditableSerializer(serializers.ModelSerializer):
+    university = serializers.PrimaryKeyRelatedField(
         queryset=University.objects.all(),
         required=False,
         allow_null=True
@@ -116,13 +156,13 @@ class AuthorEditableSerializer(rest_framework_serializers.ModelSerializer):
         fields = [field.name for field in Author._meta.fields] + ['university']
 
 
-class UserSerializer(rest_framework_serializers.ModelSerializer):
+class UserSerializer(serializers.ModelSerializer):
     author_profile = AuthorSerializer(read_only=True)
-    balance = rest_framework_serializers.SerializerMethodField(read_only=True)
-    subscribed = rest_framework_serializers.SerializerMethodField(
+    balance = serializers.SerializerMethodField(read_only=True)
+    subscribed = serializers.SerializerMethodField(
         read_only=True
     )
-    hub_rep = rest_framework_serializers.SerializerMethodField()
+    hub_rep = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -175,8 +215,8 @@ class UserSerializer(rest_framework_serializers.ModelSerializer):
             return None
 
 
-class MinimalUserSerializer(rest_framework_serializers.ModelSerializer):
-    author_profile = rest_framework_serializers.SerializerMethodField()
+class MinimalUserSerializer(serializers.ModelSerializer):
+    author_profile = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -194,10 +234,11 @@ class MinimalUserSerializer(rest_framework_serializers.ModelSerializer):
         return serializer.data
 
 
-class UserEditableSerializer(rest_framework_serializers.ModelSerializer):
+class UserEditableSerializer(serializers.ModelSerializer):
     author_profile = AuthorSerializer()
-    balance = rest_framework_serializers.SerializerMethodField()
-    subscribed = rest_framework_serializers.SerializerMethodField()
+    balance = serializers.SerializerMethodField()
+    organization_slug = serializers.SerializerMethodField()
+    subscribed = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -214,6 +255,13 @@ class UserEditableSerializer(rest_framework_serializers.ModelSerializer):
 
     def get_balance(self, obj):
         return obj.get_balance()
+
+    def get_organization_slug(self, obj):
+        try:
+            return obj.organization.slug
+        except Exception as e:
+            sentry.log_error(e)
+            return None
 
     def get_subscribed(self, obj):
         if self.context.get('get_subscribed'):
@@ -238,6 +286,24 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
     def save(self, request):
         return super().save(request)
+
+
+class DynamicUserSerializer(DynamicModelFieldSerializer):
+    author_profile = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = '__all__'
+
+    def get_author_profile(self, user):
+        context = self.context
+        _context_fields = context.get('usr_dus_get_author_profile', {})
+        serializer = DynamicAuthorSerializer(
+            user.author_profile,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
 
 
 class UserActions:
@@ -319,6 +385,10 @@ class UserActions:
                 data['support_type'] = item.content_type.model
             elif isinstance(item, ResearchhubPost):
                 data['post_title'] = item.title
+            elif isinstance(item, BulletVote):
+                item = item.bulletpoint
+            elif isinstance(item, SummaryVote):
+                item = item.summary
             else:
                 raise TypeError(
                     f'Instance of type {type(item)} is not supported'
@@ -326,6 +396,8 @@ class UserActions:
 
             is_removed = False
             paper = None
+            post = None
+            discussion = None
             if isinstance(item, Paper):
                 paper = item
             else:
@@ -334,6 +406,14 @@ class UserActions:
                         purchase_item = item.item
                         if isinstance(purchase_item, Paper):
                             paper = purchase_item
+                        elif isinstance(purchase_item, ResearchhubPost):
+                            post = purchase_item
+                        elif (
+                            isinstance(purchase_item, Thread)
+                            or isinstance(purchase_item, Comment)
+                            or isinstance(purchase_item, Reply)
+                        ):
+                            discussion = purchase_item
                         else:
                             paper = purchase_item.paper
                     else:
@@ -349,6 +429,27 @@ class UserActions:
 
                 if paper.is_removed:
                     is_removed = True
+
+            if post:
+                data['post_id'] = post.id
+                data['post_title'] = post.title
+                data['slug'] = post.slug
+
+            if discussion:
+                data['plain_text'] = discussion.plain_text
+                paper = discussion.paper
+                post = discussion.post
+                if paper:
+                    data['parent_content_type'] = 'paper'
+                    data['paper_id'] = paper.id
+                    data['paper_title'] = paper.title
+                    data['paper_official_title'] = paper.paper_title
+                    data['slug'] = paper.slug
+                elif post:
+                    data['parent_content_type'] = 'post'
+                    data['post_id'] = post.id
+                    data['post_title'] = post.title
+                    data['slug'] = post.slug
 
             if isinstance(item, Thread):
                 thread = item
@@ -426,3 +527,148 @@ class UserActions:
         if creator is not None:
             return UserSerializer(creator).data
         return None
+
+
+class DynamicActionSerializer(DynamicModelFieldSerializer):
+    item = serializers.SerializerMethodField()
+    content_type = serializers.SerializerMethodField()
+    created_by = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Action
+        fields = '__all__'
+
+    def get_item(self, action):
+        context = self.context
+        _context_fields = context.get('usr_das_get_item', {})
+        item = action.item
+        ignored_items = [
+            BulletPoint,
+            BulletVote,
+            Summary,
+            SummaryVote
+        ]
+        if type(item) in ignored_items:
+            return None
+
+        if isinstance(item, Paper):
+            from paper.serializers import DynamicPaperSerializer
+            serializer = DynamicPaperSerializer
+        elif isinstance(item, ResearchhubPost):
+            from researchhub_document.serializers import DynamicPostSerializer
+            serializer = DynamicPostSerializer
+        elif isinstance(item, Hypothesis):
+            from hypothesis.serializers import DynamicHypothesisSerializer
+            serializer = DynamicHypothesisSerializer
+        elif isinstance(item, Purchase):
+            from purchase.serializers import DynamicPurchaseSerializer
+            serializer = DynamicPurchaseSerializer
+        elif isinstance(item, Thread):
+            from discussion.serializers import DynamicThreadSerializer
+            serializer = DynamicThreadSerializer
+        elif isinstance(item, Comment):
+            from discussion.serializers import DynamicCommentSerializer
+            serializer = DynamicCommentSerializer
+        elif isinstance(item, Reply):
+            from discussion.serializers import DynamicReplySerializer
+            serializer = DynamicReplySerializer
+        else:
+            return None
+
+        data = serializer(
+            item,
+            context=context,
+            **_context_fields
+        ).data
+        return data
+
+    def get_created_by(self, action):
+        context = self.context
+        _context_fields = context.get('usr_das_get_created_by', {})
+        serializer = DynamicUserSerializer(
+            action.user,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_content_type(self, action):
+        return action.content_type.model
+
+
+class OrganizationSerializer(serializers.ModelSerializer):
+    member_count = serializers.SerializerMethodField()
+    user_permission = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Organization
+        fields = '__all__'
+        read_only_fields = ['id', 'slug']
+
+    def get_member_count(self, organization):
+        permissions = organization.permissions
+        users = permissions.filter(user__isnull=False)
+        return users.count()
+
+    def get_user_permission(self, organization):
+        context = self.context
+
+        if 'request' in context:
+            request = context.get('request')
+            user = request.user
+        else:
+            return None
+
+        if not user.is_anonymous:
+            permission = organization.permissions.filter(user=user)
+            if permission.exists():
+                permission = permission.first()
+            else:
+                return None
+            access_type = permission.access_type
+            return {'access_type': access_type}
+        return None
+
+
+class DynamicOrganizationSerializer(DynamicModelFieldSerializer):
+    member_count = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
+    user_permission = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Organization
+        fields = '__all__'
+
+    def get_member_count(self, organization):
+        permissions = organization.permissions
+        users = permissions.filter(user__isnull=False)
+        return users.count()
+
+    def get_user(self, organization):
+        context = self.context
+        _context_fields = context.get('usr_dos_get_user', {})
+
+        serializer = DynamicUserSerializer(
+            organization.user,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_user_permission(self, organization):
+        context = self.context
+        _context_fields = context.get('usr_dos_get_user_permissions', {})
+        user = context.get('user')
+
+        permission = organization.permissions.filter(user=user)
+        if permission.exists():
+            permission = permission.first()
+        else:
+            return None
+
+        serializer = DynamicPermissionSerializer(
+            permission,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data

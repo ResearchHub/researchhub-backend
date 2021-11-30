@@ -1,9 +1,12 @@
 import logging
 
 from django.apps import apps
-
+from django.http.request import HttpRequest
+from django.core.cache import cache
+from rest_framework.request import Request
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
+from django_elasticsearch_dsl.registries import registry
 
 from researchhub.celery import app
 from discussion.lib import (
@@ -16,8 +19,10 @@ from discussion.models import (
     Comment, Reply, Thread, Vote as DiscussionVote
 )
 from paper.models import Paper
+from paper.utils import get_cache_key
 from hub.models import Hub
 from researchhub_document.utils import reset_unified_document_cache
+from researchhub.settings import STAGING, PRODUCTION
 
 
 @app.task
@@ -217,3 +222,76 @@ def get_my_updates(user, actions):
 
 def filter_comments_on_my_threads(comments, threads):
     return [comment for comment in comments if comment.parent in threads]
+
+
+@app.task
+def preload_latest_activity(hub_ids, ordering):
+    from user.views import UserViewSet
+    from reputation.serializers import DynamicContributionSerializer
+
+    hub_ids_str = hub_ids
+    request_path = '/api/user/following_latest_activity/'
+    if STAGING:
+        http_host = 'staging-backend.researchhub.com'
+        protocol = 'https'
+    elif PRODUCTION:
+        http_host = 'backend.researchhub.com'
+        protocol = 'https'
+    else:
+        http_host = 'localhost:8000'
+        protocol = 'http'
+
+    query_string = f'?page=1&hub_ids={hub_ids_str}'
+    http_meta = {
+        'QUERY_STRING': query_string,
+        'HTTP_HOST': http_host,
+        'HTTP_X_FORWARDED_PROTO': protocol,
+    }
+
+    cache_key = get_cache_key('contributions', hub_ids_str)
+    user_view = UserViewSet()
+    http_req = HttpRequest()
+    http_req.META = http_meta
+    http_req.path = request_path
+    req = Request(http_req)
+    user_view.request = req
+
+    latest_activities = user_view._get_latest_activity_queryset(
+        hub_ids_str,
+        ordering
+    )
+    page = user_view.paginate_queryset(latest_activities)
+    context = user_view._get_latest_activity_context()
+    serializer = DynamicContributionSerializer(
+        page,
+        _include_fields=[
+            'contribution_type',
+            'created_date',
+            'id',
+            'source',
+            'unified_document',
+            'user'
+        ],
+        context=context,
+        many=True,
+    )
+    serializer_data = serializer.data
+
+    paginated_response = user_view.get_paginated_response(
+        serializer_data
+    )
+
+    cache.set(
+        cache_key,
+        paginated_response.data,
+        timeout=60*60*24
+    )
+
+    return paginated_response.data
+
+
+@app.task
+def update_elastic_registry(user_id):
+    Author = apps.get_model('user.Author')
+    user_author = Author.objects.get(user_id=user_id)
+    registry.update(user_author)

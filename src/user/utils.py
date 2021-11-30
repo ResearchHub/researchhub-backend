@@ -1,4 +1,5 @@
 from utils.sentry import log_error
+from user.tasks import preload_latest_activity
 
 
 def merge_author_profiles(source, target):
@@ -31,10 +32,40 @@ def merge_author_profiles(source, target):
         except Exception as e:
             print(e)
             log_error(e)
+
+    target.merged_with = source
     # logical ordering
     target.user = None
     target.orcid_account = None
     target.orcid_id = None
+    target.claimed = True
     target.save()
     source.save()
     return source
+
+
+def reset_latest_acitvity_cache(
+    hub_ids='',
+    ordering='-created_date',
+    include_default=True,
+    use_celery=True
+):
+    # Resets the 'all' feed
+    if include_default:
+        if use_celery:
+            preload_latest_activity.apply_async(
+                ('', ordering),
+                priority=3
+            )
+        else:
+            preload_latest_activity('', ordering)
+
+    hub_ids_list = hub_ids.split(',')
+    for hub_id in hub_ids_list:
+        if use_celery:
+            preload_latest_activity.apply_async(
+                (hub_id, ordering),
+                priority=3
+            )
+        else:
+            preload_latest_activity(hub_id, ordering)

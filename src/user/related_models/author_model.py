@@ -1,3 +1,4 @@
+from django.db.models.deletion import SET_NULL
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.postgres.fields import ArrayField, JSONField
 from django.db import models
@@ -6,6 +7,7 @@ from django.db.models import Sum
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
 from user.related_models.user_model import User
+from paper.models import Paper
 from researchhub_case.constants.case_constants import APPROVED
 
 fs = ProfileImageStorage()
@@ -86,7 +88,14 @@ class Author(models.Model):
         null=True,
         blank=True
     )
-    academic_verification = models.BooleanField(default=None, null=True)
+    academic_verification = models.BooleanField(default=None, null=True, blank=True)
+    claimed = models.BooleanField(default=True, null=True, blank=True)
+    merged_with = models.ForeignKey(
+        'self',
+        on_delete=SET_NULL,
+        null=True,
+        blank=True
+    )
 
     def __str__(self):
         university = self.university
@@ -113,10 +122,24 @@ class Author(models.Model):
         return None
 
     @property
+    def person_types_indexing(self):
+        person_types = ['author']
+        if self.user is not None:
+            person_types.append('user')
+
+        return person_types
+
+    @property
     def university_indexing(self):
         if self.university is not None:
             return self.university
         return None
+
+    @property
+    def user_reputation_indexing(self):
+        if self.user is not None:
+            return self.user.reputation
+        return 0
 
     @property
     def is_claimed(self):
@@ -153,5 +176,19 @@ class Author(models.Model):
 
         if aggregated_discussion_count['total_score']:
             paper_scores += 2 * aggregated_discussion_count['total_score']
+        
+        raw_scores = Paper.objects.filter(
+            raw_authors__contains=[
+                {
+                    'first_name': self.first_name,
+                    'last_name': self.last_name
+                }
+            ]
+        ).aggregate(
+            Sum('score')
+        )['score__sum']
 
-        return paper_scores + paper_count / 10
+        if raw_scores:
+            paper_scores += raw_scores
+
+        return paper_scores + paper_count

@@ -64,6 +64,7 @@ from paper.serializers import (
     FlagSerializer,
     FigureSerializer,
     PaperSerializer,
+    DynamicPaperSerializer,
     PaperReferenceSerializer,
     PaperVoteSerializer,
     FeaturedPaperSerializer,
@@ -79,7 +80,7 @@ from paper.utils import (
     add_default_hub
 )
 from purchase.models import Purchase
-from researchhub.lib import get_paper_id_from_path
+from researchhub.lib import get_document_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from user.models import Author
@@ -117,20 +118,20 @@ class PaperViewSet(viewsets.ModelViewSet):
             'uploaded_by__subscribed_hubs',
             'authors',
             'authors__user',
-            Prefetch(
-                'bullet_points',
-                queryset=BulletPoint.objects.filter(
-                    is_head=True,
-                    is_removed=False,
-                    ordinal__isnull=False
-                ).order_by('ordinal')
-            ),
-            'summary',
-            'summary__previous',
-            'summary__proposed_by__bookmarks',
-            'summary__proposed_by__subscribed_hubs',
-            'summary__proposed_by__author_profile',
-            'summary__paper',
+            # Prefetch(
+            #     'bullet_points',
+            #     queryset=BulletPoint.objects.filter(
+            #         is_head=True,
+            #         is_removed=False,
+            #         ordinal__isnull=False
+            #     ).order_by('ordinal')
+            # ),
+            # 'summary',
+            # 'summary__previous',
+            # 'summary__proposed_by__bookmarks',
+            # 'summary__proposed_by__subscribed_hubs',
+            # 'summary__proposed_by__author_profile',
+            # 'summary__paper',
             'moderators',
             'hubs',
             'hubs__subscribers',
@@ -222,6 +223,8 @@ class PaperViewSet(viewsets.ModelViewSet):
                 error_message = 'A paper with this url already exists.'
             if 'doi' in error_message:
                 error_message = 'A paper with this DOI already exists.'
+            if 'DOI' in error_message:
+                error_message = 'Invalid DOI'
         except IndexError:
             error_message = 'A paper with this url or DOI already exists.'
         return Response(
@@ -231,11 +234,15 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
+        context = {
+            'request': request,
+            'get_raw_author_scores': True
+        }
         cache_key = get_cache_key('paper', instance.id)
         cache_hit = cache.get(cache_key)
         if cache_hit is not None:
             vote = self.serializer_class(
-                context={'request': request}
+                context=context
             ).get_user_vote(instance)
             cache_hit['user_vote'] = vote
             return Response(cache_hit)
@@ -243,7 +250,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         if request.query_params.get('make_public') and not instance.is_public:
             instance.is_public = True
             instance.save()
-        serializer = self.get_serializer(instance)
+        serializer = self.serializer_class(instance, context=context)
         serializer_data = serializer.data
 
         cache.set(cache_key, serializer_data, timeout=60*60*24*7)
@@ -282,22 +289,16 @@ class PaperViewSet(viewsets.ModelViewSet):
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
-        instance.reset_cache()
+        instance.reset_cache(use_celery=False)
         return response
 
     def _send_created_location_ga_event(self, instance, user):
         created = True
-
         category = 'Paper'
-
         label = 'Pdf from Progress'
-
         action = 'Upload'
-
         user_id = user.id
-
         paper_id = instance.id
-
         date = instance.updated_date
 
         return get_event_hit_response(
@@ -319,6 +320,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     def censor(self, request, pk=None):
         paper = self.get_object()
         paper_id = paper.id
+        unified_doc = paper.unified_document
         cache_key = get_cache_key('paper', paper_id)
         cache.delete(cache_key)
         hub_ids = list(paper.hubs.values_list('id', flat=True))
@@ -345,7 +347,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                 user
             )
 
-        Contribution.objects.filter(paper=paper).delete()
+        Contribution.objects.filter(unified_document=unified_doc).delete()
         paper.is_removed = True
         paper.save()
         censored_paper_cleanup.apply_async((paper_id,), priority=3)
@@ -401,7 +403,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
         invalidate_most_discussed_cache(hub_ids)
-        paper.reset_cache()
+        paper.reset_cache(use_celery=False)
         return Response(
             self.get_serializer(instance=paper).data,
             status=200
@@ -1179,7 +1181,7 @@ class AdditionalFileViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        paper_id = get_paper_id_from_path(self.request)
+        paper_id = get_document_id_from_path(self.request)
         if paper_id is not None:
             queryset = queryset.filter(paper=paper_id)
         return queryset

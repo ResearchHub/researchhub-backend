@@ -9,10 +9,10 @@ class Command(BaseCommand):
     """
 
     def handle(self, *args, **options):
-        authorset = Author.objects.all().filter(author_score__gt=0)
+        authorset = Author.objects.all()
         total_authors = authorset.count()
         for i, author in enumerate(authorset):
-            print('{} / {}'.format(i, total_authors))
+            print('{} / {} / id: {}'.format(i, total_authors, author.id))
             score = author.calculate_score()
             author.author_score = score
             author.save()

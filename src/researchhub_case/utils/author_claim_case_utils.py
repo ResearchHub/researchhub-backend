@@ -1,10 +1,7 @@
 import time
 import uuid
 
-from django.db.models import Count, Q
-from paper.models import Vote
 from utils import sentry
-
 
 from reputation.distributions import Distribution as dist
 from reputation.distributor import Distributor
@@ -56,21 +53,8 @@ def send_validation_email(case):
 
 
 def reward_author_claim_case(requestor_author, target_author_papers):
-    vote_reward = 0
+    vote_reward = requestor_author.calculate_score()
     try:
-        for paper in target_author_papers.iterator():
-            votes = paper.votes.filter(
-                created_by__is_suspended=False,
-                created_by__probable_spammer=False
-            )
-            score = votes.aggregate(
-                score=Count(
-                    'id', filter=Q(vote_type=Vote.UPVOTE)
-                ) - Count(
-                    'id', filter=Q(vote_type=Vote.DOWNVOTE)
-                )
-            ).get('score', 0)
-            vote_reward += score
         distributor = Distributor(
             dist('REWARD', vote_reward, False),
             requestor_author.user,

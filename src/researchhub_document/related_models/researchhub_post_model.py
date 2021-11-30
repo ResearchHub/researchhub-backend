@@ -2,8 +2,8 @@ import datetime
 import pytz
 
 from django.db import models
-from django.db.models import Avg
-from django.db.models.functions import Extract
+from django.db.models import Count, Q, Avg, Sum, IntegerField
+from django.db.models.functions import Extract, Cast
 from django.contrib.contenttypes.fields import GenericRelation
 
 from discussion.reaction_models import AbstractGenericReactionModel
@@ -15,6 +15,8 @@ from researchhub_document.related_models.constants.editor_type import (
     CK_EDITOR,
     EDITOR_TYPES,
 )
+
+from hub.serializers import HubSerializer
 from paper.utils import paper_piecewise_log
 from purchase.models import Purchase
 from user.models import User
@@ -96,6 +98,12 @@ class ResearchhubPost(AbstractGenericReactionModel):
         content_type_field='content_type',
         related_query_name='post'
     )
+    actions = GenericRelation(
+        'user.Action',
+        object_id_field='object_id',
+        content_type_field='content_type',
+        related_query_name='posts'
+    )
     slug = models.SlugField(max_length=1024)
 
     @property
@@ -114,8 +122,103 @@ class ResearchhubPost(AbstractGenericReactionModel):
     def paper(self):
         return None
 
+    @property
+    def hubs(self):
+        return self.unified_document.hubs
+
+    @property
+    def is_removed(self):
+        return self.unified_document.is_removed
+
+    @property
+    def hot_score(self):
+        return self.unified_document.hot_score
+
+    @property
+    def hubs_indexing(self):
+        return [HubSerializer(h).data for h in self.hubs.all()]
+
+    @property
+    def hubs_indexing_flat(self):
+        return [hub.name for hub in self.hubs.all()]
+
+    @property
+    def hot_score_indexing(self):
+        return self.unified_document.hot_score
+
+    @property
+    def authors_indexing(self):
+        authors = []
+
+        for author in self.unified_document.authors:
+            authors.append({
+                'first_name': author.first_name,
+                'last_name': author.last_name,
+                'full_name': author.full_name,
+            })
+
+        return authors
+
     def get_promoted_score(self):
+        purchases = self.purchases.filter(
+            paid_status=Purchase.PAID,
+            amount__gt=0,
+            boost_time__gt=0
+        )
+        if purchases.exists():
+            base_score = self.score
+            boost_amount = purchases.annotate(
+                amount_as_int=Cast('amount', IntegerField())
+            ).aggregate(
+                sum=Sum('amount_as_int')
+            ).get('sum', 0)
+            return base_score + boost_amount
         return False
+
+    def get_boost_amount(self):
+        purchases = self.purchases.filter(
+            paid_status=Purchase.PAID,
+            amount__gt=0,
+            boost_time__gt=0
+        )
+        if purchases.exists():
+            boost_amount = purchases.annotate(
+                amount_as_int=Cast('amount', IntegerField())
+            ).aggregate(
+                sum=Sum('amount_as_int')
+            ).get('sum', 0)
+            return boost_amount
+        return 0
+
+    def get_discussion_count(self):
+        thread_count = self.threads.aggregate(
+            discussion_count=Count(
+                1,
+                filter=Q(
+                    is_removed=False,
+                    created_by__isnull=False,
+                )
+            )
+        )['discussion_count']
+        comment_count = self.threads.aggregate(
+            discussion_count=Count(
+                'comments',
+                filter=Q(
+                    comments__is_removed=False,
+                    comments__created_by__isnull=False,
+                )
+            )
+        )['discussion_count']
+        reply_count = self.threads.aggregate(
+            discussion_count=Count(
+                'comments__replies',
+                filter=Q(
+                    comments__replies__is_removed=False,
+                    comments__replies__created_by__isnull=False,
+                )
+            )
+        )['discussion_count']
+        return thread_count + comment_count + reply_count
 
     def calculate_hot_score(self):
         ALGO_START_UNIX = 1546329600

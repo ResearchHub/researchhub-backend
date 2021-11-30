@@ -20,6 +20,7 @@ RECAPTCHA_SECRET_KEY = os.environ.get('RECAPTCHA_SECRET_KEY', '')
 
 SIFT_ACCOUNT_ID = os.environ.get('SIFT_ACCOUNT_ID', '')
 SIFT_REST_API_KEY = os.environ.get('SIFT_REST_API_KEY', '')
+SIFT_WEBHOOK_SECRET_KEY = os.environ.get('SIFT_WEBHOOK_SECRET_KEY', '')
 
 AMPLITUDE_API_KEY = os.environ.get('AMPLITUDE_API_KEY', '')
 
@@ -30,3 +31,6 @@ SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
 APM_URL = os.environ.get('APM_URL', '')
 
 ELASTICSEARCH_HOST = os.environ.get('ELASTICSEARCH_HOST', '')
+
+CKEDITOR_CLOUD_ACCESS_KEY = os.environ.get('CKEDITOR_CLOUD_ACCESS_KEY', '')
+CKEDITOR_CLOUD_ENVIRONMENT_ID = os.environ.get('CKEDITOR_CLOUD_ENVIRONMENT_ID', '')

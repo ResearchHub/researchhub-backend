@@ -7,9 +7,9 @@ from django.utils import timezone
 
 from mailing_list.models import EmailRecipient
 from user.tasks import handle_spam_user_task
+from user.tasks import update_elastic_registry
 from utils.siftscience import decisions_api
 from utils.throttles import UserSustainedRateThrottle
-
 
 """
 User objects have the following fields by default:
@@ -87,6 +87,12 @@ class User(AbstractUser):
                     er.save()
             else:
                 EmailRecipient.objects.create(user=self, email=self.email)
+
+        # Update the Elastic Search index
+        try:
+            update_elastic_registry.apply_async([self.id])
+        except Exception as e:
+            pass
 
         return user_to_save
 

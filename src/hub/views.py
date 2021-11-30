@@ -19,7 +19,7 @@ from .permissions import CreateHub, IsSubscribed, IsNotSubscribed, CensorHub
 from .serializers import HubSerializer, HubCategorySerializer
 from .filters import HubFilter
 from user.models import Action
-from user.serializers import UserActions
+from user.serializers import UserActions, DynamicActionSerializer
 from utils.http import PATCH, POST, PUT, GET, DELETE
 from utils.message import send_email_message
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -27,6 +27,7 @@ from utils.throttles import THROTTLE_CLASSES
 from paper.models import Vote, Paper
 from paper.utils import get_cache_key
 from researchhub_document.utils import reset_unified_document_cache
+from researchhub.settings import SERIALIZER_SWITCH
 
 
 class CustomPageLimitPagination(PageNumberPagination):
@@ -139,7 +140,7 @@ class HubViewSet(viewsets.ModelViewSet):
         hub = self.get_object()
         try:
             hub.subscribers.add(request.user)
-            hub.subscriber_count = hub.get_subscriber_count()
+            hub.subscriber_count = hub.get_subscribers_count()
             hub.save(update_fields=['subscriber_count'])
 
             if hub.is_locked and (
@@ -160,7 +161,7 @@ class HubViewSet(viewsets.ModelViewSet):
         hub = self.get_object()
         try:
             hub.subscribers.remove(request.user)
-            hub.subscriber_count = hub.get_subscriber_count()
+            hub.subscriber_count = hub.get_subscribers_count()
             hub.save(update_fields=['subscriber_count'])
             return self._get_hub_serialized_response(hub, 200)
         except Exception as e:
@@ -227,14 +228,15 @@ class HubViewSet(viewsets.ModelViewSet):
     )
     def latest_actions(self, request, pk=None):
         models = [
-            'bulletpoint',
+            # 'bulletpoint',
+            # 'summary',
             'thread',
             'comment',
             'reply',
-            'summary',
             'purchase',
             'researchhubpost',
-            'paper'
+            'paper',
+            'hypothesis'
         ]
 
         # PK == 0 indicates for now that we're on the homepage
@@ -243,34 +245,174 @@ class HubViewSet(viewsets.ModelViewSet):
         else:
             actions = Action.objects.filter(
                 hubs=pk
-            ).prefetch_related('item')
+            ).select_related(
+                'user',
+            ).prefetch_related(
+                'item',
+            )
 
         actions = actions.filter(
+            (
+                Q(papers__is_removed=False) |
+                Q(threads__is_removed=False) |
+                Q(comments__is_removed=False) |
+                Q(replies__is_removed=False) |
+                Q(posts__unified_document__is_removed=False) |
+                Q(hypothesis__unified_document__is_removed=False) |
+                Q(content_type__model='purchase')
+            ),
             user__isnull=False,
             user__is_suspended=False,
             user__probable_spammer=False,
             content_type__model__in=models,
-            display=True
+            display=True,
         ).order_by('-created_date')
 
-        # actions = actions.filter(
-        #     (
-        #         Q(papers__is_removed=False) |
-        #         Q(bullet_point__paper__is_removed=False) |
-        #         Q(threads__paper__is_removed=False) |
-        #         Q(summaries__paper__is_removed=False) |
-        #         Q(comments__parent__paper__is_removed=False)
-        #         # Q(replies__parent__parent__paper__is_removed=False)
-        #     )
-        # ).order_by('-created_date')
-
         page = self.paginate_queryset(actions)
+        context = self._get_latest_actions_context()
+
         if page is not None:
-            data = UserActions(data=page, user=request.user).serialized
+            if SERIALIZER_SWITCH:
+                # New Serializer
+                serializer = DynamicActionSerializer(
+                    page,
+                    many=True,
+                    context=context,
+                    _include_fields={
+                        'id',
+                        'content_type',
+                        'created_by',
+                        'item',
+                        'created_date',
+                    }
+                )
+                data = serializer.data
+            else:
+                # Old Serializer
+                data = UserActions(data=page, user=request.user).serialized
             return self.get_paginated_response(data)
 
-        data = UserActions(data=actions, user=request.user).serialized
+        if SERIALIZER_SWITCH:
+            serializer = DynamicActionSerializer(
+                actions,
+                many=True,
+                context=context,
+                _include_fields={
+                    'id',
+                    'content_type',
+                    'created_by',
+                    'item',
+                }
+            )
+            data = serializer.data
+        else:
+            data = UserActions(data=actions, user=request.user).serialized
         return Response(data)
+
+    def _get_latest_actions_context(self):
+        context = {
+            'usr_das_get_created_by': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'author_profile',
+                ]
+            },
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                    'profile_image',
+                ]
+            },
+            'usr_das_get_item': {
+                '_include_fields': [
+                    'slug',
+                    'paper_title',
+                    'title',
+                    'unified_document',
+                    'content_type',
+                    'source',
+                    'user',
+                    'amount',
+                    'plain_text'
+                ]
+            },
+            'pch_dps_get_source': {
+                '_include_fields': [
+                    'id',
+                    'slug',
+                    'paper_title',
+                    'title',
+                    'unified_document',
+                    'plain_text',
+                ]
+            },
+            'pch_dps_get_user': {
+                '_include_fields': [
+                    'first_name',
+                    'last_name',
+                    'author_profile'
+                ]
+            },
+            'pap_dps_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'documents',
+                    'document_type',
+                    'slug',
+                ]
+            },
+            'dis_dts_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'document_type',
+                    'documents',
+                    'slug',
+                ]
+            },
+            'dis_dcs_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'document_type',
+                    'documents',
+                    'slug',
+                ]
+            },
+            'dis_drs_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'document_type',
+                    'documents',
+                    'slug',
+                ]
+            },
+            'doc_dps_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'document_type',
+                    'documents',
+                    'slug',
+                ]
+            },
+            'hyp_dhs_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'renderable_text',
+                    'title',
+                    'slug',
+                ]
+            },
+            'doc_duds_get_documents': {
+                '_include_fields': [
+                    'id',
+                    'title',
+                    'post_title',
+                    'slug',
+                ]
+            }
+        }
+        return context
 
 
 class HubCategoryViewSet(viewsets.ModelViewSet):

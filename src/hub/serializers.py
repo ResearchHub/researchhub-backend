@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from .models import Hub, HubCategory
-from utils.http import get_user_from_request
+from researchhub.serializers import DynamicModelFieldSerializer
 
 
 class SimpleHubSerializer(serializers.ModelSerializer):
@@ -42,3 +42,9 @@ class HubCategorySerializer(serializers.ModelSerializer):
             'category_name'
         ]
         model = HubCategory
+
+
+class DynamicHubSerializer(DynamicModelFieldSerializer):
+    class Meta:
+        model = Hub
+        fields = '__all__'

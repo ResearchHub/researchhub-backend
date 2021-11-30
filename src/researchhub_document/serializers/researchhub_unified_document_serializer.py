@@ -1,13 +1,19 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
-from hub.serializers import SimpleHubSerializer
-from paper.serializers import PaperSerializer
+from hub.serializers import SimpleHubSerializer, DynamicHubSerializer
+from paper.serializers import PaperSerializer, DynamicPaperSerializer
 from researchhub_document.related_models.constants.document_type import (
-    DISCUSSION, ELN
+    DISCUSSION,
+    ELN,
+    HYPOTHESIS
 )
+from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.serializers import ResearchhubPostSerializer
-from user.serializers import UserSerializer
+from researchhub_document.serializers import (
+    ResearchhubPostSerializer,
+    DynamicPostSerializer
+)
+from user.serializers import UserSerializer, DynamicUserSerializer
 
 
 class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
@@ -70,3 +76,64 @@ class ContributionUnifiedDocumentSerializer(
 
     def get_documents(self, instance):
         return None
+
+
+class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
+    documents = SerializerMethodField()
+    created_by = SerializerMethodField()
+    access_group = SerializerMethodField()
+    hubs = SerializerMethodField()
+
+    class Meta:
+        model = ResearchhubUnifiedDocument
+        fields = '__all__'
+
+    def get_documents(self, unified_doc):
+        context = self.context
+        _context_fields = context.get('doc_duds_get_documents', {})
+        doc_type = unified_doc.document_type
+        if (doc_type in [DISCUSSION, ELN]):
+            return DynamicPostSerializer(
+                unified_doc.posts,
+                many=True,
+                context=context,
+                **_context_fields
+            ).data
+        elif doc_type == HYPOTHESIS:
+            from hypothesis.serializers import DynamicHypothesisSerializer
+            return DynamicHypothesisSerializer(
+                unified_doc.hypothesis,
+                context=context,
+                **_context_fields
+            ).data
+        else:
+            return DynamicPaperSerializer(
+                unified_doc.paper,
+                context=context,
+                **_context_fields
+            ).data
+
+    def get_created_by(self, unified_doc):
+        context = self.context
+        _context_fields = context.get('doc_duds_get_created_by', {})
+        serializer = DynamicUserSerializer(
+            unified_doc.created_by,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_access_group(self, unified_doc):
+        # TODO: calvinhlee - access_group is for ELN. Work on this later
+        return
+
+    def get_hubs(self, unified_doc):
+        context = self.context
+        _context_fields = context.get('doc_duds_get_hubs', {})
+        serializer = DynamicHubSerializer(
+            unified_doc.hubs,
+            many=True,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data

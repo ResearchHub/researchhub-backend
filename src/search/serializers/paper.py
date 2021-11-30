@@ -3,18 +3,20 @@ from rest_framework import serializers
 
 from search.documents.paper import PaperDocument
 from paper.models import Paper
+from utils.sentry import log_error
 
 
 class PaperDocumentSerializer(DocumentSerializer):
     slug = serializers.SerializerMethodField()
-    abstract = serializers.SerializerMethodField()
     highlight = serializers.SerializerMethodField()
+    unified_doc_id = serializers.SerializerMethodField()
 
     class Meta(object):
         document = PaperDocument
         fields = [
             'id',
             'authors',
+            'abstract',
             'raw_authors',
             'authors_str',
             'hot_score',
@@ -28,6 +30,7 @@ class PaperDocumentSerializer(DocumentSerializer):
             'title',
             'abstract',
             'paper_title',
+            'unified_doc_id',
             'url',
         ]
 
@@ -39,24 +42,19 @@ class PaperDocumentSerializer(DocumentSerializer):
     def get_slug(self, hit):
         slug = ''
         try:
-            paper_id = hit['id']
-            paper = Paper.objects.get(id=paper_id)
-            slug = paper.slug
+            obj = Paper.objects.get(id=hit['id'])
+            slug = obj.slug
         except:
             pass
 
         return slug
 
-    def get_abstract(self, hit):
-        abstract = ''
+    def get_unified_doc_id(self, paper):
         try:
-            paper_id = hit['id']
-            paper = Paper.objects.get(id=paper_id)
-            abstract = paper.abstract
-        except:
-            pass
-
-        return abstract
+            obj = Paper.objects.get(id=paper.id)
+            return obj.unified_document.id
+        except Exception as e:
+            log_error(e, 'A Paper must have unified document')
 
 
 class CrossrefPaperSerializer(serializers.Serializer):

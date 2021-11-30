@@ -1,3 +1,4 @@
+import re
 from django_elasticsearch_dsl_drf.filter_backends import (
     CompoundSearchFilterBackend,
     DefaultOrderingFilterBackend,
@@ -11,9 +12,7 @@ from django_elasticsearch_dsl_drf.filter_backends import (
     FacetedSearchFilterBackend,
     SearchFilterBackend,
 )
-
-from elasticsearch_dsl.query import Q
-
+from elasticsearch_dsl import Search
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
 from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
 
@@ -24,11 +23,25 @@ from utils.permissions import ReadOnly
 from search.backends.multi_match_filter import MultiMatchSearchFilterBackend
 
 class PaperDocumentView(DocumentViewSet):
+
+    def _is_doi(search_term):
+        try:
+            # Regex imported from https://stackoverflow.com/questions/27910/finding-a-doi-in-a-document-or-page
+            regex = '(10[.][0-9]{4,}(?:[.][0-9]+)*/(?:(?![%"#? ])\\S)+)'
+            if re.match(regex, search_term):
+                return True
+        except:
+            pass
+
+        return False
+
     document = PaperDocument
     permission_classes = [ReadOnly]
     serializer_class = PaperDocumentSerializer
     pagination_class = LimitOffsetPagination
     lookup_field = 'id'
+    # This field will be added to the ES _score
+    score_field = 'score'
     filter_backends = [
         MultiMatchSearchFilterBackend,
         CompoundSearchFilterBackend,
@@ -41,24 +54,30 @@ class PaperDocumentView(DocumentViewSet):
     ]
 
     search_fields = {
-        'doi': {'boost': 3, 'fuzziness': 1},
-        'title': {'boost': 2, 'fuzziness': 1},
-        'raw_authors.full_name': {'boost': 1, 'fuzziness': 1},
-        'abstract': {'boost': 1, 'fuzziness': 1},
-        'hubs_flat': {'boost': 1, 'fuzziness': 1},
+        'doi': {'boost': 3},
+        'title': {'boost': 2},
+        'raw_authors.full_name': {'boost': 1},
+        'abstract': {'boost': 1},
+        'hubs_flat': {'boost': 1},
     }
 
     multi_match_search_fields = {
-        'doi': {'boost': 3, 'fuzziness': 1},
-        'title': {'boost': 2, 'fuzziness': 1},
-        'raw_authors.full_name': {'boost': 1, 'fuzziness': 1},
-        'abstract': {'boost': 1, 'fuzziness': 1},
-        'hubs_flat': {'boost': 1, 'fuzziness': 1},
+        'doi': {
+            'condition': _is_doi, 
+            'options': {
+                'analyzer': 'keyword',
+            }
+        },
+        'title': {'boost': 2},
+        'raw_authors.full_name': {'boost': 1},
+        'abstract': {'boost': 1},
+        'hubs_flat': {'boost': 1},
     }
 
     multi_match_options = {
         'operator': 'and',
-        'type': 'best_fields',
+        'type': 'cross_fields',
+        'analyzer': 'content_analyzer',
     }
 
     post_filter_fields = {
@@ -113,3 +132,18 @@ class PaperDocumentView(DocumentViewSet):
         }
     }
 
+    def __init__(self, *args, **kwargs):
+        self.search = Search(index=['paper'])
+        super(PaperDocumentView, self).__init__(*args, **kwargs)    
+
+    def _filter_queryset(self, request):
+        queryset = self.search
+
+        for backend in list(self.filter_backends):
+            queryset = backend().filter_queryset(
+            request,
+            queryset,
+            self,
+        )
+
+        return queryset

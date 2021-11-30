@@ -171,6 +171,27 @@ class ReactionViewActionMixin:
             & CreateOrUpdateIfAllowed
         ]
     )
+    def neutralvote(self, request, pk=None):
+        item = self.get_object()
+        user = request.user
+        vote_exists = find_vote(user, item, Vote.NEUTRAL)
+
+        if vote_exists:
+            return Response(
+                'This vote already exists',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        response = update_or_create_vote(request, user, item, Vote.NEUTRAL)
+        return response
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[
+            VotePermission
+            & CreateOrUpdateIfAllowed
+        ]
+    )
     def downvote(self, request, pk=None):
         item = self.get_object()
         user = request.user
@@ -339,17 +360,25 @@ def create_vote(user, item, vote_type):
 
 
 def update_or_create_vote(request, user, item, vote_type):
+    hub_ids = [0]
+    if hasattr(item, 'unified_document'):
+        hub_ids += list(
+            item.unified_document.hubs.values_list(
+                'id',
+                flat=True
+            )
+        )
     vote = retrieve_vote(user, item)
     # TODO: calvinhlee - figure out how to handle contributions
     if vote is not None:
         vote.vote_type = vote_type
         vote.save(update_fields=['updated_date', 'vote_type'])
-        reset_unified_document_cache([0])
+        reset_unified_document_cache(hub_ids)
         # events_api.track_content_vote(user, vote, request)
         return get_vote_response(vote, 200)
 
     vote = create_vote(user, item, vote_type)
-    reset_unified_document_cache([0])
+    reset_unified_document_cache(hub_ids)
 
     app_label = item._meta.app_label
     model = item._meta.model.__name__.lower()

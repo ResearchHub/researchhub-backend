@@ -18,13 +18,15 @@ from discussion.models import (
     Vote as DiscussionVote
 )
 from google_analytics.apps import GoogleAnalytics, Hit
+from hypothesis.models import Citation
+from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Figure, Paper, Vote as PaperVote
 from researchhub.settings import PRODUCTION
 from researchhub.celery import app
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_post_model \
+    import ResearchhubPost
 from summary.models import Summary
 from user.models import User
-
 ga = GoogleAnalytics()
 
 
@@ -248,8 +250,8 @@ def send_vote_event(
     if hasattr(instance, 'item'):
         item_type = type(instance.item)
         label = item_type.__name__
-        if (item_type is ResearchhubPost):
-            # Posts don't need google analytics at the moment
+        if (item_type in [Citation,  Hypothesis, ResearchhubPost]):
+            # Items here don't need google analytics at the moment
             return
         if item_type is Paper:
             paper_id = instance.item.id

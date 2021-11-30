@@ -4,8 +4,30 @@ from hub.models import Hub
 
 
 class HubDocumentSerializer(serializers.ModelSerializer):
-    paper_count = serializers.SerializerMethodField()
-    subscriber_count = serializers.SerializerMethodField()
+    slug = serializers.SerializerMethodField()
+    hub_image = serializers.SerializerMethodField()
+
+    def get_slug(self, hit):
+        slug = ''
+        try:
+            obj = Hub.objects.get(id=hit['id'])
+            slug = obj.slug
+        except Exception as e:
+            print(e)
+            pass
+
+        return slug
+
+    def get_hub_image(self, hit):
+        img = ''
+        try:
+            obj = Hub.objects.get(id=hit['id'])
+            img = obj.hub_image.url
+        except Exception as e:
+            print(e)
+            pass
+
+        return img        
 
     class Meta(object):
         model = Hub
@@ -13,14 +35,11 @@ class HubDocumentSerializer(serializers.ModelSerializer):
             'id',
             'name',
             'acronym',
+            'description',
             'is_locked',
+            'hub_image',
             'paper_count',
             'subscriber_count',
+            'discussion_count',
+            'slug',
         ]
-        read_only_fields = fields
-
-    def get_paper_count(self, obj):
-        return obj.paper_count
-
-    def get_subscriber_count(self, obj):
-        return obj.subscriber_count

@@ -3,7 +3,8 @@ from rest_framework import serializers
 import ethereum.lib
 
 from reputation.models import Withdrawal, Contribution
-from user.serializers import UserSerializer
+from researchhub.serializers import DynamicModelFieldSerializer
+from user.serializers import UserSerializer, DynamicUserSerializer
 from summary.serializers import SummarySerializer, SummaryVoteSerializer
 from bullet_point.serializers import (
     BulletPointSerializer,
@@ -13,7 +14,11 @@ from discussion.serializers import (
     ThreadSerializer,
     CommentSerializer,
     ReplySerializer,
-    VoteSerializer as DisVoteSerializer
+    VoteSerializer as DisVoteSerializer,
+    DynamicThreadSerializer,
+    DynamicCommentSerializer,
+    DynamicReplySerializer,
+    DynamicVoteSerializer
 )
 
 
@@ -58,9 +63,10 @@ class ContributionSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_unified_document(self, contribution):
-        from researchhub_document.serializers.researchhub_unified_document_serializer \
-         import ContributionUnifiedDocumentSerializer
-        serializer = ContributionUnifiedDocumentSerializer(
+        from researchhub_document.serializers import (
+          ResearchhubUnifiedDocumentSerializer
+        )
+        serializer = ResearchhubUnifiedDocumentSerializer(
             contribution.unified_document
         )
         return serializer.data
@@ -77,6 +83,7 @@ class ContributionSerializer(serializers.ModelSerializer):
             import (
                 ResearchhubPostSerializer,
             )
+        from hypothesis.serializers import HypothesisSerializer
 
         serializer = None
         context = self.context
@@ -114,7 +121,117 @@ class ContributionSerializer(serializers.ModelSerializer):
                 obj,
                 context=context
             )
+        elif model_name == 'hypothesis':
+            serializer = HypothesisSerializer(
+                obj,
+                context=context
+            )
 
         if serializer is not None:
             return serializer.data
         return None
+
+
+class DynamicContributionSerializer(DynamicModelFieldSerializer):
+    source = serializers.SerializerMethodField()
+    unified_document = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Contribution
+        fields = '__all__'
+
+    def get_source(self, contribution):
+        from paper.serializers import DynamicPaperSerializer
+        from purchase.serializers import DynamicPurchaseSerializer
+        from researchhub_document.serializers import (
+            DynamicPostSerializer,
+        )
+        from hypothesis.serializers import DynamicHypothesisSerializer
+
+        serializer = None
+        context = self.context
+        _context_fields = context.get('rep_dcs_get_source', {})
+        app_label = contribution.content_type.app_label
+        model_name = contribution.content_type.name
+        object_id = contribution.object_id
+        model_class = contribution.content_type.model_class()
+        obj = model_class.objects.get(id=object_id)
+
+        if model_name == 'paper':
+            serializer = DynamicPaperSerializer(
+                obj,
+                context=context,
+                **_context_fields
+            )
+        elif model_name == 'thread':
+            serializer = DynamicThreadSerializer(
+                obj,
+                context=context,
+                **_context_fields
+            )
+        elif model_name == 'comment':
+            serializer = DynamicCommentSerializer(
+                obj,
+                context=context,
+                **_context_fields
+            )
+        elif model_name == 'reply':
+            serializer = DynamicReplySerializer(
+                obj,
+                context=context,
+                **_context_fields
+            )
+        elif model_name == 'purchase':
+            serializer = DynamicPurchaseSerializer(
+                obj,
+                context=context,
+                **_context_fields
+            )
+        elif model_name == 'vote':
+            if app_label == 'discussion':
+                serializer = DynamicVoteSerializer(
+                    obj,
+                    context=context,
+                    **_context_fields
+                )
+        elif model_name == 'researchhub post':
+            serializer = DynamicPostSerializer(
+                obj,
+                context=context,
+                **_context_fields
+            )
+        elif model_name == 'hypothesis':
+            serializer = DynamicHypothesisSerializer(
+                obj,
+                context=context,
+                **_context_fields
+            )
+
+        if serializer is not None:
+            return serializer.data
+        return None
+
+    def get_unified_document(self, contribution):
+        from researchhub_document.serializers import (
+          DynamicUnifiedDocumentSerializer
+        )
+
+        context = self.context
+        _context_fields = context.get('rep_dcs_get_unified_document', {})
+        serializer = DynamicUnifiedDocumentSerializer(
+            contribution.unified_document,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_user(self, contribution):
+        context = self.context
+        _context_fields = context.get('rep_dcs_get_user', {})
+        serializer = DynamicUserSerializer(
+            contribution.user,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
