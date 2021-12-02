@@ -316,6 +316,7 @@ class UserViewSet(viewsets.ModelViewSet):
         is_following = user.following.filter(followee=followee).exists()
         return Response(is_following, status=200)
 
+
     @action(
         detail=False,
         methods=[RequestMethods.GET],
@@ -760,6 +761,138 @@ class AuthorViewSet(viewsets.ModelViewSet):
             }
         }
         return context
+
+
+    def _get_activity_context(self):
+        context = {
+            'doc_duds_get_documents': {
+                '_include_fields': [
+                    'id',
+                    'slug',
+                    'title',
+                ]
+            },
+            'doc_duds_get_hubs': {
+                '_include_fields': [
+                    'name',
+                    'is_locked',
+                    'slug',
+                    'is_removed',
+                    'hub_image'
+                ]
+            },
+            'rep_dcs_get_source': {
+                '_include_fields': [
+                    'abstract',
+                    'amount',
+                    'id',
+                    'paper_title',
+                    'slug',
+                    'text',
+                    'title',
+                ]
+            },
+            'rep_dcs_get_unified_document': {
+                '_include_fields': [
+                    'documents',
+                    'document_type',
+                    'hubs',
+                ]
+            },
+            'rep_dcs_get_user': {
+                '_include_fields': [
+                    'author_profile',
+                ]
+            },
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image',
+                ]
+            }
+        }
+        return context
+
+    @action(
+        detail=True,
+        methods=['get'],
+    )
+    def activity(self, request, pk=None):
+        author = self.get_object()
+        query_params = request.query_params
+        ordering = query_params.get('ordering', '-created_date')
+        page_number = query_params.get('page', 1)
+        contributions = self._get_author_activity_queryset(author.id, ordering)
+
+        page = self.paginate_queryset(contributions)
+        context = self._get_activity_context()
+        serializer = DynamicContributionSerializer(
+            page,
+            _include_fields=[
+                'contribution_type',
+                'created_date',
+                'id',
+                'source',
+                'unified_document',
+                'user'
+            ],
+            context=context,
+            many=True,
+        )
+        response = self.get_paginated_response(serializer.data)
+
+        return response
+
+    def _get_author_activity_queryset(self, author_id, ordering):
+        contribution_type = [
+            Contribution.SUBMITTER,
+            Contribution.COMMENTER,
+            Contribution.SUPPORTER,
+        ]
+
+        thread_content_type = ContentType.objects.get_for_model(Thread)
+        comment_content_type = ContentType.objects.get_for_model(Comment)
+        reply_content_type = ContentType.objects.get_for_model(Reply)
+        removed_threads = Thread.objects.filter(is_removed=True)
+        removed_comments = Comment.objects.filter(is_removed=True)
+        removed_replies = Reply.objects.filter(is_removed=True)
+
+        contributions = Contribution.objects.select_related(
+            'content_type',
+            'user',
+            'user__author_profile',
+            'unified_document',
+        ).prefetch_related(
+            'unified_document__hubs',
+        ).filter(
+            unified_document__is_removed=False,
+            contribution_type__in=contribution_type,
+            user__author_profile=415,
+        ).exclude(
+            (
+                (
+                    Q(content_type=thread_content_type) &
+                    Q(object_id__in=removed_threads)
+                ) |
+                (
+                    Q(content_type=comment_content_type) &
+                    Q(object_id__in=removed_comments)
+                ) |
+                (
+                    Q(content_type=reply_content_type) &
+                    Q(object_id__in=removed_replies)
+                )
+            )
+        )
+
+        contributions = contributions.order_by(
+            ordering
+        )
+
+        return contributions
+
 
     @action(
         detail=True,
