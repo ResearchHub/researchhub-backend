@@ -58,6 +58,7 @@ from paper.utils import (
     reset_paper_cache
 )
 from hub.utils import scopus_to_rh_map
+from researchhub_document.views.custom.unified_document_pagination import UNIFIED_DOC_PAGE_SIZE
 from utils import sentry
 from utils.arxiv.categories import (
     get_category_name,
@@ -677,7 +678,7 @@ def celery_preload_hub_papers(hub_ids=None):
             uploaded_by_id__isnull=False
         ).order_by(
             '-hot_score'
-        )[:10]
+        )[:UNIFIED_DOC_PAGE_SIZE]
         cache_key = get_cache_key('papers', hub_name)
         serializer = HubPaperSerializer(papers, many=True, context=context)
 
