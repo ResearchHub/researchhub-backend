@@ -869,7 +869,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
         ).filter(
             unified_document__is_removed=False,
             contribution_type__in=contribution_type,
-            user__author_profile=415,
+            user__author_profile=author_id,
         ).exclude(
             (
                 (
