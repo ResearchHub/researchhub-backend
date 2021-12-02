@@ -47,6 +47,10 @@ from discussion.reaction_serializers import (
     VoteSerializer as ReactionVoteSerializer
 )
 from discussion.models import Vote as ReactionVote
+from researchhub_document.views.custom.unified_document_pagination import (
+    UNIFIED_DOC_PAGE_SIZE,
+    UnifiedDocPagination
+)
 from user.utils import reset_latest_acitvity_cache
 
 
@@ -55,9 +59,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     permission_classes = [
         IsAuthenticated,
     ]
+    dynamic_serializer_class = DynamicUnifiedDocumentSerializer
+    pagination_class = UnifiedDocPagination
     queryset = ResearchhubUnifiedDocument.objects.all()
     serializer_class = ResearchhubUnifiedDocumentSerializer
-    dynamic_serializer_class = DynamicUnifiedDocumentSerializer
 
     def update(self, request, *args, **kwargs):
         update_response = super().update(request, *args, **kwargs)
@@ -457,9 +462,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 all_documents = sorted(
                     all_documents, key=lambda doc: -doc['hot_score']
                 )
-                all_documents = all_documents[:10]
+                all_documents = all_documents[:UNIFIED_DOC_PAGE_SIZE]
                 next_page = request.build_absolute_uri()
-                if len(all_documents) < 10:
+                if len(all_documents) < UNIFIED_DOC_PAGE_SIZE:
                     next_page = None
                 else:
                     next_page = replace_query_param(next_page, 'page', 2)

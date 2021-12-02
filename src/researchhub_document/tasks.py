@@ -22,6 +22,7 @@ from researchhub.settings import (
     STAGING,
     PRODUCTION,
 )
+from researchhub_document.views.custom.unified_document_pagination import UNIFIED_DOC_PAGE_SIZE
 
 
 @app.task
@@ -189,7 +190,7 @@ def preload_hub_documents(
             is_removed=False
         ).order_by(
             '-hot_score'
-        )[:15]
+        )[:UNIFIED_DOC_PAGE_SIZE]
         cache_key = get_cache_key('documents', cache_pk)
         context = document_view._get_serializer_context()
         serializer = DynamicUnifiedDocumentSerializer(
