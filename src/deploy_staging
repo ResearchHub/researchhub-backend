@@ -15,5 +15,6 @@ eb deploy staging-backend-3-worker-cermine
 
 git checkout HEAD -- requirements.txt
 
+# eb deploy staging-backend-2-worker-2
 done="Finished executing staging deployment"
 echo $done
