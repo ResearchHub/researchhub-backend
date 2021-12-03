@@ -9,9 +9,15 @@ echo $start
 
 echo "Deploying"
 
+<<<<<<< HEAD
 eb deploy staging-backend-3
 eb deploy staging-backend-3-worker
 eb deploy staging-backend-3-worker-cermine
+=======
+eb deploy staging-backend-2
+eb deploy staging-backend-2-worker
+eb deploy staging-backend-2-worker-3
+>>>>>>> 11473a58 (reorg script)
 
 git checkout HEAD -- requirements.txt
 
