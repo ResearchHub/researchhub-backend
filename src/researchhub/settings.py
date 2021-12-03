@@ -80,7 +80,7 @@ ALLOWED_HOSTS = [
     '.quantfive.org',
     '.elasticbeanstalk.com',
     '.researchhub.com',
-    'localhost'
+    'localhost',
 ]
 
 if not (PRODUCTION or STAGING):
@@ -92,36 +92,61 @@ if not (PRODUCTION or STAGING):
     ]
 
 if ELASTIC_BEANSTALK:
+    # This is for health checks
     try:
+        EC2_METADATA_HEADERS = {
+            'X-aws-ec2-metadata-token-ttl-seconds': '21600'
+        }
+
+        EC2_METADATA_TOKEN = requests.put(
+            'http://169.254.169.254/latest/api/token',
+            headers=EC2_METADATA_HEADERS
+        ).text
+
+        EC2_METADATA_TOKEN_HEADER = {
+            'X-aws-ec2-metadata-token': EC2_METADATA_TOKEN
+        }
+
         ALLOWED_HOSTS.append(
-            requests.get('http://169.254.169.254/latest/meta-data/local-ipv4',
-                         timeout=0.01).text)
-        ALLOWED_HOSTS.append(
-            requests.get('http://172.31.19.162/latest/meta-data/local-ipv4',
-                         timeout=0.01).text)
-        ALLOWED_HOSTS.append(
-            requests.get('http://54.200.83.4/latest/meta-data/local-ipv4',
-                         timeout=0.01).text)
-        # Production private ips
-        ALLOWED_HOSTS.append(
-            requests.get('http://172.31.0.82/latest/meta-data/local-ipv4',
-                         timeout=0.01).text)
-        ALLOWED_HOSTS.append(
-            requests.get('http://172.31.9.43/latest/meta-data/local-ipv4',
-                         timeout=0.01).text)
-        # Staging private ips
-        ALLOWED_HOSTS.append(
-            requests.get('http://172.31.8.17/latest/meta-data/local-ipv4',
-                         timeout=0.01).text)
-        ALLOWED_HOSTS.append(
-            requests.get('http://172.31.6.81/latest/meta-data/local-ipv4',
-                         timeout=0.01).text)
-        ALLOWED_HOSTS.append(
-            requests.get('http://172.31.5.32/latest/meta-data/local-ipv4',
-                         timeout=0.01).text)
+            requests.get(
+                'http://169.254.169.254/latest/meta-data/local-ipv4',
+                timeout=0.01,
+                headers=EC2_METADATA_TOKEN_HEADER
+            ).text
+        )
+        # ALLOWED_HOSTS.append(
+        #     requests.get('http://172.31.19.162/latest/meta-data/local-ipv4',
+        #                  timeout=0.01).text
+        # )
+        # ALLOWED_HOSTS.append(
+        #     requests.get('http://54.200.83.4/latest/meta-data/local-ipv4',
+        #                  timeout=0.01).text
+        # )
+        # # Production private ips
+        # ALLOWED_HOSTS.append(
+        #     requests.get('http://172.31.0.82/latest/meta-data/local-ipv4',
+        #                  timeout=0.01).text
+        # )
+        # ALLOWED_HOSTS.append(
+        #     requests.get('http://172.31.9.43/latest/meta-data/local-ipv4',
+        #                  timeout=0.01).text
+        # )
+        # # Staging private ips
+        # ALLOWED_HOSTS.append(
+        #     requests.get('http://172.31.8.17/latest/meta-data/local-ipv4',
+        #                  timeout=0.01).text
+        # )
+        # ALLOWED_HOSTS.append(
+        #     requests.get('http://172.31.6.81/latest/meta-data/local-ipv4',
+        #                  timeout=0.01).text
+        # )
+        # ALLOWED_HOSTS.append(
+        #     requests.get('http://172.31.5.32/latest/meta-data/local-ipv4',
+        #                  timeout=0.01).text
+        # )
+
     except requests.exceptions.RequestException:
         pass
-
 
 # Cors
 
