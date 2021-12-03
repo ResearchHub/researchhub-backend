@@ -83,6 +83,7 @@ from purchase.models import Purchase
 from researchhub.lib import get_document_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
+from researchhub_document.views.custom.unified_document_pagination import UNIFIED_DOC_PAGE_SIZE
 from user.models import Author
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.sentry import log_error, log_info
@@ -978,9 +979,9 @@ class PaperViewSet(viewsets.ModelViewSet):
                 ).distinct()
             else:
                 papers = sorted(papers, key=lambda paper: -paper['hot_score'])
-                papers = papers[:10]
+                papers = papers[:UNIFIED_DOC_PAGE_SIZE]
                 next_page = request.build_absolute_uri()
-                if len(papers) < 10:
+                if len(papers) < UNIFIED_DOC_PAGE_SIZE:
                     next_page = None
                 else:
                     next_page = replace_query_param(next_page, 'page', 2)
