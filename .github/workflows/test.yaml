@@ -31,14 +31,14 @@ jobs:
     - name: setup python
       uses: actions/setup-python@v1
       with:
-        python-version: '3.7'
+        python-version: '3.8.5'
     - name: elasticsearch plugins
       run: docker exec elasticsearch bin/elasticsearch-plugin install --batch ingest-attachment
-    - name: pipenv install
+    - name: poetry install
       working-directory: ./src
       run: |
-        pip install pipenv
-        pipenv install --dev --deploy
+        pip install poetry
+        poetry install
     - name: set secrets
       run: |
         echo "::set-env name=AWS_ACCESS_KEY_ID::${{ secrets.AWS_ACCESS_KEY_ID }}"
@@ -49,16 +49,16 @@ jobs:
       working-directory: ./src
       run: |
         cp config/ci/* config
-        pipenv run python manage.py migrate
-        pipenv run python manage.py search_index --create
-        pipenv run python manage.py collectstatic --noinput
+        poetry run python manage.py migrate
+        poetry run python manage.py search_index --create
+        poetry run python manage.py collectstatic --noinput
     - name: django tests
       working-directory: ./src
-      run: pipenv run python manage.py test
+      run: poetry run python manage.py test
     - name: prepare deployment
       working-directory: ./src
       run: |
-        pipenv lock --requirements >| requirements.txt
+        poetry export -f requirements.txt --output requirements.txt
         # fail if requirements.txt has unstaged changes
         git diff --exit-code requirements.txt
         # create an archive of the ./src directory
