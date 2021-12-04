@@ -478,7 +478,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     'paper_title',
                     'slug',
                     'text',
-                    'title',
+                    'title'
                 ]
             },
             'rep_dcs_get_unified_document': {
@@ -790,6 +790,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'slug',
                     'text',
                     'title',
+                    'comments',
                 ]
             },
             'rep_dcs_get_unified_document': {

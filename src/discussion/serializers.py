@@ -53,6 +53,7 @@ class DynamicThreadSerializer(
     post = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
+    comments = serializers.SerializerMethodField()
 
     class Meta:
         model = Thread
@@ -127,6 +128,19 @@ class DynamicThreadSerializer(
         )
         return serializer.data
 
+    def get_comments(self, obj):
+        if self.context.get('depth', 3) <= 0:
+            return []
+        comments_queryset = self._comments_query(obj)[:PAGINATION_PAGE_SIZE]
+        comment_serializer = CommentSerializer(
+            comments_queryset,
+            many=True,
+            context={
+                **self.context,
+                'depth': self.context.get('depth', 3) - 1,
+            },
+        )
+        return comment_serializer.data
 
 class DynamicCommentSerializer(
     DynamicModelFieldSerializer,
