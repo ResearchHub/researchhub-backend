@@ -7,7 +7,7 @@ end_msg="\nFinished running tests. Found no failures."
 
 run_tests() {
   command="python manage.py test --failfast"
-  cd src && pipenv run $command
+  cd src && poetry run $command
 }
 
 tests_fail() {
