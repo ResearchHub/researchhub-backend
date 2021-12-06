@@ -129,7 +129,7 @@ class ContributionSerializer(serializers.ModelSerializer):
 
         if serializer is not None:
             return serializer.data
-        return None
+        return None 
 
 
 class DynamicContributionSerializer(DynamicModelFieldSerializer):
@@ -211,6 +211,7 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
         if serializer is not None:
             return serializer.data
         return None
+
 
     def get_unified_document(self, contribution):
         from researchhub_document.serializers import (
