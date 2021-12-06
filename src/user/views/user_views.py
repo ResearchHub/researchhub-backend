@@ -64,6 +64,7 @@ from utils.http import DELETE, POST, PATCH, PUT
 from utils.http import RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
+from django.db.models import Count
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -783,6 +784,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
             },
             'rep_dcs_get_source': {
                 '_include_fields': [
+                    'replies',
+                    'comments',
+                    'discussion_type',
                     'abstract',
                     'amount',
                     'id',
@@ -790,7 +794,40 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'slug',
                     'text',
                     'title',
-                    'comments',
+                    'comment_count',
+                    'block_key',
+                    'comment_count',
+                    'context_title',
+                    'created_by',
+                    'created_date',
+                    'created_location',
+                    'entity_key',
+                    'external_metadata',
+                    'hypothesis',
+                    'citation',
+                    'id',
+                    'is_public',
+                    'is_removed',
+                    'paper_slug',
+                    'paper',
+                    'post_slug',
+                    'post',
+                    'plain_text',
+                    'promoted',
+                    'score',
+                    'source',
+                    'text',
+                    'title',
+                    'user_flag',
+                    'user_vote',
+                    'was_edited',
+                    'document_meta',
+                    'is_public',
+                    'is_removed',
+                    'score',
+                    'user_flag',
+                    'user_vote',
+                    'document_meta',                    
                 ]
             },
             'rep_dcs_get_unified_document': {
@@ -848,9 +885,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
     def _get_author_activity_queryset(self, author_id, ordering):
         contribution_type = [
-            Contribution.SUBMITTER,
+            # Contribution.SUBMITTER,
             Contribution.COMMENTER,
-            Contribution.SUPPORTER,
+            # Contribution.SUPPORTER,
         ]
 
         thread_content_type = ContentType.objects.get_for_model(Thread)
@@ -860,39 +897,71 @@ class AuthorViewSet(viewsets.ModelViewSet):
         removed_comments = Comment.objects.filter(is_removed=True)
         removed_replies = Reply.objects.filter(is_removed=True)
 
+        # contributions = Contribution.objects.select_related(
+        #     'content_type',
+        #     'user',
+        #     'user__author_profile',
+        #     'unified_document',
+        # ).prefetch_related(
+        #     'unified_document__hubs',
+        # ).filter(
+        #     unified_document__is_removed=False,
+        #     contribution_type__in=contribution_type,
+        #     user__author_profile=author_id,
+        # ).values('unified_document_id', 'content_type_id')
+
         contributions = Contribution.objects.select_related(
             'content_type',
             'user',
             'user__author_profile',
             'unified_document',
-        ).prefetch_related(
-            'unified_document__hubs',
         ).filter(
             unified_document__is_removed=False,
             contribution_type__in=contribution_type,
             user__author_profile=author_id,
-        ).exclude(
-            (
-                (
-                    Q(content_type=thread_content_type) &
-                    Q(object_id__in=removed_threads)
-                ) |
-                (
-                    Q(content_type=comment_content_type) &
-                    Q(object_id__in=removed_comments)
-                ) |
-                (
-                    Q(content_type=reply_content_type) &
-                    Q(object_id__in=removed_replies)
-                )
-            )
         )
 
-        contributions = contributions.order_by(
-            ordering
-        )
 
-        return contributions
+        final_contributions = []
+        comment_content_type = ContentType.objects.get(model='comment').id
+        thread_content_type = ContentType.objects.get(model='thread').id
+        for contrib in contributions:
+            contrib_type = str(contrib.content_type)
+            if contrib_type == 'reply':
+                obj = Reply.objects.get(id=contrib.object_id)
+                parent_comment = Comment.objects.get(id=obj.object_id)
+                parent_comment_contrib = Contribution.objects.get(object_id=parent_comment.id, content_type_id=comment_content_type, contribution_type="COMMENTER")
+                final_contributions.append(parent_comment_contrib)
+            elif contrib_type == 'comment':
+                obj = Comment.objects.get(id=contrib.object_id)
+                parent_thread = Thread.objects.get(id=obj.parent_id)
+                parent_thread_contrib = Contribution.objects.get(object_id=parent_thread.id, content_type_id=thread_content_type, contribution_type="COMMENTER")
+                final_contributions.append(parent_thread_contrib)
+
+
+
+        # .exclude(
+        #     (
+        #         (
+        #             Q(content_type=thread_content_type) &
+        #             Q(object_id__in=removed_threads)
+        #         ) |
+        #         (
+        #             Q(content_type=comment_content_type) &
+        #             Q(object_id__in=removed_comments)
+        #         ) |
+        #         (
+        #             Q(content_type=reply_content_type) &
+        #             Q(object_id__in=removed_replies)
+        #         )
+        #     )
+        # )
+
+        # contributions = contributions.order_by(
+        #     ordering
+        # )
+
+        return final_contributions
 
 
     @action(

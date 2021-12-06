@@ -47,6 +47,7 @@ class DynamicThreadSerializer(
     DynamicModelFieldSerializer,
     GenericReactionSerializerMixin
 ):
+
     comment_count = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
     paper = serializers.SerializerMethodField()
@@ -54,10 +55,40 @@ class DynamicThreadSerializer(
     score = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
+    comment_count = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
+    user_flag = serializers.SerializerMethodField()
+    comments = serializers.SerializerMethodField()
+    paper_slug = serializers.SerializerMethodField()
+    post_slug = serializers.SerializerMethodField()
+    promoted = serializers.SerializerMethodField()
+    document_meta = serializers.SerializerMethodField()
+    discussion_type = serializers.SerializerMethodField()
 
     class Meta:
         model = Thread
         fields = '__all__'
+
+    def get_discussion_type(self, obj):
+        return Thread.__name__
+
+    def get_user_vote(self, obj):
+        user = get_user_from_request(self.context)
+        if user and not user.is_anonymous:
+            vote = obj.votes.filter(created_by=user)
+            if vote.exists():
+                return VoteSerializer(vote.last()).data
+            return False
+        return False
+
+    def get_paper_slug(self, obj):
+        if obj.paper:
+            return obj.paper.slug
+
+    def get_post_slug(self, obj):
+        if obj.post:
+            return obj.post.slug
 
     def get_created_by(self, thread):
         context = self.context
@@ -69,13 +100,27 @@ class DynamicThreadSerializer(
         )
         return serializer.data
 
-    def _comments_query(self, thread):
-        return self.get_children_annotated(thread).order_by(
+    def _comments_query(self, obj):
+        return self.get_children_annotated(obj).order_by(
             *self.context.get('ordering', ['id'])
         )
 
-    def get_comment_count(self, thread):
-        return self._comments_query(thread).count()
+    def get_comments(self, obj):
+        if self.context.get('depth', 3) <= 0:
+            return []
+        comments_queryset = self._comments_query(obj)[:PAGINATION_PAGE_SIZE]
+        comment_serializer = CommentSerializer(
+            comments_queryset,
+            many=True,
+            context={
+                **self.context,
+                'depth': self.context.get('depth', 3) - 1,
+            },
+        )
+        return comment_serializer.data
+
+    def get_comment_count(self, obj):
+        return self._comments_query(obj).count()
 
     def get_paper(self, thread):
         from paper.serializers import DynamicPaperSerializer
@@ -128,29 +173,25 @@ class DynamicThreadSerializer(
         )
         return serializer.data
 
-    def get_comments(self, obj):
-        if self.context.get('depth', 3) <= 0:
-            return []
-        comments_queryset = self._comments_query(obj)[:PAGINATION_PAGE_SIZE]
-        comment_serializer = CommentSerializer(
-            comments_queryset,
-            many=True,
-            context={
-                **self.context,
-                'depth': self.context.get('depth', 3) - 1,
-            },
-        )
-        return comment_serializer.data
 
 class DynamicCommentSerializer(
     DynamicModelFieldSerializer,
     GenericReactionSerializerMixin
 ):
     unified_document = serializers.SerializerMethodField()
+    # parent_thread = serializers.SerializerMethodField()
+    replies = serializers.SerializerMethodField()
+    reply_count = serializers.SerializerMethodField()
+    thread_id = serializers.SerializerMethodField()
+    paper_id = serializers.SerializerMethodField()
+    discussion_type = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment
         fields = '__all__'
+
+    def get_discussion_type(self, obj):
+        return Comment.__name__
 
     def get_unified_document(self, comment):
         from researchhub_document.serializers import (
@@ -165,16 +206,90 @@ class DynamicCommentSerializer(
         )
         return serializer.data
 
+    def _replies_query(self, obj):
+        return self.get_children_annotated(obj).order_by(
+            *self.context.get('ordering', ['-created_date'])
+        )
+
+    def get_replies(self, obj):
+        if self.context.get('depth', 3) <= 0:
+            return []
+        reply_queryset = self._replies_query(obj)[:PAGINATION_PAGE_SIZE]
+
+        replies = ReplySerializer(
+            reply_queryset,
+            many=True,
+            context={
+                **self.context,
+                'depth': self.context.get('depth', 3) - 1,
+            },
+        )
+
+        return replies.data
+
+    def get_reply_count(self, obj):
+        replies = self._replies_query(obj)
+        return replies.count()
+
+    def get_thread_id(self, obj):
+        if isinstance(obj.parent, Thread):
+            return obj.parent.id
+        return None
+
+    def get_paper_id(self, obj):
+        if obj.paper:
+            return obj.paper.id
+        else:
+            return None
+
+    # def get_parent_thread(self, obj):
+    #     # return obj.parent_id
+    #     print('-------------')
+    #     thread_queryset = Thread.objects.filter(id=obj.parent_id)
+    #     print('-------------')
+
+    #     _context_fields = self.context.get('rep_dcs_get_source', {}).get('_include_fields', {})
+    #     print('******')
+    #     print(_context_fields)
+    #     print('******')
+    #     serializer = DynamicThreadSerializer(
+    #         thread_queryset,
+    #         _include_fields=_context_fields,
+    #         many=True,
+    #         context=self.context
+    #     )        
+
+    #     return serializer.data
+
+
+
+        # if self.context.get('depth', 3) <= 0:
+        #     return []
+        # comments_queryset = self._comments_query(obj)[:PAGINATION_PAGE_SIZE]
+        # comment_serializer = CommentSerializer(
+        #     comments_queryset,
+        #     many=True,
+        #     context={
+        #         **self.context,
+        #         'depth': self.context.get('depth', 3) - 1,
+        #     },
+        # )
+        # return comment_serializer.data
+
 
 class DynamicReplySerializer(
     DynamicModelFieldSerializer,
     GenericReactionSerializerMixin
 ):
     unified_document = serializers.SerializerMethodField()
+    discussion_type = serializers.SerializerMethodField()
 
     class Meta:
         model = Reply
         fields = '__all__'
+
+    def get_discussion_type(self, obj):
+        return Reply.__name__
 
     def get_unified_document(self, reply):
         from researchhub_document.serializers import (
