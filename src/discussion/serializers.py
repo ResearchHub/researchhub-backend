@@ -35,7 +35,10 @@ class CommentSerializerMixin:
     def _replies_query(self, obj):
         filter_by_user_id = self.context.get('_config', {}).get('filter_by_user_id', None)
 
-        replies = obj.children.filter(is_removed=False).filter(created_by_id=filter_by_user_id)
+        replies = obj.children.filter(is_removed=False)
+
+        if filter_by_user_id:
+            replies = replies.filter(created_by_id=filter_by_user_id)
 
         return self.get_children_annotated(replies).order_by(
             *self.context.get('ordering', ['-created_date'])
@@ -103,8 +106,12 @@ class ThreadSerializerMixin:
 
     def _comments_query(self, obj):
         filter_by_user_id = self.context.get('_config', {}).get('filter_by_user_id', None)
-        replies = Reply.objects.filter(created_by_id=filter_by_user_id)
-        comments = obj.children.filter(is_removed=False).filter(Q(id__in=[r.object_id for r in replies]) | Q(created_by_id=filter_by_user_id))
+
+        if filter_by_user_id:
+            replies = Reply.objects.filter(created_by_id=filter_by_user_id)
+            comments = obj.children.filter(is_removed=False).filter(Q(id__in=[r.object_id for r in replies]) | Q(created_by_id=filter_by_user_id))
+        else:
+            comments = obj.children
 
         return self.get_children_annotated(comments).order_by(
             *self.context.get('ordering', ['created_date'])
@@ -211,7 +218,10 @@ class ReplySerializerMixin:
     def _replies_query(self, obj):
         filter_by_user_id = self.context.get('_config', {}).get('filter_by_user_id', None)
 
-        replies = obj.children.filter(is_removed=False).filter(created_by_id=filter_by_user_id)
+        replies = obj.children.filter(is_removed=False)
+
+        if filter_by_user_id:
+            replies = replies.filter(created_by_id=filter_by_user_id)
 
         return self.get_children_annotated(replies).order_by(
             *self.context.get('ordering', ['-created_date'])
