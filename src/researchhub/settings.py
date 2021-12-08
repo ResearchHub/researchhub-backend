@@ -18,6 +18,7 @@ import sentry_sdk
 from celery.task.schedules import crontab
 from sentry_sdk.integrations.django import DjangoIntegration
 
+
 APP_ENV = os.environ.get('APP_ENV') or 'development'
 DEVELOPMENT = 'development' in APP_ENV
 PRODUCTION = 'production' in APP_ENV
@@ -100,6 +101,7 @@ if ELASTIC_BEANSTALK:
 
         EC2_METADATA_TOKEN = requests.put(
             'http://169.254.169.254/latest/api/token',
+            timeout=0.01,
             headers=EC2_METADATA_HEADERS
         ).text
 
