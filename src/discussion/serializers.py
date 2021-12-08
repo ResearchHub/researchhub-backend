@@ -12,6 +12,7 @@ from user.serializers import MinimalUserSerializer, DynamicUserSerializer
 from utils.http import get_user_from_request
 # TODO: Make is_public editable for creator as a delete mechanism
 # TODO: undo
+from django.db.models import Q
 
 
 class CommentSerializerMixin:
@@ -32,14 +33,11 @@ class CommentSerializerMixin:
         return serializer.data
 
     def _replies_query(self, obj):
-        # Optional config to filter child comments
-        filter_children = self.context.get('_config', {}).get('filter_replies', None)
+        filter_by_user_id = self.context.get('_config', {}).get('filter_by_user_id', None)
 
-        print(filter_children)
-        if not filter_children:
-            filter_children = {'is_removed': False}
+        replies = obj.children.filter(is_removed=False).filter(created_by_id=filter_by_user_id)
 
-        return self.get_children_annotated(obj, filter_children).order_by(
+        return self.get_children_annotated(replies).order_by(
             *self.context.get('ordering', ['-created_date'])
         )
 
@@ -107,14 +105,12 @@ class ThreadSerializerMixin:
         return serializer.data
 
     def _comments_query(self, obj):
-        # Optional config to filter child comments
-        filter_children = self.context.get('_config', {}).get('filter_comments', None)
+        filter_by_user_id = self.context.get('_config', {}).get('filter_by_user_id', None)
+        replies = Reply.objects.filter(created_by_id=filter_by_user_id)
+        comments = obj.children.filter(is_removed=False).filter(Q(id__in=[r.object_id for r in replies]) | Q(created_by_id=filter_by_user_id))
 
-        if not filter_children:
-            filter_children = {'is_removed': False}
-
-        return self.get_children_annotated(obj, filter_children).order_by(
-            *self.context.get('ordering', ['id'])
+        return self.get_children_annotated(comments).order_by(
+            *self.context.get('ordering', ['created_date'])
         )
 
     def get_comments(self, obj):
@@ -219,9 +215,12 @@ class ReplySerializerMixin:
         return None
 
     def _replies_query(self, obj):
-        return self.get_children_annotated(obj).order_by(*self.context.get(
-            'ordering',
-            ['-created_date'])
+        filter_by_user_id = self.context.get('_config', {}).get('filter_by_user_id', None)
+
+        replies = obj.children.filter(is_removed=False).filter(created_by_id=filter_by_user_id)
+
+        return self.get_children_annotated(replies).order_by(
+            *self.context.get('ordering', ['-created_date'])
         )
 
     def get_replies(self, obj):
