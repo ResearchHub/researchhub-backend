@@ -767,8 +767,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
     def _get_activity_context(self, filter_by_user_id):
         context = {
             '_config': {
-                'filter_comments': {'is_removed': False, 'created_by_id': filter_by_user_id},
-                'filter_replies': {'is_removed': False, 'created_by_id': filter_by_user_id},
+                'filter_by_user_id': filter_by_user_id,
             },
             'doc_duds_get_documents': {
                 '_include_fields': [
@@ -866,7 +865,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
         query_params = request.query_params
         ordering = query_params.get('ordering', '-created_date')
-        page_number = query_params.get('page', 1)
         contributions = self._get_author_activity_queryset(author.id, ordering)
 
         page = self.paginate_queryset(contributions)
@@ -888,35 +886,16 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
         return response
 
-    # Returns a queryset containing partial discussion threads
-    # Each thread will contain the user's comment + relevant parent comment for context
-    # The algorithm will consolidate multiple comments under one thread 
+    # Returns a queryset containing all users contributions
     def _get_author_activity_queryset(self, author_id, ordering):
         contribution_type = [
-            # Contribution.SUBMITTER,
+            Contribution.SUBMITTER,
             Contribution.COMMENTER,
-            # Contribution.SUPPORTER,
+            Contribution.SUPPORTER,
         ]
 
         thread_content_type = ContentType.objects.get_for_model(Thread)
-        comment_content_type = ContentType.objects.get_for_model(Comment)
-        reply_content_type = ContentType.objects.get_for_model(Reply)
         removed_threads = Thread.objects.filter(is_removed=True)
-        removed_comments = Comment.objects.filter(is_removed=True)
-        removed_replies = Reply.objects.filter(is_removed=True)
-
-        # contributions = Contribution.objects.select_related(
-        #     'content_type',
-        #     'user',
-        #     'user__author_profile',
-        #     'unified_document',
-        # ).prefetch_related(
-        #     'unified_document__hubs',
-        # ).filter(
-        #     unified_document__is_removed=False,
-        #     contribution_type__in=contribution_type,
-        #     user__author_profile=author_id,
-        # ).values('unified_document_id', 'content_type_id')
 
         contributions = Contribution.objects.select_related(
             'content_type',
@@ -927,55 +906,41 @@ class AuthorViewSet(viewsets.ModelViewSet):
             unified_document__is_removed=False,
             contribution_type__in=contribution_type,
             user__author_profile=author_id,
+        ).exclude(
+            (
+                Q(content_type=thread_content_type) &
+                Q(object_id__in=removed_threads)
+            )
         )
 
+        # Because we want the entire thread and not just loose comments,
+        # we need to be a bit more clever. When encountering a comment or reply,
+        # we will fetch the parent threads.
+        # Then, in the serializer in corresponding get_replies, get_comments methods
+        # we will filter by the user_id to get only relevant comments and replies within a thread.
         final_contributions = []
-        comment_content_type = ContentType.objects.get(model='comment').id
-        thread_content_type = ContentType.objects.get(model='thread').id
         for contrib in contributions:
             contrib_type = str(contrib.content_type)
             if contrib_type == 'reply':
                 obj = Reply.objects.get(id=contrib.object_id)
                 parent_comment = Comment.objects.get(id=obj.object_id)
+                parent_thread = Thread.objects.get(id=parent_comment.parent_id)
 
-                parent_comment_contrib = Contribution.objects.get(object_id=parent_comment.id, content_type_id=comment_content_type, contribution_type="COMMENTER")
-                final_contributions.append(parent_comment_contrib)
+                parent_thread_contrib = Contribution.objects.get(object_id=parent_thread.id, content_type_id=thread_content_type, contribution_type="COMMENTER")
+                final_contributions.append(parent_thread_contrib)
             elif contrib_type == 'comment':
                 obj = Comment.objects.get(id=contrib.object_id)
                 parent_thread = Thread.objects.get(id=obj.parent_id)
 
                 parent_thread_contrib = Contribution.objects.get(object_id=parent_thread.id, content_type_id=thread_content_type, contribution_type="COMMENTER")
                 final_contributions.append(parent_thread_contrib)
-            elif contrib_type == 'thread':
+            else:
                 final_contributions.append(contrib)
 
 
-
-
-
-        # .exclude(
-        #     (
-        #         (
-        #             Q(content_type=thread_content_type) &
-        #             Q(object_id__in=removed_threads)
-        #         ) |
-        #         (
-        #             Q(content_type=comment_content_type) &
-        #             Q(object_id__in=removed_comments)
-        #         ) |
-        #         (
-        #             Q(content_type=reply_content_type) &
-        #             Q(object_id__in=removed_replies)
-        #         )
-        #     )
-        # )
-
-        # contributions = contributions.order_by(
-        #     ordering
-        # )
-
+        # Dedupe
+        final_contributions = list(set(final_contributions))
         return final_contributions
-
 
     @action(
         detail=True,
