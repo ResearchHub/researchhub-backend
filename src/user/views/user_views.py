@@ -776,19 +776,20 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'title',
                 ]
             },
+            'dis_dts_get_created_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
             'rep_dcs_get_source': {
                 '_include_fields': [
                     'replies',
                     'comments',
                     'discussion_type',
-                    'abstract',
                     'amount',
-                    'id',
                     'paper_title',
                     'slug',
-                    'text',
-                    'title',
-                    'comment_count',
                     'block_key',
                     'comment_count',
                     'context_title',
@@ -816,19 +817,18 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'user_vote',
                     'was_edited',
                     'document_meta',
-                    'is_public',
-                    'is_removed',
-                    'score',
-                    'user_flag',
-                    'user_vote',
-                    'document_meta',
                 ]
             },
-            'rep_dcs_get_unified_document': {
+            'dis_dts_get_paper': {
                 '_include_fields': [
-                    'documents',
-                    'document_type',
-                    'hubs',
+                    'id',
+                    'slug',
+                ]
+            },
+            'dis_dts_get_post': {
+                '_include_fields': [
+                    'id',
+                    'slug',
                 ]
             },
         }
@@ -854,8 +854,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 'created_date',
                 'id',
                 'source',
-                'unified_document',
-                'user'
+                # 'unified_document',
+                # 'user'
             ],
             context=context,
             many=True,
@@ -890,6 +890,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 Q(object_id__in=removed_threads)
             )
         )
+
+        # return contributions
 
         # Because we want the entire thread and not just loose comments,
         # we need to be a bit more clever. When encountering a comment or reply,
