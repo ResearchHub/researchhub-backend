@@ -776,15 +776,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'title',
                 ]
             },
-            'doc_duds_get_hubs': {
-                '_include_fields': [
-                    'name',
-                    'is_locked',
-                    'slug',
-                    'is_removed',
-                    'hub_image'
-                ]
-            },
             'rep_dcs_get_source': {
                 '_include_fields': [
                     'replies',
@@ -830,7 +821,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'score',
                     'user_flag',
                     'user_vote',
-                    'document_meta',                    
+                    'document_meta',
                 ]
             },
             'rep_dcs_get_unified_document': {
@@ -840,19 +831,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'hubs',
                 ]
             },
-            'rep_dcs_get_user': {
-                '_include_fields': [
-                    'author_profile',
-                ]
-            },
-            'usr_dus_get_author_profile': {
-                '_include_fields': [
-                    'id',
-                    'first_name',
-                    'last_name',
-                    'profile_image',
-                ]
-            }
         }
         return context
 

@@ -42,8 +42,6 @@ class CommentSerializerMixin:
         )
 
     def get_replies(self, obj):
-        if self.context.get('depth', 3) <= 0:
-            return []
         reply_queryset = self._replies_query(obj)[:PAGINATION_PAGE_SIZE]
 
         replies = ReplySerializer(
@@ -51,7 +49,6 @@ class CommentSerializerMixin:
             many=True,
             context={
                 **self.context,
-                'depth': self.context.get('depth', 3) - 1,
             },
         )
 
@@ -114,15 +111,12 @@ class ThreadSerializerMixin:
         )
 
     def get_comments(self, obj):
-        if self.context.get('depth', 3) <= 0:
-            return []
         comments_queryset = self._comments_query(obj)[:PAGINATION_PAGE_SIZE]
-        comment_serializer = CommentSerializer(
+        comment_serializer = DynamicCommentSerializer(
             comments_queryset,
             many=True,
             context={
                 **self.context,
-                'depth': self.context.get('depth', 3) - 1,
             },
         )
         return comment_serializer.data
@@ -224,16 +218,13 @@ class ReplySerializerMixin:
         )
 
     def get_replies(self, obj):
-        if self.context.get('depth', 3) <= 0:
-            return []
         reply_queryset = self._replies_query(obj)[:PAGINATION_PAGE_SIZE]
 
-        replies = ReplySerializer(
+        replies = DynamicReplySerializer(
             reply_queryset,
             many=True,
             context={
                 **self.context,
-                'depth': self.context.get('depth', 3) - 1,
             },
         )
 
