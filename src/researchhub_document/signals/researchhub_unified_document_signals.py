@@ -47,6 +47,25 @@ def rh_unified_doc_sync_scores_paper(instance, sender, **kwargs):
         return None
 
 
+@receiver(
+    post_save,
+    sender=Paper,
+    dispatch_uid='sync_is_removed_from_paper',
+)
+def sync_is_removed_from_paper(instance, sender, **kwargs):
+    try:
+        uni_doc = instance.unified_document
+        if (
+            sender is Paper
+            and uni_doc is not None
+            and instance.is_removed
+        ):
+            uni_doc.is_removed = True
+            uni_doc.save()
+    except Exception:
+        return None
+
+
 def sync_scores_uni_doc_and_paper(unified_doc, paper):
     should_save = False
     if (unified_doc.hot_score != paper.hot_score):
@@ -57,7 +76,6 @@ def sync_scores_uni_doc_and_paper(unified_doc, paper):
         should_save = True
     if (should_save):
         unified_doc.save()
-
 
 @receiver(
     post_save,
