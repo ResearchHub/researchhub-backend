@@ -11,6 +11,7 @@ HELP_TEXT_IS_REMOVED = (
     'Hides the hub because it is not allowed.'
 )
 
+
 def get_default_hub_category():
     """Get or create a default value for the hub categories"""
 
@@ -54,8 +55,8 @@ class Hub(models.Model):
     )
     permissions = GenericRelation(
         Permission,
-        help_text="A member of given hub that has special power. \
-            Note this is different from HubMembership (subscribers)",
+        help_text='A member of given hub that has special power. \
+            Note this is different from HubMembership (subscribers)',
         related_name='hub',
         related_query_name='hub_source',
     )
@@ -121,7 +122,7 @@ class Hub(models.Model):
     @property
     def subscriber_count_indexing(self):
         return self.get_subscribers_count()
-    
+
     @property
     def editors(self):
         return self.get_editors()
