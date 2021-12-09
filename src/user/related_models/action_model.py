@@ -81,6 +81,8 @@ class Action(DefaultModel):
             verb = 'edited'
         elif act.content_type_name == 'thread':
             verb = 'created a new discussion on'
+        elif act.content_type_name == 'hypothesis':
+            verb = 'created a new post on'
 
         noun = 'paper'
         if act.content_type_name == 'comment':
@@ -89,6 +91,8 @@ class Action(DefaultModel):
             noun = 'comment on'
         elif act.content_type_name == 'thread':
             noun = 'paper'
+        elif act.content_type_name == 'hypothesis':
+            noun = 'hypothesis'
 
         act.label = 'has {} the {}'.format(verb, noun)
 
@@ -131,7 +135,7 @@ class Action(DefaultModel):
                 item.title
             )
         elif isinstance(item, Hypothesis):
-            link += '/Hypothesis/{}/{}'.format(
+            link += '/hypothesis/{}/{}'.format(
                 item.id,
                 item.title
             )
