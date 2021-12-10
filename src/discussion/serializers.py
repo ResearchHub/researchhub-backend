@@ -317,7 +317,9 @@ class CommentSerializer(
         model = Comment
 
     def _replies_query(self, obj):
-        return self.get_children_annotated(obj).order_by(
+        children = obj.children.filter(is_removed=False)
+
+        return self.get_children_annotated(children).order_by(
             *self.context.get('ordering', ['-created_date'])
         )
 
@@ -424,7 +426,9 @@ class ThreadSerializer(
         return False
 
     def _comments_query(self, obj):
-        return self.get_children_annotated(obj).order_by(
+        children = obj.children.filter(is_removed=False)
+
+        return self.get_children_annotated(children).order_by(
             *self.context.get('ordering', ['id'])
         )
 
@@ -535,7 +539,8 @@ class ReplySerializer(
         return None
 
     def _replies_query(self, obj):
-        return self.get_children_annotated(obj).order_by(*self.context.get(
+        children = obj.children.filter(is_removed=False)
+        return self.get_children_annotated(children).order_by(*self.context.get(
             'ordering',
             ['-created_date'])
         )

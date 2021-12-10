@@ -21,6 +21,12 @@ from discussion.serializers import (
     DynamicVoteSerializer
 )
 
+from user.serializers import (
+    DynamicAuthorSerializer,
+)
+
+from user.models import Author
+
 class DepositSerializer(serializers.ModelSerializer):
     class Meta:
         model = Deposit
@@ -140,6 +146,7 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
     source = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     user = serializers.SerializerMethodField()
+    author = serializers.SerializerMethodField()
 
     class Meta:
         model = Contribution
@@ -236,6 +243,16 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get('rep_dcs_get_user', {})
         serializer = DynamicUserSerializer(
             contribution.user,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_author(self, contribution):
+        context = self.context
+        _context_fields = context.get('rep_dcs_get_author', {})
+        serializer = DynamicAuthorSerializer(
+            Author.objects.get(user=contribution.user),
             context=context,
             **_context_fields
         )

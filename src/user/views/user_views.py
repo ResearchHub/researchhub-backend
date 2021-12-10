@@ -65,7 +65,9 @@ from utils.http import RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from django.db.models import Count
-
+from researchhub_document.serializers import (
+    ResearchhubPostSerializer,
+)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(is_suspended=False)
@@ -771,15 +773,44 @@ class AuthorViewSet(viewsets.ModelViewSet):
             },
             'doc_duds_get_documents': {
                 '_include_fields': [
+                    'abstract',
+                    'aggregate_citation_consensus',
+                    'created_by',
+                    'created_date',
+                    'hot_score',
+                    'hubs',
                     'id',
+                    'discussion_count',
+                    'paper_title',
+                    'preview_img',
+                    'renderable_text',
+                    'score',
                     'slug',
                     'title',
+                    'uploaded_by',
+                    'uploaded_date',
+                    ]
+            },
+            'rep_dcs_get_author': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image',
                 ]
             },
             'dis_dts_get_created_by': {
                 '_include_fields': [
                     'id',
                     'author_profile',
+                ]
+            },
+            'rep_dcs_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'document_type',
+                    'documents',
+                    'hubs',
                 ]
             },
             'rep_dcs_get_source': {
@@ -831,6 +862,12 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'slug',
                 ]
             },
+            'doc_duds_get_hubs': {
+                '_include_fields': [
+                    'name',
+                    'slug',
+                ]
+            }
         }
         return context
 
@@ -854,8 +891,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 'created_date',
                 'id',
                 'source',
-                # 'unified_document',
-                # 'user'
+                'created_by',
+                'unified_document',
+                'author'
             ],
             context=context,
             many=True,
@@ -866,6 +904,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
     # Returns a queryset containing all users contributions
     def _get_author_activity_queryset(self, author_id, ordering):
+        author = self.get_object()
+        user = author.user
+
         contribution_type = [
             Contribution.SUBMITTER,
             Contribution.COMMENTER,
@@ -875,21 +916,40 @@ class AuthorViewSet(viewsets.ModelViewSet):
         thread_content_type = ContentType.objects.get_for_model(Thread)
         removed_threads = Thread.objects.filter(is_removed=True)
 
-        contributions = Contribution.objects.select_related(
+        print(removed_threads)
+
+
+        contributions =     user.contributions.filter(
+            unified_document__is_removed=False,
+            contribution_type__in=contribution_type,
+            user__author_profile=author_id,
+        ).select_related(
             'content_type',
             'user',
             'user__author_profile',
             'unified_document',
-        ).filter(
-            unified_document__is_removed=False,
-            contribution_type__in=contribution_type,
-            user__author_profile=author_id,
         ).exclude(
             (
                 Q(content_type=thread_content_type) &
                 Q(object_id__in=removed_threads)
             )
         )
+
+        # contributions = Contribution.objects.select_related(
+        #     'content_type',
+        #     'user',
+        #     'user__author_profile',
+        #     'unified_document',
+        # ).filter(
+        #     unified_document__is_removed=False,
+        #     contribution_type__in=contribution_type,
+        #     user__author_profile=author_id,
+        # ).exclude(
+        #     (
+        #         Q(content_type=thread_content_type) &
+        #         Q(object_id__in=removed_threads)
+        #     )
+        # )
 
         # return contributions
 
