@@ -112,7 +112,7 @@ class Hub(models.Model):
     def get_subscribers_count(self):
         return self.subscribers.filter(is_suspended=False).count()
 
-    def get_editors(self):
+    def get_editor_permission_groups(self):
         return self.permissions.filter(access_type=EDITOR)
 
     @property
@@ -124,8 +124,8 @@ class Hub(models.Model):
         return self.get_subscribers_count()
 
     @property
-    def editors(self):
-        return self.get_editors()
+    def editor_permission_groups(self):
+        return self.get_editor_permission_groups()
 
     def unlock(self):
         self.is_locked = False
