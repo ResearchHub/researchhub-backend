@@ -57,4 +57,13 @@ class RewardAdminModel(admin.ModelAdmin):
         return False
 
 
-admin.site.register(RewardModel, RewardAdminModel)
+def make_published(modeladmin, request, queryset):
+    queryset.update(status='p')
+
+
+class DistributionAdmin(admin.ModelAdmin):
+    actions = [make_published]
+
+
+# admin.site.register(RewardModel, RewardAdminModel)
+admin.site.register(Distribution, DistributionAdmin)
