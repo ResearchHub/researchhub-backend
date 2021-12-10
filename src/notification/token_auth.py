@@ -1,3 +1,4 @@
+from channels.middleware import BaseMiddleware
 from django.contrib.auth.models import AnonymousUser
 from django.db import close_old_connections
 
@@ -5,15 +6,15 @@ from channels.auth import AuthMiddlewareStack
 from rest_framework.authtoken.models import Token
 
 
-class TokenAuthMiddleware:
+class TokenAuthMiddleware(BaseMiddleware):
     """
-    Token authorization middleware for Django Channels 2
+    Token authorization middleware for Django Channels 3
     """
 
     def __init__(self, inner):
-        self.inner = inner
+        super().__init__(inner)
 
-    def __call__(self, scope):
+    async def __call__(self, scope, receive, send):
         close_old_connections()
         headers = dict(scope['headers'])
         try:
@@ -25,7 +26,7 @@ class TokenAuthMiddleware:
                     scope['user'] = token.user
         except Token.DoesNotExist:
             scope['user'] = AnonymousUser()
-        return self.inner(scope)
+        return await super().__call__(scope, receive, send)
 
 
 def TokenAuthMiddlewareStack(inner):

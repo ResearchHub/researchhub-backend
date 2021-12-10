@@ -41,6 +41,7 @@ from researchhub.settings import (
     STAGING
 )
 
+from hub.utils import scopus_to_rh_map
 from paper.utils import (
     check_crossref_title,
     check_pdf_title,
@@ -57,7 +58,8 @@ from paper.utils import (
     IGNORE_PAPER_TITLES,
     reset_paper_cache
 )
-from hub.utils import scopus_to_rh_map
+
+from researchhub_document.utils import update_unified_document_to_paper
 from utils import sentry
 from utils.arxiv.categories import (
     get_category_name,
@@ -70,7 +72,7 @@ from utils.twitter import (
     get_twitter_results,
     RATE_LIMIT_CODE
 )
-from researchhub_document.utils import update_unified_document_to_paper
+
 from utils.http import check_url_contains_pdf
 
 logger = get_task_logger(__name__)
@@ -677,7 +679,7 @@ def celery_preload_hub_papers(hub_ids=None):
             uploaded_by_id__isnull=False
         ).order_by(
             '-hot_score'
-        )[:10]
+        )[:20]
         cache_key = get_cache_key('papers', hub_name)
         serializer = HubPaperSerializer(papers, many=True, context=context)
 

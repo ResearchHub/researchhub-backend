@@ -9,11 +9,11 @@ from django.core.cache import cache
 from rest_framework.request import Request
 
 from researchhub_document.related_models.constants.document_type import (
+    ALL,
     DISCUSSION,
     ELN,
     PAPER,
     POSTS,
-    ALL,
 )
 from paper.utils import get_cache_key
 from researchhub.celery import app
@@ -189,7 +189,7 @@ def preload_hub_documents(
             is_removed=False
         ).order_by(
             '-hot_score'
-        )[:15]
+        )[:20]
         cache_key = get_cache_key('documents', cache_pk)
         context = document_view._get_serializer_context()
         serializer = DynamicUnifiedDocumentSerializer(

@@ -8,19 +8,17 @@ echo $start
 # pipenv lock --requirements > requirements.txt
 
 echo "Deploying to production"
-eb deploy backend-production
+eb deploy backend-production-2
 
 echo "Deploying to production"
-eb deploy production-worker-2
-
-# echo "Deploying to production"
-# eb deploy production-worker-3
+eb deploy production-worker-1
 
 echo "Deploying to production"
-eb deploy production-worker-cermine
+eb deploy production-worker-2-cermine
 
 echo "Deploying to production"
-eb deploy production-worker-twitter
+eb deploy production-worker-2-twitter
+
 
 done="Finished executing production deployment"
 echo $done

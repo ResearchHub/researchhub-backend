@@ -9,10 +9,9 @@ echo $start
 
 echo "Deploying"
 
-eb deploy staging-backend-2
-eb deploy staging-backend-2-worker
-# eb deploy staging-backend-2-worker-2
-eb deploy staging-backend-2-worker-3
+eb deploy staging-backend-3
+eb deploy staging-backend-3-worker
+eb deploy staging-backend-3-worker-cermine
 
 git checkout HEAD -- requirements.txt
 

@@ -2,11 +2,11 @@
 # Builds and runs a supervisord script to daemonize celery
 
 # If CELERY_WORKER is True, run this script, otherwise stop the existing celery daemon
-celery_worker=`grep -o "CELERY_WORKER=\".*\"" /opt/python/current/env`
-if ! [ $celery_worker = "CELERY_WORKER=\"True\"" ]; then
-        /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf stop celeryd-worker
-        /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf stop celerybeat
-        /usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf stop celeryflower
+celery_worker=$(sudo grep -o CELERY_WORKER=.* /opt/elasticbeanstalk/deployment/env)
+if ! [ "$celery_worker" == "CELERY_WORKER=True" ]; then
+        /usr/bin/supervisorctl -c /etc/supervisord.conf stop celeryd-worker
+        /usr/bin/supervisorctl -c /etc/supervisord.conf stop celerybeat
+        /usr/bin/supervisorctl -c /etc/supervisord.conf stop celeryflower
         echo "Exiting worker script"
     exit 0
 else
@@ -14,17 +14,18 @@ else
 fi
 
 # Get eb environment variables
-app_env=`grep -oP "(?<=APP_ENV=\").*(?=\")" /opt/python/current/env`
-queue=`grep -oP "(?<=QUEUE=\").*(?=\")" /opt/python/current/env`
-celery_env=`cat /opt/python/current/env | tr '\n' ',' | sed 's/%/%%/g' | sed 's/export //g' | sed 's/$PATH/%(ENV_PATH)s/g' | sed 's/$PYTHONPATH//g' | sed 's/$LD_LIBRARY_PATH//g'`
+app_env=`sudo grep -oP "(?<=APP_ENV=).*(?=)" /opt/elasticbeanstalk/deployment/env`
+queue=`sudo grep -oP "(?<=QUEUE=).*(?=)" /opt/elasticbeanstalk/deployment/env`
+celery_env=`sudo cat /opt/elasticbeanstalk/deployment/env | sed 's/=/="/' | sed ':a;N;$!ba;s/\n/",/g' | sed 's/%/%%/g' | sed 's/export //g' | sed 's/$PATH/%(ENV_PATH)s/g' | sed 's/$PYTHONPATH//g' | sed 's/$LD_LIBRARY_PATH//g'`
+celery_env="$celery_env\","
 celery_env=${celery_env%?}
 
 celery_conf="[program:celeryd-worker]
 
 ; Run celery from virtual env
-command=/opt/python/run/venv/bin/celery worker -A researchhub -P prefork --loglevel=INFO -Q ${queue} -E -n ${queue} --prefetch-multiplier=1
+command=/var/app/venv/staging-LQM1lest/bin/celery worker -A researchhub -P prefork --loglevel=INFO -Q ${queue} -E -n ${queue} --prefetch-multiplier=1
 
-directory=/opt/python/current/app
+directory=/var/app/current/
 user=ec2-user
 numprocs=1
 stdout_logfile=/var/log/celery/worker.out.log
@@ -46,8 +47,8 @@ environment=$celery_env"
 
 celerybeatconf="[program:celerybeat]
 ; Set full path to celery program if using virtualenv
-command=/opt/python/run/venv/bin/celery beat -A researchhub -S redbeat.RedBeatScheduler --loglevel=INFO --pidfile /tmp/celerybeat.pid
-directory=/opt/python/current/app
+command=/var/app/venv/staging-LQM1lest/bin/celery beat -A researchhub -S redbeat.RedBeatScheduler --loglevel=INFO --pidfile /tmp/celerybeat.pid
+directory=/var/app/current/
 user=ec2-user
 numprocs=1
 stdout_logfile=/var/log/celery/beat.out.log
@@ -74,8 +75,8 @@ environment=$celery_env"
 
 celeryflowerconf="[program:celeryflower]
 ; Set full path to celery program if using virtualenv
-command=/opt/python/run/venv/bin/flower -A researchhub --port=5555 --url_prefix=flower
-directory=/opt/python/current/app
+command=/var/app/venv/staging-LQM1lest/bin/flower -A researchhub --port=5555 --url_prefix=flower
+directory=/var/app/current/
 user=ec2-user
 numprocs=1
 stdout_logfile=/var/log/celery/flower.out.log
@@ -100,24 +101,24 @@ priority=998
 
 environment=$celery_env"
 # Copy the above script into celery.conf file
-echo "$celery_conf" | tee /opt/python/etc/celery.conf
-echo "$celerybeatconf" | tee /opt/python/etc/celerybeat.conf
-echo "$celeryflowerconf" | tee /opt/python/etc/celeryflower.conf
+echo "$celery_conf" | tee /etc/celery.conf
+echo "$celerybeatconf" | tee /etc/celerybeat.conf
+echo "$celeryflowerconf" | tee /etc/celeryflower.conf
 
 # Add the conf to supervisord (if not already there)
-if ! grep -Fxq "[include]" /opt/python/etc/supervisord.conf
+if ! grep -Fxq "[include]" /etc/supervisord.conf
   then
-  echo "[include]" | tee -a /opt/python/etc/supervisord.conf
-  echo "files= /opt/python/etc/celerybeat.conf /opt/python/etc/celery.conf /opt/python/etc/celeryflower.conf" | tee -a /opt/python/etc/supervisord.conf
+  echo "[include]" | tee -a /etc/supervisord.conf
+  echo "files= /etc/celerybeat.conf /etc/celery.conf /etc/celeryflower.conf" | tee -a /etc/supervisord.conf
 fi
 
 # Reread the conf
-/usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf reread
+/usr/bin/supervisorctl -c /etc/supervisord.conf reread
 
 # Update supvisord in cache without restarting all services
-/usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf update
+/usr/bin/supervisorctl -c /etc/supervisord.conf update
 
 # Restart celeryd
-/usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf restart celeryd-worker
-/usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf restart celerybeat
-/usr/local/bin/supervisorctl -c /opt/python/etc/supervisord.conf stop celeryflower
+/usr/bin/supervisorctl -c /etc/supervisord.conf restart celeryd-worker
+/usr/bin/supervisorctl -c /etc/supervisord.conf restart celerybeat
+/usr/bin/supervisorctl -c /etc/supervisord.conf stop celeryflower
