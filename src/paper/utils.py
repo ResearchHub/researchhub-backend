@@ -83,8 +83,8 @@ def clean_abstract(abstract):
     soup = BeautifulSoup(abstract, 'html.parser')
     strings = soup.strings
     cleaned_text = ' '.join(strings)
-    cleaned_text = cleaned_text.replace('\n', ' ')
-    cleaned_text = cleaned_text.replace('\r', ' ')
+    #cleaned_text = cleaned_text.replace('\n', ' ')
+    #cleaned_text = cleaned_text.replace('\r', ' ')
     cleaned_text = cleaned_text.lstrip()
     return cleaned_text
 
