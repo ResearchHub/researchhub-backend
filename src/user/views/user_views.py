@@ -32,6 +32,7 @@ from reputation.models import Distribution, Contribution
 from reputation.serializers import DynamicContributionSerializer
 from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY, EMAIL_WHITELIST
 from researchhub_document.serializers import DynamicPostSerializer
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from paper.models import Paper
 from paper.utils import get_cache_key
 from paper.views import PaperViewSet
@@ -880,7 +881,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
         query_params = request.query_params
         ordering = query_params.get('ordering', '-created_date')
-        contributions = self._get_author_activity_queryset(author.id, ordering)
+        asset_type = query_params.get('type', 'all')
+        contributions = self._get_author_activity_queryset(author.id, ordering, asset_type)
 
         page = self.paginate_queryset(contributions)
         context = self._get_activity_context(author.user_id)
@@ -928,30 +930,64 @@ class AuthorViewSet(viewsets.ModelViewSet):
         return user_threads
 
     # Returns a queryset containing all users contributions
-    def _get_author_activity_queryset(self, author_id, ordering):
+    def _get_author_activity_queryset(self, author_id, ordering, asset_type):
         author = self.get_object()
         user = author.user
         author_threads = self._get_author_threads_participated(author_id)
         thread_content_type = ContentType.objects.get_for_model(Thread)
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+        paper_content_type = ContentType.objects.get_for_model(Paper)
 
-        return user.contributions.filter(
-            # Threads participated by the user
-            Q(
-                unified_document__is_removed=False,
-                content_type=thread_content_type,
-                object_id__in=author_threads,
-            ) |
-
-            # All other contributions directly made by user
-            Q(
-                unified_document__is_removed=False,
-                user__author_profile=author_id,
-                contribution_type__in=[
-                    Contribution.SUBMITTER,
-                    Contribution.SUPPORTER
-                ],
+        if asset_type == "all":
+            query = (
+                Q(
+                    Q(
+                        unified_document__is_removed=False,
+                        content_type=thread_content_type,
+                        object_id__in=author_threads,
+                    ) |
+                    Q(
+                        unified_document__is_removed=False,
+                        user__author_profile=author_id,
+                        contribution_type__in=[
+                            Contribution.SUBMITTER,
+                            Contribution.SUPPORTER
+                        ],
+                    )
+                )
             )
-        ).select_related(
+        elif asset_type == "discussion":
+            query = (
+                Q(
+                    unified_document__is_removed=False,
+                    user__author_profile=author_id,
+                    content_type_id=post_content_type,
+                    contribution_type__in=[
+                        Contribution.SUBMITTER
+                    ],
+                )
+            )
+        elif asset_type == "comment":
+            query = (
+                Q(
+                    unified_document__is_removed=False,
+                    content_type=thread_content_type,
+                    object_id__in=author_threads,
+                )
+            )
+        elif asset_type == "paper":
+            query = (
+                Q(
+                    unified_document__is_removed=False,
+                    user__author_profile=author_id,
+                    content_type_id=paper_content_type,
+                    contribution_type__in=[
+                        Contribution.SUBMITTER
+                    ],
+                )
+            )
+
+        return user.contributions.filter(query).select_related(
             'content_type',
             'user',
             'user__author_profile',
