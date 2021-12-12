@@ -66,9 +66,7 @@ from utils.http import RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from django.db.models import Count
-from researchhub_document.serializers import (
-    ResearchhubPostSerializer,
-)
+from hypothesis.related_models.hypothesis import Hypothesis
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(is_suspended=False)
@@ -767,7 +765,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
         return context
 
 
-    def _get_activity_context(self, filter_by_user_id):
+    def _get_contribution_context(self, filter_by_user_id):
         context = {
             '_config': {
                 'filter_by_user_id': filter_by_user_id,
@@ -876,16 +874,16 @@ class AuthorViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=['get'],
     )
-    def activity(self, request, pk=None):
+    def contributions(self, request, pk=None):
         author = self.get_object()
 
         query_params = request.query_params
         ordering = query_params.get('ordering', '-created_date')
-        asset_type = query_params.get('type', 'all')
-        contributions = self._get_author_activity_queryset(author.id, ordering, asset_type)
+        asset_type = query_params.get('type', 'overview')
+        contributions = self._get_author_contribution_queryset(author.id, ordering, asset_type)
 
         page = self.paginate_queryset(contributions)
-        context = self._get_activity_context(author.user_id)
+        context = self._get_contribution_context(author.user_id)
         serializer = DynamicContributionSerializer(
             page,
             _include_fields=[
@@ -929,18 +927,21 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
         return user_threads
 
-    # Returns a queryset containing all users contributions
-    def _get_author_activity_queryset(self, author_id, ordering, asset_type):
+    def _get_author_contribution_queryset(self, author_id, ordering, asset_type):
         author = self.get_object()
         user = author.user
         author_threads = self._get_author_threads_participated(author_id)
         thread_content_type = ContentType.objects.get_for_model(Thread)
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         paper_content_type = ContentType.objects.get_for_model(Paper)
+        hypothesis_content_type = ContentType.objects.get_for_model(Hypothesis)
 
-        if asset_type == "all":
-            query = (
-                Q(
+        types = asset_type.split(",")
+
+        query = Q()
+        for asset_type in types:
+            if asset_type == "overview":
+                query |= Q(
                     Q(
                         unified_document__is_removed=False,
                         content_type=thread_content_type,
@@ -955,10 +956,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         ],
                     )
                 )
-            )
-        elif asset_type == "discussion":
-            query = (
-                Q(
+            elif asset_type == "discussion":
+                query |= Q(
                     unified_document__is_removed=False,
                     user__author_profile=author_id,
                     content_type_id=post_content_type,
@@ -966,18 +965,23 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         Contribution.SUBMITTER
                     ],
                 )
-            )
-        elif asset_type == "comment":
-            query = (
-                Q(
+            elif asset_type == "hypothesis":
+                query |= Q(
+                    unified_document__is_removed=False,
+                    user__author_profile=author_id,
+                    content_type_id=hypothesis_content_type,
+                    contribution_type__in=[
+                        Contribution.SUBMITTER
+                    ],
+                )
+            elif asset_type == "comment":
+                query |= Q(
                     unified_document__is_removed=False,
                     content_type=thread_content_type,
                     object_id__in=author_threads,
                 )
-            )
-        elif asset_type == "paper":
-            query = (
-                Q(
+            elif asset_type == "paper":
+                query |= Q(
                     unified_document__is_removed=False,
                     user__author_profile=author_id,
                     content_type_id=paper_content_type,
@@ -985,7 +989,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         Contribution.SUBMITTER
                     ],
                 )
-            )
+            else:
+                raise Exception('Unrecognized asset type')
 
         return user.contributions.filter(query).select_related(
             'content_type',
