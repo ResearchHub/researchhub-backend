@@ -18,6 +18,7 @@ class RewardModel(models.Model):
 class RewardAdminModel(admin.ModelAdmin):
     model = Distribution
     add_form_template = 'rsc_reward.html'
+    change_form_template = 'rsc_reward.html'
 
     def get_queryset(self, request):
         return Distribution.objects.all() 
@@ -50,67 +51,84 @@ class RewardAdminModel(admin.ModelAdmin):
     #             )
     #     distributor.distribute()
 
-    def change_view(self, request, object_id, form_url='', extra_context=None):
-        images = ''
-        obj = self.model.objects.get(id=object_id)
-        user = obj.user
-        referrer = user.invited_by
-        verifications = self.model.objects.filter(user=user)
+    def render_change_form(self, request, context, *args, **kwargs):
+        print(context)
+        # context.update(
+        #     {
+        #         'title': 'Grant RSC',
+        #         'show_save_and_add_another': False,
+        #         'show_save_and_continue': False,
+        #         'has_delete_permission': False,
+        #         'has_change_permission': False,
+        #     }
+        # )
+        return super().render_change_form(request, context, *args, **kwargs)
 
-        for i, verification in enumerate(verifications.iterator()):
-            if verification.file:
-                url = verification.file.url
-                image_html = f"""
-                    <div style="display:inline-grid;padding:10px">
-                        <span>
-                            <a href="{url}" target="_blank">
-                                <img src="{url}" style="max-width:300px;">
-                            </a>
-                        </span>
-                        <label for="id_file">Image {i + 1}</label>
-                    </div>
-                """
-                images += image_html
-
-        is_verified = user.author_profile.academic_verification
-        if is_verified:
-            verified = """<img src="/static/admin/img/icon-yes.svg">"""
-        elif is_verified is False:
-            verified = """<img src="/static/admin/img/icon-no.svg">"""
-        else:
-            verified = """<img src="/static/admin/img/icon-unknown.svg">"""
-
-        user_html = f"""
-            <p style="font-weight:bold;">
-                {user.id}: {user.email} / {user.first_name} {user.last_name}
-            </p>
+    def add_view(self, request, form_url='', extra_context=None):
+        user_html = """
+            <input type="number" id="user_id" name="_grant_OLD"/>
         """
+        # images = ''
+        # obj = self.model.objects.get(id=object_id)
+        # user = obj.user
+        # referrer = user.invited_by
+        # verifications = self.model.objects.filter(user=user)
 
-        if referrer:
-            referred_by = f"""
-                <p style="font-weight:bold;">
-                    {referrer.id}: {referrer.email} / {referrer.first_name} {referrer.last_name}
-                </p>
-            """
-        else:
-            referred_by = """<p> No Referrer </p>"""
+        # for i, verification in enumerate(verifications.iterator()):
+        #     if verification.file:
+        #         url = verification.file.url
+        #         image_html = f"""
+        #             <div style="display:inline-grid;padding:10px">
+        #                 <span>
+        #                     <a href="{url}" target="_blank">
+        #                         <img src="{url}" style="max-width:300px;">
+        #                     </a>
+        #                 </span>
+        #                 <label for="id_file">Image {i + 1}</label>
+        #             </div>
+        #         """
+        #         images += image_html
 
+        # is_verified = user.author_profile.academic_verification
+        # if is_verified:
+        #     verified = """<img src="/static/admin/img/icon-yes.svg">"""
+        # elif is_verified is False:
+        #     verified = """<img src="/static/admin/img/icon-no.svg">"""
+        # else:
+        #     verified = """<img src="/static/admin/img/icon-unknown.svg">"""
+
+        # user_html = f"""
+        #     <p style="font-weight:bold;">
+        #         {user.id}: {user.email} / {user.first_name} {user.last_name}
+        #     </p>
+        # """
+
+        # if referrer:
+        #     referred_by = f"""
+        #         <p style="font-weight:bold;">
+        #             {referrer.id}: {referrer.email} / {referrer.first_name} {referrer.last_name}
+        #         </p>
+        #     """
+        # else:
+        #     referred_by = """<p> No Referrer </p>"""
+
+        # import pdb; pdb.set_trace()
         extra_context = extra_context or {}
-        extra_context['images'] = images
-        extra_context['verified'] = verified
+        # extra_context['images'] = images
+        # extra_context['verified'] = verified
         extra_context['user'] = user_html
-        extra_context['referred_by'] = referred_by
+        # extra_context['referred_by'] = referred_by
 
-        return super(RewardAdminModel, self).change_view(
+        return super(RewardAdminModel, self).add_view(
             request,
-            object_id,
             form_url,
             extra_context=extra_context,
         )
 
     def response_change(self, request, obj):
-        user = obj.user
-        if '_grant' in request.POST:
+        print('on change---------------')
+        # user = obj.user
+        if '_grant_OLD' in request.POST:
             author_profile = user.author_profile
             author_profile.academic_verification = True
             author_profile.save()
