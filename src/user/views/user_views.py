@@ -946,6 +946,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         unified_document__is_removed=False,
                         content_type=thread_content_type,
                         object_id__in=author_threads,
+                        contribution_type__in=[
+                            Contribution.COMMENTER
+                        ],                        
                     ) |
                     Q(
                         unified_document__is_removed=False,
@@ -979,6 +982,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     unified_document__is_removed=False,
                     content_type=thread_content_type,
                     object_id__in=author_threads,
+                    contribution_type__in=[
+                        Contribution.COMMENTER
+                    ],
                 )
             elif asset_type == "paper":
                 query |= Q(
@@ -992,7 +998,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
             else:
                 raise Exception('Unrecognized asset type')
 
-        return user.contributions.filter(query).select_related(
+
+        return Contribution.objects.filter(query).select_related(
             'content_type',
             'user',
             'user__author_profile',
