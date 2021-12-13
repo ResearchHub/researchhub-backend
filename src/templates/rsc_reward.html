@@ -26,4 +26,14 @@
   <div class="submit-row">
       <input type="submit" value="Grant RSC" name="_grant">
   </div>
+
+<script>
+    const reloadButton = document.getElementById('user_id');
+
+    reloadButton.addEventListener('input', async() => {
+        console.log(reloadButton.value);
+      }
+    );
+</script>
+
 {% endblock %}
