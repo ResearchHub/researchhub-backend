@@ -717,6 +717,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 'uploaded_by',
                 'uploaded_date',
                 'url',
+                'paper_publish_date',
+                'slug',
             ],
             many=True,
             context=context
