@@ -815,6 +815,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             'rep_dcs_get_source': {
                 '_include_fields': [
                     'replies',
+                    'content_type',
                     'comments',
                     'discussion_type',
                     'amount',
