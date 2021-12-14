@@ -58,6 +58,7 @@ class DynamicThreadSerializer(
     user_vote = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     discussion_type = serializers.SerializerMethodField()
+    promoted = serializers.SerializerMethodField()
 
     class Meta:
         model = Thread
@@ -169,7 +170,8 @@ class DynamicReplySerializer(
 ):
     unified_document = serializers.SerializerMethodField()
     discussion_type = serializers.SerializerMethodField()
-
+    promoted = serializers.SerializerMethodField()
+    
     created_by = MinimalUserSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
@@ -214,6 +216,7 @@ class DynamicCommentSerializer(
     thread_id = serializers.SerializerMethodField()
     paper_id = serializers.SerializerMethodField()
     discussion_type = serializers.SerializerMethodField()
+    promoted = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment

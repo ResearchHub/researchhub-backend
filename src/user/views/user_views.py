@@ -772,6 +772,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             },
             'doc_duds_get_documents': {
                 '_include_fields': [
+                    'promoted',
                     'abstract',
                     'aggregate_citation_consensus',
                     'created_by',
@@ -816,6 +817,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 '_include_fields': [
                     'replies',
                     'content_type',
+                    'promoted',
                     'comments',
                     'discussion_type',
                     'amount',
