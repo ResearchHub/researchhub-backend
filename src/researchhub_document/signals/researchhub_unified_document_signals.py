@@ -52,11 +52,11 @@ def rh_unified_doc_sync_scores_paper(instance, sender, **kwargs):
     sender=Paper,
     dispatch_uid='sync_is_removed_from_paper',
 )
-def sync_is_removed_from_paper(instance, sender, **kwargs):
+def sync_is_removed_from_paper(instance, **kwargs):
     try:
         uni_doc = instance.unified_document
-        if (uni_doc is not None and instance.is_removed):
-            uni_doc.is_removed = True
+        if (uni_doc is not None):
+            uni_doc.is_removed = instance.is_removed
             uni_doc.save()
     except Exception:
         return None
