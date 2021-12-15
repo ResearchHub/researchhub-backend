@@ -19,6 +19,7 @@ class SimpleHubSerializer(serializers.ModelSerializer):
         ]
         model = Hub
 
+
 class HubSerializer(serializers.ModelSerializer):
     editor_permission_groups = SerializerMethodField()
 
