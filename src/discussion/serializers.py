@@ -50,7 +50,7 @@ class DynamicThreadSerializer(
 ):
     comment_count = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
-    is_created_by_editor = serializers.BooleanField()
+    is_created_by_editor = serializers.BooleanField(required=False)
     paper = serializers.SerializerMethodField()
     post = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
@@ -64,6 +64,9 @@ class DynamicThreadSerializer(
     class Meta:
         model = Thread
         fields = '__all__'
+        read_only_fields = [
+            'is_created_by_editor'
+        ]
 
     def get_discussion_type(self, obj):
         return Thread.__name__
@@ -180,7 +183,7 @@ class DynamicReplySerializer(
     DynamicModelFieldSerializer,
     GenericReactionSerializerMixin,
 ):
-    is_created_by_editor = serializers.BooleanField()
+    is_created_by_editor = serializers.BooleanField(required=False)
     unified_document = serializers.SerializerMethodField()
     discussion_type = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
@@ -196,6 +199,9 @@ class DynamicReplySerializer(
     class Meta:
         model = Reply
         fields = '__all__'
+        read_only_fields = [
+            'is_created_by_editor'
+        ]
 
     def get_discussion_type(self, obj):
         return Reply.__name__
@@ -248,7 +254,7 @@ class DynamicCommentSerializer(
 
     created_by = serializers.SerializerMethodField()
     discussion_type = serializers.SerializerMethodField()
-    is_created_by_editor = serializers.BooleanField()
+    is_created_by_editor = serializers.BooleanField(required=False)
     paper_id = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
@@ -261,6 +267,9 @@ class DynamicCommentSerializer(
     class Meta:
         model = Comment
         fields = '__all__'
+        read_only_fields = [
+            'is_created_by_editor'
+        ]
 
     def get_discussion_type(self, obj):
         return Comment.__name__
@@ -341,7 +350,7 @@ class CommentSerializer(
         default=serializers.CurrentUserDefault()
     )
     document_meta = serializers.SerializerMethodField()
-    is_created_by_editor = serializers.BooleanField()
+    is_created_by_editor = serializers.BooleanField(required=False)
     paper_id = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
@@ -440,7 +449,7 @@ class ThreadSerializer(
     comment_count = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     document_meta = serializers.SerializerMethodField()
-    is_created_by_editor = serializers.BooleanField()
+    is_created_by_editor = serializers.BooleanField(required=False)
     paper_slug = serializers.SerializerMethodField()
     post_slug = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
@@ -558,7 +567,7 @@ class ReplySerializer(
         read_only=False
     )
     document_meta = serializers.SerializerMethodField()
-    is_created_by_editor = serializers.BooleanField()
+    is_created_by_editor = serializers.BooleanField(required=False)
     paper_id = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()

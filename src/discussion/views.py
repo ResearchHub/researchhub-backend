@@ -90,6 +90,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date',)
 
     def create(self, request, *args, **kwargs):
+        import pdb; pdb.set_trace()
         document_type = request.path.split('/')[2]
         document_id = get_document_id_from_path(request)
         document = DOCUMENT_MODELS[document_type].objects.get(id=document_id)
