@@ -4,27 +4,27 @@ from rest_framework.serializers import ModelSerializer, SerializerMethodField
 import rest_auth.registration.serializers as rest_auth_serializers
 
 from bullet_point.models import BulletPoint
+from bullet_point.models import Vote as BulletVote
 from discussion.lib import check_is_discussion_item
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
 from hub.serializers import HubSerializer
 from hypothesis.models import Hypothesis
 from paper.models import Vote as PaperVote, Paper
+from purchase.models import Purchase
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_document.models import ResearchhubPost
-from bullet_point.models import Vote as BulletVote
+from researchhub.serializers import DynamicModelFieldSerializer
+from summary.models import Summary, Vote as SummaryVote
+from user.related_models.gatekeeper_model import Gatekeeper
 from user.models import (
     Action,
     Author,
-    University,
-    User,
     Major,
     Organization,
+    University,
+    User,
     Verification,
 )
-from summary.models import Summary, Vote as SummaryVote
-from purchase.models import Purchase
-from researchhub.serializers import DynamicModelFieldSerializer
-from user.related_models.gatekeeper_model import Gatekeeper
 
 from utils import sentry
 
