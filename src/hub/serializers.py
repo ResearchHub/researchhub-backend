@@ -10,15 +10,14 @@ from researchhub.serializers import DynamicModelFieldSerializer
 class SimpleHubSerializer(serializers.ModelSerializer):
     class Meta:
         fields = [
+            'hub_image',
             'id',
-            'name',
             'is_locked',
-            'slug',
             'is_removed',
-            'hub_image'
+            'name',
+            'slug',
         ]
         model = Hub
-
 
 class HubSerializer(serializers.ModelSerializer):
     editor_permission_groups = SerializerMethodField()
