@@ -49,7 +49,7 @@ class DynamicThreadSerializer(
 ):
     comment_count = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
-    is_created_by_editor = serializers.BooleanField()
+    is_created_by_editor = serializers.BooleanField(required=False)
     paper = serializers.SerializerMethodField()
     post = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
@@ -58,6 +58,9 @@ class DynamicThreadSerializer(
     class Meta:
         model = Thread
         fields = '__all__'
+        read_only_fields = [
+            'is_created_by_editor'
+        ]
 
     def get_created_by(self, thread):
         context = self.context
@@ -133,12 +136,15 @@ class DynamicCommentSerializer(
     DynamicModelFieldSerializer,
     GenericReactionSerializerMixin
 ):
-    is_created_by_editor = serializers.BooleanField()
+    is_created_by_editor = serializers.BooleanField(required=False)
     unified_document = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment
         fields = '__all__'
+        read_only_fields = [
+            'is_created_by_editor'
+        ]
 
     def get_unified_document(self, comment):
         from researchhub_document.serializers import (
@@ -158,12 +164,15 @@ class DynamicReplySerializer(
     DynamicModelFieldSerializer,
     GenericReactionSerializerMixin
 ):
-    is_created_by_editor = serializers.BooleanField()
+    is_created_by_editor = serializers.BooleanField(required=False)
     unified_document = serializers.SerializerMethodField()
 
     class Meta:
         model = Reply
         fields = '__all__'
+        read_only_fields = [
+            'is_created_by_editor'
+        ]
 
     def get_unified_document(self, reply):
         from researchhub_document.serializers import (
@@ -187,7 +196,7 @@ class CommentSerializer(
         default=serializers.CurrentUserDefault()
     )
     document_meta = serializers.SerializerMethodField()
-    is_created_by_editor = serializers.BooleanField()
+    is_created_by_editor = serializers.BooleanField(required=False)
     paper_id = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
@@ -284,7 +293,7 @@ class ThreadSerializer(
     comment_count = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     document_meta = serializers.SerializerMethodField()
-    is_created_by_editor = serializers.BooleanField()
+    is_created_by_editor = serializers.BooleanField(required=False)
     paper_slug = serializers.SerializerMethodField()
     post_slug = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
@@ -400,7 +409,7 @@ class ReplySerializer(
         read_only=False
     )
     document_meta = serializers.SerializerMethodField()
-    is_created_by_editor = serializers.BooleanField()
+    is_created_by_editor = serializers.BooleanField(required=False)
     paper_id = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
