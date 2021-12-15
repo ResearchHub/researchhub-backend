@@ -108,7 +108,6 @@ class DynamicHubSerializer(DynamicModelFieldSerializer):
             'hub_dhs_get_editor_permission_groups',
             {}
         )
-        import pdb; pdb.set_trace()
         editor_groups = hub_instance.editor_permission_groups
         return DynamicPermissionSerializer(
             editor_groups,
