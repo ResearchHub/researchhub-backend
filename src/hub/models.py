@@ -113,7 +113,7 @@ class Hub(models.Model):
         return self.subscribers.filter(is_suspended=False).count()
 
     def get_editor_permission_groups(self):
-        return self.permissions.filter(access_type=EDITOR)
+        return self.permissions.filter(access_type=EDITOR).all()
 
     @property
     def paper_count_indexing(self):

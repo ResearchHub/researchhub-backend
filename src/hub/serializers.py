@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from rest_framework.fields import SerializerMethodField
+from rest_framework.serializers import SerializerMethodField
 
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 
@@ -21,7 +21,7 @@ class SimpleHubSerializer(serializers.ModelSerializer):
 
 
 class HubSerializer(serializers.ModelSerializer):
-    editor_permission_groups = serializers.SerializerMethodField()
+    editor_permission_groups = SerializerMethodField()
 
     class Meta:
         fields = [
@@ -43,10 +43,10 @@ class HubSerializer(serializers.ModelSerializer):
         ]
         model = Hub
 
-    def editor_permission_groups(self, hub_instance):
+    def get_editor_permission_groups(self, hub_instance):
         context = self.context
         __context_fields = context.get(
-            'hub_dhs_get_editor_permission_groups',
+            'hub_get_editor_permission_groups',
             {}
         )
         editor_groups = hub_instance.editor_permission_groups
@@ -68,7 +68,7 @@ class HubCategorySerializer(serializers.ModelSerializer):
 
 
 class DynamicHubSerializer(DynamicModelFieldSerializer):
-    editor_permission_groups = serializers.SerializerMethodField()
+    editor_permission_groups = SerializerMethodField()
 
     class Meta:
         model = Hub
