@@ -1,16 +1,24 @@
 import logging
+from django.contrib.contenttypes.models import ContentType
 
-from rest_framework.serializers import ModelSerializer, SerializerMethodField
+from rest_framework.serializers import (
+    CharField,
+    ModelSerializer,
+    PrimaryKeyRelatedField,
+    SerializerMethodField,
+)
 import rest_auth.registration.serializers as rest_auth_serializers
 
 from bullet_point.models import BulletPoint
 from bullet_point.models import Vote as BulletVote
 from discussion.lib import check_is_discussion_item
 from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
-from hub.serializers import HubSerializer
+from hub.models import Hub
+from hub.serializers import HubSerializer, SimpleHubSerializer
 from hypothesis.models import Hypothesis
 from paper.models import Vote as PaperVote, Paper
 from purchase.models import Purchase
+from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_document.models import ResearchhubPost
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -55,19 +63,21 @@ class GatekeeperSerializer(ModelSerializer):
 
 
 class AuthorSerializer(ModelSerializer):
-    university = UniversitySerializer(required=False)
-    reputation = SerializerMethodField()
-    orcid_id = SerializerMethodField()
-    total_score = SerializerMethodField()
-    wallet = SerializerMethodField()
-    sift_link = SerializerMethodField()
+    is_hub_editor_of = SerializerMethodField()
     num_posts = SerializerMethodField()
+    orcid_id = SerializerMethodField()
+    reputation = SerializerMethodField()
+    sift_link = SerializerMethodField()
+    total_score = SerializerMethodField()
+    university = UniversitySerializer(required=False)
+    wallet = SerializerMethodField()
 
     class Meta:
         model = Author
         fields = [field.name for field in Author._meta.fields] + [
             'claimed_by_user_author_id',
             'is_claimed',
+            'is_hub_editor_of',
             'num_posts',
             'orcid_id',
             'reputation',
@@ -79,6 +89,7 @@ class AuthorSerializer(ModelSerializer):
         read_only_fields = [
             'claimed_by_user_author_id',
             'is_claimed',
+            'is_hub_editor_of',
             'num_posts',
         ]
 
@@ -138,6 +149,24 @@ class AuthorSerializer(ModelSerializer):
             return ResearchhubPost.objects.filter(created_by=user).count()
         return 0
 
+    def get_is_hub_editor_of(self, author):
+        user = author.user
+        if user is None:
+            return []
+
+        hub_content_type = ContentType.objects.get_for_model(Hub)
+        target_permissions = user.permissions.filter(
+            access_type=EDITOR,
+            content_type=hub_content_type
+        )
+        target_hub_ids = []
+        for permission in target_permissions:
+            target_hub_ids.append(permission.object_id)
+        return SimpleHubSerializer(
+            Hub.objects.filter(id__in=target_hub_ids),
+            many=True
+        ).data
+
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
     class Meta:
@@ -146,7 +175,7 @@ class DynamicAuthorSerializer(DynamicModelFieldSerializer):
 
 
 class AuthorEditableSerializer(ModelSerializer):
-    university = serializers.PrimaryKeyRelatedField(
+    university = PrimaryKeyRelatedField(
         queryset=University.objects.all(),
         required=False,
         allow_null=True
@@ -287,7 +316,7 @@ class UserEditableSerializer(ModelSerializer):
 
 
 class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
-    username = rest_auth_serializers.CharField(
+    username = CharField(
         max_length=rest_auth_serializers.get_username_max_length(),
         min_length=rest_auth_serializers.allauth_settings.USERNAME_MIN_LENGTH,
         required=False,
