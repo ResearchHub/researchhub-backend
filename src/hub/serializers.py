@@ -21,11 +21,14 @@ class SimpleHubSerializer(serializers.ModelSerializer):
 
 
 class HubSerializer(serializers.ModelSerializer):
+    editor_permission_groups = serializers.SerializerMethodField()
+
     class Meta:
         fields = [
             'category',
             'description',
             'discussion_count',
+            'editor_permission_groups',
             'hub_image',
             'id',
             'is_locked',
@@ -35,7 +38,24 @@ class HubSerializer(serializers.ModelSerializer):
             'slug',
             'subscriber_count',
         ]
+        read_only_fields = [
+            'editor_permission_groups'
+        ]
         model = Hub
+
+    def editor_permission_groups(self, hub_instance):
+        context = self.context
+        __context_fields = context.get(
+            'hub_dhs_get_editor_permission_groups',
+            {}
+        )
+        editor_groups = hub_instance.editor_permission_groups
+        return DynamicPermissionSerializer(
+            editor_groups,
+            **__context_fields,
+            context=context,
+            many=True,
+        ).data
 
 
 class HubCategorySerializer(serializers.ModelSerializer):
@@ -48,6 +68,8 @@ class HubCategorySerializer(serializers.ModelSerializer):
 
 
 class DynamicHubSerializer(DynamicModelFieldSerializer):
+    editor_permission_groups = serializers.SerializerMethodField()
+
     class Meta:
         model = Hub
         fields = '__all__'
@@ -59,9 +81,10 @@ class DynamicHubSerializer(DynamicModelFieldSerializer):
             'hub_dhs_get_editor_permission_groups',
             {}
         )
+        editor_groups = hub_instance.editor_permission_groups
         return DynamicPermissionSerializer(
-            hub_instance.editor_permission_groups,
+            editor_groups,
             **__context_fields,
-            conext=context,
+            context=context,
             many=True,
-        )
+        ).data
