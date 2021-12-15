@@ -8,8 +8,11 @@ from researchhub.serializers import DynamicModelFieldSerializer
 
 
 class SimpleHubSerializer(serializers.ModelSerializer):
+    editor_permission_groups = SerializerMethodField()
+
     class Meta:
         fields = [
+            'editor_permission_groups',
             'hub_image',
             'id',
             'is_locked',
@@ -17,7 +20,31 @@ class SimpleHubSerializer(serializers.ModelSerializer):
             'name',
             'slug',
         ]
+        read_only_fields = [
+            'editor_permission_groups'
+        ]
         model = Hub
+
+    def get_editor_permission_groups(self, hub_instance):
+        context = self.context
+        __context_fields = context.get(
+            'smp_hub_get_editor_permission_groups',
+            {}
+        )
+        context['rag_dps_get_user'] = {
+            '_include_fields': [
+                'author_profile',
+                'email',
+                'id',
+            ]
+        }
+        editor_groups = hub_instance.editor_permission_groups
+        return DynamicPermissionSerializer(
+            editor_groups,
+            **__context_fields,
+            context=context,
+            many=True,
+        ).data
 
 
 class HubSerializer(serializers.ModelSerializer):
@@ -81,6 +108,7 @@ class DynamicHubSerializer(DynamicModelFieldSerializer):
             'hub_dhs_get_editor_permission_groups',
             {}
         )
+        import pdb; pdb.set_trace()
         editor_groups = hub_instance.editor_permission_groups
         return DynamicPermissionSerializer(
             editor_groups,
