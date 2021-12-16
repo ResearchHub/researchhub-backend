@@ -432,7 +432,12 @@ class PaperSerializer(BasePaperSerializer):
 
                 return paper
         except IntegrityError as e:
-            raise e
+            error = PaperSerializerError(e, 'Failed to create paper')
+            sentry.log_error(
+                error,
+                base_error=error.trigger
+            )
+            raise error
         except Exception as e:
             error = PaperSerializerError(e, 'Failed to create paper')
             sentry.log_error(
