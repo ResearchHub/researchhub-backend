@@ -3,7 +3,7 @@
 if ! grep -Fxq "[include]" /etc/supervisord.conf;
   then
     echo "[include]" | tee -a /etc/supervisord.conf
-    echo "files= /etc/celerybeat.conf /etc/celery.conf /etc/celeryflower.conf /etc/daphne.conf/" | tee -a /etc/supervisord.conf
+    echo "files= /etc/celerybeat.conf /etc/celery.conf /etc/celeryflower.conf /etc/daphne.conf" | tee -a /etc/supervisord.conf
 fi
 
 # Reread the supervisord config
