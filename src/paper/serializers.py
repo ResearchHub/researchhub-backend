@@ -432,7 +432,12 @@ class PaperSerializer(BasePaperSerializer):
 
                 return paper
         except IntegrityError as e:
-            raise e
+            error = PaperSerializerError(e, 'Failed to create paper')
+            sentry.log_error(
+                error,
+                base_error=error.trigger
+            )
+            raise error
         except Exception as e:
             error = PaperSerializerError(e, 'Failed to create paper')
             sentry.log_error(
@@ -693,11 +698,18 @@ class PaperSerializer(BasePaperSerializer):
             raw_authors = paper.raw_authors
             if raw_authors:
                 for author in raw_authors:
+                    if isinstance(author, str):
+                        author = json.loads(author)
+
+                    if not isinstance(author, dict):
+                        scores.append(0)
+                        continue
+
                     score = Paper.objects.filter(
                         raw_authors__contains=[
                             {
-                                'first_name': author['first_name'],
-                                'last_name': author['last_name']
+                                'first_name': author.get('first_name'),
+                                'last_name': author.get('last_name')
                             }
                         ]
                     ).aggregate(
