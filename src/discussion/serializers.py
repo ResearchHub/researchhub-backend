@@ -582,7 +582,7 @@ class ReplySerializer(
             'created_by',
             'created_date',
             'created_location',
-            'document_meta'
+            'document_meta',
             'id',
             'is_created_by_editor',
             'is_public',
@@ -602,7 +602,7 @@ class ReplySerializer(
             'was_edited',
         ]
         read_only_fields = [
-            'document_meta'
+            'document_meta',
             'is_created_by_editor',
             'is_public',
             'is_removed',
