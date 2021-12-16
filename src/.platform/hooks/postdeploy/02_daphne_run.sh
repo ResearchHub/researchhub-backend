@@ -52,7 +52,8 @@ if grep -xq "files=.* daphne.conf.*" /etc/supervisord.conf;
   then
       echo "conf already set"
   else
-      sudo sed -e 's/files=.*/& daphne.conf/' -i /etc/supervisord.conf
+      echo "[include]" | tee -a /etc/supervisord.conf
+      sudo sed -e 's/files=.*/& /etc/daphne.conf/' -i /etc/supervisord.conf
 fi
 
 # Reread the supervisord config
