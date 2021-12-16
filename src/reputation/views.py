@@ -22,11 +22,12 @@ from reputation.lib import (
 from reputation.models import Withdrawal
 from reputation.serializers import WithdrawalSerializer
 from user.serializers import UserSerializer
+from user.models import User
 from utils import sentry
-from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer
+from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer, APIPermission
 from utils.throttles import THROTTLE_CLASSES
 from researchhub.settings import WEB3_RSC_ADDRESS
-
+from reputation.distributor import Distributor
 
 class WithdrawalViewSet(viewsets.ModelViewSet):
     queryset = Withdrawal.objects.all()
@@ -98,6 +99,27 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         resp = super().list(request)
         resp.data['user'] = UserSerializer(request.user, context={'user': request.user}).data
         return resp
+    
+    @action(
+        detail=False,
+        methods=['post'],
+        permission_classes=[APIPermission]
+    )
+    def deposit_rsc(self, request):
+        """
+        This is a request to deposit RSC from our researchhub-async-service
+        """
+        user_id = request.data.get('user_id')
+        amt = request.data.get('amt')
+        user = User.objects.get(id=user_id)
+        distribution = Dist('DEPOSIT', amt, give_rep=False)
+        distributor = Distributor(
+                    distribution,
+                    user,
+                    user,
+                    time.time()
+                )
+        distributor.distribute()
 
     @action(
         detail=False,
