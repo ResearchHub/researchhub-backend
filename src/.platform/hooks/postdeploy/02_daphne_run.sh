@@ -46,21 +46,3 @@ environment=$djangoenv"
 
 # Create the supervisord conf script
 echo "$daphne" | sudo tee /etc/daphne.conf
-
-# Add configuration script to supervisord conf (if not there already)
-if grep -xq "files=.* daphne.conf.*" /etc/supervisord.conf;
-  then
-      echo "conf already set"
-  else
-      echo "[include]" | tee -a /etc/supervisord.conf
-      sudo sed -e 's/files=.*/& /etc/daphne.conf/' -i /etc/supervisord.conf
-fi
-
-# Reread the supervisord config
-sudo /usr/bin/supervisorctl -c /etc/supervisord.conf reread
-
-# Update supervisord in cache without restarting all services
-sudo /usr/bin/supervisorctl -c /etc/supervisord.conf update
-
-# Start/Restart processes through supervisord
-sudo /usr/bin/supervisorctl -c /etc/supervisord.conf restart daphne:*

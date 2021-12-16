@@ -104,23 +104,3 @@ environment=$celery_env"
 echo "$celery_conf" | tee /etc/celery.conf
 echo "$celerybeatconf" | tee /etc/celerybeat.conf
 echo "$celeryflowerconf" | tee /etc/celeryflower.conf
-
-# Add the conf to supervisord (if not already there)
-if ! grep -Fxq "[include]" /etc/supervisord.conf;
-  then
-    echo "[include]" | tee -a /etc/supervisord.conf
-    echo "files= /etc/celerybeat.conf /etc/celery.conf /etc/celeryflower.conf" | tee -a /etc/supervisord.conf
-  else
-    sudo sed -e "files= /etc/celerybeat.conf /etc/celery.conf /etc/celeryflower.conf" -i /etc/supervisord.conf
-fi
-
-# Reread the conf
-/usr/bin/supervisorctl -c /etc/supervisord.conf reread
-
-# Update supvisord in cache without restarting all services
-/usr/bin/supervisorctl -c /etc/supervisord.conf update
-
-# Restart celeryd
-/usr/bin/supervisorctl -c /etc/supervisord.conf restart celeryd-worker
-/usr/bin/supervisorctl -c /etc/supervisord.conf restart celerybeat
-/usr/bin/supervisorctl -c /etc/supervisord.conf stop celeryflower
