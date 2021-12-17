@@ -11,13 +11,10 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.core.cache import cache
 from django.db import models
-from hub.models import Hub
 
 from paper.utils import get_cache_key
 from purchase.models import Purchase
 from researchhub.lib import CREATED_LOCATIONS
-from researchhub_access_group.constants import EDITOR
-from researchhub_access_group.models import Permission
 from .reaction_models import Flag, Vote, Endorsement
 
 
@@ -127,18 +124,6 @@ class BaseComment(models.Model):
     @property
     def score_indexing(self):
         return self.calculate_score()
-
-    @property
-    def is_created_by_editor(self):
-        uni_doc = self.unified_document
-        if (uni_doc is not None):
-            return Permission.objects.filter(
-                access_type=EDITOR,
-                user=self.created_by,
-                content_type=ContentType.objects.get_for_model(Hub),
-                object_id__in=uni_doc.hubs.values_list('id', flat=True),
-            ).exists()
-        return False
 
     def calculate_score(self, ignore_self_vote=False):
         if hasattr(self, 'score'):

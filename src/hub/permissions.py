@@ -1,13 +1,10 @@
-from rest_framework.permissions import BasePermission
 from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission
-
 
 class CreateHub(RuleBasedPermission):
     message = 'Not enough reputation to create hub.'
 
     def satisfies_rule(self, request):
         return request.user.reputation >= 100
-
 
 class IsSubscribed(AuthorizationBasedPermission):
     message = 'Must be subscribed.'
@@ -22,7 +19,6 @@ class IsNotSubscribed(AuthorizationBasedPermission):
     def is_authorized(self, request, view, obj):
         return request.user not in obj.subscribers.all()
 
-
 class CensorHub(RuleBasedPermission):
     message = 'Need to be a moderator to remove hubs.'
 
@@ -32,12 +28,3 @@ class CensorHub(RuleBasedPermission):
         else:
             return True
 
-
-class IsModerator(BasePermission):
-    """
-    Allows access only to authenticated users who are moderators
-    """
-
-    def has_permission(self, request, view):
-        user = request.user
-        return bool(user and user.is_authenticated and user.moderator)
