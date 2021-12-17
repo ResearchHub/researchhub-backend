@@ -1,11 +1,16 @@
+from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import Sum
+
+from researchhub_access_group.constants import EDITOR
+from researchhub_access_group.models import Permission
 
 from slugify import slugify
 
 HELP_TEXT_IS_REMOVED = (
     'Hides the hub because it is not allowed.'
 )
+
 
 def get_default_hub_category():
     """Get or create a default value for the hub categories"""
@@ -47,6 +52,13 @@ class Hub(models.Model):
         'user.User',
         related_name='subscribed_hubs',
         through='HubMembership'
+    )
+    permissions = GenericRelation(
+        Permission,
+        help_text='A member of given hub that has special power. \
+            Note this is different from HubMembership (subscribers)',
+        related_name='hub',
+        related_query_name='hub_source',
     )
     category = models.ForeignKey(
         HubCategory,
@@ -100,6 +112,9 @@ class Hub(models.Model):
     def get_subscribers_count(self):
         return self.subscribers.filter(is_suspended=False).count()
 
+    def get_editor_permission_groups(self):
+        return self.permissions.filter(access_type=EDITOR).all()
+
     @property
     def paper_count_indexing(self):
         return self.get_paper_count()
@@ -108,14 +123,18 @@ class Hub(models.Model):
     def subscriber_count_indexing(self):
         return self.get_subscribers_count()
 
+    @property
+    def editor_permission_groups(self):
+        return self.get_editor_permission_groups()
+
     def unlock(self):
         self.is_locked = False
         self.save(update_fields=['is_locked'])
 
 
 class HubMembership(models.Model):
-    user = models.ForeignKey('user.User', on_delete=models.CASCADE)
     hub = models.ForeignKey(Hub, on_delete=models.CASCADE)
+    user = models.ForeignKey('user.User', on_delete=models.CASCADE)
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
