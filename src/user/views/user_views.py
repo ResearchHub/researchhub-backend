@@ -68,7 +68,6 @@ from utils.http import DELETE, POST, PATCH, PUT
 from utils.http import RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
-from django.db.models import Count
 from hypothesis.related_models.hypothesis import Hypothesis
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -945,8 +944,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
         return user_threads
 
     def _get_author_contribution_queryset(self, author_id, ordering, asset_type):
-        author = self.get_object()
-        user = author.user
         author_threads = self._get_author_threads_participated(author_id)
         thread_content_type = ContentType.objects.get_for_model(Thread)
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
@@ -965,7 +962,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         object_id__in=author_threads,
                         contribution_type__in=[
                             Contribution.COMMENTER
-                        ],                        
+                        ],
                     ) |
                     Q(
                         unified_document__is_removed=False,
