@@ -50,6 +50,10 @@ class DynamicThreadSerializer(
 ):
     comment_count = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
+    is_created_by_editor = serializers.BooleanField(
+        required=False,
+        read_only=True
+    )
     paper = serializers.SerializerMethodField()
     post = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
@@ -63,6 +67,9 @@ class DynamicThreadSerializer(
     class Meta:
         model = Thread
         fields = '__all__'
+        read_only_fields = [
+            'is_created_by_editor'
+        ]
 
     def get_discussion_type(self, obj):
         return Thread.__name__
@@ -179,6 +186,10 @@ class DynamicReplySerializer(
     DynamicModelFieldSerializer,
     GenericReactionSerializerMixin,
 ):
+    is_created_by_editor = serializers.BooleanField(
+        required=False,
+        read_only=True
+    )
     unified_document = serializers.SerializerMethodField()
     discussion_type = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
@@ -194,6 +205,9 @@ class DynamicReplySerializer(
     class Meta:
         model = Reply
         fields = '__all__'
+        read_only_fields = [
+            'is_created_by_editor'
+        ]
 
     def get_discussion_type(self, obj):
         return Reply.__name__
@@ -262,6 +276,9 @@ class DynamicCommentSerializer(
     class Meta:
         model = Comment
         fields = '__all__'
+        read_only_fields = [
+            'is_created_by_editor'
+        ]
 
     def get_discussion_type(self, obj):
         return Comment.__name__
@@ -341,51 +358,57 @@ class CommentSerializer(
         read_only=False,
         default=serializers.CurrentUserDefault()
     )
-    reply_count = serializers.SerializerMethodField()
-    replies = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
-    user_vote = serializers.SerializerMethodField()
-    user_flag = serializers.SerializerMethodField()
-    thread_id = serializers.SerializerMethodField()
+    document_meta = serializers.SerializerMethodField()
+    is_created_by_editor = serializers.BooleanField(
+        required=False,
+        read_only=True
+    )
     paper_id = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
-    document_meta = serializers.SerializerMethodField()
+    replies = serializers.SerializerMethodField()
+    reply_count = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
+    thread_id = serializers.SerializerMethodField()
+    user_flag = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
-            'id',
             'created_by',
             'created_date',
             'created_location',
+            'document_meta',
+            'external_metadata',
+            'id',
+            'is_created_by_editor',
             'is_public',
             'is_removed',
-            'external_metadata',
+            'paper_id',
             'parent',
-            'reply_count',
+            'plain_text',
+            'promoted',
             'replies',
+            'reply_count',
             'score',
             'source',
             'text',
-            'updated_date',
-            'user_vote',
-            'user_flag',
-            'was_edited',
-            'plain_text',
             'thread_id',
-            'paper_id',
-            'promoted',
-            'document_meta',
+            'updated_date',
+            'user_flag',
+            'user_vote',
+            'was_edited',
         ]
         read_only_fields = [
+            'document_meta',
+            'is_created_by_editor',
             'is_public',
             'is_removed',
-            'reply_count',
-            'replies',
             'paper_id',
+            'replies',
+            'reply_count',
             'score',
-            'user_vote',
             'user_flag',
-            'document_meta',
+            'user_vote',
         ]
         model = Comment
 
@@ -436,38 +459,42 @@ class ThreadSerializer(
         default=serializers.CurrentUserDefault()
     )
     comment_count = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
-    user_vote = serializers.SerializerMethodField()
-    user_flag = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
+    document_meta = serializers.SerializerMethodField()
+    is_created_by_editor = serializers.BooleanField(
+        required=False,
+        read_only=True
+    )
     paper_slug = serializers.SerializerMethodField()
     post_slug = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
-    document_meta = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
+    user_flag = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
             'block_key',
+            'citation',
             'comment_count',
             'comments',
             'context_title',
             'created_by',
             'created_date',
             'created_location',
+            'document_meta',
             'entity_key',
             'external_metadata',
             'hypothesis',
-            'citation',
             'id',
+            'is_created_by_editor',
             'is_public',
             'is_removed',
             'paper_slug',
             'paper',
+            'plain_text',
             'post_slug',
             'post',
-            'plain_text',
-            'promoted',
-            'score',
             'source',
             'text',
             'title',
@@ -477,6 +504,8 @@ class ThreadSerializer(
             'document_meta',
         ]
         read_only_fields = [
+            'document_meta',
+            'is_created_by_editor',
             'is_public',
             'is_removed',
             'score',
@@ -552,50 +581,56 @@ class ReplySerializer(
         many=False,
         read_only=False
     )
-    score = serializers.SerializerMethodField()
-    user_vote = serializers.SerializerMethodField()
-    user_flag = serializers.SerializerMethodField()
-    thread_id = serializers.SerializerMethodField()
-    paper_id = serializers.SerializerMethodField()
-    reply_count = serializers.SerializerMethodField()
-    replies = serializers.SerializerMethodField()
-    promoted = serializers.SerializerMethodField()
     document_meta = serializers.SerializerMethodField()
+    is_created_by_editor = serializers.BooleanField(
+        required=False,
+        read_only=True
+    )
+    paper_id = serializers.SerializerMethodField()
+    promoted = serializers.SerializerMethodField()
+    replies = serializers.SerializerMethodField()
+    reply_count = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
+    thread_id = serializers.SerializerMethodField()
+    user_flag = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
-            'id',
-            'created_by',
+           'created_by',
             'created_date',
             'created_location',
+            'document_meta',
+            'id',
+            'is_created_by_editor',
             'is_public',
             'is_removed',
+            'paper_id',
             'parent',
-            'reply_count',
+            'plain_text',
+            'promoted',
             'replies',
+            'reply_count',
             'score',
             'text',
-            'updated_date',
-            'user_vote',
-            'user_flag',
-            'was_edited',
-            'plain_text',
             'thread_id',
-            'paper_id',
-            'promoted',
-            'document_meta'
+            'updated_date',
+            'user_flag',
+            'user_vote',
+            'was_edited',
         ]
         read_only_fields = [
+            'document_meta',
+            'is_created_by_editor',
             'is_public',
             'is_removed',
-            'reply_count',
-            'replies',
-            'score',
-            'user_vote',
-            'user_flag',
-            'thread_id',
             'paper_id',
-            'document_meta'
+            'replies',
+            'reply_count',
+            'score',
+            'thread_id',
+            'user_flag',
+            'user_vote',
         ]
         model = Reply
 
