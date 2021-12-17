@@ -483,6 +483,7 @@ class ThreadSerializer(
             'created_date',
             'created_location',
             'document_meta',
+            'document_meta',
             'entity_key',
             'external_metadata',
             'hypothesis',
@@ -495,13 +496,13 @@ class ThreadSerializer(
             'plain_text',
             'post_slug',
             'post',
+            'score'
             'source',
             'text',
             'title',
             'user_flag',
             'user_vote',
             'was_edited',
-            'document_meta',
         ]
         read_only_fields = [
             'document_meta',
