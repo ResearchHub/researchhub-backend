@@ -1,4 +1,7 @@
 from rest_framework import serializers
+from rest_framework.serializers import SerializerMethodField
+
+from researchhub_access_group.serializers import DynamicPermissionSerializer
 
 from .models import Hub, HubCategory
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -18,21 +21,41 @@ class SimpleHubSerializer(serializers.ModelSerializer):
 
 
 class HubSerializer(serializers.ModelSerializer):
+    editor_permission_groups = SerializerMethodField()
+
     class Meta:
         fields = [
-            'id',
-            'name',
-            'is_locked',
-            'subscriber_count',
-            'paper_count',
-            'discussion_count',
-            'slug',
-            'description',
-            'hub_image',
             'category',
+            'description',
+            'discussion_count',
+            'editor_permission_groups',
+            'hub_image',
+            'id',
+            'is_locked',
             'is_removed',
+            'name',
+            'paper_count',
+            'slug',
+            'subscriber_count',
+        ]
+        read_only_fields = [
+            'editor_permission_groups'
         ]
         model = Hub
+
+    def get_editor_permission_groups(self, hub_instance):
+        context = self.context
+        __context_fields = context.get(
+            'hub_get_editor_permission_groups',
+            {}
+        )
+        editor_groups = hub_instance.editor_permission_groups
+        return DynamicPermissionSerializer(
+            editor_groups,
+            **__context_fields,
+            context=context,
+            many=True,
+        ).data
 
 
 class HubCategorySerializer(serializers.ModelSerializer):
@@ -45,6 +68,23 @@ class HubCategorySerializer(serializers.ModelSerializer):
 
 
 class DynamicHubSerializer(DynamicModelFieldSerializer):
+    editor_permission_groups = SerializerMethodField()
+
     class Meta:
         model = Hub
         fields = '__all__'
+        read_only_fields = ['editor_permission_groups']
+
+    def get_editor_permission_groups(self, hub_instance):
+        context = self.context
+        __context_fields = context.get(
+            'hub_dhs_get_editor_permission_groups',
+            {}
+        )
+        editor_groups = hub_instance.editor_permission_groups
+        return DynamicPermissionSerializer(
+            editor_groups,
+            **__context_fields,
+            context=context,
+            many=True,
+        ).data

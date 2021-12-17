@@ -11,7 +11,6 @@ from researchhub_access_group.constants import (
     MEMBER,
     NO_ACCESS
 )
-from user.models import User
 from utils.models import DefaultModel
 
 
@@ -114,7 +113,7 @@ class Permission(DefaultModel):
         'object_id'
     )
     user = models.ForeignKey(
-        User,
+        'user.User',
         null=True,
         on_delete=models.CASCADE,
         related_name='permissions',

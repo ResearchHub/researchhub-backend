@@ -49,6 +49,18 @@ class HubViewSet(viewsets.ModelViewSet):
     filter_class = HubFilter
     search_fields = ('name')
 
+    def get_serializer_context(self):
+        return {
+            **super().get_serializer_context(),
+            'rag_dps_get_user': {
+                '_include_fields': [
+                    'author_profile',
+                    'email',
+                    'id',
+                ]
+            }
+        }
+
     def dispatch(self, request, *args, **kwargs):
         query_params = request.META.get('QUERY_STRING', '')
         if 'score' in query_params:
