@@ -2,6 +2,10 @@ from datetime import timedelta, datetime
 import pytz
 import logging
 import decimal
+import ethereum.utils
+import ethereum.lib
+import json
+import time
 
 from django.db.models import Q
 from django.contrib.contenttypes.models import ContentType
@@ -19,8 +23,8 @@ from reputation.lib import (
     WITHDRAWAL_PER_TWO_WEEKS,
     PendingWithdrawal
 )
-from reputation.models import Withdrawal
-from reputation.serializers import WithdrawalSerializer
+from reputation.models import Withdrawal, Deposit
+from reputation.serializers import WithdrawalSerializer, DepositSerializer
 from user.serializers import UserSerializer
 from user.models import User
 from utils import sentry
@@ -28,6 +32,82 @@ from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNot
 from utils.throttles import THROTTLE_CLASSES
 from researchhub.settings import WEB3_RSC_ADDRESS
 from reputation.distributor import Distributor
+from reputation.distributions import Distribution as Dist
+from researchhub.settings import ASYNC_SERVICE_HOST, WEB3_SHARED_SECRET
+from utils.http import http_request, POST
+
+class DepositViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Deposit.objects.all()
+    serializer_class = DepositSerializer
+    permission_classes = [
+        IsAuthenticated
+    ]
+
+    @action(
+        detail=False,
+        methods=['post'],
+        permission_classes=[APIPermission]
+    )
+    def deposit_rsc(self, request):
+        """
+        This is a request to deposit RSC from our researchhub-async-service
+        TODO: Add a websocket call here so we can ping the frontend that the transaction completed
+        """
+        deposit = Deposit.objects.get(id=request.data.get('deposit_id'))
+        amt = deposit.amount
+        user = deposit.user
+        distribution = Dist('DEPOSIT', amt, give_rep=False)
+        distributor = Distributor(
+            distribution,
+            user,
+            user,
+            time.time()
+        )
+        distributor.distribute()
+        return Response({'message': 'Deposit successful'})
+
+    @action(
+        detail=False,
+        methods=['post'],
+        permission_classes=[IsAuthenticated],
+    )
+    def start_deposit_rsc(self, request):
+        """
+        Ping the async-service to start the process of depositing RSC
+        """
+        
+        url = ASYNC_SERVICE_HOST + '/ethereum/deposit'
+        deposit = Deposit.objects.create(
+            user=request.user,
+            amount=request.data.get('amount'),
+            from_address=request.data.get('from_address'),
+            transaction_hash=request.data.get('transaction_hash'),
+        )
+        message_raw = {
+            "deposit_id": deposit.id,
+            "tx_hash": deposit.transaction_hash,
+            "amount": deposit.amount,
+            "from_address": deposit.from_address,
+            "user_id": deposit.user.id,
+        }
+        signature, message, public_key = ethereum.utils.sign_message(
+            message_raw,
+            WEB3_SHARED_SECRET
+        )
+        data = {
+            "signature": signature,
+            "message": message.hex(),
+            "public_key": public_key
+        }
+        response = http_request(
+            POST,
+            url,
+            data=json.dumps(data),
+            timeout=10
+        )
+        response.raise_for_status()
+        logging.info(response.content)
+        return Response(status=response.status_code)
 
 class WithdrawalViewSet(viewsets.ModelViewSet):
     queryset = Withdrawal.objects.all()
@@ -100,27 +180,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         resp.data['user'] = UserSerializer(request.user, context={'user': request.user}).data
         return resp
     
-    @action(
-        detail=False,
-        methods=['post'],
-        permission_classes=[APIPermission]
-    )
-    def deposit_rsc(self, request):
-        """
-        This is a request to deposit RSC from our researchhub-async-service
-        """
-        user_id = request.data.get('user_id')
-        amt = request.data.get('amt')
-        user = User.objects.get(id=user_id)
-        distribution = Dist('DEPOSIT', amt, give_rep=False)
-        distributor = Distributor(
-                    distribution,
-                    user,
-                    user,
-                    time.time()
-                )
-        distributor.distribute()
-
     @action(
         detail=False,
         methods=['get'],

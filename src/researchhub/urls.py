@@ -254,6 +254,8 @@ router.register(r'user', user.views.UserViewSet)
 
 router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
 
+router.register(r'deposit', reputation.views.DepositViewSet)
+
 router.register(r'user_verification', user.views.VerificationViewSet)
 
 router.register(
