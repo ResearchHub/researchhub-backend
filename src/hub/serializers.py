@@ -28,7 +28,7 @@ class SimpleHubSerializer(serializers.ModelSerializer):
     def get_editor_permission_groups(self, hub_instance):
         context = self.context
         __context_fields = context.get(
-            'smp_hub_get_editor_permission_groups',
+            'hub_shs_get_editor_permission_groups',
             {}
         )
         context['rag_dps_get_user'] = {
@@ -73,7 +73,7 @@ class HubSerializer(serializers.ModelSerializer):
     def get_editor_permission_groups(self, hub_instance):
         context = self.context
         __context_fields = context.get(
-            'hub_get_editor_permission_groups',
+            'hub_shs_get_editor_permission_groups',
             {}
         )
         editor_groups = hub_instance.editor_permission_groups
@@ -100,7 +100,6 @@ class DynamicHubSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = Hub
         fields = '__all__'
-        read_only_fields = ['editor_permission_groups']
 
     def get_editor_permission_groups(self, hub_instance):
         context = self.context
