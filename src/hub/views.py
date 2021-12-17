@@ -1,4 +1,3 @@
-from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db.models import Count, Q
 from django_filters.rest_framework import DjangoFilterBackend
@@ -11,24 +10,15 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.permissions import (
     IsAuthenticated,
-    IsAuthenticatedOrReadOnly,
+    IsAuthenticatedOrReadOnly
 )
 from rest_framework.response import Response
-from researchhub_access_group.constants import EDITOR
-
-from researchhub_access_group.models import Permission
 
 from .models import Hub, HubCategory
-from .permissions import (
-    CensorHub,
-    CreateHub,
-    IsModerator,
-    IsNotSubscribed,
-    IsSubscribed,
-)
+from .permissions import CreateHub, IsSubscribed, IsNotSubscribed, CensorHub
 from .serializers import HubSerializer, HubCategorySerializer
 from .filters import HubFilter
-from user.models import Action, User
+from user.models import Action
 from user.serializers import UserActions, DynamicActionSerializer
 from utils.http import PATCH, POST, PUT, GET, DELETE
 from utils.message import send_email_message
@@ -58,18 +48,6 @@ class HubViewSet(viewsets.ModelViewSet):
     throttle_classes = THROTTLE_CLASSES
     filter_class = HubFilter
     search_fields = ('name')
-
-    def get_serializer_context(self):
-        return {
-            **super().get_serializer_context(),
-            'rag_dps_get_user': {
-                '_include_fields': [
-                    'author_profile',
-                    'email',
-                    'id',
-                ]
-            }
-        }
 
     def dispatch(self, request, *args, **kwargs):
         query_params = request.META.get('QUERY_STRING', '')
@@ -330,26 +308,6 @@ class HubViewSet(viewsets.ModelViewSet):
         else:
             data = UserActions(data=actions, user=request.user).serialized
         return Response(data)
-
-    @action(
-        detail=False,
-        methods=[POST],
-        permission_classes=[IsModerator]
-    )
-    def create_new_editor(self, request, pk=None):
-        try:
-            target_user = User.objects.get(
-                email=request.data.get('editor_email')
-            )
-            Permission.objects.create(
-                access_type=EDITOR,
-                content_type=ContentType.objects.get_for_model(Hub),
-                object_id=request.data.get('selected_hub_id'),
-                user=target_user,
-            )
-            return Response("OK", status=200)
-        except Exception as e:
-            return Response(str(e), status=500)
 
     def _get_latest_actions_context(self):
         context = {
