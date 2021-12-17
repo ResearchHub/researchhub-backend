@@ -799,16 +799,26 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
     def get_user_vote(self, paper):
         vote = None
         user = get_user_from_request(self.context)
+        context = self.context
+        _context_fields = context.get('pap_dps_get_user_vote', {})        
         if user:
             try:
                 vote_created_by = paper.vote_created_by
                 if len(vote_created_by) == 0:
                     return None
-                vote = DynamicPaperVoteSerializer(vote_created_by).data
+                vote = DynamicPaperVoteSerializer(
+                    vote_created_by,
+                    context=self.context,
+                    **_context_fields,
+                ).data
             except AttributeError:
                 try:
                     vote = paper.votes.get(created_by=user.id)
-                    vote = DynamicPaperVoteSerializer(vote).data
+                    vote = DynamicPaperVoteSerializer(
+                        vote,
+                        context=self.context,
+                        **_context_fields,
+                    ).data
                 except Vote.DoesNotExist:
                     pass
         return vote
@@ -971,15 +981,9 @@ class PaperVoteSerializer(serializers.ModelSerializer):
         ]
         model = Vote
 
-class DynamicPaperVoteSerializer(serializers.ModelSerializer):
+class DynamicPaperVoteSerializer(DynamicModelFieldSerializer):
     class Meta:
-        fields = [
-            'id',
-            'created_by',
-            'created_date',
-            'vote_type',
-            'paper',
-        ]
+        fields = '__all__'
         model = Vote
 
 

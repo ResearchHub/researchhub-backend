@@ -770,12 +770,96 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
 
     def _get_contribution_context(self, filter_by_user_id):
-
         context = {
             'request': self.request,
             '_config': {
                 'filter_by_user_id': filter_by_user_id,
             },
+            'doc_dps_get_created_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'doc_duds_get_created_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'pap_dps_get_uploaded_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'dis_dts_get_created_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'dis_dcs_get_created_by': {
+                '_include_fields': [
+                    'author_profile',
+                    'id',
+                ]
+            },
+            'dis_drs_get_created_by': {
+                '_include_fields': [
+                    'author_profile',
+                    'id',
+                ]
+            },
+            'pap_dps_get_user_vote': {
+                '_include_fields': [
+                    'id',
+                    'created_by',
+                    'created_date',
+                    'vote_type',
+                    'paper',
+                ]
+            },
+            'doc_dps_get_user_vote': {
+                '_include_fields': [
+                    'id',
+                    'content_type',
+                    'created_by',
+                    'created_date',
+                    'vote_type',
+                    'item',
+                ]
+            },
+            'dis_drs_get_user_vote': {
+                '_include_fields': [
+                    'id',
+                    'content_type',
+                    'created_by',
+                    'created_date',
+                    'vote_type',
+                    'item',
+                ]
+            },
+            'dis_dcs_get_user_vote': {
+                '_include_fields': [
+                    'id',
+                    'content_type',
+                    'created_by',
+                    'created_date',
+                    'vote_type',
+                    'item',
+                ]
+            },
+            'dis_dts_get_user_vote': {
+                '_include_fields': [
+                    'id',
+                    'content_type',
+                    'created_by',
+                    'created_date',
+                    'vote_type',
+                    'item',
+                ]
+            },            
             'dis_dts_get_comments': {
                 '_include_fields': CommentSerializer.Meta.fields
             },
@@ -810,12 +894,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'first_name',
                     'last_name',
                     'profile_image',
-                ]
-            },
-            'dis_dts_get_created_by': {
-                '_include_fields': [
-                    'id',
-                    'author_profile',
                 ]
             },
             'rep_dcs_get_unified_document': {

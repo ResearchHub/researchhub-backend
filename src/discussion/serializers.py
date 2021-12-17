@@ -8,7 +8,7 @@ from discussion.reaction_serializers import (
 )
 from researchhub.settings import PAGINATION_PAGE_SIZE
 from researchhub.serializers import DynamicModelFieldSerializer
-from user.serializers import MinimalUserSerializer, DynamicUserSerializer
+from user.serializers import MinimalUserSerializer, DynamicUserSerializer, DynamicMinimalUserSerializer
 from utils.http import get_user_from_request
 # TODO: Make is_public editable for creator as a delete mechanism
 # TODO: undo
@@ -98,10 +98,15 @@ class DynamicThreadSerializer(
 
     def get_user_vote(self, obj):
         user = get_user_from_request(self.context)
+        _context_fields = self.context.get('dis_dcs_get_user_vote', {})
         if user and not user.is_anonymous:
             vote = obj.votes.filter(created_by=user)
             if vote.exists():
-                return DynamicVoteSerializer(vote.last()).data
+                return DynamicVoteSerializer(
+                    vote.last(),
+                    context=self.context,
+                    **_context_fields,
+                ).data
             return False
         return False
 
@@ -179,11 +184,7 @@ class DynamicReplySerializer(
     promoted = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
-
-    created_by = MinimalUserSerializer(
-        read_only=False,
-        default=serializers.CurrentUserDefault()
-    )
+    created_by = serializers.SerializerMethodField()
     parent = serializers.PrimaryKeyRelatedField(
         queryset=Comment.objects.all(),
         many=False,
@@ -210,12 +211,27 @@ class DynamicReplySerializer(
         )
         return serializer.data
 
+    def get_created_by(self, thread):
+        context = self.context
+        _context_fields = context.get('dis_drs_get_created_by', {})
+        serializer = DynamicMinimalUserSerializer(
+            thread.created_by,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
     def get_user_vote(self, obj):
         user = get_user_from_request(self.context)
+        _context_fields = self.context.get('dis_drs_get_user_vote', {})
         if user and not user.is_anonymous:
             vote = obj.votes.filter(created_by=user)
             if vote.exists():
-                return DynamicVoteSerializer(vote.last()).data
+                return DynamicVoteSerializer(
+                    vote.last(),
+                    context=self.context,
+                    **_context_fields,
+                ).data
             return False
         return False
 
@@ -227,10 +243,7 @@ class DynamicCommentSerializer(
     DynamicModelFieldSerializer,
     GenericReactionSerializerMixin,
 ):
-    created_by = MinimalUserSerializer(
-        read_only=False,
-        default=serializers.CurrentUserDefault()
-    )
+
     reply_count = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
     thread_id = serializers.SerializerMethodField()
@@ -239,6 +252,7 @@ class DynamicCommentSerializer(
     promoted = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
+    created_by = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment
@@ -288,12 +302,27 @@ class DynamicCommentSerializer(
         else:
             return None
 
+    def get_created_by(self, thread):
+        context = self.context
+        _context_fields = context.get('dis_dcs_get_created_by', {})
+        serializer = DynamicMinimalUserSerializer(
+            thread.created_by,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
     def get_user_vote(self, obj):
         user = get_user_from_request(self.context)
+        _context_fields = self.context.get('dis_dcs_get_user_vote', {})
         if user and not user.is_anonymous:
             vote = obj.votes.filter(created_by=user)
             if vote.exists():
-                return DynamicVoteSerializer(vote.last()).data
+                return DynamicVoteSerializer(
+                    vote.last(),
+                    context=self.context,
+                    **_context_fields,
+                ).data
             return False
         return False
 

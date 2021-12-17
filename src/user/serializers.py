@@ -234,6 +234,22 @@ class MinimalUserSerializer(serializers.ModelSerializer):
         return serializer.data
 
 
+class DynamicMinimalUserSerializer(DynamicModelFieldSerializer):
+    author_profile = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = "__all__"
+
+    def get_author_profile(self, obj):
+        serializer = DynamicAuthorSerializer(
+            obj.author_profile,
+            read_only=True,
+            context=self.context
+        )
+        return serializer.data
+
+
 class UserEditableSerializer(serializers.ModelSerializer):
     author_profile = AuthorSerializer()
     balance = serializers.SerializerMethodField()

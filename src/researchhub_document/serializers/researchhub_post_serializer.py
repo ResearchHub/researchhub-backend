@@ -133,10 +133,15 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     def get_user_vote(self, obj):
         vote = None
         user = get_user_from_request(self.context)
+        _context_fields = self.context.get('doc_dps_get_user_vote', {})
         try:
             if user and not user.is_anonymous:
                 vote = obj.votes.get(created_by=user)
-                vote = DynamicVoteSerializer(vote).data
+                vote = DynamicVoteSerializer(
+                    vote,
+                    context=self.context,
+                    **_context_fields,
+                ).data
             return vote
         except Vote.DoesNotExist:
             return None
