@@ -768,7 +768,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
 
     def _get_contribution_context(self, filter_by_user_id):
+
         context = {
+            'request': self.request,
             '_config': {
                 'filter_by_user_id': filter_by_user_id,
             },
@@ -791,7 +793,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'title',
                     'uploaded_by',
                     'uploaded_date',
-                    ]
+                    'user_vote',
+                ]
             },
             'rep_dcs_get_author': {
                 '_include_fields': [

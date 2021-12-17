@@ -15,7 +15,6 @@ from researchhub_document.serializers import (
 )
 from user.serializers import UserSerializer, DynamicUserSerializer
 
-
 class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
     class Meta(object):
         model = ResearchhubUnifiedDocument
@@ -91,7 +90,9 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     def get_documents(self, unified_doc):
         context = self.context
         _context_fields = context.get('doc_duds_get_documents', {})
+        print(_context_fields)
         doc_type = unified_doc.document_type
+        print(doc_type)
         if (doc_type in [DISCUSSION, ELN]):
             return DynamicPostSerializer(
                 unified_doc.posts,
@@ -107,6 +108,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
                 **_context_fields
             ).data
         else:
+            print('111')
             return DynamicPaperSerializer(
                 unified_doc.paper,
                 context=context,
