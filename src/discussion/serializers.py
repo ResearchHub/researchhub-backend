@@ -254,6 +254,8 @@ class DynamicCommentSerializer(
 
         if filter_by_user_id:
             replies = replies.filter(created_by_id=filter_by_user_id)
+        else:
+            replies = obj.children
 
         return self.get_children_annotated(replies).order_by(
             *self.context.get('ordering', ['-created_date'])

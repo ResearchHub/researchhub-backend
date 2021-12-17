@@ -57,10 +57,8 @@ from utils.siftscience import events_api, update_user_risk_score
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.utils import update_unified_document_to_paper
-from discussion.reaction_serializers import (
-    DynamicVoteSerializer  # Import is needed for discussion serializer imports
-)
 from utils.http import get_user_from_request
+
 
 class BasePaperSerializer(serializers.ModelSerializer):
     authors = serializers.SerializerMethodField()

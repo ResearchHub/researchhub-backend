@@ -20,11 +20,9 @@ from discussion.serializers import (
     DynamicReplySerializer,
     DynamicVoteSerializer
 )
-
 from user.serializers import (
     DynamicAuthorSerializer,
 )
-
 from user.models import Author
 
 class DepositSerializer(serializers.ModelSerializer):
