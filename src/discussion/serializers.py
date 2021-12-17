@@ -483,7 +483,6 @@ class ThreadSerializer(
             'created_date',
             'created_location',
             'document_meta',
-            'document_meta',
             'entity_key',
             'external_metadata',
             'hypothesis',
@@ -496,7 +495,8 @@ class ThreadSerializer(
             'plain_text',
             'post_slug',
             'post',
-            'score'
+            'promoted',
+            'score',
             'source',
             'text',
             'title',
@@ -598,8 +598,7 @@ class ReplySerializer(
 
     class Meta:
         fields = [
-           'created_by',
-            'created_date',
+            'created_by',
             'created_location',
             'document_meta',
             'id',
