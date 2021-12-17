@@ -37,8 +37,11 @@ from paper.models import Paper
 from paper.utils import get_cache_key
 from paper.views import PaperViewSet
 from paper.serializers import (
-    HubPaperSerializer,
     DynamicPaperSerializer
+)
+from discussion.serializers import (
+    CommentSerializer,
+    ReplySerializer
 )
 from user.filters import AuthorFilter
 from user.models import (
@@ -773,6 +776,12 @@ class AuthorViewSet(viewsets.ModelViewSet):
             'request': self.request,
             '_config': {
                 'filter_by_user_id': filter_by_user_id,
+            },
+            'dis_dts_get_comments': {
+                '_include_fields': CommentSerializer.Meta.fields
+            },
+            'dis_dcs_get_replies': {
+                '_include_fields': ReplySerializer.Meta.fields
             },
             'doc_duds_get_documents': {
                 '_include_fields': [
