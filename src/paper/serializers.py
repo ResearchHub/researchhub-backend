@@ -57,7 +57,10 @@ from utils.siftscience import events_api, update_user_risk_score
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.utils import update_unified_document_to_paper
-
+from discussion.reaction_serializers import (
+    DynamicVoteSerializer  # Import is needed for discussion serializer imports
+)
+from utils.http import get_user_from_request
 
 class BasePaperSerializer(serializers.ModelSerializer):
     authors = serializers.SerializerMethodField()
@@ -789,10 +792,28 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
     first_preview = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
 
     class Meta:
         model = Paper
         fields = '__all__'
+
+    def get_user_vote(self, paper):
+        vote = None
+        user = get_user_from_request(self.context)
+        if user:
+            try:
+                vote_created_by = paper.vote_created_by
+                if len(vote_created_by) == 0:
+                    return None
+                vote = DynamicPaperVoteSerializer(vote_created_by).data
+            except AttributeError:
+                try:
+                    vote = paper.votes.get(created_by=user.id)
+                    vote = DynamicPaperVoteSerializer(vote).data
+                except Vote.DoesNotExist:
+                    pass
+        return vote
 
     def get_authors(self, paper):
         context = self.context
@@ -942,6 +963,17 @@ class FlagSerializer(serializers.ModelSerializer):
 
 
 class PaperVoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        fields = [
+            'id',
+            'created_by',
+            'created_date',
+            'vote_type',
+            'paper',
+        ]
+        model = Vote
+
+class DynamicPaperVoteSerializer(serializers.ModelSerializer):
     class Meta:
         fields = [
             'id',
