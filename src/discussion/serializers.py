@@ -272,7 +272,11 @@ class DynamicCommentSerializer(
         return Comment.__name__
 
     def _replies_query(self, obj):
-        filter_by_user_id = self.context.get('_config', {}).get('filter_by_user_id', None)
+        filter_by_user_id = self.context.get(
+            '_config', {}
+        ).get(
+            'filter_by_user_id', None
+        )
 
         replies = obj.children.filter(is_removed=False)
 
@@ -312,11 +316,11 @@ class DynamicCommentSerializer(
         else:
             return None
 
-    def get_created_by(self, thread):
+    def get_created_by(self, comment):
         context = self.context
         _context_fields = context.get('dis_dcs_get_created_by', {})
         serializer = DynamicMinimalUserSerializer(
-            thread.created_by,
+            comment.created_by,
             context=context,
             **_context_fields
         )
@@ -336,8 +340,22 @@ class DynamicCommentSerializer(
             return False
         return False
 
+    def get_unified_document(self, comment):
+        from researchhub_document.serializers import (
+          DynamicUnifiedDocumentSerializer
+        )
+        context = self.context
+        _context_fields = context.get('dis_dcs_get_unified_document', {})
+        serializer = DynamicUnifiedDocumentSerializer(
+            comment.unified_document,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
     def get_score(self, obj):
         return obj.calculate_score()
+
 
 class CommentSerializer(
     serializers.ModelSerializer, GenericReactionSerializerMixin
