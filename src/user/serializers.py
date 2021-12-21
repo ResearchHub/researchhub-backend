@@ -290,6 +290,7 @@ class UserEditableSerializer(ModelSerializer):
     class Meta:
         model = User
         exclude = [
+            'email',
             'password',
             'groups',
             'is_superuser',
