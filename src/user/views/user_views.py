@@ -32,12 +32,16 @@ from reputation.models import Distribution, Contribution
 from reputation.serializers import DynamicContributionSerializer
 from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY, EMAIL_WHITELIST
 from researchhub_document.serializers import DynamicPostSerializer
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from paper.models import Paper
 from paper.utils import get_cache_key
 from paper.views import PaperViewSet
 from paper.serializers import (
-    HubPaperSerializer,
     DynamicPaperSerializer
+)
+from discussion.serializers import (
+    CommentSerializer,
+    ReplySerializer
 )
 from user.filters import AuthorFilter
 from user.models import (
@@ -64,7 +68,7 @@ from utils.http import DELETE, POST, PATCH, PUT
 from utils.http import RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
-
+from hypothesis.related_models.hypothesis import Hypothesis
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(is_suspended=False)
@@ -316,6 +320,7 @@ class UserViewSet(viewsets.ModelViewSet):
         is_following = user.following.filter(followee=followee).exists()
         return Response(is_following, status=200)
 
+
     @action(
         detail=False,
         methods=[RequestMethods.GET],
@@ -477,7 +482,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     'paper_title',
                     'slug',
                     'text',
-                    'title',
+                    'title'
                 ]
             },
             'rep_dcs_get_unified_document': {
@@ -714,6 +719,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 'uploaded_by',
                 'uploaded_date',
                 'url',
+                'paper_publish_date',
+                'slug',
             ],
             many=True,
             context=context
@@ -760,6 +767,336 @@ class AuthorViewSet(viewsets.ModelViewSet):
             }
         }
         return context
+
+
+    def _get_contribution_context(self, filter_by_user_id):
+        context = {
+            'request': self.request,
+            '_config': {
+                'filter_by_user_id': filter_by_user_id,
+            },
+            'doc_dps_get_created_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'doc_duds_get_created_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'pap_dps_get_uploaded_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'dis_dts_get_created_by': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'dis_dcs_get_created_by': {
+                '_include_fields': [
+                    'author_profile',
+                    'id',
+                ]
+            },
+            'dis_drs_get_created_by': {
+                '_include_fields': [
+                    'author_profile',
+                    'id',
+                ]
+            },
+            'pap_dps_get_user_vote': {
+                '_include_fields': [
+                    'id',
+                    'created_by',
+                    'created_date',
+                    'vote_type',
+                    'paper',
+                ]
+            },
+            'doc_dps_get_user_vote': {
+                '_include_fields': [
+                    'id',
+                    'content_type',
+                    'created_by',
+                    'created_date',
+                    'vote_type',
+                    'item',
+                ]
+            },
+            'dis_drs_get_user_vote': {
+                '_include_fields': [
+                    'id',
+                    'content_type',
+                    'created_by',
+                    'created_date',
+                    'vote_type',
+                    'item',
+                ]
+            },
+            'dis_dcs_get_user_vote': {
+                '_include_fields': [
+                    'id',
+                    'content_type',
+                    'created_by',
+                    'created_date',
+                    'vote_type',
+                    'item',
+                ]
+            },
+            'dis_dts_get_user_vote': {
+                '_include_fields': [
+                    'id',
+                    'content_type',
+                    'created_by',
+                    'created_date',
+                    'vote_type',
+                    'item',
+                ]
+            },            
+            'dis_dts_get_comments': {
+                '_include_fields': CommentSerializer.Meta.fields
+            },
+            'dis_dcs_get_replies': {
+                '_include_fields': ReplySerializer.Meta.fields
+            },
+            'doc_duds_get_documents': {
+                '_include_fields': [
+                    'promoted',
+                    'abstract',
+                    'aggregate_citation_consensus',
+                    'created_by',
+                    'created_date',
+                    'hot_score',
+                    'hubs',
+                    'id',
+                    'discussion_count',
+                    'paper_title',
+                    'preview_img',
+                    'renderable_text',
+                    'score',
+                    'slug',
+                    'title',
+                    'uploaded_by',
+                    'uploaded_date',
+                    'user_vote',
+                ]
+            },
+            'rep_dcs_get_author': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'profile_image',
+                ]
+            },
+            'rep_dcs_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'document_type',
+                    'documents',
+                    'hubs',
+                ]
+            },
+            'rep_dcs_get_source': {
+                '_include_fields': [
+                    'replies',
+                    'content_type',
+                    'promoted',
+                    'comments',
+                    'discussion_type',
+                    'amount',
+                    'paper_title',
+                    'slug',
+                    'block_key',
+                    'comment_count',
+                    'context_title',
+                    'created_by',
+                    'created_date',
+                    'created_location',
+                    'entity_key',
+                    'external_metadata',
+                    'hypothesis',
+                    'citation',
+                    'id',
+                    'is_public',
+                    'is_removed',
+                    'paper_slug',
+                    'paper',
+                    'post_slug',
+                    'post',
+                    'plain_text',
+                    'promoted',
+                    'score',
+                    'source',
+                    'text',
+                    'title',
+                    'user_flag',
+                    'user_vote',
+                    'was_edited',
+                    'document_meta',
+                ]
+            },
+            'dis_dts_get_paper': {
+                '_include_fields': [
+                    'id',
+                    'slug',
+                ]
+            },
+            'dis_dts_get_post': {
+                '_include_fields': [
+                    'id',
+                    'slug',
+                ]
+            },
+            'doc_duds_get_hubs': {
+                '_include_fields': [
+                    'name',
+                    'slug',
+                ]
+            }
+        }
+        return context
+
+    @action(
+        detail=True,
+        methods=['get'],
+    )
+    def contributions(self, request, pk=None):
+        author = self.get_object()
+
+        query_params = request.query_params
+        ordering = query_params.get('ordering', '-created_date')
+        asset_type = query_params.get('type', 'overview')
+        contributions = self._get_author_contribution_queryset(author.id, ordering, asset_type)
+
+        page = self.paginate_queryset(contributions)
+        context = self._get_contribution_context(author.user_id)
+        serializer = DynamicContributionSerializer(
+            page,
+            _include_fields=[
+                'contribution_type',
+                'created_date',
+                'id',
+                'source',
+                'created_by',
+                'unified_document',
+                'author'
+            ],
+            context=context,
+            many=True,
+        )
+        response = self.get_paginated_response(serializer.data)
+
+        return response
+
+    def _get_author_threads_participated(self, author_id):
+        author = self.get_object()
+        user = author.user
+
+        user_replies = Reply.objects.filter(
+            created_by_id=user.id,
+            is_removed=False
+        )
+        user_comments = Comment.objects.filter(
+            Q(is_removed=False) &
+            (
+                Q(created_by_id=user.id) |
+                Q(id__in=[r.object_id for r in user_replies])
+            )
+        )
+        user_threads = Thread.objects.filter(
+            Q(is_removed=False) &
+            (
+                Q(created_by_id=user.id) |
+                Q(id__in=[c.parent_id for c in user_comments])
+            )
+        )
+
+        return user_threads
+
+    def _get_author_contribution_queryset(self, author_id, ordering, asset_type):
+        author_threads = self._get_author_threads_participated(author_id)
+        thread_content_type = ContentType.objects.get_for_model(Thread)
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+        paper_content_type = ContentType.objects.get_for_model(Paper)
+        hypothesis_content_type = ContentType.objects.get_for_model(Hypothesis)
+
+        types = asset_type.split(",")
+
+        query = Q()
+        for asset_type in types:
+            if asset_type == "overview":
+                query |= Q(
+                    Q(
+                        unified_document__is_removed=False,
+                        content_type=thread_content_type,
+                        object_id__in=author_threads,
+                        contribution_type__in=[
+                            Contribution.COMMENTER
+                        ],
+                    ) |
+                    Q(
+                        unified_document__is_removed=False,
+                        user__author_profile=author_id,
+                        contribution_type__in=[
+                            Contribution.SUBMITTER,
+                            Contribution.SUPPORTER
+                        ],
+                    )
+                )
+            elif asset_type == "discussion":
+                query |= Q(
+                    unified_document__is_removed=False,
+                    user__author_profile=author_id,
+                    content_type_id=post_content_type,
+                    contribution_type__in=[
+                        Contribution.SUBMITTER
+                    ],
+                )
+            elif asset_type == "hypothesis":
+                query |= Q(
+                    unified_document__is_removed=False,
+                    user__author_profile=author_id,
+                    content_type_id=hypothesis_content_type,
+                    contribution_type__in=[
+                        Contribution.SUBMITTER
+                    ],
+                )
+            elif asset_type == "comment":
+                query |= Q(
+                    unified_document__is_removed=False,
+                    content_type=thread_content_type,
+                    object_id__in=author_threads,
+                    contribution_type__in=[
+                        Contribution.COMMENTER
+                    ],
+                )
+            elif asset_type == "paper":
+                query |= Q(
+                    unified_document__is_removed=False,
+                    user__author_profile=author_id,
+                    content_type_id=paper_content_type,
+                    contribution_type__in=[
+                        Contribution.SUBMITTER
+                    ],
+                )
+            else:
+                raise Exception('Unrecognized asset type')
+
+
+        return Contribution.objects.filter(query).select_related(
+            'content_type',
+            'user',
+            'user__author_profile',
+            'unified_document',
+        ).order_by(ordering)
 
     @action(
         detail=True,

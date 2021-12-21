@@ -15,7 +15,6 @@ from researchhub_document.serializers import (
 )
 from user.serializers import UserSerializer, DynamicUserSerializer
 
-
 class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
     class Meta(object):
         model = ResearchhubUnifiedDocument

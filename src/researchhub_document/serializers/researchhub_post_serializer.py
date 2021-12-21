@@ -8,6 +8,11 @@ from researchhub_document.models import ResearchhubPost
 from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import UserSerializer, DynamicUserSerializer
 
+from discussion.reaction_serializers import (
+    DynamicVoteSerializer  # Import is needed for discussion serializer imports
+)
+from utils.http import get_user_from_request
+from discussion.reaction_models import Vote
 
 class ResearchhubPostSerializer(
     ModelSerializer, GenericReactionSerializerMixin
@@ -119,10 +124,27 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     created_by = SerializerMethodField()
     boost_amount = SerializerMethodField()
     score = SerializerMethodField()
+    user_vote = SerializerMethodField()
 
     class Meta:
         model = ResearchhubPost
         fields = '__all__'
+
+    def get_user_vote(self, obj):
+        vote = None
+        user = get_user_from_request(self.context)
+        _context_fields = self.context.get('doc_dps_get_user_vote', {})
+        try:
+            if user and not user.is_anonymous:
+                vote = obj.votes.get(created_by=user)
+                vote = DynamicVoteSerializer(
+                    vote,
+                    context=self.context,
+                    **_context_fields,
+                ).data
+            return vote
+        except Vote.DoesNotExist:
+            return None
 
     def get_unified_document(self, post):
         from researchhub_document.serializers import (

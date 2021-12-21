@@ -1,72 +1,83 @@
 import logging
-import rest_framework.serializers as serializers
+from django.contrib.contenttypes.models import ContentType
+
+from rest_framework.serializers import (
+    CharField,
+    ModelSerializer,
+    PrimaryKeyRelatedField,
+    SerializerMethodField,
+)
 import rest_auth.registration.serializers as rest_auth_serializers
 
 from bullet_point.models import BulletPoint
-from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
-from discussion.lib import check_is_discussion_item
-from hub.serializers import HubSerializer
-from hypothesis.models import Hypothesis
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from researchhub_access_group.serializers import DynamicPermissionSerializer
-from paper.models import Vote as PaperVote, Paper
 from bullet_point.models import Vote as BulletVote
+from discussion.lib import check_is_discussion_item
+from discussion.models import Comment, Reply, Thread, Vote as DiscussionVote
+from hub.models import Hub
+from hub.serializers import HubSerializer, SimpleHubSerializer
+from hypothesis.models import Hypothesis
+from paper.models import Vote as PaperVote, Paper
+from purchase.models import Purchase
+from researchhub_access_group.constants import EDITOR
+from researchhub_access_group.serializers import DynamicPermissionSerializer
+from researchhub_document.models import ResearchhubPost
+from researchhub.serializers import DynamicModelFieldSerializer
+from summary.models import Summary, Vote as SummaryVote
+from user.related_models.gatekeeper_model import Gatekeeper
 from user.models import (
     Action,
     Author,
-    University,
-    User,
     Major,
     Organization,
+    University,
+    User,
     Verification,
 )
-from summary.models import Summary, Vote as SummaryVote
-from purchase.models import Purchase
-from researchhub.serializers import DynamicModelFieldSerializer
-from user.related_models.gatekeeper_model import Gatekeeper
 
 from utils import sentry
 
 
-class VerificationSerializer(serializers.ModelSerializer):
+class VerificationSerializer(ModelSerializer):
     class Meta:
         model = Verification
         fields = '__all__'
 
 
-class UniversitySerializer(serializers.ModelSerializer):
+class UniversitySerializer(ModelSerializer):
     class Meta:
         model = University
         fields = '__all__'
 
 
-class MajorSerializer(serializers.ModelSerializer):
+class MajorSerializer(ModelSerializer):
     class Meta:
         model = Major
         fields = '__all__'
 
 
-class GatekeeperSerializer(serializers.ModelSerializer):
+class GatekeeperSerializer(ModelSerializer):
     class Meta:
         model = Gatekeeper
         fields = '__all__'
         read_only_fields = [field.name for field in Gatekeeper._meta.fields]
 
 
-class AuthorSerializer(serializers.ModelSerializer):
+class AuthorSerializer(ModelSerializer):
+    is_hub_editor_of = SerializerMethodField()
+    num_posts = SerializerMethodField()
+    orcid_id = SerializerMethodField()
+    reputation = SerializerMethodField()
+    sift_link = SerializerMethodField()
+    total_score = SerializerMethodField()
     university = UniversitySerializer(required=False)
-    reputation = serializers.SerializerMethodField()
-    orcid_id = serializers.SerializerMethodField()
-    total_score = serializers.SerializerMethodField()
-    wallet = serializers.SerializerMethodField()
-    sift_link = serializers.SerializerMethodField()
-    num_posts = serializers.SerializerMethodField()
+    wallet = SerializerMethodField()
 
     class Meta:
         model = Author
         fields = [field.name for field in Author._meta.fields] + [
             'claimed_by_user_author_id',
             'is_claimed',
+            'is_hub_editor_of',
             'num_posts',
             'orcid_id',
             'reputation',
@@ -78,6 +89,7 @@ class AuthorSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'claimed_by_user_author_id',
             'is_claimed',
+            'is_hub_editor_of',
             'num_posts',
         ]
 
@@ -137,6 +149,24 @@ class AuthorSerializer(serializers.ModelSerializer):
             return ResearchhubPost.objects.filter(created_by=user).count()
         return 0
 
+    def get_is_hub_editor_of(self, author):
+        user = author.user
+        if user is None:
+            return []
+
+        hub_content_type = ContentType.objects.get_for_model(Hub)
+        target_permissions = user.permissions.filter(
+            access_type=EDITOR,
+            content_type=hub_content_type
+        )
+        target_hub_ids = []
+        for permission in target_permissions:
+            target_hub_ids.append(permission.object_id)
+        return SimpleHubSerializer(
+            Hub.objects.filter(id__in=target_hub_ids),
+            many=True
+        ).data
+
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
     class Meta:
@@ -144,8 +174,8 @@ class DynamicAuthorSerializer(DynamicModelFieldSerializer):
         fields = '__all__'
 
 
-class AuthorEditableSerializer(serializers.ModelSerializer):
-    university = serializers.PrimaryKeyRelatedField(
+class AuthorEditableSerializer(ModelSerializer):
+    university = PrimaryKeyRelatedField(
         queryset=University.objects.all(),
         required=False,
         allow_null=True
@@ -156,13 +186,13 @@ class AuthorEditableSerializer(serializers.ModelSerializer):
         fields = [field.name for field in Author._meta.fields] + ['university']
 
 
-class UserSerializer(serializers.ModelSerializer):
+class UserSerializer(ModelSerializer):
     author_profile = AuthorSerializer(read_only=True)
-    balance = serializers.SerializerMethodField(read_only=True)
-    subscribed = serializers.SerializerMethodField(
+    balance = SerializerMethodField(read_only=True)
+    subscribed = SerializerMethodField(
         read_only=True
     )
-    hub_rep = serializers.SerializerMethodField()
+    hub_rep = SerializerMethodField()
 
     class Meta:
         model = User
@@ -215,8 +245,8 @@ class UserSerializer(serializers.ModelSerializer):
             return None
 
 
-class MinimalUserSerializer(serializers.ModelSerializer):
-    author_profile = serializers.SerializerMethodField()
+class MinimalUserSerializer(ModelSerializer):
+    author_profile = SerializerMethodField()
 
     class Meta:
         model = User
@@ -234,11 +264,27 @@ class MinimalUserSerializer(serializers.ModelSerializer):
         return serializer.data
 
 
-class UserEditableSerializer(serializers.ModelSerializer):
+class DynamicMinimalUserSerializer(DynamicModelFieldSerializer):
+    author_profile = SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = "__all__"
+
+    def get_author_profile(self, obj):
+        serializer = DynamicAuthorSerializer(
+            obj.author_profile,
+            read_only=True,
+            context=self.context
+        )
+        return serializer.data
+
+
+class UserEditableSerializer(ModelSerializer):
     author_profile = AuthorSerializer()
-    balance = serializers.SerializerMethodField()
-    organization_slug = serializers.SerializerMethodField()
-    subscribed = serializers.SerializerMethodField()
+    balance = SerializerMethodField()
+    organization_slug = SerializerMethodField()
+    subscribed = SerializerMethodField()
 
     class Meta:
         model = User
@@ -270,7 +316,7 @@ class UserEditableSerializer(serializers.ModelSerializer):
 
 
 class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
-    username = rest_auth_serializers.serializers.CharField(
+    username = CharField(
         max_length=rest_auth_serializers.get_username_max_length(),
         min_length=rest_auth_serializers.allauth_settings.USERNAME_MIN_LENGTH,
         required=False,
@@ -289,7 +335,7 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
 
 class DynamicUserSerializer(DynamicModelFieldSerializer):
-    author_profile = serializers.SerializerMethodField()
+    author_profile = SerializerMethodField()
 
     class Meta:
         model = User
@@ -530,9 +576,9 @@ class UserActions:
 
 
 class DynamicActionSerializer(DynamicModelFieldSerializer):
-    item = serializers.SerializerMethodField()
-    content_type = serializers.SerializerMethodField()
-    created_by = serializers.SerializerMethodField()
+    item = SerializerMethodField()
+    content_type = SerializerMethodField()
+    created_by = SerializerMethodField()
 
     class Meta:
         model = Action
@@ -596,9 +642,9 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
         return action.content_type.model
 
 
-class OrganizationSerializer(serializers.ModelSerializer):
-    member_count = serializers.SerializerMethodField()
-    user_permission = serializers.SerializerMethodField()
+class OrganizationSerializer(ModelSerializer):
+    member_count = SerializerMethodField()
+    user_permission = SerializerMethodField()
 
     class Meta:
         model = Organization
@@ -631,9 +677,9 @@ class OrganizationSerializer(serializers.ModelSerializer):
 
 
 class DynamicOrganizationSerializer(DynamicModelFieldSerializer):
-    member_count = serializers.SerializerMethodField()
-    user = serializers.SerializerMethodField()
-    user_permission = serializers.SerializerMethodField()
+    member_count = SerializerMethodField()
+    user = SerializerMethodField()
+    user_permission = SerializerMethodField()
 
     class Meta:
         model = Organization

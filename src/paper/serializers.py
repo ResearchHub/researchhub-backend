@@ -57,6 +57,7 @@ from utils.siftscience import events_api, update_user_risk_score
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.utils import update_unified_document_to_paper
+from utils.http import get_user_from_request
 
 
 class BasePaperSerializer(serializers.ModelSerializer):
@@ -801,10 +802,38 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
     first_preview = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
 
     class Meta:
         model = Paper
         fields = '__all__'
+
+    def get_user_vote(self, paper):
+        vote = None
+        user = get_user_from_request(self.context)
+        context = self.context
+        _context_fields = context.get('pap_dps_get_user_vote', {})        
+        if user:
+            try:
+                vote_created_by = paper.vote_created_by
+                if len(vote_created_by) == 0:
+                    return None
+                vote = DynamicPaperVoteSerializer(
+                    vote_created_by,
+                    context=self.context,
+                    **_context_fields,
+                ).data
+            except AttributeError:
+                try:
+                    vote = paper.votes.get(created_by=user.id)
+                    vote = DynamicPaperVoteSerializer(
+                        vote,
+                        context=self.context,
+                        **_context_fields,
+                    ).data
+                except Vote.DoesNotExist:
+                    pass
+        return vote
 
     def get_authors(self, paper):
         context = self.context
@@ -962,6 +991,11 @@ class PaperVoteSerializer(serializers.ModelSerializer):
             'vote_type',
             'paper',
         ]
+        model = Vote
+
+class DynamicPaperVoteSerializer(DynamicModelFieldSerializer):
+    class Meta:
+        fields = '__all__'
         model = Vote
 
 
