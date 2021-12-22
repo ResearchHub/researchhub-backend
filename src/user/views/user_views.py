@@ -859,12 +859,53 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'vote_type',
                     'item',
                 ]
-            },            
+            },
             'dis_dts_get_comments': {
-                '_include_fields': CommentSerializer.Meta.fields
+                '_include_fields': [
+                    'created_by',
+                    'created_date',
+                    'updated_date',
+                    'created_location',
+                    'external_metadata',
+                    'id',
+                    'is_created_by_editor',
+                    'is_public',
+                    'is_removed',
+                    'paper_id',
+                    'parent',
+                    'plain_text',
+                    'promoted',
+                    'replies',
+                    'reply_count',
+                    'score',
+                    'source',
+                    'text',
+                    'thread_id',
+                    'user_flag',
+                    'user_vote',
+                    'was_edited',
+                ]
             },
             'dis_dcs_get_replies': {
-                '_include_fields': ReplySerializer.Meta.fields
+                '_include_fields': [
+                    'created_by',
+                    'created_location',
+                    'id',
+                    'is_created_by_editor',
+                    'is_public',
+                    'is_removed',
+                    'paper_id',
+                    'parent',
+                    'plain_text',
+                    'promoted',
+                    'score',
+                    'text',
+                    'thread_id',
+                    'user_flag',
+                    'user_vote',
+                    'created_date',
+                    'updated_date',
+                ]
             },
             'doc_duds_get_documents': {
                 '_include_fields': [

@@ -272,10 +272,11 @@ class DynamicMinimalUserSerializer(DynamicModelFieldSerializer):
         fields = "__all__"
 
     def get_author_profile(self, obj):
+        _context_fields = self.context.get('usr_dmus_get_author_profile', {})
         serializer = DynamicAuthorSerializer(
             obj.author_profile,
-            read_only=True,
-            context=self.context
+            context=self.context,
+            **_context_fields
         )
         return serializer.data
 

@@ -353,6 +353,31 @@ class DynamicCommentSerializer(
         )
         return serializer.data
 
+    def get_reply_count(self, obj):
+        replies = self._replies_query(obj)
+        return replies.count()
+
+    def get_thread_id(self, obj):
+        if isinstance(obj.parent, Thread):
+            return obj.parent.id
+        return None
+
+    def get_paper_id(self, obj):
+        if obj.paper:
+            return obj.paper.id
+        else:
+            return None
+
+    def get_created_by(self, thread):
+        context = self.context
+        _context_fields = context.get('dis_dcs_get_created_by', {})
+        serializer = DynamicMinimalUserSerializer(
+            thread.created_by,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
     def get_score(self, obj):
         return obj.calculate_score()
 
@@ -624,6 +649,8 @@ class ReplySerializer(
             'user_flag',
             'user_vote',
             'was_edited',
+            'created_date',
+            'updated_date',
         ]
         read_only_fields = [
             'document_meta',
