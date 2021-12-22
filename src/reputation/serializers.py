@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 import ethereum.lib
 
-from reputation.models import Withdrawal, Contribution
+from reputation.models import Withdrawal, Contribution, Deposit
 from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import UserSerializer, DynamicUserSerializer
 from summary.serializers import SummarySerializer, SummaryVoteSerializer
@@ -25,6 +25,10 @@ from user.serializers import (
 )
 from user.models import Author
 
+class DepositSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Deposit
+        fields = '__all__'
 
 class WithdrawalSerializer(serializers.ModelSerializer):
     user = UserSerializer(default=serializers.CurrentUserDefault())
