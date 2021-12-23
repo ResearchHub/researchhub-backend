@@ -652,7 +652,7 @@ class PaperSerializer(BasePaperSerializer):
         has_arxiv = doi.startswith(ARXIV_IDENTIFIER)
 
         # For pdf uploads, checks if doi has an arxiv identifer
-        if has_arxiv:
+        if has_arxiv or has_doi:
             return True
 
         res = requests.get(
