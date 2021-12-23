@@ -338,8 +338,8 @@ class PaperSerializer(BasePaperSerializer):
         try:
             with transaction.atomic():
                 valid_doi = self._check_valid_doi(validated_data)
-                if not valid_doi:
-                    raise IntegrityError('DETAIL: Invalid DOI')
+                # if not valid_doi:
+                #     raise IntegrityError('DETAIL: Invalid DOI')
 
                 self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
