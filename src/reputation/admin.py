@@ -112,7 +112,6 @@ class RewardAdminModel(admin.ModelAdmin):
         # else:
         #     referred_by = """<p> No Referrer </p>"""
 
-        # import pdb; pdb.set_trace()
         extra_context = extra_context or {}
         # extra_context['images'] = images
         # extra_context['verified'] = verified

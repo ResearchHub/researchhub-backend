@@ -30,7 +30,7 @@ def handle_spam_user_task(user_id):
     User = apps.get_model('user.User')
     user = User.objects.filter(id=user_id).first()
     if user:
-        # user.papers.update(is_removed=True)
+        user.papers.update(is_removed=True)
         user.paper_votes.update(is_removed=True)
 
         hub_ids = list(
@@ -53,6 +53,7 @@ def handle_spam_user_task(user_id):
         for rep in Reply.objects.filter(created_by=user):
             rep.remove_nested()
             rep.update_discussion_count()
+
     reset_unified_document_cache(hub_ids)
 
 
