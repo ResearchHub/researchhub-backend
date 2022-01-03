@@ -84,7 +84,11 @@ class UserViewSet(viewsets.ModelViewSet):
             return self.serializer_class
 
     def get_serializer_context(self):
-        return {'get_subscribed': True, 'get_balance': True, 'user': self.request.user}
+        return {
+            'get_subscribed': True,
+            'get_balance': True,
+            'user': self.request.user
+        }
 
     def get_queryset(self):
         user = self.request.user
