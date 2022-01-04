@@ -115,19 +115,19 @@ class Action(DefaultModel):
         elif isinstance(item, Paper):
             link += '/paper/{}/'.format(item.id)
         elif isinstance(item, Thread):
-            link += '/paper/{}/discussion/{}'.format(
+            link += '/paper/{}/{}#comments'.format(
                 item.paper.id,
-                item.id
+                item.paper.slug
             )
         elif isinstance(item, Comment):
-            link += '/paper/{}/discussion/{}'.format(
+            link += '/paper/{}/{}#comments'.format(
                 item.paper.id,
-                item.thread.id
+                item.paper.slug
             )
         elif isinstance(item, Reply):
-            link += '/paper/{}/discussion/{}'.format(
+            link += '/paper/{}/{}#comments'.format(
                 item.paper.id,
-                item.thread.id,
+                item.paper.slug
             )
         elif isinstance(item, ResearchhubPost):
             link += '/post/{}/{}'.format(
