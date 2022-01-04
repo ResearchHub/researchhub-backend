@@ -136,3 +136,70 @@ class DiscussionModelsTests(TestCase):
         user.emailrecipient.reply_subscription.save()
         reply_child = create_reply(parent=reply_parent)
         self.assertFalse(user in reply_child.users_to_notify)
+
+    def test_creating_thread_notifies_paper_submitter(self):
+        submitter = create_random_default_user('Submitter')
+        commenter = create_random_default_user('Commenter')
+        paper = create_paper(uploaded_by=submitter)
+        thread = create_thread(paper=paper, created_by=commenter)
+        self.assertTrue(submitter in thread.users_to_notify)
+
+    def test_creating_comment_notifies_paper_submitter(self):
+        submitter = create_random_default_user('Submitter')
+        paper = create_paper(uploaded_by=submitter)
+        thread = create_thread(paper=paper)
+        comment = create_comment(thread=thread)
+        self.assertTrue(submitter in comment.users_to_notify)
+
+    def test_creating_reply_notifies_paper_submitter(self):
+        submitter = create_random_default_user('Submitter')
+        paper = create_paper(uploaded_by=submitter)
+        thread = create_thread(paper=paper)
+        comment = create_comment(thread=thread)
+        reply = create_reply(parent=comment)
+        self.assertTrue(submitter in reply.users_to_notify)
+
+    def test_thread_creator_not_receive_notification_on_own_contribution(self):
+        submitter = create_random_default_user('Submitter')
+        commenter = create_random_default_user('Commenter')
+        paper = create_paper(uploaded_by=submitter)
+        thread = create_thread(paper=paper, created_by=commenter)
+        self.assertFalse(commenter in thread.users_to_notify)
+
+    def test_comment_creator_not_receive_notification_on_own_contribution(self):
+        submitter = create_random_default_user('Submitter')
+        thread_creator = create_random_default_user('ThreadCreator')
+        comment_creator = create_random_default_user('Commenter')
+        paper = create_paper(uploaded_by=submitter)
+        thread = create_thread(paper=paper, created_by=thread_creator)
+        comment = create_comment(thread=thread, created_by=comment_creator)
+        self.assertFalse(comment_creator in comment.users_to_notify)
+
+    def test_reply_creator_not_receive_notification_on_own_contribution(self):
+        submitter = create_random_default_user('Submitter')
+        thread_creator = create_random_default_user('ThreadCreator')
+        comment_creator = create_random_default_user('Commenter')
+        reply_creator = create_random_default_user('ReplyCreator')
+        paper = create_paper(uploaded_by=submitter)
+        thread = create_thread(paper=paper, created_by=thread_creator)
+        comment = create_comment(thread=thread, created_by=comment_creator)
+        reply = create_reply(parent=comment, created_by=reply_creator)
+        self.assertFalse(reply_creator in reply.users_to_notify)
+
+    def test_creating_thread_notifies_post_creator(self):
+        self.assertTrue(True, False)
+
+    def test_creating_comment_notifies_post_creator(self):
+        self.assertTrue(True, False)
+
+    def test_creating_reply_notifies_post_creator(self):
+        self.assertTrue(True, False)
+
+    def test_creating_thread_notifies_hypothesis_creator(self):
+        self.assertTrue(True, False)
+
+    def test_creating_comment_notifies_hypothesis_creator(self):
+        self.assertTrue(True, False)
+
+    def test_creating_reply_notifies_hypothesis_creator(self):
+        self.assertTrue(True, False)

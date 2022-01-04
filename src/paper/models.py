@@ -52,6 +52,7 @@ from utils.twitter import (
     get_twitter_results
 )
 
+
 DOI_IDENTIFIER = '10.'
 ARXIV_IDENTIFIER = 'arXiv:'
 HOT_SCORE_WEIGHT = 5
@@ -338,6 +339,7 @@ class Paper(models.Model):
                 and not author.user.emailrecipient.paper_subscription.none
             ):
                 users.append(author.user)
+
         return users
 
     @property
