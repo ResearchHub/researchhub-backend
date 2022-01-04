@@ -290,6 +290,7 @@ class UserEditableSerializer(ModelSerializer):
     class Meta:
         model = User
         exclude = [
+            'email',
             'password',
             'groups',
             'is_superuser',
@@ -300,19 +301,24 @@ class UserEditableSerializer(ModelSerializer):
             'moderator',
         ]
 
-    def get_balance(self, obj):
-        return obj.get_balance()
+    def get_balance(self, user):
+        context = self.context
+        request_user = context.get('user', None)
 
-    def get_organization_slug(self, obj):
+        if request_user and request_user == user:
+            return user.get_balance()
+        return None
+
+    def get_organization_slug(self, user):
         try:
-            return obj.organization.slug
+            return user.organization.slug
         except Exception as e:
             sentry.log_error(e)
             return None
 
-    def get_subscribed(self, obj):
+    def get_subscribed(self, user):
         if self.context.get('get_subscribed'):
-            subscribed_query = obj.subscribed_hubs.filter(is_removed=False)
+            subscribed_query = user.subscribed_hubs.filter(is_removed=False)
             return HubSerializer(subscribed_query, many=True).data
 
 

@@ -84,7 +84,11 @@ class UserViewSet(viewsets.ModelViewSet):
             return self.serializer_class
 
     def get_serializer_context(self):
-        return {'get_subscribed': True, 'get_balance': True, 'user': self.request.user}
+        return {
+            'get_subscribed': True,
+            'get_balance': True,
+            'user': self.request.user
+        }
 
     def get_queryset(self):
         user = self.request.user
@@ -768,7 +772,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
         }
         return context
 
-
     def _get_contribution_context(self, filter_by_user_id):
         context = {
             'request': self.request,
@@ -785,6 +788,12 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 '_include_fields': [
                     'id',
                     'author_profile',
+                ]
+            },
+            'doc_dps_get_hubs': {
+                '_include_fields': [
+                    'name',
+                    'slug',   
                 ]
             },
             'pap_dps_get_uploaded_by': {
@@ -818,6 +827,12 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'created_date',
                     'vote_type',
                     'paper',
+                ]
+            },
+            'pap_dps_get_hubs': {
+                '_include_fields': [
+                    'name',
+                    'slug',   
                 ]
             },
             'doc_dps_get_user_vote': {
@@ -1001,7 +1016,13 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     'name',
                     'slug',
                 ]
-            }
+            },
+            'hyp_dhs_get_hubs': {
+                '_include_fields': [
+                    'name',
+                    'slug',   
+                ]
+            },
         }
         return context
 

@@ -462,6 +462,7 @@ class PaperSerializer(BasePaperSerializer):
                     instance,
                     validated_data
                 )
+                unified_doc = paper.unified_document
                 paper_title = paper.paper_title or ''
                 self._check_pdf_title(paper, paper_title, file)
 
@@ -477,6 +478,8 @@ class PaperSerializer(BasePaperSerializer):
                             new_hubs.append(hub)
                     paper.hubs.remove(*remove_hubs)
                     paper.hubs.add(*hubs)
+                    unified_doc.hubs.remove(*remove_hubs)
+                    unified_doc.hubs.add(*hubs)
                     for hub in remove_hubs:
                         hub.paper_count = hub.get_paper_count()
                         hub.save(update_fields=['paper_count'])

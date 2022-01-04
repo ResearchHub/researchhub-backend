@@ -19,7 +19,7 @@ from utils.sentry import log_error
 
 class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date')
-    queryset = ResearchhubUnifiedDocument.objects
+    queryset = ResearchhubUnifiedDocument.objects.all()
     permission_classes = [AllowAny]  # change to IsAuthenticated
     serializer_class = ResearchhubPostSerializer
 
@@ -87,7 +87,13 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             else:
                 rh_post.eln_src.save(file_name, full_src_file)
 
-            reset_unified_document_cache([0])
+            hub_ids = list(
+                unified_document.hubs.values_list(
+                    'id',
+                    flat=True
+                )
+            )
+            reset_unified_document_cache(hub_ids)
             return Response(
                 ResearchhubPostSerializer(
                     rh_post
@@ -110,7 +116,13 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
         full_src_file = ContentFile(request.data['full_src'].encode())
         serializer.instance.discussion_src.save(file_name, full_src_file)
 
-        reset_unified_document_cache([0])
+        hub_ids = list(
+            rh_post.unified_document.hubs.values_list(
+                'id',
+                flat=True
+            )
+        )
+        reset_unified_document_cache(hub_ids)
         return Response(request.data, status=200)
 
     def create_access_group(self, request):
