@@ -6,6 +6,10 @@ from discussion.tests.helpers import (
     create_reply
 )
 from paper.tests.helpers import create_paper
+from researchhub_document.helpers import (
+    create_post,
+    create_hypothesis,
+)
 from user.tests.helpers import create_random_default_user
 
 
@@ -137,6 +141,80 @@ class DiscussionModelsTests(TestCase):
         reply_child = create_reply(parent=reply_parent)
         self.assertFalse(user in reply_child.users_to_notify)
 
+    def test_creating_new_thread_notifies_paper_contributors(self):
+        submitter = create_random_default_user('Submitter')
+        contributor1 = create_random_default_user('Contributor1')
+        contributor2 = create_random_default_user('Contributor2')
+        contributor3 = create_random_default_user('Contributor3')
+        contributor4 = create_random_default_user('Contributor4')
+        paper = create_paper(uploaded_by=submitter)
+
+        thread1 = create_thread(paper=paper, created_by=contributor1)
+        thread2 = create_thread(paper=paper, created_by=contributor2)
+        comment = create_comment(thread=thread1, created_by=contributor3)
+        comment2 = create_comment(thread=thread1, created_by=contributor1)
+        reply = create_reply(parent=comment, created_by=contributor4)
+
+        self.assertTrue(contributor1 in thread2.users_to_notify)
+        self.assertTrue(contributor2 in thread2.users_to_notify)
+        self.assertTrue(contributor3 in thread2.users_to_notify)
+        self.assertTrue(contributor4 in thread2.users_to_notify)
+
+    def test_creating_new_thread_notifies_post_contributors(self):
+        creator = create_random_default_user('Submitter')
+        contributor1 = create_random_default_user('Contributor1')
+        contributor2 = create_random_default_user('Contributor2')
+        contributor3 = create_random_default_user('Contributor3')
+        contributor4 = create_random_default_user('Contributor4')
+        post = create_post(created_by=creator)
+
+        thread1 = create_thread(post=post, created_by=contributor1)
+        thread2 = create_thread(post=post, created_by=contributor2)
+        comment = create_comment(thread=thread1, created_by=contributor3)
+        comment2 = create_comment(thread=thread1, created_by=contributor1)
+        reply = create_reply(parent=comment, created_by=contributor4)
+
+        self.assertTrue(contributor1 in thread2.users_to_notify)
+        self.assertTrue(contributor2 in thread2.users_to_notify)
+        self.assertTrue(contributor3 in thread2.users_to_notify)
+        self.assertTrue(contributor4 in thread2.users_to_notify)
+
+    def test_creating_new_thread_notifies_hypothesis_contributors(self):
+        creator = create_random_default_user('Submitter')
+        contributor1 = create_random_default_user('Contributor1')
+        contributor2 = create_random_default_user('Contributor2')
+        contributor3 = create_random_default_user('Contributor3')
+        contributor4 = create_random_default_user('Contributor4')
+        hypothesis = create_hypothesis(created_by=creator)
+
+        thread1 = create_thread(hypothesis=hypothesis, created_by=contributor1)
+        thread2 = create_thread(hypothesis=hypothesis, created_by=contributor2)
+        comment = create_comment(thread=thread1, created_by=contributor3)
+        comment2 = create_comment(thread=thread1, created_by=contributor1)
+        reply = create_reply(parent=comment, created_by=contributor4)
+
+        self.assertTrue(contributor1 in thread2.users_to_notify)
+        self.assertTrue(contributor2 in thread2.users_to_notify)
+        self.assertTrue(contributor3 in thread2.users_to_notify)
+        self.assertTrue(contributor4 in thread2.users_to_notify)
+
+    def test_creating_new_comment_does_not_notify_paper_contributors(self):
+        submitter = create_random_default_user('Submitter')
+        contributor1 = create_random_default_user('Contributor1')
+        contributor2 = create_random_default_user('Contributor2')
+        contributor3 = create_random_default_user('Contributor3')
+        contributor4 = create_random_default_user('Contributor4')
+        paper = create_paper(uploaded_by=submitter)
+
+        thread1 = create_thread(paper=paper, created_by=contributor1)
+        thread2 = create_thread(paper=paper, created_by=contributor2)
+        comment = create_comment(thread=thread1, created_by=contributor3)
+        comment2 = create_comment(thread=thread2, created_by=contributor4)
+
+        self.assertTrue(contributor2 in comment2.users_to_notify)
+        self.assertFalse(contributor1 in comment2.users_to_notify)
+        self.assertFalse(contributor3 in comment2.users_to_notify)
+
     def test_creating_thread_notifies_paper_submitter(self):
         submitter = create_random_default_user('Submitter')
         commenter = create_random_default_user('Commenter')
@@ -187,19 +265,59 @@ class DiscussionModelsTests(TestCase):
         self.assertFalse(reply_creator in reply.users_to_notify)
 
     def test_creating_thread_notifies_post_creator(self):
-        self.assertTrue(True, False)
+        creator = create_random_default_user('Creator')
+        thread_creator = create_random_default_user('ThreadCreator')
+        post = create_post(created_by=creator)
+        thread = create_thread(post=post, created_by=thread_creator)
+        self.assertTrue(creator in thread.users_to_notify)
 
     def test_creating_comment_notifies_post_creator(self):
-        self.assertTrue(True, False)
+        creator = create_random_default_user('Creator')
+        thread_creator = create_random_default_user('ThreadCreator')
+        comment_creator = create_random_default_user('Commenter')
+        post = create_post(created_by=creator)
+        thread = create_thread(post=post, created_by=thread_creator)
+        comment = create_comment(thread=thread, created_by=comment_creator)
+        self.assertTrue(creator in comment.users_to_notify)
 
     def test_creating_reply_notifies_post_creator(self):
-        self.assertTrue(True, False)
+        creator = create_random_default_user('Creator')
+        thread_creator = create_random_default_user('ThreadCreator')
+        comment_creator = create_random_default_user('Commenter')
+        reply_creator = create_random_default_user('ReplyCreator')
+
+        post = create_post(created_by=creator)
+        thread = create_thread(post=post, created_by=thread_creator)
+        comment = create_comment(thread=thread, created_by=comment_creator)
+        reply = create_reply(parent=comment, created_by=reply_creator)
+        self.assertTrue(creator in reply.users_to_notify)
 
     def test_creating_thread_notifies_hypothesis_creator(self):
-        self.assertTrue(True, False)
+        creator = create_random_default_user('Creator')
+        thread_creator = create_random_default_user('ThreadCreator')
+        hypothesis = create_hypothesis(created_by=creator)
+
+        thread = create_thread(hypothesis=hypothesis, created_by=creator)
+        self.assertTrue(creator in thread.users_to_notify)
 
     def test_creating_comment_notifies_hypothesis_creator(self):
-        self.assertTrue(True, False)
+        creator = create_random_default_user('Creator')
+        thread_creator = create_random_default_user('ThreadCreator')
+        comment_creator = create_random_default_user('Commenter')
+        hypothesis = create_hypothesis(created_by=creator)
+
+        thread = create_thread(hypothesis=hypothesis, created_by=creator)
+        comment = create_comment(thread=thread, created_by=comment_creator)
+        self.assertTrue(creator in comment.users_to_notify)
 
     def test_creating_reply_notifies_hypothesis_creator(self):
-        self.assertTrue(True, False)
+        creator = create_random_default_user('Creator')
+        thread_creator = create_random_default_user('ThreadCreator')
+        comment_creator = create_random_default_user('Commenter')
+        reply_creator = create_random_default_user('ReplyCreator')
+        hypothesis = create_hypothesis(created_by=creator)
+
+        thread = create_thread(hypothesis=hypothesis, created_by=creator)
+        comment = create_comment(thread=thread, created_by=comment_creator)
+        reply = create_reply(parent=comment, created_by=reply_creator)
+        self.assertTrue(creator in reply.users_to_notify)

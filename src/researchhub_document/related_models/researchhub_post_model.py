@@ -116,6 +116,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     @property
     def users_to_notify(self):
+        print('users to notify', self.created_by)
         return [self.created_by]
 
     @property
