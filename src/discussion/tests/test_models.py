@@ -43,19 +43,6 @@ class DiscussionModelsTests(TestCase):
         thread = create_thread(paper=self.paper, created_by=user)
         self.assertFalse(user in thread.users_to_notify)
 
-    def test_thread_users_to_notify_exlcudes_unsubscribed(self):
-        user = create_random_default_user('Camy')
-        self.paper.authors.add(user.author_profile)
-        user.emailrecipient.paper_subscription.unsubscribe()
-        self.assertFalse(user in self.thread.users_to_notify)
-
-    def test_thread_users_to_notify_exlcudes_threads_false(self):
-        user = create_random_default_user('Damy')
-        user.emailrecipient.paper_subscription.threads = False
-        user.emailrecipient.paper_subscription.save()
-        self.paper.authors.add(user.author_profile)
-        self.assertFalse(user in self.thread.users_to_notify)
-
     def test_comment_users_to_notify_includes_thread_creator(self):
         user = create_random_default_user('Eamy')
         thread = create_thread(created_by=user)
@@ -67,21 +54,6 @@ class DiscussionModelsTests(TestCase):
         comment = create_comment(thread=self.thread, created_by=user)
         self.assertFalse(user in comment.users_to_notify)
 
-    def test_comment_users_to_notify_exlcudes_unsubscribed(self):
-        user = create_random_default_user('Gamy')
-        thread = create_thread(created_by=user)
-        user.emailrecipient.thread_subscription.unsubscribe()
-        comment = create_comment(thread=thread)
-        self.assertFalse(user in comment.users_to_notify)
-
-    def test_comment_users_to_notify_exlcudes_comments_false(self):
-        user = create_random_default_user('Hamy')
-        thread = create_thread(created_by=user)
-        user.emailrecipient.thread_subscription.comments = False
-        user.emailrecipient.thread_subscription.save()
-        comment = create_comment(thread=thread)
-        self.assertFalse(user in comment.users_to_notify)
-
     def test_reply_users_to_notify_includes_comment_creator(self):
         user = create_random_default_user('Iamy')
         comment = create_comment(created_by=user)
@@ -91,21 +63,6 @@ class DiscussionModelsTests(TestCase):
     def test_reply_users_to_notify_exlcudes_reply_creator(self):
         user = create_random_default_user('Jamy')
         reply = create_reply(created_by=user)
-        self.assertFalse(user in reply.users_to_notify)
-
-    def test_reply_users_to_notify_exlcudes_unsubscribed(self):
-        user = create_random_default_user('Kamy')
-        comment = create_comment(created_by=user)
-        user.emailrecipient.comment_subscription.unsubscribe()
-        reply = create_reply(parent=comment)
-        self.assertFalse(user in reply.users_to_notify)
-
-    def test_reply_users_to_notify_exlcudes_replies_false(self):
-        user = create_random_default_user('Lamy')
-        comment = create_comment(created_by=user)
-        user.emailrecipient.comment_subscription.replies = False
-        user.emailrecipient.comment_subscription.save()
-        reply = create_reply(parent=comment)
         self.assertFalse(user in reply.users_to_notify)
 
     def test_reply_child_users_to_notify_includes_reply_parent_creator(self):
@@ -120,20 +77,6 @@ class DiscussionModelsTests(TestCase):
         reply_child = create_reply(parent=reply_parent, created_by=user)
         self.assertFalse(user in reply_child.users_to_notify)
 
-    def test_reply_child_users_to_notify_exlcudes_unsubscribed(self):
-        user = create_random_default_user('Oamy')
-        reply_parent = create_reply(created_by=user)
-        user.emailrecipient.reply_subscription.unsubscribe()
-        reply_child = create_reply(parent=reply_parent)
-        self.assertFalse(user in reply_child.users_to_notify)
-
-    def test_reply_child_users_to_notify_exlcudes_replies_false(self):
-        user = create_random_default_user('Pamy')
-        reply_parent = create_reply(created_by=user)
-        user.emailrecipient.reply_subscription.replies = False
-        user.emailrecipient.reply_subscription.save()
-        reply_child = create_reply(parent=reply_parent)
-        self.assertFalse(user in reply_child.users_to_notify)
 
     def test_creating_new_thread_notifies_paper_contributors(self):
         creator = create_random_default_user('Submitter')
@@ -247,23 +190,6 @@ class DiscussionModelsTests(TestCase):
         self.assertTrue(thread_contributor in thread2.users_to_notify)
         self.assertTrue(comment_contributor in thread2.users_to_notify)
         self.assertTrue(reply_contributor in thread2.users_to_notify)
-
-    def test_creating_new_comment_does_not_notify_paper_contributors(self):
-        submitter = create_random_default_user('Submitter')
-        contributor1 = create_random_default_user('Contributor1')
-        contributor2 = create_random_default_user('Contributor2')
-        contributor3 = create_random_default_user('Contributor3')
-        contributor4 = create_random_default_user('Contributor4')
-        paper = create_paper(uploaded_by=submitter)
-
-        thread1 = create_thread(paper=paper, created_by=contributor1)
-        thread2 = create_thread(paper=paper, created_by=contributor2)
-        comment = create_comment(thread=thread1, created_by=contributor3)
-        comment2 = create_comment(thread=thread2, created_by=contributor4)
-
-        self.assertTrue(contributor2 in comment2.users_to_notify)
-        self.assertFalse(contributor1 in comment2.users_to_notify)
-        self.assertFalse(contributor3 in comment2.users_to_notify)
 
     def test_creating_thread_notifies_paper_submitter(self):
         submitter = create_random_default_user('Submitter')
@@ -416,3 +342,47 @@ class DiscussionModelsTests(TestCase):
         self.assertTrue(reply_creator not in reply.users_to_notify)
         self.assertTrue(comment_creator in reply.users_to_notify)
 
+    def test_creating_thread_should_not_email_unsubscribed_users(self):
+        submitter = create_random_default_user('Submitter')
+        thread_creator = create_random_default_user('ThreadCreator')
+        comment_creator = create_random_default_user('Commenter')
+        reply_creator = create_random_default_user('ReplyCreator')
+
+        paper = create_paper(uploaded_by=submitter)
+        thread = create_thread(paper=paper, created_by=thread_creator)
+        comment = create_comment(thread=thread, created_by=comment_creator)
+        reply = create_reply(parent=comment, created_by=reply_creator)
+        thread_creator.emailrecipient.set_opted_out(True)
+
+        self.assertTrue(thread_creator not in reply.users_to_notify)
+        self.assertTrue(comment_creator in reply.users_to_notify)
+
+    def test_creating_comment_should_not_email_unsubscribed_users(self):
+        submitter = create_random_default_user('Submitter')
+        thread_creator = create_random_default_user('ThreadCreator')
+        comment_creator = create_random_default_user('Commenter')
+        reply_creator = create_random_default_user('ReplyCreator')
+
+        paper = create_paper(uploaded_by=submitter)
+        thread = create_thread(paper=paper, created_by=thread_creator)
+        comment = create_comment(thread=thread, created_by=comment_creator)
+        reply = create_reply(parent=comment, created_by=reply_creator)
+        comment_creator.emailrecipient.set_opted_out(True)
+
+        self.assertTrue(thread_creator in reply.users_to_notify)
+        self.assertTrue(comment_creator not in reply.users_to_notify)
+
+    def test_creating_reply_should_not_email_unsubscribed_users(self):
+        submitter = create_random_default_user('Submitter')
+        thread_creator = create_random_default_user('ThreadCreator')
+        comment_creator = create_random_default_user('Commenter')
+        reply_creator = create_random_default_user('ReplyCreator')
+
+        paper = create_paper(uploaded_by=submitter)
+        thread = create_thread(paper=paper, created_by=thread_creator)
+        comment = create_comment(thread=thread, created_by=comment_creator)
+        reply = create_reply(parent=comment, created_by=reply_creator)
+        comment_creator.emailrecipient.set_opted_out(True)
+
+        self.assertTrue(thread_creator in reply.users_to_notify)
+        self.assertTrue(comment_creator not in reply.users_to_notify)        
