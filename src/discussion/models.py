@@ -381,6 +381,7 @@ class Thread(BaseComment):
 
     @property
     def users_to_notify(self):
+
         users = []
         if self.paper is not None:
             # users = list(self.parent.moderators.all())
@@ -402,9 +403,12 @@ class Thread(BaseComment):
             users.append(self.hypothesis.created_by)
 
         contributors = self.get_all_doc_contributors()
-        unique_users = list(set(users + list(contributors)))
+        users = list(set(users + list(contributors)))
 
-        return unique_users
+        # Remove person who made comment
+        users = [u for u in users if u.id != self.created_by.id]
+
+        return users
 
 
 class Reply(BaseComment):
@@ -513,6 +517,15 @@ class Reply(BaseComment):
         elif self.hypothesis is not None:
             users.append(self.hypothesis.created_by)            
 
+        # This will ensure everyone who contributed a comment, reply or thread
+        # gets notified. Will need to likely turn off once we have
+        # lots of activity on papers/posts/hypothesis
+        contributors = self.get_all_doc_contributors()
+        users = list(set(users + list(contributors)))
+
+        # Remove person who made comment
+        users = [u for u in users if u.id != self.created_by.id]
+
         return users
 
 
@@ -604,5 +617,14 @@ class Comment(BaseComment):
             users.append(self.post.created_by)
         elif self.hypothesis is not None:
             users.append(self.hypothesis.created_by)
+
+        # This will ensure everyone who contributed a comment, reply or thread
+        # gets notified. Will need to likely turn off once we have
+        # lots of activity on papers/posts/hypothesis
+        contributors = self.get_all_doc_contributors()
+        users = list(set(users + list(contributors)))
+
+        # Remove person who made comment
+        users = [u for u in users if u.id != self.created_by.id]
 
         return users
