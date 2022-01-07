@@ -253,10 +253,9 @@ class BaseComment(models.Model):
         ) + list(
             map(lambda t: t['created_by_id'], replies)
         )
-        unique_contributor_ids = list(set(contributor_ids))
 
         User = apps.get_model('user', 'User')
-        users = User.objects.filter(id__in=unique_contributor_ids)
+        users = User.objects.filter(id__in=contributor_ids)
 
         return users
 
