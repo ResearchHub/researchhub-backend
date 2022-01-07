@@ -55,6 +55,7 @@ class Action(DefaultModel):
         self.read_date = timezone.now()
         self.save()
 
+
     def email_context(self):
         act = self
         if (
@@ -69,8 +70,6 @@ class Action(DefaultModel):
             and act.content_type.name
         ):
             act.content_type_name = act.content_type.name
-        else:
-            act.content_type_name = 'paper'
 
         verb = 'done a noteworthy action on'
         if act.content_type_name == 'reply':
@@ -84,22 +83,52 @@ class Action(DefaultModel):
         elif act.content_type_name == 'hypothesis':
             verb = 'created a new post on'
 
-        noun = 'paper'
+        noun = ''
         if act.content_type_name == 'comment':
-            noun = 'thread'
+            noun = 'the thread'
         elif act.content_type_name == 'reply':
             noun = 'comment on'
         elif act.content_type_name == 'thread':
-            noun = 'paper'
-        elif act.content_type_name == 'hypothesis':
-            noun = 'hypothesis'
+            noun = self.doc_type
 
-        act.label = 'has {} the {}'.format(verb, noun)
+        act.label = 'has {} {}'.format(verb, noun)
 
         if act.content_type_name == 'summary':
             act.label += ' summary'
 
         return act
+
+    @property
+    def doc_type(self):
+        doc_type = ''
+        try:
+            doc_type = self.item.unified_document.document_type
+            if doc_type == 'DISCUSSION':
+                doc_type = 'post'
+            elif doc_type == 'HYPOTHESIS':
+                doc_type = 'hypothesis'
+            elif doc_type == 'PAPER':
+                doc_type = 'paper'
+        except Exception:
+            doc_type = ''
+
+        return doc_type
+
+    @property
+    def title(self):
+        title = ''
+        try:
+            doc_type = self.item.unified_document.document_type
+            if doc_type == 'DISCUSSION':
+                title = self.item.post.title
+            elif doc_type == 'HYPOTHESIS':
+                title = self.item.hypothesis.title
+            elif doc_type == 'PAPER':
+                title = self.item.paper.title
+        except Exception:
+            title = ''
+
+        return title
 
     @property
     def frontend_view_link(self):
@@ -110,25 +139,30 @@ class Action(DefaultModel):
 
         link = BASE_FRONTEND_URL
         item = self.item
+
         if isinstance(item, Summary):
             link += '/paper/{}/'.format(item.paper.id)
         elif isinstance(item, Paper):
             link += '/paper/{}/'.format(item.id)
-        elif isinstance(item, Thread):
-            link += '/paper/{}/discussion/{}'.format(
-                item.paper.id,
-                item.id
-            )
-        elif isinstance(item, Comment):
-            link += '/paper/{}/discussion/{}'.format(
-                item.paper.id,
-                item.thread.id
-            )
-        elif isinstance(item, Reply):
-            link += '/paper/{}/discussion/{}'.format(
-                item.paper.id,
-                item.thread.id,
-            )
+        elif isinstance(item, Thread) or isinstance(item, Comment) or isinstance(item, Reply):
+            doc_type = self.item.unified_document.document_type
+
+            if doc_type == 'DISCUSSION':
+                link += '/post/{}/{}#comments'.format(
+                    item.post.id,
+                    item.post.slug
+                )
+            elif doc_type == 'HYPOTHESIS':
+                link += '/hypothesis/{}/{}#comments'.format(
+                    item.hypothesis.id,
+                    item.hypothesis.slug
+                )
+            else:
+                link += '/paper/{}/{}#comments'.format(
+                    item.paper.id,
+                    item.paper.slug
+                )
+
         elif isinstance(item, ResearchhubPost):
             link += '/post/{}/{}'.format(
                 item.id,

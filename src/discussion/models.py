@@ -19,7 +19,7 @@ from researchhub.lib import CREATED_LOCATIONS
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.models import Permission
 from .reaction_models import Flag, Vote, Endorsement
-
+from django.apps import apps
 
 HELP_TEXT_WAS_EDITED = (
     'True if the comment text was edited after first being created.'
@@ -209,6 +209,55 @@ class BaseComment(models.Model):
             return boost_score
         return False
 
+    def get_all_doc_contributors(self):
+        if self.paper is not None:
+            threads = Thread.objects.filter(
+                paper_id=self.paper.id
+            ).values(
+                'created_by', 'id'
+            )
+            thread_ids = list(map(lambda t: t['id'], threads))
+        elif self.post is not None:
+            threads = Thread.objects.filter(
+                post_id=self.post.id
+            ).values(
+                'created_by', 'id'
+            )
+            thread_ids = list(map(lambda t: t['id'], threads))
+        elif self.hypothesis is not None:
+            threads = Thread.objects.filter(
+                hypothesis_id=self.hypothesis.id
+            ).values(
+                'created_by', 'id'
+            )
+            thread_ids = list(map(lambda t: t['id'], threads))
+
+
+        comments = Comment.objects.filter(
+            parent_id__in=thread_ids
+        ).values(
+            'created_by_id', 'id'
+        )
+        comment_ids = list(map(lambda c: c['id'], comments))
+
+        replies = Reply.objects.filter(
+            object_id__in=comment_ids
+        ).values(
+            'created_by_id', 'id'
+        )
+
+        contributor_ids = list(
+            map(lambda t: t['created_by'], threads)
+        ) + list(
+            map(lambda t: t['created_by_id'], comments)
+        ) + list(
+            map(lambda t: t['created_by_id'], replies)
+        )
+
+        User = apps.get_model('user', 'User')
+        users = User.objects.filter(id__in=contributor_ids)
+
+        return users
 
 class Thread(BaseComment):
     CITATION_COMMENT = 'citation_comment'
@@ -331,19 +380,35 @@ class Thread(BaseComment):
 
     @property
     def users_to_notify(self):
-        # TODO: Add notifications to posts and hypotheses
-        if self.post or self.hypothesis or self.citation:
-            return []
 
-        users = list(self.parent.moderators.all())
-        paper_authors = self.parent.authors.all()
-        for author in paper_authors:
-            if (
-                author.user
-                and author.user.emailrecipient.paper_subscription.threads
-                and not author.user.emailrecipient.paper_subscription.none
-            ):
-                users.append(author.user)
+        users = []
+        if self.paper is not None:
+            # users = list(self.parent.moderators.all())
+            paper_authors = self.parent.authors.all()
+            for author in paper_authors:
+                if author.user:
+                    users.append(author.user)
+
+            if self.paper.uploaded_by is not None:
+                users.append(self.paper.uploaded_by)
+
+        elif self.post is not None:
+            users.append(self.post.created_by)
+        elif self.hypothesis is not None:
+            users.append(self.hypothesis.created_by)
+
+        contributors = self.get_all_doc_contributors()
+        users = list(set(users + list(contributors)))
+
+        # Remove person who made comment
+        users = [u for u in users if u.id != self.created_by.id]
+
+        # Remove all opted out users
+        try:
+            users = [u for u in users if not u.emailrecipient.is_opted_out and not u.emailrecipient.do_not_email]
+        except Exception:
+            pass
+
         return users
 
 
@@ -428,41 +493,37 @@ class Reply(BaseComment):
 
     @property
     def users_to_notify(self):
-        # TODO: No siblings for now. Do we need this?
-        # sibling_comment_users = []
-        # for c in self.parent.children.prefetch_related(
-        #     'created_by',
-        #     'created_by__emailrecipient',
-        #     'created_by__emailrecipient__thread_subscription',
-        #     'created_by__emailrecipient__comment_subscription'
-        # ):
-        #     if (
-        #         c != self
-        #         and c.created_by not in sibling_comment_users
-        #         and c.created_by.emailrecipient.thread_subscription
-        #         and c.created_by.emailrecipient.thread_subscription.replies
-        #         and c.created_by.emailrecipient.comment_subscription
-        #         and c.created_by.emailrecipient.comment_subscription.replies
-        #     ):
-        #         sibling_comment_users.append(c.created_by)
-        # return parent_owners + sibling_comment_users
         users = []
         p = self.parent
         if isinstance(p, Reply):
-            if (
-                p.created_by
-                and p.created_by.emailrecipient.reply_subscription.replies
-                and not p.created_by.emailrecipient.reply_subscription.none
-                and not p.created_by == self.created_by
-            ):
+            if p.created_by and not p.created_by == self.created_by:
                 users.append(p.created_by)
         else:
-            if (
-                p.created_by
-                and p.created_by.emailrecipient.comment_subscription.replies
-                and not p.created_by.emailrecipient.comment_subscription.none
-            ):
+            if p.created_by:
                 users.append(p.created_by)
+
+        if self.paper is not None and self.paper.uploaded_by is not None:
+            users.append(self.paper.uploaded_by)
+        elif self.post is not None:
+            users.append(self.post.created_by)
+        elif self.hypothesis is not None:
+            users.append(self.hypothesis.created_by)
+
+        # This will ensure everyone who contributed a comment, reply or thread
+        # gets notified. Will need to likely turn off once we have
+        # lots of activity on papers/posts/hypothesis
+        contributors = self.get_all_doc_contributors()
+        users = list(set(users + list(contributors)))
+
+        # Remove person who made comment
+        users = [u for u in users if u.id != self.created_by.id]
+
+        # Remove all opted out users
+        try:
+            users = [u for u in users if not u.emailrecipient.is_opted_out and not u.emailrecipient.do_not_email]
+        except Exception:
+            pass
+
         return users
 
 
@@ -540,26 +601,29 @@ class Comment(BaseComment):
     def users_to_notify(self):
         users = []
         p = self.parent
-        if (
-            p.created_by
-            and p.created_by.emailrecipient.thread_subscription.comments
-            and not p.created_by.emailrecipient.thread_subscription.none
-            and not p.created_by == self.created_by
-        ):
+        if p.created_by and not p.created_by == self.created_by:
             users.append(p.created_by)
+
+        if self.paper is not None and self.paper.uploaded_by is not None:
+            users.append(self.paper.uploaded_by)
+        elif self.post is not None:
+            users.append(self.post.created_by)
+        elif self.hypothesis is not None:
+            users.append(self.hypothesis.created_by)
+
+        # This will ensure everyone who contributed a comment, reply or thread
+        # gets notified. Will need to likely turn off once we have
+        # lots of activity on papers/posts/hypothesis
+        contributors = self.get_all_doc_contributors()
+        users = list(set(users + list(contributors)))
+
+        # Remove person who made comment
+        users = [u for u in users if u.id != self.created_by.id]
+
+        # Remove all opted out users
+        try:
+            users = [u for u in users if not u.emailrecipient.is_opted_out and not u.emailrecipient.do_not_email]
+        except Exception:
+            pass
+
         return users
-        # TODO: No siblings for now. Do we need this?
-        # sibling_comment_users = []
-        # for c in self.parent.children.prefetch_related(
-        #     'created_by',
-        #     'created_by__emailrecipient',
-        #     'created_by__emailrecipient__thread_subscription'
-        # ):
-        #    if (
-        #         c != self
-        #         and c.created_by not in sibling_comment_users
-        #         and c.created_by.emailrecipient.thread_subscription
-        #         and c.created_by.emailrecipient.thread_subscription.comments
-        #     ):
-        #         sibling_comment_users.append(c.created_by)
-        # return parent_owners + sibling_comment_users

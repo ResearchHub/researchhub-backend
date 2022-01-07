@@ -4,7 +4,6 @@ from paper.models import Flag, Paper, Vote
 from user.tests.helpers import create_random_default_user
 from utils.test_helpers import get_authenticated_post_response
 
-
 class TestData:
     paper_title = ('Messrs Moony, Wormtail, Padfoot, and Prongs Purveyors of'
                    ' Aids to Magical Mischief-Makers are proud to present THE'
