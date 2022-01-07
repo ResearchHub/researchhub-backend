@@ -16,6 +16,7 @@ from utils.test_helpers import (
 )
 from unittest import skip
 
+
 class PaperIntegrationTests(
     TestCase,
     TestHelper,
@@ -186,3 +187,38 @@ class JournalPdfTests(TestCase):
             if exists:
                 print(journal_url)
                 self.assertEquals(journal_url, self.journal_test_urls[i])
+
+
+class PaperPatchTest(
+    TestCase,
+    TestHelper,
+    IntegrationTestHelper
+):
+    base_url = '/api/paper/'
+
+    def create_paper(self, doi='1.1.1.2'):
+        original_paper = self.create_paper_without_authors()
+        original_paper.raw_authors = [
+            {'first_name': 'First', 'last_name': 'Last'}
+        ]
+        original_paper.save()
+        return original_paper
+
+    def test_patch_paper(self):
+        paper = self.create_paper()
+        updated_title = 'Updated Title'
+        form = {
+            'title': updated_title,
+        }
+        client = self.get_default_authenticated_client()
+        url = f'{self.base_url}{paper.id}/?make_public=true'
+        response = client.patch(url, form, content_type='application/json')
+        data = response.data
+        self.assertEquals(response.status_code, 200)
+        self.assertEquals(data['title'], updated_title)
+        self.assertEquals(
+            data['raw_authors'],
+            [
+                {'first_name': 'First', 'last_name': 'Last'}
+            ]
+        )

@@ -637,7 +637,7 @@ def handle_duplicate_doi(new_paper, doi):
     original_paper = Paper.objects.filter(doi=doi).order_by('uploaded_date')[0]
     merge_paper_votes(original_paper, new_paper)
     merge_paper_threads(original_paper, new_paper)
-    merge_paper_bulletpoints(original_paper, new_paper)
+    # merge_paper_bulletpoints(original_paper, new_paper)
     new_paper.delete()
 
 
