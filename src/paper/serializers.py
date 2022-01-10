@@ -477,7 +477,7 @@ class PaperSerializer(BasePaperSerializer):
                     remove_hubs = []
                     for current_hub in current_hubs:
                         if current_hub not in hubs:
-                            remove_hubs.append(current_hub.id)
+                            remove_hubs.append(current_hub)
                     new_hubs = []
                     for hub in hubs:
                         if hub not in current_hubs:
@@ -514,7 +514,9 @@ class PaperSerializer(BasePaperSerializer):
 
                 hub_ids = [0]
                 if hubs:
-                    hub_ids = remove_hubs + new_hubs
+                    hub_ids = list(
+                        map(lambda hub: hub.id, remove_hubs + new_hubs)
+                    )
 
                 reset_unified_document_cache(hub_ids)
                 invalidate_top_rated_cache(hub_ids)
