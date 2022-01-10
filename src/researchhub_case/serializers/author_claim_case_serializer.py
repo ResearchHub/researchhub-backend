@@ -23,7 +23,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             message="Attempting to open duplicate author claim cases"
         )
     ]
-    
+
     def create(self, validated_data):
         request_data = self.context.get('request').data
         moderator_id = request_data.get('moderator')
