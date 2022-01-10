@@ -23,7 +23,7 @@ class Command(BaseCommand):
                 for target_case in open_cases.iterator():
                     original_case_id = target_case.id
                     try:
-                        yo = AuthorClaimCase.objects.filter(
+                        AuthorClaimCase.objects.filter(
                           ~Q(id=original_case_id),
                           ~Q(id__in=case_ids_to_not_delete),
                           requestor=case_requestor,
