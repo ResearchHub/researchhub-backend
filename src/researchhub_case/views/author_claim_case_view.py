@@ -1,3 +1,4 @@
+from django.http.response import HttpResponseBadRequest
 from researchhub_case.constants.case_constants import (
     ALLOWED_VALIDATION_ATTEMPT_COUNT, INITIATED, INVALIDATED, OPEN
 )
@@ -5,7 +6,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import (
-    IsAuthenticated
+    IsAuthenticated, AllowAny
 )
 
 from researchhub_case.models import AuthorClaimCase
@@ -15,10 +16,16 @@ from utils.http import POST
 
 class AuthorClaimCaseViewSet(ModelViewSet):
     permission_classes = [
-        IsAuthenticated,
+        AllowAny,
     ]
     queryset = AuthorClaimCase.objects.all().order_by("-created_date")
     serializer_class = AuthorClaimCaseSerializer
+
+    def create(self, request, *args, **kwargs):
+        try:
+            return super().create(request, *args, **kwargs)
+        except Exception as error:
+            return Response(str(error.args), status=400)
 
 
 @api_view(http_method_names=[POST])

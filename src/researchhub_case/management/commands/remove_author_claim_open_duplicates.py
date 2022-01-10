@@ -9,22 +9,28 @@ from researchhub_case.constants.case_constants import AUTHOR_CLAIM, OPEN
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        case_creators = User.objects.filter(
-          created_cases__isnull=False,
-          created_cases__case_type=AUTHOR_CLAIM
-        )
-
+        open_case_requestors = User.objects.filter(
+          requested_cases__isnull=False,
+          requested_cases__case_type=AUTHOR_CLAIM,
+          requested_cases__status=OPEN,
+        ).distinct()
+        case_ids_to_not_delete = []
         try:
-            for case_creator in case_creators.iterator():
-                created_cases = case_creator.created_cases.filter(status=OPEN)
-                for target_case in created_cases.iterator():
-                    print("Deleting duplicates for id: ", target_case.id)
+            for case_requestor in open_case_requestors.iterator():
+                open_cases = case_requestor.created_cases.filter(
+                  status=OPEN
+                )
+                for target_case in open_cases.iterator():
+                    original_case_id = target_case.id
                     try:
-                        AuthorClaimCase.objects.filter(
-                          ~Q(id=target_case.id),
+                        yo = AuthorClaimCase.objects.filter(
+                          ~Q(id=original_case_id),
+                          ~Q(id__in=case_ids_to_not_delete),
+                          requestor=case_requestor,
                           status=OPEN,
                           target_author=target_case.target_author,
                         ).delete()
+                        case_ids_to_not_delete.append(original_case_id)
                     except Exception as error:
                         print(error)
                         pass
