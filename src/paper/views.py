@@ -282,9 +282,9 @@ class PaperViewSet(viewsets.ModelViewSet):
             instance = self.get_object()
             self._send_created_location_ga_event(instance, request.user)
 
-        hub_ids = request.data.get('hubs', [0])
-        if type(hub_ids) is not list:
-            hub_ids = list(hub_ids)
+        hub_ids = list(
+            instance.hubs.values_list('id', flat=True)
+        )
 
         reset_unified_document_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
