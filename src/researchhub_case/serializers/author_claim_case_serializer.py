@@ -1,4 +1,5 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
+from rest_framework.validators import UniqueTogetherValidator
 
 from .researchhub_case_abstract_serializer import EXPOSABLE_FIELDS
 from researchhub_case.models import AuthorClaimCase
@@ -11,7 +12,18 @@ class AuthorClaimCaseSerializer(ModelSerializer):
     moderator = SerializerMethodField(method_name='get_moderator')
     requestor = SerializerMethodField()
     target_author = SerializerMethodField(method_name='get_target_author')
-
+    validators = [
+        UniqueTogetherValidator(
+            queryset=AuthorClaimCase.objects.all(),
+            fields=[
+                'requestor'
+                'status',
+                'target_author',
+            ],
+            message="Attempting to open duplicate author claim cases"
+        )
+    ]
+    
     def create(self, validated_data):
         request_data = self.context.get('request').data
         moderator_id = request_data.get('moderator')
