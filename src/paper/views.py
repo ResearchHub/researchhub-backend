@@ -282,14 +282,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             instance = self.get_object()
             self._send_created_location_ga_event(instance, request.user)
 
-        hub_ids = list(
-            instance.hubs.values_list('id', flat=True)
-        )
-
-        reset_unified_document_cache(hub_ids)
-        invalidate_top_rated_cache(hub_ids)
-        invalidate_newest_cache(hub_ids)
-        invalidate_most_discussed_cache(hub_ids)
         instance.reset_cache(use_celery=False)
         return response
 
