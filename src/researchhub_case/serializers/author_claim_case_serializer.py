@@ -91,17 +91,17 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             target_author__id=target_author_id
         ).exists()
 
-        # if (has_duplicate):
-        #     raise Exception(
-        #         f'Attempting to open a duplicate case requestor_id: {requestor_id} and target_author_id: {target_author_id}'
-        #     )
+        if (has_duplicate):
+            raise Exception(
+                f'Attempting to open a duplicate case requestor_id: {requestor_id} and target_author_id: {target_author_id}'
+            )
 
-        # already_claimed = AuthorClaimCase.objects.filter(
-        #     target_author__id=target_author_id,
-        #     status=APPROVED
-        # ).exists()
-        # if (already_claimed):
-        #     raise Exception("Author is already claimed")
+        already_claimed = AuthorClaimCase.objects.filter(
+            target_author__id=target_author_id,
+            status=APPROVED
+        ).exists()
+        if (already_claimed):
+            raise Exception("Author is already claimed")
 
     class Meta(object):
         model = AuthorClaimCase
