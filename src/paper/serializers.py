@@ -39,7 +39,10 @@ from paper.utils import (
     clean_abstract,
     check_url_is_pdf,
     convert_journal_url_to_pdf_url,
-    convert_pdf_url_to_journal_url
+    convert_pdf_url_to_journal_url,
+    invalidate_top_rated_cache,
+    invalidate_newest_cache,
+    invalidate_most_discussed_cache,
 )
 from researchhub.lib import get_document_id_from_path
 from reputation.models import Contribution
@@ -56,8 +59,10 @@ from utils.http import get_user_from_request, check_url_contains_pdf
 from utils.siftscience import events_api, update_user_risk_score
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub_document.utils import update_unified_document_to_paper
-from utils.http import get_user_from_request
+from researchhub_document.utils import (
+    update_unified_document_to_paper,
+    reset_unified_document_cache
+)
 
 
 class BasePaperSerializer(serializers.ModelSerializer):
@@ -452,6 +457,7 @@ class PaperSerializer(BasePaperSerializer):
         authors = validated_data.pop('authors', [None])
         hubs = validated_data.pop('hubs', [None])
         file = validated_data.pop('file', None)
+        raw_authors = validated_data.pop('raw_authors', [])
 
         try:
             with transaction.atomic():
@@ -505,6 +511,17 @@ class PaperSerializer(BasePaperSerializer):
 
                 if file:
                     self._add_file(paper, file)
+
+                hub_ids = [0]
+                if hubs:
+                    hub_ids = list(
+                        map(lambda hub: hub.id, remove_hubs + new_hubs)
+                    )
+
+                reset_unified_document_cache(hub_ids)
+                invalidate_top_rated_cache(hub_ids)
+                invalidate_newest_cache(hub_ids)
+                invalidate_most_discussed_cache(hub_ids)
 
                 if request:
                     tracked_paper = events_api.track_content_paper(

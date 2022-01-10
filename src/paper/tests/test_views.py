@@ -13,6 +13,7 @@ from utils.test_helpers import (
 )
 from unittest import skip
 
+
 class PaperViewsTests(TestCase):
 
     def setUp(self):

@@ -346,7 +346,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
 
     class Meta:
         model = User
-        fields = '__all__'
+        exclude = ('password',)
 
     def get_author_profile(self, user):
         context = self.context
