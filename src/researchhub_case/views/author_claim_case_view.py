@@ -15,9 +15,8 @@ from utils.http import POST
 
 
 class AuthorClaimCaseViewSet(ModelViewSet):
-    permission_classes = [
-        IsAuthenticated,
-    ]
+    http_method_names = ['get', 'post']
+    permission_classes = [IsAuthenticated]
     queryset = AuthorClaimCase.objects.all().order_by("-created_date")
     serializer_class = AuthorClaimCaseSerializer
 
