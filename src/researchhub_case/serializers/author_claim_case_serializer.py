@@ -1,10 +1,11 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from .researchhub_case_abstract_serializer import EXPOSABLE_FIELDS
+from paper.models import Paper
+from researchhub_case.constants.case_constants import APPROVED
 from researchhub_case.models import AuthorClaimCase
 from user.models import Author, User
 from user.serializers import AuthorSerializer, UserSerializer
-from paper.models import Paper
 
 
 class AuthorClaimCaseSerializer(ModelSerializer):
@@ -20,6 +21,10 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         moderator = User.objects.filter(id=moderator_id).first()
         requestor = User.objects.filter(id=requestor_id).first()
         author = request_data.get('author')
+        self.__check_uniqueness_on_create(
+            requestor_id,
+            target_author_id
+        )
 
         if not target_author_id:
             first_name = author.get('first_name')
@@ -77,6 +82,26 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         if (serializer is not None):
             return serializer.data
         return None
+
+    # NOTE: Not enforcing UniquenessTogether on Model / Serializer to avoid
+    # hard crashing or potential use cases
+    def __check_uniqueness_on_create(self, requestor_id, target_author_id):
+        has_duplicate = AuthorClaimCase.objects.filter(
+            requestor__id=requestor_id,
+            target_author__id=target_author_id
+        ).exists()
+
+        if (has_duplicate):
+            raise Exception(
+                f'Attempting to open a duplicate case requestor_id: {requestor_id} and target_author_id: {target_author_id}'
+            )
+
+        already_claimed = AuthorClaimCase.objects.filter(
+            target_author__id=target_author_id,
+            status=APPROVED
+        ).exists()
+        if (already_claimed):
+            raise Exception("Author is already claimed")
 
     class Meta(object):
         model = AuthorClaimCase
