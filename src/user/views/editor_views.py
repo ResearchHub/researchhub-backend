@@ -37,11 +37,13 @@ def get_editors_by_contributions(request):
             permissions__content_type=ContentType.objects.get_for_model(Hub)
         ).distinct()
 
-        timeframe_str = request.GET.get('timeframe_str', None)
         timeframe_query = Q(
-          **resolve_timeframe_for_contribution(timeframe_str),
+            **resolve_timeframe_for_contribution(
+                request.GET.get('timeframe_str', None)
+            ),
         )
 
+        # NOTE: We need time_query at contributions level, NOT at editor_qs
         total_contrib_count_query = Q(
             contributions__contribution_type__in=[
               Contribution.COMMENTER,
