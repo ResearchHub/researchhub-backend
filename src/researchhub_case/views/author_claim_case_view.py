@@ -1,4 +1,3 @@
-from django.http.response import HttpResponseBadRequest
 from researchhub_case.constants.case_constants import (
     ALLOWED_VALIDATION_ATTEMPT_COUNT, INITIATED, INVALIDATED, OPEN
 )
