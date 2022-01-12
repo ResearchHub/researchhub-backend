@@ -83,6 +83,7 @@ def get_editors_by_contributions(request):
         editor_qs = editor_qs.prefetch_related(
           'contributions',
           'contributions__unified_document__hubs'
+          'contributions__created_date__gte'
         )
 
         editor_qs_ranked_by_contribution = \
