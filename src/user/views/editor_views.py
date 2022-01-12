@@ -2,12 +2,12 @@ from datetime import timedelta
 from django.contrib.contenttypes.models import ContentType
 from django.db.models.aggregates import Count
 from django.db.models.query_utils import Q
-from django.http import response
 from django.utils import timezone
+from rest_framework.response import Response
 from reputation.models import Contribution
 from rest_framework.decorators import api_view, permission_classes
 from utils.http import GET
-
+from rest_framework.permissions import AllowAny
 
 from hub.models import Hub
 from hub.permissions import IsModerator
@@ -26,13 +26,13 @@ def resolve_timeframe_for_contribution(timeframe_str):
 
 
 @api_view(http_method_names=[GET])
-@permission_classes([IsModerator])
+@permission_classes([AllowAny])
 def get_editors_by_contributions(request):
     try:
         editor_qs = User.objects.filter(
-          permissions__isnull=False,
-          permissions__access_type=EDITOR,
-          permissions__content_type=ContentType.objects.get_for_model(Hub)
+            permissions__isnull=False,
+            permissions__access_type=EDITOR,
+            permissions__content_type=ContentType.objects.get_for_model(Hub)
         ).distinct()
 
         timeframe_str = request.GET.get('timeframe_str', None)
@@ -68,6 +68,6 @@ def get_editors_by_contributions(request):
                 ),
             ).order_by('-contribution_count')
         import pdb; pdb.set_trace()
-
+        return {}
     except Exception as error:
-        return response(error, status=400)
+        return Response(error, status=400)
