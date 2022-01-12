@@ -698,14 +698,8 @@ class PaperViewSet(viewsets.ModelViewSet):
             try:
                 cleaned_title = csl_item.get('title', '').strip()
                 duplicate_papers = Paper.objects.filter(
-                    paper_title__icontains=cleaned_title
-                ).annotate(
-                    similarity=TrigramSimilarity('paper_title', cleaned_title)
-                ).filter(
-                    similarity__gt=0.7
-                ).order_by(
-                    'similarity'
-                )[:3]
+                    Q(url__icontains=url) | Q(pdf_url__icontains=url)
+                )
 
                 if duplicate_papers.exists():
                     serializer_data = self.serializer_class(
