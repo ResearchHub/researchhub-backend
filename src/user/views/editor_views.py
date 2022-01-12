@@ -1,13 +1,13 @@
 from datetime import timedelta
 from django.contrib.contenttypes.models import ContentType
-from django.db.models.aggregates import Count, Sum
-from django.db.models.functions.comparison import Coalesce
+from django.db.models.aggregates import Count
 from django.db.models.query_utils import Q
 from django.http import response
 from django.utils import timezone
-from rest_framework.decorators import api_view, permission_classes
 from reputation.models import Contribution
+from rest_framework.decorators import api_view, permission_classes
 from utils.http import GET
+
 
 from hub.models import Hub
 from hub.permissions import IsModerator
