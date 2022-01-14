@@ -110,7 +110,6 @@ def get_editors_by_contributions(request):
                     'id', filter=support_query
                 ),
             ).order_by(order_by)
-        # import pdb; pdb.set_trace()
 
         return Response(
             EditorContributionSerializer(
