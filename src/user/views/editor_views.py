@@ -16,7 +16,7 @@ from user.related_models.user_model import User
 
 
 def resolve_timeframe_for_contribution(timeframe_str):
-    keyword = 'created_date__gte'
+    keyword = 'contributions__created_date__gte'
     if timeframe_str == 'today':
         return {keyword: timezone.now().date()}
     elif timeframe_str == 'past_week':
@@ -85,7 +85,7 @@ def get_editors_by_contributions(request):
         editor_qs = editor_qs.prefetch_related(
           'contributions',
           'contributions__unified_document__hubs',
-          'contributions__created_date__gte',
+          'contributions__created_date',
         )
 
         order_by = '-total_contribution_count' \
