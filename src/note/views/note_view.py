@@ -35,7 +35,8 @@ from researchhub_access_group.permissions import (
     HasAccessPermission,
     HasAdminPermission,
     HasEditingPermission,
-    HasOrgEditingPermission
+    HasOrgEditingPermission,
+    IsOrganizationUser
 )
 from researchhub_document.models import (
     ResearchhubUnifiedDocument
@@ -200,7 +201,7 @@ class NoteViewSet(ModelViewSet):
     @action(
         detail=True,
         methods=['post'],
-        permission_classes=[HasAdminPermission]
+        permission_classes=[IsOrganizationUser]
     )
     def invite_user(self, request, pk=None):
         inviter = request.user
@@ -254,7 +255,7 @@ class NoteViewSet(ModelViewSet):
     @action(
         detail=True,
         methods=['patch'],
-        permission_classes=[IsAuthenticated, HasAdminPermission]
+        permission_classes=[IsAuthenticated, IsOrganizationUser]
     )
     def remove_invited_user(self, request, pk=None):
         data = request.data
