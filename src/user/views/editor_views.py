@@ -6,6 +6,7 @@ from django.utils import timezone
 from rest_framework.response import Response
 from reputation.models import Contribution
 from rest_framework.decorators import api_view, permission_classes
+from user.serializers import EditorContributionSerializer
 from utils.http import GET
 from rest_framework.permissions import AllowAny
 
@@ -103,6 +104,13 @@ def get_editors_by_contributions(request):
                     'id', filter=support_count_query
                 ),
             ).order_by('-total_contribution_count')
-        return Response({}, status=200)
+        
+        return Response(
+            EditorContributionSerializer(
+                editor_qs_ranked_by_contribution,
+                many=True
+            ).data,
+            status=200
+        )
     except Exception as error:
         return Response(error, status=400)

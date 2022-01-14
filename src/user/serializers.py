@@ -3,6 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from rest_framework.serializers import (
     CharField,
+    IntegerField,
     ModelSerializer,
     PrimaryKeyRelatedField,
     SerializerMethodField,
@@ -184,6 +185,33 @@ class AuthorEditableSerializer(ModelSerializer):
     class Meta:
         model = Author
         fields = [field.name for field in Author._meta.fields] + ['university']
+
+
+class EditorContributionSerializer(ModelSerializer):
+    author_profile = AuthorSerializer(read_only=True)
+    comment_count = IntegerField(read_only=True)
+    submission_count = IntegerField(read_only=True)
+    support_count = IntegerField(read_only=True)
+    total_contribution_count = IntegerField(read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'author_profile',
+            'comment_count',
+            'id',
+            'submission_count',
+            'support_count',
+            'total_contribution_count',
+        ]
+        read_only_fields = [
+            'author_profile',
+            'comment_count',
+            'id',
+            'submission_count',
+            'support_count',
+            'total_contribution_count',
+        ]
 
 
 class UserSerializer(ModelSerializer):
