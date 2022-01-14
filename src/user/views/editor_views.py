@@ -43,6 +43,7 @@ def get_editors_by_contributions(request):
             ),
         )
 
+        # import pdb; pdb.set_trace()
         # NOTE: We need time_query at contributions level, NOT at editor_qs
         total_contrib_count_query = Q(
             contributions__contribution_type__in=[
@@ -65,6 +66,7 @@ def get_editors_by_contributions(request):
         ) & timeframe_query
 
         hub_id = request.GET.get('hub_id', None)
+        # pdb.set_trace()
         if (hub_id is not None):
             contribution_hub_query = Q(
                 contributions__unified_document__hubs__in=[hub_id]
@@ -85,13 +87,14 @@ def get_editors_by_contributions(request):
         editor_qs = editor_qs.prefetch_related(
           'contributions',
           'contributions__unified_document__hubs',
-          'contributions__created_date',
+          'contributions__created_date__gte',
         )
 
         order_by = '-total_contribution_count' \
             if request.GET.get('order_by', 'desc') == 'desc' \
             else 'total_contribution_count'
 
+        # pdb.set_trace()
         editor_qs_ranked_by_contribution = \
             editor_qs.annotate(
                 total_contribution_count=Count(
@@ -107,6 +110,7 @@ def get_editors_by_contributions(request):
                     'id', filter=support_count_query
                 ),
             ).order_by(order_by)
+        # pdb.set_trace()
 
         return Response(
             EditorContributionSerializer(
