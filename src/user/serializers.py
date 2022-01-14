@@ -160,10 +160,13 @@ class AuthorSerializer(ModelSerializer):
             return None
 
         hub_content_type = ContentType.objects.get_for_model(Hub)
-        return user.permissions.filter(
+        editor = user.permissions.filter(
             access_type=EDITOR,
             content_type=hub_content_type
-        ).order_by('created_date').first().created_date
+        ).order_by('created_date').first()
+
+        if editor:
+            return editor.created_date
 
     def get_is_hub_editor_of(self, author):
         user = author.user
