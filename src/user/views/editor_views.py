@@ -3,12 +3,11 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models.aggregates import Count
 from django.db.models.query_utils import Q
 from django.utils import timezone
-from rest_framework.response import Response
 from reputation.models import Contribution
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
 from user.serializers import EditorContributionSerializer
 from utils.http import GET
-from rest_framework.permissions import AllowAny
 
 from hub.models import Hub
 from hub.permissions import IsModerator
@@ -29,7 +28,7 @@ def resolve_timeframe_for_contribution(timeframe_str):
 
 
 @api_view(http_method_names=[GET])
-@permission_classes([AllowAny])
+@permission_classes([IsModerator])
 def get_editors_by_contributions(request):
     try:
         editor_qs = User.objects.filter(
@@ -89,6 +88,10 @@ def get_editors_by_contributions(request):
           'contributions__created_date__gte',
         )
 
+        order_by = '-total_contribution_count' \
+            if request.GET.get('order_by', 'desc') == 'desc' \
+            else 'total_contribution_count'
+
         editor_qs_ranked_by_contribution = \
             editor_qs.annotate(
                 total_contribution_count=Count(
@@ -103,8 +106,8 @@ def get_editors_by_contributions(request):
                 support_count=Count(
                     'id', filter=support_count_query
                 ),
-            ).order_by('-total_contribution_count')
-        
+            ).order_by(order_by)
+
         return Response(
             EditorContributionSerializer(
                 editor_qs_ranked_by_contribution,
