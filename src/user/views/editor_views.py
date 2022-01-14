@@ -1,6 +1,7 @@
 from datetime import timedelta
 from django.contrib.contenttypes.models import ContentType
-from django.db.models.aggregates import Count
+from django.db.models import Count, Max,DateTimeField, OuterRef, Subquery
+from django.db.models.functions import Cast
 from django.db.models.query_utils import Q
 from django.utils import timezone
 from reputation.models import Contribution
@@ -8,6 +9,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from user.serializers import EditorContributionSerializer
 from utils.http import GET
+
+from rest_framework.permissions import AllowAny
 
 from hub.models import Hub
 from hub.permissions import IsModerator
@@ -28,7 +31,7 @@ def resolve_timeframe_for_contribution(timeframe_str):
 
 
 @api_view(http_method_names=[GET])
-@permission_classes([IsModerator])
+@permission_classes([AllowAny])
 def get_editors_by_contributions(request):
     try:
         editor_qs = User.objects.filter(
@@ -44,7 +47,7 @@ def get_editors_by_contributions(request):
         )
 
         # NOTE: We need time_query at contributions level, NOT at editor_qs
-        total_contrib_count_query = Q(
+        total_contrib_query = Q(
             contributions__contribution_type__in=[
               Contribution.COMMENTER,
               Contribution.SUBMITTER,
@@ -52,15 +55,15 @@ def get_editors_by_contributions(request):
             ],
         ) & timeframe_query
 
-        comment_count_query = Q(
+        comment_query = Q(
             contributions__contribution_type=Contribution.COMMENTER
         ) & timeframe_query
 
-        submission_count_query = Q(
+        submission_query = Q(
             contributions__contribution_type=Contribution.SUBMITTER
         ) & timeframe_query
 
-        support_count_query = Q(
+        support_query = Q(
             contributions__contribution_type=Contribution.SUPPORTER
         ) & timeframe_query
 
@@ -73,14 +76,14 @@ def get_editors_by_contributions(request):
             editor_qs = editor_qs.filter(
               permissions__object_id=hub_id
             )
-            total_contrib_count_query = \
-                total_contrib_count_query & contribution_hub_query
-            comment_count_query = \
-                comment_count_query & contribution_hub_query
-            submission_count_query = \
-                submission_count_query & contribution_hub_query
-            support_count_query = \
-                support_count_query & contribution_hub_query
+            total_contrib_query = \
+                total_contrib_query & contribution_hub_query
+            comment_query = \
+                comment_query & contribution_hub_query
+            submission_query = \
+                submission_query & contribution_hub_query
+            support_query = \
+                support_query & contribution_hub_query
 
         editor_qs = editor_qs.prefetch_related(
           'contributions',
@@ -95,23 +98,25 @@ def get_editors_by_contributions(request):
         editor_qs_ranked_by_contribution = \
             editor_qs.annotate(
                 total_contribution_count=Count(
-                    'id', filter=total_contrib_count_query
+                    'id', filter=total_contrib_query
                 ),
                 comment_count=Count(
-                    'id', filter=comment_count_query
+                    'id', filter=comment_query
                 ),
                 submission_count=Count(
-                    'id', filter=submission_count_query
+                    'id', filter=submission_query
                 ),
                 support_count=Count(
-                    'id', filter=support_count_query
+                    'id', filter=support_query
                 ),
             ).order_by(order_by)
+        # import pdb; pdb.set_trace()
 
         return Response(
             EditorContributionSerializer(
                 editor_qs_ranked_by_contribution,
-                many=True
+                many=True,
+                context={'target_hub_id': hub_id},
             ).data,
             status=200
         )
