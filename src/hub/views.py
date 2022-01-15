@@ -351,6 +351,31 @@ class HubViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response(str(e), status=500)
 
+    @action(
+        detail=False,
+        methods=[POST],
+        permission_classes=[IsModerator]
+    )
+    def delete_editor(self, request, pk=None):
+        try:
+            target_user = User.objects.get(
+                email=request.data.get('editor_email')
+            )
+
+            target_editors_permissions = Permission.objects.filter(
+                access_type=EDITOR,
+                content_type=ContentType.objects.get_for_model(Hub),
+                object_id=request.data.get('selected_hub_id'),
+                user=target_user,
+            )
+
+            for permission in target_editors_permissions:
+                permission.delete()
+
+            return Response("OK", status=200)
+        except Exception as e:
+            return Response(str(e), status=500)
+
     def _get_latest_actions_context(self):
         context = {
             'usr_das_get_created_by': {
