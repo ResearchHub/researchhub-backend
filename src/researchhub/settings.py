@@ -278,7 +278,7 @@ if not CLOUD and not NO_SILK == 'True':
 
 ROOT_URLCONF = 'researchhub.urls'
 
-FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25MB max data allowed
+FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400 * 2.1 # ~55MB max data allowed
 
 PAGINATION_PAGE_SIZE = 10
 
