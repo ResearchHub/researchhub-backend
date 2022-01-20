@@ -1,7 +1,6 @@
 from datetime import timedelta
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count, Max,DateTimeField, OuterRef, Subquery
-from django.db.models.functions import Cast
+from django.db.models import Count
 from django.db.models.query_utils import Q
 from django.utils import timezone
 from reputation.models import Contribution
@@ -9,8 +8,6 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from user.serializers import EditorContributionSerializer
 from utils.http import GET
-
-from rest_framework.permissions import AllowAny
 
 from hub.models import Hub
 from hub.permissions import IsModerator
@@ -31,7 +28,7 @@ def resolve_timeframe_for_contribution(timeframe_str):
 
 
 @api_view(http_method_names=[GET])
-@permission_classes([AllowAny])
+@permission_classes([IsModerator])
 def get_editors_by_contributions(request):
     try:
         editor_qs = User.objects.filter(
