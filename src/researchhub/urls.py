@@ -331,14 +331,6 @@ urlpatterns = [
     path('api/events/forward_event/', google_analytics.views.forward_event),
     # TODO: calvinhlee - consolidate all mod views into 1 set
     path(
-        'api/moderators/author_claim_case/',
-        researchhub_case_views.handle_author_claim_cases_for_mods
-    ),
-    path(
-        'api/moderators/author_claim_case/counts/',
-        researchhub_case_views.get_author_claim_counts_for_mods
-    ),
-    path(
         'api/moderators/get_editors_by_contributions/',
         editor_views.get_editors_by_contributions
     ),
