@@ -532,6 +532,12 @@ EMAIL_WHITELIST = [
     'pat@researchhub.com'
 ]
 
+# Whitelist for distributing RSC
+DIST_WHITELIST = [
+    'pdj7@georgetown.edu',
+    'patricklu@researchhub.com',
+]
+
 # Sentry
 
 SENTRY_ENVIRONMENT = APP_ENV

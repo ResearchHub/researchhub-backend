@@ -15,6 +15,7 @@ from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework.decorators import api_view, permission_classes
 
 from purchase.models import Balance
 from reputation.exceptions import WithdrawalError
@@ -23,18 +24,25 @@ from reputation.lib import (
     WITHDRAWAL_PER_TWO_WEEKS,
     PendingWithdrawal
 )
+from reputation.permissions import DistributionWhitelist
 from reputation.models import Withdrawal, Deposit
 from reputation.serializers import WithdrawalSerializer, DepositSerializer
 from user.serializers import UserSerializer
 from user.models import User
 from utils import sentry
-from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer, APIPermission
+from utils.permissions import (
+    CreateOrReadOnly,
+    CreateOrUpdateIfAllowed,
+    UserNotSpammer,
+    APIPermission
+)
 from utils.throttles import THROTTLE_CLASSES
 from researchhub.settings import WEB3_RSC_ADDRESS
 from reputation.distributor import Distributor
 from reputation.distributions import Distribution as Dist
 from researchhub.settings import ASYNC_SERVICE_HOST, WEB3_SHARED_SECRET
 from utils.http import http_request, POST
+
 
 class DepositViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Deposit.objects.all()
@@ -108,6 +116,7 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
         response.raise_for_status()
         logging.info(response.content)
         return Response(status=response.status_code)
+
 
 class WithdrawalViewSet(viewsets.ModelViewSet):
     queryset = Withdrawal.objects.all()
@@ -330,3 +339,27 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             return (False, "Invalid withdrawal", None)
 
         return True, None, net_amount
+
+
+@api_view(http_method_names=[POST])
+@permission_classes([DistributionWhitelist])
+def distribute_rsc(request):
+    data = request.data
+    recipient_id = data.get('recipient_id')
+    amount = data.get('amount')
+
+    user = User.objects.get(id=recipient_id)
+    distribution = Dist('REWARD', amount, give_rep=False)
+    distributor = Distributor(
+                distribution,
+                user,
+                user,
+                time.time()
+            )
+    distributor.distribute()
+
+    response = Response(
+        {'data': f'Gave {amount} RSC to {user.email}'},
+        status=200
+    )
+    return response

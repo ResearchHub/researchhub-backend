@@ -31,11 +31,7 @@ def resolve_timeframe_for_contribution(startDate, endDate):
 @permission_classes([AllowAny])
 def get_editors_by_contributions(request):
     try:
-        editor_qs = User.objects.filter(
-            permissions__isnull=False,
-            permissions__access_type=EDITOR,
-            permissions__content_type=ContentType.objects.get_for_model(Hub)
-        ).distinct()
+        editor_qs = User.objects.editors()
 
         timeframe_query = Q(
             **resolve_timeframe_for_contribution(
