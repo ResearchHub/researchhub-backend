@@ -1,7 +1,7 @@
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 
 from hub.permissions import IsModerator
 from researchhub_case.constants.case_constants import (
@@ -14,6 +14,7 @@ from utils.http import GET, POST
 
 
 class AuthorClaimCaseViewSet(ModelViewSet):
+    http_method_names = [POST]
     permission_classes = [IsAuthenticated]
     queryset = AuthorClaimCase.objects.all().order_by("-created_date")
     serializer_class = AuthorClaimCaseSerializer
@@ -23,7 +24,7 @@ class AuthorClaimCaseViewSet(ModelViewSet):
             return super().create(request, *args, **kwargs)
         except Exception as error:
             return Response(str(error.args), status=400)
-   
+
     @action(
         detail=False,
         methods=[GET],
@@ -78,7 +79,7 @@ class AuthorClaimCaseViewSet(ModelViewSet):
     @action(
         detail=False,
         methods=[GET, POST],
-        permission_classes=[AllowAny],
+        permission_classes=[IsModerator],
     )
     def moderator(self, request, pk=None):
         if (request.method == GET):
