@@ -25,7 +25,7 @@ class AuthorClaimCaseViewSet(ModelViewSet):
             return Response(str(error.args), status=400)
    
     @action(
-        detail=True,
+        detail=False,
         methods=[GET],
         permission_classes=[IsModerator]
     )
@@ -49,7 +49,7 @@ class AuthorClaimCaseViewSet(ModelViewSet):
 
     # Verify given requestor's email address
     @action(
-        detail=True,
+        detail=False,
         methods=[POST],
         permission_classes=[IsAuthenticated],
     )
@@ -76,7 +76,7 @@ class AuthorClaimCaseViewSet(ModelViewSet):
 
     # Get / post author claim cases for Moderators
     @action(
-        detail=True,
+        detail=False,
         methods=[GET, POST],
         permission_classes=[AllowAny],
     )
