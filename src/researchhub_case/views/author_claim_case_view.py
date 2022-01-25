@@ -14,7 +14,6 @@ from utils.http import GET, POST
 
 
 class AuthorClaimCaseViewSet(ModelViewSet):
-    http_method_names = [POST]
     permission_classes = [IsAuthenticated]
     queryset = AuthorClaimCase.objects.all().order_by("-created_date")
     serializer_class = AuthorClaimCaseSerializer
@@ -24,6 +23,9 @@ class AuthorClaimCaseViewSet(ModelViewSet):
             return super().create(request, *args, **kwargs)
         except Exception as error:
             return Response(str(error.args), status=400)
+
+    def retrieve(self, request, *args, **kwargs):
+        return Response('Method not allowed to public', status=400)
 
     @action(
         detail=False,
