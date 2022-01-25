@@ -3,17 +3,17 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count
 from django.db.models.query_utils import Q
 from django.utils import timezone
-from reputation.models import Contribution
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from user.serializers import EditorContributionSerializer
-from utils.http import GET
 
 from hub.models import Hub
-from hub.permissions import IsModerator
+from reputation.models import Contribution
 from researchhub_access_group.constants import EDITOR
 from user.related_models.user_model import User
-
+from user.serializers import EditorContributionSerializer
+from django.core.paginator import Paginator
+from utils.http import GET
 
 def resolve_timeframe_for_contribution(timeframe_str):
     keyword = 'contributions__created_date__gte'
@@ -28,7 +28,7 @@ def resolve_timeframe_for_contribution(timeframe_str):
 
 
 @api_view(http_method_names=[GET])
-@permission_classes([IsModerator])
+@permission_classes([AllowAny])
 def get_editors_by_contributions(request):
     try:
         editor_qs = User.objects.filter(
@@ -108,12 +108,24 @@ def get_editors_by_contributions(request):
                 ),
             ).order_by(order_by)
 
+        paginator = Paginator(
+            editor_qs_ranked_by_contribution,  # qs
+            10,  # page size
+        )
+        curr_page_number = request.GET.get('page') or 1
+        curr_pagation = paginator.page(curr_page_number)
+
         return Response(
-            EditorContributionSerializer(
-                editor_qs_ranked_by_contribution,
-                many=True,
-                context={'target_hub_id': hub_id},
-            ).data,
+            {
+                'count': paginator.count,
+                'has_more': curr_pagation.has_next(),
+                'page': curr_page_number,
+                'result': EditorContributionSerializer(
+                    curr_pagation.object_list,
+                    many=True,
+                    context={'target_hub_id': hub_id},
+                ).data,
+            },
             status=200
         )
     except Exception as error:
