@@ -18,7 +18,7 @@ def editor_daily_payout_task():
     today = datetime.date.today()
     num_days_this_month = monthrange(today.year, today.month)[1]
 
-    query = """{
+    uni_swap_query = """{
         rsc: token(id: "%s") {
           derivedETH
         }
@@ -28,7 +28,7 @@ def editor_daily_payout_task():
     }""" % (RSC_TOKEN_ID, UNI_SWAP_BUNDLE_ID)
     request_result = requests.post(
         UNI_SWAP_GRAPH_URI,
-        json={'query': query}
+        json={'query': uni_swap_query}
     )
     payload = json.loads(request_result.text).data
     eth_per_rsc = float(payload['rsc']['derivedETH'])
