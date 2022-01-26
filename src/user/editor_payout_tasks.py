@@ -1,8 +1,9 @@
 from calendar import monthrange
 from django.apps import apps
-import json
-import requests
 import datetime
+import json
+import math
+import requests
 
 
 RSC_TOKEN_ID = "0xd101dcc414f310268c37eeb4cd376ccfa507f571"
@@ -31,8 +32,7 @@ def editor_daily_payout_task():
     payload = json.loads(request_result.text)
     eth_per_rsc = payload['rsc']['derivedETH']
     usd_per_eth = payload['bundle']['ethPrice']
-    rsc_per_usd = (usd_per_eth * eth_per_rsc) ** -1
-
+    rsc_per_usd = math.pow((usd_per_eth * eth_per_rsc), -1)
     rsc_pay_amount = (
       (USD_PAY_AMOUNT_PER_MONTH * rsc_per_usd) / num_days_this_month
     )
