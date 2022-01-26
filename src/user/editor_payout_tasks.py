@@ -7,7 +7,7 @@ import requests
 
 
 RSC_TOKEN_ID = "0xd101dcc414f310268c37eeb4cd376ccfa507f571"
-UNI_SWAP_BUNDLE_ID = 1
+UNI_SWAP_BUNDLE_ID = 1  # their own hard-coded eth-bundle id
 UNI_SWAP_GRAPH_URI = "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2"
 USD_PAY_AMOUNT_PER_MONTH = 3000
 USD_PER_RSC_PLACEHOLDER = .0001
@@ -46,5 +46,5 @@ def get_daily_rsc_payout_amount():
     )
 
     return (
-      (USD_PAY_AMOUNT_PER_MONTH * rsc_per_usd) / num_days_this_month
+      USD_PAY_AMOUNT_PER_MONTH * rsc_per_usd / num_days_this_month
     )
