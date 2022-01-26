@@ -15,17 +15,17 @@ from user.serializers import EditorContributionSerializer
 from django.core.paginator import Paginator
 from utils.http import GET
 
-def resolve_timeframe_for_contribution(timeframe_str):
-    keyword = 'contributions__created_date__gte'
-    if timeframe_str == 'today':
-        return {keyword: timezone.now().date()}
-    elif timeframe_str == 'past_week':
-        return {keyword: timezone.now().date() - timedelta(days=7)}
-    elif timeframe_str == 'past_month':
-        return {keyword: timezone.now().date() - timedelta(days=30)}
-    else:
-        return {}
+def resolve_timeframe_for_contribution(startDate, endDate):
 
+    dateFrame = {}
+
+    if startDate:
+        dateFrame['contributions__created_date__gte'] = startDate
+
+    if endDate:
+        dateFrame['contributions__created_date__lte'] = endDate
+
+    return dateFrame
 
 @api_view(http_method_names=[GET])
 @permission_classes([AllowAny])
@@ -39,7 +39,8 @@ def get_editors_by_contributions(request):
 
         timeframe_query = Q(
             **resolve_timeframe_for_contribution(
-                request.GET.get('timeframe_str', None)
+                request.GET.get('startDate', None),
+                request.GET.get('endDate', None)
             ),
         )
 
