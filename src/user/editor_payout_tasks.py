@@ -5,21 +5,43 @@ import json
 import math
 import requests
 
+from researchhub.settings import WEB3_RSC_ADDRESS
 
-RSC_TOKEN_ID = "0xd101dcc414f310268c37eeb4cd376ccfa507f571"
 UNI_SWAP_BUNDLE_ID = 1  # their own hard-coded eth-bundle id
 UNI_SWAP_GRAPH_URI = "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2"
 USD_PAY_AMOUNT_PER_MONTH = 3000
-USD_PER_RSC_PLACEHOLDER = .0001
+USD_PER_RSC_DEFAULT = .01
+
+# TODO: (kobe) - API is under Calvin. Need to move to RH's account
+MORALIS_API_KEY = 'vlHzigIN9AYgxwTV2y55ruHrUYc08WsMFCTZNn4mUSLzJAdWMW5pCnUtrL0yqlwE'
+MORALIS_LOOKUP_URI = "https://deep-index.moralis.io/api/v2/erc20/{address}/price".format(address=WEB3_RSC_ADDRESS)
 
 
 @apps.task
 def editor_daily_payout_task():
-    payout_amount = get_daily_rsc_payout_amount()
-    # iterate through editors & create distribution
+    today = datetime.date.today()
+    num_days_this_month = monthrange(today.year, today.month)[1]
+    payout_amount = get_daily_rsc_payout_amount_from_deep_index(num_days_this_month)
 
 
-def get_daily_rsc_payout_amount():
+def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month):
+    headers = requests.utils.default_headers()
+    headers['x-api-key'] = MORALIS_API_KEY
+    request_result = requests.get(
+        MORALIS_LOOKUP_URI,
+        headers=headers
+    )
+    real_usd_per_rsc = json.loads(request_result.text)['usdPrice']
+    payout_usd_per_rsc = real_usd_per_rsc if \
+        real_usd_per_rsc > USD_PER_RSC_DEFAULT \
+        else USD_PER_RSC_DEFAULT
+
+    return (
+      USD_PAY_AMOUNT_PER_MONTH * math.pow(payout_usd_per_rsc, -1) / num_days_this_month
+    )
+
+
+def get_daily_rsc_payout_amount_from_uniswap(num_days_this_month):
     today = datetime.date.today()
     num_days_this_month = monthrange(today.year, today.month)[1]
 
@@ -30,7 +52,7 @@ def get_daily_rsc_payout_amount():
         bundle(id: %i) {
           ethPrice
         }
-    }""" % (RSC_TOKEN_ID, UNI_SWAP_BUNDLE_ID)
+    }""" % (WEB3_RSC_ADDRESS, UNI_SWAP_BUNDLE_ID)
     
     request_result = requests.post(
         UNI_SWAP_GRAPH_URI,
@@ -41,7 +63,7 @@ def get_daily_rsc_payout_amount():
     eth_per_rsc = float(payload['rsc']['derivedETH'])
     usd_per_eth = float(payload['bundle']['ethPrice'])
     rsc_per_usd = math.pow(
-        (usd_per_eth * eth_per_rsc) or USD_PER_RSC_PLACEHOLDER,
+        (usd_per_eth * eth_per_rsc) or USD_PER_RSC_DEFAULT,
         -1
     )
 
