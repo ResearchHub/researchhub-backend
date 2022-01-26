@@ -69,7 +69,7 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
     def upsert(self, request, *args, **kwargs):
         user = request.user
         data = request.data
-        authors = data.get('authors')
+        authors = data.pop('authors', None)
         hypo = Hypothesis.objects.get(id=data.get('hypothesis_id'))
         unified_doc = hypo.unified_document
         serializer = HypothesisSerializer(

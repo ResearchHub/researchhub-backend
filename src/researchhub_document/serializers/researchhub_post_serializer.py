@@ -6,13 +6,19 @@ from researchhub_document.related_models.constants.document_type \
     import DISCUSSION
 from researchhub_document.models import ResearchhubPost
 from researchhub.serializers import DynamicModelFieldSerializer
-from user.serializers import UserSerializer, DynamicUserSerializer
+from user.serializers import (
+    DynamicAuthorSerializer,
+    DynamicUserSerializer,
+    AuthorSerializer,
+    UserSerializer,
+)
 
 from discussion.reaction_serializers import (
     DynamicVoteSerializer  # Import is needed for discussion serializer imports
 )
 from utils.http import get_user_from_request
 from discussion.reaction_models import Vote
+
 
 class ResearchhubPostSerializer(
     ModelSerializer, GenericReactionSerializerMixin
@@ -21,6 +27,7 @@ class ResearchhubPostSerializer(
         model = ResearchhubPost
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
+            'authors',
             'id',
             'created_by',
             'created_date',
@@ -43,6 +50,7 @@ class ResearchhubPostSerializer(
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
+            'authors',
             'id',
             'created_by',
             'created_date',
@@ -65,6 +73,7 @@ class ResearchhubPostSerializer(
     user_vote = SerializerMethodField()
 
     # local
+    authors = AuthorSerializer(many=True)
     created_by = SerializerMethodField(method_name='get_created_by')
     full_markdown = SerializerMethodField(method_name='get_full_markdown')
     hubs = SerializerMethodField(method_name="get_hubs")
@@ -119,24 +128,35 @@ class ResearchhubPostSerializer(
 
 
 class DynamicPostSerializer(DynamicModelFieldSerializer):
-    unified_document = SerializerMethodField()
-    hubs = SerializerMethodField()
-    created_by = SerializerMethodField()
+    authors = SerializerMethodField()
     boost_amount = SerializerMethodField()
+    created_by = SerializerMethodField()
+    hubs = SerializerMethodField()
     score = SerializerMethodField()
+    unified_document = SerializerMethodField()
     user_vote = SerializerMethodField()
 
     class Meta:
         model = ResearchhubPost
         fields = '__all__'
 
-    def get_user_vote(self, obj):
+    def get_authors(self, post):
+        context = self.context
+        _context_fields = context.get('doc_dps_get_authors', {})
+        serializer = DynamicAuthorSerializer(
+            post.authors,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_user_vote(self, post):
         vote = None
         user = get_user_from_request(self.context)
         _context_fields = self.context.get('doc_dps_get_user_vote', {})
         try:
             if user and not user.is_anonymous:
-                vote = obj.votes.get(created_by=user)
+                vote = post.votes.get(created_by=user)
                 vote = DynamicVoteSerializer(
                     vote,
                     context=self.context,

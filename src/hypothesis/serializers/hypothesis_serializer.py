@@ -11,7 +11,12 @@ from discussion.reaction_serializers import (
     DynamicVoteSerializer,
     GenericReactionSerializerMixin
 )
-from user.serializers import UserSerializer, DynamicUserSerializer
+from user.serializers import (
+    AuthorSerializer,
+    DynamicAuthorSerializer,
+    DynamicUserSerializer,
+    UserSerializer,
+)
 from utils.http import get_user_from_request
 
 
@@ -21,6 +26,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
             'aggregate_citation_consensus',
+            'authors',
             'boost_amount',
             'created_by',
             'created_date',
@@ -39,6 +45,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
             'aggregate_citation_consensus',
+            'authors',
             'boost_amount',
             'created_by',
             'created_date',
@@ -53,6 +60,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
         ]
 
     aggregate_citation_consensus = SerializerMethodField()
+    authors = AuthorSerializer(many=True)
     boost_amount = SerializerMethodField()
     created_by = UserSerializer()
     discussion_count = SerializerMethodField()
@@ -120,6 +128,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
 
 class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
     aggregate_citation_consensus = SerializerMethodField()
+    authors = SerializerMethodField()
     created_by = SerializerMethodField()
     discussion_count = SerializerMethodField()
     hubs = SerializerMethodField()
@@ -132,6 +141,16 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
 
     def get_aggregate_citation_consensus(self, hypothesis):
         return hypothesis.get_aggregate_citation_consensus()
+
+    def get_authors(self, hypothesis):
+        context = self.context
+        _context_fields = context.get('hyp_dhs_get_authors', {})
+        serializer = DynamicAuthorSerializer(
+            hypothesis.authors,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
 
     def get_created_by(self, hypothesis):
         context = self.context

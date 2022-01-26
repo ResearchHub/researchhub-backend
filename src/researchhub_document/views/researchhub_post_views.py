@@ -109,7 +109,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
 
     def update_existing_researchhub_posts(self, request):
         data = request.data
-        authors = data.get('authors')
+        authors = data.pop('authors', None)
 
         rh_post = ResearchhubPost.objects.get(id=data.get('post_id'))
 
