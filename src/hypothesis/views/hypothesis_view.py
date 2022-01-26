@@ -34,6 +34,7 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
     def create(self, request, *args, **kwargs):
         user = request.user
         data = request.data
+        authors = data.get('authors', [])
         renderable_text = data.get('renderable_text', '')
         src = data.get('full_src', '')
         title = data.get('title', '')
@@ -47,6 +48,7 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
             unified_document=unified_doc
         )
         hypo.src.save(file_name, file)
+        hypo.authors.set(authors)
         serializer = HypothesisSerializer(hypo)
         data = serializer.data
         return Response(data, status=200)
@@ -66,7 +68,9 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
     @action(detail=True, methods=['post'])
     def upsert(self, request, *args, **kwargs):
         user = request.user
-        hypo = Hypothesis.objects.get(id=request.data.get('hypothesis_id'))
+        data = request.data
+        authors = data.get('authors')
+        hypo = Hypothesis.objects.get(id=data.get('hypothesis_id'))
         unified_doc = hypo.unified_document
         serializer = HypothesisSerializer(
             hypo,
@@ -80,6 +84,9 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
             unified_doc, request.data['full_src'], user
         )
         serializer.instance.src.save(file_name, full_src_file)
+
+        if type(authors) is list:
+            hypo.authors.set(authors)
 
         reset_unified_document_cache([0])
         return Response(request.data, status=200)

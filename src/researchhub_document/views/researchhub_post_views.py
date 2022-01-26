@@ -57,11 +57,12 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
 
     def create_researchhub_post(self, request):
         try:
-            request_data = request.data
-            document_type = request_data.get('document_type')
+            data = request.data
             created_by = request.user
+            document_type = data.get('document_type')
+            editor_type = data.get('editor_type')
+            authors = data.get('authors', [])
             is_discussion = document_type == DISCUSSION
-            editor_type = request_data.get('editor_type')
 
             # logical ordering & not using signals to avoid race-conditions
             access_group = self.create_access_group(request)
@@ -75,13 +76,14 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                 document_type=document_type,
                 editor_type=CK_EDITOR if editor_type is None else editor_type,
                 prev_version=None,
-                preview_img=request_data.get('preview_img'),
-                renderable_text=request_data.get('renderable_text'),
-                title=request_data.get('title'),
+                preview_img=data.get('preview_img'),
+                renderable_text=data.get('renderable_text'),
+                title=data.get('title'),
                 unified_document=unified_document,
             )
             file_name = f'RH-POST-{document_type}-USER-{created_by.id}.txt'
-            full_src_file = ContentFile(request_data['full_src'].encode())
+            full_src_file = ContentFile(data['full_src'].encode())
+            rh_post.authors.set(authors)
             if is_discussion:
                 rh_post.discussion_src.save(file_name, full_src_file)
             else:
@@ -106,15 +108,25 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             return Response(exception, status=400)
 
     def update_existing_researchhub_posts(self, request):
-        rh_post = ResearchhubPost.objects.get(id=request.data.get('post_id'))
+        data = request.data
+        authors = data.get('authors')
 
-        serializer = ResearchhubPostSerializer(rh_post, data=request.data, partial=True)
+        rh_post = ResearchhubPost.objects.get(id=data.get('post_id'))
+
+        serializer = ResearchhubPostSerializer(
+            rh_post,
+            data=request.data,
+            partial=True
+        )
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
         file_name = f'RH-POST-{request.data.get("document_type")}-USER-{request.user.id}.txt'
         full_src_file = ContentFile(request.data['full_src'].encode())
         serializer.instance.discussion_src.save(file_name, full_src_file)
+
+        if type(authors) is list:
+            rh_post.authors.set(authors)
 
         hub_ids = list(
             rh_post.unified_document.hubs.values_list(

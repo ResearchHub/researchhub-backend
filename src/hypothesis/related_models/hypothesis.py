@@ -22,6 +22,10 @@ class Hypothesis(AbstractGenericReactionModel):
         content_type_field='content_type',
         related_query_name='hypothesis'
     )
+    authors = models.ManyToManyField(
+        'user.Author',
+        related_name='authored_hypotheses',
+    )
     created_by = models.ForeignKey(
         User,
         db_index=True,
