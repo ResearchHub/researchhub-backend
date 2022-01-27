@@ -37,6 +37,12 @@ class Hypothesis(AbstractGenericReactionModel):
         default=0,
         db_index=True
     )
+    note = models.OneToOneField(
+        'note.Note',
+        null=True,
+        related_name='hypothesis',
+        on_delete=models.CASCADE,
+    )
     renderable_text = models.TextField(
         null=True
     )

@@ -38,13 +38,15 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         renderable_text = data.get('renderable_text', '')
         src = data.get('full_src', '')
         title = data.get('title', '')
+        note_id = data.get('note_id', None)
         unified_doc = self._create_unified_doc(request)
         file_name, file = self._create_src_content_file(unified_doc, src, user)
 
         hypo = Hypothesis.objects.create(
             created_by=user,
-            title=title,
+            note_id=note_id,
             renderable_text=renderable_text,
+            title=title,
             unified_document=unified_doc
         )
         hypo.src.save(file_name, file)

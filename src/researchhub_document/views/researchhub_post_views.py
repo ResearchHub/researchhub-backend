@@ -62,6 +62,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             document_type = data.get('document_type')
             editor_type = data.get('editor_type')
             authors = data.get('authors', [])
+            note_id = data.get('note_id', None)
             is_discussion = document_type == DISCUSSION
 
             # logical ordering & not using signals to avoid race-conditions
@@ -75,6 +76,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                 created_by=created_by,
                 document_type=document_type,
                 editor_type=CK_EDITOR if editor_type is None else editor_type,
+                note_id=note_id,
                 prev_version=None,
                 preview_img=data.get('preview_img'),
                 renderable_text=data.get('renderable_text'),

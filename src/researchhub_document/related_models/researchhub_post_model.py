@@ -64,6 +64,12 @@ class ResearchhubPost(AbstractGenericReactionModel):
         null=True,
         upload_to='uploads/post_eln/%Y/%m/%d/',
     )
+    note = models.OneToOneField(
+        'note.Note',
+        null=True,
+        related_name='post',
+        on_delete=models.CASCADE,
+    )
     prev_version = models.OneToOneField(
         'self',
         blank=True,

@@ -38,6 +38,7 @@ class ResearchhubPostSerializer(
             'hubs',
             'is_latest_version',
             'is_root_version',
+            'note',
             'post_src',
             'preview_img',
             'renderable_text',
@@ -57,6 +58,7 @@ class ResearchhubPostSerializer(
             'discussion_count',
             'is_latest_version',
             'is_root_version',
+            'note'
             'post_src',
             'unified_document_id',
             'version_number',
@@ -77,6 +79,7 @@ class ResearchhubPostSerializer(
     created_by = SerializerMethodField(method_name='get_created_by')
     full_markdown = SerializerMethodField(method_name='get_full_markdown')
     hubs = SerializerMethodField(method_name="get_hubs")
+    note = SerializerMethodField()
     post_src = SerializerMethodField(method_name='get_post_src')
     is_removed = SerializerMethodField()
     unified_document_id = SerializerMethodField(
@@ -98,6 +101,14 @@ class ResearchhubPostSerializer(
     def get_is_removed(self, instance):
         unified_document = instance.unified_document
         return unified_document.is_removed
+
+    def get_note(self, instance):
+        from note.serializers import NoteSerializer
+
+        note = instance.note
+        if note:
+            return NoteSerializer(instance.note).data
+        return None
 
     def get_unified_document_id(self, instance):
         unified_document = instance.unified_document
@@ -132,6 +143,7 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     boost_amount = SerializerMethodField()
     created_by = SerializerMethodField()
     hubs = SerializerMethodField()
+    note = SerializerMethodField()
     score = SerializerMethodField()
     unified_document = SerializerMethodField()
     user_vote = SerializerMethodField()
@@ -145,6 +157,17 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get('doc_dps_get_authors', {})
         serializer = DynamicAuthorSerializer(
             post.authors,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_note(self, post):
+        from note.serializers import DynamicNoteSerializer
+        context = self.context
+        _context_fields = context.get('doc_dps_get_note', {})
+        serializer = DynamicNoteSerializer(
+            post.note,
             context=context,
             **_context_fields
         )

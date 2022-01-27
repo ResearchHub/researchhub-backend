@@ -3,6 +3,7 @@ from rest_framework.serializers import ModelSerializer, SerializerMethodField
 from discussion.reaction_models import Vote
 from hub.serializers import SimpleHubSerializer, DynamicHubSerializer
 from hypothesis.models import Hypothesis
+from note.serializers import NoteSerializer, DynamicNoteSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import (
   DynamicUnifiedDocumentSerializer
@@ -35,6 +36,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             'hubs',
             'id',
             'is_removed',
+            'note',
             'renderable_text',
             'slug',
             'src',
@@ -52,6 +54,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             'discussion_count',
             'id',
             'is_removed',
+            'note',
             'renderable_text',
             'slug',
             'src',
@@ -67,6 +70,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
     full_markdown = SerializerMethodField()
     hubs = SerializerMethodField()
     vote_meta = SerializerMethodField()
+    note = NoteSerializer()
 
     # GenericReactionSerializerMixin
     promoted = SerializerMethodField()
@@ -132,6 +136,7 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
     created_by = SerializerMethodField()
     discussion_count = SerializerMethodField()
     hubs = SerializerMethodField()
+    note = SerializerMethodField()
     score = SerializerMethodField()
     unified_document = SerializerMethodField()
     
@@ -175,6 +180,17 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
             **_context_fields
         )
         return serializer.data
+
+    def get_note(self, hypothesis):
+        context = self.context
+        _context_fields = context.get('hyp_dhs_get_note', {})
+        serializer = DynamicNoteSerializer(
+            hypothesis.note,
+            many=True,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data        
 
     def get_unified_document(self, hypothesis):
         context = self.context
