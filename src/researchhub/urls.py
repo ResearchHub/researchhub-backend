@@ -34,6 +34,7 @@ import user.views
 from user.views import GatekeeperViewSet
 
 from researchhub.settings import USE_DEBUG_TOOLBAR, INSTALLED_APPS
+from user.views import editor_views
 
 router = routers.DefaultRouter()
 
@@ -328,17 +329,10 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     re_path(r'^api/', include(router.urls)),
     path('api/events/forward_event/', google_analytics.views.forward_event),
+    # TODO: calvinhlee - consolidate all mod views into 1 set
     path(
-        'api/author_claim_token_validation/',
-        researchhub_case_views.validate_user_request_email
-    ),
-    path(
-        'api/moderators/author_claim_case/',
-        researchhub_case_views.handle_author_claim_cases_for_mods
-    ),
-    path(
-        'api/moderators/author_claim_case/counts/',
-        researchhub_case_views.get_author_claim_counts_for_mods
+        'api/moderators/get_editors_by_contributions/',
+        editor_views.get_editors_by_contributions
     ),
     path(
         'api/permissions/',

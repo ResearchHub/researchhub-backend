@@ -106,12 +106,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     'aggregate_citation_consensus',
                     'created_by',
                     'created_date',
+                    'first_preview',
                     'hot_score',
                     'hubs',
                     'id',
                     'discussion_count',
                     'paper_title',
-                    'preview_img',
                     'renderable_text',
                     'score',
                     'slug',
@@ -166,6 +166,16 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             'hyp_dhs_get_created_by': {
                 '_include_fields': [
                     'author_profile',
+                ]
+            },
+            'hyp_dhs_get_hubs': {
+                '_include_fields': [
+                    'id',
+                    'name',
+                    'is_locked',
+                    'slug',
+                    'is_removed',
+                    'hub_image',
                 ]
             }
         }
@@ -427,13 +437,19 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                             if documents_type not in (OrderedDict, dict):
                                 # This is hit when the document is a
                                 # researchhub post.
-                                document = documents[0]
+                                if len(documents) == 0:
+                                    continue
+                                else:
+                                    document = documents[0]
                             else:
                                 # This is hit when the document is a paper
                                 document = documents
                         elif document_request_type == 'posts':
                             if documents_type not in (OrderedDict, dict):
-                                document = documents[0]
+                                if len(documents) == 0:
+                                    continue
+                                else:
+                                    document = documents[0]
                             else:
                                 continue
                         else:

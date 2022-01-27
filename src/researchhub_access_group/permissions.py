@@ -41,6 +41,9 @@ class IsOrganizationUser(BasePermission):
         if request.method == POST:
             return True
 
+        if not hasattr(obj, 'org_has_user'):
+            return obj.organization.org_has_user(user)
+
         return obj.org_has_user(user)
 
 

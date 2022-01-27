@@ -3,6 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from rest_framework.serializers import (
     CharField,
+    IntegerField,
     ModelSerializer,
     PrimaryKeyRelatedField,
     SerializerMethodField,
@@ -18,6 +19,7 @@ from hub.serializers import HubSerializer, SimpleHubSerializer
 from hypothesis.models import Hypothesis
 from paper.models import Vote as PaperVote, Paper
 from purchase.models import Purchase
+from reputation.models import Contribution
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_document.models import ResearchhubPost
@@ -63,6 +65,7 @@ class GatekeeperSerializer(ModelSerializer):
 
 
 class AuthorSerializer(ModelSerializer):
+    added_as_editor_date = SerializerMethodField()
     is_hub_editor_of = SerializerMethodField()
     num_posts = SerializerMethodField()
     orcid_id = SerializerMethodField()
@@ -75,6 +78,7 @@ class AuthorSerializer(ModelSerializer):
     class Meta:
         model = Author
         fields = [field.name for field in Author._meta.fields] + [
+            'added_as_editor_date',
             'claimed_by_user_author_id',
             'is_claimed',
             'is_hub_editor_of',
@@ -87,6 +91,7 @@ class AuthorSerializer(ModelSerializer):
             'wallet',
         ]
         read_only_fields = [
+            'added_as_editor_date',
             'claimed_by_user_author_id',
             'is_claimed',
             'is_hub_editor_of',
@@ -149,6 +154,20 @@ class AuthorSerializer(ModelSerializer):
             return ResearchhubPost.objects.filter(created_by=user).count()
         return 0
 
+    def get_added_as_editor_date(self, author):
+        user = author.user
+        if user is None:
+            return None
+
+        hub_content_type = ContentType.objects.get_for_model(Hub)
+        editor = user.permissions.filter(
+            access_type=EDITOR,
+            content_type=hub_content_type
+        ).order_by('created_date').first()
+
+        if editor:
+            return editor.created_date
+
     def get_is_hub_editor_of(self, author):
         user = author.user
         if user is None:
@@ -185,6 +204,64 @@ class AuthorEditableSerializer(ModelSerializer):
         model = Author
         fields = [field.name for field in Author._meta.fields] + ['university']
 
+
+class EditorContributionSerializer(ModelSerializer):
+    author_profile = AuthorSerializer(read_only=True)
+    comment_count = IntegerField(read_only=True)
+    latest_comment_date = SerializerMethodField(read_only=True)
+    latest_submission_date = SerializerMethodField(read_only=True)
+    submission_count = IntegerField(read_only=True)
+    support_count = IntegerField(read_only=True)
+    total_contribution_count = IntegerField(read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'author_profile',
+            'comment_count',
+            'latest_comment_date',
+            'latest_submission_date',
+            'id',
+            'submission_count',
+            'support_count',
+            'total_contribution_count',
+        ]
+        read_only_fields = [
+            'author_profile',
+            'comment_count',
+            'id',
+            'submission_count',
+            'support_count',
+            'total_contribution_count',
+        ]
+
+    def get_latest_comment_date(self, user):
+        contribution_qs = user.contributions.filter(
+            contribution_type=Contribution.COMMENTER,
+        )
+        target_hub_id = self.context.get('target_hub_id')
+        if (target_hub_id is not None):
+            contribution_qs = contribution_qs.filter(
+                unified_document__hubs__in=[target_hub_id]
+            )
+        try:
+            return contribution_qs.latest('created_date').created_date
+        except Exception:
+            return None
+
+    def get_latest_submission_date(self, user):
+        contribution_qs = user.contributions.filter(
+            contribution_type=Contribution.SUBMITTER,
+        )
+        target_hub_id = self.context.get('target_hub_id')
+        if (target_hub_id is not None):
+            contribution_qs = contribution_qs.filter(
+                unified_document__hubs__in=[target_hub_id]
+            )
+        try:
+            return contribution_qs.latest('created_date').created_date
+        except Exception:
+            return None
 
 class UserSerializer(ModelSerializer):
     author_profile = AuthorSerializer(read_only=True)
