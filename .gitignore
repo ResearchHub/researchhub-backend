@@ -19,3 +19,9 @@ database/
 
 # Celery local files
 celerybeat-schedule
+
+src/.elasticbeanstalk
+src/.ebextensions
+src/.platform
+src/Dockerfile
+
