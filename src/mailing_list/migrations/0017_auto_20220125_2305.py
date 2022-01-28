@@ -5,6 +5,33 @@ import django.db.models.deletion
 import mailing_list.models
 
 
+def add_editor_subscriptions(apps, schema_editor):
+    User = apps.get_model('user', 'User')
+    EmailRecipient = apps.get_model('mailing_list', 'EmailRecipient')
+    HubSubscription = apps.get_model('mailing_list', 'HubSubscription')
+    Hub = apps.get_model('hub', 'Hub')
+    ContentType = apps.get_model('contenttypes', 'ContentType')
+
+    editors = User.objects.filter(
+            permissions__isnull=False,
+            permissions__access_type='EDITOR',
+            permissions__content_type=ContentType.objects.get_for_model(Hub)
+        ).distinct()
+    for editor in editors.iterator():
+        email_recipient = EmailRecipient.objects.filter(email=editor.email)
+        if email_recipient.exists():
+            obj = email_recipient.first()
+            if not obj.hub_subscription:
+                subscription = HubSubscription.objects.create(
+                    none=True,
+                    notification_frequency=10080
+                )
+                obj.hub_subscription = subscription
+                obj.save()
+        else:
+            continue
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -30,4 +57,5 @@ class Migration(migrations.Migration):
             name='hub_subscription',
             field=mailing_list.models.SubscriptionField(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='email_recipient', to='mailing_list.HubSubscription'),
         ),
+        migrations.RunPython(add_editor_subscriptions, migrations.RunPython.noop)
     ]

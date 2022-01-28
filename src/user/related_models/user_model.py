@@ -162,7 +162,9 @@ class User(AbstractUser):
     def notify_inactivity(self):
         recipient = [self.email]
         subject = '[Editor] Weekly Inactivity'
-        email_context = {}
+        email_context = {
+            'name': f'{self.first_name} {self.last_name}'
+        }
         send_email_message(
             recipient,
             'editor_inactivity.txt',

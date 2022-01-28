@@ -33,7 +33,7 @@
       }
     </style>
   </head>
-  {% inlinecss "organization_invite.css" %}
+  {% inlinecss "editor_digest.css" %}
   <body>
     <div class="email">
       <div class="email-body">
@@ -50,9 +50,16 @@
               src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png"
             />
             <div class="header">
-              Your Notifications
+              Editor Notification
               <p class="header-message">
-                Placeholder
+                Hello {{ name }},
+              </p>
+              <p class="header-message">
+                Your account has been marked for inactivity.
+                Editors are expected to contribute at least one paper and comment per week.
+              </p>
+              <p class="header-message">
+                Inactive editors are eventually removed from the program and must re-apply to become an editor.
               </p>
             </div>
           </div>

@@ -5,7 +5,7 @@ from datetime import timedelta
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from django.apps import apps
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http.request import HttpRequest
 from django.core.cache import cache
 from django.utils import timezone
@@ -311,22 +311,31 @@ def update_elastic_registry(user_id):
     priority=5,
     options={'queue': f'{APP_ENV}_core_queue'}
 )
-def notify_editor_inactivity(self):
+def notify_editor_inactivity():
     User = apps.get_model('user.User')
 
     last_week = timezone.now() - timedelta(days=7)
     editors = User.objects.editors()
-    inactive_contributors = editors.filter(
-        contributions__contribution_type__in=[
-            Contribution.SUBMITTER,
-            Contribution.COMMENTER
-        ],
-        contributions__created_date__gte=last_week
-    ).annotate(
-        count=Count('id')
-    ).filter(
-        count__lt=1
+    inactive_contributors = editors.annotate(
+        paper_count=Count(
+            'id',
+            filter=Q(
+                contributions__contribution_type=Contribution.SUBMITTER,
+                contributions__created_date__gte=last_week
+            )
+        ),
+        comment_count=Count(
+            'id',
+            filter=Q(
+                contributions__contribution_type=Contribution.COMMENTER,
+                contributions__created_date__gte=last_week
+            )
+        )
+    ).exclude(
+        paper_count__gte=1,
+        comment_count__gte=1
     )
 
+    print(inactive_contributors.values('comment_count', 'paper_count'))
     for inactive_contributor in inactive_contributors:
         inactive_contributor.notify_inactivity()

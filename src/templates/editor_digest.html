@@ -33,7 +33,7 @@
       }
     </style>
   </head>
-  {% inlinecss "organization_invite.css" %}
+  {% inlinecss "editor_digest.css" %}
   <body>
     <div class="email">
       <div class="email-body">
@@ -51,7 +51,6 @@
             />
             <div class="header">
               Your Notifications
-              <p class="header-message">
                 {% for document in documents %}
                   {% if document.document_type == "PAPER" %}
                       <a class="content-container" href="https://www.researchhub.com/paper/{{document.paper.id}}/">
@@ -94,7 +93,6 @@
                       </a>
                   {% endif %}
                 {% endfor %}
-              </p>
             </div>
           </div>
           <div class="info-img-container">
