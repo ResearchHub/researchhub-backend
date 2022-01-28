@@ -385,6 +385,14 @@ class HubViewSet(viewsets.ModelViewSet):
             for permission in target_editors_permissions:
                 permission.delete()
 
+            email_recipient = EmailRecipient.objects.filter(
+                email=target_user.email
+            )
+            if email_recipient.exists():
+                email_recipient = email_recipient.first()
+                hub_subscription = email_recipient.hub_subscription
+                hub_subscription.delete()
+
             return Response("OK", status=200)
         except Exception as e:
             return Response(str(e), status=500)
