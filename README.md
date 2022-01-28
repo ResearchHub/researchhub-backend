@@ -1,8 +1,32 @@
-# researchhub-backend
+<p align="left">    
+    <h1 align="left">The <a aria-label="RH logo" href="https://researchhub.com">ResearchHub</a> Django API </h1>
+</p>
+
+
+<p align="left">
 
 [![Automated Tests](https://github.com/ResearchHub/researchhub-backend-internal/actions/workflows/run-automated-tests.yml/badge.svg)](https://github.com/ResearchHub/researchhub-backend-internal/actions/workflows/run-automated-tests.yml)
+  <a aria-label="Join the community" href="https://researchhub-community.slack.com">
+    <img alt="" src="https://badgen.net/badge/Join%20the%20community/Slack/yellow?icon=slack">
+  </a>    
+</p>
+<p align="left">&nbsp;</p>
 
-This repository contains the Django backend for <https://www.researchhub.com/>.
+## Our Mission
+```
+Our mission is to accelerate the pace of scientific research 🚀 
+```
+We believe that by empowering scientists to independently fund, create, and publish academic content we can revolutionize the speed at which new knowledge is created and transformed into life-changing products.
+
+## Important Links  👀
+💡 Got an idea or request? [Create a discussion on Github](https://github.com/ResearchHub/researchhub-web-internal/discussions/categories/ideas-and-requests).  
+❓ Got a question? [Ask it here](https://github.com/ResearchHub/researchhub-web-internal/discussions/categories/q-a)  
+🐛 Found a bug? [Report it here](https://github.com/ResearchHub/researchhub-web-internal/discussions/categories/bugs)  
+💰 Earn ResearchCoin (RSC) by [completing bounties](https://github.com/ResearchHub/researchhub-web-internal/issues)  
+🙌 Want to work with us? [View our open positions](https://www.notion.so/researchhub/Working-at-ResearchHub-6e0089f0e234407389eb889d342e5049)  
+➕ Want to contribute to this project? [Introduce yourself in our Slack community](https://researchhub-community.slack.com)  
+📰 Read the [ResearchCoin White Paper](https://www.researchhub.com/paper/819400/the-researchcoin-whitepaper)
+
 
 ## Setup
 
