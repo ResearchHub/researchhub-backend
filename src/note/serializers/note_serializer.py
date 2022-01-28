@@ -50,9 +50,11 @@ class DynamicNoteContentSerializer(DynamicModelFieldSerializer):
 
 
 class NoteSerializer(ModelSerializer):
-    latest_version = NoteContentSerializer()
     access = SerializerMethodField()
+    hypothesis = SerializerMethodField()
+    latest_version = NoteContentSerializer()
     organization = OrganizationSerializer()
+    post = SerializerMethodField()
 
     class Meta:
         model = Note
@@ -84,13 +86,81 @@ class NoteSerializer(ModelSerializer):
         else:
             return SHARED
 
+    def get_hypothesis(self, note):
+        from hypothesis.serializers import DynamicHypothesisSerializer
+
+        if not hasattr(note, 'hypothesis'):
+            return None
+
+        context = {
+            'hyp_dhs_get_authors': {
+                '_include_fields': [
+                    'first_name',
+                    'last_name',
+                    'user',
+                ]
+            },
+            'hyp_dhs_get_hubs': {
+                '_include_fields': [
+                    'id',
+                    'name',
+                ]
+            }
+        }
+        serializer = DynamicHypothesisSerializer(
+            note.hypothesis,
+            context=context,
+            _include_fields=[
+                'authors',
+                'hubs',
+                'id',
+            ]
+        )
+        return serializer.data
+
+    def get_post(self, note):
+        from researchhub_document.serializers import (
+            DynamicPostSerializer
+        )
+
+        if not hasattr(note, 'post'):
+            return None
+
+        context = {
+            'doc_dps_get_authors': {
+                '_include_fields': [
+                    'first_name',
+                    'last_name',
+                    'user',
+                ]
+            },
+            'doc_dps_get_hubs': {
+                '_include_fields': [
+                    'id',
+                    'name',
+                ]
+            }
+        }
+        serializer = DynamicPostSerializer(
+            note.post,
+            context=context,
+            _include_fields=[
+                'authors',
+                'hubs',
+                'id',
+            ]
+        )
+        return serializer.data
+
 
 class DynamicNoteSerializer(DynamicModelFieldSerializer):
     access = SerializerMethodField()
     created_by = SerializerMethodField()
+    hypothesis = SerializerMethodField()
     latest_version = SerializerMethodField()
     notes = SerializerMethodField()
     organization = SerializerMethodField()
+    post = SerializerMethodField()
     unified_document = SerializerMethodField()
 
     class Meta:
@@ -132,6 +202,18 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
+    def get_hypothesis(self, note):
+        from hypothesis.serializers import DynamicHypothesisSerializer
+
+        context = self.context
+        _context_fields = context.get('nte_dns_get_hypothesis', {})
+        serializer = DynamicHypothesisSerializer(
+            note.hypothesis,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
     def get_latest_version(self, note):
         context = self.context
         _context_fields = context.get('nte_dns_get_latest_version', {})
@@ -157,6 +239,20 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get('nte_dns_get_organization', {})
         serializer = DynamicOrganizationSerializer(
             note.organization,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_post(self, note):
+        from researchhub_document.serializers import (
+            DynamicPostSerializer
+        )
+
+        context = self.context
+        _context_fields = context.get('nte_dns_get_post', {})
+        serializer = DynamicPostSerializer(
+            note.post,
             context=context,
             **_context_fields
         )

@@ -158,6 +158,7 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         serializer = DynamicAuthorSerializer(
             post.authors,
             context=context,
+            many=True,
             **_context_fields
         )
         return serializer.data

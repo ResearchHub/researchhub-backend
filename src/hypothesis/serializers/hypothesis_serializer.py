@@ -153,6 +153,7 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
         serializer = DynamicAuthorSerializer(
             hypothesis.authors,
             context=context,
+            many=True,
             **_context_fields
         )
         return serializer.data
