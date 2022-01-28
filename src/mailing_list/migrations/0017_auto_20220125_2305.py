@@ -7,8 +7,7 @@ import mailing_list.models
 
 
 def add_editor_subscriptions(apps, schema_editor):
-    print(TESTING)
-    if not TESTING:
+    try:
         User = apps.get_model('user', 'User')
         EmailRecipient = apps.get_model('mailing_list', 'EmailRecipient')
         HubSubscription = apps.get_model('mailing_list', 'HubSubscription')
@@ -33,6 +32,8 @@ def add_editor_subscriptions(apps, schema_editor):
                     obj.save()
             else:
                 continue
+    except Exception:
+        pass
 
 
 class Migration(migrations.Migration):
