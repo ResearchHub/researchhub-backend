@@ -1,4 +1,5 @@
-from datetime import timedelta
+import iso8601
+from datetime import timedelta, datetime
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count
 from django.db.models.query_utils import Q
@@ -29,6 +30,64 @@ def resolve_timeframe_for_contribution(startDate, endDate):
 
 @api_view(http_method_names=[GET])
 @permission_classes([AllowAny])
+def get_hub_active_contributors(request):
+    user_ids = request.GET.get('userIds', '').split(',')
+    start_date = request.GET.get('startDate', None)
+    end_date = request.GET.get('endDate', None)
+
+    current_active_contributors = {}
+    previous_active_contributors = {}
+    for user_id in user_ids:
+        user = User.objects.get(id=user_id)
+
+        hub_content_type = ContentType.objects.get_for_model(Hub)
+        target_permissions = user.permissions.filter(
+            access_type=EDITOR,
+            content_type=hub_content_type
+        )
+        target_hub_ids = []
+        for permission in target_permissions:
+            target_hub_ids.append(permission.object_id)
+
+        total_active_contributors = Contribution.objects.filter(
+            contribution_type__in=[
+                Contribution.COMMENTER,
+                Contribution.SUBMITTER,
+                Contribution.SUPPORTER,
+                Contribution.UPVOTER,
+            ],
+            created_date__gte=start_date,
+            created_date__lte=end_date,
+            unified_document__hubs__in=target_hub_ids
+        ).distinct('user').count()
+        current_active_contributors[user_id] = total_active_contributors
+
+        days_between = iso8601.parse_date(end_date) - iso8601.parse_date(start_date)
+
+        previous_contributors = Contribution.objects.filter(
+            contribution_type__in=[
+                Contribution.COMMENTER,
+                Contribution.SUBMITTER,
+                Contribution.SUPPORTER,
+                Contribution.UPVOTER,
+            ],
+            created_date__gte=iso8601.parse_date(start_date) - days_between,
+            created_date__lte=iso8601.parse_date(end_date) - days_between,
+            unified_document__hubs__in=target_hub_ids
+        ).distinct('user').count()
+
+        previous_active_contributors[user_id] = previous_contributors
+    
+    return Response({
+        "previous_active_contributors": previous_active_contributors,
+        "current_active_contributors": current_active_contributors
+    })
+
+
+
+
+@api_view(http_method_names=[GET])
+@permission_classes([AllowAny])
 def get_editors_by_contributions(request):
     editor_qs = User.objects.filter(
         permissions__isnull=False,
@@ -36,10 +95,12 @@ def get_editors_by_contributions(request):
         permissions__content_type=ContentType.objects.get_for_model(Hub)
     ).distinct()
 
+    start_date = request.GET.get('startDate', None)
+    end_date = request.GET.get('endDate', None)
     timeframe_query = Q(
         **resolve_timeframe_for_contribution(
-            request.GET.get('startDate', None),
-            request.GET.get('endDate', None)
+            start_date,
+            end_date
         ),
     )
 
@@ -69,7 +130,6 @@ def get_editors_by_contributions(request):
         contribution_hub_query = Q(
             contributions__unified_document__hubs__in=[hub_id]
         )
-
         editor_qs = editor_qs.filter(
             permissions__object_id=hub_id
         )
