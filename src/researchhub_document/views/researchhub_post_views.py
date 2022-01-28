@@ -143,7 +143,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             )
         )
         reset_unified_document_cache(hub_ids)
-        return Response(request.data, status=200)
+        return Response(serializer.data, status=200)
 
     def create_access_group(self, request):
         # TODO: calvinhlee - access group is for ELN

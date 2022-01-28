@@ -97,7 +97,7 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
             unified_doc.hubs.set(hubs)
 
         reset_unified_document_cache([0])
-        return Response(request.data, status=200)
+        return Response(serializer.data, status=200)
 
     def _create_src_content_file(self, unified_doc, data, user):
         file_name = f'HYPOTHESIS-{unified_doc.id}--USER-{user.id}.txt'
