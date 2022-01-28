@@ -2,7 +2,7 @@ import decimal
 import uuid
 
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 from django.utils import timezone
 
@@ -16,7 +16,7 @@ from utils.siftscience import decisions_api
 from utils.throttles import UserSustainedRateThrottle
 
 
-class UserManager(models.Manager):
+class UserManager(UserManager):
     def editors(self):
         editors = self.filter(
             permissions__isnull=False,
