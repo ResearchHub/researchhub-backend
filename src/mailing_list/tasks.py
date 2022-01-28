@@ -48,11 +48,6 @@ def notify_weekly():
     # send_hub_digest(NotificationFrequencies.WEEKLY)
 
 
-"""
-from mailing_list.tasks import send_editor_hub_digest
-from mailing_list.models import NotificationFrequencies
-send_editor_hub_digest(NotificationFrequencies.WEEKLY)
-"""
 def send_editor_hub_digest(frequency):
     emails = []
     etl = EmailTaskLog.objects.create(
