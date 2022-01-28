@@ -112,6 +112,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
     def update_existing_researchhub_posts(self, request):
         data = request.data
         authors = data.pop('authors', None)
+        hubs = data.pop('hubs', None)
 
         rh_post = ResearchhubPost.objects.get(id=data.get('post_id'))
 
@@ -122,13 +123,18 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        post = serializer.instance
 
         file_name = f'RH-POST-{request.data.get("document_type")}-USER-{request.user.id}.txt'
         full_src_file = ContentFile(request.data['full_src'].encode())
-        serializer.instance.discussion_src.save(file_name, full_src_file)
+        post.discussion_src.save(file_name, full_src_file)
 
         if type(authors) is list:
             rh_post.authors.set(authors)
+
+        if type(hubs) is list:
+            unified_doc = post.unified_document
+            unified_doc.hubs.set(hubs)
 
         hub_ids = list(
             rh_post.unified_document.hubs.values_list(

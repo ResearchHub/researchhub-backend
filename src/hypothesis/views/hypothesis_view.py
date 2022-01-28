@@ -72,6 +72,8 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         user = request.user
         data = request.data
         authors = data.pop('authors', None)
+        hubs = data.pop('hubs', None)
+
         hypo = Hypothesis.objects.get(id=data.get('hypothesis_id'))
         unified_doc = hypo.unified_document
         serializer = HypothesisSerializer(
@@ -89,6 +91,10 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
 
         if type(authors) is list:
             hypo.authors.set(authors)
+
+        if type(hubs) is list:
+            unified_doc = hypo.unified_document
+            unified_doc.hubs.set(hubs)
 
         reset_unified_document_cache([0])
         return Response(request.data, status=200)
