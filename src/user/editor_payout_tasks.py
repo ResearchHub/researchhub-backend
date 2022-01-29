@@ -45,7 +45,7 @@ def editor_daily_payout_task():
             distributed_status='DISTRIBUTED',
             distribution_type='EDITOR_COMPENSATION',
             proof={
-                'record': {'id': editor.id},
+                'record': {'user_id': editor.id},
                 'table': 'user_user',
             },
             proof_item_content_type=ContentType.objects.get_for_model(User),
