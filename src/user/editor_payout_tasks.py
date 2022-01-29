@@ -9,7 +9,7 @@ import requests
 from hub.models import Hub
 from reputation.models import Distribution
 from researchhub_access_group.constants import EDITOR
-from researchhub_document.related_models.constants.rsc_exchange_currency import RSC_EXCHANGE_CURRENCY
+from researchhub_document.related_models.constants.rsc_exchange_currency import USD
 from researchhub_document.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub.settings import WEB3_RSC_ADDRESS
 from user.related_models.user_model import User
@@ -31,7 +31,7 @@ def editor_daily_payout_task():
     result = get_daily_rsc_payout_amount_from_deep_index(num_days_this_month)
     RscExchangeRate.objects.create(
       rate=result['rate'],
-      target_currency=RSC_EXCHANGE_CURRENCY['USD'],
+      target_currency=USD,
     )
     editors = User.objects.filter(
         permissions__isnull=False,
@@ -40,9 +40,17 @@ def editor_daily_payout_task():
     ).distinct()
     for editor in editors.iterator():
         Distribution.objects.create(
-            recipient=editor,
             amount=result['pay_amount'],
+            distributed_date=today,
+            distributed_status='DISTRIBUTED',
             distribution_type='EDITOR_COMPENSATION',
+            proof={
+                'record': {'id': editor.id},
+                'table': 'user_user',
+            },
+            proof_item_content_type=ContentType.objects.get_for_model(User),
+            proof_item_object_id=editor.id,
+            recipient=editor,
         )
 
 
