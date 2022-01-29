@@ -35,9 +35,13 @@ def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month):
     payout_usd_per_rsc = real_usd_per_rsc if \
         real_usd_per_rsc > USD_PER_RSC_DEFAULT \
         else USD_PER_RSC_DEFAULT
-
     return (
-      USD_PAY_AMOUNT_PER_MONTH * math.pow(payout_usd_per_rsc, -1) / num_days_this_month
+      {
+          'rate': payout_usd_per_rsc,
+          'pay_amount': (
+              USD_PAY_AMOUNT_PER_MONTH * math.pow(payout_usd_per_rsc, -1) / num_days_this_month
+          )
+      }
     )
 
 

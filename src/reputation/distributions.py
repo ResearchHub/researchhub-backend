@@ -222,5 +222,9 @@ DISTRIBUTION_TYPE_CHOICES = [
     (
         Referral.name,
         Referral.name
+    ),
+    (
+        'EDITOR_COMPENSATION',
+        'EDITOR_COMPENSATION',
     )
 ]
