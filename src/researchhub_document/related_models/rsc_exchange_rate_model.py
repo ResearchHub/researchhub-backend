@@ -11,7 +11,7 @@ class RscExchangeRate(DefaultModel):
         help_text="""
             RSC to target currency rate.
             For example, rate of 3 to USD represents 3 dollars per RSC.
-            This is may not reflect the marget fully for internal purposes.
+            This is may not reflect the market fully for internal purposes.
             We may adjust the rate for different purposes.
         """,
         null=False,
@@ -19,6 +19,7 @@ class RscExchangeRate(DefaultModel):
     target_currency = models.CharField(
         blank=False,
         choices=RSC_EXCHANGE_CURRENCY,
-        null=False,
+        db_index=True,
         max_length=255,
+        null=False,
     )

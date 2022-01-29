@@ -1,11 +1,18 @@
 from calendar import monthrange
 from django.apps import apps
+from django.contrib.contenttypes.models import ContentType
 import datetime
 import json
 import math
 import requests
 
+from hub.models import Hub
+from reputation.models import Distribution
+from researchhub_access_group.constants import EDITOR
+from researchhub_document.related_models.constants.rsc_exchange_currency import RSC_EXCHANGE_CURRENCY
+from researchhub_document.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub.settings import WEB3_RSC_ADDRESS
+from user.related_models.user_model import User
 
 UNI_SWAP_BUNDLE_ID = 1  # their own hard-coded eth-bundle id
 UNI_SWAP_GRAPH_URI = "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2"
@@ -21,7 +28,22 @@ MORALIS_LOOKUP_URI = "https://deep-index.moralis.io/api/v2/erc20/{address}/price
 def editor_daily_payout_task():
     today = datetime.date.today()
     num_days_this_month = monthrange(today.year, today.month)[1]
-    payout_amount = get_daily_rsc_payout_amount_from_deep_index(num_days_this_month)
+    result = get_daily_rsc_payout_amount_from_deep_index(num_days_this_month)
+    RscExchangeRate.objects.create(
+      rate=result['rate'],
+      target_currency=RSC_EXCHANGE_CURRENCY['USD'],
+    )
+    editors = User.objects.filter(
+        permissions__isnull=False,
+        permissions__access_type=EDITOR,
+        permissions__content_type=ContentType.objects.get_for_model(Hub)
+    ).distinct()
+    for editor in editors.iterator():
+        Distribution.objects.create(
+            recipient=editor,
+            amount=result['pay_amount'],
+            distribution_type='EDITOR_COMPENSATION',
+        )
 
 
 def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month):
