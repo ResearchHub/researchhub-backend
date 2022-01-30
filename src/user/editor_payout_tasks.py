@@ -1,5 +1,6 @@
 from calendar import monthrange
-from django.apps import apps
+from celery.decorators import periodic_task
+from celery.task.schedules import crontab
 from django.contrib.contenttypes.models import ContentType
 import datetime
 import json
@@ -12,7 +13,7 @@ from reputation.models import Distribution
 from researchhub_access_group.constants import EDITOR
 from researchhub_document.related_models.constants.rsc_exchange_currency import USD
 from researchhub_document.related_models.rsc_exchange_rate_model import RscExchangeRate
-from researchhub.settings import WEB3_RSC_ADDRESS
+from researchhub.settings import APP_ENV, WEB3_RSC_ADDRESS
 from user.related_models.user_model import User
 
 UNI_SWAP_BUNDLE_ID = 1  # their own hard-coded eth-bundle id
@@ -25,7 +26,11 @@ MORALIS_API_KEY = 'vlHzigIN9AYgxwTV2y55ruHrUYc08WsMFCTZNn4mUSLzJAdWMW5pCnUtrL0yq
 MORALIS_LOOKUP_URI = "https://deep-index.moralis.io/api/v2/erc20/{address}/price".format(address=WEB3_RSC_ADDRESS)
 
 
-@apps.task
+@periodic_task(
+    run_every=crontab(minute=0, hour=0),  # run every midnight
+    priority=1,
+    options={'queue': f'{APP_ENV}_core_queue'}
+)
 def editor_daily_payout_task():
     today = datetime.date.today()
     num_days_this_month = monthrange(today.year, today.month)[1]
