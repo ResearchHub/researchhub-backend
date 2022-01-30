@@ -7,6 +7,7 @@ import math
 import requests
 
 from hub.models import Hub
+from purchase.models import Balance
 from reputation.models import Distribution
 from researchhub_access_group.constants import EDITOR
 from researchhub_document.related_models.constants.rsc_exchange_currency import USD
@@ -39,8 +40,9 @@ def editor_daily_payout_task():
         permissions__content_type=ContentType.objects.get_for_model(Hub)
     ).distinct()
     for editor in editors.iterator():
-        Distribution.objects.create(
-            amount=result['pay_amount'],
+        pay_amount = result['pay_amount']
+        rsc_distribution = Distribution.objects.create(
+            amount=pay_amount,
             distributed_date=today,
             distributed_status='DISTRIBUTED',
             distribution_type='EDITOR_COMPENSATION',
@@ -51,6 +53,12 @@ def editor_daily_payout_task():
             proof_item_content_type=ContentType.objects.get_for_model(User),
             proof_item_object_id=editor.id,
             recipient=editor,
+        )
+        Balance.objects.create(
+            user=editor,
+            amount=str(pay_amount),
+            content_type=ContentType.objects.get_for_model(Distribution),
+            object_id=rsc_distribution.id
         )
 
 
