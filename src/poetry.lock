@@ -1393,6 +1393,14 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "iso8601"
+version = "1.0.2"
+description = "Simple module to parse ISO 8601 dates"
+category = "main"
+optional = false
+python-versions = ">=3.6.2,<4.0"
+
+[[package]]
 name = "jedi"
 version = "0.18.1"
 description = "An autocompletion tool for Python that can be used for text editors."
@@ -2696,7 +2704,7 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "061da33262c79d12e909ac6728caed30b8b3c464903ded6126aab23024bb497f"
+content-hash = "7cd1b996391f2a35b80654b0ea35d95d7ae68c5fdec5703583890a8f5e7e9364"
 
 [metadata.files]
 aiohttp = [
@@ -3359,6 +3367,10 @@ ipython = [
 isbnlib = [
     {file = "isbnlib-3.10.9-py2.py3-none-any.whl", hash = "sha256:2189cb075be73582bc1308a559af1c7fc42ee5d276c85ab7cced48628137df20"},
     {file = "isbnlib-3.10.9.tar.gz", hash = "sha256:3f8187eb8eb6fa027d26ff0775f2abd420e29ce332794bf552a86a6bdba470b8"},
+]
+iso8601 = [
+    {file = "iso8601-1.0.2-py3-none-any.whl", hash = "sha256:d7bc01b1c2a43b259570bb307f057abc578786ea734ba2b87b836c5efc5bd443"},
+    {file = "iso8601-1.0.2.tar.gz", hash = "sha256:27f503220e6845d9db954fb212b95b0362d8b7e6c1b2326a87061c3de93594b1"},
 ]
 jedi = [
     {file = "jedi-0.18.1-py2.py3-none-any.whl", hash = "sha256:637c9635fcf47945ceb91cd7f320234a7be540ded6f3e99a50cb6febdfd1ba8d"},
