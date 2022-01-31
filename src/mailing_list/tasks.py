@@ -5,16 +5,19 @@ from celery.task.schedules import crontab
 
 from django.utils import timezone
 from django.db.models import Q, Count
+from django.contrib.contenttypes.models import ContentType
 
 from datetime import timedelta
 
+from hub.models import Hub
+from hypothesis.models import Hypothesis
 from mailing_list.lib import base_email_context
 from mailing_list.models import NotificationFrequencies, EmailTaskLog
+from paper.models import Paper, Vote as PaperVote
 from researchhub.celery import app
+from researchhub_document.models import ResearchhubPost
 from utils.message import send_email_message
 from user.models import Action, User
-from hub.models import Hub
-from paper.models import Paper, Vote as PaperVote
 
 
 @app.task
@@ -48,6 +51,10 @@ def notify_weekly():
     # send_hub_digest(NotificationFrequencies.WEEKLY)
 
 
+"""
+from mailing_list.tasks import send_editor_hub_digest
+send_editor_hub_digest(10080)
+"""
 def send_editor_hub_digest(frequency):
     emails = []
     etl = EmailTaskLog.objects.create(
@@ -71,14 +78,41 @@ def send_editor_hub_digest(frequency):
                 is_removed=False
             )
 
-            if len(documents) == 0:
+            if documents.count() == 0:
                 continue
+
+            paper_ids = documents.exclude(
+                paper__isnull=True
+            ).values_list('paper_id', flat=True)
+            post_ids = documents.exclude(
+                posts__isnull=True
+            ).values_list('posts', flat=True)
+            hypothesis_ids = documents.exclude(
+                hypothesis__isnull=True
+            ).values_list('hypothesis', flat=True)
+
+            actions = Action.objects.filter(
+                Q(
+                    content_type=ContentType.objects.get_for_model(Paper),
+                    object_id__in=paper_ids
+                ) |
+                Q(
+                    content_type=ContentType.objects.get_for_model(
+                        ResearchhubPost
+                    ),
+                    object_id__in=post_ids
+                ) |
+                Q(
+                    content_type=ContentType.objects.get_for_model(Hypothesis),
+                    object_id__in=hypothesis_ids
+                )
+            ).distinct('id')
 
             email_context = {
                 **base_email_context,
                 'first_name': user.first_name,
                 'last_name': user.last_name,
-                'documents': documents,
+                'actions': [act.email_context() for act in actions]
             }
 
             recipient = [user.email]

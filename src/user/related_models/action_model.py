@@ -55,7 +55,6 @@ class Action(DefaultModel):
         self.read_date = timezone.now()
         self.save()
 
-
     def email_context(self):
         act = self
         if (
@@ -81,7 +80,11 @@ class Action(DefaultModel):
         elif act.content_type_name == 'thread':
             verb = 'created a new discussion on'
         elif act.content_type_name == 'hypothesis':
+            verb = 'created a new hypothesis on'
+        elif act.content_type_name == 'researchhub post':
             verb = 'created a new post on'
+        elif act.content_type_name == 'paper':
+            verb = 'uploaded a new paper'
 
         noun = ''
         if act.content_type_name == 'comment':
@@ -120,15 +123,50 @@ class Action(DefaultModel):
         try:
             doc_type = self.item.unified_document.document_type
             if doc_type == 'DISCUSSION':
-                title = self.item.post.title
+                title = self.item.title
             elif doc_type == 'HYPOTHESIS':
-                title = self.item.hypothesis.title
+                title = self.item.title
             elif doc_type == 'PAPER':
-                title = self.item.paper.title
-        except Exception:
+                title = self.item.title
+        except Exception as e:
             title = ''
 
         return title
+
+    @property
+    def created_by(self):
+        created_by = None
+        try:
+            doc_type = self.item.unified_document.document_type
+            if doc_type == 'DISCUSSION':
+                created_by = self.item.created_by
+            elif doc_type == 'HYPOTHESIS':
+                created_by = self.item.created_by
+            elif doc_type == 'PAPER':
+                created_by = self.item.uploaded_by
+        except Exception as e:
+            return None
+
+        return created_by
+
+    @property
+    def doc_summary(self):
+        SUMMARY_MAX_LEN = 256
+        summary = ''
+        try:
+            doc_type = self.item.unified_document.document_type
+            if doc_type == 'DISCUSSION':
+                summary = self.item.renderable_text
+            elif doc_type == 'HYPOTHESIS':
+                summary = self.item.renderable_text
+            elif doc_type == 'PAPER':
+                summary = self.item.abstract
+        except Exception as e:
+            return ''
+
+        if len(summary) > SUMMARY_MAX_LEN:
+            summary = f'{summary[:SUMMARY_MAX_LEN]} ...'
+        return summary
 
     @property
     def frontend_view_link(self):
