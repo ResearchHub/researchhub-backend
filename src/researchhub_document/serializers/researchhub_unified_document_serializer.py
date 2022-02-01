@@ -15,6 +15,7 @@ from researchhub_document.serializers import (
 )
 from user.serializers import UserSerializer, DynamicUserSerializer
 
+
 class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
     class Meta(object):
         model = ResearchhubUnifiedDocument
@@ -25,8 +26,8 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
             'documents',
             'hot_score',
             'hubs',
-            'score',
             'is_removed',
+            'score',
         ]
         read_only_fields = [
             'access_group',
@@ -35,6 +36,13 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
             'documents',
             'hot_score',
             'hubs',
+            'hypothesis',
+            'id',
+            'is_removed',
+            'is_public',
+            'published_date',
+            'paper',
+            'post',
             'score',
         ]
 
@@ -46,6 +54,19 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
         required=False,
         context={'no_subscriber_info': True}
     ).data
+
+    # def update(self, instance, validated_data):
+    #     import pdb; pdb.set_trace()
+    #     for read_only_field in self.Meta.read_only_fields:
+    #         if read_only_field in validated_data:
+    #             if read_only_field == 'score':
+    #                 import pdb; pdb.set_trace()
+    #             validated_data.pop(read_only_field, None)
+
+    #     return super(ResearchhubUnifiedDocumentSerializer, self).update(
+    #         instance,
+    #         validated_data
+    #     )
 
     def get_access_group(self, instance):
         # TODO: calvinhlee - access_group is for ELN. Work on this later
@@ -86,6 +107,17 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = ResearchhubUnifiedDocument
         fields = '__all__'
+        read_only_fields = [
+            'created_by',
+            'document_type',
+            'hypothesis',
+            'hot_score',
+            'is_removed',
+            'is_public',
+            'published_date',
+            'paper',
+            'post'
+        ]
 
     def get_documents(self, unified_doc):
         context = self.context

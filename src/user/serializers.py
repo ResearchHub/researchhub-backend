@@ -8,7 +8,7 @@ from rest_framework.serializers import (
     PrimaryKeyRelatedField,
     SerializerMethodField,
 )
-import rest_auth.registration.serializers as rest_auth_serializers
+import dj_rest_auth.registration.serializers as rest_auth_serializers
 
 from bullet_point.models import BulletPoint
 from bullet_point.models import Vote as BulletVote

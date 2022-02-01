@@ -27,3 +27,18 @@ class DynamicModelFieldSerializer(serializers.ModelSerializer):
                 disallowed = set(_exclude_fields)
                 for field_name in disallowed:
                     self.fields.pop(field_name)
+
+    def is_valid(self, raise_exception=False):
+        inital_data = self.inital_data
+        read_only_fields = getattr(self.Meta, 'read_only_fields', [])
+
+        for read_only_field in read_only_fields:
+            # Not doing an exact check because some fields
+            # can include _id or something similar
+            if read_only_field in inital_data:
+                inital_data.pop(read_only_field)
+
+        return super(DynamicModelFieldSerializer, self).is_valid(
+            self,
+            raise_exception
+        )
