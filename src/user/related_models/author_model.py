@@ -70,19 +70,19 @@ class Author(models.Model):
         blank=True,
         null=True
     )
-    facebook = models.CharField(
+    facebook = models.URLField(
         max_length=255,
         default=None,
         null=True,
         blank=True
     )
-    twitter = models.CharField(
+    twitter = models.URLField(
         max_length=255,
         default=None,
         null=True,
         blank=True
     )
-    linkedin = models.CharField(
+    linkedin = models.URLField(
         max_length=255,
         default=None,
         null=True,
