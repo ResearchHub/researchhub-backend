@@ -379,7 +379,7 @@ urlpatterns = [
         oauth.views.GoogleLogin.as_view(),
         name='google_login'
     ),
-    path(r'api/auth/', include('rest_auth.urls')),
+    path(r'api/auth/', include('dj_rest_auth.urls')),
     re_path(r'^auth/signup/', include(oauth.urls.registration_urls)),
     re_path(r'^auth/', include(oauth.urls.default_urls)),
     path(

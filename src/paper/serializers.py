@@ -315,14 +315,38 @@ class PaperSerializer(BasePaperSerializer):
     class Meta:
         exclude = ['references']
         read_only_fields = [
+            'authors',
+            'citations',
+            'completeness',
+            'csl_item',
+            'discussion_count',
+            'downloads',
+            'edited_file_extract',
+            'external_source',
+            'file_created_location',
+            'hot_score',
+            'id',
+            'is_removed',
+            'is_removed_by_user',
+            'oa_pdf_location',
+            'pdf_file_extract',
+            'pdf_license_url',
+            'publication_type',
+            'raw_author_scores',
+            'retrieved_from_external_source',
             'score',
-            'user_vote',
+            'slug',
+            'tagline',
+            'twitter_mentions',
+            'twitter_score',
+            'unified_document_id',
+            'uploaded_by',
+            'uploaded_date',
             'user_flag',
             'users_who_bookmarked',
-            'unified_document_id',
-            'slug',
-            'raw_author_scores',
-            'authors'
+            'user_vote',
+            'views',
+
         ]
         model = Paper
 
@@ -342,6 +366,13 @@ class PaperSerializer(BasePaperSerializer):
         citation_type = validated_data.pop('citation_type', None)
         try:
             with transaction.atomic():
+                # Temporary fix for updating read only fields
+                # Not including file, pdf_url, and url because
+                # those fields are processed
+                for read_only_field in self.Meta.read_only_fields:
+                    if read_only_field in validated_data:
+                        validated_data.pop(read_only_field, None)
+
                 valid_doi = self._check_valid_doi(validated_data)
                 # if not valid_doi:
                 #     raise IntegrityError('DETAIL: Invalid DOI')
@@ -461,6 +492,14 @@ class PaperSerializer(BasePaperSerializer):
 
         try:
             with transaction.atomic():
+
+                # Temporary fix for updating read only fields
+                # Not including file, pdf_url, and url because
+                # those fields are processed
+                for read_only_field in self.Meta.read_only_fields:
+                    if read_only_field in validated_data:
+                        validated_data.pop(read_only_field, None)
+
                 self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
 

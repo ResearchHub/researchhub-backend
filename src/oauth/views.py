@@ -23,7 +23,7 @@ from allauth.utils import (
 from allauth.account.signals import user_signed_up, user_logged_in
 from allauth.account import app_settings
 
-from rest_auth.registration.views import SocialLoginView
+from dj_rest_auth.registration.views import SocialLoginView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response

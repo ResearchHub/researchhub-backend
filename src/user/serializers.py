@@ -8,7 +8,7 @@ from rest_framework.serializers import (
     PrimaryKeyRelatedField,
     SerializerMethodField,
 )
-import rest_auth.registration.serializers as rest_auth_serializers
+import dj_rest_auth.registration.serializers as rest_auth_serializers
 
 from bullet_point.models import BulletPoint
 from bullet_point.models import Vote as BulletVote
@@ -206,6 +206,17 @@ class AuthorEditableSerializer(ModelSerializer):
     class Meta:
         model = Author
         fields = [field.name for field in Author._meta.fields] + ['university']
+        read_only_fields = [
+            'academic_verification',
+            'author_score',
+            'created_date',
+            'claimed',
+            'id',
+            'merged_with',
+            'orcid',
+            'orcid_account',
+            'user',
+        ]
 
 
 class EditorContributionSerializer(ModelSerializer):

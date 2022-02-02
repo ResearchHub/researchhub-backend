@@ -15,6 +15,7 @@ from researchhub_document.serializers import (
 )
 from user.serializers import UserSerializer, DynamicUserSerializer
 
+
 class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
     class Meta(object):
         model = ResearchhubUnifiedDocument
@@ -25,8 +26,8 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
             'documents',
             'hot_score',
             'hubs',
-            'score',
             'is_removed',
+            'score',
         ]
         read_only_fields = [
             'access_group',
@@ -35,6 +36,13 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
             'documents',
             'hot_score',
             'hubs',
+            'hypothesis',
+            'id',
+            'is_removed',
+            'is_public',
+            'published_date',
+            'paper',
+            'posts',
             'score',
         ]
 
