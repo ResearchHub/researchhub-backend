@@ -55,6 +55,7 @@ class NoteSerializer(ModelSerializer):
     latest_version = NoteContentSerializer()
     organization = OrganizationSerializer()
     post = SerializerMethodField()
+    unified_document = SerializerMethodField()
 
     class Meta:
         model = Note
@@ -148,6 +149,16 @@ class NoteSerializer(ModelSerializer):
                 'authors',
                 'hubs',
                 'id',
+            ]
+        )
+        return serializer.data
+
+    def get_unified_document(self, note):
+        serializer = DynamicUnifiedDocumentSerializer(
+            note.unified_document,
+            _include_fields=[
+                'id',
+                'is_removed'
             ]
         )
         return serializer.data
