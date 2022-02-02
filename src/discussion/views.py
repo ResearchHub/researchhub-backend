@@ -483,7 +483,12 @@ class CommentFileUpload(viewsets.ViewSet):
             data = request.FILES['upload']
             content_type = data.content_type.split('/')[1]
 
+            # Extension check
             if content_type.lower() not in self.ALLOWED_EXTENSIONS:
+                return Response('Invalid extension', status=400)
+
+            # Special characters check
+            if any(not c.isalnum() for c in content_type):
                 return Response(status=400)
 
             content = data.read()
@@ -504,6 +509,9 @@ class CommentFileUpload(viewsets.ViewSet):
         else:
             content_type = request.data.get('content_type')
             if content_type.lower() not in self.ALLOWED_EXTENSIONS:
+                return Response(status=400)
+
+            if any(not c.isalnum() for c in content_type):
                 return Response(status=400)
 
             _, base64_content = request.data.get('content').split(';base64,')
