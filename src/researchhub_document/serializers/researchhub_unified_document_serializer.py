@@ -42,7 +42,7 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
             'is_public',
             'published_date',
             'paper',
-            'post',
+            'posts',
             'score',
         ]
 
@@ -54,19 +54,6 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
         required=False,
         context={'no_subscriber_info': True}
     ).data
-
-    # def update(self, instance, validated_data):
-    #     import pdb; pdb.set_trace()
-    #     for read_only_field in self.Meta.read_only_fields:
-    #         if read_only_field in validated_data:
-    #             if read_only_field == 'score':
-    #                 import pdb; pdb.set_trace()
-    #             validated_data.pop(read_only_field, None)
-
-    #     return super(ResearchhubUnifiedDocumentSerializer, self).update(
-    #         instance,
-    #         validated_data
-    #     )
 
     def get_access_group(self, instance):
         # TODO: calvinhlee - access_group is for ELN. Work on this later

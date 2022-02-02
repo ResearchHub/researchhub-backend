@@ -369,9 +369,9 @@ class PaperSerializer(BasePaperSerializer):
                 # Temporary fix for updating read only fields
                 # Not including file, pdf_url, and url because
                 # those fields are processed
-                # for read_only_field in self.Meta.read_only_fields:
-                #     if read_only_field in validated_data:
-                #         validated_data.pop(read_only_field, None)
+                for read_only_field in self.Meta.read_only_fields:
+                    if read_only_field in validated_data:
+                        validated_data.pop(read_only_field, None)
 
                 valid_doi = self._check_valid_doi(validated_data)
                 # if not valid_doi:
