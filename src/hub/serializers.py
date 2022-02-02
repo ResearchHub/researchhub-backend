@@ -34,7 +34,6 @@ class SimpleHubSerializer(serializers.ModelSerializer):
         context['rag_dps_get_user'] = {
             '_include_fields': [
                 'author_profile',
-                'email',
                 'id',
             ]
         }
