@@ -96,6 +96,7 @@ class NoteSerializer(ModelSerializer):
         context = {
             'hyp_dhs_get_authors': {
                 '_include_fields': [
+                    'id',
                     'first_name',
                     'last_name',
                     'user',
@@ -115,6 +116,7 @@ class NoteSerializer(ModelSerializer):
                 'authors',
                 'hubs',
                 'id',
+                'slug',
             ]
         )
         return serializer.data
@@ -130,6 +132,7 @@ class NoteSerializer(ModelSerializer):
         context = {
             'doc_dps_get_authors': {
                 '_include_fields': [
+                    'id',
                     'first_name',
                     'last_name',
                     'user',
@@ -149,6 +152,7 @@ class NoteSerializer(ModelSerializer):
                 'authors',
                 'hubs',
                 'id',
+                'slug',
             ]
         )
         return serializer.data
