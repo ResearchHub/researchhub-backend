@@ -94,17 +94,6 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = ResearchhubUnifiedDocument
         fields = '__all__'
-        read_only_fields = [
-            'created_by',
-            'document_type',
-            'hypothesis',
-            'hot_score',
-            'is_removed',
-            'is_public',
-            'published_date',
-            'paper',
-            'post'
-        ]
 
     def get_documents(self, unified_doc):
         context = self.context
