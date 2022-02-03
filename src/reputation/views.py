@@ -196,7 +196,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         return math.ceil(amount * rsc_to_eth_ratio)
         """
 
-        return Response(100, status=200)
+        return Response(1000, status=200)
 
     def _create_balance_record(self, withdrawal, amount):
         source_type = ContentType.objects.get_for_model(withdrawal)
