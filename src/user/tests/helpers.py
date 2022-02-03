@@ -27,13 +27,13 @@ class TestData:
     university_city = 'London'
 
 
-def create_random_authenticated_user(unique_value):
-    user = create_random_default_user(unique_value)
+def create_random_authenticated_user(unique_value, moderator=False):
+    user = create_random_default_user(unique_value, moderator)
     Token.objects.create(user=user)
     return user
 
 
-def create_random_default_user(unique_value):
+def create_random_default_user(unique_value, moderator=False):
     '''
     Returns an instance of User with name and email based on `unique_value`.
     '''
@@ -43,12 +43,28 @@ def create_random_default_user(unique_value):
     user = create_user(
         first_name=first_name,
         last_name=last_name,
-        email=email
+        email=email,
+        moderator=moderator
     )
     return user
 
 
 def create_user(
+    first_name=TestData.first_name,
+    last_name=TestData.last_name,
+    email=TestData.valid_email,
+    password=TestData.valid_password,
+    moderator=True
+):
+    return User.objects.create(
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        password=password,
+        moderator=True,
+    )
+
+def create_moderator(
     first_name=TestData.first_name,
     last_name=TestData.last_name,
     email=TestData.valid_email,
@@ -59,7 +75,7 @@ def create_user(
         last_name=last_name,
         email=email,
         password=password
-    )
+    )    
 
 
 def create_random_authenticated_user_with_reputation(unique_value, reputation):
