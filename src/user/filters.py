@@ -2,6 +2,7 @@ from django.db import models
 from django_filters import rest_framework as filters
 from .models import Author
 from utils.filters import ListExcludeFilter
+from user.models import User
 
 
 class AuthorFilter(filters.FilterSet):
@@ -18,3 +19,11 @@ class AuthorFilter(filters.FilterSet):
                 'filter_class': filters.CharFilter,
             }
         }
+
+class UserFilter(filters.FilterSet):
+    invited_by = filters.NumberFilter()
+    referral_code = filters.Filter()
+
+    class Meta:
+        model = User
+        fields = []

@@ -69,13 +69,15 @@ from utils.http import RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from hypothesis.related_models.hypothesis import Hypothesis
+from user.filters import UserFilter
+
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(is_suspended=False)
     serializer_class = UserEditableSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     filter_backends = (DjangoFilterBackend,)
-    filterset_fields = ['referral_code', 'invited_by']
+    filter_class = UserFilter
 
     def get_serializer_class(self):
         if self.request.GET.get('referral_code') or self.request.GET.get('invited_by'):
