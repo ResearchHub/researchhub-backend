@@ -52,12 +52,14 @@ from researchhub_document.views.custom.unified_document_pagination import (
     UnifiedDocPagination
 )
 from user.utils import reset_latest_acitvity_cache
+from researchhub_document.permissions import HasDocumentEditingPermission
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     # TODO: calvinhlee - look into permissions
     permission_classes = [
         IsAuthenticated,
+        HasDocumentEditingPermission
     ]
     dynamic_serializer_class = DynamicUnifiedDocumentSerializer
     pagination_class = UnifiedDocPagination
