@@ -1,4 +1,4 @@
-from django.test import TestCase
+from rest_framework.test import APITestCase
 
 from django.core.cache import cache
 from discussion.tests.helpers import create_thread
@@ -15,13 +15,35 @@ from utils.test_helpers import (
 )
 from unittest import skip
 
-class HubViewsTests(TestCase):
+class HubViewsTests(APITestCase):
 
     def setUp(self):
         self.base_url = '/api/hub/'
         self.hub = create_hub(name='View Test Hub')
         self.hub2 = create_hub(name='View Test Hub 2')
         self.user = create_random_authenticated_user('hub_user')
+
+    def test_moderator_can_delete_hub(self):
+        mod = create_random_authenticated_user('mod', moderator=True)
+        self.client.force_authenticate(mod)
+        hub = create_hub(name="some hub")
+
+        response = self.client.delete(
+            f"/api/hub/{hub.id}/censor/"
+        )
+
+        self.assertTrue(response.status_code, 200)
+
+    def test_basic_user_cannot_delete_hub(self):
+        basic_user = create_random_authenticated_user('basic_user')
+        self.client.force_authenticate(basic_user)
+        hub = create_hub(name="some hub")
+
+        response = self.client.delete(
+            f"/api/hub/{hub.id}/censor/"
+        )
+
+        self.assertTrue(response.status_code, 401)
 
     @skip
     def test_hub_order_by_score(self):
