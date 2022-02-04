@@ -28,7 +28,7 @@ class CensorHub(RuleBasedPermission):
 
     def satisfies_rule(self, request):
         if request.method == "DELETE":
-            return request.user.is_authenticated and request.user.moderator and request.user.is_anonymous is not True
+            return request.user.is_anonymous is not True and request.user.is_authenticated and request.user.moderator
         else:
             return False
 
