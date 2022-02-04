@@ -677,7 +677,7 @@ elif STAGING:
         'http://ec2-52-38-164-185.us-west-2.compute.amazonaws.com'
     )
 else:
-    ASYNC_SERVICE_HOST = 'http://localhost:8080'
+    ASYNC_SERVICE_HOST = os.environ.get("ASYNC_SERVICE_HOST", 'http://localhost:8080')
 
 
 # APM
