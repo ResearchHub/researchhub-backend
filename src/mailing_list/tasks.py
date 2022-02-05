@@ -5,16 +5,19 @@ from celery.task.schedules import crontab
 
 from django.utils import timezone
 from django.db.models import Q, Count
+from django.contrib.contenttypes.models import ContentType
 
 from datetime import timedelta
 
+from hub.models import Hub
+from hypothesis.models import Hypothesis
 from mailing_list.lib import base_email_context
 from mailing_list.models import NotificationFrequencies, EmailTaskLog
+from paper.models import Paper, Vote as PaperVote
 from researchhub.celery import app
+from researchhub_document.models import ResearchhubPost
 from utils.message import send_email_message
 from user.models import Action, User
-from hub.models import Hub
-from paper.models import Paper, Vote as PaperVote
 
 
 @app.task
@@ -24,14 +27,16 @@ def notify_immediate(action_id):
 
 @periodic_task(run_every=crontab(minute='30', hour='1'), priority=7)
 def notify_daily():
+    # send_editor_hub_digest(NotificationFrequencies.DAILY)
+
     # TODO: Temporarily turning off notifications - Revamp
-    return
-    send_hub_digest(NotificationFrequencies.DAILY)
+    # send_hub_digest(NotificationFrequencies.DAILY)
 
 
 @periodic_task(run_every=crontab(minute='0', hour='*/3'), priority=7)
 def notify_three_hours():
-    send_hub_digest(NotificationFrequencies.THREE_HOUR)
+    # send_hub_digest(NotificationFrequencies.THREE_HOUR)
+    # send_editor_hub_digest(NotificationFrequencies.THREE_HOUR)
 
 
 # Noon PST
@@ -40,13 +45,97 @@ def notify_three_hours():
     priority=9
 )
 def notify_weekly():
+    # send_editor_hub_digest(NotificationFrequencies.WEEKLY)
+
     # TODO: Temporarily turning off notifications - Revamp
-    return
-    send_hub_digest(NotificationFrequencies.WEEKLY)
+    # send_hub_digest(NotificationFrequencies.WEEKLY)
+
+
+"""
+from mailing_list.tasks import send_editor_hub_digest
+send_editor_hub_digest(10080)
+"""
+def send_editor_hub_digest(frequency):
+    emails = []
+    etl = EmailTaskLog.objects.create(
+        emails='',
+        notification_frequency=frequency
+    )
+    end_date = timezone.now()
+    start_date = calculate_hub_digest_start_date(end_date, frequency)
+
+    for hub in Hub.objects.iterator():
+        editor_permissions = hub.editor_permission_groups.iterator()
+        for editor_permission in editor_permissions:
+            user = editor_permission.user
+            
+            if not check_editor_can_receive_digest(user, frequency):
+                continue
+
+            documents = hub.related_documents.filter(
+                created_date__gte=start_date,
+                created_date__lte=end_date,
+                is_removed=False
+            )
+
+            if documents.count() == 0:
+                continue
+
+            paper_ids = documents.exclude(
+                paper__isnull=True
+            ).values_list('paper_id', flat=True)
+            post_ids = documents.exclude(
+                posts__isnull=True
+            ).values_list('posts', flat=True)
+            hypothesis_ids = documents.exclude(
+                hypothesis__isnull=True
+            ).values_list('hypothesis', flat=True)
+
+            actions = Action.objects.filter(
+                Q(
+                    content_type=ContentType.objects.get_for_model(Paper),
+                    object_id__in=paper_ids
+                ) |
+                Q(
+                    content_type=ContentType.objects.get_for_model(
+                        ResearchhubPost
+                    ),
+                    object_id__in=post_ids
+                ) |
+                Q(
+                    content_type=ContentType.objects.get_for_model(Hypothesis),
+                    object_id__in=hypothesis_ids
+                )
+            ).distinct('id')
+
+            email_context = {
+                **base_email_context,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'actions': [act.email_context() for act in actions]
+            }
+
+            recipient = [user.email]
+            subject = 'ResearchHub | Your Editor Digest'
+            send_email_message(
+                recipient,
+                'editor_digest.txt',
+                subject,
+                email_context,
+                'editor_digest.html',
+                'ResearchHub Digest <digest@researchhub.com>'
+            )
+            emails += recipient
+
+        etl.emails = ','.join(emails)
+        etl.save()
 
 
 def send_hub_digest(frequency):
-    etl = EmailTaskLog.objects.create(emails='', notification_frequency=frequency)
+    etl = EmailTaskLog.objects.create(
+        emails='',
+        notification_frequency=frequency
+    )
     end_date = timezone.now()
     start_date = calculate_hub_digest_start_date(end_date, frequency)
 
@@ -219,6 +308,22 @@ def check_can_receive_digest(user, frequency):
             email_recipient.receives_notifications
             and not email_recipient.digest_subscription.none
             and (email_recipient.digest_subscription.notification_frequency == frequency)  # noqa: E501
+        )
+    except Exception:
+        return False
+
+
+def check_editor_can_receive_digest(user, frequency):
+    try:
+        email_recipient = user.emailrecipient
+        receives_notification = email_recipient.receives_notifications
+        no_hub_subscription = email_recipient.hub_subscription.none
+        notif_freq = email_recipient.digest_subscription.notification_frequency == frequency  # noqa: E501
+
+        return (
+            receives_notification
+            and not no_hub_subscription
+            and notif_freq
         )
     except Exception:
         return False

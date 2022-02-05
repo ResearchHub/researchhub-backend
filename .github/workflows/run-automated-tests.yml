@@ -22,7 +22,8 @@ jobs:
           DB_PORT: 5432
           DB_HOST: localhost
           DB_USER: rh_developer
-          DB_PASS: not_secure        
+          DB_PASS: not_secure
+          APP_ENV: test        
         ports:
           - 5432:5432
         options: >-

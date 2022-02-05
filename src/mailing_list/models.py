@@ -3,6 +3,7 @@ from django.utils import timezone
 
 from mailing_list.lib import NotificationFrequencies
 
+
 class EmailTaskLog(models.Model):
     emails = models.TextField()
     notification_frequency = models.IntegerField(
@@ -10,6 +11,7 @@ class EmailTaskLog(models.Model):
     )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+
 
 class SubscriptionField(models.OneToOneField):
     def __init__(self, *args, **kwargs):
@@ -34,6 +36,10 @@ class EmailRecipient(models.Model):
     )
     digest_subscription = SubscriptionField(
         'mailing_list.DigestSubscription',
+        related_name='email_recipient'
+    )
+    hub_subscription = SubscriptionField(
+        'mailing_list.HubSubscription',
         related_name='email_recipient'
     )
     paper_subscription = SubscriptionField(
@@ -117,6 +123,10 @@ class DigestSubscription(BaseSubscription):
         default=NotificationFrequencies.WEEKLY,
         choices=BaseSubscription.NOTIFICATION_FREQUENCY_CHOICES
     )
+    none = models.BooleanField(default=False)
+
+
+class HubSubscription(BaseSubscription):
     none = models.BooleanField(default=False)
 
 

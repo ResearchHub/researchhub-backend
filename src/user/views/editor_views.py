@@ -1,20 +1,19 @@
 import iso8601
+
 from datetime import timedelta, datetime
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count
 from django.db.models.query_utils import Q
-from django.utils import timezone
+from django.core.paginator import Paginator
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from hub.models import Hub
 from reputation.models import Contribution
-from researchhub_access_group.constants import EDITOR
 from user.related_models.user_model import User
 from user.serializers import EditorContributionSerializer
-from django.core.paginator import Paginator
 from utils.http import GET
+
 
 def resolve_timeframe_for_contribution(startDate, endDate):
 
@@ -27,6 +26,7 @@ def resolve_timeframe_for_contribution(startDate, endDate):
         dateFrame['contributions__created_date__lte'] = endDate
 
     return dateFrame
+
 
 @api_view(http_method_names=[GET])
 @permission_classes([AllowAny])

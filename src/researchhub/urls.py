@@ -339,6 +339,10 @@ urlpatterns = [
         editor_views.get_editors_by_contributions
     ),
     path(
+        'api/reputation/distribute_rsc/',
+        reputation.views.distribute_rsc
+    ),
+    path(
         'api/permissions/',
         researchhub.views.permissions,
         name='permissions'

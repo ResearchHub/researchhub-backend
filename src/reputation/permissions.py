@@ -1,3 +1,6 @@
+from rest_framework.permissions import BasePermission
+
+from researchhub.settings import DIST_WHITELIST
 from utils.http import RequestMethods
 from utils.permissions import AuthorizationBasedPermission
 
@@ -15,3 +18,14 @@ class UpdateOrDeleteWithdrawal(AuthorizationBasedPermission):
         ):
             return user == obj.user
         return True
+
+
+class DistributionWhitelist(BasePermission):
+    def has_permission(self, request, view):
+        user = request.user
+        if user.is_anonymous:
+            return False
+
+        if user.email in DIST_WHITELIST:
+            return True
+        return False

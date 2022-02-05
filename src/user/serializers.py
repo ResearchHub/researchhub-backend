@@ -96,6 +96,7 @@ class AuthorSerializer(ModelSerializer):
             'is_claimed',
             'is_hub_editor_of',
             'num_posts',
+            'merged_with',
         ]
 
     def get_reputation(self, obj):
