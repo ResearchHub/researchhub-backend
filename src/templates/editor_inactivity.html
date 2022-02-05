@@ -1,0 +1,99 @@
+{% load inlinecss %} {% load l10n %} {% load humanize %}
+<html>
+  <link rel="stylesheet" href="../stylesheets/organization_invite.css" />
+  <head>
+    <meta charset="UTF-8" />
+    <title></title>
+    <link
+      href="https://fonts.googleapis.com/css?family=Roboto&display=swap"
+      rel="stylesheet"
+    />
+    <style type="text/css">
+      .button {
+        height: 50px;
+        font-size: 16px;
+        background: rgb(78,83,255);
+        border-radius: 8px;
+        font-weight: bold;
+        box-sizing: border-box;
+        margin-left: auto;
+        margin-right: auto;
+        margin-top: auto;
+        margin-bottom: auto;
+        letter-spacing: 1.5px;
+        padding: 12px 32px;
+        font-family: 'Roboto', sans-serif;
+        color: #fff;
+        text-decoration: none;
+      }
+
+      .button-container {
+        width: 100%;
+      }
+      @media only screen and (max-width: 633px) {
+        body {
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .email {
+          box-sizing: border-box;
+        }
+
+        .email-body {
+          box-sizing: border-box;
+        }
+
+        .footer {
+          box-sizing: border-box;
+        }
+
+        .banner-img-container {
+          display: none !important;
+        }
+      }
+    </style>
+  </head>
+  {% inlinecss "editor_inactivity.css" %}
+  <body>
+    <div class="email">
+      <div class="email-body">
+        <div class="banner-img-container">
+          <img
+            class="img-banner"
+            src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/user_verification.png"
+          />
+        </div>
+        <div class="email-info">
+          <div class="email-header">
+            <img
+              class="img-logo"
+              src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png"
+            />
+            <div class="header">
+              Editor Notification
+              <p class="header-message">
+                Hello {{ name }},
+              </p>
+              <p class="header-message">
+                We haven't seen any activity from your account this past week.
+                Editors are expected to contribute at least one paper and comment per week.
+              </p>
+              <p class="header-message">
+                Inactive editors are eventually removed from the program and must re-apply to become an editor.
+              </p>
+            </div>
+          </div>
+          <div class="button-container">
+            <a href="https://www.researchhub.com" class="button" target="_blank">
+              Visit ResearchHub
+            </a>  
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display: none">{% now "U" %}</div>
+  </body>
+</html>
+
+{% endinlinecss %}

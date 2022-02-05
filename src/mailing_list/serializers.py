@@ -5,7 +5,8 @@ from mailing_list.models import (
     PaperSubscription,
     ThreadSubscription,
     CommentSubscription,
-    ReplySubscription
+    ReplySubscription,
+    HubSubscription
 )
 from utils.serializers import get_model_serializer
 
@@ -13,6 +14,7 @@ from utils.serializers import get_model_serializer
 class EmailRecipientSerializer(serializers.ModelSerializer):
     digest_subscription = serializers.SerializerMethodField()
     paper_subscription = serializers.SerializerMethodField()
+    hub_subscription = serializers.SerializerMethodField()
     thread_subscription = serializers.SerializerMethodField()
     comment_subscription = serializers.SerializerMethodField()
     reply_subscription = serializers.SerializerMethodField()
@@ -25,6 +27,7 @@ class EmailRecipientSerializer(serializers.ModelSerializer):
             'email',
             'is_opted_out',
             'digest_subscription',
+            'hub_subscription',
             'paper_subscription',
             'thread_subscription',
             'comment_subscription',
@@ -45,6 +48,9 @@ class EmailRecipientSerializer(serializers.ModelSerializer):
 
     def get_paper_subscription(self, obj):
         return self._get_subscription(PaperSubscription, obj)
+
+    def get_hub_subscription(self, obj):
+        return self._get_subscription(HubSubscription, obj)
 
     def get_thread_subscription(self, obj):
         return self._get_subscription(ThreadSubscription, obj)

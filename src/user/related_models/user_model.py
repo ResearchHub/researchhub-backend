@@ -1,15 +1,30 @@
 import decimal
 import uuid
 
-from django.contrib.auth.models import AbstractUser
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 from django.utils import timezone
 
+from hub.models import Hub
 from mailing_list.models import EmailRecipient
+from researchhub_access_group.constants import EDITOR
 from user.tasks import handle_spam_user_task
 from user.tasks import update_elastic_registry
+from utils.message import send_email_message
 from utils.siftscience import decisions_api
 from utils.throttles import UserSustainedRateThrottle
+
+
+class UserManager(UserManager):
+    def editors(self):
+        editors = self.filter(
+            permissions__isnull=False,
+            permissions__access_type=EDITOR,
+            permissions__content_type=ContentType.objects.get_for_model(Hub)
+        ).distinct()
+        return editors
+
 
 """
 User objects have the following fields by default:
@@ -49,6 +64,8 @@ class User(AbstractUser):
         blank=True
     )
     sift_risk_score = models.FloatField(null=True, blank=True)
+
+    objects = UserManager()
 
     def full_name(self):
         return self.first_name + ' ' + self.last_name
@@ -141,3 +158,17 @@ class User(AbstractUser):
         balance_decimal = map(decimal.Decimal, balance)
         total_balance = sum(balance_decimal)
         return total_balance
+
+    def notify_inactivity(self):
+        recipient = [self.email]
+        subject = '[Editor] Weekly Inactivity'
+        email_context = {
+            'name': f'{self.first_name} {self.last_name}'
+        }
+        send_email_message(
+            recipient,
+            'editor_inactivity.txt',
+            subject,
+            email_context,
+            'editor_inactivity.html',
+        )

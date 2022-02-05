@@ -1,14 +1,21 @@
 import logging
 
+from datetime import timedelta
+
+from celery.decorators import periodic_task
+from celery.task.schedules import crontab
 from django.apps import apps
+from django.db.models import Count, Q
 from django.http.request import HttpRequest
 from django.core.cache import cache
+from django.utils import timezone
 from rest_framework.request import Request
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django_elasticsearch_dsl.registries import registry
 
 from researchhub.celery import app
+from reputation.models import Contribution
 from discussion.lib import (
     check_thread_in_papers,
     check_comment_in_threads,
@@ -22,7 +29,7 @@ from paper.models import Paper
 from paper.utils import get_cache_key
 from hub.models import Hub
 from researchhub_document.utils import reset_unified_document_cache
-from researchhub.settings import STAGING, PRODUCTION
+from researchhub.settings import STAGING, PRODUCTION, APP_ENV
 
 
 @app.task
@@ -296,3 +303,39 @@ def update_elastic_registry(user_id):
     Author = apps.get_model('user.Author')
     user_author = Author.objects.get(user_id=user_id)
     registry.update(user_author)
+
+
+# Runs every Monday at 6am
+@periodic_task(
+    run_every=crontab(hour=6, minute=0, day_of_week=1),
+    priority=5,
+    options={'queue': f'{APP_ENV}_core_queue'}
+)
+def notify_editor_inactivity():
+    User = apps.get_model('user.User')
+
+    last_week = timezone.now() - timedelta(days=7)
+    editors = User.objects.editors()
+    inactive_contributors = editors.annotate(
+        paper_count=Count(
+            'id',
+            filter=Q(
+                contributions__contribution_type=Contribution.SUBMITTER,
+                contributions__created_date__gte=last_week
+            )
+        ),
+        comment_count=Count(
+            'id',
+            filter=Q(
+                contributions__contribution_type=Contribution.COMMENTER,
+                contributions__created_date__gte=last_week
+            )
+        )
+    ).exclude(
+        paper_count__gte=1,
+        comment_count__gte=1
+    )
+
+    print(inactive_contributors.values('comment_count', 'paper_count'))
+    for inactive_contributor in inactive_contributors:
+        inactive_contributor.notify_inactivity()
