@@ -20,12 +20,13 @@ from researchhub_document.models import (
 from researchhub_document.related_models.constants.document_type import (
     HYPOTHESIS
 )
+from researchhub_document.permissions import HasDocumentEditingPermission
 
 
 class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date')
     queryset = Hypothesis.objects.all()
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly, HasDocumentEditingPermission]
     serializer_class = HypothesisSerializer
 
     def create(self, request, *args, **kwargs):

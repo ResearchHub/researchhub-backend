@@ -52,6 +52,9 @@ from researchhub_document.views.custom.unified_document_pagination import (
     UnifiedDocPagination
 )
 from user.utils import reset_latest_acitvity_cache
+from researchhub_document.permissions import (
+    HasDocumentCensorPermission
+)
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
@@ -63,6 +66,40 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     pagination_class = UnifiedDocPagination
     queryset = ResearchhubUnifiedDocument.objects.all()
     serializer_class = ResearchhubUnifiedDocumentSerializer
+
+    @action(
+        detail=True,
+        methods=['put', 'patch', 'delete'],
+        permission_classes=[
+            HasDocumentCensorPermission
+        ]
+    )
+    def censor(self, request, pk=None):
+        doc = self.get_object()
+        doc.is_removed = True
+        doc.save()
+
+        return Response(
+            self.get_serializer(instance=doc).data,
+            status=200
+        )
+
+    @action(
+        detail=True,
+        methods=['put', 'patch'],
+        permission_classes=[
+            HasDocumentCensorPermission
+        ]
+    )
+    def restore(self, request, pk=None):
+        doc = self.get_object()
+        doc.is_removed = False
+        doc.save()
+
+        return Response(
+            self.get_serializer(instance=doc).data,
+            status=200
+        )
 
     def update(self, request, *args, **kwargs):
         update_response = super().update(request, *args, **kwargs)
