@@ -27,7 +27,7 @@ def notify_immediate(action_id):
 
 @periodic_task(run_every=crontab(minute='30', hour='1'), priority=7)
 def notify_daily():
-    send_editor_hub_digest(NotificationFrequencies.DAILY)
+    # send_editor_hub_digest(NotificationFrequencies.DAILY)
 
     # TODO: Temporarily turning off notifications - Revamp
     # send_hub_digest(NotificationFrequencies.DAILY)
@@ -35,8 +35,8 @@ def notify_daily():
 
 @periodic_task(run_every=crontab(minute='0', hour='*/3'), priority=7)
 def notify_three_hours():
-    send_hub_digest(NotificationFrequencies.THREE_HOUR)
-    send_editor_hub_digest(NotificationFrequencies.THREE_HOUR)
+    # send_hub_digest(NotificationFrequencies.THREE_HOUR)
+    # send_editor_hub_digest(NotificationFrequencies.THREE_HOUR)
 
 
 # Noon PST
@@ -45,7 +45,7 @@ def notify_three_hours():
     priority=9
 )
 def notify_weekly():
-    send_editor_hub_digest(NotificationFrequencies.WEEKLY)
+    # send_editor_hub_digest(NotificationFrequencies.WEEKLY)
 
     # TODO: Temporarily turning off notifications - Revamp
     # send_hub_digest(NotificationFrequencies.WEEKLY)
