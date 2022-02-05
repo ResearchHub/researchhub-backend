@@ -54,14 +54,14 @@ def create_user(
     last_name=TestData.last_name,
     email=TestData.valid_email,
     password=TestData.valid_password,
-    moderator=True
+    moderator=False
 ):
     return User.objects.create(
         first_name=first_name,
         last_name=last_name,
         email=email,
         password=password,
-        moderator=True,
+        moderator=moderator,
     )
 
 def create_moderator(

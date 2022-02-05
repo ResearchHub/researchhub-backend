@@ -15,12 +15,12 @@ from researchhub_document.utils import reset_unified_document_cache
 from researchhub_document.serializers.researchhub_post_serializer \
     import ResearchhubPostSerializer
 from utils.sentry import log_error
-
+from researchhub_document.permissions import HasDocumentEditingPermission
 
 class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date')
     queryset = ResearchhubUnifiedDocument.objects.all()
-    permission_classes = [AllowAny]  # change to IsAuthenticated
+    permission_classes = [AllowAny, HasDocumentEditingPermission]
     serializer_class = ResearchhubPostSerializer
 
     def create(self, request, *args, **kwargs):
