@@ -443,12 +443,16 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
     def get_author_profile(self, user):
         context = self.context
         _context_fields = context.get('usr_dus_get_author_profile', {})
-        serializer = DynamicAuthorSerializer(
-            user.author_profile,
-            context=context,
-            **_context_fields
-        )
-        return serializer.data
+        try:
+            serializer = DynamicAuthorSerializer(
+                user.author_profile,
+                context=context,
+                **_context_fields
+            )
+            return serializer.data
+        except Exception as e:
+            sentry.log_error(e)
+            return {}
 
 
 class UserActions:

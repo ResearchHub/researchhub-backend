@@ -13,6 +13,7 @@ from reputation.models import Contribution
 from user.related_models.user_model import User
 from user.serializers import EditorContributionSerializer
 from utils.http import GET
+from researchhub_access_group.constants import EDITOR
 
 
 def resolve_timeframe_for_contribution(startDate, endDate):
