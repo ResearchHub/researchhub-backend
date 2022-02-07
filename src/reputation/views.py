@@ -43,6 +43,7 @@ from reputation.distributions import Distribution as Dist
 from researchhub.settings import ASYNC_SERVICE_HOST, WEB3_SHARED_SECRET
 from utils.http import http_request, POST
 
+TRANSACTION_FEE = 100
 
 class DepositViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Deposit.objects.all()
@@ -145,7 +146,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         user = request.user
         amount = decimal.Decimal(request.data['amount'])
-        transaction_fee = request.data.get('transaction_fee', 100)
+        transaction_fee = TRANSACTION_FEE
         to_address = request.data.get('to_address')
 
         valid, message = self._check_meets_withdrawal_minimum(amount)
@@ -205,7 +206,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         return math.ceil(amount * rsc_to_eth_ratio)
         """
 
-        return Response(1000, status=200)
+        return Response(TRANSACTION_FEE, status=200)
 
     def _create_balance_record(self, withdrawal, amount):
         source_type = ContentType.objects.get_for_model(withdrawal)
