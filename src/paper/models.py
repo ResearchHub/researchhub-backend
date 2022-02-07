@@ -260,7 +260,8 @@ class Paper(models.Model):
         max_length=1024,
         default=None,
         null=True,
-        blank=True
+        blank=True,
+        validators=[]
     )
     pdf_license = models.CharField(
         max_length=255,

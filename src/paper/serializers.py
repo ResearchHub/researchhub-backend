@@ -6,6 +6,7 @@ import utils.sentry as sentry
 from django.db import transaction, IntegrityError
 from django.http import QueryDict
 from django.db.models import Sum
+from django.core.validators import URLValidator, FileExtensionValidator
 
 import rest_framework.serializers as serializers
 
@@ -347,9 +348,17 @@ class PaperSerializer(BasePaperSerializer):
             'views',
 
         ]
+
         patch_read_only_fields = [
             'uploaded_by'
         ]
+
+        custom_validators = {
+            'pdf_url': URLValidator(),
+            'url': URLValidator(),
+            'file': FileExtensionValidator(['pdf'])
+        }
+
         model = Paper
 
     def create(self, validated_data):
@@ -374,6 +383,12 @@ class PaperSerializer(BasePaperSerializer):
                 for read_only_field in self.Meta.read_only_fields:
                     if read_only_field in validated_data:
                         validated_data.pop(read_only_field, None)
+
+                validators = self.Meta.custom_validators
+                for key in validators:
+                    if key in validated_data:
+                        value = validated_data[key]
+                        validators[key](value)
 
                 valid_doi = self._check_valid_doi(validated_data)
                 # if not valid_doi:
@@ -505,6 +520,12 @@ class PaperSerializer(BasePaperSerializer):
                 for read_only_field in read_only_fields:
                     if read_only_field in validated_data:
                         validated_data.pop(read_only_field, None)
+
+                validators = self.Meta.custom_validators
+                for key in validators:
+                    if key in validated_data:
+                        value = validated_data[key]
+                        validators[key](value)
 
                 self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
