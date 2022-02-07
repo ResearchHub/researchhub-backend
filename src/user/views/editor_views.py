@@ -14,6 +14,7 @@ from user.related_models.user_model import User
 from user.serializers import EditorContributionSerializer
 from utils.http import GET
 from researchhub_access_group.constants import EDITOR
+from hub.models import Hub
 
 
 def resolve_timeframe_for_contribution(startDate, endDate):
