@@ -340,13 +340,15 @@ class PaperSerializer(BasePaperSerializer):
             'twitter_mentions',
             'twitter_score',
             'unified_document_id',
-            'uploaded_by',
             'uploaded_date',
             'user_flag',
             'users_who_bookmarked',
             'user_vote',
             'views',
 
+        ]
+        patch_read_only_fields = [
+            'uploaded_by'
         ]
         model = Paper
 
@@ -496,7 +498,11 @@ class PaperSerializer(BasePaperSerializer):
                 # Temporary fix for updating read only fields
                 # Not including file, pdf_url, and url because
                 # those fields are processed
-                for read_only_field in self.Meta.read_only_fields:
+                read_only_fields = (
+                    self.Meta.read_only_fields +
+                    self.Meta.patch_read_only_fields
+                )
+                for read_only_field in read_only_fields:
                     if read_only_field in validated_data:
                         validated_data.pop(read_only_field, None)
 
