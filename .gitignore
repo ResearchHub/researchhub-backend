@@ -25,3 +25,8 @@ src/.ebextensions
 src/.platform
 src/Dockerfile
 
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml

@@ -361,6 +361,46 @@ class PaperViewSet(viewsets.ModelViewSet):
         methods=['put', 'patch', 'delete'],
         permission_classes=[HasDocumentCensorPermission]
     )
+    def censor_paper(self, request, pk=None):
+        paper = None
+        try:
+            paper = self.get_object()
+        except Exception:
+            paper = Paper.objects.get(id=request.data['id'])
+            pass
+        paper.is_removed = True
+        paper.save()
+        paper.reset_cache(use_celery=False)
+        return Response(
+            self.get_serializer(instance=paper).data,
+            status=200
+        )
+
+    @action(
+        detail=True,
+        methods=['put', 'patch', 'delete'],
+        permission_classes=[HasDocumentCensorPermission]
+    )
+    def restore_paper(self, request, pk=None):
+        paper = None
+        try:
+            paper = self.get_object()
+        except Exception:
+            paper = Paper.objects.get(id=request.data['id'])
+            pass
+        paper.is_removed = False
+        paper.save()
+        paper.reset_cache(use_celery=False)
+        return Response(
+            self.get_serializer(instance=paper).data,
+            status=200
+        )
+
+    @action(
+        detail=True,
+        methods=['put', 'patch', 'delete'],
+        permission_classes=[HasDocumentCensorPermission]
+    )
     def censor_pdf(self, request, pk=None):
         paper = self.get_object()
         paper_id = paper.id
