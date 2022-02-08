@@ -53,7 +53,6 @@ class HasDocumentEditingPermission(AuthorizationBasedPermission):
     message = 'Need to be author or moderator to edit'
 
     def has_permission(self, request, view):
-        # import pdb; pdb.set_trace()
         if view.action == 'create' or view.action == 'update' or view.action == 'upsert':
             if request.data.get('post_id') is not None:
                 post = ResearchhubPost.objects.get(id=request.data.get('post_id'))
