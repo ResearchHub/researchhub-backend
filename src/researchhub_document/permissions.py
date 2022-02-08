@@ -12,6 +12,7 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.models import (
     ResearchhubPost
 )
+from researchhub_document.related_models.researchhub_unified_document_model import ResearchhubUnifiedDocument
 from utils.permissions import AuthorizationBasedPermission
 
 
@@ -21,14 +22,16 @@ class HasDocumentCensorPermission(AuthorizationBasedPermission):
     def is_authorized(self, request, view, obj):
         if request.user.is_authenticated is False:
             return False
-
-        document_type = obj.document_type
+        
+        document_type = obj.document_type if obj.__class__ is \
+            ResearchhubUnifiedDocument else Paper
         doc = None
+        
         if document_type == DISCUSSION:
             doc = ResearchhubPost.objects.get(unified_document_id=obj.id)
         elif document_type == HYPOTHESIS:
             doc = Hypothesis.objects.get(unified_document_id=obj.id)
-        elif document_type == PAPER:
+        else:
             doc = Paper.objects.get(id=obj.id)
 
         if (doc is None):
@@ -40,7 +43,7 @@ class HasDocumentCensorPermission(AuthorizationBasedPermission):
             doc.hubs,
         )
         if (
-            requestor.user.moderator or  # moderators serve as site admin
+            requestor.moderator or  # moderators serve as site admin
             is_requestor_appropriate_editor or
             doc.created_by_id == requestor.id
         ):

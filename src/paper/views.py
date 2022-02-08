@@ -83,6 +83,7 @@ from purchase.models import Purchase
 from researchhub.lib import get_document_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
+from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.views.custom.unified_document_pagination import UNIFIED_DOC_PAGE_SIZE
 from user.models import Author
 from utils.http import GET, POST, check_url_contains_pdf
@@ -308,7 +309,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['put', 'patch', 'delete'],
-        permission_classes=[IsAuthenticated, IsModeratorOrVerifiedAuthor]
+        permission_classes=[HasDocumentCensorPermission]
     )
     def censor(self, request, pk=None):
         paper = self.get_object()
@@ -358,7 +359,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['put', 'patch', 'delete'],
-        permission_classes=[IsAuthenticated, IsModeratorOrVerifiedAuthor]
+        permission_classes=[HasDocumentCensorPermission]
     )
     def censor_pdf(self, request, pk=None):
         paper = self.get_object()
