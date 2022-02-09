@@ -352,13 +352,6 @@ class PaperSerializer(BasePaperSerializer):
         patch_read_only_fields = [
             'uploaded_by'
         ]
-
-        custom_validators = {
-            'pdf_url': URLValidator(),
-            'url': URLValidator(),
-            'file': FileExtensionValidator(['pdf'])
-        }
-
         model = Paper
 
     def create(self, validated_data):
@@ -369,10 +362,9 @@ class PaperSerializer(BasePaperSerializer):
             user = None
         validated_data['uploaded_by'] = user
 
-        # Prepare validated_data by removing m2m and file for now
+        # Prepare validated_data by removing m2m
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
-        file = validated_data.pop('file')
         hypothesis_id = validated_data.pop('hypothesis_id', None)
         citation_type = validated_data.pop('citation_type', None)
         try:
@@ -384,16 +376,11 @@ class PaperSerializer(BasePaperSerializer):
                     if read_only_field in validated_data:
                         validated_data.pop(read_only_field, None)
 
-                validators = self.Meta.custom_validators
-                for key in validators:
-                    if key in validated_data:
-                        value = validated_data[key]
-                        validators[key](value)
-
                 valid_doi = self._check_valid_doi(validated_data)
                 # if not valid_doi:
                 #     raise IntegrityError('DETAIL: Invalid DOI')
 
+                file = validated_data.get('file')
                 self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
                 self._add_raw_authors(validated_data)
@@ -410,6 +397,7 @@ class PaperSerializer(BasePaperSerializer):
                     # It is important to note that paper signals
                     # are ran after call to super
                     paper = super(PaperSerializer, self).create(validated_data)
+                    paper.full_clean(exclude=['paper_type'])
 
                 unified_doc = paper.unified_document
                 unified_doc_id = paper.unified_document.id
@@ -504,8 +492,8 @@ class PaperSerializer(BasePaperSerializer):
         request = self.context.get('request', None)
         authors = validated_data.pop('authors', [None])
         hubs = validated_data.pop('hubs', [None])
-        file = validated_data.pop('file', None)
         raw_authors = validated_data.pop('raw_authors', [])
+        file = validated_data.get('file', None)
 
         try:
             with transaction.atomic():
@@ -521,12 +509,6 @@ class PaperSerializer(BasePaperSerializer):
                     if read_only_field in validated_data:
                         validated_data.pop(read_only_field, None)
 
-                validators = self.Meta.custom_validators
-                for key in validators:
-                    if key in validated_data:
-                        value = validated_data[key]
-                        validators[key](value)
-
                 self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
 
@@ -534,6 +516,8 @@ class PaperSerializer(BasePaperSerializer):
                     instance,
                     validated_data
                 )
+                paper.full_clean(exclude=['paper_type'])
+
                 unified_doc = paper.unified_document
                 paper_title = paper.paper_title or ''
                 self._check_pdf_title(paper, paper_title, file)

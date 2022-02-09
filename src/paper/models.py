@@ -9,6 +9,7 @@ from django.db import models, transaction
 from django.db.models import Count, Q, Avg, F, Sum, IntegerField
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from django.db.models.functions import Extract, Cast
+from django.core.validators import FileExtensionValidator
 
 from manubot.cite.doi import get_doi_csl_item
 from manubot.cite.unpaywall import Unpaywall
@@ -153,7 +154,8 @@ class Paper(models.Model):
         upload_to='uploads/papers/%Y/%m/%d',
         default=None,
         null=True,
-        blank=True
+        blank=True,
+        validators=[FileExtensionValidator(['pdf'])]
     )
     pdf_file_extract = models.FileField(
         max_length=512,
@@ -222,14 +224,20 @@ class Paper(models.Model):
         blank=True,
         unique=True
     )
-    alternate_ids = JSONField(default=dict)
+    alternate_ids = JSONField(
+        default=dict,
+        blank=True,
+    )
     paper_title = models.CharField(  # Official paper title
         max_length=1024,
         default=None,
         null=True,
         blank=True
     )
-    paper_publish_date = models.DateField(null=True)
+    paper_publish_date = models.DateField(
+        null=True,
+        blank=True
+    )
     raw_authors = JSONField(blank=True, null=True)
     abstract = models.TextField(
         default=None,
@@ -261,7 +269,6 @@ class Paper(models.Model):
         default=None,
         null=True,
         blank=True,
-        validators=[]
     )
     pdf_license = models.CharField(
         max_length=255,
@@ -288,7 +295,10 @@ class Paper(models.Model):
         blank=True,
         help_text='PDF availability in Unpaywall OA Location format.'
     )
-    external_metadata = JSONField(null=True)
+    external_metadata = JSONField(
+        null=True,
+        blank=True
+    )
 
     purchases = GenericRelation(
         'purchase.Purchase',
