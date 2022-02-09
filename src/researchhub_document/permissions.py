@@ -23,16 +23,16 @@ class HasDocumentCensorPermission(AuthorizationBasedPermission):
         if request.user.is_authenticated is False:
             return False
         
-        document_type = obj.document_type if obj.__class__ is \
-            ResearchhubUnifiedDocument else Paper
         doc = None
-        
-        if document_type == DISCUSSION:
-            doc = ResearchhubPost.objects.get(unified_document_id=obj.id)
-        elif document_type == HYPOTHESIS:
-            doc = Hypothesis.objects.get(unified_document_id=obj.id)
-        else:
+        if (isinstance(obj, ResearchhubUnifiedDocument)):
+            uni_doc_type = obj.document_type
+            doc = ResearchhubPost.objects.get(unified_document_id=obj.id) \
+                if uni_doc_type == DISCUSSION \
+                else Hypothesis.objects.get(unified_document_id=obj.id)
+        elif (isinstance(obj, Paper)):
             doc = Paper.objects.get(id=obj.id)
+        else:
+            return False
 
         if (doc is None):
             return False
