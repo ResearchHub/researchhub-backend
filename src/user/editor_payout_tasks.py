@@ -72,7 +72,8 @@ def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month):
     headers['x-api-key'] = MORALIS_API_KEY
     request_result = requests.get(
         MORALIS_LOOKUP_URI,
-        headers=headers
+        headers=headers,
+        timeout=1
     )
     real_usd_per_rsc = json.loads(request_result.text)['usdPrice']
     payout_usd_per_rsc = real_usd_per_rsc if \
