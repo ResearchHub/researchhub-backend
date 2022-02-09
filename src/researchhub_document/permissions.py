@@ -26,7 +26,8 @@ class HasDocumentCensorPermission(AuthorizationBasedPermission):
         doc = None
         if (isinstance(obj, ResearchhubUnifiedDocument)):
             uni_doc_model = get_uni_doc_related_model(obj)
-            doc = uni_doc_model.objects.get(unified_document_id=obj.id)
+            doc = uni_doc_model.objects.get(unified_document_id=obj.id) \
+                if uni_doc_model is not None else None
         elif (isinstance(obj, Paper)):
             doc = Paper.objects.get(id=obj.id)
         else:
