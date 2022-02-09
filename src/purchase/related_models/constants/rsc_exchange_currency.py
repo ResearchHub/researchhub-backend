@@ -1,0 +1,7 @@
+USD = 'USD'
+ETHER = 'ETHER'
+
+RSC_EXCHANGE_CURRENCY = (
+  (USD, USD),
+  (ETHER, ETHER)
+)
