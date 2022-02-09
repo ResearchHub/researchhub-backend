@@ -33,7 +33,7 @@ class HasDocumentCensorPermission(AuthorizationBasedPermission):
             return False
 
         requestor = request.user
-        is_requestor_appropriate_editor = requestor.is_hub_editor(
+        is_requestor_appropriate_editor = requestor.is_hub_editor_of(
             doc.hubs,
         )
         if (
