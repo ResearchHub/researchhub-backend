@@ -323,11 +323,11 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                     return (True, None)
 
                 time_since_withdrawal = last_withdrawal.created_date - time_ago
-                return (False, "The next time you're able to withdraw is in {} days".format(time_since_withdrawal.days))
+                # return (False, "The next time you're able to withdraw is in {} days".format(time_since_withdrawal.days))
             else:
                 time_since_withdrawal = last_withdrawal.created_date - minutes_ago
                 minutes = int(round(time_since_withdrawal.seconds / 60, 0))
-                return (False, "The next time you're able to withdraw is in {} minutes".format(minutes))
+                # return (False, "The next time you're able to withdraw is in {} minutes".format(minutes))
 
         return (True, None)
 
