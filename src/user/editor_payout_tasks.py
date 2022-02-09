@@ -103,7 +103,8 @@ def get_daily_rsc_payout_amount_from_uniswap(num_days_this_month):
     
     request_result = requests.post(
         UNI_SWAP_GRAPH_URI,
-        json={'query': uni_swap_query}
+        json={'query': uni_swap_query},
+        timeout=1
     )
     payload = json.loads(request_result.text).data
 
