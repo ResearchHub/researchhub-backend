@@ -1,18 +1,14 @@
-from django.contrib.contenttypes.models import ContentType
-
-from hub.models import Hub
 from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
-from researchhub_access_group.constants import EDITOR
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     HYPOTHESIS,
-    PAPER,
 )
 from researchhub_document.models import (
     ResearchhubPost
 )
-from researchhub_document.related_models.researchhub_unified_document_model import ResearchhubUnifiedDocument
+from researchhub_document.related_models.researchhub_unified_document_model \
+    import ResearchhubUnifiedDocument
 from utils.permissions import AuthorizationBasedPermission
 
 
