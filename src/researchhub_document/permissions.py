@@ -22,13 +22,11 @@ class HasDocumentCensorPermission(AuthorizationBasedPermission):
     def is_authorized(self, request, view, obj):
         if request.user.is_authenticated is False:
             return False
-        
+
         doc = None
         if (isinstance(obj, ResearchhubUnifiedDocument)):
-            uni_doc_type = obj.document_type
-            doc = ResearchhubPost.objects.get(unified_document_id=obj.id) \
-                if uni_doc_type == DISCUSSION \
-                else Hypothesis.objects.get(unified_document_id=obj.id)
+            uni_doc_model = get_uni_doc_related_model(obj)
+            doc = uni_doc_model.objects.get(unified_document_id=obj.id)
         elif (isinstance(obj, Paper)):
             doc = Paper.objects.get(id=obj.id)
         else:
@@ -70,3 +68,15 @@ class HasDocumentEditingPermission(AuthorizationBasedPermission):
                     return False
 
         return True
+
+
+def get_uni_doc_related_model(unified_document):
+    if (not isinstance(unified_document, ResearchhubUnifiedDocument)):
+        return None
+    doc_type = unified_document.document_type
+    if doc_type == DISCUSSION:
+        return ResearchhubPost
+    elif doc_type == HYPOTHESIS:
+        return Hypothesis
+    else:
+        return None
