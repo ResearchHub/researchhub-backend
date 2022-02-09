@@ -38,8 +38,7 @@ class HasDocumentCensorPermission(AuthorizationBasedPermission):
             return False
 
         requestor = request.user
-        is_requestor_appropriate_editor = is_hub_editor(
-            requestor,
+        is_requestor_appropriate_editor = requestor.is_hub_editor(
             doc.hubs,
         )
         if (
@@ -71,12 +70,3 @@ class HasDocumentEditingPermission(AuthorizationBasedPermission):
                     return False
 
         return True
-
-
-def is_hub_editor(requestor_user, hubs):
-    hub_content_type = ContentType.objects.get_for_model(Hub)
-    return requestor_user.permissions.filter(
-        access_type=EDITOR,
-        content_type=hub_content_type,
-        object_id__in=hubs.values_list('id', flat=True),
-    ).exists()
