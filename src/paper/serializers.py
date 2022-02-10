@@ -367,6 +367,7 @@ class PaperSerializer(BasePaperSerializer):
         hubs = validated_data.pop('hubs')
         hypothesis_id = validated_data.pop('hypothesis_id', None)
         citation_type = validated_data.pop('citation_type', None)
+        file = validated_data.get('file')
         try:
             with transaction.atomic():
                 # Temporary fix for updating read only fields
@@ -380,7 +381,6 @@ class PaperSerializer(BasePaperSerializer):
                 # if not valid_doi:
                 #     raise IntegrityError('DETAIL: Invalid DOI')
 
-                file = validated_data.get('file')
                 self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
                 self._add_raw_authors(validated_data)
@@ -411,6 +411,7 @@ class PaperSerializer(BasePaperSerializer):
 
                 paper_id = paper.id
                 paper_title = paper.paper_title or ''
+                file = paper.file
                 self._check_pdf_title(paper, paper_title, file)
                 # NOTE: calvinhlee - This is an antipattern. Look into changing
                 Vote.objects.create(
@@ -520,6 +521,7 @@ class PaperSerializer(BasePaperSerializer):
 
                 unified_doc = paper.unified_document
                 paper_title = paper.paper_title or ''
+                file = paper.file
                 self._check_pdf_title(paper, paper_title, file)
 
                 if hubs:
