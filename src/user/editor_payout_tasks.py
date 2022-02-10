@@ -82,8 +82,7 @@ def editor_daily_payout_task():
             print('error: ', error)
             pass
     try:
-        today_iso = today.strftime('YYYY-MM-DD')
-        title = f'Editor Payout {today_iso}'
+        title = f'Editor Payout {today}'
         csv_file = StringIO()
         csv_writer = csv.DictWriter(
           csv_file,
@@ -104,7 +103,7 @@ def editor_daily_payout_task():
         csv_writer.writerows(prepped_rows)
         email = EmailMessage(
             subject=title,
-            body=f'Editor payout csv - {today_iso}',
+            body=f'Editor payout csv - {today}',
             from_email='ResearchHub <noreply@researchhub.com>',
             to=PAYOUT_ADMINS,
         )
