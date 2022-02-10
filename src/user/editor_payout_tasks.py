@@ -1,17 +1,20 @@
 from calendar import monthrange
+from io import StringIO
+import csv
 import datetime
 import json
 import math
-import pandas as pd
 import requests
 
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from django.contrib.contenttypes.models import ContentType
 from django.core.mail import EmailMessage
+from django.core.mail import EmailMessage
 
 from hub.models import Hub
-from reputation.distributor import Distribution, Distributor
+from reputation.distributor import Distributor
+from reputation.distributions import Distribution  # this is NOT the model
 from researchhub_access_group.constants import EDITOR
 from purchase.related_models.constants.rsc_exchange_currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
@@ -31,11 +34,11 @@ MORALIS_LOOKUP_URI = "https://deep-index.moralis.io/api/v2/erc20/{address}/price
 PAYOUT_ADMINS = ['calvinhlee@quantfive.org']
 
 
-@periodic_task(
-    run_every=crontab(hour=15, minute=0),  # 3PM System Time (PST)
-    priority=1,
-    options={'queue': f'{APP_ENV}_core_queue'}
-)
+# @periodic_task(
+#     run_every=crontab(hour=15, minute=0),  # 3PM System Time (PST)
+#     priority=1,
+#     options={'queue': f'{APP_ENV}_core_queue'}
+# )
 def editor_daily_payout_task():
     today = datetime.date.today()
     num_days_this_month = monthrange(today.year, today.month)[1]
@@ -54,16 +57,17 @@ def editor_daily_payout_task():
     ).distinct()
 
     csv_prep = {
-      'amount': [],
+      'amount-rsc': [],
       'emails': [],
       'names': [],
-      'rate': [result['rate']],
+      'usd-rsc-rate': [],
     }
 
     for editor in editors.iterator():
         try:
             pay_amount = result['pay_amount']
             distributor = Distributor(
+                  # this is NOT the model. It's a simple object
                   Distribution('EDITOR_PAYOUT', pay_amount, False),
                   editor,
                   None,
@@ -75,41 +79,46 @@ def editor_daily_payout_task():
                 editor.first_name or "" + editor.last_name or ""
             )
             csv_prep['emails'].append(editor.email)
-            csv_prep['amount'].append(pay_amount)
+            csv_prep['amount-rsc'].append(pay_amount)
 
         except Exception as error:
             sentry.log_error(error)
+            print('error: ', error)
             pass
-
     try:
         today_iso = today.isoformat()
         title = f'Editor Payout {today_iso}'
-        written_csv = pd.DataFrame(
-          [
-            csv_prep['names'],
-            csv_prep['emails'],
-            csv_prep['amount'],
-            csv_prep['rate']
-          ],
-          columns=['Name', 'Email', 'Amount USD', 'RSC to USD rate']
+        csv_file = StringIO()
+        csv_writer = csv.DictWriter(
+          csv_file,
+          # logical ordering
+          fieldnames=['names', 'emails', 'amount-rsc', 'usd-rsc-rate']
         )
+        csv_writer.writeheader()
 
+        prepped_rows = []
+        for index in range(editors.count()):
+            print("Curr Index: ", index)
+            prepped_rows.append({
+                'names': csv_prep['names'][index],
+                'emails': csv_prep['emails'][index],
+                'amount-rsc': csv_prep['amount-rsc'][index],
+                'usd-rsc-rate': result['rate'],
+            })
+
+        csv_writer.writerows(prepped_rows)
         email = EmailMessage(
             subject=title,
             body=f'Editor payout csv - {today_iso}',
             from_email='ResearchHub <noreply@researchhub.com>',
             to=PAYOUT_ADMINS,
         )
-
-        email.attach(
-          f"{title}.csv",
-          content=written_csv.values(),
-          minetype="text/csv"
-        )
+        email.attach(f'{title}.csv', csv_file.getvalue(), 'text/csv')
         email.send()
 
     except Exception as error:
         sentry.log_error(error)
+        print('error: ', error)
         pass
 
 
