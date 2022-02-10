@@ -30,6 +30,7 @@ from paper.utils import get_cache_key
 from hub.models import Hub
 from researchhub_document.utils import reset_unified_document_cache
 from researchhub.settings import STAGING, PRODUCTION, APP_ENV
+from utils.sentry import log_info
 
 
 @app.task
@@ -336,6 +337,14 @@ def notify_editor_inactivity():
         comment_count__gte=1
     )
 
-    print(inactive_contributors.values('comment_count', 'paper_count'))
-    for inactive_contributor in inactive_contributors:
+    logging = []
+    for inactive_contributor in inactive_contributors.iterator():
+        logging.append(
+            (
+                inactive_contributor.email,
+                f'Paper count: {inactive_contributor.paper_count}',
+                f'Comment count: {inactive_contributor.comment_count}'
+            )
+        )
         inactive_contributor.notify_inactivity()
+    log_info(logging)
