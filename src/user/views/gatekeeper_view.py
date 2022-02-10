@@ -2,8 +2,9 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-
 from rest_framework.permissions import AllowAny
+
+from hub.permissions import IsModerator
 from user.related_models.gatekeeper_model import Gatekeeper
 from user.serializers import GatekeeperSerializer
 
@@ -11,7 +12,7 @@ from utils.http import GET
 
 
 class GatekeeperViewSet(ModelViewSet):
-    permission_classes = [AllowAny]
+    permission_classes = [IsModerator]
     queryset = Gatekeeper.objects.all()
     serializer_class = GatekeeperSerializer
 
