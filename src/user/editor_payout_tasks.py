@@ -10,7 +10,6 @@ from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from django.contrib.contenttypes.models import ContentType
 from django.core.mail import EmailMessage
-from django.core.mail import EmailMessage
 
 from hub.models import Hub
 from reputation.distributor import Distributor
@@ -18,7 +17,11 @@ from reputation.distributions import Distribution  # this is NOT the model
 from researchhub_access_group.constants import EDITOR
 from purchase.related_models.constants.rsc_exchange_currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from researchhub.settings import  MORALIS_API_KEY, PAYOUT_ADMINS, PAYOUT_EXCLUSION_LIST, WEB3_RSC_ADDRESS
+from researchhub.settings import APP_ENV, MORALIS_API_KEY, WEB3_RSC_ADDRESS
+from user.constants.gatekeeper_constants import (
+    EDITOR_PAYOUT_ADMIN, PAYOUT_EXCLUSION_LIST
+)
+from user.related_models.gatekeeper_model import Gatekeeper
 from user.related_models.user_model import User
 from utils import sentry
 
@@ -30,11 +33,11 @@ USD_PER_RSC_PRICE_FLOOR = .033
 MORALIS_LOOKUP_URI = "https://deep-index.moralis.io/api/v2/erc20/{address}/price".format(address=WEB3_RSC_ADDRESS)
 
 
-# @periodic_task(
-#     run_every=crontab(hour=15, minute=0),  # 3PM System Time (PST)
-#     priority=1,
-#     options={'queue': f'{APP_ENV}_core_queue'}
-# )
+@periodic_task(
+    run_every=crontab(hour=15, minute=0),  # 3PM System Time (PST)
+    priority=1,
+    options={'queue': f'{APP_ENV}_core_queue'}
+)
 def editor_daily_payout_task():
     today = datetime.date.today()
     num_days_this_month = monthrange(today.year, today.month)[1]
@@ -46,11 +49,15 @@ def editor_daily_payout_task():
       target_currency=USD,
     )
 
+    excluded_user_email = Gatekeeper.objects.filter(
+        type__in=[EDITOR_PAYOUT_ADMIN, PAYOUT_EXCLUSION_LIST]
+    ).values_list('email', flat=True)
+
     editors = User.objects.filter(
         permissions__isnull=False,
         permissions__access_type=EDITOR,
         permissions__content_type=ContentType.objects.get_for_model(Hub)
-    ).distinct().exclude(email__in=(PAYOUT_EXCLUSION_LIST))
+    ).distinct().exclude(email__in=(excluded_user_email))
 
     csv_prep = {
       'amount-rsc': [],
@@ -101,11 +108,17 @@ def editor_daily_payout_task():
             })
 
         csv_writer.writerows(prepped_rows)
+        
+        payout_admin_emails = Gatekeeper.objects.filter(
+            type__in=[EDITOR_PAYOUT_ADMIN]
+        ).values_list('email', flat=True)
+
+        email_tag = '' if APP_ENV == 'production' else "[Staging - TEST] "
         email = EmailMessage(
-            subject=title,
-            body=f'Editor payout csv - {today}',
-            from_email='ResearchHub <noreply@researchhub.com>',
-            to=PAYOUT_ADMINS,
+            subject=f'{email_tag}{title}',
+            body=f'{email_tag}Editor payout csv - {today}',
+            from_email=f'{email_tag}ResearchHub <noreply@researchhub.com>',
+            to=payout_admin_emails,
         )
         email.attach(f'{title}.csv', csv_file.getvalue(), 'text/csv')
         email.send()
