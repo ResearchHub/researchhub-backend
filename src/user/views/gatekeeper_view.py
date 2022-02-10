@@ -37,6 +37,6 @@ class GatekeeperViewSet(ModelViewSet):
             return Response(True, status=status.HTTP_200_OK)
 
         return Response(
-            {'data': 'Cannot find given user & type'},
-            status=status.HTTP_404_NOT_FOUND
+            {'data': 'User not allowed'},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED
         )
