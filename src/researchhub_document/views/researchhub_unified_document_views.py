@@ -58,7 +58,6 @@ from researchhub_document.permissions import (
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
-    # TODO: calvinhlee - look into permissions
     permission_classes = [
         IsAuthenticated,
     ]

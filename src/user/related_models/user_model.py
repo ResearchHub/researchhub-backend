@@ -172,3 +172,11 @@ class User(AbstractUser):
             email_context,
             'editor_inactivity.html',
         )
+
+    def is_hub_editor_of(self, hubs):
+        hub_content_type = ContentType.objects.get_for_model(Hub)
+        return self.permissions.filter(
+            access_type=EDITOR,
+            content_type=hub_content_type,
+            object_id__in=hubs.values_list('id', flat=True),
+        ).exists()
