@@ -611,6 +611,18 @@ if STAGING:
         '0x2275736dfEf93a811Bb32156724C1FCF6FFd41be'
     )
 
+MORALIS_API_KEY = 'DsAnTYhpjnFmpwugvHFkyNg3WWdGFANANdGAEjMAsKDuZwZNeIsPs8Q4LGn0GGDL'
+
+PAYOUT_ADMINS = [
+    'calvinhlee@quantfive.org',
+    'kobe@researchhub.com',
+    'leo.sun@quantfive.org',
+    'pat@researchhub.com',
+    'patricklu@researchhub.com',
+    'thomas@researchhub.com',
+]
+
+PAYOUT_EXCLUSION_LIST = PAYOUT_ADMINS & ["barmstrong@gmail.com", 'brian@coinbase.com']
 
 # Redis
 # redis://:password@hostname:port/db_number

@@ -18,7 +18,7 @@ from reputation.distributions import Distribution  # this is NOT the model
 from researchhub_access_group.constants import EDITOR
 from purchase.related_models.constants.rsc_exchange_currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from researchhub.settings import APP_ENV, WEB3_RSC_ADDRESS
+from researchhub.settings import  MORALIS_API_KEY, PAYOUT_ADMINS, PAYOUT_EXCLUSION_LIST, WEB3_RSC_ADDRESS
 from user.related_models.user_model import User
 from utils import sentry
 
@@ -30,8 +30,6 @@ USD_PER_RSC_PRICE_FLOOR = .033
 # TODO: (kobe) - API is under Calvin's name. Need to move to RH's account
 MORALIS_API_KEY = 'vlHzigIN9AYgxwTV2y55ruHrUYc08WsMFCTZNn4mUSLzJAdWMW5pCnUtrL0yqlwE'
 MORALIS_LOOKUP_URI = "https://deep-index.moralis.io/api/v2/erc20/{address}/price".format(address=WEB3_RSC_ADDRESS)
-
-PAYOUT_ADMINS = ['calvinhlee@quantfive.org']
 
 
 # @periodic_task(
@@ -54,7 +52,7 @@ def editor_daily_payout_task():
         permissions__isnull=False,
         permissions__access_type=EDITOR,
         permissions__content_type=ContentType.objects.get_for_model(Hub)
-    ).distinct()
+    ).distinct().exclude(email__in=(PAYOUT_EXCLUSION_LIST))
 
     csv_prep = {
       'amount-rsc': [],
