@@ -94,7 +94,6 @@ def editor_daily_payout_task():
 
         prepped_rows = []
         for index in range(editors.count()):
-            print("Curr Index: ", index)
             prepped_rows.append({
                 'names': csv_prep['names'][index],
                 'emails': csv_prep['emails'][index],
