@@ -30,6 +30,7 @@ MORALIS_LOOKUP_URI = "https://deep-index.moralis.io/api/v2/erc20/{address}/price
 
 PAYOUT_ADMINS = ['calvinhlee@quantfive.org']
 
+
 @periodic_task(
     run_every=crontab(hour=15, minute=0),  # 3PM System Time (PST)
     priority=1,
@@ -85,9 +86,9 @@ def editor_daily_payout_task():
         title = f'Editor Payout {today_iso}'
         written_csv = pd.DataFrame(
           [
-            csv_prep['names'], 
-            csv_prep['emails'], 
-            csv_prep['amount'], 
+            csv_prep['names'],
+            csv_prep['emails'],
+            csv_prep['amount'],
             csv_prep['rate']
           ],
           columns=['Name', 'Email', 'Amount USD', 'RSC to USD rate']
