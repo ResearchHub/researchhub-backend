@@ -651,6 +651,7 @@ class PaperSerializer(BasePaperSerializer):
 
     def _add_url(self, file, validated_data):
         if check_file_is_url(file):
+            validated_data['file'] = None
             contains_pdf = check_url_contains_pdf(file)
             is_journal_pdf = check_url_is_pdf(file)
 
