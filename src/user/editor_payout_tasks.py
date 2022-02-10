@@ -82,7 +82,7 @@ def editor_daily_payout_task():
             print('error: ', error)
             pass
     try:
-        today_iso = today.isoformat()
+        today_iso = today.strftime('YYYY-MM-DD')
         title = f'Editor Payout {today_iso}'
         csv_file = StringIO()
         csv_writer = csv.DictWriter(
