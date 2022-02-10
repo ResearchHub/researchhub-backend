@@ -622,7 +622,7 @@ PAYOUT_ADMINS = [
     'thomas@researchhub.com',
 ]
 
-PAYOUT_EXCLUSION_LIST = PAYOUT_ADMINS & ["barmstrong@gmail.com", 'brian@coinbase.com']
+PAYOUT_EXCLUSION_LIST = PAYOUT_ADMINS + ["barmstrong@gmail.com", 'brian@coinbase.com']
 
 # Redis
 # redis://:password@hostname:port/db_number

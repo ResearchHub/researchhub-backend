@@ -27,8 +27,6 @@ UNI_SWAP_GRAPH_URI = "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2
 USD_PAY_AMOUNT_PER_MONTH = 3000
 USD_PER_RSC_PRICE_FLOOR = .033
 
-# TODO: (kobe) - API is under Calvin's name. Need to move to RH's account
-MORALIS_API_KEY = 'vlHzigIN9AYgxwTV2y55ruHrUYc08WsMFCTZNn4mUSLzJAdWMW5pCnUtrL0yqlwE'
 MORALIS_LOOKUP_URI = "https://deep-index.moralis.io/api/v2/erc20/{address}/price".format(address=WEB3_RSC_ADDRESS)
 
 
