@@ -1,14 +1,16 @@
-import decimal
 import uuid
 
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth.models import AbstractUser, UserManager
+from django.db.models import FloatField, Sum
+from django.db.models.functions import Cast
 from django.db import models
 from django.utils import timezone
 
 from hub.models import Hub
 from mailing_list.models import EmailRecipient
 from researchhub_access_group.constants import EDITOR
+from reputation.models import PaidStatusModelMixin, Withdrawal
 from user.tasks import handle_spam_user_task
 from user.tasks import update_elastic_registry
 from utils.message import send_email_message
@@ -152,11 +154,17 @@ class User(AbstractUser):
         if not user_balance:
             return 0
 
-        # TODO: Could this be faster if we do it on the db level? Could we run
-        # into a memory error here?
-        balance = self.balances.values_list('amount', flat=True)
-        balance_decimal = map(decimal.Decimal, balance)
-        total_balance = sum(balance_decimal)
+        failed_withdrawals = self.withdrawals.filter(
+            paid_status=PaidStatusModelMixin.FAILED
+        ).values_list('id')
+        balance = self.balances.exclude(
+            content_type=ContentType.objects.get_for_model(Withdrawal),
+            object_id__in=failed_withdrawals
+        ).aggregate(
+            total_balance=Sum(Cast('amount', FloatField()))
+        )
+        total_balance = balance.get('total_balance', 0)
+
         return total_balance
 
     def notify_inactivity(self):
