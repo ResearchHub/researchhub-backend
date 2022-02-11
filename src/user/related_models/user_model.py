@@ -2,7 +2,7 @@ import uuid
 
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth.models import AbstractUser, UserManager
-from django.db.models import FloatField, Sum
+from django.db.models import DecimalField, Sum
 from django.db.models.functions import Cast
 from django.db import models
 from django.utils import timezone
@@ -161,7 +161,12 @@ class User(AbstractUser):
             content_type=ContentType.objects.get_for_model(Withdrawal),
             object_id__in=failed_withdrawals
         ).aggregate(
-            total_balance=Sum(Cast('amount', FloatField()))
+            total_balance=Sum(
+                Cast(
+                    'amount',
+                    DecimalField(max_digits=255, decimal_places=128)
+                )
+            )
         )
         total_balance = balance.get('total_balance', 0)
 
