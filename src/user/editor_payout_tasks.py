@@ -34,7 +34,7 @@ MORALIS_LOOKUP_URI = "https://deep-index.moralis.io/api/v2/erc20/{address}/price
 
 
 @periodic_task(
-    run_every=crontab(hour=15, minute=0),  # 3PM System Time (PST)
+    run_every=crontab(hour=0, minute=0),  # 12AM UTC
     priority=1,
     options={'queue': f'{APP_ENV}_core_queue'}
 )
