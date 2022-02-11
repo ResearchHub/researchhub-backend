@@ -191,7 +191,7 @@ class ViewTests(APITestCase):
           "post_id": doc_response.data["id"],
           "title": "updated title",
           "document_type": "DISCUSSION",
-          "created_by": nonauthor.id,
+          "created_by": author.id,
           "full_src": "body",
           "is_public": True,
           "renderable_text": "body",
