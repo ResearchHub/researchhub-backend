@@ -611,7 +611,6 @@ if STAGING:
         '0x2275736dfEf93a811Bb32156724C1FCF6FFd41be'
     )
 
-
 # Redis
 # redis://:password@hostname:port/db_number
 
@@ -763,6 +762,8 @@ TWITTER_ACCESS_TOKEN_SECRET_ALT = os.environ.get(
 # MailChimp
 MAILCHIMP_SERVER = 'us4'
 MAILCHIMP_LIST_ID = os.environ.get('MAILCHIMP_LIST_ID', keys.MAILCHIMP_LIST_ID)
+
+MORALIS_API_KEY = os.environ.get('MORALIS_API_KEY', keys.MORALIS_API_KEY)
 
 # Recaptcha
 RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'

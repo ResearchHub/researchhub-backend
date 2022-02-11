@@ -20,6 +20,10 @@ database/
 # Celery local files
 celerybeat-schedule
 
+# dumps
+dump.rdb
+src/dump.rdb
+
 src/.elasticbeanstalk
 src/.ebextensions
 src/.platform
