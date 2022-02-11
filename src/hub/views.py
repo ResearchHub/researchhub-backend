@@ -25,6 +25,7 @@ from .permissions import (
     IsModerator,
     IsNotSubscribed,
     IsSubscribed,
+    UpdateHub,
 )
 from .serializers import HubSerializer, HubCategorySerializer
 from .filters import HubFilter
@@ -54,6 +55,7 @@ class HubViewSet(viewsets.ModelViewSet):
         IsAuthenticatedOrReadOnly
         & CreateHub
         & CreateOrUpdateIfAllowed
+        & UpdateHub
     ]
     pagination_class = CustomPageLimitPagination
     throttle_classes = THROTTLE_CLASSES

@@ -14,6 +14,7 @@ from utils.test_helpers import (
     get_get_response
 )
 from unittest import skip
+from hub.models import Hub
 
 class HubViewsTests(APITestCase):
 
@@ -22,6 +23,22 @@ class HubViewsTests(APITestCase):
         self.hub = create_hub(name='View Test Hub')
         self.hub2 = create_hub(name='View Test Hub 2')
         self.user = create_random_authenticated_user('hub_user')
+
+    def test_basic_user_cannot_edit_hub(self):
+        basic_user = create_random_authenticated_user('basic_user')
+        self.client.force_authenticate(basic_user)
+        hub = create_hub(name="some hub")
+
+        response = self.client.put(
+            f"/api/hub/{hub.id}/", {
+                "name": "updated name",
+                "id": hub.id,
+                "description": "description",
+            }
+        )
+
+        h = Hub.objects.get(id=hub.id)
+        self.assertNotEqual(h.name, "updated name")
 
     def test_moderator_can_delete_hub(self):
         mod = create_random_authenticated_user('mod', moderator=True)
