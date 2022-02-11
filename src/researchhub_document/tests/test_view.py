@@ -169,6 +169,37 @@ class ViewTests(APITestCase):
 
         self.assertEqual(updated_response.data['title'], 'updated title')
 
+    def non_author_cannot_update_post(self):
+        author = create_random_default_user('author')
+        nonauthor = create_random_default_user('nonauthor')
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        doc_response = self.client.post("/api/researchhub_posts/", {
+          "document_type": "DISCUSSION",
+          "created_by": author.id,
+          "full_src": "body",
+          "is_public": True,
+          "renderable_text": "body",
+          "title": "title",
+          "hubs": [hub.id],
+        })
+
+        self.client.force_authenticate(nonauthor)
+        updated_response = self.client.post("/api/researchhub_posts/", {
+          "post_id": doc_response.data["id"],
+          "title": "updated title",
+          "document_type": "DISCUSSION",
+          "created_by": nonauthor.id,
+          "full_src": "body",
+          "is_public": True,
+          "renderable_text": "body",
+          "hubs": [hub.id],
+        })
+
+        self.assertEqual(updated_response.status_code, 403)
+
     def author_can_create_hypothesis(self):
         author = create_random_default_user('author')
         hub = create_hub()
