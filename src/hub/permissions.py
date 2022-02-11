@@ -12,7 +12,7 @@ class UpdateHub(RuleBasedPermission):
     message = 'Must be moderator to edit hub'
 
     def satisfies_rule(self, request):
-        if request.method == "PUT":
+        if request.method == "PUT" or request.method == "PATCH":
             return request.user.is_anonymous is False and request.user.is_authenticated and request.user.moderator
         else:
             return False
