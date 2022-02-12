@@ -6,6 +6,7 @@ import utils.sentry as sentry
 from django.db import transaction, IntegrityError
 from django.http import QueryDict
 from django.db.models import Sum
+from django.core.validators import URLValidator, FileExtensionValidator
 
 import rest_framework.serializers as serializers
 
@@ -347,6 +348,7 @@ class PaperSerializer(BasePaperSerializer):
             'views',
 
         ]
+
         patch_read_only_fields = [
             'uploaded_by'
         ]
@@ -360,12 +362,12 @@ class PaperSerializer(BasePaperSerializer):
             user = None
         validated_data['uploaded_by'] = user
 
-        # Prepare validated_data by removing m2m and file for now
+        # Prepare validated_data by removing m2m
         authors = validated_data.pop('authors')
         hubs = validated_data.pop('hubs')
-        file = validated_data.pop('file')
         hypothesis_id = validated_data.pop('hypothesis_id', None)
         citation_type = validated_data.pop('citation_type', None)
+        file = validated_data.get('file')
         try:
             with transaction.atomic():
                 # Temporary fix for updating read only fields
@@ -395,6 +397,7 @@ class PaperSerializer(BasePaperSerializer):
                     # It is important to note that paper signals
                     # are ran after call to super
                     paper = super(PaperSerializer, self).create(validated_data)
+                    paper.full_clean(exclude=['paper_type'])
 
                 unified_doc = paper.unified_document
                 unified_doc_id = paper.unified_document.id
@@ -408,6 +411,7 @@ class PaperSerializer(BasePaperSerializer):
 
                 paper_id = paper.id
                 paper_title = paper.paper_title or ''
+                file = paper.file
                 self._check_pdf_title(paper, paper_title, file)
                 # NOTE: calvinhlee - This is an antipattern. Look into changing
                 Vote.objects.create(
@@ -489,8 +493,8 @@ class PaperSerializer(BasePaperSerializer):
         request = self.context.get('request', None)
         authors = validated_data.pop('authors', [None])
         hubs = validated_data.pop('hubs', [None])
-        file = validated_data.pop('file', None)
         raw_authors = validated_data.pop('raw_authors', [])
+        file = validated_data.get('file', None)
 
         try:
             with transaction.atomic():
@@ -513,8 +517,11 @@ class PaperSerializer(BasePaperSerializer):
                     instance,
                     validated_data
                 )
+                paper.full_clean(exclude=['paper_type'])
+
                 unified_doc = paper.unified_document
                 paper_title = paper.paper_title or ''
+                file = paper.file
                 self._check_pdf_title(paper, paper_title, file)
 
                 if hubs:
@@ -644,6 +651,7 @@ class PaperSerializer(BasePaperSerializer):
 
     def _add_url(self, file, validated_data):
         if check_file_is_url(file):
+            validated_data['file'] = None
             contains_pdf = check_url_contains_pdf(file)
             is_journal_pdf = check_url_is_pdf(file)
 
