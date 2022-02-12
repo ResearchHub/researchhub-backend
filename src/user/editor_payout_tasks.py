@@ -8,11 +8,11 @@ import requests
 
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
+from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
 from django.core.mail import EmailMessage
 
 from hub.models import Hub
-from reputation.distributor import Distributor
 from reputation.distributions import Distribution  # this is NOT the model
 from researchhub_access_group.constants import EDITOR
 from purchase.related_models.constants.rsc_exchange_currency import USD
@@ -22,7 +22,6 @@ from user.constants.gatekeeper_constants import (
     EDITOR_PAYOUT_ADMIN, PAYOUT_EXCLUSION_LIST
 )
 from user.related_models.gatekeeper_model import Gatekeeper
-from user.related_models.user_model import User
 from utils import sentry
 
 UNI_SWAP_BUNDLE_ID = 1  # their own hard-coded eth-bundle id
@@ -33,12 +32,9 @@ USD_PER_RSC_PRICE_FLOOR = .033
 MORALIS_LOOKUP_URI = "https://deep-index.moralis.io/api/v2/erc20/{address}/price".format(address=WEB3_RSC_ADDRESS)
 
 
-@periodic_task(
-    run_every=crontab(hour=0, minute=0),  # 12AM UTC
-    priority=1,
-    options={'queue': f'{APP_ENV}_core_queue'}
-)
 def editor_daily_payout_task():
+    from reputation.distributor import Distributor
+    User = apps.get_model('user.User')
     today = datetime.date.today()
     num_days_this_month = monthrange(today.year, today.month)[1]
     result = get_daily_rsc_payout_amount_from_deep_index(num_days_this_month)
