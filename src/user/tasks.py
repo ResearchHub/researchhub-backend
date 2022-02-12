@@ -352,7 +352,7 @@ def notify_editor_inactivity():
 
 
 @periodic_task(
-    run_every=crontab(hour=0, minute=0),  # 12AM UTC
+    run_every=crontab(hour=1, minute=40),  # 12AM UTC
     priority=1,
     options={'queue': f'{APP_ENV}_core_queue'}
 )
