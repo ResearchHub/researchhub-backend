@@ -30,6 +30,7 @@ from paper.utils import get_cache_key
 from hub.models import Hub
 from researchhub_document.utils import reset_unified_document_cache
 from researchhub.settings import STAGING, PRODUCTION, APP_ENV
+from user.editor_payout_tasks import editor_daily_payout_task
 from utils.sentry import log_info
 
 
@@ -348,3 +349,12 @@ def notify_editor_inactivity():
         )
         inactive_contributor.notify_inactivity()
     log_info(logging)
+
+
+@periodic_task(
+    run_every=crontab(hour=1, minute=40),  # 12AM UTC
+    priority=1,
+    options={'queue': f'{APP_ENV}_core_queue'}
+)
+def execute_editor_daily_payout_task():
+    editor_daily_payout_task()
