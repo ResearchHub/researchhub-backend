@@ -84,6 +84,7 @@ def editor_daily_payout_task():
             sentry.log_error(error)
             print('error: ', error)
             pass
+
     try:
         title = f'Editor Payout {today}'
         csv_file = StringIO()
@@ -95,7 +96,8 @@ def editor_daily_payout_task():
         csv_writer.writeheader()
 
         prepped_rows = []
-        for index in range(editors.count()):
+        editor_count = editors.count()
+        for index in range(editor_count):
             prepped_rows.append({
                 'names': csv_prep['names'][index],
                 'emails': csv_prep['emails'][index],
@@ -118,6 +120,7 @@ def editor_daily_payout_task():
         )
         email.attach(f'{title}.csv', csv_file.getvalue(), 'text/csv')
         email.send()
+        return f"""Users - {editor_count}. Rate - {result['rate']}. RSC - {pay_amount}"""
 
     except Exception as error:
         sentry.log_error(error)
