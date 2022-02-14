@@ -352,9 +352,11 @@ def notify_editor_inactivity():
 
 
 @periodic_task(
-    run_every=crontab(minute="*/1"),  # 3PM PST
+    run_every=crontab(minute="*/5"),  # 3PM PST
     priority=1,
     options={'queue': f'{APP_ENV}_core_queue'}
 )
 def execute_editor_daily_payout_task():
+    log_info('running payout')
     editor_daily_payout_task()
+    log_info('payout finished')
