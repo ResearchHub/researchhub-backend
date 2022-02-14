@@ -358,5 +358,5 @@ def notify_editor_inactivity():
 )
 def execute_editor_daily_payout_task():
     log_info('running payout')
-    editor_daily_payout_task()
-    log_info('payout finished')
+    result = editor_daily_payout_task()
+    log_info(result)
