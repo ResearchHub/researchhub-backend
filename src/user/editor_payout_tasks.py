@@ -84,6 +84,7 @@ def editor_daily_payout_task():
             sentry.log_error(error)
             print('error: ', error)
             pass
+
     try:
         title = f'Editor Payout {today}'
         csv_file = StringIO()
