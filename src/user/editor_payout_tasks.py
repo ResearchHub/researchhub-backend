@@ -120,8 +120,8 @@ def editor_daily_payout_task():
         )
         email.attach(f'{title}.csv', csv_file.getvalue(), 'text/csv')
         email.send()
-        return f"""Users - {editor_count}. Rate - {result['rate']}. RSC - {csv_prep['amount-rsc'][index]}"""
-        
+        return f"""Users - {editor_count}. Rate - {result['rate']}. RSC - {pay_amount}"""
+
     except Exception as error:
         sentry.log_error(error)
         print('error: ', error)
