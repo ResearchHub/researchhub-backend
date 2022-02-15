@@ -8,6 +8,10 @@ from researchhub_case.constants.case_constants import (
     ALLOWED_VALIDATION_ATTEMPT_COUNT, 
     APPROVED, DENIED, INITIATED, INVALIDATED, NULLIFIED, OPEN
 )
+from researchhub_case.tasks import (
+    trigger_approval_flow,
+    trigger_rejection_flow,
+)
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.serializers import AuthorClaimCaseSerializer
 from utils.http import GET, POST
@@ -134,6 +138,13 @@ class AuthorClaimCaseViewSet(ModelViewSet):
             case = AuthorClaimCase.objects.get(id=case_id, status=OPEN)
             case.status = APPROVED if update_status == "APPROVED" else DENIED
             case.save()
+
+            if case.status == APPROVED:
+                trigger_approval_flow.apply_async((case_id,), priority=2)
+            elif case.status == DENIED:
+                notify_user = request_data['notify_user']
+                trigger_rejection_flow.apply_async((case_id,notify_user), priority=2)
+
             return Response('Success', status=200)
         except (KeyError, TypeError) as e:
             return Response(e, status=400)

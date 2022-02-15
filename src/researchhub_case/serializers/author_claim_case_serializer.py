@@ -6,7 +6,10 @@ from researchhub_case.constants.case_constants import APPROVED
 from researchhub_case.models import AuthorClaimCase
 from user.models import Author, User
 from user.serializers import AuthorSerializer, UserSerializer
-
+from django.contrib.contenttypes.models import ContentType
+from researchhub_case.tasks import (
+    trigger_email_validation_flow,
+)
 
 class AuthorClaimCaseSerializer(ModelSerializer):
     moderator = SerializerMethodField(method_name='get_moderator')
@@ -21,6 +24,11 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         moderator = User.objects.filter(id=moderator_id).first()
         requestor = User.objects.filter(id=requestor_id).first()
         author = request_data.get('author')
+        context_content_type = ContentType.objects.filter(
+            model=(request_data.get('context_content_type') or '').lower()
+        ).first()
+        context_content_id = request_data.get('context_content_id')
+
         self.__check_uniqueness_on_create(
             requestor_id,
             target_author_id
@@ -58,12 +66,19 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         else:
             target_author = Author.objects.filter(id=target_author_id).first()
 
-        return AuthorClaimCase.objects.create(
+        case = AuthorClaimCase.objects.create(
             **validated_data,
+            context_content_type=context_content_type,
+            context_content_id=context_content_id,
             moderator=moderator,
             requestor=requestor,
             target_author=target_author
         )
+
+        trigger_email_validation_flow.apply_async((case.id,), priority=2)
+
+        return case
+
 
     def get_moderator(self, case):
         serializer = UserSerializer(case.moderator)

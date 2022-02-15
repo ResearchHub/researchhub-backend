@@ -1,13 +1,14 @@
 from django.db import models
 
 from researchhub_case.constants.case_constants import (
-    AUTHOR_CLAIM_CASE_STATUS, INITIATED
+    AUTHOR_CLAIM_CASE_STATUS, INITIATED, CLAIM_CONTEXT_ENTITY_TYPES
 )
 from researchhub_case.related_models.researchhub_case_abstract_model import (
   AbstractResearchhubCase
 )
 from user.models import Author
-
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes.fields import GenericForeignKey
 
 class AuthorClaimCase(AbstractResearchhubCase):
     provided_email = models.EmailField(
@@ -50,4 +51,17 @@ class AuthorClaimCase(AbstractResearchhubCase):
       max_length=255,
       null=True,
       unique=True,
+    )
+    context_content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.SET_NULL,
+        null=True
+    )
+    context_content_id = models.PositiveIntegerField(
+      null=True,
+      default=None,
+    )
+    context = GenericForeignKey(
+        'context_content_type',
+        'context_content_id',
     )
