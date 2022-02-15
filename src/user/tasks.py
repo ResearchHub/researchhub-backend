@@ -357,6 +357,6 @@ def notify_editor_inactivity():
     options={'queue': f'{APP_ENV}_core_queue'}
 )
 def execute_editor_daily_payout_task():
-    log_info(f"running payout-{APP_ENV}")
+    log_info(f"{APP_ENV}-running payout")
     result = editor_daily_payout_task()
     log_info(result)
