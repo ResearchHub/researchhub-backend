@@ -29,11 +29,6 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         ).first()
         context_content_id = request_data.get('context_content_id')
 
-        self.__check_uniqueness_on_create(
-            requestor_id,
-            target_author_id
-        )
-
         if not target_author_id:
             first_name = author.get('first_name')
             last_name = author.get('last_name')
@@ -65,6 +60,11 @@ class AuthorClaimCaseSerializer(ModelSerializer):
                     paper.authors.add(target_author)
         else:
             target_author = Author.objects.filter(id=target_author_id).first()
+
+        self.__check_uniqueness_on_create(
+            requestor_id,
+            target_author_id=target_author.id
+        )
 
         case = AuthorClaimCase.objects.create(
             **validated_data,

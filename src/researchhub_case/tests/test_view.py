@@ -5,3 +5,5 @@
 #     def test_detailed_author_context_sent(self):
 #     def test_claimed_profiles_cannot_be_reclaimed(self):            
 #     def test_once_claimed_authored_papers_include_claimed_author(self):
+#     def test_cannot_have_multiple_open_cases_for_author_requestor_pair(self):
+#     def test_multiple_people_can_initiate_author_claims_at_same_time(self):
