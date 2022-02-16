@@ -91,6 +91,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
                 'title': paper.title,
                 'id': paper.id,
                 'slug': paper.slug,
+                'context_content_type': 'paper',
             }
             return obj
         elif context_content_type.__str__() == 'author':
@@ -99,8 +100,9 @@ class AuthorClaimCaseSerializer(ModelSerializer):
                 'first_name': author.first_name,
                 'last_name': author.last_name,
                 'id': author.id,
+                'context_content_type': 'author',
             }
-            return Author.objects.filter(id=case.context_content_id).first()
+            return obj
         else:
             return None
 
