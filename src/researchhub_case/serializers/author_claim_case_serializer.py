@@ -14,6 +14,7 @@ from researchhub_case.tasks import (
 class AuthorClaimCaseSerializer(ModelSerializer):
     moderator = SerializerMethodField(method_name='get_moderator')
     requestor = SerializerMethodField()
+    context = SerializerMethodField(method_name='get_context')
     target_author = SerializerMethodField(method_name='get_target_author')
 
     def create(self, validated_data):
@@ -79,6 +80,29 @@ class AuthorClaimCaseSerializer(ModelSerializer):
 
         return case
 
+    def get_context(self, case):
+        context_content_type = ContentType.objects.filter(
+            id=case.context_content_type_id
+        ).first()
+
+        if context_content_type.__str__() == 'paper':
+            paper = Paper.objects.filter(id=case.context_content_id).first()
+            obj = {
+                'title': paper.title,
+                'id': paper.id,
+                'slug': paper.slug,
+            }
+            return obj
+        elif context_content_type.__str__() == 'author':
+            author = Author.objects.filter(id=case.context_content_id).first()
+            obj = {
+                'first_name': author.first_name,
+                'last_name': author.last_name,
+                'id': author.id,
+            }
+            return Author.objects.filter(id=case.context_content_id).first()
+        else:
+            return None
 
     def get_moderator(self, case):
         serializer = UserSerializer(case.moderator)
@@ -128,6 +152,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
           'token_generated_time',
           'validation_attempt_count',
           'validation_token',
+          'context',
         ]
         read_only_fields = [
           'status',
