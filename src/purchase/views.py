@@ -41,7 +41,11 @@ from notification.models import Notification
 from purchase.tasks import send_support_email
 from utils.throttles import THROTTLE_CLASSES
 from utils.http import http_request, RequestMethods
-from utils.permissions import CreateOrUpdateOrReadOnly, CreateOrUpdateIfAllowed
+from utils.permissions import (
+    CreateOrUpdateOrReadOnly,
+    CreateOrUpdateIfAllowed,
+    CreateOrReadOnly
+)
 from user.models import User, Author, Action
 from user.serializers import UserSerializer
 from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
@@ -56,8 +60,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseSerializer
     permission_classes = [
         IsAuthenticated,
-        CreateOrUpdateOrReadOnly,
-        CreateOrUpdateIfAllowed
+        CreateOrReadOnly
     ]
     pagination_class = PageNumberPagination
     throttle_classes = THROTTLE_CLASSES
