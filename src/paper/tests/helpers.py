@@ -32,12 +32,14 @@ def create_flag(
 def create_paper(
     title=TestData.paper_title,
     paper_publish_date=TestData.paper_publish_date,
-    uploaded_by=None
+    uploaded_by=None,
+    raw_authors=[]
 ):
     return Paper.objects.create(
         title=title,
         paper_publish_date=paper_publish_date,
-        uploaded_by=uploaded_by
+        uploaded_by=uploaded_by,
+        raw_authors=raw_authors,
     )
 
 
