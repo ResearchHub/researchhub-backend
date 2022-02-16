@@ -61,6 +61,13 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     ]
     pagination_class = PageNumberPagination
     throttle_classes = THROTTLE_CLASSES
+    ALLOWED_CONTENT_TYPES = [
+        'comment',
+        'reply',
+        'thread',
+        'paper',
+        'researchhubpost'
+    ]
 
     def create(self, request):
         user = request.user
@@ -70,11 +77,21 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         purchase_method = data['purchase_method']
         purchase_type = data['purchase_type']
         content_type_str = data['content_type']
-        content_type = ContentType.objects.get(model=content_type_str)
         object_id = data['object_id']
         transfer_rsc = False
         recipient = None
 
+        if content_type_str not in self.ALLOWED_CONTENT_TYPES:
+            return Response(status=400)
+
+        if purchase_method not in (Purchase.OFF_CHAIN, Purchase.ON_CHAIN):
+            return Response(status=400)
+
+        decimal_amount = decimal.Decimal(amount)
+        if decimal_amount <= 0:
+            return Response(status=400)
+
+        content_type = ContentType.objects.get(model=content_type_str)
         with transaction.atomic():
             if purchase_method == Purchase.ON_CHAIN:
                 purchase = Purchase.objects.create(
@@ -87,8 +104,6 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 )
             else:
                 user_balance = user.get_balance()
-                decimal_amount = decimal.Decimal(amount)
-
                 if user_balance - decimal_amount < 0:
                     return Response('Insufficient Funds', status=402)
 
