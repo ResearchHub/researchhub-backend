@@ -72,7 +72,7 @@ def editor_daily_payout_task():
                   None,
                   today
               )
-            # distributor.distribute()
+            distributor.distribute()
 
             csv_prep['names'].append(
                 editor.first_name or "" + editor.last_name or ""
