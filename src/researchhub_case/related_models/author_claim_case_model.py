@@ -1,15 +1,14 @@
 from django.db import models
 
 from researchhub_case.constants.case_constants import (
-    AUTHOR_CLAIM_CASE_STATUS, INITIATED, CLAIM_CONTEXT_ENTITY_TYPES
+    AUTHOR_CLAIM_CASE_STATUS, INITIATED
 )
 from researchhub_case.related_models.researchhub_case_abstract_model import (
   AbstractResearchhubCase
 )
 from user.models import Author
 from paper.models import Paper
-from django.contrib.contenttypes.models import ContentType
-from django.contrib.contenttypes.fields import GenericForeignKey
+
 
 class AuthorClaimCase(AbstractResearchhubCase):
     provided_email = models.EmailField(
