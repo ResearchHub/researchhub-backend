@@ -658,7 +658,10 @@ CELERY_TASK_ROUTES = {
 }
 CELERY_TASK_DEFAULT_QUEUE = f'{APP_ENV}_core_queue'
 
-REDBEAT_REDIS_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
+if STAGING:
+    REDBEAT_REDIS_URL = f'redis://127.0.0.1:{REDIS_PORT}/0'
+else:
+    REDBEAT_REDIS_URL = 'redis://{}:{}/0'.format(REDIS_HOST, REDIS_PORT)
 
 # Django Channels
 ASGI_APPLICATION = 'researchhub.routing.application'
