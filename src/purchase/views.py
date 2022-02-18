@@ -35,7 +35,8 @@ from purchase.serializers import (
     PurchaseSerializer,
     AggregatePurchaseSerializer,
     WalletSerializer,
-    SupportSerializer
+    SupportSerializer,
+    BalanceSerializer
 )
 from notification.models import Notification
 from purchase.tasks import send_support_email
@@ -49,6 +50,19 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
+
+class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Balance.objects.all()
+    serializer_class = BalanceSerializer
+    permission_classes = [
+        IsAuthenticated,
+    ]
+    pagination_class = PageNumberPagination
+    throttle_classes = THROTTLE_CLASSES
+
+    def get_queryset(self):
+        user = self.request.user
+        return self.queryset.filter(user=user).order_by('-created_date')
 
 
 class PurchaseViewSet(viewsets.ModelViewSet):

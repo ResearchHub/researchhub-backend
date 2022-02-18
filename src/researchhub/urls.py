@@ -251,6 +251,12 @@ router.register(
     basename='stripe'
 )
 
+router.register(
+    r'transactions',
+    purchase.views.BalanceViewSet,
+    basename="transactions"
+)
+
 router.register(r'user', user.views.UserViewSet)
 
 router.register(r'withdrawal', reputation.views.WithdrawalViewSet)

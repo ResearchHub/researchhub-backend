@@ -14,7 +14,9 @@ from django.db.models import (
 )
 from django.db.models.functions import Cast
 
-from purchase.models import Purchase, AggregatePurchase, Wallet, Support
+from purchase.models import Purchase, AggregatePurchase, Wallet, Support, Balance
+from reputation.models import Distribution, Withdrawal
+from reputation.serializers import DistributionSerializer, WithdrawalSerializer
 from analytics.serializers import PaperEventSerializer
 from paper.serializers import BasePaperSerializer, DynamicPaperSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -34,6 +36,30 @@ from user.serializers import DynamicUserSerializer
 from researchhub_document.serializers.researchhub_post_serializer \
  import DynamicPostSerializer
 
+class BalanceSourceRelatedField(serializers.RelatedField):
+    """
+    A custom field to use for the `source` generic relationship.
+    """
+
+    def to_representation(self, value):
+        """
+        Serialize tagged objects to a simple textual representation.
+        """
+        if isinstance(value, Distribution):
+            return DistributionSerializer(value, context={'exclude_stats': True}).data
+        elif isinstance(value, Purchase):
+            return PurchaseSerializer(value, context={'exclude_stats': True}).data
+        elif isinstance(value, Withdrawal):
+            return WithdrawalSerializer(value, context={'exclude_stats': True}).data
+        raise Exception('Unexpected type of tagged object')
+
+
+class BalanceSerializer(serializers.ModelSerializer):
+    source = BalanceSourceRelatedField(read_only=True)
+
+    class Meta:
+        model = Balance
+        fields = '__all__'
 
 class WalletSerializer(serializers.ModelSerializer):
     class Meta:
