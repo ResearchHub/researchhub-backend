@@ -9,12 +9,13 @@ from researchhub_case.constants.case_constants import (
     APPROVED, DENIED, INITIATED, INVALIDATED, NULLIFIED, OPEN
 )
 from researchhub_case.tasks import (
-    trigger_approval_flow,
-    trigger_rejection_flow,
+    after_approval_flow,
+    after_rejection_flow,
 )
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.serializers import AuthorClaimCaseSerializer
 from utils.http import GET, POST
+from user.utils import move_paper_to_author
 
 
 class AuthorClaimCaseViewSet(ModelViewSet):
@@ -131,20 +132,27 @@ class AuthorClaimCaseViewSet(ModelViewSet):
         try:
             request_data = request.data
             update_status = request_data['update_status']
-            if (update_status not in ['APPROVED', 'DENIED']):
-                return Response('Base update status', status=400)
-
             case_id = request_data['case_id']
             case = AuthorClaimCase.objects.get(id=case_id, status=OPEN)
-            case.status = APPROVED if update_status == "APPROVED" else DENIED
-            case.save()
 
-            if case.status == APPROVED:
-                trigger_approval_flow.apply_async((case_id,), priority=2)
-            elif case.status == DENIED:
+            if update_status == APPROVED:
+                if case.target_paper is None:
+                    return Response('Cannot approve. No paper id found.', status=500)
+                else:
+                    move_paper_to_author(case.target_paper, case.requestor.author_profile)
+                    case.status = update_status
+                    case.save()
+                    print('update_status', update_status)
+                    after_approval_flow.apply_async((case_id,), priority=2)
+                    return Response('Success', status=200)
+            elif update_status == DENIED:
                 notify_user = request_data['notify_user']
-                trigger_rejection_flow.apply_async((case_id,notify_user), priority=2)
-
-            return Response('Success', status=200)
+                after_rejection_flow.apply_async((case_id, notify_user), priority=2)
+                case.status = update_status
+                case.save()
+                return Response('Success', status=200)
+            else:
+                return Response('Unrecognized status', status=400)
         except (KeyError, TypeError) as e:
+            print('e', e)
             return Response(e, status=400)

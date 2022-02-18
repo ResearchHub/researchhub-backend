@@ -7,6 +7,7 @@ from researchhub_case.related_models.researchhub_case_abstract_model import (
   AbstractResearchhubCase
 )
 from user.models import Author
+from paper.models import Paper
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
 
@@ -24,6 +25,7 @@ class AuthorClaimCase(AbstractResearchhubCase):
       max_length=32,
       null=False,
     )
+    # TODO: Deprecate in next iteration. No longer used.
     target_author = models.ForeignKey(
       Author,
       blank=False,
@@ -52,16 +54,15 @@ class AuthorClaimCase(AbstractResearchhubCase):
       null=True,
       unique=True,
     )
-    context_content_type = models.ForeignKey(
-        ContentType,
-        on_delete=models.SET_NULL,
-        null=True
-    )
-    context_content_id = models.PositiveIntegerField(
+    target_paper = models.ForeignKey(
+      Paper,
+      blank=False,
       null=True,
-      default=None,
+      on_delete=models.CASCADE,
+      related_name='related_claim_cases',
     )
-    context = GenericForeignKey(
-        'context_content_type',
-        'context_content_id',
+    target_author_name = models.CharField(
+      max_length=255,
+      null=True,
+      blank=False,
     )

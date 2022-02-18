@@ -22,7 +22,7 @@
           font-weight: bold;
         }
 
-        .verification-link {
+        .link {
           text-decoration: none;
         }
 
@@ -89,11 +89,11 @@
           </div>
           <p class="header-message-2">
             <div>
-              We've received your request to claim the author profile for&nbsp;<span class="bold-name">{{ author_name }}</span>.
+              We've received your request to claim paper <a class="link" href="{{paper_url}}" target="__blank">{{ paper_title }}</a> as author {{ target_author_name }}.
             </div>
             <div> Click below to verify your account </div>
             <br/>
-            <a class="verification-link" href="{{validation_url}}" target="__blank">
+            <a class="link" href="{{validation_url}}" target="__blank">
               <div class="verify-button">Verify</div>
             </a>
           </p>  

@@ -702,6 +702,14 @@ class AuthorViewSet(viewsets.ModelViewSet):
     def get_authored_papers(self, request, pk=None):
         author = self.get_object()
         prefetch_lookups = PaperViewSet.prefetch_lookups(self)
+        # authors = Author.objects.filter(
+        #     (
+        #         Q(id=pk) |
+        #         Q(merged_with_id=pk)
+        #     )
+        # )
+
+
         authored_papers = author.authored_papers.filter(
             is_removed=False
         ).prefetch_related(

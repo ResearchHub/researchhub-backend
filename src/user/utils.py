@@ -1,10 +1,20 @@
 from utils.sentry import log_error
 from user.tasks import preload_latest_activity
+from paper.models import Paper
+
+def move_paper_to_author(target_paper, target_author, source_author=None):
+    target_paper.authors.add(target_author)
+    if source_author is not None:
+        target_paper.authors.remove(source_author)
+
+    target_paper.save()
+    target_paper.reset_cache()
 
 
 def merge_author_profiles(source, target):
     # Remap papers
     for paper in target.authored_papers.all():
+        print(paper.title)
         paper.authors.remove(target)
         paper.authors.add(source)
         paper.save()

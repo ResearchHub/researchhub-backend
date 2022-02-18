@@ -7,7 +7,6 @@ from researchhub_case.utils.author_claim_case_utils import (
   send_approval_email,
   send_rejection_email,
 )
-from user.utils import merge_author_profiles
 from utils import sentry
 from researchhub_case.constants.case_constants import (
     APPROVED, INITIATED, DENIED
@@ -34,31 +33,26 @@ def trigger_email_validation_flow(
             sentry.log_error(exception)
 
 
-
 @app.task
-def trigger_approval_flow(
+def after_approval_flow(
     case_id
 ):
     instance = AuthorClaimCase.objects.get(id=case_id)
-    if (
-        instance.status == APPROVED
-        and instance.validation_token is not None
-    ):
+    if instance.status == APPROVED:
         try:
-            # logical ordering
             requestor_author = instance.requestor.author_profile
-            target_author_papers = instance.target_author.authored_papers.all()
-            reward_author_claim_case(requestor_author, target_author_papers)
-            merge_author_profiles(requestor_author, instance.target_author)
-            # instance.target_author = requestor_author
-            instance.save()
+            reward_author_claim_case(requestor_author)
+            if instance.target_paper is None:
+                raise Exception(
+                    f'Cannot approve claim because paper was not found'
+                )
+
             send_approval_email(instance)
         except Exception as exception:
-            print("merge_author_upon_approval: ", exception)
             sentry.log_error(exception)
 
 @app.task
-def trigger_rejection_flow(
+def after_rejection_flow(
     case_id,
     notify_user=False,
 ):

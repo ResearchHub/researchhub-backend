@@ -19,6 +19,8 @@ database/
 
 # Celery local files
 celerybeat-schedule
+src/celerybeat-schedule
+src/celerybeat-schedule.db
 
 # dumps
 dump.rdb
