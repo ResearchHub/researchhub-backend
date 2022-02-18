@@ -16,10 +16,13 @@ from researchhub_case.models import AuthorClaimCase
 from researchhub_case.serializers import AuthorClaimCaseSerializer
 from utils.http import GET, POST
 from user.utils import move_paper_to_author
+from utils.permissions import (
+    CreateOrReadOnly,
+)
 
 
 class AuthorClaimCaseViewSet(ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CreateOrReadOnly]
     queryset = AuthorClaimCase.objects.all().order_by("-created_date")
     serializer_class = AuthorClaimCaseSerializer
 
@@ -142,17 +145,23 @@ class AuthorClaimCaseViewSet(ModelViewSet):
                     move_paper_to_author(case.target_paper, case.requestor.author_profile)
                     case.status = update_status
                     case.save()
-                    print('update_status', update_status)
-                    after_approval_flow.apply_async((case_id,), priority=2)
+                    after_approval_flow.apply_async(
+                        (case_id,),
+                        priority=2,
+                        countdown=5
+                    )
                     return Response('Success', status=200)
             elif update_status == DENIED:
                 notify_user = request_data['notify_user']
-                after_rejection_flow.apply_async((case_id, notify_user), priority=2)
+                after_rejection_flow.apply_async(
+                    (case_id, notify_user),
+                    priority=2,
+                    countdown=5
+                )
                 case.status = update_status
                 case.save()
                 return Response('Success', status=200)
             else:
                 return Response('Unrecognized status', status=400)
         except (KeyError, TypeError) as e:
-            print('e', e)
             return Response(e, status=400)

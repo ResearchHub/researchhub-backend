@@ -41,14 +41,17 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             requestor=requestor,
         )
 
-        trigger_email_validation_flow.apply_async((case.id,), priority=2)
+        trigger_email_validation_flow.apply_async(
+            (case.id,),
+            priority=2,
+            countdown=5
+        )
 
         return case
 
     def get_paper(self, case):
-        if case.target_paper_id:        
-            # TODO: Move to dynamic paper serializer
-            paper = Paper.objects.filter(id=case.target_paper_id).first()
+        paper = case.target_paper
+        if paper:
             obj = {
                 'title': paper.title,
                 'id': paper.id,

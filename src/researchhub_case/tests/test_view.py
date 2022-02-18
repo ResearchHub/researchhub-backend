@@ -37,6 +37,8 @@ class ViewTests(APITestCase):
         }
       )
 
+      print('response', response.data)
+
       # Update Claim status
       claim = AuthorClaimCase.objects.get(id=response.data['id'])
       claim.status = 'OPEN'
