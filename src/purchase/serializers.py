@@ -13,6 +13,7 @@ from django.db.models import (
     IntegerField
 )
 from django.db.models.functions import Cast
+from utils import sentry
 
 from purchase.models import Purchase, AggregatePurchase, Wallet, Support, Balance
 from reputation.models import Distribution, Withdrawal
@@ -51,7 +52,9 @@ class BalanceSourceRelatedField(serializers.RelatedField):
             return PurchaseSerializer(value, context={'exclude_stats': True}).data
         elif isinstance(value, Withdrawal):
             return WithdrawalSerializer(value, context={'exclude_stats': True}).data
-        raise Exception('Unexpected type of tagged object')
+
+        sentry.log_info('No representation for ' + value)
+        return None
 
 
 class BalanceSerializer(serializers.ModelSerializer):
