@@ -8,6 +8,15 @@ class CreateHub(RuleBasedPermission):
     def satisfies_rule(self, request):
         return request.user.reputation >= 100
 
+class UpdateHub(RuleBasedPermission):
+    message = 'Must be moderator to edit hub'
+
+    def has_permission(self, request, view):
+        if view.action == 'update' and (request.method == "PUT" or request.method == "PATCH"):
+            return request.user.is_anonymous is False and request.user.is_authenticated and request.user.moderator
+        else:
+            return True
+
 
 class IsSubscribed(AuthorizationBasedPermission):
     message = 'Must be subscribed.'
