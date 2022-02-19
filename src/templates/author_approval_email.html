@@ -89,12 +89,15 @@
           </div>
           <p class="header-message-2">
             <div>
-              We've received your request to claim paper <a class="link" href="{{paper_url}}" target="__blank">{{ paper_title }}</a> as author {{ target_author_name }}.
+              Your claim request for paper <a class="link" href="{{paper_url}}" target="__blank">{{paper_title}}</a> has been approved.
+              {% if vote_reward > 0 %}
+                Your account has been awarded {{vote_reward}} ResearchCoin.
+              {% endif %}
+              The paper will now appear under section <a class="link" href="{{authored_papers_url}}" target="__blank">Authored Papers</a>
             </div>
-            <div> Click below to verify your account </div>
             <br/>
-            <a class="link" href="{{validation_url}}" target="__blank">
-              <div class="verify-button">Verify</div>
+            <a class="link" href="{{profile_url}}" target="__blank">
+              <div class="verify-button">My Account</div>
             </a>
           </p>  
         </div>

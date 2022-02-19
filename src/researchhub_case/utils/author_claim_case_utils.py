@@ -28,31 +28,89 @@ def get_client_validation_url(validation_token):
         + f'/author-claim-validation/?token={validation_token}'
     )
 
+def get_client_profile_url(author):
+    return (
+        BASE_FRONTEND_URL
+        + f'/user/{author.id}/overview'
+    )
+
+def get_authored_papers_url(author):
+    return (
+        BASE_FRONTEND_URL
+        + f'/user/{author.id}/authored-papers'
+    )
+
+def get_paper_url(paper):
+    return (
+        BASE_FRONTEND_URL
+        + f'/paper/{paper.id}/{paper.slug}'
+    )
 
 def send_validation_email(case):
-    # TODO: calvinhlee - add email styling
     validation_token = case.validation_token
-    target_author = case.target_author
     requestor = case.requestor
     requestor_name = f'{requestor.first_name} {requestor.last_name}'
     email_context = {
         **base_email_context,
-        'author_name': f'{target_author.first_name} {target_author.last_name}',
-        'preview_text':  f"{requestor_name}'s Author Claim ",
         'requestor_name': requestor_name,
+        'paper_title': case.target_paper.title,
+        'paper_url': get_paper_url(case.target_paper),
+        'target_author_name': case.target_author_name,
         'validation_url': get_client_validation_url(validation_token),
     }
     send_email_message(
         [case.provided_email],
         'author_claim_validation_email.txt',
-        'Please Verify Your Author Claim',
+        'Please Verify Your Paper Claim',
         email_context,
         'author_claim_validation_email.html',
         'ResearchHub <noreply@researchhub.com>'
     )
 
+def send_approval_email(case):
+    requestor = case.requestor
+    requestor_author = requestor.author_profile
+    requestor_name = f'{requestor.first_name} {requestor.last_name}'
+    vote_reward = requestor_author.calculate_score()
+    email_context = {
+        **base_email_context,
+        'paper_title': case.target_paper.title,
+        'paper_url': get_paper_url(case.target_paper),
+        'profile_url': get_client_profile_url(requestor_author),
+        'authored_papers_url': get_authored_papers_url(requestor_author),
+        'target_author_name': case.target_author_name,
+        'requestor_name': requestor_name,
+        'vote_reward': vote_reward,
+    }
+    send_email_message(
+        [case.provided_email],
+        'author_approval_email.txt',
+        'Your paper claim request has been approved',
+        email_context,
+        'author_approval_email.html',
+        'ResearchHub <noreply@researchhub.com>'
+    )
 
-def reward_author_claim_case(requestor_author, target_author_papers):
+def send_rejection_email(case):
+    requestor = case.requestor
+    requestor_name = f'{requestor.first_name} {requestor.last_name}'
+    email_context = {
+        **base_email_context,
+        'paper_title': case.target_paper.title,
+        'paper_url': get_paper_url(case.target_paper),
+        'requestor_name': requestor_name,
+    }
+    send_email_message(
+        [case.provided_email],
+        'author_rejection_email.txt',
+        'Your paper claim request has been denied',
+        email_context,
+        'author_rejection_email.html',
+        'ResearchHub <noreply@researchhub.com>'
+    )
+
+
+def reward_author_claim_case(requestor_author):
     vote_reward = requestor_author.calculate_score()
     try:
         distributor = Distributor(

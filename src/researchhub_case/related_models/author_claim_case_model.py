@@ -7,6 +7,7 @@ from researchhub_case.related_models.researchhub_case_abstract_model import (
   AbstractResearchhubCase
 )
 from user.models import Author
+from paper.models import Paper
 
 
 class AuthorClaimCase(AbstractResearchhubCase):
@@ -23,6 +24,7 @@ class AuthorClaimCase(AbstractResearchhubCase):
       max_length=32,
       null=False,
     )
+    # TODO: Deprecate in next iteration. No longer used.
     target_author = models.ForeignKey(
       Author,
       blank=False,
@@ -50,4 +52,16 @@ class AuthorClaimCase(AbstractResearchhubCase):
       max_length=255,
       null=True,
       unique=True,
+    )
+    target_paper = models.ForeignKey(
+      Paper,
+      blank=False,
+      null=True,
+      on_delete=models.CASCADE,
+      related_name='related_claim_cases',
+    )
+    target_author_name = models.CharField(
+      max_length=255,
+      null=True,
+      blank=False,
     )
