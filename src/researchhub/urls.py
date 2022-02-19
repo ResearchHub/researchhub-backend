@@ -239,17 +239,20 @@ router.register(
     basename='purchase'
 )
 
-router.register(
-    r'support',
-    purchase.views.SupportViewSet,
-    basename='support'
-)
 
-router.register(
-    r'stripe',
-    purchase.views.StripeViewSet,
-    basename='stripe'
-)
+# Deprecated endpoints
+
+# router.register(
+#     r'support',
+#     purchase.views.SupportViewSet,
+#     basename='support'
+# )
+
+# router.register(
+#     r'stripe',
+#     purchase.views.StripeViewSet,
+#     basename='stripe'
+# )
 
 router.register(r'user', user.views.UserViewSet)
 
