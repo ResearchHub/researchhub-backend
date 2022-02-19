@@ -21,6 +21,7 @@ from researchhub_document.related_models.constants.document_type import (
     HYPOTHESIS
 )
 from researchhub_document.permissions import HasDocumentEditingPermission
+from utils.throttles import THROTTLE_CLASSES
 
 
 class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
@@ -28,6 +29,7 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
     queryset = Hypothesis.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly, HasDocumentEditingPermission]
     serializer_class = HypothesisSerializer
+    throttle_classes = THROTTLE_CLASSES
 
     def create(self, request, *args, **kwargs):
         user = request.user
