@@ -190,6 +190,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         resp.data['user'] = UserSerializer(request.user, context={'user': request.user}).data
         return resp
     
+    
     @action(
         detail=False,
         methods=['get'],
