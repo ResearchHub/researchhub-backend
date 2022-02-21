@@ -3,6 +3,7 @@ from rest_framework.serializers import ModelSerializer, SerializerMethodField
 from discussion.reaction_models import Vote
 from hub.serializers import SimpleHubSerializer, DynamicHubSerializer
 from hypothesis.models import Hypothesis
+from note.serializers import NoteSerializer, DynamicNoteSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import (
   DynamicUnifiedDocumentSerializer
@@ -11,7 +12,12 @@ from discussion.reaction_serializers import (
     DynamicVoteSerializer,
     GenericReactionSerializerMixin
 )
-from user.serializers import UserSerializer, DynamicUserSerializer
+from user.serializers import (
+    AuthorSerializer,
+    DynamicAuthorSerializer,
+    DynamicUserSerializer,
+    UserSerializer,
+)
 from utils.http import get_user_from_request
 
 
@@ -21,6 +27,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
             'aggregate_citation_consensus',
+            'authors',
             'boost_amount',
             'created_by',
             'created_date',
@@ -29,6 +36,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             'hubs',
             'id',
             'is_removed',
+            'note',
             'renderable_text',
             'slug',
             'src',
@@ -39,12 +47,14 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
             'aggregate_citation_consensus',
+            'authors',
             'boost_amount',
             'created_by',
             'created_date',
             'discussion_count',
             'id',
             'is_removed',
+            'note',
             'renderable_text',
             'slug',
             'src',
@@ -53,12 +63,14 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
         ]
 
     aggregate_citation_consensus = SerializerMethodField()
+    authors = AuthorSerializer(many=True)
     boost_amount = SerializerMethodField()
     created_by = UserSerializer()
     discussion_count = SerializerMethodField()
     full_markdown = SerializerMethodField()
     hubs = SerializerMethodField()
     vote_meta = SerializerMethodField()
+    note = NoteSerializer()
 
     # GenericReactionSerializerMixin
     promoted = SerializerMethodField()
@@ -120,9 +132,11 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
 
 class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
     aggregate_citation_consensus = SerializerMethodField()
+    authors = SerializerMethodField()
     created_by = SerializerMethodField()
     discussion_count = SerializerMethodField()
     hubs = SerializerMethodField()
+    note = SerializerMethodField()
     score = SerializerMethodField()
     unified_document = SerializerMethodField()
     
@@ -132,6 +146,17 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
 
     def get_aggregate_citation_consensus(self, hypothesis):
         return hypothesis.get_aggregate_citation_consensus()
+
+    def get_authors(self, hypothesis):
+        context = self.context
+        _context_fields = context.get('hyp_dhs_get_authors', {})
+        serializer = DynamicAuthorSerializer(
+            hypothesis.authors,
+            context=context,
+            many=True,
+            **_context_fields
+        )
+        return serializer.data
 
     def get_created_by(self, hypothesis):
         context = self.context
@@ -156,6 +181,17 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
             **_context_fields
         )
         return serializer.data
+
+    def get_note(self, hypothesis):
+        context = self.context
+        _context_fields = context.get('hyp_dhs_get_note', {})
+        serializer = DynamicNoteSerializer(
+            hypothesis.note,
+            many=True,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data        
 
     def get_unified_document(self, hypothesis):
         context = self.context

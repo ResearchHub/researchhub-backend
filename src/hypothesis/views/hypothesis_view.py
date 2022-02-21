@@ -34,19 +34,23 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
     def create(self, request, *args, **kwargs):
         user = request.user
         data = request.data
+        authors = data.get('authors', [])
         renderable_text = data.get('renderable_text', '')
         src = data.get('full_src', '')
         title = data.get('title', '')
+        note_id = data.get('note_id', None)
         unified_doc = self._create_unified_doc(request)
         file_name, file = self._create_src_content_file(unified_doc, src, user)
 
         hypo = Hypothesis.objects.create(
             created_by=user,
-            title=title,
+            note_id=note_id,
             renderable_text=renderable_text,
+            title=title,
             unified_document=unified_doc
         )
         hypo.src.save(file_name, file)
+        hypo.authors.set(authors)
         serializer = HypothesisSerializer(hypo)
         data = serializer.data
         return Response(data, status=200)
@@ -66,7 +70,11 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
     @action(detail=True, methods=['post'])
     def upsert(self, request, *args, **kwargs):
         user = request.user
-        hypo = Hypothesis.objects.get(id=request.data.get('hypothesis_id'))
+        data = request.data
+        authors = data.pop('authors', None)
+        hubs = data.pop('hubs', None)
+
+        hypo = Hypothesis.objects.get(id=data.get('hypothesis_id'))
         unified_doc = hypo.unified_document
         serializer = HypothesisSerializer(
             hypo,
@@ -81,8 +89,15 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         )
         serializer.instance.src.save(file_name, full_src_file)
 
+        if type(authors) is list:
+            hypo.authors.set(authors)
+
+        if type(hubs) is list:
+            unified_doc = hypo.unified_document
+            unified_doc.hubs.set(hubs)
+
         reset_unified_document_cache([0])
-        return Response(request.data, status=200)
+        return Response(serializer.data, status=200)
 
     def _create_src_content_file(self, unified_doc, data, user):
         file_name = f'HYPOTHESIS-{unified_doc.id}--USER-{user.id}.txt'

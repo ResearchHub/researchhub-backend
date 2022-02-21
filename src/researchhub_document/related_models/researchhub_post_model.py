@@ -19,10 +19,14 @@ from researchhub_document.related_models.constants.editor_type import (
 from hub.serializers import HubSerializer
 from paper.utils import paper_piecewise_log
 from purchase.models import Purchase
-from user.models import User
+from user.models import Author, User
 
 
 class ResearchhubPost(AbstractGenericReactionModel):
+    authors = models.ManyToManyField(
+        Author,
+        related_name='authored_posts',
+    )
     created_by = models.ForeignKey(
         User,
         db_index=True,
@@ -59,6 +63,12 @@ class ResearchhubPost(AbstractGenericReactionModel):
         max_length=512,
         null=True,
         upload_to='uploads/post_eln/%Y/%m/%d/',
+    )
+    note = models.OneToOneField(
+        'note.Note',
+        null=True,
+        related_name='post',
+        on_delete=models.CASCADE,
     )
     prev_version = models.OneToOneField(
         'self',
