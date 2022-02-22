@@ -498,6 +498,7 @@ class ThreadSerializer(
     )
     paper_slug = serializers.SerializerMethodField()
     post_slug = serializers.SerializerMethodField()
+    hypothesis_slug = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
@@ -522,6 +523,7 @@ class ThreadSerializer(
             'is_public',
             'is_removed',
             'paper_slug',
+            'hypothesis_slug',
             'paper',
             'plain_text',
             'post_slug',
@@ -590,6 +592,10 @@ class ThreadSerializer(
     def get_post_slug(self, obj):
         if obj.post:
             return obj.post.slug
+    
+    def get_post_slug(self, obj):
+        if obj.hypothesis:
+            return obj.hypothesis.slug
 
 
 class SimpleThreadSerializer(ThreadSerializer):
