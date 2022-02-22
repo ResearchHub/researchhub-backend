@@ -160,7 +160,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         if valid:
             valid, message, amount = self._check_withdrawal_amount(
                 amount,
-                transaction_fee
+                transaction_fee,
+                user
             )
         if valid:
             try:
@@ -332,13 +333,16 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         return (True, None)
 
-    def _check_withdrawal_amount(self, amount, transaction_fee):
+    def _check_withdrawal_amount(self, amount, transaction_fee, user):
         if transaction_fee <= 0:
             return (False, "Transaction fee can't be zero", None)
 
         net_amount = amount - transaction_fee
-        if amount - transaction_fee < 0:
+        if net_amount < 0:
             return (False, "Invalid withdrawal", None)
+        
+        if user and user.get_balance() < net_amount:
+            return (False, "You do not have enough RSC to make this withdrawal", None)
 
         return True, None, net_amount
 

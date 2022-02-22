@@ -6,6 +6,7 @@ from django.db.models import DecimalField, Sum
 from django.db.models.functions import Cast
 from django.db import models
 from django.utils import timezone
+from django.db.models import Q
 
 from hub.models import Hub
 from mailing_list.models import EmailRecipient
@@ -155,8 +156,9 @@ class User(AbstractUser):
             return 0
 
         failed_withdrawals = self.withdrawals.filter(
-            paid_status=PaidStatusModelMixin.FAILED
+            paid_status=Q(PaidStatusModelMixin.FAILED) | Q(PaidStatusModelMixin.PENDING)
         ).values_list('id')
+
         balance = self.balances.exclude(
             content_type=ContentType.objects.get_for_model(Withdrawal),
             object_id__in=failed_withdrawals
