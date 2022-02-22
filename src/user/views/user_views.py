@@ -12,7 +12,6 @@ from django.utils.decorators import method_decorator
 from django.contrib.contenttypes.models import ContentType
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
-from user.aggregates import TenPercentile
 from rest_framework import status, viewsets
 from rest_framework.utils.urls import replace_query_param
 from rest_framework.permissions import (
@@ -54,7 +53,7 @@ from user.models import (
     Follow,
 )
 from user.permissions import UpdateAuthor, Censor
-from user.utils import reset_latest_acitvity_cache
+from user.utils import reset_latest_acitvity_cache, calculate_show_referral
 from user.serializers import (
     AuthorSerializer,
     AuthorEditableSerializer,
@@ -114,10 +113,7 @@ class UserViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated]
     )
     def get_referral_reputation(self, request):
-        aggregation = User.objects.all().aggregate(TenPercentile('reputation'))
-        percentage = aggregation['reputation__ten-percentile']
-        reputation = request.user.reputation
-        show_referral = float(reputation) > percentage
+        show_referral = calculate_show_referral(request.user)
         return Response({'show_referral': show_referral})
 
 

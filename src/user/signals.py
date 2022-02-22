@@ -20,6 +20,7 @@ from discussion.models import Vote as ReactionVote
 from notification.models import Notification
 from paper.models import Paper, Vote as PaperVote
 from purchase.models import Wallet
+from user.utils import calculate_show_referral
 from reputation import distributions
 from reputation.distributor import Distributor
 from researchhub.settings import TESTING
@@ -222,23 +223,25 @@ def create_action(sender, instance, created, **kwargs):
             ]
         ):
             timestamp = time()
-            referred = Distributor(
-                distributions.Referral,
-                user,
-                user.invited_by,
-                timestamp,
-                None,
-            )
-            referred.distribute()
 
-            referrer = Distributor(
-                distributions.Referral,
-                user.invited_by,
-                user.invited_by,
-                timestamp,
-                None,
-            )
-            referrer.distribute()
+            if calculate_show_referral(user.invited_by):
+                referred = Distributor(
+                    distributions.Referral,
+                    user,
+                    user.invited_by,
+                    timestamp,
+                    None,
+                )
+                referred.distribute()
+
+                referrer = Distributor(
+                    distributions.Referral,
+                    user.invited_by,
+                    user.invited_by,
+                    timestamp,
+                    None,
+                )
+                referrer.distribute()
 
         vote_types = [
             PaperVote, ReactionVote, BulletPointVote, SummaryVote

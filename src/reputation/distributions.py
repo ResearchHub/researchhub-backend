@@ -110,7 +110,7 @@ ResearchhubPostCensored = Distribution(
     'RESEARCHHUB_POST_CENSORED', -2
 )
 Referral = Distribution(
-    'REFERRAL', 0, False
+    'REFERRAL', 50, False
 )
 
 ReferralApproved = Distribution(
