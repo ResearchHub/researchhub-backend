@@ -1,6 +1,8 @@
 from utils.sentry import log_error
 from user.tasks import preload_latest_activity
 from paper.models import Paper
+from user.aggregates import TenPercentile
+from user.models import User
 
 def move_paper_to_author(target_paper, target_author, source_author=None):
     target_paper.authors.add(target_author)
@@ -52,6 +54,13 @@ def merge_author_profiles(source, target):
     target.save()
     source.save()
     return source
+
+def calculate_show_referral(user):
+    aggregation = User.objects.all().aggregate(TenPercentile('reputation'))
+    percentage = aggregation['reputation__ten-percentile']
+    reputation = user.reputation
+    show_referral = float(reputation) > percentage
+    return show_referral
 
 
 def reset_latest_acitvity_cache(
