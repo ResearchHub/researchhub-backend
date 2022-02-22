@@ -593,7 +593,7 @@ class ThreadSerializer(
         if obj.post:
             return obj.post.slug
     
-    def get_post_slug(self, obj):
+    def get_hypothesis_slug(self, obj):
         if obj.hypothesis:
             return obj.hypothesis.slug
 
