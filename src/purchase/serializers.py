@@ -46,6 +46,7 @@ class BalanceSourceRelatedField(serializers.RelatedField):
         """
         Serialize tagged objects to a simple textual representation.
         """
+        print('source: {}'.format(value.id))
         if isinstance(value, Distribution):
             return DistributionSerializer(value, context={'exclude_stats': True}).data
         elif isinstance(value, Purchase):

@@ -1,11 +1,30 @@
 from rest_framework import serializers
 
 import ethereum.lib
+from utils import sentry
 
 from reputation.models import Withdrawal, Contribution, Deposit, Distribution
 from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import UserSerializer, DynamicUserSerializer
 from summary.serializers import SummarySerializer, SummaryVoteSerializer
+from purchase.models import Purchase
+from paper.models import (
+    Paper,
+    Vote as PaperVote,
+)
+from discussion.models import (
+    Comment,
+    Reply,
+    Thread
+)
+from discussion.reaction_models import (
+    Vote as DisVote,
+)
+from discussion.serializers import (
+    CommentSerializer,
+    ReplySerializer,
+    ThreadSerializer,
+)
 from bullet_point.serializers import (
     BulletPointSerializer,
     BulletPointVoteSerializer
@@ -25,7 +44,54 @@ from user.serializers import (
 )
 from user.models import Author
 
+class ProofRelatedField(serializers.RelatedField):
+    """
+    A custom field to use for the `source` generic relationship.
+    """
+
+    def to_representation(self, value):
+        """
+        Serialize tagged objects to a simple textual representation.
+        """
+        from paper.serializers import DynamicPaperSerializer, DynamicPaperVoteSerializer
+        from purchase.serializers import PurchaseSerializer
+
+        if isinstance(value, Comment):
+            return CommentSerializer(value).data
+        elif isinstance(value, Thread):
+            return ThreadSerializer(value).data
+        elif isinstance(value, Reply):
+            return ReplySerializer(value).data
+        elif isinstance(value, DisVote):
+            return DisVoteSerializer(value).data
+        elif isinstance(value, Paper):
+            paper_include_fields = [
+                'id',
+                'paper_title',
+                'slug',
+                'score'
+            ]
+            return DynamicPaperSerializer(value, _include_fields=paper_include_fields).data
+        elif isinstance(value, PaperVote):
+            return DynamicPaperVoteSerializer(
+                value,
+                _include_fields=['paper'],
+                context={
+                    'pap_dpvs_paper': {
+                        '_include_fields': ['id', 'paper_title', 'slug', 'score']
+                    }
+                }
+            ).data
+        elif isinstance(value, Purchase):
+            return PurchaseSerializer(value, context={'exclude_stats': True}).data
+
+        sentry.log_info('No representation for {} / id: {}'.format(str(value), value.id))
+        return None
+
+
 class DistributionSerializer(serializers.ModelSerializer):
+    proof_item = ProofRelatedField(read_only=True)
+
     class Meta:
         model = Distribution
         fields = '__all__'
