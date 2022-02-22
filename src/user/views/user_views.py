@@ -12,6 +12,7 @@ from django.utils.decorators import method_decorator
 from django.contrib.contenttypes.models import ContentType
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
+from user.aggregates import TenPercentile
 from rest_framework import status, viewsets
 from rest_framework.utils.urls import replace_query_param
 from rest_framework.permissions import (
@@ -106,6 +107,19 @@ class UserViewSet(viewsets.ModelViewSet):
             return qs.filter(id=user.id)
         else:
             return User.objects.none()
+    
+    @action(
+        detail=False,
+        methods=['GET'],
+        permission_classes=[IsAuthenticated]
+    )
+    def get_referral_reputation(self, request):
+        aggregation = User.objects.all().aggregate(TenPercentile('reputation'))
+        percentage = aggregation['reputation__ten-percentile']
+        reputation = request.user.reputation
+        show_referral = float(reputation) > percentage
+        return Response({'show_referral': show_referral})
+
 
     @action(
         detail=False,
