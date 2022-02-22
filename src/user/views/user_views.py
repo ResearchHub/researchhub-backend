@@ -1074,26 +1074,27 @@ class AuthorViewSet(viewsets.ModelViewSet):
         author = self.get_object()
         user = author.user
 
-        user_replies = Reply.objects.filter(
-            created_by_id=user.id,
-            is_removed=False
-        )
-        user_comments = Comment.objects.filter(
-            Q(is_removed=False) &
-            (
-                Q(created_by_id=user.id) |
-                Q(id__in=[r.object_id for r in user_replies])
+        if user:
+            user_replies = Reply.objects.filter(
+                created_by_id=user.id,
+                is_removed=False
             )
-        )
-        user_threads = Thread.objects.filter(
-            Q(is_removed=False) &
-            (
-                Q(created_by_id=user.id) |
-                Q(id__in=[c.parent_id for c in user_comments])
+            user_comments = Comment.objects.filter(
+                Q(is_removed=False) &
+                (
+                    Q(created_by_id=user.id) |
+                    Q(id__in=[r.object_id for r in user_replies])
+                )
             )
-        )
+            user_threads = Thread.objects.filter(
+                Q(is_removed=False) &
+                (
+                    Q(created_by_id=user.id) |
+                    Q(id__in=[c.parent_id for c in user_comments])
+                )
+            )
 
-        return user_threads
+            return user_threads
 
     def _get_author_contribution_queryset(self, author_id, ordering, asset_type):
         author_threads = self._get_author_threads_participated(author_id)

@@ -1075,13 +1075,15 @@ class DynamicPaperVoteSerializer(DynamicModelFieldSerializer):
 
     def get_paper(self, vote):
         context = self.context
-        _context_fields = context.get('pap_dpvs_paper', {})
-        serializer = DynamicPaperSerializer(
-            vote.paper,
-            context=context,
-            **_context_fields
-        )
-        return serializer.data
+        _context_fields = context.get('pap_dpvs_paper', None)
+        if _context_fields:
+            serializer = DynamicPaperSerializer(
+                vote.paper,
+                context=context,
+                **_context_fields
+            )
+            return serializer.data
+        return vote.paper.id
 
 
 class FigureSerializer(serializers.ModelSerializer):
