@@ -156,7 +156,10 @@ class User(AbstractUser):
             return 0
 
         failed_withdrawals = self.withdrawals.filter(
-            paid_status=Q(PaidStatusModelMixin.FAILED) | Q(PaidStatusModelMixin.PENDING)
+            paid_status=(
+                Q(paid_status=PaidStatusModelMixin.FAILED) |
+                Q(paid_status=PaidStatusModelMixin.PENDING)
+            )
         ).values_list('id')
 
         balance = self.balances.exclude(
