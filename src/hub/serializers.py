@@ -5,6 +5,7 @@ from rest_framework.serializers import (
 )
 
 from researchhub_access_group.serializers import DynamicPermissionSerializer
+from reputation.models import Contribution
 
 from .models import Hub, HubCategory
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -51,12 +52,6 @@ class SimpleHubSerializer(ModelSerializer):
 
 class HubSerializer(ModelSerializer):
     editor_permission_groups = SerializerMethodField()
-    comment_count = IntegerField(read_only=True)
-    latest_comment_date = SerializerMethodField(read_only=True)
-    latest_submission_date = SerializerMethodField(read_only=True)
-    submission_count = IntegerField(read_only=True)
-    support_count = IntegerField(read_only=True)
-    total_contribution_count = IntegerField(read_only=True)
 
     class Meta:
         fields = [
@@ -103,6 +98,12 @@ class HubCategorySerializer(ModelSerializer):
 
 
 class HubContributionSerializer(ModelSerializer):
+    comment_count = IntegerField(read_only=True)
+    latest_comment_date = SerializerMethodField(read_only=True)
+    latest_submission_date = SerializerMethodField(read_only=True)
+    submission_count = IntegerField(read_only=True)
+    support_count = IntegerField(read_only=True)
+    total_contribution_count = IntegerField(read_only=True)
 
     class Meta:
         model = Hub
@@ -126,6 +127,35 @@ class HubContributionSerializer(ModelSerializer):
             'support_count',
             'total_contribution_count',
         ]
+
+
+    def get_latest_comment_date(self, hub):
+        contribution_qs = hub.contributions.filter(
+            contribution_type=Contribution.COMMENTER,
+        )
+        target_hub_id = self.context.get('target_hub_id')
+        if (target_hub_id is not None):
+            contribution_qs = contribution_qs.filter(
+                unified_document__hubs__in=[target_hub_id]
+            )
+        try:
+            return contribution_qs.latest('created_date').created_date
+        except Exception:
+            return None
+
+    def get_latest_submission_date(self, hub):
+        contribution_qs = hub.contributions.filter(
+            contribution_type=Contribution.SUBMITTER,
+        )
+        target_hub_id = self.context.get('target_hub_id')
+        if (target_hub_id is not None):
+            contribution_qs = contribution_qs.filter(
+                unified_document__hubs__in=[target_hub_id]
+            )
+        try:
+            return contribution_qs.latest('created_date').created_date
+        except Exception:
+            return None
 
 
 class DynamicHubSerializer(DynamicModelFieldSerializer):

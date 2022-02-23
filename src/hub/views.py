@@ -6,7 +6,7 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import viewsets
 from django.core.paginator import Paginator
-from rest_framework.decorators import action, api_view
+from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -19,8 +19,8 @@ from rest_framework.response import Response
 from researchhub_access_group.constants import EDITOR
 
 from researchhub_access_group.models import Permission
-from src.reputation.models import Contribution
-from src.user.views.editor_views import resolve_timeframe_for_contribution
+from reputation.models import Contribution
+from user.views.editor_views import resolve_timeframe_for_contribution
 
 from .models import Hub, HubCategory
 from .permissions import (
@@ -508,9 +508,12 @@ class HubViewSet(viewsets.ModelViewSet):
         }
         return context
 
-    @api_view(http_method_names=[GET])
-    @permission_classes([AllowAny])
-    def by_contributions(request):
+    @action(
+        detail=False,
+        methods=[GET],
+        permission_classes=[AllowAny]
+    )
+    def by_contributions(self, request, pk=None):
         hub_id = request.GET.get('hub_id', None)
         hub_qs = Hub.objects.all().distinct() if hub_id is None \
             else Hub.objects.get(id=hub_id)
@@ -525,7 +528,7 @@ class HubViewSet(viewsets.ModelViewSet):
         )
 
         total_contrib_query = Q(
-            related_documents__contribution_type__in=[
+            related_documents__contributions__contribution_type__in=[
                 Contribution.COMMENTER,
                 Contribution.SUBMITTER,
                 Contribution.SUPPORTER,
@@ -533,15 +536,15 @@ class HubViewSet(viewsets.ModelViewSet):
         ) & timeframe_query
 
         comment_query = Q(
-            related_documents__contribution_type=Contribution.COMMENTER
+            related_documents__contributions__contribution_type=Contribution.COMMENTER
         ) & timeframe_query
 
         submission_query = Q(
-            related_documents__contribution_type=Contribution.SUBMITTER
+            related_documents__contributions__contribution_type=Contribution.SUBMITTER
         ) & timeframe_query
 
         support_query = Q(
-            related_documents__contribution_type=Contribution.SUPPORTER
+            related_documents__contributions__contribution_type=Contribution.SUPPORTER
         ) & timeframe_query
 
         order_by = '-total_contribution_count' \
