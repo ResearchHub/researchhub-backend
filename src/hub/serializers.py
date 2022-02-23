@@ -1,5 +1,4 @@
-from rest_framework import serializers
-from rest_framework.serializers import SerializerMethodField
+from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 
@@ -7,7 +6,7 @@ from .models import Hub, HubCategory
 from researchhub.serializers import DynamicModelFieldSerializer
 
 
-class SimpleHubSerializer(serializers.ModelSerializer):
+class SimpleHubSerializer(ModelSerializer):
     editor_permission_groups = SerializerMethodField()
 
     class Meta:
@@ -46,7 +45,7 @@ class SimpleHubSerializer(serializers.ModelSerializer):
         ).data
 
 
-class HubSerializer(serializers.ModelSerializer):
+class HubSerializer(ModelSerializer):
     editor_permission_groups = SerializerMethodField()
 
     class Meta:
@@ -84,7 +83,7 @@ class HubSerializer(serializers.ModelSerializer):
         ).data
 
 
-class HubCategorySerializer(serializers.ModelSerializer):
+class HubCategorySerializer(ModelSerializer):
     class Meta:
         fields = [
             'id',
@@ -92,6 +91,31 @@ class HubCategorySerializer(serializers.ModelSerializer):
         ]
         model = HubCategory
 
+
+class HubContributionSerializer(ModelSerializer):
+
+    class Meta:
+        model = Hub
+        fields = [
+            'comment_count',
+            'hub_image',
+            'id',
+            'latest_comment_date',
+            'latest_submission_date',
+            'name',
+            'submission_count',
+            'support_count',
+            'total_contribution_count',
+        ]
+        read_only_fields = [
+            'comment_count',
+            'hub_image',
+            'id',
+            'name',
+            'submission_count',
+            'support_count',
+            'total_contribution_count',
+        ]
 
 class DynamicHubSerializer(DynamicModelFieldSerializer):
     editor_permission_groups = SerializerMethodField()

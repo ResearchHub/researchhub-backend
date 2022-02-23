@@ -5,7 +5,9 @@ from django_filters.rest_framework import DjangoFilterBackend
 from datetime import timedelta
 from django.utils import timezone
 from rest_framework import viewsets
-from rest_framework.decorators import action
+from django.core.paginator import Paginator
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -17,6 +19,8 @@ from rest_framework.response import Response
 from researchhub_access_group.constants import EDITOR
 
 from researchhub_access_group.models import Permission
+from src.reputation.models import Contribution
+from src.user.views.editor_views import resolve_timeframe_for_contribution
 
 from .models import Hub, HubCategory
 from .permissions import (
@@ -27,7 +31,7 @@ from .permissions import (
     IsSubscribed,
     UpdateHub,
 )
-from .serializers import HubSerializer, HubCategorySerializer
+from .serializers import HubContributionSerializer, HubSerializer, HubCategorySerializer
 from .filters import HubFilter
 from mailing_list.models import EmailRecipient, HubSubscription
 from user.models import Action, User
@@ -503,6 +507,84 @@ class HubViewSet(viewsets.ModelViewSet):
             }
         }
         return context
+
+
+    @api_view(http_method_names=[GET])
+    @permission_classes([AllowAny])
+    def by_contributions(request):
+        hub_id = request.GET.get('hub_id', None)
+        hub_qs = Hub.objects.all().distinct() if hub_id is None \
+            else Hub.objects.get(id=hub_id)
+        
+        start_date = request.GET.get('startDate', None)
+        end_date = request.GET.get('endDate', None)
+        timeframe_query = Q(
+            **resolve_timeframe_for_contribution(
+                start_date,
+                end_date
+            ),
+        )
+        
+        total_contrib_query = Q(
+            related_documents__contribution_type__in=[
+                Contribution.COMMENTER,
+                Contribution.SUBMITTER,
+                Contribution.SUPPORTER,
+            ],
+        ) & timeframe_query
+        
+        comment_query = Q(
+            related_documents__contribution_type=Contribution.COMMENTER
+        ) & timeframe_query
+
+        submission_query = Q(
+            related_documents__contribution_type=Contribution.SUBMITTER
+        ) & timeframe_query
+
+        support_query = Q(
+            related_documents__contribution_type=Contribution.SUPPORTER
+        ) & timeframe_query
+
+        order_by = '-total_contribution_count' \
+            if request.GET.get('order_by', 'desc') == 'desc' \
+            else 'total_contribution_count'
+
+        hub_qs_ranked_by_contribution = \
+            hub_qs.annotate(
+                total_contribution_count=Count(
+                    'id', filter=total_contrib_query
+                ),
+                comment_count=Count(
+                    'id', filter=comment_query
+                ),
+                submission_count=Count(
+                    'id', filter=submission_query
+                ),
+                support_count=Count(
+                    'id', filter=support_query
+                ),
+            ).order_by(order_by)
+
+        
+        paginator = Paginator(
+            hub_qs_ranked_by_contribution,  # qs
+            10,  # page size
+        )
+        curr_page_number = request.GET.get('page') or 1
+        curr_pagation = paginator.page(curr_page_number)
+
+        return Response(
+            {
+                'count': paginator.count,
+                'has_more': curr_pagation.has_next(),
+                'page': curr_page_number,
+                'result': HubContributionSerializer(
+                    curr_pagation.object_list,
+                    many=True,
+                ).data,
+            },
+            status=200
+        )
 
 
 class HubCategoryViewSet(viewsets.ModelViewSet):
