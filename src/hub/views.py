@@ -565,7 +565,6 @@ class HubViewSet(viewsets.ModelViewSet):
                 ),
             ).order_by(order_by)
 
-        
         paginator = Paginator(
             hub_qs_ranked_by_contribution,  # qs
             10,  # page size

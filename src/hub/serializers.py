@@ -1,4 +1,8 @@
-from rest_framework.serializers import ModelSerializer, SerializerMethodField
+from rest_framework.serializers import (
+    IntegerField,
+    ModelSerializer,
+    SerializerMethodField,
+)
 
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 
@@ -47,6 +51,12 @@ class SimpleHubSerializer(ModelSerializer):
 
 class HubSerializer(ModelSerializer):
     editor_permission_groups = SerializerMethodField()
+    comment_count = IntegerField(read_only=True)
+    latest_comment_date = SerializerMethodField(read_only=True)
+    latest_submission_date = SerializerMethodField(read_only=True)
+    submission_count = IntegerField(read_only=True)
+    support_count = IntegerField(read_only=True)
+    total_contribution_count = IntegerField(read_only=True)
 
     class Meta:
         fields = [
@@ -116,6 +126,7 @@ class HubContributionSerializer(ModelSerializer):
             'support_count',
             'total_contribution_count',
         ]
+
 
 class DynamicHubSerializer(DynamicModelFieldSerializer):
     editor_permission_groups = SerializerMethodField()
