@@ -6,7 +6,7 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import viewsets
 from django.core.paginator import Paginator
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view
 from rest_framework.permissions import AllowAny
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -508,14 +508,13 @@ class HubViewSet(viewsets.ModelViewSet):
         }
         return context
 
-
     @api_view(http_method_names=[GET])
     @permission_classes([AllowAny])
     def by_contributions(request):
         hub_id = request.GET.get('hub_id', None)
         hub_qs = Hub.objects.all().distinct() if hub_id is None \
             else Hub.objects.get(id=hub_id)
-        
+
         start_date = request.GET.get('startDate', None)
         end_date = request.GET.get('endDate', None)
         timeframe_query = Q(
@@ -524,7 +523,7 @@ class HubViewSet(viewsets.ModelViewSet):
                 end_date
             ),
         )
-        
+
         total_contrib_query = Q(
             related_documents__contribution_type__in=[
                 Contribution.COMMENTER,
@@ -532,7 +531,7 @@ class HubViewSet(viewsets.ModelViewSet):
                 Contribution.SUPPORTER,
             ],
         ) & timeframe_query
-        
+
         comment_query = Q(
             related_documents__contribution_type=Contribution.COMMENTER
         ) & timeframe_query
