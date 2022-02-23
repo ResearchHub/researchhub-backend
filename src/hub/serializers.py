@@ -128,34 +128,11 @@ class HubContributionSerializer(ModelSerializer):
             'total_contribution_count',
         ]
 
-
     def get_latest_comment_date(self, hub):
-        contribution_qs = hub.contributions.filter(
-            contribution_type=Contribution.COMMENTER,
-        )
-        target_hub_id = self.context.get('target_hub_id')
-        if (target_hub_id is not None):
-            contribution_qs = contribution_qs.filter(
-                unified_document__hubs__in=[target_hub_id]
-            )
-        try:
-            return contribution_qs.latest('created_date').created_date
-        except Exception:
-            return None
+        return None
 
     def get_latest_submission_date(self, hub):
-        contribution_qs = hub.contributions.filter(
-            contribution_type=Contribution.SUBMITTER,
-        )
-        target_hub_id = self.context.get('target_hub_id')
-        if (target_hub_id is not None):
-            contribution_qs = contribution_qs.filter(
-                unified_document__hubs__in=[target_hub_id]
-            )
-        try:
-            return contribution_qs.latest('created_date').created_date
-        except Exception:
-            return None
+        return None
 
 
 class DynamicHubSerializer(DynamicModelFieldSerializer):

@@ -535,16 +535,17 @@ class HubViewSet(viewsets.ModelViewSet):
             ],
         ) & timeframe_query
 
+        qs_key = 'related_documents__contributions__contribution_type'
         comment_query = Q(
-            related_documents__contributions__contribution_type=Contribution.COMMENTER
+            **dict([(qs_key, Contribution.COMMENTER)])
         ) & timeframe_query
 
         submission_query = Q(
-            related_documents__contributions__contribution_type=Contribution.SUBMITTER
+            **dict([(qs_key, Contribution.SUBMITTER)])
         ) & timeframe_query
 
         support_query = Q(
-            related_documents__contributions__contribution_type=Contribution.SUPPORTER
+            **dict([(qs_key, Contribution.SUPPORTER)])
         ) & timeframe_query
 
         order_by = '-total_contribution_count' \
