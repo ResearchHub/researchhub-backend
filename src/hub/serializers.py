@@ -4,11 +4,11 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
-from researchhub_access_group.serializers import DynamicPermissionSerializer
-from reputation.models import Contribution
-
 from .models import Hub, HubCategory
+from reputation.models import Contribution
+from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
+from utils.sentry import log_error
 
 
 class SimpleHubSerializer(ModelSerializer):
@@ -129,11 +129,28 @@ class HubContributionSerializer(ModelSerializer):
         ]
 
     def get_latest_comment_date(self, hub):
-        return None
+        try:
+            return (
+                Contribution.objects.filter(
+                    contribution_type=Contribution.COMMENTER,
+                    unified_document__hubs=hub.id
+                ).latest('created_date').created_date
+            )
+        except Exception as error:
+            log_error(error)
+            return None
 
     def get_latest_submission_date(self, hub):
-        return None
-
+        try:
+            return (
+                Contribution.objects.filter(
+                    contribution_type=Contribution.SUBMITTER,
+                    unified_document__hubs=hub.id
+                ).latest('created_date').created_date
+            )
+        except Exception as error:
+            log_error(error)
+            return None
 
 class DynamicHubSerializer(DynamicModelFieldSerializer):
     editor_permission_groups = SerializerMethodField()
