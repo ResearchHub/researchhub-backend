@@ -516,14 +516,13 @@ class HubViewSet(viewsets.ModelViewSet):
     def by_contributions(self, request, pk=None):
         hub_id = request.GET.get('hub_id', None)
         hub_qs = Hub.objects.all().distinct() if hub_id is None \
-            else Hub.objects.get(id=hub_id)
+            else Hub.objects.filter(id=hub_id)
 
-        start_date = request.GET.get('startDate', None)
-        end_date = request.GET.get('endDate', None)
         timeframe_query = Q(
             **resolve_timeframe_for_contribution(
-                start_date,
-                end_date
+                request.GET.get('start_date', None),
+                request.GET.get('end_date', None),
+                'related_documents__contributions__created_date'
             ),
         )
 
@@ -553,7 +552,11 @@ class HubViewSet(viewsets.ModelViewSet):
             else 'total_contribution_count'
 
         hub_qs_ranked_by_contribution = \
-            hub_qs.annotate(
+            hub_qs.prefetch_related(
+                'related_documents',
+                'related_documents__contributions',
+                'related_documents__contributions__created_date__gte',
+            ).annotate(
                 total_contribution_count=Count(
                     'id', filter=total_contrib_query
                 ),

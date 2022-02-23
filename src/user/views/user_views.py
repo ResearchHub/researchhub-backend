@@ -210,6 +210,7 @@ class UserViewSet(viewsets.ModelViewSet):
             time_filter = {keyword: timezone.now().year}
 
         items = []
+        serializerClass = None
         if leaderboard_type == 'papers':
             serializerClass = DynamicPaperSerializer
             if hub_id and hub_id != 0:
