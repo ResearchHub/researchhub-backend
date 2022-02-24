@@ -14,10 +14,12 @@ class HotScoreMixin:
         mins_elapsed_since_input_date = days_elapsed_since_input_date * 60 * 24
 
         time_penalty = 0
-        if (days_elapsed_since_input_date > 5 and days_elapsed_since_input_date <= 10):
+        if (days_elapsed_since_input_date > 2 and days_elapsed_since_input_date <= 5):
             time_penalty = 0.25
-        elif (days_elapsed_since_input_date > 10 and days_elapsed_since_input_date <= 25):
+        elif (days_elapsed_since_input_date > 5 and days_elapsed_since_input_date <= 10):
             time_penalty = 0.5
+        elif (days_elapsed_since_input_date > 10 and days_elapsed_since_input_date <= 25):
+            time_penalty = 0.6
         elif (days_elapsed_since_input_date > 25):
             time_penalty = 0.75
 
@@ -107,8 +109,8 @@ class HotScoreMixin:
             doc_vote_score +
             discussion_vote_score +
             social_media_score
-        ) * 1000
-        debug_obj['=hot_score (x1000)'] = hot_score
+        ) * 10000
+        debug_obj['=hot_score (x10000)'] = hot_score
 
         if should_save:
             self.hot_score_v2 = hot_score

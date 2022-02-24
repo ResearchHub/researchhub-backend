@@ -133,6 +133,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         return update_response
 
     def _get_document_filtering(self, query_params):
+        use_v2_hot_score = True if query_params.get('v2') is not None else False
         filtering = query_params.get('ordering', None)
         if filtering == 'removed':
             filtering = 'removed'
@@ -143,7 +144,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         elif filtering == 'newest':
             filtering = '-created_date'
         elif filtering == 'hot':
-            filtering = '-hot_score'
+            if use_v2_hot_score:
+                filtering = '-hot_score_v2'
+            else:
+                filtering = '-hot_score'
         elif filtering == 'user_uploaded':
             filtering = 'user_uploaded'
         else:
@@ -343,7 +347,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             )
         elif filtering == '-created_date':
             qs = qs.order_by(filtering)
-        elif filtering == '-hot_score':
+        elif filtering == '-hot_score' or filtering == '-hot_score_v2':
+            print('yooo')
+            print('filtering', filtering)
             qs = qs.order_by(filtering)
         elif filtering == 'user_uploaded':
             qs = qs.filter(
@@ -367,6 +373,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         page_number,
         time_difference
     ):
+        return None
         cache_hit = None
         if page_number == 1 and 'removed' not in filtering:
             cache_pk = ''
@@ -449,6 +456,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 'documents',
                 'document_type',
                 'hot_score',
+                'hot_score_v2',
                 'score',
             ],
             many=True,
