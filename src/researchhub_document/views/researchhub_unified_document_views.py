@@ -348,8 +348,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         elif filtering == '-created_date':
             qs = qs.order_by(filtering)
         elif filtering == '-hot_score' or filtering == '-hot_score_v2':
-            print('yooo')
-            print('filtering', filtering)
             qs = qs.order_by(filtering)
         elif filtering == 'user_uploaded':
             qs = qs.filter(
