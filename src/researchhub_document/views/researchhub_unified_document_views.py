@@ -100,6 +100,17 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             status=200
         )
 
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[],
+    )
+    def hot_score(self, request, pk=None):
+        doc = self.get_object()
+        hot_score_tpl = doc.calculate_hot_score_v2(debug=True)
+
+        return Response(hot_score_tpl[1], status=status.HTTP_200_OK)
+
     def update(self, request, *args, **kwargs):
         update_response = super().update(request, *args, **kwargs)
 

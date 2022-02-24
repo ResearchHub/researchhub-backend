@@ -2,6 +2,7 @@
 
 # testing files
 /output.txt
+hotscore.js
 
 # deployment files
 deploy.zip

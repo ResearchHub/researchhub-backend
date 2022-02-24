@@ -53,7 +53,6 @@ from utils.twitter import (
     get_twitter_results
 )
 
-
 DOI_IDENTIFIER = '10.'
 ARXIV_IDENTIFIER = 'arXiv:'
 HOT_SCORE_WEIGHT = 5
@@ -798,7 +797,7 @@ class Paper(models.Model):
     def calculate_score(
         self,
         ignore_self_vote=False,
-        ignore_twitter_score=False
+        ignore_twitter_score=True
     ):
         qs = self.votes.filter(
             created_by__is_suspended=False,

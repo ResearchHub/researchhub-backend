@@ -12,9 +12,10 @@ from utils.models import DefaultModel
 from researchhub_document.tasks import (
     update_elastic_registry
 )
+from researchhub_document.hot_score_mixin import HotScoreMixin
 
 
-class ResearchhubUnifiedDocument(DefaultModel):
+class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
     is_public = models.BooleanField(
         default=True,
         help_text='Unified document is public'
@@ -41,6 +42,10 @@ class ResearchhubUnifiedDocument(DefaultModel):
         help_text='Another feed ranking score.',
     )
     hot_score = models.IntegerField(
+        default=0,
+        help_text='Feed ranking score.',
+    )
+    hot_score_v2 = models.IntegerField(
         default=0,
         help_text='Feed ranking score.',
     )
@@ -86,6 +91,19 @@ class ResearchhubUnifiedDocument(DefaultModel):
             )
             return author
         return self.none()
+
+    def get_document(self):
+        if (self.document_type.upper() == 'PAPER'):
+            return self.paper
+        elif (self.document_type.upper() == 'DISCUSSION'):
+            return self.posts.first()
+        elif (self.document_type.upper() == 'HYPOTHESIS'):
+            return self.hypothesis
+        elif (self.document_type.upper() == 'NOTE'):
+            return self.note
+        else:
+            print(self.note)
+            raise Exception(f"Unrecognized document_type: {self.document_type}")
 
     @property
     def created_by(self):

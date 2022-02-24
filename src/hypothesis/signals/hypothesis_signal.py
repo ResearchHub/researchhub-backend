@@ -23,7 +23,7 @@ def add_hypothesis_slug(
         if not slug:
             slug += suffix
         instance.slug = slug
-        instance.save()
+        # instance.save()
 
 
 @receiver(
