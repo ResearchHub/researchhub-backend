@@ -2,7 +2,7 @@ import datetime
 import math
 
 class HotScoreMixin:
-    def _get_date_val(self, date, debug=False):
+    def _get_date_val(self, date):
         input_date = date.replace(tzinfo=None)
         now = datetime.datetime.now()
 
@@ -24,7 +24,8 @@ class HotScoreMixin:
         val = (mins_since_epoch - mins_elapsed_since_input_date) / mins_since_epoch
         final_val = val - (val * time_penalty)
 
-        if debug:
+        # Debug
+        if False:
             print(f'ID: {self.id}')
             print(f'Input date: {date}')
             print(f'Time Penalty: {time_penalty}')
@@ -38,12 +39,12 @@ class HotScoreMixin:
         # social_media_score = math.log(self.twitter_score+1, 7)
         return 0
 
-    def _calc_vote_score(self, votes, debug=False):
+    def _calc_vote_score(self, votes):
         return sum([
-            self._get_date_val(v.created_date, debug) for v in votes
+            self._get_date_val(v.created_date) for v in votes
         ])
 
-    def calculate_hot_score_v2(self, should_save=False, debug=False):
+    def calculate_hot_score_v2(self, should_save=False):
         DISCUSSION_VOTE_WEIGHT = 2
         DOCUMENT_VOTE_WEIGHT = 1
         hot_score = 0
@@ -58,12 +59,12 @@ class HotScoreMixin:
 
         # Doc vote score
         doc_vote_net_score = doc.calculate_score()
-        doc_vote_time_score = self._calc_vote_score(doc.votes.all(), debug)
+        doc_vote_time_score = self._calc_vote_score(doc.votes.all())
         doc_vote_score = doc_vote_net_score * doc_vote_time_score * DOCUMENT_VOTE_WEIGHT
         debug_obj['doc_vote_score'] = {'vote_net_score': doc_vote_net_score, 'vote_time_score': doc_vote_time_score, '=doc_vote_score': doc_vote_score}
 
         # Doc created date score
-        doc_created_score = self._get_date_val(self.created_date, debug)
+        doc_created_score = self._get_date_val(self.created_date)
         debug_obj['doc_created_score'] = {'created_date': self.created_date, '=doc_created_score': doc_created_score}
 
         # Doc social media score
@@ -76,7 +77,7 @@ class HotScoreMixin:
         debug_obj['discussion_vote_score'] = {}
         for t in doc.threads.all():
             thread_vote_net_score = max(0, t.calculate_score())
-            thread_vote_time_score = self._calc_vote_score(t.votes.all(), debug)
+            thread_vote_time_score = self._calc_vote_score(t.votes.all())
             thread_vote_score = thread_vote_net_score * thread_vote_time_score * DISCUSSION_VOTE_WEIGHT
             discussion_vote_score += thread_vote_score
 
@@ -84,7 +85,7 @@ class HotScoreMixin:
             debug_obj['discussion_vote_score'][f'thread (id:{t.id})'] = debug_val
             for c in t.comments.all():
                 comment_vote_net_score = max(0, c.calculate_score())
-                comment_vote_time_score = self._calc_vote_score(c.votes.all(), debug)
+                comment_vote_time_score = self._calc_vote_score(c.votes.all())
                 comment_vote_score = comment_vote_net_score * comment_vote_time_score * DISCUSSION_VOTE_WEIGHT
                 discussion_vote_score += comment_vote_score
 
@@ -92,7 +93,7 @@ class HotScoreMixin:
                 debug_obj['discussion_vote_score'][f'thread (id:{t.id})'][f'comment (id:{c.id})'] = debug_val
                 for r in c.replies.all():
                     reply_vote_net_score = max(0, r.calculate_score())
-                    reply_vote_time_score = self._calc_vote_score(r.votes.all(), debug)
+                    reply_vote_time_score = self._calc_vote_score(r.votes.all())
                     reply_vote_score = reply_vote_net_score * reply_vote_time_score * DISCUSSION_VOTE_WEIGHT
                     discussion_vote_score += reply_vote_score
 
@@ -101,10 +102,6 @@ class HotScoreMixin:
 
         debug_obj['discussion_vote_score']['=discussion_vote_score'] = discussion_vote_score
 
-
-        print('doc_vote_score', doc_vote_score)
-        print('doc_created_score', doc_created_score)
-        print('discussion_vote_score', discussion_vote_score)
         hot_score = (
             doc_created_score +
             doc_vote_score +

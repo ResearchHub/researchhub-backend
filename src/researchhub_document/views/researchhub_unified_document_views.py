@@ -106,10 +106,15 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         permission_classes=[],
     )
     def hot_score(self, request, pk=None):
-        doc = self.get_object()
-        hot_score_tpl = doc.calculate_hot_score_v2(debug=True)
+        debug = True if request.query_params.get('debug') is not None else False
 
-        return Response(hot_score_tpl[1], status=status.HTTP_200_OK)
+        doc = self.get_object()
+        hot_score_tpl = doc.calculate_hot_score_v2(debug)
+
+        if debug:
+            return Response(hot_score_tpl[1], status=status.HTTP_200_OK)
+        else:
+            return Response(hot_score_tpl[0], status=status.HTTP_200_OK)
 
     def update(self, request, *args, **kwargs):
         update_response = super().update(request, *args, **kwargs)
