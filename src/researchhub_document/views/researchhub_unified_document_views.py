@@ -103,7 +103,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     @action(
         detail=True,
         methods=['get'],
-        permission_classes=[],
+        permission_classes=[AllowAny],
     )
     def hot_score(self, request, pk=None):
         debug = True if request.query_params.get('debug') is not None else False
@@ -371,7 +371,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         page_number,
         time_difference
     ):
-        return None
         cache_hit = None
         if page_number == 1 and 'removed' not in filtering:
             cache_pk = ''

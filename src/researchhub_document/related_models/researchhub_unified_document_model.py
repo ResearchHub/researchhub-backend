@@ -102,7 +102,6 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         elif (self.document_type.upper() == 'NOTE'):
             return self.note
         else:
-            print(self.note)
             raise Exception(f"Unrecognized document_type: {self.document_type}")
 
     @property
