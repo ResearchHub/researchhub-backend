@@ -60,7 +60,7 @@ class HotScoreMixin:
         }
 
         # Doc vote score
-        doc_vote_net_score = doc.calculate_score()
+        doc_vote_net_score = doc.calculate_score(ignore_twitter_score=True)
         doc_vote_time_score = self._calc_vote_score(doc.votes.all())
         doc_vote_score = doc_vote_net_score * doc_vote_time_score * DOCUMENT_VOTE_WEIGHT
         debug_obj['doc_vote_score'] = {'vote_net_score': doc_vote_net_score, 'vote_time_score': doc_vote_time_score, '=doc_vote_score': doc_vote_score}

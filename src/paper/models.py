@@ -797,7 +797,7 @@ class Paper(models.Model):
     def calculate_score(
         self,
         ignore_self_vote=False,
-        ignore_twitter_score=True
+        ignore_twitter_score=False
     ):
         qs = self.votes.filter(
             created_by__is_suspended=False,
