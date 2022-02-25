@@ -1,5 +1,6 @@
 import datetime
 import math
+from researchhub_document.related_models.constants.document_type import PAPER
 
 class HotScoreMixin:
     # Returns a value between 0 and 1
@@ -45,16 +46,19 @@ class HotScoreMixin:
         doc = self.get_document()
 
         date_val = self._get_date_val(self.created_date)
-        if self.document_type.upper() == 'PAPER':
+        if self.document_type == PAPER:
             twitter_score = math.log(doc.twitter_score+1, 10)
             social_media_score = date_val * twitter_score
 
         return social_media_score
 
     def _calc_vote_score(self, votes):
-        return sum([
-            self._get_date_val(v.created_date) for v in votes
-        ])
+        return sum(
+            map(
+                self._get_date_val,
+                votes.values_list('created_date', flat=True)
+            )
+        )
 
     # The basic idea is that the score of a document depends on the sum
     # of various interactions on it (i.e. votes). Each of which, depends
@@ -78,7 +82,7 @@ class HotScoreMixin:
         }
 
         # Doc vote score
-        if self.document_type.upper() == 'PAPER':
+        if self.document_type == PAPER:
             doc_vote_net_score = doc.calculate_score(ignore_twitter_score=True)
         else:
             doc_vote_net_score = doc.calculate_score()
@@ -98,7 +102,7 @@ class HotScoreMixin:
         # Doc discussion vote score
         discussion_vote_score = 0
         debug_obj['discussion_vote_score'] = {}
-        for t in doc.threads.filter(is_removed=False):
+        for t in doc.threads.filter(is_removed=False).iterator():
             thread_vote_net_score = max(0, t.calculate_score())
             thread_vote_time_score = self._calc_vote_score(t.votes.all())
             thread_vote_score = thread_vote_net_score * thread_vote_time_score * DISCUSSION_VOTE_WEIGHT
@@ -106,7 +110,7 @@ class HotScoreMixin:
 
             debug_val = {'vote_net_score': thread_vote_net_score, 'vote_time_score': thread_vote_time_score, '=thread_vote_score': thread_vote_score}
             debug_obj['discussion_vote_score'][f'thread (id:{t.id})'] = debug_val
-            for c in t.comments.filter(is_removed=False):
+            for c in t.comments.filter(is_removed=False).iterator():
                 comment_vote_net_score = max(0, c.calculate_score())
                 comment_vote_time_score = self._calc_vote_score(c.votes.all())
                 comment_vote_score = comment_vote_net_score * comment_vote_time_score * DISCUSSION_VOTE_WEIGHT
@@ -114,7 +118,7 @@ class HotScoreMixin:
 
                 debug_val = {'vote_net_score': comment_vote_net_score, 'vote_time_score': comment_vote_time_score, '=comment_vote_score': comment_vote_score}
                 debug_obj['discussion_vote_score'][f'thread (id:{t.id})'][f'comment (id:{c.id})'] = debug_val
-                for r in c.replies.filter(is_removed=False):
+                for r in c.replies.filter(is_removed=False).iterator():
                     reply_vote_net_score = max(0, r.calculate_score())
                     reply_vote_time_score = self._calc_vote_score(r.votes.all())
                     reply_vote_score = reply_vote_net_score * reply_vote_time_score * DISCUSSION_VOTE_WEIGHT

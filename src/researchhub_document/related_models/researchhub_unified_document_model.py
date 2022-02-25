@@ -6,7 +6,7 @@ from paper.models import Paper
 from user.models import Author
 from researchhub_access_group.models import Permission
 from researchhub_document.related_models.constants.document_type import (
-  DOCUMENT_TYPES, PAPER
+  DOCUMENT_TYPES, PAPER, DISCUSSION, HYPOTHESIS, NOTE
 )
 from utils.models import DefaultModel
 from researchhub_document.tasks import (
@@ -93,13 +93,13 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         return self.none()
 
     def get_document(self):
-        if (self.document_type.upper() == 'PAPER'):
+        if (self.document_type == PAPER):
             return self.paper
-        elif (self.document_type.upper() == 'DISCUSSION'):
+        elif (self.document_type == DISCUSSION):
             return self.posts.first()
-        elif (self.document_type.upper() == 'HYPOTHESIS'):
+        elif (self.document_type == HYPOTHESIS):
             return self.hypothesis
-        elif (self.document_type.upper() == 'NOTE'):
+        elif (self.document_type == NOTE):
             return self.note
         else:
             raise Exception(f"Unrecognized document_type: {self.document_type}")

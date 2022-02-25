@@ -106,7 +106,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         permission_classes=[AllowAny],
     )
     def hot_score(self, request, pk=None):
-        debug = True if request.query_params.get('debug') is not None else False
+        debug = request.query_params.get('debug', False) == 'true'
 
         if debug:
             time_start = perf_counter()
