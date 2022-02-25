@@ -6,7 +6,7 @@ class HotScoreMixin:
         input_date = date.replace(tzinfo=None)
         now = datetime.datetime.now()
 
-        epoch_date = datetime.datetime(2022, 2, 23)
+        epoch_date = datetime.datetime(2020, 1, 1)
         days_since_epoch = (now - epoch_date).days
         mins_since_epoch = days_since_epoch * 24 * 60
         delta_dt = now - input_date
@@ -61,8 +61,6 @@ class HotScoreMixin:
             'document_type': self.document_type,
         }
 
-        print('doc', self.document_type)
-
         # Doc vote score
         if self.document_type.upper() == 'PAPER':
             doc_vote_net_score = doc.calculate_score(ignore_twitter_score=True)
@@ -85,7 +83,7 @@ class HotScoreMixin:
         # Fixme: Ignore deleted
         discussion_vote_score = 0
         debug_obj['discussion_vote_score'] = {}
-        for t in doc.threads.all():
+        for t in doc.threads.filter(is_removed=False):
             thread_vote_net_score = max(0, t.calculate_score())
             thread_vote_time_score = self._calc_vote_score(t.votes.all())
             thread_vote_score = thread_vote_net_score * thread_vote_time_score * DISCUSSION_VOTE_WEIGHT
@@ -93,7 +91,7 @@ class HotScoreMixin:
 
             debug_val = {'vote_net_score': thread_vote_net_score, 'vote_time_score': thread_vote_time_score, '=thread_vote_score': thread_vote_score}
             debug_obj['discussion_vote_score'][f'thread (id:{t.id})'] = debug_val
-            for c in t.comments.all():
+            for c in t.comments.filter(is_removed=False):
                 comment_vote_net_score = max(0, c.calculate_score())
                 comment_vote_time_score = self._calc_vote_score(c.votes.all())
                 comment_vote_score = comment_vote_net_score * comment_vote_time_score * DISCUSSION_VOTE_WEIGHT
@@ -101,7 +99,7 @@ class HotScoreMixin:
 
                 debug_val = {'vote_net_score': comment_vote_net_score, 'vote_time_score': comment_vote_time_score, '=comment_vote_score': comment_vote_score}
                 debug_obj['discussion_vote_score'][f'thread (id:{t.id})'][f'comment (id:{c.id})'] = debug_val
-                for r in c.replies.all():
+                for r in c.replies.filter(is_removed=False):
                     reply_vote_net_score = max(0, r.calculate_score())
                     reply_vote_time_score = self._calc_vote_score(r.votes.all())
                     reply_vote_score = reply_vote_net_score * reply_vote_time_score * DISCUSSION_VOTE_WEIGHT
