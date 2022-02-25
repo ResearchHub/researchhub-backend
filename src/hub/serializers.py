@@ -1,13 +1,17 @@
-from rest_framework import serializers
-from rest_framework.serializers import SerializerMethodField
-
-from researchhub_access_group.serializers import DynamicPermissionSerializer
+from rest_framework.serializers import (
+    IntegerField,
+    ModelSerializer,
+    SerializerMethodField,
+)
 
 from .models import Hub, HubCategory
+from reputation.models import Contribution
+from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
+from utils.sentry import log_error
 
 
-class SimpleHubSerializer(serializers.ModelSerializer):
+class SimpleHubSerializer(ModelSerializer):
     editor_permission_groups = SerializerMethodField()
 
     class Meta:
@@ -46,7 +50,7 @@ class SimpleHubSerializer(serializers.ModelSerializer):
         ).data
 
 
-class HubSerializer(serializers.ModelSerializer):
+class HubSerializer(ModelSerializer):
     editor_permission_groups = SerializerMethodField()
 
     class Meta:
@@ -84,7 +88,7 @@ class HubSerializer(serializers.ModelSerializer):
         ).data
 
 
-class HubCategorySerializer(serializers.ModelSerializer):
+class HubCategorySerializer(ModelSerializer):
     class Meta:
         fields = [
             'id',
@@ -92,6 +96,61 @@ class HubCategorySerializer(serializers.ModelSerializer):
         ]
         model = HubCategory
 
+
+class HubContributionSerializer(ModelSerializer):
+    comment_count = IntegerField(read_only=True)
+    latest_comment_date = SerializerMethodField(read_only=True)
+    latest_submission_date = SerializerMethodField(read_only=True)
+    submission_count = IntegerField(read_only=True)
+    support_count = IntegerField(read_only=True)
+    total_contribution_count = IntegerField(read_only=True)
+
+    class Meta:
+        model = Hub
+        fields = [
+            'comment_count',
+            'hub_image',
+            'id',
+            'latest_comment_date',
+            'latest_submission_date',
+            'name',
+            'submission_count',
+            'support_count',
+            'total_contribution_count',
+        ]
+        read_only_fields = [
+            'comment_count',
+            'hub_image',
+            'id',
+            'name',
+            'submission_count',
+            'support_count',
+            'total_contribution_count',
+        ]
+
+    def get_latest_comment_date(self, hub):
+        try:
+            return (
+                Contribution.objects.filter(
+                    contribution_type=Contribution.COMMENTER,
+                    unified_document__hubs=hub.id
+                ).latest('created_date').created_date
+            )
+        except Exception as error:
+            log_error(error)
+            return None
+
+    def get_latest_submission_date(self, hub):
+        try:
+            return (
+                Contribution.objects.filter(
+                    contribution_type=Contribution.SUBMITTER,
+                    unified_document__hubs=hub.id
+                ).latest('created_date').created_date
+            )
+        except Exception as error:
+            log_error(error)
+            return None
 
 class DynamicHubSerializer(DynamicModelFieldSerializer):
     editor_permission_groups = SerializerMethodField()
