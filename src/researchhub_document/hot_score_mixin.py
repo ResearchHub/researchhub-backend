@@ -2,8 +2,8 @@ import datetime
 import math
 
 class HotScoreMixin:
-    # Returns a max value of 1
-    # The further away the given date is from now, the small the value
+    # Returns a value between 0 and 1
+    # The further away the given date is from now, the smaller the value
     def _get_date_val(self, date):
         input_date = date.replace(tzinfo=None)
         now = datetime.datetime.now()
@@ -96,7 +96,6 @@ class HotScoreMixin:
         debug_obj['social_media_score'] = {'=social_media_score': social_media_score}
 
         # Doc discussion vote score
-        # Fixme: Ignore deleted
         discussion_vote_score = 0
         debug_obj['discussion_vote_score'] = {}
         for t in doc.threads.filter(is_removed=False):
