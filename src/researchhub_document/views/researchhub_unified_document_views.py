@@ -16,7 +16,7 @@ from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated
 )
-
+from time import perf_counter
 
 from hypothesis.models import Hypothesis
 from paper.utils import get_cache_key
@@ -108,10 +108,17 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def hot_score(self, request, pk=None):
         debug = True if request.query_params.get('debug') is not None else False
 
+        if debug:
+            time_start = perf_counter()
+
         doc = self.get_object()
         hot_score_tpl = doc.calculate_hot_score_v2(debug)
 
         if debug:
+            time_stop = perf_counter()
+            elapsed_time = str((time_stop - time_start) * 1000) + 'ms'
+            debug_obj = hot_score_tpl[1]
+            debug_obj['query_time'] = elapsed_time
             return Response(hot_score_tpl[1], status=status.HTTP_200_OK)
         else:
             return Response(hot_score_tpl[0], status=status.HTTP_200_OK)
