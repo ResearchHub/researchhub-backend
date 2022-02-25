@@ -133,7 +133,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         return update_response
 
     def _get_document_filtering(self, query_params):
-        use_v2_hot_score = query_params.get('v2') == 'true'
+        use_v2_hot_score = query_params.get('hot_v2') == 'true'
         filtering = query_params.get('ordering', None)
         if filtering == 'removed':
             filtering = 'removed'
