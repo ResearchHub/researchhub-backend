@@ -6,8 +6,8 @@ class HotScoreMixin:
         input_date = date.replace(tzinfo=None)
         now = datetime.datetime.now()
 
-        # FIXME
-        days_since_epoch = 730
+        epoch_date = datetime.datetime(2022, 2, 23)
+        days_since_epoch = (now - epoch_date).days
         mins_since_epoch = days_since_epoch * 24 * 60
         delta_dt = now - input_date
         days_elapsed_since_input_date = delta_dt.days + delta_dt.seconds / 60 / 60 / 24
@@ -25,6 +25,8 @@ class HotScoreMixin:
 
         val = (mins_since_epoch - mins_elapsed_since_input_date) / mins_since_epoch
         final_val = val - (val * time_penalty)
+        # Ensure no negative values. This can happen if date is in future
+        final_val = max(0, final_val)
 
         # Debug
         if False:
@@ -59,8 +61,14 @@ class HotScoreMixin:
             'document_type': self.document_type,
         }
 
+        print('doc', self.document_type)
+
         # Doc vote score
-        doc_vote_net_score = doc.calculate_score(ignore_twitter_score=True)
+        if self.document_type.upper() == 'PAPER':
+            doc_vote_net_score = doc.calculate_score(ignore_twitter_score=True)
+        else:
+            doc_vote_net_score = doc.calculate_score()
+
         doc_vote_time_score = self._calc_vote_score(doc.votes.all())
         doc_vote_score = doc_vote_net_score * doc_vote_time_score * DOCUMENT_VOTE_WEIGHT
         debug_obj['doc_vote_score'] = {'vote_net_score': doc_vote_net_score, 'vote_time_score': doc_vote_time_score, '=doc_vote_score': doc_vote_score}
