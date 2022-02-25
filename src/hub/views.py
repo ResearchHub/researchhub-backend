@@ -515,44 +515,44 @@ class HubViewSet(viewsets.ModelViewSet):
     )
     def by_contributions(self, request, pk=None):
         hub_id = request.GET.get('hub_id', None)
-        hub_qs = Hub.objects.all().distinct() if hub_id is None \
-            else Hub.objects.filter(id=hub_id)
+
+        hub_qs = Hub.objects.all().distinct() if (
+            hub_id is None) else Hub.objects.filter(id=hub_id)
 
         timeframe_query = Q(
-            **resolve_timeframe_for_contribution(
-                request.GET.get('start_date', None),
-                request.GET.get('end_date', None),
-                'related_documents__contributions__created_date'
-            ),
-        )
+                **resolve_timeframe_for_contribution(
+                    request.GET.get('start_date', None),
+                    request.GET.get('end_date', None),
+                    'related_documents__contributions__created_date'
+                ),
+            )
 
         total_contrib_query = Q(
-            related_documents__contributions__contribution_type__in=[
-                Contribution.COMMENTER,
-                Contribution.SUBMITTER,
-                Contribution.SUPPORTER,
-            ],
-        ) & timeframe_query
+                related_documents__contributions__contribution_type__in=[
+                    Contribution.COMMENTER,
+                    Contribution.SUBMITTER,
+                    Contribution.SUPPORTER,
+                ],
+            ) & timeframe_query
 
         qs_key = 'related_documents__contributions__contribution_type'
         comment_query = Q(
-            **dict([(qs_key, Contribution.COMMENTER)])
-        ) & timeframe_query
+                **dict([(qs_key, Contribution.COMMENTER)])
+            ) & timeframe_query
 
         submission_query = Q(
-            **dict([(qs_key, Contribution.SUBMITTER)])
-        ) & timeframe_query
+                **dict([(qs_key, Contribution.SUBMITTER)])
+            ) & timeframe_query
 
         support_query = Q(
-            **dict([(qs_key, Contribution.SUPPORTER)])
-        ) & timeframe_query
+                **dict([(qs_key, Contribution.SUPPORTER)])
+            ) & timeframe_query
 
-        order_by = '-total_contribution_count' \
-            if request.GET.get('order_by', 'desc') == 'desc' \
-            else 'total_contribution_count'
+        order_by = '-total_contribution_count' if (
+                request.GET.get('order_by', 'desc') == 'desc'
+            ) else 'total_contribution_count'
 
-        hub_qs_ranked_by_contribution = \
-            hub_qs.prefetch_related(
+        hub_qs_ranked_by_contribution = hub_qs.prefetch_related(
                 'related_documents',
                 'related_documents__contributions',
                 'related_documents__contributions__created_date__gte',
@@ -572,24 +572,24 @@ class HubViewSet(viewsets.ModelViewSet):
             ).order_by(order_by)
 
         paginator = Paginator(
-            hub_qs_ranked_by_contribution,  # qs
-            10,  # page size
-        )
+                hub_qs_ranked_by_contribution,  # qs
+                10,  # page size
+            )
         curr_page_number = request.GET.get('page') or 1
         curr_pagation = paginator.page(curr_page_number)
 
         return Response(
-            {
-                'count': paginator.count,
-                'has_more': curr_pagation.has_next(),
-                'page': curr_page_number,
-                'result': HubContributionSerializer(
-                    curr_pagation.object_list,
-                    many=True,
-                ).data,
-            },
-            status=200
-        )
+                {
+                    'count': paginator.count,
+                    'has_more': curr_pagation.has_next(),
+                    'page': curr_page_number,
+                    'result': HubContributionSerializer(
+                        curr_pagation.object_list,
+                        many=True,
+                    ).data,
+                },
+                status=200
+            )
 
 
 class HubCategoryViewSet(viewsets.ModelViewSet):

@@ -17,21 +17,21 @@ from researchhub_access_group.constants import EDITOR
 from hub.models import Hub
 
 
-def resolve_timeframe_for_contribution(startDate, endDate, query_key=None):
+def resolve_timeframe_for_contribution(start_date, end_date, query_key=None):
 
     dateFrame = {}
 
-    if startDate:
+    if start_date:
         dateFrame[
             'contributions__created_date__gte' if query_key is None
             else query_key + "__gte"
-        ] = startDate
+        ] = start_date
 
-    if endDate:
+    if end_date:
         dateFrame[
             'contributions__created_date__lte' if query_key is None
             else query_key + "__lte"
-        ] = endDate
+        ] = end_date
 
     return dateFrame
 
