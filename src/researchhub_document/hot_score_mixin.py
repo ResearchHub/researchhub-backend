@@ -2,6 +2,8 @@ import datetime
 import math
 
 class HotScoreMixin:
+    # Returns a max value of 1
+    # The further away the given date is from now, the small the value
     def _get_date_val(self, date):
         input_date = date.replace(tzinfo=None)
         now = datetime.datetime.now()
@@ -39,15 +41,27 @@ class HotScoreMixin:
         return final_val
 
     def _calc_social_media_score(self):
-        # FIXME
-        # social_media_score = math.log(self.twitter_score+1, 7)
-        return 0
+        social_media_score = 0
+        doc = self.get_document()
+
+        date_val = self._get_date_val(self.created_date)
+        if self.document_type.upper() == 'PAPER':
+            twitter_score = math.log(doc.twitter_score+1, 10)
+            social_media_score = date_val * twitter_score
+
+        return social_media_score
 
     def _calc_vote_score(self, votes):
         return sum([
             self._get_date_val(v.created_date) for v in votes
         ])
 
+    # The basic idea is that the score of a document depends on the sum
+    # of various interactions on it (i.e. votes). Each of which, depends
+    # on how recent these interactions were. The more recent the interaction
+    # is, the greater its value.
+    # NOTE: use endpoint /api/researchhub_unified_documents/{doc_id}/hot_score/?debug
+    # to see a breakdown of how the hot score is calculated for a given document
     def calculate_hot_score_v2(self, should_save=False):
         DISCUSSION_VOTE_WEIGHT = 2
         DOCUMENT_VOTE_WEIGHT = 1
@@ -59,6 +73,8 @@ class HotScoreMixin:
             'unified_doc_id': self.id,
             'inner_doc_id': doc.id,
             'document_type': self.document_type,
+            'DISCUSSION_VOTE_WEIGHT': DISCUSSION_VOTE_WEIGHT,
+            'DOCUMENT_VOTE_WEIGHT': DOCUMENT_VOTE_WEIGHT,
         }
 
         # Doc vote score
@@ -115,11 +131,13 @@ class HotScoreMixin:
             doc_vote_score +
             discussion_vote_score +
             social_media_score
-        ) * 10000
-        debug_obj['=hot_score (x10000)'] = hot_score
+        )
+        final_hot_score = hot_score * 10000
+        debug_obj['hot_score'] = hot_score
+        debug_obj['=hot_score (x10000)'] = final_hot_score
 
         if should_save:
             self.hot_score_v2 = hot_score
             self.save()
 
-        return (hot_score, debug_obj)
+        return (final_hot_score, debug_obj)

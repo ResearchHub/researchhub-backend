@@ -6,21 +6,22 @@ from dateutil import parser
 class Command(BaseCommand):
 
     def add_arguments(self, parser):
-       parser.add_argument(
-          '--save',
-           default=False,
-           help='Should save the score'
-        )
-       parser.add_argument(
-          '--id',
-           default=False,
-           help='Only perform for specific id'
-        )
+      parser.add_argument(
+        '--save',
+        default=False,
+        help='Should save the score'
+      )
 
-       parser.add_argument(
-          '--start_date',
-           help='Perform for date starting'
-        )       
+      parser.add_argument(
+        '--id',
+        default=False,
+        help='Only perform for specific id'
+      )
+
+      parser.add_argument(
+        '--start_date',
+        help='Perform for date starting'
+      )
 
     def handle(self, *args, **options):
         docs = ResearchhubUnifiedDocument.objects.order_by('id')
