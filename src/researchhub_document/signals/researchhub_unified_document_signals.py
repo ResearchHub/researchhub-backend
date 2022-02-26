@@ -21,16 +21,35 @@ def recalc_hot_score(instance, sender, **kwargs):
     uni_doc = None
     if type(instance) is Vote:
         model_name = ContentType.objects.get(id=instance.content_type_id).model
+        print('model_name', model_name)
         if model_name == 'hypothesis':
             uni_doc = Hypothesis.objects.get(id=instance.object_id).unified_document
         elif model_name == 'researchhubpost':
             uni_doc = ResearchhubPost.objects.get(id=instance.object_id).unified_document
         elif model_name == 'paper':
             uni_doc = Paper.objects.get(id=instance.object_id).unified_document
+        elif model_name in ['thread', 'comment', 'reply']:
+            thread = None
+            if model_name == 'thread':
+                thread = Thread.objects.get(id=instance.object_id)
+            elif model_name == 'comment':
+                comment = Comment.objects.get(id=instance.object_id)
+                thread = comment.parent
+            elif model_name == 'reply':
+                reply = Reply.objects.get(id=instance.object_id)
+                thread = reply.parent.parent
+
+            if thread.paper:
+                uni_doc = thread.paper.unified_document
+            elif thread.hypothesis:
+                uni_doc = thread.hypothesis.unified_document
+            elif thread.post:
+                uni_doc = thread.post.unified_document
     elif type(instance) is PaperVote:
         uni_doc = instance.paper.unified_document
 
-    uni_doc.calculate_hot_score_v2()
+    if uni_doc:
+        uni_doc.calculate_hot_score_v2()
 
 # Ensures that scores are sync-ed when either is updated
 # NOTE: we have separate method to sync paper votes because paper has
