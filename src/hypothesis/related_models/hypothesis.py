@@ -14,7 +14,6 @@ from paper.utils import paper_piecewise_log
 from user.models import User
 from utils import sentry
 
-
 class Hypothesis(AbstractGenericReactionModel):
     actions = GenericRelation(
         'user.Action',

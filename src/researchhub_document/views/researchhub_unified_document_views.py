@@ -16,7 +16,7 @@ from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated
 )
-
+from time import perf_counter
 
 from hypothesis.models import Hypothesis
 from paper.utils import get_cache_key
@@ -100,6 +100,29 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             status=200
         )
 
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[AllowAny],
+    )
+    def hot_score(self, request, pk=None):
+        debug = request.query_params.get('debug', False) == 'true'
+
+        if debug:
+            time_start = perf_counter()
+
+        doc = self.get_object()
+        hot_score_tpl = doc.calculate_hot_score_v2(debug)
+
+        if debug:
+            time_stop = perf_counter()
+            elapsed_time = str((time_stop - time_start) * 1000) + 'ms'
+            debug_obj = hot_score_tpl[1]
+            debug_obj['query_time'] = elapsed_time
+            return Response(hot_score_tpl[1], status=status.HTTP_200_OK)
+        else:
+            return Response(hot_score_tpl[0], status=status.HTTP_200_OK)
+
     def update(self, request, *args, **kwargs):
         update_response = super().update(request, *args, **kwargs)
 
@@ -117,6 +140,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         return update_response
 
     def _get_document_filtering(self, query_params):
+        use_v2_hot_score = query_params.get('hot_v2') == 'true'
         filtering = query_params.get('ordering', None)
         if filtering == 'removed':
             filtering = 'removed'
@@ -127,7 +151,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         elif filtering == 'newest':
             filtering = '-created_date'
         elif filtering == 'hot':
-            filtering = '-hot_score'
+            if use_v2_hot_score:
+                filtering = '-hot_score_v2'
+            else:
+                filtering = '-hot_score'
         elif filtering == 'user_uploaded':
             filtering = 'user_uploaded'
         else:
@@ -327,7 +354,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             )
         elif filtering == '-created_date':
             qs = qs.order_by(filtering)
-        elif filtering == '-hot_score':
+        elif filtering == '-hot_score' or filtering == '-hot_score_v2':
             qs = qs.order_by(filtering)
         elif filtering == 'user_uploaded':
             qs = qs.filter(
@@ -381,6 +408,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         is_anonymous = request.user.is_anonymous
         query_params = request.query_params
         subscribed_hubs = query_params.get('subscribed_hubs', 'false')
+        use_v2_hot_score = query_params.get('hot_v2') == 'true'
 
         if subscribed_hubs == 'true' and not is_anonymous:
             return self._get_subscribed_unified_documents(request)
@@ -398,23 +426,28 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         )
         time_difference = end_date - start_date
         filtering = self._get_document_filtering(query_params)
-        cache_hit = self._get_unifed_document_cache_hit(
-            document_request_type,
-            filtering,
-            hub_id,
-            page_number,
-            time_difference
-        )
 
-        if cache_hit and page_number == 1:
-            return Response(cache_hit)
-        elif not cache_hit and page_number == 1:
-            reset_unified_document_cache(
-                [hub_id],
-                [document_request_type],
-                [filtering],
-                time_difference.days
+        # FIXME: Temporary condition until V2 of the
+        # hot score is live. For V2, We will not be
+        # caching results, hence this check to only allow for v1.
+        if use_v2_hot_score == False:
+            cache_hit = self._get_unifed_document_cache_hit(
+                document_request_type,
+                filtering,
+                hub_id,
+                page_number,
+                time_difference
             )
+
+            if cache_hit and page_number == 1:
+                return Response(cache_hit)
+            elif not cache_hit and page_number == 1:
+                reset_unified_document_cache(
+                    [hub_id],
+                    [document_request_type],
+                    [filtering],
+                    time_difference.days
+                )
 
         documents = self.get_filtered_queryset(
             document_request_type,
@@ -433,6 +466,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 'documents',
                 'document_type',
                 'hot_score',
+                'hot_score_v2',
                 'score',
             ],
             many=True,

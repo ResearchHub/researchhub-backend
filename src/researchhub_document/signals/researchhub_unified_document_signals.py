@@ -3,7 +3,9 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from discussion.reaction_models import Vote
+from paper.models import Vote as PaperVote
 from hypothesis.models import Citation, Hypothesis
+from discussion.models import (Thread, Comment, Reply)
 from paper.models import Paper
 from researchhub_document.models import (
     ResearchhubUnifiedDocument, ResearchhubPost
@@ -11,7 +13,40 @@ from researchhub_document.models import (
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PaperDocType
 )
+from django.contrib.contenttypes.models import ContentType
+from researchhub_document.tasks import recalc_hot_score_task
+from utils import sentry
 
+
+@receiver(post_save, sender=Vote, dispatch_uid='recalc_hot_score_on_thread_save')
+@receiver(post_save, sender=PaperVote, dispatch_uid='recalc_hot_score_on_thread_save')
+def recalc_hot_score(instance, sender, **kwargs):
+    try:
+        if type(instance) is Vote:
+            recalc_hot_score_task.apply_async(
+                (
+                    instance.content_type_id,
+                    instance.object_id,
+
+                ),
+                priority=1,
+                countdown=1
+            )
+        elif type(instance) is PaperVote:
+            paper = instance.paper
+            content_type_id = ContentType.objects.get_for_model(paper).id
+            recalc_hot_score_task.apply_async(
+                (
+                    content_type_id,
+                    paper.id
+
+                ),
+                priority=1,
+                countdown=1
+            )
+    except Exception as error:
+        print('recalc_hot_score error', error)
+        sentry.log_error(error)
 
 # Ensures that scores are sync-ed when either is updated
 # NOTE: we have separate method to sync paper votes because paper has

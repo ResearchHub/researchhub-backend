@@ -53,7 +53,6 @@ from utils.twitter import (
     get_twitter_results
 )
 
-
 DOI_IDENTIFIER = '10.'
 ARXIV_IDENTIFIER = 'arXiv:'
 HOT_SCORE_WEIGHT = 5

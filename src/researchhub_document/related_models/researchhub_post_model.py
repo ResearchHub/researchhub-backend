@@ -21,7 +21,6 @@ from paper.utils import paper_piecewise_log
 from purchase.models import Purchase
 from user.models import Author, User
 
-
 class ResearchhubPost(AbstractGenericReactionModel):
     authors = models.ManyToManyField(
         Author,

@@ -22,6 +22,47 @@ from researchhub.settings import (
     STAGING,
     PRODUCTION,
 )
+from django.contrib.contenttypes.models import ContentType
+from utils import sentry
+
+
+@app.task
+def recalc_hot_score_task(
+    instance_content_type_id,
+    instance_id
+):
+    content_type = ContentType.objects.get(id=instance_content_type_id)
+    model_name = content_type.model
+    model_class = content_type.model_class()
+    uni_doc = None
+
+    try:
+        if model_name in ['hypothesis', 'researchhubpost', 'paper']:
+            uni_doc = model_class.objects.get(id=instance_id).unified_document
+        elif model_name in ['thread', 'comment', 'reply']:
+            thread = None
+            if model_name == 'thread':
+                thread = model_class.objects.get(id=instance_id)
+            elif model_name == 'comment':
+                comment = model_class.objects.get(id=instance_id)
+                thread = comment.parent
+            elif model_name == 'reply':
+                reply = model_class.objects.get(id=instance_id)
+                thread = reply.parent.parent
+
+            if thread.paper:
+                uni_doc = thread.paper.unified_document
+            elif thread.hypothesis:
+                uni_doc = thread.hypothesis.unified_document
+            elif thread.post:
+                uni_doc = thread.post.unified_document
+        elif model_name == 'paper':
+            uni_doc = model_class.objects.get(id=instance_id).unified_document
+
+        uni_doc.calculate_hot_score_v2()
+    except Exception as error:
+        print('recalc_hot_score error', error)
+        sentry.log_error(error)
 
 
 @app.task
