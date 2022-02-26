@@ -140,7 +140,7 @@ class HotScoreMixin:
         debug_obj['=hot_score (x10000)'] = final_hot_score
 
         if should_save:
-            self.hot_score_v2 = hot_score
+            self.hot_score_v2 = final_hot_score
             self.save()
 
         return (final_hot_score, debug_obj)
