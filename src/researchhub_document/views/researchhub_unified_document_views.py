@@ -431,7 +431,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         # hot score is live. For V2, We will not be
         # caching results, hence this check to only allow for v1.
         if use_v2_hot_score == False:
-            print('v2 cache')
             cache_hit = self._get_unifed_document_cache_hit(
                 document_request_type,
                 filtering,
