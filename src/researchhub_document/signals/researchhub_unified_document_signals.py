@@ -21,7 +21,6 @@ def recalc_hot_score(instance, sender, **kwargs):
     uni_doc = None
     if type(instance) is Vote:
         model_name = ContentType.objects.get(id=instance.content_type_id).model
-        print('model_name', model_name)
         if model_name == 'hypothesis':
             uni_doc = Hypothesis.objects.get(id=instance.object_id).unified_document
         elif model_name == 'researchhubpost':
