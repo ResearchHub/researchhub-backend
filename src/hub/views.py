@@ -1,6 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db.models import Count, Q
+from django.db.models import Count, Q, F
 from django_filters.rest_framework import DjangoFilterBackend
 from datetime import timedelta
 from django.utils import timezone
@@ -514,6 +514,81 @@ class HubViewSet(viewsets.ModelViewSet):
         permission_classes=[AllowAny]
     )
     def by_contributions(self, request, pk=None):
+        query_params = request.query_params
+        hub_id = query_params.get('hub_id', None)
+        start_date = query_params.get('start_date', None)
+        end_date = query_params.get('end_date', None)
+        order_by = '-total_contribution_count' if (
+                request.GET.get('order_by', 'desc') == 'desc'
+            ) else 'total_contribution_count'
+
+        hub_qs = Hub.objects.all().distinct() if (
+            hub_id is None) else Hub.objects.filter(id=hub_id)
+        contributions = Contribution.objects.filter(
+            unified_document__is_removed=False,
+            created_date__gte=start_date,
+            created_date__lte=end_date
+        )
+        if hub_id:
+            contributions = contributions.filter(
+                unified_document__hubs=hub_id
+            )
+
+        comment_query = contributions.filter(
+            contribution_type=Contribution.COMMENTER
+        ).values('unified_document')
+        submission_query = contributions.filter(
+            contribution_type=Contribution.SUBMITTER
+        ).values('unified_document')
+        support_query = contributions.filter(
+            contribution_type=Contribution.SUPPORTER
+        ).values('unified_document')
+
+        hub_qs_ranked_by_contribution = hub_qs.annotate(
+            comment_count=Count(
+                'id',
+                filter=Q(related_documents__in=comment_query)
+            ),
+            submission_count=Count(
+                'id',
+                filter=Q(related_documents__in=submission_query)
+            ),
+            support_count=Count(
+                'id',
+                filter=Q(related_documents__in=support_query)
+            )
+        ).annotate(
+            total_contribution_count=F('comment_count') + F('submission_count') + F('support_count')
+        ).order_by(
+            order_by
+        )
+
+        paginator = Paginator(
+                hub_qs_ranked_by_contribution,  # qs
+                10,  # page size
+            )
+        curr_page_number = request.GET.get('page') or 1
+        curr_pagation = paginator.page(curr_page_number)
+
+        return Response(
+                {
+                    'count': paginator.count,
+                    'has_more': curr_pagation.has_next(),
+                    'page': curr_page_number,
+                    'result': HubContributionSerializer(
+                        curr_pagation.object_list,
+                        many=True,
+                    ).data,
+                },
+                status=200
+            )
+
+    @action(
+        detail=False,
+        methods=[GET],
+        permission_classes=[AllowAny]
+    )
+    def by_contributions_old(self, request, pk=None):
         hub_id = request.GET.get('hub_id', None)
 
         hub_qs = Hub.objects.all().distinct() if (
@@ -527,6 +602,7 @@ class HubViewSet(viewsets.ModelViewSet):
                 ),
             )
 
+        import pdb; pdb.set_trace()
         total_contrib_query = Q(
                 related_documents__contributions__contribution_type__in=[
                     Contribution.COMMENTER,
