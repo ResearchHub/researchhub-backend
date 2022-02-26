@@ -513,7 +513,7 @@ class HubViewSet(viewsets.ModelViewSet):
         methods=[GET],
         permission_classes=[AllowAny]
     )
-    def by_contributions_old(self, request):
+    def by_contributions(self, request):
         query_params = request.query_params
         hub_id = query_params.get('hub_id', None)
         start_date = query_params.get('start_date', None)
