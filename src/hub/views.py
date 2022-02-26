@@ -513,7 +513,7 @@ class HubViewSet(viewsets.ModelViewSet):
         methods=[GET],
         permission_classes=[AllowAny]
     )
-    def by_contributions(self, request, pk=None):
+    def by_contributions_old(self, request):
         query_params = request.query_params
         hub_id = query_params.get('hub_id', None)
         start_date = query_params.get('start_date', None)
@@ -544,7 +544,9 @@ class HubViewSet(viewsets.ModelViewSet):
             contribution_type=Contribution.SUPPORTER
         ).values('unified_document')
 
-        hub_qs_ranked_by_contribution = hub_qs.annotate(
+        hub_qs_ranked_by_contribution = hub_qs.prefetch_related(
+            'related_documents'
+        ).annotate(
             comment_count=Count(
                 'id',
                 filter=Q(related_documents__in=comment_query)
@@ -558,94 +560,12 @@ class HubViewSet(viewsets.ModelViewSet):
                 filter=Q(related_documents__in=support_query)
             )
         ).annotate(
-            total_contribution_count=F('comment_count') + F('submission_count') + F('support_count')
+            total_contribution_count=(
+                F('comment_count') + F('submission_count') + F('support_count')
+            )
         ).order_by(
             order_by
         )
-
-        paginator = Paginator(
-                hub_qs_ranked_by_contribution,  # qs
-                10,  # page size
-            )
-        curr_page_number = request.GET.get('page') or 1
-        curr_pagation = paginator.page(curr_page_number)
-
-        return Response(
-                {
-                    'count': paginator.count,
-                    'has_more': curr_pagation.has_next(),
-                    'page': curr_page_number,
-                    'result': HubContributionSerializer(
-                        curr_pagation.object_list,
-                        many=True,
-                    ).data,
-                },
-                status=200
-            )
-
-    @action(
-        detail=False,
-        methods=[GET],
-        permission_classes=[AllowAny]
-    )
-    def by_contributions_old(self, request, pk=None):
-        hub_id = request.GET.get('hub_id', None)
-
-        hub_qs = Hub.objects.all().distinct() if (
-            hub_id is None) else Hub.objects.filter(id=hub_id)
-
-        timeframe_query = Q(
-                **resolve_timeframe_for_contribution(
-                    request.GET.get('start_date', None),
-                    request.GET.get('end_date', None),
-                    'related_documents__contributions__created_date'
-                ),
-            )
-
-        import pdb; pdb.set_trace()
-        total_contrib_query = Q(
-                related_documents__contributions__contribution_type__in=[
-                    Contribution.COMMENTER,
-                    Contribution.SUBMITTER,
-                    Contribution.SUPPORTER,
-                ],
-            ) & timeframe_query
-
-        qs_key = 'related_documents__contributions__contribution_type'
-        comment_query = Q(
-                **dict([(qs_key, Contribution.COMMENTER)])
-            ) & timeframe_query
-
-        submission_query = Q(
-                **dict([(qs_key, Contribution.SUBMITTER)])
-            ) & timeframe_query
-
-        support_query = Q(
-                **dict([(qs_key, Contribution.SUPPORTER)])
-            ) & timeframe_query
-
-        order_by = '-total_contribution_count' if (
-                request.GET.get('order_by', 'desc') == 'desc'
-            ) else 'total_contribution_count'
-
-        hub_qs_ranked_by_contribution = hub_qs.prefetch_related(
-                'related_documents',
-                'related_documents__contributions',
-                'related_documents__contributions__created_date__gte',
-            ).annotate(
-                total_contribution_count=Count(
-                    'id', filter=total_contrib_query
-                ),
-                comment_count=Count(
-                    'id', filter=comment_query
-                ),
-                submission_count=Count(
-                    'id', filter=submission_query
-                ),
-                support_count=Count(
-                    'id', filter=support_query
-                ),
-            ).order_by(order_by)
 
         paginator = Paginator(
                 hub_qs_ranked_by_contribution,  # qs
