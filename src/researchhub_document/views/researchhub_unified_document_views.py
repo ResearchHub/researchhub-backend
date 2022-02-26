@@ -408,6 +408,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         is_anonymous = request.user.is_anonymous
         query_params = request.query_params
         subscribed_hubs = query_params.get('subscribed_hubs', 'false')
+        use_v2_hot_score = query_params.get('hot_v2') == 'true'
 
         if subscribed_hubs == 'true' and not is_anonymous:
             return self._get_subscribed_unified_documents(request)
@@ -425,23 +426,29 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         )
         time_difference = end_date - start_date
         filtering = self._get_document_filtering(query_params)
-        cache_hit = self._get_unifed_document_cache_hit(
-            document_request_type,
-            filtering,
-            hub_id,
-            page_number,
-            time_difference
-        )
 
-        if cache_hit and page_number == 1:
-            return Response(cache_hit)
-        elif not cache_hit and page_number == 1:
-            reset_unified_document_cache(
-                [hub_id],
-                [document_request_type],
-                [filtering],
-                time_difference.days
+        # FIXME: Temporary condition until V2 of the
+        # hot score is live. For V2, We will not be
+        # caching results, hence this check to only allow for v1.
+        if use_v2_hot_score == False:
+            print('v2 cache')
+            cache_hit = self._get_unifed_document_cache_hit(
+                document_request_type,
+                filtering,
+                hub_id,
+                page_number,
+                time_difference
             )
+
+            if cache_hit and page_number == 1:
+                return Response(cache_hit)
+            elif not cache_hit and page_number == 1:
+                reset_unified_document_cache(
+                    [hub_id],
+                    [document_request_type],
+                    [filtering],
+                    time_difference.days
+                )
 
         documents = self.get_filtered_queryset(
             document_request_type,
