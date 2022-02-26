@@ -14,41 +14,39 @@ from researchhub_document.related_models.constants.document_type import (
     PAPER as PaperDocType
 )
 from django.contrib.contenttypes.models import ContentType
+from researchhub_document.tasks import recalc_hot_score_task
+from utils import sentry
+
 
 @receiver(post_save, sender=Vote, dispatch_uid='recalc_hot_score_on_thread_save')
 @receiver(post_save, sender=PaperVote, dispatch_uid='recalc_hot_score_on_thread_save')
 def recalc_hot_score(instance, sender, **kwargs):
-    uni_doc = None
-    if type(instance) is Vote:
-        model_name = ContentType.objects.get(id=instance.content_type_id).model
-        if model_name == 'hypothesis':
-            uni_doc = Hypothesis.objects.get(id=instance.object_id).unified_document
-        elif model_name == 'researchhubpost':
-            uni_doc = ResearchhubPost.objects.get(id=instance.object_id).unified_document
-        elif model_name == 'paper':
-            uni_doc = Paper.objects.get(id=instance.object_id).unified_document
-        elif model_name in ['thread', 'comment', 'reply']:
-            thread = None
-            if model_name == 'thread':
-                thread = Thread.objects.get(id=instance.object_id)
-            elif model_name == 'comment':
-                comment = Comment.objects.get(id=instance.object_id)
-                thread = comment.parent
-            elif model_name == 'reply':
-                reply = Reply.objects.get(id=instance.object_id)
-                thread = reply.parent.parent
+    try:
+        if type(instance) is Vote:
+            recalc_hot_score_task.apply_async(
+                (
+                    instance.content_type_id,
+                    instance.object_id,
 
-            if thread.paper:
-                uni_doc = thread.paper.unified_document
-            elif thread.hypothesis:
-                uni_doc = thread.hypothesis.unified_document
-            elif thread.post:
-                uni_doc = thread.post.unified_document
-    elif type(instance) is PaperVote:
-        uni_doc = instance.paper.unified_document
+                ),
+                priority=1,
+                countdown=1
+            )
+        elif type(instance) is PaperVote:
+            paper = instance.paper
+            content_type_id = ContentType.objects.get_for_model(paper).id
+            recalc_hot_score_task.apply_async(
+                (
+                    content_type_id,
+                    paper.id
 
-    if uni_doc:
-        uni_doc.calculate_hot_score_v2()
+                ),
+                priority=1,
+                countdown=1
+            )
+    except Exception as error:
+        print('recalc_hot_score error', error)
+        sentry.log_error(error)
 
 # Ensures that scores are sync-ed when either is updated
 # NOTE: we have separate method to sync paper votes because paper has
