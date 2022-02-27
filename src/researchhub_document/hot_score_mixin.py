@@ -1,6 +1,7 @@
 import datetime
 import math
 from researchhub_document.related_models.constants.document_type import PAPER
+import numpy as np
 
 class HotScoreMixin:
     # Returns a value between 0 and 1
@@ -18,16 +19,16 @@ class HotScoreMixin:
 
         time_penalty = 0
         if (days_elapsed_since_input_date > 2 and days_elapsed_since_input_date <= 5):
-            time_penalty = 0.25
+            time_penalty = 0.1
         elif (days_elapsed_since_input_date > 5 and days_elapsed_since_input_date <= 10):
-            time_penalty = 0.5
+            time_penalty = 0.25
         elif (days_elapsed_since_input_date > 10 and days_elapsed_since_input_date <= 25):
-            time_penalty = 0.6
+            time_penalty = 0.5
         elif (days_elapsed_since_input_date > 25):
             time_penalty = 0.75
 
         val = (mins_since_epoch - mins_elapsed_since_input_date) / mins_since_epoch
-        final_val = val - (val * time_penalty)
+        final_val = np.power(val - (val * time_penalty), 2)
         # Ensure no negative values. This can happen if date is in future
         final_val = max(0, final_val)
 
@@ -67,7 +68,7 @@ class HotScoreMixin:
     # NOTE: use endpoint /api/researchhub_unified_documents/{doc_id}/hot_score/?debug
     # to see a breakdown of how the hot score is calculated for a given document
     def calculate_hot_score_v2(self, should_save=False):
-        DISCUSSION_VOTE_WEIGHT = 2
+        DISCUSSION_VOTE_WEIGHT = 5
         DOCUMENT_VOTE_WEIGHT = 1
         hot_score = 0
         doc = self.get_document()
