@@ -16,9 +16,9 @@ class HotScoreMixin:
         delta_dt = now - input_date
         days_elapsed_since_input_date = delta_dt.days + delta_dt.seconds / 60 / 60 / 24
         mins_elapsed_since_input_date = days_elapsed_since_input_date * 60 * 24
-
+        print('days_elapsed_since_input_date', days_elapsed_since_input_date)
         time_penalty = 0
-        if (days_elapsed_since_input_date > 2 and days_elapsed_since_input_date <= 5):
+        if (days_elapsed_since_input_date > 1 and days_elapsed_since_input_date <= 5):
             time_penalty = 0.1
         elif (days_elapsed_since_input_date > 5 and days_elapsed_since_input_date <= 10):
             time_penalty = 0.25
