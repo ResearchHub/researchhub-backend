@@ -121,7 +121,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             debug_obj['query_time'] = elapsed_time
             return Response(hot_score_tpl[1], status=status.HTTP_200_OK)
         else:
-            return Response(hot_score_tpl[0], status=status.HTTP_200_OK)
+            return Response({'score': hot_score_tpl[0]}, status=status.HTTP_200_OK)
 
     def update(self, request, *args, **kwargs):
         update_response = super().update(request, *args, **kwargs)

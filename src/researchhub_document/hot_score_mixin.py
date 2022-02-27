@@ -76,8 +76,9 @@ class HotScoreMixin:
     # NOTE: use endpoint /api/researchhub_unified_documents/{doc_id}/hot_score/?debug
     # to see a breakdown of how the hot score is calculated for a given document
     def calculate_hot_score_v2(self, should_save=False):
-        DISCUSSION_VOTE_WEIGHT = 5
         DOCUMENT_VOTE_WEIGHT = 1
+        DISCUSSION_VOTE_WEIGHT = 4
+        DOCUMENT_CREATED_WEIGHT = 2
         hot_score = 0
         doc = self.get_document()
 
@@ -88,6 +89,7 @@ class HotScoreMixin:
             'document_type': self.document_type,
             'DISCUSSION_VOTE_WEIGHT': DISCUSSION_VOTE_WEIGHT,
             'DOCUMENT_VOTE_WEIGHT': DOCUMENT_VOTE_WEIGHT,
+            'DOCUMENT_CREATED_WEIGHT': DOCUMENT_CREATED_WEIGHT,
         }
 
         # Doc vote score
@@ -98,11 +100,11 @@ class HotScoreMixin:
 
         doc_vote_time_score = self._calc_vote_score(doc.votes.all())
         doc_vote_score = self._c(doc_vote_net_score) * doc_vote_time_score * DOCUMENT_VOTE_WEIGHT
-        debug_obj['doc_vote_score'] = {'vote_net_score': doc_vote_net_score, 'vote_time_score': doc_vote_time_score, '=doc_vote_score': doc_vote_score}
+        debug_obj['doc_vote_score'] = {'vote_net_score': doc_vote_net_score, 'vote_time_score': doc_vote_time_score, '=doc_vote_score (WEIGHTED)': doc_vote_score}
 
         # Doc created date score
-        doc_created_score = self._get_date_val(self.created_date)
-        debug_obj['doc_created_score'] = {'created_date': self.created_date, '=doc_created_score': doc_created_score}
+        doc_created_score = self._get_date_val(self.created_date) * DOCUMENT_CREATED_WEIGHT
+        debug_obj['doc_created_score'] = {'created_date': self.created_date, '=doc_created_score (WEIGHTED)': doc_created_score}
 
         # Doc social media score
         social_media_score = self._calc_social_media_score()
@@ -117,7 +119,7 @@ class HotScoreMixin:
             thread_vote_score = self._c(thread_vote_net_score) * thread_vote_time_score * DISCUSSION_VOTE_WEIGHT
             discussion_vote_score += thread_vote_score
 
-            debug_val = {'vote_net_score': thread_vote_net_score, 'vote_time_score': thread_vote_time_score, '=thread_vote_score': thread_vote_score}
+            debug_val = {'created_date': t.created_date, 'vote_net_score': thread_vote_net_score, 'vote_time_score': thread_vote_time_score, '=thread_vote_score (WEIGHTED)': thread_vote_score}
             debug_obj['discussion_vote_score'][f'thread (id:{t.id})'] = debug_val
             for c in t.comments.filter(is_removed=False).iterator():
                 comment_vote_net_score = max(0, c.calculate_score())
@@ -125,7 +127,7 @@ class HotScoreMixin:
                 comment_vote_score = self._c(comment_vote_net_score) * comment_vote_time_score * DISCUSSION_VOTE_WEIGHT
                 discussion_vote_score += comment_vote_score
 
-                debug_val = {'vote_net_score': comment_vote_net_score, 'vote_time_score': comment_vote_time_score, '=comment_vote_score': comment_vote_score}
+                debug_val = {'created_date': c.created_date, 'vote_net_score': comment_vote_net_score, 'vote_time_score': comment_vote_time_score, '=comment_vote_score (WEIGHTED)': comment_vote_score}
                 debug_obj['discussion_vote_score'][f'thread (id:{t.id})'][f'comment (id:{c.id})'] = debug_val
                 for r in c.replies.filter(is_removed=False).iterator():
                     reply_vote_net_score = max(0, r.calculate_score())
@@ -133,7 +135,7 @@ class HotScoreMixin:
                     reply_vote_score = self._c(reply_vote_net_score) * reply_vote_time_score * DISCUSSION_VOTE_WEIGHT
                     discussion_vote_score += reply_vote_score
 
-                    debug_val = {'vote_net_score': reply_vote_net_score, 'vote_time_score': reply_vote_time_score, '=reply_vote_score': reply_vote_score}
+                    debug_val = {'created_date': r.created_date, 'vote_net_score': reply_vote_net_score, 'vote_time_score': reply_vote_time_score, '=reply_vote_score (WEIGHTED)': reply_vote_score}
                     debug_obj['discussion_vote_score'][f'thread (id:{t.id})'][f'comment (id:{c.id})'][f'reply (id:{r.id})'] = debug_val
 
         debug_obj['discussion_vote_score']['=discussion_vote_score'] = discussion_vote_score
