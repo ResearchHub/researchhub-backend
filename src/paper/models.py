@@ -1,8 +1,8 @@
-from utils.models import DefaultModel
 import requests
 import datetime
 import pytz
 import regex as re
+import utils.sentry as sentry
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
@@ -29,7 +29,7 @@ from paper.utils import (
 )
 from hub.serializers import HubSerializer
 
-from .tasks import (
+from paper.tasks import (
     celery_extract_figures,
     celery_extract_pdf_preview,
     celery_extract_meta_data,
@@ -46,7 +46,7 @@ from discussion.models import Thread
 from utils.http import check_url_contains_pdf
 from utils.arxiv import Arxiv
 from utils.crossref import Crossref
-import utils.sentry as sentry
+from utils.models import DefaultModel
 from utils.semantic_scholar import SemanticScholar
 from utils.twitter import (
     get_twitter_url_results,
@@ -1121,6 +1121,26 @@ class FeaturedPaper(models.Model):
 
 
 class PaperSubmission(DefaultModel):
+    INITIATED = "INITIATED"
+    FAILED = "FAILED"
+    FAILED_DUPLICATE = "FAILED_DUPLICATE"
+    PROCESSING = "PROCESSING"
+    PROCESSING_CROSSREF = "PROCESSING_CROSSREF"
+    PROCESSING_MANUBOT = "PROCESSING_MANUBOT"
+    PROCESSING_SEMANTIC_SCHOLAR = "PROCESSING_SEMANTIC_SCHOLAR"
+
+    PAPER_STATUS_CHOICES = [
+        (INITIATED, INITIATED),
+        (FAILED, FAILED),
+        (PROCESSING, PROCESSING),
+        (PROCESSING_CROSSREF, PROCESSING_CROSSREF),
+        (PROCESSING_MANUBOT, PROCESSING_MANUBOT),
+        (PROCESSING_SEMANTIC_SCHOLAR, PROCESSING_SEMANTIC_SCHOLAR),
+    ]
+    paper_status = models.CharField(
+        choices=PAPER_STATUS_CHOICES, default=INITIATED, max_length=32
+    )
+    url = models.URLField(max_length=1024, unique=True)
     uploaded_by = models.ForeignKey(
         "user.User",
         related_name="paper_submissions",
