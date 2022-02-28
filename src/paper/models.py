@@ -1117,3 +1117,7 @@ class FeaturedPaper(models.Model):
     )
     ordinal = models.IntegerField(default=0)
     created_date = models.DateTimeField(auto_now_add=True)
+
+
+class PaperSubmission(models.Model):
+    pass
