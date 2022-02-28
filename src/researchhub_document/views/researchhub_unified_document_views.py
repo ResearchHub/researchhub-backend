@@ -16,7 +16,6 @@ from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated
 )
-from time import perf_counter
 
 from hypothesis.models import Hypothesis
 from paper.utils import get_cache_key
@@ -55,6 +54,7 @@ from user.utils import reset_latest_acitvity_cache
 from researchhub_document.permissions import (
     HasDocumentCensorPermission
 )
+from time import perf_counter
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
@@ -321,12 +321,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             posts_threads__count = Count('posts__threads')
             posts_comments_count = Count('posts__threads__comments')
 
-            qs = qs.filter(
-                (
-                    Q(paper__threads__isnull=False) |
-                    Q(posts__threads__isnull=False)
-                )
-            )
             qs = qs.filter(
                 (
                     Q(paper__threads__created_date__range=[
