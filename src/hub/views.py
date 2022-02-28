@@ -1,6 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db.models import Count, Q
+from django.db.models import Count, Q, F
 from django_filters.rest_framework import DjangoFilterBackend
 from datetime import timedelta
 from django.utils import timezone
@@ -513,63 +513,59 @@ class HubViewSet(viewsets.ModelViewSet):
         methods=[GET],
         permission_classes=[AllowAny]
     )
-    def by_contributions(self, request, pk=None):
-        hub_id = request.GET.get('hub_id', None)
-
-        hub_qs = Hub.objects.all().distinct() if (
-            hub_id is None) else Hub.objects.filter(id=hub_id)
-
-        timeframe_query = Q(
-                **resolve_timeframe_for_contribution(
-                    request.GET.get('start_date', None),
-                    request.GET.get('end_date', None),
-                    'related_documents__contributions__created_date'
-                ),
-            )
-
-        total_contrib_query = Q(
-                related_documents__contributions__contribution_type__in=[
-                    Contribution.COMMENTER,
-                    Contribution.SUBMITTER,
-                    Contribution.SUPPORTER,
-                ],
-            ) & timeframe_query
-
-        qs_key = 'related_documents__contributions__contribution_type'
-        comment_query = Q(
-                **dict([(qs_key, Contribution.COMMENTER)])
-            ) & timeframe_query
-
-        submission_query = Q(
-                **dict([(qs_key, Contribution.SUBMITTER)])
-            ) & timeframe_query
-
-        support_query = Q(
-                **dict([(qs_key, Contribution.SUPPORTER)])
-            ) & timeframe_query
-
+    def by_contributions(self, request):
+        query_params = request.query_params
+        hub_id = query_params.get('hub_id', None)
+        start_date = query_params.get('start_date', None)
+        end_date = query_params.get('end_date', None)
         order_by = '-total_contribution_count' if (
                 request.GET.get('order_by', 'desc') == 'desc'
             ) else 'total_contribution_count'
 
+        hub_qs = Hub.objects.all().distinct() if (
+            hub_id is None) else Hub.objects.filter(id=hub_id)
+        contributions = Contribution.objects.filter(
+            unified_document__is_removed=False,
+            created_date__gte=start_date,
+            created_date__lte=end_date
+        )
+        if hub_id:
+            contributions = contributions.filter(
+                unified_document__hubs=hub_id
+            )
+
+        comment_query = contributions.filter(
+            contribution_type=Contribution.COMMENTER
+        ).values('unified_document')
+        submission_query = contributions.filter(
+            contribution_type=Contribution.SUBMITTER
+        ).values('unified_document')
+        support_query = contributions.filter(
+            contribution_type=Contribution.SUPPORTER
+        ).values('unified_document')
+
         hub_qs_ranked_by_contribution = hub_qs.prefetch_related(
-                'related_documents',
-                'related_documents__contributions',
-                'related_documents__contributions__created_date__gte',
-            ).annotate(
-                total_contribution_count=Count(
-                    'id', filter=total_contrib_query
-                ),
-                comment_count=Count(
-                    'id', filter=comment_query
-                ),
-                submission_count=Count(
-                    'id', filter=submission_query
-                ),
-                support_count=Count(
-                    'id', filter=support_query
-                ),
-            ).order_by(order_by)
+            'related_documents'
+        ).annotate(
+            comment_count=Count(
+                'id',
+                filter=Q(related_documents__in=comment_query)
+            ),
+            submission_count=Count(
+                'id',
+                filter=Q(related_documents__in=submission_query)
+            ),
+            support_count=Count(
+                'id',
+                filter=Q(related_documents__in=support_query)
+            )
+        ).annotate(
+            total_contribution_count=(
+                F('comment_count') + F('submission_count') + F('support_count')
+            )
+        ).order_by(
+            order_by
+        )
 
         paginator = Paginator(
                 hub_qs_ranked_by_contribution,  # qs
