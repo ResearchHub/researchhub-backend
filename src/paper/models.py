@@ -1,3 +1,4 @@
+from utils.models import DefaultModel
 import requests
 import datetime
 import pytz
@@ -1119,5 +1120,15 @@ class FeaturedPaper(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
 
 
-class PaperSubmission(models.Model):
-    pass
+class PaperSubmission(DefaultModel):
+    uploaded_by = models.ForeignKey(
+        "user.User",
+        related_name="paper_submissions",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        help_text="""
+            RH User account that submitted this paper.
+            NOTE: user didnt necessarily had to be the author.
+        """,
+    )
