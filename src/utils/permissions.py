@@ -3,6 +3,7 @@ from rest_framework.permissions import BasePermission, SAFE_METHODS
 from utils.http import RequestMethods
 from researchhub.settings import ASYNC_SERVICE_API_KEY
 
+
 class ReadOnly(BasePermission):
     def has_permission(self, request, view):
         return request.method in SAFE_METHODS
@@ -15,19 +16,15 @@ class UserNotSpammer(BasePermission):
 
 class CreateOrUpdateIfAllowed(BasePermission):
     def has_permission(self, request, view):
-        if (
-            (request.method not in SAFE_METHODS)
-            and request.user.is_authenticated
-        ):
+        if (request.method not in SAFE_METHODS) and request.user.is_authenticated:
             return request.user.is_active and (not request.user.is_suspended)
         return True
 
 
 class CreateOrReadOnly(BasePermission):
     def has_permission(self, request, view):
-        return (
-            (request.method in SAFE_METHODS)
-            or (request.method == RequestMethods.POST)
+        return (request.method in SAFE_METHODS) or (
+            request.method == RequestMethods.POST
         )
 
 
@@ -45,9 +42,8 @@ class AuthorizationBasedPermission(BasePermission):
         abstract = True
 
     def has_object_permission(self, request, view, obj):
-        return (
-            self.is_read_only_request(request)
-            or self.is_authorized(request, view, obj)
+        return self.is_read_only_request(request) or self.is_authorized(
+            request, view, obj
         )
 
     def is_read_only_request(self, request):
@@ -72,6 +68,7 @@ class RuleBasedPermission(BasePermission):
     def satisfies_rule(self, request):
         raise NotImplementedError
 
+
 class APIPermission(BasePermission):
     def has_permission(self, request, view):
-        return request.headers.get('researchhub-async-api-key') == ASYNC_SERVICE_API_KEY
+        return request.headers.get("researchhub-async-api-key") == ASYNC_SERVICE_API_KEY

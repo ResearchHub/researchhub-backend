@@ -1137,6 +1137,13 @@ class PaperSubmission(DefaultModel):
         (PROCESSING_MANUBOT, PROCESSING_MANUBOT),
         (PROCESSING_SEMANTIC_SCHOLAR, PROCESSING_SEMANTIC_SCHOLAR),
     ]
+    paper = models.OneToOneField(
+        Paper,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="submission",
+    )
     paper_status = models.CharField(
         choices=PAPER_STATUS_CHOICES, default=INITIATED, max_length=32
     )
