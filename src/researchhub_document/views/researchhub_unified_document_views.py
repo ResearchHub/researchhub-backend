@@ -325,16 +325,22 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 (
                     Q(paper__threads__created_date__range=[
                         start_date, end_date
-                    ]) |
+                    ], is_removed=False) |
                     Q(paper__threads__comments__created_date__range=[
                         start_date, end_date
-                    ]) |
+                    ], is_removed=False) |
+                    Q(paper__threads__comments__replies__created_date__range=[
+                        start_date, end_date
+                    ], is_removed=False) |
                     Q(posts__threads__created_date__range=[
                         start_date, end_date
-                    ]) |
+                    ], is_removed=False) |
                     Q(posts__threads__comments__created_date__range=[
                         start_date, end_date
-                    ])
+                    ], is_removed=False) |
+                    Q(posts__threads__comments__replies__created_date__range=[
+                        start_date, end_date
+                    ], is_removed=False)
                 ),
             ).annotate(
                 discussed=(
