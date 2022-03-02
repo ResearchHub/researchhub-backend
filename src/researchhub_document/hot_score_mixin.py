@@ -16,12 +16,12 @@ class HotScoreMixin:
         delta_dt = now - input_date
         days_elapsed_since_input_date = delta_dt.days + delta_dt.seconds / 60 / 60 / 24
         mins_elapsed_since_input_date = days_elapsed_since_input_date * 60 * 24
-        print('days_elapsed_since_input_date', days_elapsed_since_input_date)
+
         time_penalty = 0
         if (days_elapsed_since_input_date > 1 and days_elapsed_since_input_date <= 5):
-            time_penalty = 0.1
-        elif (days_elapsed_since_input_date > 5 and days_elapsed_since_input_date <= 10):
             time_penalty = 0.25
+        elif (days_elapsed_since_input_date > 5 and days_elapsed_since_input_date <= 10):
+            time_penalty = 0.35
         elif (days_elapsed_since_input_date > 10 and days_elapsed_since_input_date <= 25):
             time_penalty = 0.5
         elif (days_elapsed_since_input_date > 25):
@@ -34,11 +34,7 @@ class HotScoreMixin:
 
         # Debug
         if False:
-            print(f'ID: {self.id}')
-            print(f'Input date: {date}')
-            print(f'Time Penalty: {time_penalty}')
-            print(f'Days Elapsed: {days_elapsed_since_input_date}')
-            print(f'Value: {final_val}')
+            print(f'Value for {date} is: {final_val}')
 
         return final_val
 
@@ -48,10 +44,18 @@ class HotScoreMixin:
 
         date_val = self._get_date_val(self.created_date)
         if self.document_type == PAPER:
-            twitter_score = math.log(doc.twitter_score+1, 10)
+            twitter_score = math.log(doc.twitter_score+1, 2)
             social_media_score = date_val * twitter_score
 
         return social_media_score
+
+    def _calc_boost_score(self):
+        doc = self.get_document()
+        boost = doc.get_boost_amount()
+        date_val = self._get_date_val(self.created_date)
+        boost_score = date_val * math.log(boost+1, 2)
+
+        return boost_score
 
     def _calc_vote_score(self, votes):
         return sum(
@@ -77,8 +81,8 @@ class HotScoreMixin:
     # to see a breakdown of how the hot score is calculated for a given document
     def calculate_hot_score_v2(self, should_save=False):
         DOCUMENT_VOTE_WEIGHT = 1
-        DISCUSSION_VOTE_WEIGHT = 4
-        DOCUMENT_CREATED_WEIGHT = 2
+        DISCUSSION_VOTE_WEIGHT = 2
+        DOCUMENT_CREATED_WEIGHT = 3
         hot_score = 0
         doc = self.get_document()
 
@@ -101,6 +105,10 @@ class HotScoreMixin:
         doc_vote_time_score = self._calc_vote_score(doc.votes.all())
         doc_vote_score = self._c(doc_vote_net_score) * doc_vote_time_score * DOCUMENT_VOTE_WEIGHT
         debug_obj['doc_vote_score'] = {'vote_net_score': doc_vote_net_score, 'vote_time_score': doc_vote_time_score, '=doc_vote_score (WEIGHTED)': doc_vote_score}
+
+        # Doc boost score
+        boost_score = self._calc_boost_score()
+        debug_obj['doc_boost_score'] = {'=doc_boost_score': boost_score}
 
         # Doc created date score
         doc_created_score = self._get_date_val(self.created_date) * DOCUMENT_CREATED_WEIGHT
@@ -144,7 +152,8 @@ class HotScoreMixin:
             doc_created_score +
             doc_vote_score +
             discussion_vote_score +
-            social_media_score
+            social_media_score +
+            boost_score
         )
         final_hot_score = hot_score * 10000
         debug_obj['hot_score'] = hot_score
