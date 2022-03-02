@@ -19,7 +19,7 @@ def reset_unified_document_cache(
         PAPER.lower(),
         HYPOTHESIS.lower()
     ],
-    ordering=['-hot_score', '-created_date', '-score'],
+    ordering=['-hot_score', '-created_date', '-score', '-discussed'],
     time_difference=0,
     use_celery=True
 ):
