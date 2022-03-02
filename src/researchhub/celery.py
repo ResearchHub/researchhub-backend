@@ -2,7 +2,7 @@ from __future__ import absolute_import, unicode_literals
 
 import os
 import time
-from celery import Celery
+from celery import Celery, chain
 from celery.exceptions import SoftTimeLimitExceeded
 from reputation.exceptions import ReputationDistributorError, WithdrawalError
 
@@ -84,6 +84,36 @@ def soft_limit_test():
         time.sleep(10)
     except SoftTimeLimitExceeded:
         print("time limit exceeded")
+
+
+def process(url):
+    res = chain(manu_test.s(), crossref_test.s(), link.s()).apply_async(
+        (url,), countdown=1
+    )
+    return res
+
+
+@app.task(queue="development_test_queue")
+def manu_test(url):
+    return {"doi": "blah"}
+
+
+@app.task()
+def crossref_test(csl):
+    return {**csl, "authors": ["leo"]}
+
+
+@app.task()
+def link(data):
+    data = {**data, "result": True}
+    print(data)
+    return data
+
+
+"""
+from researchhub.celery import manu_test, crossref_test, link, process
+process('researchhub.com')
+"""
 
 
 # Test Results
