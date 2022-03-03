@@ -609,6 +609,7 @@ try:
     PRIVATE_KEY = get_private_key()
 except Exception as e:
     print(e)
+    PRIVATE_KEY = None
     log_error(e)
 
 class PendingWithdrawal:
