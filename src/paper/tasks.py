@@ -29,6 +29,7 @@ from django.core.cache import cache
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
+from django.db.models import Q
 from django.http.request import HttpRequest
 from django.utils.text import slugify
 from rest_framework.request import Request
@@ -53,8 +54,9 @@ from paper.utils import (
     get_redirect_url,
     IGNORE_PAPER_TITLES,
     reset_paper_cache,
+    get_pdf_location_for_csl_item,
 )
-
+from paper.exceptions import DuplicatePaperError
 from researchhub_document.utils import update_unified_document_to_paper
 from utils import sentry
 from utils.arxiv.categories import (
@@ -1154,9 +1156,55 @@ def pull_crossref_papers(start=0, force=False):
     return total_results
 
 
-@app.task(queue=f"{APP_ENV}_twitter_queue")
-def celery_process_paper(submission_id):
+# @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
+@app.task(bind=True)
+def celery_process_paper(self, submission_id):
     Paper = apps.get_model("paper.Paper")
     PaperSubmission = apps.get_model("paper.PaperSubmission")
 
     paper_submission = PaperSubmission.objects.get(id=submission_id)
+
+
+# @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
+@app.task(bind=True)
+def celery_manubot(self, url):
+    Paper = apps.get_model("paper.Paper")
+    try:
+        csl_item = get_csl_item(url)
+        doi = csl_item.get("doi", None)
+
+        # DOI duplicate check
+        if doi:
+            if Paper.objects.filter(doi=doi).exists():
+                raise DuplicatePaperError(f"Duplicate DOI: {doi}")
+
+        # Url duplicate check
+        oa_pdf_location = get_pdf_location_for_csl_item(csl_item)
+        if oa_pdf_location:
+            urls = []
+            oa_url = oa_pdf_location.get("url", [])
+            oa_landing_page_url = oa_pdf_location.get("url_for_landing_page", [])
+            oa_pdf_url = oa_pdf_location.get("url_for_pdf", [])
+
+            urls.extend(oa_url)
+            urls.extend(oa_landing_page_url)
+            urls.extend(oa_pdf_url)
+
+            if Paper.objects.filter(Q(url__in=urls) | Q(pdf_url__in=urls)).exists():
+                raise DuplicatePaperError(f"Duplicate URL: {urls}")
+
+        # URL duplicate check
+
+        data = {}
+        # Cleaning csl data
+        cleaned_title = csl_item.get("title", "").strip()
+        csl_item["title"] = cleaned_title
+        abstract = csl_item.get("abstract", "")
+        cleaned_abstract = clean_abstract(abstract)
+        csl_item["abstract"] = cleaned_abstract
+
+        data["csl_item"] = csl_item
+        data["oa_pdf_location"] = get_pdf_location_for_csl_item(csl_item)
+        data["paper_publish_date"] = csl_item.get_date("issued", fill=True)
+    except:
+        pass

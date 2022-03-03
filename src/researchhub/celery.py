@@ -3,6 +3,7 @@ from __future__ import absolute_import, unicode_literals
 import os
 import time
 from celery import Celery, chain
+from celery.contrib import rdb
 from celery.exceptions import SoftTimeLimitExceeded
 from reputation.exceptions import ReputationDistributorError, WithdrawalError
 
@@ -86,28 +87,52 @@ def soft_limit_test():
         print("time limit exceeded")
 
 
+class TimeoutException(Exception):
+    pass
+
+
 def process(url):
     res = chain(manu_test.s(), crossref_test.s(), link.s()).apply_async(
-        (url,), countdown=1
+        (url,), countdown=1, link_error=log_error.s()
     )
     return res
 
 
-@app.task(queue="development_test_queue")
-def manu_test(url):
+# @app.task(queue="development_test_queue")
+@app.task(bind=True)
+def manu_test(self, url):
     return {"doi": "blah"}
 
 
-@app.task()
-def crossref_test(csl):
-    return {**csl, "authors": ["leo"]}
+@app.task(bind=True)
+def crossref_test(self, csl):
+    try:
+        if self.request.retries == 0:
+            raise TimeoutException("timeout")
+        elif self.request.retries <= 2:
+            raise Exception("error!")
+        return {**csl, "authors": ["leo"]}
+    except TimeoutException:
+        self.retry(countdown=2, max_retries=5)
 
 
-@app.task()
-def link(data):
+@app.task(bind=True)
+def link(self, data):
     data = {**data, "result": True}
     print(data)
     return data
+
+
+@app.task()
+def log_error(request, exc={}, traceback={}):
+    # rdb.set_trace()
+    print("--------------------------- start log ------------------------------")
+    print(f"REQUEST - {request}")
+    print(f"EXEC - {exc}")
+    print(f"TRACEBACK - {traceback}")
+    print("--------------------------- stop log --------------------------------")
+    return
+    # self.retry(countdown=2)
 
 
 """

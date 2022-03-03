@@ -20,42 +20,58 @@ from paper.lib import (
     journal_hosts,
     journal_hosts_and_pdf_identifiers,
     journal_pdf_to_url,
-    journal_url_to_pdf
+    journal_url_to_pdf,
 )
 
-from utils.http import (
-    check_url_contains_pdf,
-    http_request,
-    RequestMethods as methods
-)
+from utils.http import check_url_contains_pdf, http_request, RequestMethods as methods
 
+CACHE_TOP_RATED_DATES = (
+    "-score_today",
+    "-score_week",
+    "-score_month",
+    "-score_year",
+    "-score_all_time",
+)
+CACHE_MOST_DISCUSSED_DATES = (
+    "-discussed_today",
+    "-discussed_week",
+    "-discussed_month",
+    "-discussed_year",
+    "-discussed_all_time",
+)
+CACHE_DOCUMENT_TYPES = [
+    'all',
+    'paper',
+    'posts',
+    'hypothesis',
+]
 MANUBOT_PAPER_TYPES = [
-    'paper-conference',
-    'article-journal',
+    "paper-conference",
+    "article-journal",
 ]
 SIMILARITY_THRESHOLD = 0.9
 MAX_TITLE_PAGES = 5
 IGNORE_PAPER_TITLES = [
-    'editorial',
-    'editorial board',
-    'contents continued',
-    'table of contents',
-    'calendar',
-    'copyright',
-    'contributors',
-    'contents',
-    'ieee access',
-    'correspondence',
-    'announcements',
-    'editorial advisory board',
-    'issue highlights',
-    'title page',
-    'front cover'
+    "editorial",
+    "editorial board",
+    "contents continued",
+    "table of contents",
+    "calendar",
+    "copyright",
+    "contributors",
+    "contents",
+    "ieee access",
+    "correspondence",
+    "announcements",
+    "editorial advisory board",
+    "issue highlights",
+    "title page",
+    "front cover",
 ]
 
 
 def check_file_is_url(file):
-    if (type(file) is str):
+    if type(file) is str:
         try:
             URLValidator()(file)
         except (ValidationError, Exception):
@@ -66,11 +82,11 @@ def check_file_is_url(file):
 
 
 def clean_abstract(abstract):
-    soup = BeautifulSoup(abstract, 'html.parser')
+    soup = BeautifulSoup(abstract, "html.parser")
     strings = soup.strings
-    cleaned_text = ' '.join(strings)
-    #cleaned_text = cleaned_text.replace('\n', ' ')
-    #cleaned_text = cleaned_text.replace('\r', ' ')
+    cleaned_text = " ".join(strings)
+    # cleaned_text = cleaned_text.replace('\n', ' ')
+    # cleaned_text = cleaned_text.replace('\r', ' ')
     cleaned_text = cleaned_text.lstrip()
     return cleaned_text
 
@@ -98,10 +114,10 @@ def populate_pdf_url_from_journal_url(url, metadata):
     """
     url, converted = convert_journal_url_to_pdf_url(url)
     if converted and check_url_contains_pdf(url):
-        if metadata.get('file', None) is None:
-            metadata['file'] = url
-        if metadata.get('pdf_url', None) is None:
-            metadata['pdf_url'] = url
+        if metadata.get("file", None) is None:
+            metadata["file"] = url
+        if metadata.get("pdf_url", None) is None:
+            metadata["pdf_url"] = url
     return metadata, False
 
 
@@ -119,8 +135,8 @@ def convert_journal_url_to_pdf_url(journal_url):
 def populate_metadata_from_manubot_pdf_url(url, metadata):
     journal_url, converted = convert_pdf_url_to_journal_url(url)
     if converted:
-        metadata['url'] = journal_url
-        metadata['pdf_url'] = url
+        metadata["url"] = journal_url
+        metadata["pdf_url"] = url
     return populate_metadata_from_manubot_url(journal_url, metadata)
 
 
@@ -157,16 +173,16 @@ def populate_metadata_from_manubot_url(url, metadata):
         #     return None
 
         doi = None
-        if 'DOI' in csl_item:
-            doi = csl_item['DOI'].lower()
+        if "DOI" in csl_item:
+            doi = csl_item["DOI"].lower()
 
-        paper_publish_date = csl_item.get_date('issued', fill=True)
+        paper_publish_date = csl_item.get_date("issued", fill=True)
 
         data = {}
-        data["abstract"] = csl_item.get('abstract', None)
+        data["abstract"] = csl_item.get("abstract", None)
         data["doi"] = doi
         data["is_public"] = True
-        data["paper_title"] = csl_item.get('title', None)
+        data["paper_title"] = csl_item.get("title", None)
         data["csl_item"] = csl_item
         data["paper_publish_date"] = paper_publish_date
         data["raw_authors"] = get_raw_authors_from_csl_item(csl_item)
@@ -181,33 +197,28 @@ def populate_metadata_from_manubot_url(url, metadata):
 def populate_metadata_from_pdf(file, validated_data):
     # TODO: Use old pdf metadata method?
     try:
-        date_format = 'D:%Y%m%d%H%M%S'
-        doc = fitz.open(stream=file.read(), filetype='pdf')
+        date_format = "D:%Y%m%d%H%M%S"
+        doc = fitz.open(stream=file.read(), filetype="pdf")
         metadata = doc.metadata
 
-        date = metadata.get('creationDate').split('+')[0].strip('Z')
-        title = metadata.get('title')
-        author = metadata.get('author')
+        date = metadata.get("creationDate").split("+")[0].strip("Z")
+        title = metadata.get("title")
+        author = metadata.get("author")
 
         if author:
-            name = author.split(' ')
+            name = author.split(" ")
             if len(name) < 1:
                 first_name = name[0]
-                last_name = ''
+                last_name = ""
             else:
                 first_name = name[0]
                 last_name = name[len(name) - 1]
-            author = [
-                {'first_name': first_name, 'last_name': last_name}
-            ]
-            validated_data['raw_authors'] = author
+            author = [{"first_name": first_name, "last_name": last_name}]
+            validated_data["raw_authors"] = author
 
         if title:
-            validated_data['paper_title'] = title
-        validated_data['paper_publish_date'] = datetime.strptime(
-            date,
-            date_format
-        )
+            validated_data["paper_title"] = title
+        validated_data["paper_publish_date"] = datetime.strptime(date, date_format)
 
         return validated_data, True
     except Exception as e:
@@ -217,42 +228,36 @@ def populate_metadata_from_pdf(file, validated_data):
 
 def populate_metadata_from_crossref(url, validated_data):
     try:
-        doi = validated_data.get('doi')
-        paper_title = validated_data.get('paper_title')
+        doi = validated_data.get("doi")
+        paper_title = validated_data.get("paper_title")
 
         cr = Crossref()
         params = {
-            'filters': {'type': 'journal-article'},
+            "filters": {"type": "journal-article"},
         }
 
         if doi:
-            params['ids'] = [doi]
+            params["ids"] = [doi]
         else:
-            params['query_bibliographic'] = paper_title
-            params['limit'] = 1
-            params['order'] = 'desc'
-            params['sort'] = 'score'
+            params["query_bibliographic"] = paper_title
+            params["limit"] = 1
+            params["order"] = "desc"
+            params["sort"] = "score"
 
-        results = cr.works(
-            **params
-        )['message']
+        results = cr.works(**params)["message"]
 
-        if 'items' in results:
-            data = results['items'][0]
+        if "items" in results:
+            data = results["items"][0]
         else:
-            data = results['message']
+            data = results["message"]
 
         validated_data = {}
-        validated_data['doi'] = doi
-        validated_data['abstract'] = clean_abstract(data.get('abstract', ''))
-        validated_data['is_public'] = True
-        validated_data['paper_title'] = data.get('title', [''])[0]
-        validated_data['paper_publish_date'] = data.get(
-            'created'
-        ).get(
-            'date-time'
-        )
-        validated_data['raw_authors'] = get_raw_authors_from_csl_item(data)
+        validated_data["doi"] = doi
+        validated_data["abstract"] = clean_abstract(data.get("abstract", ""))
+        validated_data["is_public"] = True
+        validated_data["paper_title"] = data.get("title", [""])[0]
+        validated_data["paper_publish_date"] = data.get("created").get("date-time")
+        validated_data["raw_authors"] = get_raw_authors_from_csl_item(data)
 
         return validated_data, True
     except Exception as e:
@@ -261,18 +266,17 @@ def populate_metadata_from_crossref(url, validated_data):
 
 
 def get_raw_authors_from_csl_item(csl_item):
-    authors = csl_item.get('author', None)
+    authors = csl_item.get("author", None)
     if authors is None:
         return
     raw_authors = []
     for author in authors:
         try:
-            raw_authors.append({
-                'first_name': author['given'],
-                'last_name': author['family']
-            })
+            raw_authors.append(
+                {"first_name": author["given"], "last_name": author["family"]}
+            )
         except Exception as e:
-            print(f'Failed to construct author: {author}', e)
+            print(f"Failed to construct author: {author}", e)
     return raw_authors
 
 
@@ -282,8 +286,8 @@ def get_csl_item(url) -> dict:
     for most PDF URLs unless they are from known domains where
     persistent identifiers can be extracted.
     """
-    from manubot.cite.citekey import (
-        CiteKey, citekey_to_csl_item, url_to_citekey)
+    from manubot.cite.citekey import CiteKey, citekey_to_csl_item, url_to_citekey
+
     citekey = url_to_citekey(url)
     citekey = CiteKey(citekey).standard_id
     csl_item = citekey_to_csl_item(citekey)
@@ -299,12 +303,13 @@ def get_pdf_location_for_csl_item(csl_item):
     described at <http://unpaywall.org/data-format#oa-location-object>.
     """
     from manubot.cite.unpaywall import Unpaywall
+
     if not csl_item:
         return None
     # CSL_Item.url_is_unsupported_pdf is a non-standard field that
     # upstream functions can set to specify that metadata could not
     # be automatically generated for a PDF URL.
-    if getattr(csl_item, 'url_is_unsupported_pdf', False):
+    if getattr(csl_item, "url_is_unsupported_pdf", False):
         return get_location_for_unsupported_pdf(csl_item)
     try:
         upw = Unpaywall.from_csl_item(csl_item)
@@ -325,26 +330,28 @@ def get_location_for_unsupported_pdf(csl_item):
     from manubot.cite.unpaywall import Unpaywall_Location
 
     url = csl_item.get("URL")
-    return Unpaywall_Location({
-        "endpoint_id": None,
-        "evidence": None,
-        "host_type": None,
-        "is_best": True,
-        "license": None,
-        "pmh_id": None,
-        "repository_institution": None,
-        "updated": datetime.datetime.now().isoformat(),
-        "url": url,
-        "url_for_landing_page": None,
-        "url_for_pdf": url,
-        "version": None,
-    })
+    return Unpaywall_Location(
+        {
+            "endpoint_id": None,
+            "evidence": None,
+            "host_type": None,
+            "is_best": True,
+            "license": None,
+            "pmh_id": None,
+            "repository_institution": None,
+            "updated": datetime.datetime.now().isoformat(),
+            "url": url,
+            "url_for_landing_page": None,
+            "url_for_pdf": url,
+            "version": None,
+        }
+    )
 
 
 def download_pdf(url):
     if check_url_contains_pdf(url):
         pdf = get_pdf_from_url(url)
-        filename = url.split('/').pop()
+        filename = url.split("/").pop()
         return pdf, filename
 
 
@@ -359,7 +366,7 @@ def get_redirect_url(url):
     status_code = response.status_code
     if status_code == 301 or status_code == 302 or status_code == 303:
         headers = response.headers
-        location = headers.get('Location')
+        location = headers.get("Location")
         if location:
             return location
         else:
@@ -394,7 +401,7 @@ def fitz_extract_xobj(file_path):
             # ----------------------------------------------------------------------
             doc.insertPDF(src, from_page=pno, to_page=pno, rotate=0)
             ref_name = xobj[1]  # the symbolic name
-            ref_cmd = (f'/{ref_name} Do').encode()  # build invocation command
+            ref_cmd = (f"/{ref_name} Do").encode()  # build invocation command
             page = doc[-1]  # page just inserted
             page.setMediaBox(bbox)  # set its page size to XObject bbox
             page.cleanContents()  # consolidate contents of copied page
@@ -407,9 +414,9 @@ def fitz_extract_xobj(file_path):
     if xobj_total > 0:
         for page in doc:
             pix = page.getPixmap(alpha=False)
-            pix.writePNG(f'{file_path}-{page.number}.png')
+            pix.writePNG(f"{file_path}-{page.number}.png")
     else:
-        print(f'No XObjects detected in {file_path}, no output generated.')
+        print(f"No XObjects detected in {file_path}, no output generated.")
 
 
 def fitz_extract_figures(file_path):
@@ -422,26 +429,26 @@ def fitz_extract_figures(file_path):
                 continue
             else:  # CMYK needs to be converted to RGB first
                 pix1 = fitz.Pixmap(fitz.csRGB, pix)  # make RGB pixmap copy
-                pix1.writePNG(f'{file_path}-p{i}-{xref}.png')
+                pix1.writePNG(f"{file_path}-p{i}-{xref}.png")
                 pix1 = None  # release storage early (optional)
             pix = None  # release storage early (optional)
     fitz_extract_xobj(file_path)
 
 
 def clean_pdf(file):
-    researchgate_1 = 'ResearchGate'
-    researchgate_2 = 'Some of the authors of this publication are also working on these related projects'
-    researchgate_3 = 'CITATIONS'
-    researchgate_4 = 'READS'
+    researchgate_1 = "ResearchGate"
+    researchgate_2 = "Some of the authors of this publication are also working on these related projects"
+    researchgate_3 = "CITATIONS"
+    researchgate_4 = "READS"
 
     researchgate_strings = (
         researchgate_1,
         researchgate_2,
         researchgate_3,
-        researchgate_4
+        researchgate_4,
     )
     try:
-        doc = fitz.open(stream=file.read(), filetype='pdf')
+        doc = fitz.open(stream=file.read(), filetype="pdf")
         if doc.pageCount <= 1:
             return
 
@@ -467,19 +474,16 @@ def check_pdf_title(input_title, file):
 
     try:
         clean_pdf(file)
-        doc = fitz.open(stream=file.read(), filetype='pdf')
+        doc = fitz.open(stream=file.read(), filetype="pdf")
         doc_metadata = doc.metadata
-        doc_title = doc_metadata.get('title') or ''
+        doc_title = doc_metadata.get("title") or ""
 
         # Lowercasing titles for simple normalization
         normalized_input_title = input_title.lower()
         normalized_pdf_title = doc_title.lower()
 
         # Checks if the title matches the pdf's metadata first
-        similar = check_similarity(
-            normalized_pdf_title,
-            normalized_input_title
-        )
+        similar = check_similarity(normalized_pdf_title, normalized_input_title)
 
         if similar:
             return True
@@ -494,11 +498,8 @@ def check_pdf_title(input_title, file):
                     return True
                 ngrams = nltk.ngrams(page_text.split(), n_length)
                 for ngram in ngrams:
-                    ngram_string = ' '.join(ngram)
-                    similar = check_similarity(
-                        ngram_string,
-                        normalized_input_title
-                    )
+                    ngram_string = " ".join(ngram)
+                    similar = check_similarity(ngram_string, normalized_input_title)
                     if similar:
                         return True
         return False
@@ -511,10 +512,7 @@ def check_crossref_title(original_title, crossref_title):
     normalized_original_title = original_title.lower()
     normalized_crossref_title = crossref_title.lower()
 
-    similar = check_similarity(
-        normalized_original_title,
-        normalized_crossref_title
-    )
+    similar = check_similarity(normalized_original_title, normalized_crossref_title)
 
     if similar:
         return True
@@ -530,10 +528,10 @@ def check_similarity(str1, str2, threshold=SIMILARITY_THRESHOLD):
 
 def get_crossref_results(query, index=10):
     cr = Crossref()
-    filters = {'type': 'journal-article'}
+    filters = {"type": "journal-article"}
     limit = 10
-    sort = 'score'
-    order = 'desc'
+    sort = "score"
+    order = "desc"
     results = cr.works(
         query_bibliographic=query,
         filters=filters,
@@ -541,26 +539,16 @@ def get_crossref_results(query, index=10):
         sort=sort,
         order=order,
     )
-    results = results['message']['items']
+    results = results["message"]["items"]
     return results[:index]
 
 
 def merge_paper_votes(original_paper, new_paper):
     old_votes = original_paper.votes.all()
-    old_votes_user = old_votes.values_list(
-        'created_by_id',
-        flat=True
-    )
-    conflicting_votes = new_paper.votes.filter(
-        created_by__in=old_votes_user
-    )
-    conflicting_votes_user = conflicting_votes.values_list(
-        'created_by_id',
-        flat=True
-    )
-    new_votes = new_paper.votes.exclude(
-        created_by_id__in=conflicting_votes_user
-    )
+    old_votes_user = old_votes.values_list("created_by_id", flat=True)
+    conflicting_votes = new_paper.votes.filter(created_by__in=old_votes_user)
+    conflicting_votes_user = conflicting_votes.values_list("created_by_id", flat=True)
+    new_votes = new_paper.votes.exclude(created_by_id__in=conflicting_votes_user)
 
     # Delete conflicting votes from the new paper
     conflicting_votes.delete()
@@ -589,11 +577,11 @@ def merge_paper_bulletpoints(original_paper, new_paper):
 
 
 def reset_paper_cache(cache_key, data):
-    cache.set(cache_key, data, timeout=60*60*24*7)
+    cache.set(cache_key, data, timeout=60 * 60 * 24 * 7)
 
 
 def get_cache_key(obj_type, pk):
-    return f'{obj_type}_{pk}'
+    return f"{obj_type}_{pk}"
 
 
 def add_default_hub(hub_ids):
@@ -601,25 +589,73 @@ def add_default_hub(hub_ids):
         return [0] + list(hub_ids)
     return hub_ids
 
+
+def invalidate_trending_cache(hub_ids, with_default=True):
+    if with_default:
+        hub_ids = add_default_hub(hub_ids)
+
+    for hub_id in hub_ids:
+        cache_key = get_cache_key("hub", f"{hub_id}_-hot_score_today")
+        cache.delete(cache_key)
+
+
+def invalidate_top_rated_cache(hub_ids, with_default=True):
+    if with_default:
+        hub_ids = add_default_hub(hub_ids)
+
+    for hub_id in hub_ids:
+        for key in CACHE_TOP_RATED_DATES:
+            cache_key = get_cache_key("hub", f"{hub_id}_{key}")
+            cache.delete(cache_key)
+
+
+def invalidate_newest_cache(hub_ids, with_default=True):
+    if with_default:
+        hub_ids = add_default_hub(hub_ids)
+
+    for hub_id in hub_ids:
+        cache_key = get_cache_key("hub", f"{hub_id}_-uploaded_date_today")
+        cache.delete(cache_key)
+
+
+def invalidate_most_discussed_cache(hub_ids, with_default=True):
+    if with_default:
+        hub_ids = add_default_hub(hub_ids)
+
+    for hub_id in hub_ids:
+        for key in CACHE_MOST_DISCUSSED_DATES:
+            for doc_type in CACHE_DOCUMENT_TYPES:
+                cache_key = get_cache_key(
+                    'hub',
+                    f'{doc_type}_{hub_id}_{key}'
+                )
+                cache.delete(cache_key)
+
+
 def parse_author_name(author):
     full_name = []
 
     if isinstance(author, models.Model):
-        if getattr(author, 'first_name') and not is_blank_str(getattr(author, 'first_name')):
+        if getattr(author, "first_name") and not is_blank_str(
+            getattr(author, "first_name")
+        ):
             full_name.append(author.first_name)
-        if getattr(author, 'last_name') and not is_blank_str(getattr(author, 'last_name')):
+        if getattr(author, "last_name") and not is_blank_str(
+            getattr(author, "last_name")
+        ):
             full_name.append(author.last_name)
 
     elif isinstance(author, dict):
-        if author.get('first_name') and not is_blank_str(author.get('first_name')):
-            full_name.append(author.get('first_name'))
-        if author.get('last_name') and not is_blank_str(author.get('last_name')):
-            full_name.append(author.get('last_name'))
+        if author.get("first_name") and not is_blank_str(author.get("first_name")):
+            full_name.append(author.get("first_name"))
+        if author.get("last_name") and not is_blank_str(author.get("last_name")):
+            full_name.append(author.get("last_name"))
 
     elif isinstance(author, str) and not is_blank_str(author):
         full_name.append(author)
 
-    return ' '.join(full_name)
+    return " ".join(full_name)
+
 
 def paper_piecewise_log(k):
     sign = 1
@@ -642,8 +678,9 @@ def paper_piecewise_log(k):
     res = k * sign
     return res
 
+
 def is_blank_str(string):
-    if string and isinstance(string, str) and string.strip() != '':
+    if string and isinstance(string, str) and string.strip() != "":
         return False
 
     return True
