@@ -81,7 +81,7 @@ class HotScoreMixin:
     # to see a breakdown of how the hot score is calculated for a given document
     def calculate_hot_score_v2(self, should_save=False):
         DOCUMENT_VOTE_WEIGHT = 1
-        DISCUSSION_VOTE_WEIGHT = 2
+        DISCUSSION_VOTE_WEIGHT = 1
         DOCUMENT_CREATED_WEIGHT = 3
         hot_score = 0
         doc = self.get_document()
