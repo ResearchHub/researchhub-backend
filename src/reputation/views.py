@@ -25,7 +25,7 @@ from reputation.lib import (
     PendingWithdrawal
 )
 from reputation.permissions import DistributionWhitelist
-from reputation.models import Withdrawal, Deposit
+from reputation.models import Withdrawal, Deposit, Webhook, PaidStatusModelMixin
 from reputation.serializers import WithdrawalSerializer, DepositSerializer
 from user.serializers import UserSerializer
 from user.models import User
@@ -136,6 +136,39 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             return Withdrawal.objects.all()
         else:
             return Withdrawal.objects.filter(user=user)
+    
+    @action(
+        detail=False,
+        methods=['POST'],
+        permission_classes=[],
+    )
+    def oz_webhook(self, request):
+        body = json.loads(request.body.decode('utf-8'))
+        manual_hook = request.GET.get('manual', False)
+        if not manual_hook:
+            Webhook.objects.create(body=body, from_host=request.headers['Host'])
+        print(body)
+
+        for event in body.get('events', []):
+            transaction_hash = event.get('hash')
+            if transaction_hash is None:
+                with sentry_sdk.push_scope() as scope:
+                    scope.set_extra("data", body)
+                    sentry_sdk.capture_message("Open Zeppelin Webhook could not find transaction_hash")
+                continue
+
+            transfer = False
+            for reason in event.get('matchReasons', []):
+                if 'transfer' in reason.get('signature', '').lower():
+                    transfer = True
+                    break
+            
+            if transfer:
+                withdrawal = Withdrawal.objects.get(transaction_hash=transaction_hash)
+                withdrawal.paid_status = PaidStatusModelMixin.PAID
+                withdrawal.save()
+
+        return Response(200)
 
     def create(self, request):
         if timezone.now() < timezone.make_aware(timezone.datetime(2020, 9, 1)):
@@ -148,6 +181,11 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         amount = decimal.Decimal(request.data['amount'])
         transaction_fee = TRANSACTION_FEE
         to_address = request.data.get('to_address')
+
+        pending_tx = Withdrawal.objects.filter(user=user, paid_status='PENDING', transaction_hash__isnull=False)
+
+        if pending_tx.exists():
+            return Response('Please wait for your previous withdrawal to finish before starting another one.', status=400)
 
         valid, message = self._check_meets_withdrawal_minimum(amount)
         if valid:
@@ -170,11 +208,14 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                     user=user,
                     token_address=WEB3_RSC_ADDRESS,
                     to_address=to_address,
-                    amount=amount
+                    amount=amount,
+                    fee=transaction_fee,
                 )
+
                 self._pay_withdrawal(
                     withdrawal,
-                    amount
+                    amount,
+                    transaction_fee
                 )
 
                 serialized = WithdrawalSerializer(withdrawal)
@@ -216,11 +257,11 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             user=withdrawal.user,
             content_type=source_type,
             object_id=withdrawal.id,
-            amount=f'{amount}',
+            amount=f'{-amount}',
         )
         return balance_record
 
-    def _pay_withdrawal(self, withdrawal, amount):
+    def _pay_withdrawal(self, withdrawal, amount, fee):
         try:
             ending_balance_record = self._create_balance_record(
                 withdrawal,
@@ -232,10 +273,11 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 amount
             )
             pending_withdrawal.complete_token_transfer()
-            ending_balance_record.amount = f'-{amount}'
+            ending_balance_record.amount = f'-{amount + fee}'
             ending_balance_record.save()
         except Exception as e:
             logging.error(e)
+            print(e)
             withdrawal.set_paid_failed()
             error = WithdrawalError(
                 e,

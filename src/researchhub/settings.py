@@ -17,6 +17,7 @@ import sys
 import sentry_sdk
 from celery.task.schedules import crontab
 from sentry_sdk.integrations.django import DjangoIntegration
+from utils.sentry import log_error
 
 
 APP_ENV = os.environ.get('APP_ENV') or 'development'
@@ -601,15 +602,8 @@ WEB3_SHARED_SECRET = os.environ.get(
 # Mainnet
 WEB3_RSC_ADDRESS = os.environ.get(
     'WEB3_RSC_ADDRESS',
-    '0xD101dCC414F310268c37eEb4cD376CcFA507F571'
+    keys.WEB3_RSC_ADDRESS
 )
-
-if STAGING:
-    # Testnet addresses
-    WEB3_RSC_ADDRESS = os.environ.get(
-        'WEB3_RSC_ADDRESS',
-        '0x2275736dfEf93a811Bb32156724C1FCF6FFd41be'
-    )
 
 # Redis
 # redis://:password@hostname:port/db_number
@@ -816,3 +810,22 @@ CKEDITOR_CLOUD_ENVIRONMENT_ID = os.environ.get('CKEDITOR_CLOUD_ENVIRONMENT_ID', 
 
 # Async Service API Key
 ASYNC_SERVICE_API_KEY = os.environ.get("ASYNC_SERVICE_API_KEY", keys.ASYNC_SERVICE_API_KEY or 'testapikeyservice')
+
+from web3 import Web3
+WEB3_NETWORK = os.environ.get('WEB3_NETWORK', 'rinkeby')
+PROVIDER_URL = os.environ.get('PROVIDER_URL', keys.PROVIDER_URL)
+WEB3_KEYSTORE_BUCKET = os.environ.get('WEB3_KEYSTORE_BUCKET', keys.WEB3_KEYSTORE_BUCKET)
+WEB3_KEYSTORE_FILE = os.environ.get('WEB3_KEYSTORE_FILE', keys.WEB3_KEYSTORE_FILE)
+WEB3_KEYSTORE_PASSWORD = os.environ.get('WEB3_KEYSTORE_PASSWORD', keys.WEB3_KEYSTORE_PASSWORD)
+WEB3_KEYSTORE_ADDRESS = os.environ.get('', keys.WEB3_KEYSTORE_ADDRESS)
+
+try:
+    w3 = Web3(Web3.HTTPProvider(PROVIDER_URL))
+
+    if WEB3_NETWORK == 'rinkeby':
+        from web3.middleware import geth_poa_middleware
+        w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+except Exception as e:
+    log_error(e)
+    print(e)
+
