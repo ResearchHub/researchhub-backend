@@ -15,7 +15,7 @@ from researchhub.settings import (
     WEB3_KEYSTORE_ADDRESS,
 )
 from utils.http import http_request, RequestMethods
-WITHDRAWAL_MINIMUM = 100
+WITHDRAWAL_MINIMUM = int(os.environ.get('WITHDRAWAL_MINIMUM', 100))
 WITHDRAWAL_PER_TWO_WEEKS = 100000
 
 contract_abi = [

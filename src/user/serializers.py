@@ -19,7 +19,7 @@ from hub.serializers import HubSerializer, SimpleHubSerializer
 from hypothesis.models import Hypothesis
 from paper.models import Vote as PaperVote, Paper
 from purchase.models import Purchase
-from reputation.models import Contribution
+from reputation.models import Contribution, Withdrawal
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_document.models import ResearchhubPost
@@ -700,7 +700,12 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
         if type(item) in ignored_items:
             return None
 
-        if isinstance(item, Paper):
+        if isinstance(item, Withdrawal):
+            from reputation.serializers import WithdrawalSerializer
+            serializer = WithdrawalSerializer
+            context = {}
+            _context_fields = {}
+        elif isinstance(item, Paper):
             from paper.serializers import DynamicPaperSerializer
             serializer = DynamicPaperSerializer
         elif isinstance(item, ResearchhubPost):
@@ -729,6 +734,7 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
             context=context,
             **_context_fields
         ).data
+
         return data
 
     def get_created_by(self, action):
