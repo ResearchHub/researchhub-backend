@@ -177,6 +177,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     'discussion_count',
                     'paper_title',
                     'pdf_url',
+                    'preview_img',
                     'renderable_text',
                     'score',
                     'slug',
