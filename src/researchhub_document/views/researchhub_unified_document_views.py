@@ -333,22 +333,22 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                         paper__threads__created_date__range=[
                             start_date, end_date
                         ],
-                        # paper__threads__is_removed=False,
-                        paper__threads__created_by_id__isnull=False
+                        paper__threads__is_removed=False,
+                        paper__threads__created_by__isnull=False
                     ) |
                     Q(
                         paper__threads__comments__created_date__range=[
                             start_date, end_date
                         ],
-                        # paper__threads__comments__is_removed=False,
-                        paper__threads__comments__created_by_id__isnull=False
+                        paper__threads__comments__is_removed=False,
+                        paper__threads__comments__created_by__isnull=False
                     ) |
                     Q(
                         paper__threads__comments__replies__created_date__range=[
                             start_date, end_date
                         ],
-                        # paper__threads__comments__replies__is_removed=False,
-                        paper__threads__comments__replies__created_by_id__isnull=False
+                        paper__threads__comments__replies__is_removed=False,
+                        paper__threads__comments__replies__created_by__isnull=False
                     ) |
 
                     # Posts
@@ -357,21 +357,21 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                             start_date, end_date
                         ],
                         posts__threads__is_removed=False,
-                        posts__threads__created_by_id__isnull=False
+                        posts__threads__created_by__isnull=False
                     ) |
                     Q(
                         posts__threads__comments__created_date__range=[
                             start_date, end_date
                         ],
                         posts__threads__comments__is_removed=False,
-                        posts__threads__comments__created_by_id__isnull=False
+                        posts__threads__comments__created_by__isnull=False
                     ) |
                     Q(
                         posts__threads__comments__replies__created_date__range=[
                             start_date, end_date
                         ],
                         posts__threads__comments__replies__is_removed=False,
-                        posts__threads__comments__replies__created_by_id__isnull=False
+                        posts__threads__comments__replies__created_by__isnull=False
                     ) |
 
                     # # Hypothesis
@@ -380,21 +380,21 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                             start_date, end_date
                         ],
                         hypothesis__threads__is_removed=False,
-                        hypothesis__threads__created_by_id__isnull=False
+                        hypothesis__threads__created_by__isnull=False
                     ) |
                     Q(
                         hypothesis__threads__comments__created_date__range=[
                             start_date, end_date
                         ],
                         hypothesis__threads__comments__is_removed=False,
-                        hypothesis__threads__comments__created_by_id__isnull=False
+                        hypothesis__threads__comments__created_by__isnull=False
                     ) |
                     Q(
                         hypothesis__threads__comments__replies__created_date__range=[
                             start_date, end_date
                         ],
                         hypothesis__threads__comments__replies__is_removed=False,
-                        hypothesis__threads__comments__replies__created_by_id__isnull=False
+                        hypothesis__threads__comments__replies__created_by__isnull=False
                     )
                 )
             ).annotate(
