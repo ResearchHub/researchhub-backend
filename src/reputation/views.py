@@ -7,6 +7,8 @@ import ethereum.lib
 import json
 import time
 import os
+from web3 import Web3
+import sentry_sdk
 
 from django.contrib.admin.options import get_content_type_for_model
 from django.db.models import Q
@@ -43,7 +45,7 @@ from utils.throttles import THROTTLE_CLASSES
 from researchhub.settings import WEB3_RSC_ADDRESS
 from reputation.distributor import Distributor
 from reputation.distributions import Distribution as Dist
-from researchhub.settings import ASYNC_SERVICE_HOST, WEB3_SHARED_SECRET
+from researchhub.settings import ASYNC_SERVICE_HOST, WEB3_SHARED_SECRET, WEB3_KEYSTORE_ADDRESS
 from utils.http import http_request, POST
 
 TRANSACTION_FEE = int(os.environ.get('TRANSACTION_FEE', 100))
@@ -156,6 +158,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         for event in body.get('events', []):
             transaction_hash = event.get('hash')
+            from_addr = event.get('transaction', {}).get('from')
             if transaction_hash is None:
                 continue
 
@@ -164,8 +167,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 if 'transfer' in reason.get('signature', '').lower():
                     transfer = True
                     break
-            
-            if transfer:
+
+            if transfer and Web3.toChecksumAddress(from_addr) == Web3.toChecksumAddress(WEB3_KEYSTORE_ADDRESS):
                 withdrawal = Withdrawal.objects.get(transaction_hash=transaction_hash)
                 withdrawal.paid_status = PaidStatusModelMixin.PAID
                 withdrawal.save()
