@@ -116,7 +116,6 @@ def transact(w3, method_call, sender, sender_signing_key, gas=None):
         sender_signing_key (bytes) - Private key of sender
     """
     gas_estimate = get_gas_estimate(method_call)
-    print(gas_estimate)
     tx = method_call.buildTransaction({
         'from': sender,
         'nonce': get_nonce(w3, sender),
