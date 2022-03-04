@@ -235,8 +235,8 @@ class Paper(models.Model):
         content_type_field="content_type",
         related_query_name="papers",
     )
-
-    slug = models.SlugField(max_length=1024)
+    # Slug is automatically generated on a signal, so it is not needed in a form
+    slug = models.SlugField(max_length=1024, blank=True)
 
     class Meta:
         ordering = ["-paper_publish_date"]
@@ -1121,6 +1121,7 @@ class FeaturedPaper(models.Model):
 
 
 class PaperSubmission(DefaultModel):
+    COMPLETE = "COMPLETE"
     INITIATED = "INITIATED"
     FAILED = "FAILED"
     FAILED_DUPLICATE = "FAILED_DUPLICATE"
@@ -1130,6 +1131,7 @@ class PaperSubmission(DefaultModel):
     PROCESSING_SEMANTIC_SCHOLAR = "PROCESSING_SEMANTIC_SCHOLAR"
 
     PAPER_STATUS_CHOICES = [
+        (COMPLETE, COMPLETE),
         (INITIATED, INITIATED),
         (FAILED, FAILED),
         (PROCESSING, PROCESSING),
@@ -1151,11 +1153,39 @@ class PaperSubmission(DefaultModel):
     uploaded_by = models.ForeignKey(
         "user.User",
         related_name="paper_submissions",
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
+        on_delete=models.CASCADE,
         help_text="""
             RH User account that submitted this paper.
             NOTE: user didnt necessarily had to be the author.
         """,
     )
+
+    def set_complete_status(self, save=True):
+        self.paper_status = self.COMPLETE
+        if save:
+            self.save()
+
+    def set_processing_status(self, save=True):
+        self.paper_status = self.PROCESSING
+        if save:
+            self.save()
+
+    def set_duplicate_status(self, save=True):
+        self.paper_status = self.FAILED_DUPLICATE
+        if save:
+            self.save()
+
+    def set_manubot_status(self, save=True):
+        self.paper_status = self.PROCESSING_MANUBOT
+        if save:
+            self.save()
+
+    def set_crossref_status(self, save=True):
+        self.paper_status = self.PROCESSING_CROSSREF
+        if save:
+            self.save()
+
+    def set_failed_status(self, save=True):
+        self.paper_status = self.FAILED
+        if save:
+            self.save()

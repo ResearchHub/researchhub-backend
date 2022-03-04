@@ -19,3 +19,11 @@ class PaperSerializerError(Error):
 
 class DuplicatePaperError(Exception):
     pass
+
+
+class ManubotProcessingError(Exception):
+    pass
+
+
+class CrossrefSearchError(Exception):
+    pass

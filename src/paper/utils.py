@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 from utils import sentry
 from django.db import models
 
+from paper.exceptions import ManubotProcessingError
 from paper.lib import (
     journal_hosts,
     journal_hosts_and_pdf_identifiers,
@@ -288,10 +289,13 @@ def get_csl_item(url) -> dict:
     """
     from manubot.cite.citekey import CiteKey, citekey_to_csl_item, url_to_citekey
 
-    citekey = url_to_citekey(url)
-    citekey = CiteKey(citekey).standard_id
-    csl_item = citekey_to_csl_item(citekey)
-    return csl_item
+    try:
+        citekey = url_to_citekey(url)
+        citekey = CiteKey(citekey).standard_id
+        csl_item = citekey_to_csl_item(citekey)
+        return csl_item
+    except Exception as e:
+        raise ManubotProcessingError(e)
 
 
 def get_pdf_location_for_csl_item(csl_item):

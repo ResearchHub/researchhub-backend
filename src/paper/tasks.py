@@ -20,6 +20,8 @@ from datetime import datetime, timedelta, timezone
 from subprocess import run, PIPE
 from PIL import Image
 from habanero import Crossref
+from requests.exceptions import HTTPError
+from celery import chain
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from celery.utils.log import get_task_logger
@@ -32,6 +34,7 @@ from django.db import IntegrityError
 from django.db.models import Q
 from django.http.request import HttpRequest
 from django.utils.text import slugify
+from django.core.exceptions import ValidationError
 from rest_framework.request import Request
 from discussion.models import Thread, Comment
 from purchase.models import Wallet
@@ -56,7 +59,11 @@ from paper.utils import (
     reset_paper_cache,
     get_pdf_location_for_csl_item,
 )
-from paper.exceptions import DuplicatePaperError
+from paper.exceptions import (
+    DuplicatePaperError,
+    CrossrefSearchError,
+    ManubotProcessingError,
+)
 from researchhub_document.utils import update_unified_document_to_paper
 from utils import sentry
 from utils.arxiv.categories import (
@@ -1159,27 +1166,47 @@ def pull_crossref_papers(start=0, force=False):
 # @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
 @app.task(bind=True)
 def celery_process_paper(self, submission_id):
-    Paper = apps.get_model("paper.Paper")
     PaperSubmission = apps.get_model("paper.PaperSubmission")
 
     paper_submission = PaperSubmission.objects.get(id=submission_id)
+    paper_submission.set_processing_status()
+    url = paper_submission.url
+    args = (
+        {"url": url, "uploaded_by_id": paper_submission.uploaded_by.id},
+        submission_id,
+    )
+
+    task = chain(
+        celery_manubot.s(), celery_crossref.s(), celery_create_paper.s()
+    ).apply_async(
+        (args,), countdown=1, link_error=celery_handle_paper_processing_errors.s()
+    )
 
 
 # @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
 @app.task(bind=True)
-def celery_manubot(self, url):
+def celery_manubot(self, celery_data):
+    paper_data, submission_id = celery_data
     Paper = apps.get_model("paper.Paper")
+    PaperSubmission = apps.get_model("paper.PaperSubmission")
+
     try:
+        paper_submission = PaperSubmission.objects.get(id=submission_id)
+        paper_submission.set_manubot_status()
+
+        url = paper_data["url"]
         csl_item = get_csl_item(url)
-        doi = csl_item.get("doi", None)
+        doi = csl_item.get("DOI", None)
 
         # DOI duplicate check
         if doi:
             if Paper.objects.filter(doi=doi).exists():
+                paper_submission.set_duplicate_status()
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}")
 
         # Url duplicate check
         oa_pdf_location = get_pdf_location_for_csl_item(csl_item)
+        csl_item["oa_pdf_location"] = oa_pdf_location
         if oa_pdf_location:
             urls = []
             oa_url = oa_pdf_location.get("url", [])
@@ -1191,20 +1218,132 @@ def celery_manubot(self, url):
             urls.extend(oa_pdf_url)
 
             if Paper.objects.filter(Q(url__in=urls) | Q(pdf_url__in=urls)).exists():
+                paper_submission.set_duplicate_status()
                 raise DuplicatePaperError(f"Duplicate URL: {urls}")
 
-        # URL duplicate check
-
-        data = {}
         # Cleaning csl data
         cleaned_title = csl_item.get("title", "").strip()
-        csl_item["title"] = cleaned_title
         abstract = csl_item.get("abstract", "")
         cleaned_abstract = clean_abstract(abstract)
-        csl_item["abstract"] = cleaned_abstract
+        publish_date = csl_item.get_date("issued", fill=True)
+        raw_authors = csl_item.get("author", {})
+        paper_data = {
+            **paper_data,
+            "abstract": cleaned_abstract,
+            "csl_item": csl_item,
+            "doi": doi,
+            "title": cleaned_title,
+            "raw_authors": raw_authors,
+            "paper_publish_date": publish_date,
+        }
 
-        data["csl_item"] = csl_item
-        data["oa_pdf_location"] = get_pdf_location_for_csl_item(csl_item)
-        data["paper_publish_date"] = csl_item.get_date("issued", fill=True)
-    except:
-        pass
+        if oa_pdf_location:
+            if oa_url:
+                paper_data["url"] = oa_url
+            if oa_pdf_url:
+                paper_data["pdf_url"] = oa_pdf_url
+
+            license = oa_pdf_location.get("license", None)
+            paper_data["pdf_license"] = license
+
+        return (paper_data, submission_id)
+    except DuplicatePaperError as e:
+        raise e
+    except ManubotProcessingError as e:
+        # Retries 3 times (5min, 3hrs, 1day)
+        RETRY_BUCKET = (60 * 5, 60 * 60 * 3, 60 * 60 * 24)
+        retries = self.request.retries
+        if retries < 3:
+            self.retry(countdown=RETRY_BUCKET[retries])
+        raise e
+    except Exception as e:
+        raise e
+
+
+# @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
+@app.task(bind=True)
+def celery_crossref(self, celery_data):
+    paper_data, submission_id = celery_data
+    PaperSubmission = apps.get_model("paper.PaperSubmission")
+
+    try:
+        paper_submission = PaperSubmission.objects.get(id=submission_id)
+        paper_submission.set_crossref_status()
+
+        doi = paper_data["doi"]
+        cr = Crossref()
+        params = {
+            "filters": {"type": "journal-article"},
+            "ids": [doi],
+        }
+        results = cr.works(**params).get("message")
+
+        if results:
+            # Set abstract if it does not exist
+            current_abstract = paper_data["abstract"]
+            if not current_abstract:
+                abstract = clean_abstract(results.get("abstract", ""))
+                paper_data["abstract"] = abstract
+
+            # Set raw authors if it does't exist
+            current_raw_authors = paper_data["raw_authors"]
+            if not current_raw_authors:
+                raw_authors = results.get("author", {})
+                paper_data["raw_authors"] = raw_authors
+
+        return (paper_data, submission_id)
+    except HTTPError as e:
+        raise CrossrefSearchError(e)
+    except Exception as e:
+        raise e
+
+
+# @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
+@app.task(bind=True)
+def celery_create_paper(self, celery_data):
+    paper_data, submission_id = celery_data
+    Paper = apps.get_model("paper.Paper")
+    PaperSubmission = apps.get_model("paper.PaperSubmission")
+    Vote = apps.get_model("paper.Vote")
+
+    try:
+        paper = Paper(**paper_data)
+        paper.full_clean()
+        paper.save()
+
+        paper_submission = PaperSubmission.objects.get(id=submission_id)
+        paper_submission.set_complete_status(save=False)
+        paper_submission.paper = paper
+        paper_submission.save()
+
+        uploaded_by = paper_submission.uploaded_by
+        Vote.objects.create(paper=paper, created_by=uploaded_by, vote_type=Vote.UPVOTE)
+        download_pdf.apply_async((paper.id,), priority=3, countdown=5)
+        return True
+    except ValidationError as e:
+        raise e
+    except Exception as e:
+        raise e
+
+
+# @app.task(queue=f"{APP_ENV}_cermine_queue")
+@app.task()
+def celery_handle_paper_processing_errors(request, exc, traceback):
+    PaperSubmission = apps.get_model("paper.PaperSubmission")
+    args = request.args[0]
+    _, submission_id = args
+    paper_submission = PaperSubmission.objects.get(id=submission_id)
+    paper_submission.set_failed_status()
+
+    # if isinstance(exc, ManubotProcessingError):
+    #     current_retries = request.retries
+    #     celery_process_paper.retry(
+    #         (submission_id,),
+    #         countdown=1,
+    #         priority=5
+    #     )
+
+    from celery.contrib import rdb
+
+    rdb.set_trace()
+    pass
