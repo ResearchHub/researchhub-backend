@@ -96,9 +96,11 @@ def execute_erc20_transfer(
         amount (int) - Amount of token to send (in smallest possible
             denomination)
     """
+    decimals = contract.functions.decimals().call()
+    decimal_amount = amount * 10 ** int(decimals)
     return transact(
         w3,
-        contract.functions.transfer(to, amount),
+        contract.functions.transfer(to, decimal_amount),
         sender,
         sender_signing_key
     )

@@ -643,8 +643,7 @@ class PendingWithdrawal:
         }
 
         contract = w3.eth.contract(abi=contract_abi, address=Web3.toChecksumAddress(RSC_CONTRACT_ADDRESS))
-        decimals = contract.functions.decimals().call()
-        amount = int(self.amount) * decimals
+        amount = int(self.amount)
         paid = False
         to = self.withdrawal.to_address
         tx_hash = execute_erc20_transfer(
