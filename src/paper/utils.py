@@ -43,6 +43,12 @@ CACHE_MOST_DISCUSSED_DATES = (
     '-discussed_year',
     '-discussed_all_time'
 )
+CACHE_DOCUMENT_TYPES = [
+    'all',
+    'paper',
+    'posts',
+    'hypothesis',
+]
 MANUBOT_PAPER_TYPES = [
     'paper-conference',
     'article-journal',
@@ -659,11 +665,12 @@ def invalidate_most_discussed_cache(hub_ids, with_default=True):
 
     for hub_id in hub_ids:
         for key in CACHE_MOST_DISCUSSED_DATES:
-            cache_key = get_cache_key(
-                'hub',
-                f'{hub_id}_{key}'
-            )
-            cache.delete(cache_key)
+            for doc_type in CACHE_DOCUMENT_TYPES:
+                cache_key = get_cache_key(
+                    'hub',
+                    f'{doc_type}_{hub_id}_{key}'
+                )
+                cache.delete(cache_key)
 
 def parse_author_name(author):
     full_name = []
