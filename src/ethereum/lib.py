@@ -1,6 +1,14 @@
 from decimal import Decimal
 from ethereum.utils import decimal_to_token_amount
-from researchhub.settings import WEB3_RSC_ADDRESS, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, WEB3_KEYSTORE_BUCKET, WEB3_KEYSTORE_FILE, WEB3_KEYSTORE_PASSWORD, w3
+from researchhub.settings import (
+  WEB3_RSC_ADDRESS,
+  AWS_ACCESS_KEY_ID,
+  AWS_SECRET_ACCESS_KEY,
+  WEB3_KEYSTORE_BUCKET,
+  WEB3_KEYSTORE_FILE,
+  WEB3_KEYSTORE_PASSWORD,
+  w3
+)
 from smart_open import open
 import json
 
