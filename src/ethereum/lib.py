@@ -11,6 +11,7 @@ from researchhub.settings import (
 )
 from smart_open import open
 import json
+from web3 import Web3
 
 TOKENS = {
     'RSC': {
@@ -118,9 +119,10 @@ def transact(w3, method_call, sender, sender_signing_key, gas=None):
         sender_signing_key (bytes) - Private key of sender
     """
     gas_estimate = get_gas_estimate(method_call)
+    checksum_sender = Web3.toChecksumAddress(sender)
     tx = method_call.buildTransaction({
-        'from': sender,
-        'nonce': get_nonce(w3, sender),
+        'from': checksum_sender,
+        'nonce': get_nonce(w3, checksum_sender),
         'gas': gas or gas_estimate,
     })
     signing_key = sender_signing_key
