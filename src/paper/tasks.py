@@ -20,6 +20,7 @@ from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from celery.utils.log import get_task_logger
 from django.apps import apps
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files import File
@@ -1168,9 +1169,10 @@ def celery_process_paper(self, submission_id):
 
     paper_submission = PaperSubmission.objects.get(id=submission_id)
     paper_submission.set_processing_status()
+    uploaded_by = paper_submission.uploaded_by
     url = paper_submission.url
     args = (
-        {"url": url, "uploaded_by_id": paper_submission.uploaded_by.id},
+        {"url": url, "uploaded_by_id": uploaded_by.id},
         submission_id,
     )
 
