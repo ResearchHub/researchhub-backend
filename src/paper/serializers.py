@@ -1,75 +1,72 @@
-import re
-import requests
 import json
-import utils.sentry as sentry
+import re
 
-from django.db import transaction, IntegrityError
-from django.http import QueryDict
-from django.db.models import Sum
-
+import requests
 import rest_framework.serializers as serializers
+from django.db import IntegrityError, transaction
+from django.db.models import Sum
+from django.http import QueryDict
 
+import utils.sentry as sentry
 from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
-from hub.serializers import SimpleHubSerializer, DynamicHubSerializer
-from hypothesis.models import Hypothesis, Citation
-from paper.lib import journal_hosts
+from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
+from hypothesis.models import Citation, Hypothesis
 from paper.exceptions import PaperSerializerError
+from paper.lib import journal_hosts
 from paper.models import (
+    ARXIV_IDENTIFIER,
+    DOI_IDENTIFIER,
     AdditionalFile,
+    FeaturedPaper,
+    Figure,
     Flag,
     Paper,
-    Vote,
-    Figure,
-    FeaturedPaper,
-    DOI_IDENTIFIER,
-    ARXIV_IDENTIFIER,
     PaperSubmission,
+    Vote,
 )
 from paper.tasks import (
-    download_pdf,
-    add_references,
     add_orcid_authors,
+    add_references,
     celery_calculate_paper_twitter_score,
     celery_extract_pdf_sections,
+    download_pdf,
 )
 from paper.utils import (
-    check_pdf_title,
     check_file_is_url,
-    clean_abstract,
+    check_pdf_title,
     check_url_is_pdf,
+    clean_abstract,
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url,
 )
-from researchhub.lib import get_document_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
+from researchhub.lib import get_document_id_from_path
+from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
+from researchhub_document.utils import (
+    reset_unified_document_cache,
+    update_unified_document_to_paper,
+)
 from user.models import Author, User
 from user.serializers import (
     AuthorSerializer,
-    UserSerializer,
     DynamicAuthorSerializer,
     DynamicUserSerializer,
+    UserSerializer,
 )
 from utils.arxiv import Arxiv
-from utils.http import get_user_from_request, check_url_contains_pdf
+from utils.http import check_url_contains_pdf, get_user_from_request
 from utils.siftscience import events_api, update_user_risk_score
-from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
-from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub_document.utils import (
-    update_unified_document_to_paper,
-    reset_unified_document_cache,
-)
-from researchhub_document.utils import (
-    reset_unified_document_cache,
-)
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     TRENDING,
     NEWEST,
     TOP
 )
+
 
 class BasePaperSerializer(serializers.ModelSerializer):
     authors = serializers.SerializerMethodField()
@@ -999,13 +996,11 @@ class DynamicPaperVoteSerializer(DynamicModelFieldSerializer):
 
     def get_paper(self, vote):
         context = self.context
-        _context_fields = context.get("pap_dpvs_paper", None)
-        if _context_fields:
-            serializer = DynamicPaperSerializer(
-                vote.paper, context=context, **_context_fields
-            )
-            return serializer.data
-        return vote.paper.id
+        _context_fields = context.get("pap_dpvs_paper", {})
+        serializer = DynamicPaperSerializer(
+            vote.paper, context=context, **_context_fields
+        )
+        return serializer.data
 
 
 class FigureSerializer(serializers.ModelSerializer):
@@ -1039,3 +1034,29 @@ class PaperSubmissionSerializer(serializers.ModelSerializer):
             "paper_status",
             "updated_date",
         ]
+
+
+class DynamicPaperSubmissionSerializer(DynamicModelFieldSerializer):
+    paper = serializers.SerializerMethodField()
+    uploaded_by = serializers.SerializerMethodField()
+
+    class Meta:
+        fields = "__all__"
+        model = PaperSubmission
+
+    def get_paper(self, paper_submission):
+        context = self.context
+        _context_fields = context.get("pap_dpss_get_paper", {})
+        serializer = DynamicPaperSerializer(
+            paper_submission.paper, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_uploaded_by(self, paper_submission):
+        context = self.context
+        _context_fields = context.get("pap_dpss_get_uploaded_by", {})
+
+        serializer = DynamicUserSerializer(
+            paper_submission.uploaded_by, context=context, **_context_fields
+        )
+        return serializer.data

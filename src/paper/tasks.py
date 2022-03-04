@@ -20,7 +20,6 @@ from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from celery.utils.log import get_task_logger
 from django.apps import apps
-from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files import File
@@ -1333,8 +1332,9 @@ def celery_create_paper(self, celery_data):
                 paper_id,
             ),
             priority=2,
-            countdown=5,
+            countdown=3,
         )
+        paper_submission.notify_status()
         return True
     except ValidationError as e:
         raise e
@@ -1345,18 +1345,24 @@ def celery_create_paper(self, celery_data):
 # @app.task(queue=f"{APP_ENV}_cermine_queue")
 @app.task()
 def celery_handle_paper_processing_errors(request, exc, traceback):
-    from celery.contrib import rdb
+    # from celery.contrib import rdb
 
-    sentry.log_error(exc)
+    # sentry.log_error(exc)
 
-    rdb.set_trace()
+    # rdb.set_trace()
 
     try:
         PaperSubmission = apps.get_model("paper.PaperSubmission")
         args = request.args[0]
         _, submission_id = args
         paper_submission = PaperSubmission.objects.get(id=submission_id)
-        paper_submission.set_failed_status()
+
+        if isinstance(exc, DuplicatePaperError):
+            paper_submission.set_duplicate_status()
+        else:
+            paper_submission.set_failed_status()
+
+        paper_submission.notify_status()
 
     except Exception as e:
         sentry.log_error(e)

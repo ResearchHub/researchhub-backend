@@ -3,7 +3,9 @@ import datetime
 import pytz
 import regex as re
 import requests
+from django.apps import apps
 from django.contrib.contenttypes.fields import GenericRelation
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.core.validators import FileExtensionValidator
 from django.db import models, transaction
@@ -274,60 +276,6 @@ class Paper(models.Model):
     @property
     def children(self):
         return self.threads.all()
-
-    @classmethod
-    def create_manubot_paper(cls, doi):
-        csl_item = get_doi_csl_item(doi)
-        return Paper.create_from_csl_item(
-            csl_item, doi=doi, externally_sourced=True, is_public=False
-        )
-
-    @classmethod
-    def create_crossref_paper(cls, identifier):
-        return Crossref(id=identifier).create_paper()
-
-    @classmethod
-    def create_from_csl_item(
-        cls, csl_item, doi=None, externally_sourced=False, is_public=None
-    ):
-        """
-        Create a paper object from a CSL_Item.
-        This may be useful if we want to auto-populate the paper
-        database at some point.
-        """
-        from manubot.cite.csl_item import CSL_Item
-
-        if not isinstance(csl_item, CSL_Item):
-            csl_item = CSL_Item(csl_item)
-
-        if csl_item["type"] not in MANUBOT_PAPER_TYPES:
-            return None
-
-        is_public = True
-        external_source = None
-        if externally_sourced is True:
-            is_public = False
-            external_source = "manubot"
-
-        if "DOI" in csl_item:
-            doi = csl_item["DOI"].lower()
-
-        paper_publish_date = csl_item.get_date("issued", fill=True)
-
-        paper = cls(
-            abstract=csl_item.get("abstract", None),
-            doi=doi,
-            is_public=is_public,
-            title=csl_item.get("title", None),
-            paper_title=csl_item.get("title", None),
-            url=csl_item.get("URL", None),
-            csl_item=csl_item,
-            external_source=external_source,
-            retrieved_from_external_source=externally_sourced,
-            paper_publish_date=paper_publish_date,
-        )
-        paper.save()
-        return paper
 
     @property
     def raw_authors_indexing(self):
@@ -1187,3 +1135,18 @@ class PaperSubmission(DefaultModel):
         self.paper_status = self.FAILED
         if save:
             self.save()
+
+    def notify_status(self):
+        from notification.models import Notification
+        from user.models import Action
+
+        action = Action.objects.get(
+            content_type=ContentType.objects.get_for_model(self),
+            object_id=self.id,
+        )
+        notification = Notification.objects.create(
+            recipient=self.uploaded_by,
+            action_user=self.uploaded_by,
+            action=action,
+        )
+        notification.send_notification()
