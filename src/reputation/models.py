@@ -124,6 +124,12 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
         self.withdrawal = withdrawal_instance
         self.save()
 
+class Webhook(models.Model):
+    body = JSONField(blank=True)
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
+    from_host = models.CharField(max_length=64, blank=True)
+
 class Deposit(SoftDeletableModel, PaidStatusModelMixin):
     user = models.ForeignKey(
         'user.User',
@@ -155,12 +161,13 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
         choices=TOKEN_ADDRESS_CHOICES
     )
     amount = models.CharField(max_length=255, default='0.0')
+    fee = models.CharField(max_length=255, default='0.0')
     from_address = models.CharField(max_length=255)
     to_address = models.CharField(max_length=255)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     transaction_hash = models.CharField(
-        default='',
+        null=True,
         blank=True,
         max_length=255
     )
@@ -172,6 +179,10 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
 
     class Meta:
         ordering = ['-updated_date']
+    
+    @property
+    def users_to_notify(self):
+        return [self.user]
 
 
 class DistributionAmount(models.Model):

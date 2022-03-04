@@ -8,6 +8,14 @@ from notification.serializers import DynamicNotificationSerializer
 from notification.views import NotificationViewSet
 from user.models import User
 
+from datetime import date, datetime
+
+def json_serial(obj):
+    """JSON serializer for objects not serializable by default json code"""
+
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    raise TypeError ("Type %s not serializable" % type(obj))
 
 class NotificationConsumer(WebsocketConsumer):
     def connect(self):
@@ -64,4 +72,4 @@ class NotificationConsumer(WebsocketConsumer):
             'notification_type': notification_type,
             'data': serialized_data
         }
-        self.send(text_data=json.dumps(data))
+        self.send(text_data=json.dumps(data, default=json_serial))

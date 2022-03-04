@@ -1,6 +1,9 @@
 import math
 import datetime
 import pytz
+import os
+import boto3
+from web3 import Web3
 
 from django.db import transaction
 from django.db.models import Q, F
@@ -12,6 +15,7 @@ from django.utils import timezone
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub.celery import app
+from ethereum.lib import execute_erc20_transfer, RSC_CONTRACT_ADDRESS
 from paper.models import Paper, Vote as PaperVote, Figure
 from discussion.models import Thread, Reply, Comment
 from bullet_point.models import BulletPoint
@@ -23,7 +27,6 @@ from utils.message import send_email_message
 from mailing_list.lib import base_email_context
 
 DEFAULT_REWARD = 1000000
-
 
 @app.task
 def create_contribution(
