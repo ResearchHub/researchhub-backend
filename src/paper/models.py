@@ -1,59 +1,55 @@
-import requests
 import datetime
+
 import pytz
 import regex as re
-import utils.sentry as sentry
-
+import requests
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
-from django.db import models, transaction
-from django.db.models import Count, Q, Avg, F, Sum, IntegerField
-from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
-from django.db.models.functions import Extract, Cast
 from django.core.validators import FileExtensionValidator
-
+from django.db import models, transaction
+from django.db.models import Avg, Count, F, IntegerField, Q, Sum
+from django.db.models.functions import Cast, Extract
+from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from manubot.cite.doi import get_doi_csl_item
 from manubot.cite.unpaywall import Unpaywall
 
-from paper.lib import journal_hosts
-from paper.utils import (
-    MANUBOT_PAPER_TYPES,
-    populate_metadata_from_manubot_url,
-    populate_metadata_from_manubot_pdf_url,
-    populate_pdf_url_from_journal_url,
-    populate_metadata_from_pdf,
-    populate_metadata_from_crossref,
-    parse_author_name,
-    get_csl_item,
-    paper_piecewise_log,
-)
+import utils.sentry as sentry
+from discussion.models import Thread
+from hub.models import Hub
 from hub.serializers import HubSerializer
-
+from paper.lib import journal_hosts
 from paper.tasks import (
     celery_extract_figures,
-    celery_extract_pdf_preview,
     celery_extract_meta_data,
+    celery_extract_pdf_preview,
     celery_extract_twitter_comments,
     celery_paper_reset_cache,
 )
+from paper.utils import (
+    MANUBOT_PAPER_TYPES,
+    get_csl_item,
+    paper_piecewise_log,
+    parse_author_name,
+    populate_metadata_from_crossref,
+    populate_metadata_from_manubot_pdf_url,
+    populate_metadata_from_manubot_url,
+    populate_metadata_from_pdf,
+    populate_pdf_url_from_journal_url,
+)
+from purchase.models import Purchase
 from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
 from summary.models import Summary
-from hub.models import Hub
-from purchase.models import Purchase
-from discussion.models import Thread
-
-from utils.http import check_url_contains_pdf
 from utils.arxiv import Arxiv
 from utils.crossref import Crossref
+from utils.http import check_url_contains_pdf
 from utils.models import DefaultModel
 from utils.semantic_scholar import SemanticScholar
 from utils.twitter import (
-    get_twitter_url_results,
     get_twitter_doi_results,
     get_twitter_results,
+    get_twitter_url_results,
 )
-
 
 DOI_IDENTIFIER = "10."
 ARXIV_IDENTIFIER = "arXiv:"
@@ -905,6 +901,8 @@ class Paper(models.Model):
             fields = ["doi", "url", "pdf_url"]
             for field in fields:
                 item = getattr(self, field)
+                if not item:
+                    continue
                 try:
                     if field == "doi":
                         csl_item = get_doi_csl_item(item)

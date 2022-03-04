@@ -1,79 +1,75 @@
-from psycopg2.errors import UniqueViolation
-
-import fitz
 import codecs
+import json
 import logging
 import os
 import re
-import requests
 import shutil
-import twitter
-import urllib.request
-import feedparser
 import time
-import json
-
-from pytz import timezone as pytz_tz
-from bs4 import BeautifulSoup
-from io import BytesIO
+import urllib.request
 from datetime import datetime, timedelta, timezone
-from subprocess import run, PIPE
-from PIL import Image
-from habanero import Crossref
-from requests.exceptions import HTTPError
+from io import BytesIO
+from subprocess import PIPE, run
+
+import feedparser
+import fitz
+import requests
+import twitter
+from bs4 import BeautifulSoup
 from celery import chain
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from celery.utils.log import get_task_logger
-
 from django.apps import apps
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
 from django.db.models import Q
 from django.http.request import HttpRequest
 from django.utils.text import slugify
-from django.core.exceptions import ValidationError
+from habanero import Crossref
+from PIL import Image
+from psycopg2.errors import UniqueViolation
+from pytz import timezone as pytz_tz
+from requests.exceptions import HTTPError
 from rest_framework.request import Request
-from discussion.models import Thread, Comment
-from purchase.models import Wallet
-from researchhub.celery import app
-from researchhub.settings import APP_ENV, PRODUCTION, STAGING
 
+from discussion.models import Comment, Thread
 from hub.utils import scopus_to_rh_map
+from paper.exceptions import (
+    CrossrefSearchError,
+    DuplicatePaperError,
+    ManubotProcessingError,
+)
 from paper.utils import (
+    IGNORE_PAPER_TITLES,
     check_crossref_title,
     check_pdf_title,
-    get_pdf_from_url,
-    get_crossref_results,
+    clean_abstract,
     fitz_extract_figures,
+    get_cache_key,
+    get_crossref_results,
+    get_csl_item,
+    get_pdf_from_url,
+    get_pdf_location_for_csl_item,
+    get_redirect_url,
     merge_paper_bulletpoints,
     merge_paper_threads,
     merge_paper_votes,
-    get_cache_key,
-    clean_abstract,
-    get_csl_item,
-    get_redirect_url,
-    IGNORE_PAPER_TITLES,
     reset_paper_cache,
-    get_pdf_location_for_csl_item,
 )
-from paper.exceptions import (
-    DuplicatePaperError,
-    CrossrefSearchError,
-    ManubotProcessingError,
-)
+from purchase.models import Wallet
+from researchhub.celery import app
+from researchhub.settings import APP_ENV, PRODUCTION, STAGING
 from researchhub_document.utils import update_unified_document_to_paper
 from utils import sentry
 from utils.arxiv.categories import (
-    get_category_name,
     ARXIV_CATEGORIES,
+    get_category_name,
     get_general_hub_name,
 )
 from utils.crossref import get_crossref_issued_date
-from utils.twitter import get_twitter_url_results, get_twitter_results, RATE_LIMIT_CODE
-
 from utils.http import check_url_contains_pdf
 from researchhub.celery import (
     QUEUE_HOT_SCORE,
@@ -84,6 +80,8 @@ from researchhub.celery import (
     QUEUE_CACHES,
     QUEUE_EXTERNAL_REPORTING,
 )
+from utils.twitter import RATE_LIMIT_CODE, get_twitter_results, get_twitter_url_results
+
 logger = get_task_logger(__name__)
 
 
@@ -1301,15 +1299,19 @@ def celery_crossref(self, celery_data):
 # @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
 @app.task(bind=True)
 def celery_create_paper(self, celery_data):
+    from reputation.tasks import create_contribution
+
     paper_data, submission_id = celery_data
     Paper = apps.get_model("paper.Paper")
     PaperSubmission = apps.get_model("paper.PaperSubmission")
     Vote = apps.get_model("paper.Vote")
+    Contribution = apps.get_model("reputation.Contribution")
 
     try:
         paper = Paper(**paper_data)
         paper.full_clean()
         paper.save()
+        paper_id = paper.id
 
         paper_submission = PaperSubmission.objects.get(id=submission_id)
         paper_submission.set_complete_status(save=False)
@@ -1318,7 +1320,19 @@ def celery_create_paper(self, celery_data):
 
         uploaded_by = paper_submission.uploaded_by
         Vote.objects.create(paper=paper, created_by=uploaded_by, vote_type=Vote.UPVOTE)
-        download_pdf.apply_async((paper.id,), priority=3, countdown=5)
+        download_pdf.apply_async((paper_id,), priority=3, countdown=5)
+        add_orcid_authors.apply_async((paper_id,), priority=5, countdown=5)
+        create_contribution.apply_async(
+            (
+                Contribution.SUBMITTER,
+                {"app_label": "paper", "model": "paper"},
+                uploaded_by.id,
+                paper.unified_document.id,
+                paper_id,
+            ),
+            priority=2,
+            countdown=5,
+        )
         return True
     except ValidationError as e:
         raise e
@@ -1329,21 +1343,20 @@ def celery_create_paper(self, celery_data):
 # @app.task(queue=f"{APP_ENV}_cermine_queue")
 @app.task()
 def celery_handle_paper_processing_errors(request, exc, traceback):
-    PaperSubmission = apps.get_model("paper.PaperSubmission")
-    args = request.args[0]
-    _, submission_id = args
-    paper_submission = PaperSubmission.objects.get(id=submission_id)
-    paper_submission.set_failed_status()
-
-    # if isinstance(exc, ManubotProcessingError):
-    #     current_retries = request.retries
-    #     celery_process_paper.retry(
-    #         (submission_id,),
-    #         countdown=1,
-    #         priority=5
-    #     )
-
     from celery.contrib import rdb
 
+    sentry.log_error(exc)
+
     rdb.set_trace()
-    pass
+
+    try:
+        PaperSubmission = apps.get_model("paper.PaperSubmission")
+        args = request.args[0]
+        _, submission_id = args
+        paper_submission = PaperSubmission.objects.get(id=submission_id)
+        paper_submission.set_failed_status()
+
+    except Exception as e:
+        sentry.log_error(e)
+
+    return
