@@ -147,6 +147,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
     )
     def oz_webhook(self, request):
         body = json.loads(request.body.decode('utf-8'))
+        with sentry_sdk.push_scope() as scope:
+            scope.set_extra("data", body)
         manual_hook = request.GET.get('manual', False)
         if not manual_hook:
             Webhook.objects.create(body=body, from_host=request.headers['Host'])
@@ -155,9 +157,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         for event in body.get('events', []):
             transaction_hash = event.get('hash')
             if transaction_hash is None:
-                with sentry_sdk.push_scope() as scope:
-                    scope.set_extra("data", body)
-                    sentry_sdk.capture_message("Open Zeppelin Webhook could not find transaction_hash")
                 continue
 
             transfer = False
