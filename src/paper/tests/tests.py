@@ -1,3 +1,5 @@
+import json
+
 from psycopg2.errors import UniqueViolation
 
 from django.db import IntegrityError
@@ -207,8 +209,11 @@ class PaperPatchTest(
     def test_patch_paper(self):
         paper = self.create_paper()
         updated_title = 'Updated Title'
+        tags = ['test1', 'test2']
+
         form = {
             'title': updated_title,
+            'tags': json.dumps(tags)
         }
         client = self.get_default_authenticated_client()
         url = f'{self.base_url}{paper.id}/?make_public=true'
@@ -216,6 +221,7 @@ class PaperPatchTest(
         data = response.data
         self.assertEquals(response.status_code, 200)
         self.assertEquals(data['title'], updated_title)
+        self.assertEquals(data['tags'], tags)
         self.assertEquals(
             data['raw_authors'],
             [

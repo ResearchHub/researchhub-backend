@@ -79,6 +79,7 @@ from paper.utils import (
     invalidate_most_discussed_cache,
     add_default_hub
 )
+from tag.models import Tag
 from purchase.models import Purchase
 from researchhub.lib import get_document_id_from_path
 from reputation.models import Contribution
@@ -273,14 +274,27 @@ class PaperViewSet(viewsets.ModelViewSet):
         # file created location when a file is actually being added and not
         # just any updates to the paper
         created_location = None
+
+        tags = json.loads(request.data.get('tags', "[]"))
+
         if request.query_params.get('created_location') == 'progress':
             created_location = Paper.CREATED_LOCATION_PROGRESS
             request.data['file_created_location'] = created_location
 
+        instance = self.get_object()
+
+        if len(tags) > 0:
+            instance_tags = []
+
+            for tag in tags:
+                t, _ = Tag.objects.get_or_create(key=tag)
+                instance_tags.append(t)
+
+            instance.tags.set(instance_tags)
+
         response = super().update(request, *args, **kwargs)
 
         if (created_location is not None) and not request.user.is_anonymous:
-            instance = self.get_object()
             self._send_created_location_ga_event(instance, request.user)
 
         instance.reset_cache(use_celery=False)

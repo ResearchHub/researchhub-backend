@@ -173,6 +173,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     'first_preview',
                     'hot_score',
                     'hubs',
+                    'tags',
                     'id',
                     'discussion_count',
                     'paper_title',

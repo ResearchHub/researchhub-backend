@@ -83,6 +83,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     file = serializers.SerializerMethodField()
     discussion_users = serializers.SerializerMethodField()
     unified_document_id = serializers.SerializerMethodField()
+    tags = serializers.SerializerMethodField()
 
     class Meta:
         abstract = True
@@ -100,6 +101,9 @@ class BasePaperSerializer(serializers.ModelSerializer):
 
     # def get_uploaded_by(self, obj):
     #     return UserSerializer(obj.uploaded_by, read_only=True).data
+
+    def get_tags(self, paper):
+        return paper.get_tags()
 
     def get_unified_document_id(self, instance):
         try:
@@ -312,6 +316,7 @@ class ContributionPaperSerializer(BasePaperSerializer):
 class PaperSerializer(BasePaperSerializer):
     raw_author_scores = serializers.SerializerMethodField()
     authors = serializers.SerializerMethodField()
+    tags = serializers.SerializerMethodField()
 
     class Meta:
         exclude = ['references']
@@ -346,7 +351,7 @@ class PaperSerializer(BasePaperSerializer):
             'users_who_bookmarked',
             'user_vote',
             'views',
-
+            'tags'
         ]
 
         patch_read_only_fields = [
@@ -792,6 +797,9 @@ class PaperSerializer(BasePaperSerializer):
                     scores.append(score)
         return scores
 
+    def get_tags(self, paper):
+        return paper.get_tags()
+
 
 class HubPaperSerializer(BasePaperSerializer):
     def get_bullet_points(self, paper):
@@ -876,6 +884,7 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
     unified_document = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
+    tags = serializers.SerializerMethodField()
 
     class Meta:
         model = Paper
@@ -954,6 +963,10 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
             **_context_fields
         )
         return serializer.data
+
+
+    def get_tags(self, paper):
+        return paper.get_tags()
 
     def get_first_preview(self, paper):
         context = self.context

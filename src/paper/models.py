@@ -480,6 +480,11 @@ class Paper(models.Model):
             return [self.get_vote_for_index(vote) for vote in all_votes]
         return {}
 
+    def get_tags(self):
+        """Returns all tags associated with the paper
+        """
+        return [t.key for t in self.tags.all()]
+
     def calculate_hot_score(self):
         ALGO_START_UNIX = 1546329600
         TWITTER_BOOST = 100
