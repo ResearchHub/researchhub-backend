@@ -433,10 +433,6 @@ class PaperViewSet(viewsets.ModelViewSet):
         hub_ids = list(paper.hubs.values_list('id', flat=True))
         hub_ids = add_default_hub(hub_ids)
 
-        reset_unified_document_cache(hub_ids)
-        invalidate_top_rated_cache(hub_ids)
-        invalidate_newest_cache(hub_ids)
-        invalidate_most_discussed_cache(hub_ids)
         paper.reset_cache(use_celery=False)
         return Response(
             self.get_serializer(instance=paper).data,
@@ -604,8 +600,6 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         reset_unified_document_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
-        invalidate_newest_cache(hub_ids)
-        invalidate_most_discussed_cache(hub_ids)
         paper.reset_cache()
 
         return response
@@ -635,8 +629,6 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         reset_unified_document_cache(hub_ids)
         invalidate_top_rated_cache(hub_ids)
-        invalidate_newest_cache(hub_ids)
-        invalidate_most_discussed_cache(hub_ids)
         paper.reset_cache()
 
         return response

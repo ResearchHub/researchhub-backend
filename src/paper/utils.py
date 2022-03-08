@@ -43,6 +43,13 @@ CACHE_MOST_DISCUSSED_DATES = (
     '-discussed_year',
     '-discussed_all_time'
 )
+CACHE_NEWEST_DATES = (
+    '-created_date_today',
+    '-created_date_week',
+    '-created_date_month',
+    '-created_date_year',
+    '-created_date_all_time'
+)
 CACHE_DOCUMENT_TYPES = [
     'all',
     'paper',
@@ -623,6 +630,19 @@ def add_default_hub(hub_ids):
 
 
 def invalidate_trending_cache(hub_ids, with_default=True):
+    print('************************')
+    print('hub_ids', hub_ids)
+    print('INVALIDATING TRENDING!!!!')
+    print('INVALIDATING TRENDING!!!!')
+    print('INVALIDATING TRENDING!!!!')
+    print('INVALIDATING TRENDING!!!!')
+    print('INVALIDATING TRENDING!!!!')
+    print('INVALIDATING TRENDING!!!!')
+    print('INVALIDATING TRENDING!!!!')
+    print('INVALIDATING TRENDING!!!!')
+    print('INVALIDATING TRENDING!!!!')
+    print('INVALIDATING TRENDING!!!!')
+    print('************************')
     if with_default:
         hub_ids = add_default_hub(hub_ids)
 
@@ -635,6 +655,19 @@ def invalidate_trending_cache(hub_ids, with_default=True):
 
 
 def invalidate_top_rated_cache(hub_ids, with_default=True):
+    print('************************')
+    print('hub_ids', hub_ids)
+    print('INVALIDATING TOP RATED!!!!')
+    print('INVALIDATING TOP RATED!!!!')
+    print('INVALIDATING TOP RATED!!!!')
+    print('INVALIDATING TOP RATED!!!!')
+    print('INVALIDATING TOP RATED!!!!')
+    print('INVALIDATING TOP RATED!!!!')
+    print('INVALIDATING TOP RATED!!!!')
+    print('INVALIDATING TOP RATED!!!!')
+    print('INVALIDATING TOP RATED!!!!')
+    print('INVALIDATING TOP RATED!!!!')
+    print('************************')
     if with_default:
         hub_ids = add_default_hub(hub_ids)
 
@@ -647,9 +680,36 @@ def invalidate_top_rated_cache(hub_ids, with_default=True):
             cache.delete(cache_key)
 
 
-def invalidate_newest_cache(hub_ids, with_default=True):
+def invalidate_newest_cache(
+    hub_ids,
+    with_default=True,
+):
+    print('************************')
+    print('hub_ids', hub_ids)
+    print('INVALIDATING NEWEST!!!!')
+    print('INVALIDATING NEWEST!!!!')
+    print('INVALIDATING NEWEST!!!!')
+    print('INVALIDATING NEWEST!!!!')
+    print('INVALIDATING NEWEST!!!!')
+    print('INVALIDATING NEWEST!!!!')
+    print('INVALIDATING NEWEST!!!!')
+    print('INVALIDATING NEWEST!!!!')
+    print('INVALIDATING NEWEST!!!!')
+    print('INVALIDATING NEWEST!!!!')
+    print('************************')
     if with_default:
         hub_ids = add_default_hub(hub_ids)
+
+    for hub_id in hub_ids:
+        for key in CACHE_NEWEST_DATES:
+            for doc_type in CACHE_DOCUMENT_TYPES:
+                cache_key = get_cache_key(
+                    'hub',
+                    f'{doc_type}_{hub_id}_{key}'
+                )
+                print('cache_key to delete', cache_key)
+                cache.delete(cache_key)
+
 
     for hub_id in hub_ids:
         cache_key = get_cache_key(
@@ -660,6 +720,19 @@ def invalidate_newest_cache(hub_ids, with_default=True):
 
 
 def invalidate_most_discussed_cache(hub_ids, with_default=True):
+    print('************************')
+    print('hub_ids', hub_ids)
+    print('INVALIDATE MOST DISCUSSED!!!!')
+    print('INVALIDATE MOST DISCUSSED!!!!')
+    print('INVALIDATE MOST DISCUSSED!!!!')
+    print('INVALIDATE MOST DISCUSSED!!!!')
+    print('INVALIDATE MOST DISCUSSED!!!!')
+    print('INVALIDATE MOST DISCUSSED!!!!')
+    print('INVALIDATE MOST DISCUSSED!!!!')
+    print('INVALIDATE MOST DISCUSSED!!!!')
+    print('INVALIDATE MOST DISCUSSED!!!!')
+    print('INVALIDATE MOST DISCUSSED!!!!')
+    print('************************')
     if with_default:
         hub_ids = add_default_hub(hub_ids)
 

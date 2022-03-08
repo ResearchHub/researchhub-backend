@@ -135,7 +135,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         )
         invalidate_top_rated_cache(hub_ids)
         invalidate_newest_cache(hub_ids)
-        invalidate_most_discussed_cache(hub_ids)
 
         return update_response
 
@@ -467,6 +466,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             cache_key_hub = get_cache_key('hub', cache_pk)
             cache_hit = cache.get(cache_key_hub)
 
+            print('cache_key_hub', cache_key_hub)
+
         if cache_hit:
             return cache_hit
         return None
@@ -510,6 +511,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 page_number,
                 time_difference
             )
+            print('cache_hit', bool(cache_hit))
 
             if cache_hit and page_number == 1:
                 return Response(cache_hit)

@@ -127,8 +127,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             countdown=10
         )
         reset_unified_document_cache([0])
-        invalidate_top_rated_cache(hubs)
-        invalidate_newest_cache(hubs)
         invalidate_most_discussed_cache(hubs)
         return response
 
@@ -311,9 +309,8 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             priority=3,
             countdown=10
         )
+
         reset_unified_document_cache([0])
-        invalidate_top_rated_cache(hubs)
-        invalidate_newest_cache(hubs)
         invalidate_most_discussed_cache(hubs)
         return response
 
@@ -416,6 +413,9 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             priority=3,
             countdown=10
         )
+
+        reset_unified_document_cache([0])
+        invalidate_most_discussed_cache(hubs)
 
         return self.get_self_upvote_response(request, response, Reply)
 

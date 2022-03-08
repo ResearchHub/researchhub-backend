@@ -43,6 +43,7 @@ from paper.utils import (
     convert_pdf_url_to_journal_url,
     invalidate_top_rated_cache,
     invalidate_newest_cache,
+    invalidate_trending_cache,
     invalidate_most_discussed_cache,
 )
 from researchhub.lib import get_document_id_from_path
@@ -473,6 +474,11 @@ class PaperSerializer(BasePaperSerializer):
                     countdown=10
                 )
 
+                hub_ids = list(map(lambda hub: hub.id, hubs))
+                if len(hub_ids) > 0:
+                    invalidate_newest_cache(hub_ids)
+                    reset_unified_document_cache(hub_ids)
+
                 return paper
         except IntegrityError as e:
             error = PaperSerializerError(e, 'Failed to create paper')
@@ -564,16 +570,14 @@ class PaperSerializer(BasePaperSerializer):
                 if file:
                     self._add_file(paper, file)
 
-                hub_ids = [0]
-                if hubs:
-                    hub_ids = list(
-                        map(lambda hub: hub.id, remove_hubs + new_hubs)
-                    )
-
-                reset_unified_document_cache(hub_ids)
-                invalidate_top_rated_cache(hub_ids)
-                invalidate_newest_cache(hub_ids)
-                invalidate_most_discussed_cache(hub_ids)
+                updated_hub_ids = list(
+                    map(lambda hub: hub.id, remove_hubs + new_hubs)
+                )
+                if len(updated_hub_ids) > 0:
+                    invalidate_top_rated_cache(updated_hub_ids)
+                    invalidate_newest_cache(updated_hub_ids)
+                    invalidate_most_discussed_cache(updated_hub_ids)
+                    reset_unified_document_cache(updated_hub_ids)
 
                 if request:
                     tracked_paper = events_api.track_content_paper(
