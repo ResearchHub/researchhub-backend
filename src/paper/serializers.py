@@ -477,7 +477,7 @@ class PaperSerializer(BasePaperSerializer):
                 hub_ids = list(map(lambda hub: hub.id, hubs))
                 if len(hub_ids) > 0:
                     invalidate_newest_cache(hub_ids)
-                    reset_unified_document_cache(hub_ids)
+                    # reset_unified_document_cache(hub_ids)
 
                 return paper
         except IntegrityError as e:
@@ -574,10 +574,11 @@ class PaperSerializer(BasePaperSerializer):
                     map(lambda hub: hub.id, remove_hubs + new_hubs)
                 )
                 if len(updated_hub_ids) > 0:
-                    invalidate_top_rated_cache(updated_hub_ids)
-                    invalidate_newest_cache(updated_hub_ids)
-                    invalidate_most_discussed_cache(updated_hub_ids)
-                    reset_unified_document_cache(updated_hub_ids)
+                    invalidate_top_rated_cache(updated_hub_ids, with_default=False)
+                    invalidate_newest_cache(updated_hub_ids, with_default=False)
+                    invalidate_most_discussed_cache(updated_hub_ids, with_default=False)
+                    invalidate_trending_cache(updated_hub_ids, with_default=False)
+                    # reset_unified_document_cache(updated_hub_ids)
 
                 if request:
                     tracked_paper = events_api.track_content_paper(

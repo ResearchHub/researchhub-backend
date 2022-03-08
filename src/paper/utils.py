@@ -36,12 +36,12 @@ CACHE_TOP_RATED_DATES = (
     '-score_year',
     '-score_all_time'
 )
-CACHE_MOST_DISCUSSED_DATES = (
-    '-discussed_today',
-    '-discussed_week',
-    '-discussed_month',
-    '-discussed_year',
-    '-discussed_all_time'
+CACHE_DATE_RANGES = (
+    'today',
+    'week',
+    'month',
+    'year',
+    'all_time'
 )
 CACHE_NEWEST_DATES = (
     '-created_date_today',
@@ -647,11 +647,13 @@ def invalidate_trending_cache(hub_ids, with_default=True):
         hub_ids = add_default_hub(hub_ids)
 
     for hub_id in hub_ids:
-        cache_key = get_cache_key(
-            'hub',
-            f'{hub_id}_-hot_score_today'
-        )
-        cache.delete(cache_key)
+        for date_range in CACHE_DATE_RANGES:
+            for doc_type in CACHE_DOCUMENT_TYPES:
+                cache_key = get_cache_key(
+                    'hub',
+                    f'{doc_type}_{hub_id}_-hot_score_{date_range}'
+                )
+                cache.delete(cache_key)
 
 
 def invalidate_top_rated_cache(hub_ids, with_default=True):
@@ -672,12 +674,13 @@ def invalidate_top_rated_cache(hub_ids, with_default=True):
         hub_ids = add_default_hub(hub_ids)
 
     for hub_id in hub_ids:
-        for key in CACHE_TOP_RATED_DATES:
-            cache_key = get_cache_key(
-                'hub',
-                f'{hub_id}_{key}'
-            )
-            cache.delete(cache_key)
+        for date_range in CACHE_DATE_RANGES:
+            for doc_type in CACHE_DOCUMENT_TYPES:
+                cache_key = get_cache_key(
+                    'hub',
+                    f'{doc_type}_{hub_id}_-score_{date_range}'
+                )
+                cache.delete(cache_key)
 
 
 def invalidate_newest_cache(
@@ -701,22 +704,14 @@ def invalidate_newest_cache(
         hub_ids = add_default_hub(hub_ids)
 
     for hub_id in hub_ids:
-        for key in CACHE_NEWEST_DATES:
+        for date_range in CACHE_DATE_RANGES:
             for doc_type in CACHE_DOCUMENT_TYPES:
                 cache_key = get_cache_key(
                     'hub',
-                    f'{doc_type}_{hub_id}_{key}'
+                    f'{doc_type}_{hub_id}_-created_date_{date_range}'
                 )
                 print('cache_key to delete', cache_key)
                 cache.delete(cache_key)
-
-
-    for hub_id in hub_ids:
-        cache_key = get_cache_key(
-            'hub',
-            f'{hub_id}_-uploaded_date_today'
-        )
-        cache.delete(cache_key)
 
 
 def invalidate_most_discussed_cache(hub_ids, with_default=True):
@@ -737,11 +732,11 @@ def invalidate_most_discussed_cache(hub_ids, with_default=True):
         hub_ids = add_default_hub(hub_ids)
 
     for hub_id in hub_ids:
-        for key in CACHE_MOST_DISCUSSED_DATES:
+        for date_range in CACHE_DATE_RANGES:
             for doc_type in CACHE_DOCUMENT_TYPES:
                 cache_key = get_cache_key(
                     'hub',
-                    f'{doc_type}_{hub_id}_{key}'
+                    f'{doc_type}_{hub_id}_-discussed_{date_range}'
                 )
                 cache.delete(cache_key)
 
