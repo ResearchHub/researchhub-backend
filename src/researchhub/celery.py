@@ -2,9 +2,11 @@ from __future__ import absolute_import, unicode_literals
 
 import os
 import time
+
 from celery import Celery, chain
 from celery.contrib import rdb
 from celery.exceptions import SoftTimeLimitExceeded
+
 from reputation.exceptions import ReputationDistributorError, WithdrawalError
 
 # Set the default Django settings module for the 'celery' program.
@@ -83,8 +85,10 @@ def soft_limit_test():
     try:
         print("waiting for 10 seconds")
         time.sleep(10)
+        return "slept"
     except SoftTimeLimitExceeded:
         print("time limit exceeded")
+        return "error"
 
 
 class TimeoutException(Exception):
@@ -111,7 +115,7 @@ def crossref_test(self, csl):
             raise TimeoutException("timeout")
         elif self.request.retries <= 2:
             raise Exception("error!")
-        return {**csl, "authors": ["leo"]}
+        return {**csl, "authors": ["q5"]}
     except TimeoutException:
         self.retry(countdown=2, max_retries=5)
 

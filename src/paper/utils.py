@@ -1,20 +1,19 @@
 import io
-import requests
+import math
+from datetime import datetime
+
 import fitz
 import jellyfish
 import nltk
-import math
-
+import requests
+from bs4 import BeautifulSoup
 from django.core.cache import cache
-from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
 from django.core.validators import URLValidator
-from datetime import datetime
+from django.db import models
 from habanero import Crossref
 from manubot.cite.csl_item import CSL_Item
-from bs4 import BeautifulSoup
-from utils import sentry
-from django.db import models
 
 from paper.exceptions import ManubotProcessingError
 from paper.lib import (
@@ -23,8 +22,10 @@ from paper.lib import (
     journal_pdf_to_url,
     journal_url_to_pdf,
 )
-
-from utils.http import check_url_contains_pdf, http_request, RequestMethods as methods
+from paper.manubot import RHCiteKey
+from utils import sentry
+from utils.http import RequestMethods as methods
+from utils.http import check_url_contains_pdf, http_request
 
 CACHE_TOP_RATED_DATES = (
     "-score_today",
@@ -41,10 +42,10 @@ CACHE_MOST_DISCUSSED_DATES = (
     "-discussed_all_time",
 )
 CACHE_DOCUMENT_TYPES = [
-    'all',
-    'paper',
-    'posts',
-    'hypothesis',
+    "all",
+    "paper",
+    "posts",
+    "hypothesis",
 ]
 MANUBOT_PAPER_TYPES = [
     "paper-conference",
@@ -287,11 +288,11 @@ def get_csl_item(url) -> dict:
     for most PDF URLs unless they are from known domains where
     persistent identifiers can be extracted.
     """
-    from manubot.cite.citekey import CiteKey, citekey_to_csl_item, url_to_citekey
+    from manubot.cite.citekey import citekey_to_csl_item, url_to_citekey
 
     try:
         citekey = url_to_citekey(url)
-        citekey = CiteKey(citekey).standard_id
+        citekey = RHCiteKey(citekey)
         csl_item = citekey_to_csl_item(citekey)
         return csl_item
     except Exception as e:
@@ -331,6 +332,7 @@ def get_location_for_unsupported_pdf(csl_item):
     provide an Unpaywall_Location pointing to that URL.
     """
     import datetime
+
     from manubot.cite.unpaywall import Unpaywall_Location
 
     url = csl_item.get("URL")
@@ -629,10 +631,7 @@ def invalidate_most_discussed_cache(hub_ids, with_default=True):
     for hub_id in hub_ids:
         for key in CACHE_MOST_DISCUSSED_DATES:
             for doc_type in CACHE_DOCUMENT_TYPES:
-                cache_key = get_cache_key(
-                    'hub',
-                    f'{doc_type}_{hub_id}_{key}'
-                )
+                cache_key = get_cache_key("hub", f"{doc_type}_{hub_id}_{key}")
                 cache.delete(cache_key)
 
 
