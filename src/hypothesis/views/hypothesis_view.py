@@ -1,4 +1,3 @@
-from researchhub_document.utils import reset_unified_document_cache
 from django.core.files.base import ContentFile
 from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly
@@ -22,7 +21,15 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.permissions import HasDocumentEditingPermission
 from utils.throttles import THROTTLE_CLASSES
-
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    TRENDING,
+    NEWEST,
+    TOP
+)
+from researchhub_document.tasks import (
+    invalidate_feed_cache
+)
 
 class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date')
@@ -53,6 +60,18 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         hypo.authors.set(authors)
         serializer = HypothesisSerializer(hypo)
         data = serializer.data
+
+        hub_ids = list(map(lambda hub: hub.id, unified_doc.hubs.all()))
+        invalidate_feed_cache.apply_async(
+            (
+                hub_ids,
+                [NEWEST],
+                True,
+                ['all', 'hypothesis']
+            ),
+            priority=2,
+            countdown=5
+        )
         return Response(data, status=200)
 
     def _create_unified_doc(self, request):
@@ -96,7 +115,18 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
             unified_doc = hypo.unified_document
             unified_doc.hubs.set(hubs)
 
-        reset_unified_document_cache([0])
+        print('hubs', hubs)
+        hub_ids = list(map(lambda hub: hub.id, hubs))
+        invalidate_feed_cache.apply_async(
+            (
+                hub_ids,
+                [NEWEST, DISCUSSED, TOP, TRENDING],
+                True,
+                ['all', 'hypothesis']
+            ),
+            priority=2,
+            countdown=5
+        )
         return Response(serializer.data, status=200)
 
     def _create_src_content_file(self, unified_doc, data, user):

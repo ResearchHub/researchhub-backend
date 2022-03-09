@@ -23,11 +23,9 @@ from researchhub_document.models import (
     ResearchhubUnifiedDocument,
     ResearchhubPost
 )
-from researchhub_document.utils import reset_unified_document_cache
-from paper.utils import (
-    invalidate_top_rated_cache,
-    invalidate_newest_cache,
-    invalidate_most_discussed_cache,
+from researchhub_document.utils import (
+    reset_unified_document_cache,
+    get_date_range_key,
 )
 from researchhub_document.serializers import (
     ResearchhubUnifiedDocumentSerializer,
@@ -55,7 +53,15 @@ from researchhub_document.permissions import (
     HasDocumentCensorPermission
 )
 from time import perf_counter
-
+from researchhub_document.tasks import (
+    invalidate_feed_cache
+)
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    TRENDING,
+    NEWEST,
+    TOP
+)
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     permission_classes = [
@@ -129,12 +135,19 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         hub_ids = list(self.get_object().hubs.values_list('pk', flat=True))
         hub_ids.append(0)
 
-        reset_unified_document_cache(hub_ids)
         reset_latest_acitvity_cache(
             ','.join([str(hub_id) for hub_id in hub_ids])
         )
-        invalidate_top_rated_cache(hub_ids)
-        invalidate_newest_cache(hub_ids)
+
+        invalidate_feed_cache.apply_async(
+            (
+                hub_ids,
+                [NEWEST,TOP,TRENDING],
+                True,
+            ),
+            priority=2,
+            countdown=5
+        )
 
         return update_response
 
@@ -447,22 +460,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         filtering,
         hub_id,
         page_number,
-        time_difference
+        date_range
     ):
         cache_hit = None
         if page_number == 1 and 'removed' not in filtering:
-            cache_pk = ''
-            if time_difference.days > 365:
-                cache_pk = f'{document_type}_{hub_id}_{filtering}_all_time'
-            elif time_difference.days == 365:
-                cache_pk = f'{document_type}_{hub_id}_{filtering}_year'
-            elif time_difference.days == 30 or time_difference.days == 31:
-                cache_pk = f'{document_type}_{hub_id}_{filtering}_month'
-            elif time_difference.days == 7:
-                cache_pk = f'{document_type}_{hub_id}_{filtering}_week'
-            else:
-                cache_pk = f'{document_type}_{hub_id}_{filtering}_today'
-
+            cache_pk = f'{document_type}_{hub_id}_{filtering}_{date_range}'
             cache_key_hub = get_cache_key('hub', cache_pk)
             cache_hit = cache.get(cache_key_hub)
 
@@ -504,12 +506,14 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         # hot score is live. For V2, We will not be
         # caching results, hence this check to only allow for v1.
         if use_v2_hot_score == False:
+            date_range = get_date_range_key(start_date, end_date)
+            print('date_range', date_range)
             cache_hit = self._get_unifed_document_cache_hit(
                 document_request_type,
                 filtering,
                 hub_id,
                 page_number,
-                time_difference
+                date_range
             )
             print('cache_hit', bool(cache_hit))
 
@@ -517,10 +521,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 return Response(cache_hit)
             elif not cache_hit and page_number == 1:
                 reset_unified_document_cache(
-                    [hub_id],
-                    [document_request_type],
-                    [filtering],
-                    time_difference.days
+                    hub_ids=[hub_id],
+                    document_type=[document_request_type],
+                    filters=[filtering],
+                    date_ranges=[date_range],
                 )
 
         documents = self.get_filtered_queryset(

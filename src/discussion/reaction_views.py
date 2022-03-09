@@ -17,12 +17,21 @@ from discussion.reaction_serializers import (
 )
 from reputation.tasks import create_contribution
 from reputation.models import Contribution
-from researchhub_document.utils import reset_unified_document_cache
+from researchhub_document.utils import (
+    reset_unified_document_cache,
+    get_doc_type_key
+)
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.siftscience import (
   decisions_api,
   events_api,
   update_user_risk_score
+)
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    TRENDING,
+    NEWEST,
+    TOP
 )
 
 
@@ -368,17 +377,27 @@ def update_or_create_vote(request, user, item, vote_type):
                 flat=True
             )
         )
+
     vote = retrieve_vote(user, item)
+    doc_type = get_doc_type_key(item.unified_document)
+
     # TODO: calvinhlee - figure out how to handle contributions
     if vote is not None:
         vote.vote_type = vote_type
         vote.save(update_fields=['updated_date', 'vote_type'])
-        reset_unified_document_cache(hub_ids)
+
+        reset_unified_document_cache(
+            hub_ids,
+            document_type=[doc_type, 'all'],
+        )
         # events_api.track_content_vote(user, vote, request)
         return get_vote_response(vote, 200)
 
     vote = create_vote(user, item, vote_type)
-    reset_unified_document_cache(hub_ids)
+    reset_unified_document_cache(
+        hub_ids,
+        document_type=[doc_type, 'all'],
+    )
 
     app_label = item._meta.app_label
     model = item._meta.model.__name__.lower()

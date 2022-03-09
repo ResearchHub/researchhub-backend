@@ -74,9 +74,6 @@ from paper.utils import (
     get_csl_item,
     get_pdf_location_for_csl_item,
     get_cache_key,
-    invalidate_top_rated_cache,
-    invalidate_newest_cache,
-    invalidate_most_discussed_cache,
     add_default_hub
 )
 from purchase.models import Purchase
@@ -92,8 +89,15 @@ from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from utils.siftscience import events_api, decisions_api
 from rest_framework.permissions import AllowAny
-from researchhub_document.utils import reset_unified_document_cache
-
+from researchhub_document.tasks import (
+    invalidate_feed_cache
+)
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    TRENDING,
+    NEWEST,
+    TOP
+)
 
 class PaperViewSet(viewsets.ModelViewSet):
     queryset = Paper.objects.filter()
@@ -318,7 +322,6 @@ class PaperViewSet(viewsets.ModelViewSet):
         cache_key = get_cache_key('paper', paper_id)
         cache.delete(cache_key)
         hub_ids = list(paper.hubs.values_list('id', flat=True))
-        hub_ids = add_default_hub(hub_ids)
 
         content_id = f'{type(paper).__name__}_{paper_id}'
         user = request.user
@@ -350,10 +353,17 @@ class PaperViewSet(viewsets.ModelViewSet):
         unified_document.is_removed = True
         unified_document.save()
 
-        reset_unified_document_cache(hub_ids)
-        invalidate_top_rated_cache(hub_ids)
-        invalidate_newest_cache(hub_ids)
-        invalidate_most_discussed_cache(hub_ids)
+        invalidate_feed_cache.apply_async(
+            (
+                hub_ids,
+                [NEWEST, TOP, TRENDING, DISCUSSED],
+                True,
+                ['all', 'paper']
+            ),
+            priority=2,
+            countdown=5
+        )
+
         return Response('Paper was deleted.', status=200)
 
     @action(
@@ -371,6 +381,18 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper.is_removed = True
         paper.save()
         paper.reset_cache(use_celery=False)
+
+        hub_ids = list(map(lambda hub: hub.id, paper.hubs.all()))
+        invalidate_feed_cache.apply_async(
+            (
+                hub_ids,
+                [NEWEST, TOP, TRENDING, DISCUSSED],
+                True,
+                ['all', 'paper']
+            ),
+            priority=2,
+            countdown=5
+        )
         return Response(
             self.get_serializer(instance=paper).data,
             status=200
@@ -391,6 +413,18 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper.is_removed = False
         paper.save()
         paper.reset_cache(use_celery=False)
+
+        hub_ids = list(map(lambda hub: hub.id, paper.hubs.all()))
+        invalidate_feed_cache.apply_async(
+            (
+                hub_ids,
+                [NEWEST, TOP, TRENDING, DISCUSSED],
+                True,
+                ['all', 'paper']
+            ),
+            priority=2,
+            countdown=5
+        )
         return Response(
             self.get_serializer(instance=paper).data,
             status=200
@@ -598,8 +632,16 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(request, user, paper, Vote.UPVOTE)
 
-        reset_unified_document_cache(hub_ids)
-        invalidate_top_rated_cache(hub_ids)
+        invalidate_feed_cache.apply_async(
+            (
+                hub_ids,
+                [TOP, TRENDING],
+                True,
+                ['all', 'paper']
+            ),
+            priority=2,
+            countdown=5
+        )
         paper.reset_cache()
 
         return response
@@ -615,7 +657,6 @@ class PaperViewSet(viewsets.ModelViewSet):
     def downvote(self, request, pk=None):
         paper = self.get_object()
         hub_ids = list(paper.hubs.values_list('id', flat=True))
-        hub_ids = add_default_hub(hub_ids)
         user = request.user
 
         vote_exists = find_vote(user, paper, Vote.DOWNVOTE)
@@ -627,8 +668,16 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(request, user, paper, Vote.DOWNVOTE)
 
-        reset_unified_document_cache(hub_ids)
-        invalidate_top_rated_cache(hub_ids)
+        invalidate_feed_cache.apply_async(
+            (
+                hub_ids,
+                [TOP, TRENDING],
+                True,
+                ['all', 'paper']
+            ),
+            priority=2,
+            countdown=5
+        )
         paper.reset_cache()
 
         return response

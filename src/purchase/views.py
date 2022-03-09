@@ -19,9 +19,6 @@ from paper.models import Paper
 from researchhub_document.models import ResearchhubPost
 from paper.utils import (
     get_cache_key,
-    invalidate_top_rated_cache,
-    invalidate_newest_cache,
-    invalidate_most_discussed_cache,
 )
 from purchase.models import (
     Purchase,
@@ -54,6 +51,15 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
+from researchhub_document.tasks import (
+    invalidate_feed_cache
+)
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    TRENDING,
+    NEWEST,
+    TOP
+)
 
 class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Balance.objects.all()
@@ -166,10 +172,17 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 cache.delete(cache_key)
                 transfer_rsc = True
 
-                # invalidate_trending_cache([])
-                invalidate_top_rated_cache([])
-                invalidate_most_discussed_cache([])
-                invalidate_newest_cache([])
+                hub_ids = list(map(lambda hub: hub.id, paper.hubs.all()))
+                invalidate_feed_cache.apply_async(
+                    (
+                        hub_ids,
+                        [TRENDING],
+                        True,
+                        ['all', 'paper']
+                    ),
+                    priority=2,
+                    countdown=5
+                )
             elif content_type_str == 'thread':
                 transfer_rsc = True
                 recipient = item.created_by
@@ -195,9 +208,17 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 recipient = item.created_by
                 unified_doc = item.unified_document
 
-                invalidate_top_rated_cache([])
-                invalidate_most_discussed_cache([])
-                invalidate_newest_cache([])
+                hub_ids = list(map(lambda hub: hub.id, item.post.hubs))
+                invalidate_feed_cache.apply_async(
+                    (
+                        hub_ids,
+                        [TRENDING],
+                        True,
+                        ['all', 'posts']
+                    ),
+                    priority=2,
+                    countdown=5
+                )
 
             if unified_doc.is_removed:
                 return Response('Content is removed', status=403)
