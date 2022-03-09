@@ -1169,6 +1169,7 @@ def celery_process_paper(self, submission_id):
 
     paper_submission = PaperSubmission.objects.get(id=submission_id)
     paper_submission.set_processing_status()
+    paper_submission.notify_status()
     uploaded_by = paper_submission.uploaded_by
     url = paper_submission.url
     args = (
@@ -1197,6 +1198,7 @@ def celery_manubot(self, celery_data):
     try:
         paper_submission = PaperSubmission.objects.get(id=submission_id)
         paper_submission.set_manubot_status()
+        paper_submission.notify_status()
 
         url = paper_data["url"]
         csl_item = get_csl_item(url)
@@ -1273,6 +1275,7 @@ def celery_crossref(self, celery_data):
     try:
         paper_submission = PaperSubmission.objects.get(id=submission_id)
         paper_submission.set_crossref_status()
+        paper_submission.notify_status()
 
         doi = paper_data["doi"]
         cr = Crossref()

@@ -57,7 +57,6 @@ from user.serializers import (
     DynamicUserSerializer,
     UserSerializer,
 )
-from utils.arxiv import Arxiv
 from utils.http import check_url_contains_pdf, get_user_from_request
 from utils.siftscience import events_api, update_user_risk_score
 from researchhub_document.related_models.constants.filters import (
@@ -367,7 +366,7 @@ class PaperSerializer(BasePaperSerializer):
                     if read_only_field in validated_data:
                         validated_data.pop(read_only_field, None)
 
-                valid_doi = self._check_valid_doi(validated_data)
+                # valid_doi = self._check_valid_doi(validated_data)
                 # if not valid_doi:
                 #     raise IntegrityError('DETAIL: Invalid DOI')
 
@@ -376,14 +375,6 @@ class PaperSerializer(BasePaperSerializer):
                 self._add_raw_authors(validated_data)
 
                 paper = None
-                # TODO: Replace this with proper metadata handling
-                if "https://arxiv.org/abs/" in validated_data.get("url", ""):
-                    arxiv_id = validated_data["url"].split("abs/")[1]
-                    arxiv_id = arxiv_id.strip(".pdf")
-                    arxiv_paper = Arxiv(
-                        id=arxiv_id, query=None, title=validated_data.get("title")
-                    )
-                    paper = arxiv_paper.create_paper(uploaded_by=user)
 
                 if paper is None:
                     # It is important to note that paper signals
