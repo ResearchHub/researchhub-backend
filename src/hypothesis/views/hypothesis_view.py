@@ -61,7 +61,7 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         serializer = HypothesisSerializer(hypo)
         data = serializer.data
 
-        hub_ids = list(map(lambda hub: hub.id, unified_doc.hubs.all()))
+        hub_ids = unified_doc.hubs.values_list('id', flat=True)
         invalidate_feed_cache(
             hub_ids,
             filters=[NEWEST],
