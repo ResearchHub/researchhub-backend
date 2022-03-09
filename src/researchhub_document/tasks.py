@@ -7,12 +7,14 @@ from django.apps import apps
 from django.http.request import HttpRequest
 from django.core.cache import cache
 from rest_framework.request import Request
+from django.db.models.query import QuerySet
 
 from researchhub_document.related_models.constants.document_type import (
     ALL,
     DISCUSSION,
     ELN,
     PAPER,
+    HYPOTHESIS,
     POSTS,
 )
 from paper.utils import get_cache_key
@@ -69,13 +71,14 @@ def recalc_hot_score_task(
 def preload_trending_documents(
     document_type,
     hub_id,
-    ordering,
-    time_difference
+    filtering,
+    time_scope,
 ):
     from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
     from researchhub_document.serializers import (
       DynamicUnifiedDocumentSerializer
     )
+
 
     initial_date = datetime.now().replace(
         hour=7,
@@ -84,22 +87,22 @@ def preload_trending_documents(
         microsecond=0
     )
     end_date = datetime.now()
-    if time_difference > 365:
-        cache_pk = f'{document_type}_{hub_id}_{ordering}_all_time'
+    if time_scope == 'all_time':
+        cache_pk = f'{document_type}_{hub_id}_{filtering}_all_time'
         start_date = datetime(
             year=2018,
             month=12,
             day=31,
             hour=7
         )
-    elif time_difference == 365:
-        cache_pk = f'{document_type}_{hub_id}_{ordering}_year'
+    elif time_scope == 'year':
+        cache_pk = f'{document_type}_{hub_id}_{filtering}_year'
         start_date = initial_date - timedelta(days=365)
-    elif time_difference == 30 or time_difference == 31:
-        cache_pk = f'{document_type}_{hub_id}_{ordering}_month'
+    elif time_scope == 'month':
+        cache_pk = f'{document_type}_{hub_id}_{filtering}_month'
         start_date = initial_date - timedelta(days=30)
-    elif time_difference == 7:
-        cache_pk = f'{document_type}_{hub_id}_{ordering}_week'
+    elif time_scope == 'week':
+        cache_pk = f'{document_type}_{hub_id}_{filtering}_week'
         start_date = initial_date - timedelta(days=7)
     else:
         start_date = datetime.now().replace(
@@ -108,19 +111,19 @@ def preload_trending_documents(
             second=0,
             microsecond=0
         )
-        cache_pk = f'{document_type}_{hub_id}_{ordering}_today'
+        cache_pk = f'{document_type}_{hub_id}_{filtering}_today'
 
-    query_string_ordering = 'top_rated'
-    if ordering == 'removed':
-        query_string_ordering = 'removed'
-    elif ordering == '-score':
-        query_string_ordering = 'top_rated'
-    elif ordering == '-discussed':
-        query_string_ordering = 'most_discussed'
-    elif ordering == '-created_date':
-        query_string_ordering = 'newest'
-    elif ordering == '-hot_score':
-        query_string_ordering = 'hot'
+    query_string_filtering = 'top_rated'
+    if filtering == 'removed':
+        query_string_filtering = 'removed'
+    elif filtering == '-score':
+        query_string_filtering = 'top_rated'
+    elif filtering == '-discussed':
+        query_string_filtering = 'most_discussed'
+    elif filtering == '-created_date':
+        query_string_filtering = 'newest'
+    elif filtering == '-hot_score':
+        query_string_filtering = 'hot'
 
     request_path = '/api/paper/get_hub_papers/'
     if STAGING:
@@ -135,10 +138,10 @@ def preload_trending_documents(
 
     start_date_timestamp = int(start_date.timestamp())
     end_date_timestamp = int(end_date.timestamp())
-    query_string = 'page=1&start_date__gte={}&end_date__lte={}&ordering={}&hub_id={}&'.format(
+    query_string = 'page=1&start_date__gte={}&end_date__lte={}&filtering={}&hub_id={}&'.format(
         start_date_timestamp,
         end_date_timestamp,
-        query_string_ordering,
+        query_string_filtering,
         hub_id
     )
     http_meta = {
@@ -156,7 +159,7 @@ def preload_trending_documents(
 
     documents = document_view.get_filtered_queryset(
         document_type,
-        ordering,
+        filtering,
         hub_id,
         start_date,
         end_date
@@ -193,7 +196,7 @@ def preload_trending_documents(
 
 # Executes every 5 minutes
 @periodic_task(
-    run_every=crontab(minute='*/5'),
+    run_every=crontab(minute='*/25'),
     priority=1,
     options={'queue': f'{APP_ENV}_core_queue'}
 )
@@ -259,3 +262,55 @@ def preload_hub_documents(
 @app.task
 def update_elastic_registry(post):
     registry.update(post)
+
+
+def invalidate_feed_cache(
+    hub_ids,
+    filters,
+    with_default=True,
+    document_types=[
+        ALL.lower(),
+        POSTS.lower(),
+        PAPER.lower(),
+        HYPOTHESIS.lower()
+    ],
+    date_ranges=[
+        'today',
+        'week',
+        'month',
+        'year',
+        'all_time'
+    ],
+    reload_cache=True
+):
+    from researchhub_document.utils import (
+        invalidate_most_discussed_cache,
+        invalidate_newest_cache,
+        invalidate_top_rated_cache,
+        invalidate_trending_cache
+    )
+    from researchhub_document.related_models.constants.filters import (
+        DISCUSSED,
+        TRENDING,
+        NEWEST,
+        TOP
+    )
+    from researchhub_document.utils import reset_unified_document_cache
+
+    if isinstance(hub_ids, QuerySet):
+        hub_ids = list(hub_ids)
+
+    if DISCUSSED in filters:
+        invalidate_most_discussed_cache(hub_ids, document_types, date_ranges, with_default)
+    if TRENDING in filters:
+        invalidate_trending_cache(hub_ids, document_types, date_ranges, with_default)
+    if NEWEST in filters:
+        invalidate_newest_cache(hub_ids, document_types, date_ranges, with_default)
+    if TOP in filters:
+        invalidate_top_rated_cache(hub_ids, document_types, date_ranges, with_default)
+
+    if reload_cache:
+        if with_default:
+            hub_ids.append(0)
+
+        reset_unified_document_cache(hub_ids=hub_ids, document_type=document_types, filters=filters, date_ranges=date_ranges)

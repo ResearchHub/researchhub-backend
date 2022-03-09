@@ -41,9 +41,6 @@ from paper.utils import (
     check_url_is_pdf,
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url,
-    invalidate_top_rated_cache,
-    invalidate_newest_cache,
-    invalidate_most_discussed_cache,
 )
 from researchhub.lib import get_document_id_from_path
 from reputation.models import Contribution
@@ -62,9 +59,16 @@ from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.utils import (
     update_unified_document_to_paper,
-    reset_unified_document_cache
 )
-
+from researchhub_document.tasks import (
+    invalidate_feed_cache
+)
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    TRENDING,
+    NEWEST,
+    TOP
+)
 
 class BasePaperSerializer(serializers.ModelSerializer):
     authors = serializers.SerializerMethodField()
@@ -473,6 +477,15 @@ class PaperSerializer(BasePaperSerializer):
                     countdown=10
                 )
 
+                hub_ids = unified_doc.hubs.values_list('id', flat=True)
+                if hub_ids.exists():
+                    invalidate_feed_cache(
+                        hub_ids,
+                        filters=[NEWEST],
+                        with_default=True,
+                        document_types=['all', 'paper']
+                    )
+
                 return paper
         except IntegrityError as e:
             error = PaperSerializerError(e, 'Failed to create paper')
@@ -524,13 +537,13 @@ class PaperSerializer(BasePaperSerializer):
                 file = paper.file
                 self._check_pdf_title(paper, paper_title, file)
 
+                new_hubs = []
+                remove_hubs = []
                 if hubs:
                     current_hubs = paper.hubs.all()
-                    remove_hubs = []
                     for current_hub in current_hubs:
                         if current_hub not in hubs:
                             remove_hubs.append(current_hub)
-                    new_hubs = []
                     for hub in hubs:
                         if hub not in current_hubs:
                             new_hubs.append(hub)
@@ -564,16 +577,16 @@ class PaperSerializer(BasePaperSerializer):
                 if file:
                     self._add_file(paper, file)
 
-                hub_ids = [0]
-                if hubs:
-                    hub_ids = list(
-                        map(lambda hub: hub.id, remove_hubs + new_hubs)
+                updated_hub_ids = list(
+                    map(lambda hub: hub.id, remove_hubs + new_hubs)
+                )
+                if len(updated_hub_ids) > 0:
+                    invalidate_feed_cache(
+                        hub_ids=updated_hub_ids,
+                        filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+                        with_default=True,
+                        document_types=['all', 'paper']
                     )
-
-                reset_unified_document_cache(hub_ids)
-                invalidate_top_rated_cache(hub_ids)
-                invalidate_newest_cache(hub_ids)
-                invalidate_most_discussed_cache(hub_ids)
 
                 if request:
                     tracked_paper = events_api.track_content_paper(

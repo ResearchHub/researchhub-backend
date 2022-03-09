@@ -43,13 +43,7 @@ from discussion.permissions import (
 )
 from hypothesis.models import Hypothesis, Citation
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.utils import reset_unified_document_cache
 from paper.models import Paper
-from paper.utils import (
-    invalidate_most_discussed_cache,
-    invalidate_newest_cache,
-    invalidate_top_rated_cache,
-)
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from utils import sentry
@@ -65,6 +59,16 @@ from .utils import (
     get_thread_id_from_path,
     get_comment_id_from_path,
 )
+from researchhub_document.tasks import (
+    invalidate_feed_cache
+)
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    TRENDING,
+    NEWEST,
+    TOP
+)
+from researchhub_document.utils import get_doc_type_key
 
 DOCUMENT_MODELS = {
     'citation': Citation,
@@ -126,10 +130,15 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             priority=2,
             countdown=10
         )
-        reset_unified_document_cache([0])
-        invalidate_top_rated_cache(hubs)
-        invalidate_newest_cache(hubs)
-        invalidate_most_discussed_cache(hubs)
+
+        doc_type = get_doc_type_key(unified_document)
+        invalidate_feed_cache(
+            hub_ids=hubs,
+            filters=[DISCUSSED],
+            with_default=True,
+            document_types=['all', doc_type]
+        )
+
         return response
 
     def update(self, request, *args, **kwargs):
@@ -311,10 +320,15 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             priority=3,
             countdown=10
         )
-        reset_unified_document_cache([0])
-        invalidate_top_rated_cache(hubs)
-        invalidate_newest_cache(hubs)
-        invalidate_most_discussed_cache(hubs)
+
+        doc_type = get_doc_type_key(unified_document)
+        invalidate_feed_cache(
+            hub_ids=hubs,
+            filters=[DISCUSSED],
+            with_default=True,
+            document_types=['all', doc_type]
+        )
+
         return response
 
     def update(self, request, *args, **kwargs):
@@ -415,6 +429,14 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             ),
             priority=3,
             countdown=10
+        )
+
+        doc_type = get_doc_type_key(unified_document)
+        invalidate_feed_cache(
+            hub_ids=hubs,
+            filters=[DISCUSSED],
+            with_default=True,
+            document_types=['all', doc_type]
         )
 
         return self.get_self_upvote_response(request, response, Reply)
