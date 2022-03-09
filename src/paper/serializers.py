@@ -478,7 +478,7 @@ class PaperSerializer(BasePaperSerializer):
                 )
 
                 hub_ids = unified_doc.hubs.values_list('id', flat=True)
-                if len(hub_ids) > 0:
+                if hub_ids.exists():
                     invalidate_feed_cache(
                         hub_ids,
                         filters=[NEWEST],
