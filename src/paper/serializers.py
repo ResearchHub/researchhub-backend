@@ -46,10 +46,13 @@ from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
-from researchhub_document.utils import (
-    reset_unified_document_cache,
-    update_unified_document_to_paper,
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    NEWEST,
+    TOP,
+    TRENDING,
 )
+from researchhub_document.utils import update_unified_document_to_paper
 from user.models import Author, User
 from user.serializers import (
     AuthorSerializer,
@@ -59,11 +62,8 @@ from user.serializers import (
 )
 from utils.http import check_url_contains_pdf, get_user_from_request
 from utils.siftscience import events_api, update_user_risk_score
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    TRENDING,
-    NEWEST,
-    TOP
+from researchhub_document.utils import (
+    reset_unified_document_cache,
 )
 
 
@@ -441,7 +441,7 @@ class PaperSerializer(BasePaperSerializer):
                     (paper_id,), priority=5, countdown=10
                 )
 
-                hub_ids = unified_doc.hubs.values_list('id', flat=True)
+                hub_ids = unified_doc.hubs.values_list("id", flat=True)
                 if hub_ids.exists():
                     reset_unified_document_cache(
                         hub_ids,
@@ -531,9 +531,7 @@ class PaperSerializer(BasePaperSerializer):
                 if file:
                     self._add_file(paper, file)
 
-                updated_hub_ids = list(
-                    map(lambda hub: hub.id, remove_hubs + new_hubs)
-                )
+                updated_hub_ids = list(map(lambda hub: hub.id, remove_hubs + new_hubs))
                 if len(updated_hub_ids) > 0:
                     reset_unified_document_cache(
                         hub_ids=updated_hub_ids,

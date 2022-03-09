@@ -41,12 +41,12 @@ CACHE_MOST_DISCUSSED_DATES = (
     "-discussed_year",
     "-discussed_all_time",
 )
-CACHE_DOCUMENT_TYPES = [
+CACHE_DOCUMENT_TYPES = (
     "all",
     "paper",
     "posts",
     "hypothesis",
-]
+)
 MANUBOT_PAPER_TYPES = [
     "paper-conference",
     "article-journal",

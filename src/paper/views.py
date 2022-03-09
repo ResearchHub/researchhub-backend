@@ -71,7 +71,12 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub_document.permissions import HasDocumentCensorPermission
-from researchhub_document.utils import reset_unified_document_cache
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    NEWEST,
+    TOP,
+    TRENDING,
+)
 from researchhub_document.views.custom.unified_document_pagination import (
     UNIFIED_DOC_PAGE_SIZE,
 )
@@ -81,14 +86,6 @@ from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed
 from utils.sentry import log_error, log_info
 from utils.siftscience import decisions_api, events_api
 from utils.throttles import THROTTLE_CLASSES
-from utils.siftscience import events_api, decisions_api
-from rest_framework.permissions import AllowAny
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    TRENDING,
-    NEWEST,
-    TOP
-)
 from researchhub_document.utils import (
     reset_unified_document_cache,
 )
@@ -302,7 +299,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         unified_doc = paper.unified_document
         cache_key = get_cache_key("paper", paper_id)
         cache.delete(cache_key)
-        hub_ids = list(paper.hubs.values_list('id', flat=True))
+        hub_ids = list(paper.hubs.values_list("id", flat=True))
 
         content_id = f"{type(paper).__name__}_{paper_id}"
         user = request.user
@@ -332,7 +329,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             with_default_hub=True,
         )
 
-        return Response('Paper was deleted.', status=200)
+        return Response("Paper was deleted.", status=200)
 
     @action(
         detail=True,
@@ -361,6 +358,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             self.get_serializer(instance=paper).data,
             status=200
         )
+        return Response(self.get_serializer(instance=paper).data, status=200)
 
     @action(
         detail=True,
@@ -388,6 +386,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             self.get_serializer(instance=paper).data,
             status=200
         )
+        return Response(self.get_serializer(instance=paper).data, status=200)
 
     @action(
         detail=True,
@@ -568,7 +567,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     )
     def downvote(self, request, pk=None):
         paper = self.get_object()
-        hub_ids = list(paper.hubs.values_list('id', flat=True))
+        hub_ids = list(paper.hubs.values_list("id", flat=True))
         user = request.user
 
         vote_exists = find_vote(user, paper, Vote.DOWNVOTE)
