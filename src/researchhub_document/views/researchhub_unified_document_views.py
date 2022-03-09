@@ -170,9 +170,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         doc = self.get_object()
         doc_type = get_doc_type_key(doc)
-        print('***************')
-        print(doc)
-        print('***************')
         invalidate_feed_cache.apply_async(
             (
                 hub_ids,
@@ -503,8 +500,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             cache_key_hub = get_cache_key('hub', cache_pk)
             cache_hit = cache.get(cache_key_hub)
 
-            print('cache_key_hub', cache_key_hub)
-
         if cache_hit:
             return cache_hit
         return None
@@ -542,7 +537,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         # caching results, hence this check to only allow for v1.
         if use_v2_hot_score == False:
             date_range = get_date_range_key(start_date, end_date)
-            print('date_range', date_range)
             cache_hit = self._get_unifed_document_cache_hit(
                 document_request_type,
                 filtering,
@@ -550,7 +544,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 page_number,
                 date_range
             )
-            print('cache_hit', bool(cache_hit))
 
             if cache_hit and page_number == 1:
                 return Response(cache_hit)

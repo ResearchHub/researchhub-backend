@@ -184,9 +184,6 @@ def preload_trending_documents(
     )
 
     cache_key_hub = get_cache_key('hub', cache_pk)
-    print('+++++++++++++++')
-    print('PRELOADING', cache_key_hub)
-    print('+++++++++++++++')
     cache.set(
         cache_key_hub,
         paginated_response.data,

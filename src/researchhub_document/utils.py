@@ -149,9 +149,6 @@ def invalidate_trending_cache(
     date_ranges=CACHE_DATE_RANGES,
     with_default=True
 ):
-    print('************************')
-    print('INVALIDATING TRENDING!!!!')
-    print('************************')
     if with_default:
         hub_ids = add_default_hub(hub_ids)
 
@@ -171,9 +168,6 @@ def invalidate_top_rated_cache(
     date_ranges=CACHE_DATE_RANGES,
     with_default=True
 ):
-    print('************************')
-    print('INVALIDATING TOP RATED!!!!')
-    print('************************')
     if with_default:
         hub_ids = add_default_hub(hub_ids)
 
@@ -193,9 +187,6 @@ def invalidate_newest_cache(
     date_ranges=CACHE_DATE_RANGES,
     with_default=True,
 ):
-    print('************************')
-    print('INVALIDATING NEWEST!!!!')
-    print('************************')
     if with_default:
         hub_ids = add_default_hub(hub_ids)
 
@@ -216,9 +207,6 @@ def invalidate_most_discussed_cache(
     date_ranges=CACHE_DATE_RANGES,
     with_default=True
 ):
-    print('************************')
-    print('INVALIDATE MOST DISCUSSED!!!!')
-    print('************************')
     if with_default:
         hub_ids = add_default_hub(hub_ids)
 
