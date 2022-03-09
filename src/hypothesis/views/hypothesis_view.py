@@ -115,18 +115,6 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
             unified_doc = hypo.unified_document
             unified_doc.hubs.set(hubs)
 
-        print('hubs', hubs)
-        hub_ids = list(map(lambda hub: hub.id, hubs))
-        invalidate_feed_cache.apply_async(
-            (
-                hub_ids,
-                [NEWEST, DISCUSSED, TOP, TRENDING],
-                True,
-                ['all', 'hypothesis']
-            ),
-            priority=2,
-            countdown=5
-        )
         return Response(serializer.data, status=200)
 
     def _create_src_content_file(self, unified_doc, data, user):

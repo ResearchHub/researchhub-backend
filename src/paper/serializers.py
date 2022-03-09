@@ -584,7 +584,6 @@ class PaperSerializer(BasePaperSerializer):
                 updated_hub_ids = list(
                     map(lambda hub: hub.id, remove_hubs + new_hubs)
                 )
-                print('updated_hub_ids', updated_hub_ids)
                 if len(updated_hub_ids) > 0:
                     invalidate_feed_cache.apply_async(
                         (

@@ -62,6 +62,9 @@ from researchhub_document.related_models.constants.filters import (
     NEWEST,
     TOP
 )
+from researchhub_document.utils import (
+    get_doc_type_key
+)
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     permission_classes = [
@@ -84,6 +87,19 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         doc.is_removed = True
         doc.save()
 
+        doc_type = get_doc_type_key(doc)
+        hub_ids = list(map(lambda hub: hub.id, doc.hubs.all()))
+        invalidate_feed_cache.apply_async(
+            (
+                hub_ids,
+                [NEWEST, DISCUSSED, TRENDING, TOP],
+                True,
+                ['all', doc_type]
+            ),
+            priority=2,
+            countdown=5
+        )
+
         return Response(
             self.get_serializer(instance=doc).data,
             status=200
@@ -100,6 +116,19 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         doc = self.get_object()
         doc.is_removed = False
         doc.save()
+
+        doc_type = get_doc_type_key(doc)
+        hub_ids = list(map(lambda hub: hub.id, doc.hubs.all()))
+        invalidate_feed_cache.apply_async(
+            (
+                hub_ids,
+                [NEWEST, DISCUSSED, TRENDING, TOP],
+                True,
+                ['all', doc_type]
+            ),
+            priority=2,
+            countdown=5
+        )
 
         return Response(
             self.get_serializer(instance=doc).data,
@@ -139,11 +168,17 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             ','.join([str(hub_id) for hub_id in hub_ids])
         )
 
+        doc = self.get_object()
+        doc_type = get_doc_type_key(doc)
+        print('***************')
+        print(doc)
+        print('***************')
         invalidate_feed_cache.apply_async(
             (
                 hub_ids,
-                [NEWEST,TOP,TRENDING],
+                [NEWEST,TOP,TRENDING, DISCUSSED],
                 True,
+                ['all', doc_type]
             ),
             priority=2,
             countdown=5

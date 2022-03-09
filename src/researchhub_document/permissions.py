@@ -32,9 +32,10 @@ class HasDocumentCensorPermission(AuthorizationBasedPermission):
         if (doc is None):
             return False
 
+        doc_hubs = doc.unified_document.hubs.all()
         requestor = request.user
         is_requestor_appropriate_editor = requestor.is_hub_editor_of(
-            doc.hubs,
+            doc_hubs,
         )
         if (
             requestor.moderator or  # moderators serve as site admin

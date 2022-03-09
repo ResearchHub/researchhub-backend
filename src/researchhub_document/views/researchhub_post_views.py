@@ -11,11 +11,19 @@ from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.models import (
     ResearchhubPost, ResearchhubUnifiedDocument
 )
-from researchhub_document.utils import reset_unified_document_cache
+from researchhub_document.tasks import (
+    invalidate_feed_cache
+)
 from researchhub_document.serializers.researchhub_post_serializer \
     import ResearchhubPostSerializer
 from utils.sentry import log_error
 from researchhub_document.permissions import HasDocumentEditingPermission
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    TRENDING,
+    NEWEST,
+    TOP
+)
 
 class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date')
@@ -97,7 +105,18 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                     flat=True
                 )
             )
-            reset_unified_document_cache(hub_ids)
+
+            invalidate_feed_cache.apply_async(
+                (
+                    hub_ids,
+                    [NEWEST],
+                    True,
+                    ['all', 'posts']
+                ),
+                priority=2,
+                countdown=5
+            )
+
             return Response(
                 ResearchhubPostSerializer(
                     rh_post
@@ -142,7 +161,18 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                 flat=True
             )
         )
-        reset_unified_document_cache(hub_ids)
+
+        invalidate_feed_cache.apply_async(
+            (
+                hub_ids,
+                [NEWEST, DISCUSSED, TOP, TRENDING],
+                True,
+                ['all', 'posts']
+            ),
+            priority=2,
+            countdown=5
+        )
+
         return Response(serializer.data, status=200)
 
     def create_access_group(self, request):

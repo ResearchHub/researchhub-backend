@@ -370,7 +370,10 @@ def create_vote(user, item, vote_type):
 
 def update_or_create_vote(request, user, item, vote_type):
     hub_ids = [0]
-    if hasattr(item, 'unified_document'):
+    # NOTE: Hypothesis citations do not have a unified document attached
+    has_unified_doc = hasattr(item, 'unified_document')
+
+    if has_unified_doc:
         hub_ids += list(
             item.unified_document.hubs.values_list(
                 'id',
@@ -379,25 +382,29 @@ def update_or_create_vote(request, user, item, vote_type):
         )
 
     vote = retrieve_vote(user, item)
-    doc_type = get_doc_type_key(item.unified_document)
 
     # TODO: calvinhlee - figure out how to handle contributions
     if vote is not None:
         vote.vote_type = vote_type
         vote.save(update_fields=['updated_date', 'vote_type'])
 
-        reset_unified_document_cache(
-            hub_ids,
-            document_type=[doc_type, 'all'],
-        )
+        if has_unified_doc:
+            doc_type = get_doc_type_key(item.unified_document)
+            reset_unified_document_cache(
+                hub_ids,
+                document_type=[doc_type, 'all'],
+            )
+
         # events_api.track_content_vote(user, vote, request)
         return get_vote_response(vote, 200)
 
     vote = create_vote(user, item, vote_type)
-    reset_unified_document_cache(
-        hub_ids,
-        document_type=[doc_type, 'all'],
-    )
+    if has_unified_doc:
+        doc_type = get_doc_type_key(item.unified_document)
+        reset_unified_document_cache(
+            hub_ids,
+            document_type=[doc_type, 'all'],
+        )
 
     app_label = item._meta.app_label
     model = item._meta.model.__name__.lower()
