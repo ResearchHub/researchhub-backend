@@ -477,7 +477,7 @@ class PaperSerializer(BasePaperSerializer):
                     countdown=10
                 )
 
-                hub_ids = list(map(lambda hub: hub.id, hubs))
+                hub_ids = unified_doc.hubs.values_list('id', flat=True)
                 if len(hub_ids) > 0:
                     invalidate_feed_cache(
                         hub_ids,
