@@ -132,15 +132,11 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         )
 
         doc_type = get_doc_type_key(unified_document)
-        invalidate_feed_cache.apply_async(
-            (
-                hubs,
-                [DISCUSSED],
-                True,
-                ['all', doc_type]
-            ),
-            priority=2,
-            countdown=5
+        invalidate_feed_cache(
+            hub_ids=hubs,
+            filters=[DISCUSSED],
+            with_default=True,
+            document_types=['all', doc_type]
         )
 
         return response
@@ -326,15 +322,11 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         )
 
         doc_type = get_doc_type_key(unified_document)
-        invalidate_feed_cache.apply_async(
-            (
-                hubs,
-                [DISCUSSED],
-                True,
-                ['all', doc_type]
-            ),
-            priority=2,
-            countdown=5
+        invalidate_feed_cache(
+            hub_ids=hubs,
+            filters=[DISCUSSED],
+            with_default=True,
+            document_types=['all', doc_type]
         )
 
         return response
@@ -440,15 +432,11 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         )
 
         doc_type = get_doc_type_key(unified_document)
-        invalidate_feed_cache.apply_async(
-            (
-                hubs,
-                [DISCUSSED],
-                True,
-                ['all', doc_type]
-            ),
-            priority=2,
-            countdown=5
+        invalidate_feed_cache(
+            hub_ids=hubs,
+            filters=[DISCUSSED],
+            with_default=True,
+            document_types=['all', doc_type]
         )
 
         return self.get_self_upvote_response(request, response, Reply)

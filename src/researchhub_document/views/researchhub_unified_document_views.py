@@ -89,15 +89,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         doc_type = get_doc_type_key(doc)
         hub_ids = list(map(lambda hub: hub.id, doc.hubs.all()))
-        invalidate_feed_cache.apply_async(
-            (
-                hub_ids,
-                [NEWEST, DISCUSSED, TRENDING, TOP],
-                True,
-                ['all', doc_type]
-            ),
-            priority=2,
-            countdown=5
+        invalidate_feed_cache(
+            hub_ids,
+            filters=[NEWEST,TOP,TRENDING, DISCUSSED],
+            with_default=True,
+            document_types=['all', doc_type]
         )
 
         return Response(
@@ -119,15 +115,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         doc_type = get_doc_type_key(doc)
         hub_ids = list(map(lambda hub: hub.id, doc.hubs.all()))
-        invalidate_feed_cache.apply_async(
-            (
-                hub_ids,
-                [NEWEST, DISCUSSED, TRENDING, TOP],
-                True,
-                ['all', doc_type]
-            ),
-            priority=2,
-            countdown=5
+        invalidate_feed_cache(
+            hub_ids,
+            filters=[NEWEST,TOP,TRENDING, DISCUSSED],
+            with_default=True,
+            document_types=['all', doc_type]
         )
 
         return Response(
@@ -170,15 +162,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         doc = self.get_object()
         doc_type = get_doc_type_key(doc)
-        invalidate_feed_cache.apply_async(
-            (
-                hub_ids,
-                [NEWEST,TOP,TRENDING, DISCUSSED],
-                True,
-                ['all', doc_type]
-            ),
-            priority=2,
-            countdown=5
+        invalidate_feed_cache(
+            hub_ids,
+            filters=[NEWEST,TOP,TRENDING, DISCUSSED],
+            with_default=True,
+            document_types=['all', doc_type]
         )
 
         return update_response

@@ -106,15 +106,11 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                 )
             )
 
-            invalidate_feed_cache.apply_async(
-                (
-                    hub_ids,
-                    [NEWEST],
-                    True,
-                    ['all', 'posts']
-                ),
-                priority=2,
-                countdown=5
+            invalidate_feed_cache(
+                hub_ids,
+                filters=[NEWEST],
+                with_default=True,
+                document_types=['all', 'posts']
             )
 
             return Response(
@@ -162,15 +158,11 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             )
         )
 
-        invalidate_feed_cache.apply_async(
-            (
-                hub_ids,
-                [NEWEST, DISCUSSED, TOP, TRENDING],
-                True,
-                ['all', 'posts']
-            ),
-            priority=2,
-            countdown=5
+        invalidate_feed_cache(
+            hub_ids,
+            filters=[NEWEST, DISCUSSED, TOP, TRENDING],
+            with_default=True,
+            document_types=['all', 'posts']
         )
 
         return Response(serializer.data, status=200)

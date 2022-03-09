@@ -195,7 +195,7 @@ def preload_trending_documents(
 
 # Executes every 5 minutes
 @periodic_task(
-    run_every=crontab(minute='*/5'),
+    run_every=crontab(minute='*/25'),
     priority=1,
     options={'queue': f'{APP_ENV}_core_queue'}
 )
@@ -263,7 +263,6 @@ def update_elastic_registry(post):
     registry.update(post)
 
 
-@app.task
 def invalidate_feed_cache(
     hub_ids,
     filters,

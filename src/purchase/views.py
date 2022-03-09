@@ -173,15 +173,11 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 transfer_rsc = True
 
                 hub_ids = list(map(lambda hub: hub.id, paper.hubs.all()))
-                invalidate_feed_cache.apply_async(
-                    (
-                        hub_ids,
-                        [TRENDING],
-                        True,
-                        ['all', 'paper']
-                    ),
-                    priority=2,
-                    countdown=5
+                invalidate_feed_cache(
+                    hub_ids,
+                    filters=[TRENDING],
+                    with_default=True,
+                    document_types=['all', 'paper']
                 )
             elif content_type_str == 'thread':
                 transfer_rsc = True
@@ -209,15 +205,11 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 unified_doc = item.unified_document
 
                 hub_ids = list(map(lambda hub: hub.id, item.post.hubs))
-                invalidate_feed_cache.apply_async(
-                    (
-                        hub_ids,
-                        [TRENDING],
-                        True,
-                        ['all', 'posts']
-                    ),
-                    priority=2,
-                    countdown=5
+                invalidate_feed_cache(
+                    hub_ids,
+                    filters=[TRENDING],
+                    with_default=True,
+                    document_types=['all', 'posts']
                 )
 
             if unified_doc.is_removed:

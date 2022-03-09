@@ -353,15 +353,11 @@ class PaperViewSet(viewsets.ModelViewSet):
         unified_document.is_removed = True
         unified_document.save()
 
-        invalidate_feed_cache.apply_async(
-            (
-                hub_ids,
-                [NEWEST, TOP, TRENDING, DISCUSSED],
-                True,
-                ['all', 'paper']
-            ),
-            priority=2,
-            countdown=5
+        invalidate_feed_cache(
+            hub_ids,
+            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+            with_default=True,
+            document_types=['all', 'paper']
         )
 
         return Response('Paper was deleted.', status=200)
@@ -383,15 +379,11 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper.reset_cache(use_celery=False)
 
         hub_ids = list(map(lambda hub: hub.id, paper.hubs.all()))
-        invalidate_feed_cache.apply_async(
-            (
-                hub_ids,
-                [NEWEST, TOP, TRENDING, DISCUSSED],
-                True,
-                ['all', 'paper']
-            ),
-            priority=2,
-            countdown=5
+        invalidate_feed_cache(
+            hub_ids,
+            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+            with_default=True,
+            document_types=['all', 'paper']
         )
         return Response(
             self.get_serializer(instance=paper).data,
@@ -415,15 +407,11 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper.reset_cache(use_celery=False)
 
         hub_ids = list(map(lambda hub: hub.id, paper.hubs.all()))
-        invalidate_feed_cache.apply_async(
-            (
-                hub_ids,
-                [NEWEST, TOP, TRENDING, DISCUSSED],
-                True,
-                ['all', 'paper']
-            ),
-            priority=2,
-            countdown=5
+        invalidate_feed_cache(
+            hub_ids,
+            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+            with_default=True,
+            document_types=['all', 'paper']
         )
         return Response(
             self.get_serializer(instance=paper).data,
@@ -632,15 +620,11 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(request, user, paper, Vote.UPVOTE)
 
-        invalidate_feed_cache.apply_async(
-            (
-                hub_ids,
-                [TOP, TRENDING],
-                True,
-                ['all', 'paper']
-            ),
-            priority=2,
-            countdown=5
+        invalidate_feed_cache(
+            hub_ids,
+            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+            with_default=True,
+            document_types=['all', 'paper']
         )
         paper.reset_cache()
 
@@ -668,15 +652,11 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(request, user, paper, Vote.DOWNVOTE)
 
-        invalidate_feed_cache.apply_async(
-            (
-                hub_ids,
-                [TOP, TRENDING],
-                True,
-                ['all', 'paper']
-            ),
-            priority=2,
-            countdown=5
+        invalidate_feed_cache(
+            hub_ids,
+            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+            with_default=True,
+            document_types=['all', 'paper']
         )
         paper.reset_cache()
 

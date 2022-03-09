@@ -479,15 +479,11 @@ class PaperSerializer(BasePaperSerializer):
 
                 hub_ids = list(map(lambda hub: hub.id, hubs))
                 if len(hub_ids) > 0:
-                    invalidate_feed_cache.apply_async(
-                        (
-                            hub_ids,
-                            [NEWEST],
-                            True,
-                            ['all', 'paper']
-                        ),
-                        priority=2,
-                        countdown=5
+                    invalidate_feed_cache(
+                        hub_ids,
+                        filters=[NEWEST],
+                        with_default=True,
+                        document_types=['all', 'paper']
                     )
 
                 return paper
@@ -585,15 +581,11 @@ class PaperSerializer(BasePaperSerializer):
                     map(lambda hub: hub.id, remove_hubs + new_hubs)
                 )
                 if len(updated_hub_ids) > 0:
-                    invalidate_feed_cache.apply_async(
-                        (
-                            updated_hub_ids,
-                            [NEWEST, TOP, TRENDING, DISCUSSED],
-                            True,
-                            ['all', 'paper']
-                        ),
-                        priority=2,
-                        countdown=5
+                    invalidate_feed_cache(
+                        hub_ids=updated_hub_ids,
+                        filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+                        with_default=True,
+                        document_types=['all', 'paper']
                     )
 
                 if request:

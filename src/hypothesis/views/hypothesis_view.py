@@ -62,15 +62,11 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         data = serializer.data
 
         hub_ids = list(map(lambda hub: hub.id, unified_doc.hubs.all()))
-        invalidate_feed_cache.apply_async(
-            (
-                hub_ids,
-                [NEWEST],
-                True,
-                ['all', 'hypothesis']
-            ),
-            priority=2,
-            countdown=5
+        invalidate_feed_cache(
+            hub_ids,
+            filters=[NEWEST],
+            with_default=True,
+            document_types=['all', 'hypothesis']
         )
         return Response(data, status=200)
 
