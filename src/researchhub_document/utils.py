@@ -197,7 +197,6 @@ def invalidate_newest_cache(
                     'hub',
                     f'{doc_type}_{hub_id}_-created_date_{date_range}'
                 )
-                print('cache_key to delete', cache_key)
                 cache.delete(cache_key)
 
 
