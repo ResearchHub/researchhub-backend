@@ -114,7 +114,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         doc.save()
 
         doc_type = get_doc_type_key(doc)
-        hub_ids = list(map(lambda hub: hub.id, doc.hubs.all()))
+        hub_ids = doc.hubs.values_list('id', flat=True)
         invalidate_feed_cache(
             hub_ids,
             filters=[NEWEST,TOP,TRENDING, DISCUSSED],
