@@ -7,6 +7,7 @@ from django.apps import apps
 from django.http.request import HttpRequest
 from django.core.cache import cache
 from rest_framework.request import Request
+from django.db.models.query import QuerySet
 
 from researchhub_document.related_models.constants.document_type import (
     ALL,
@@ -296,6 +297,8 @@ def invalidate_feed_cache(
     )
     from researchhub_document.utils import reset_unified_document_cache
 
+    if isinstance(hub_ids, QuerySet):
+        hub_ids = list(hub_ids)
 
     if DISCUSSED in filters:
         invalidate_most_discussed_cache(hub_ids, document_types, date_ranges, with_default)
