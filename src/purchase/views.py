@@ -172,7 +172,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 cache.delete(cache_key)
                 transfer_rsc = True
 
-                hub_ids = list(map(lambda hub: hub.id, paper.hubs.all()))
+                hub_ids = paper.hubs.values_list('id', flat=True)
                 invalidate_feed_cache(
                     hub_ids,
                     filters=[TRENDING],
