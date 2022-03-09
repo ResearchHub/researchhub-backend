@@ -3,10 +3,10 @@ import datetime
 import pytz
 import regex as re
 import requests
-from django.apps import apps
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
+from django.contrib.postgres.indexes import HashIndex
 from django.core.validators import FileExtensionValidator
 from django.db import models, transaction
 from django.db.models import Avg, Count, F, IntegerField, Q, Sum
@@ -237,7 +237,10 @@ class Paper(models.Model):
     slug = models.SlugField(max_length=1024, blank=True)
 
     class Meta:
-        ordering = ["-paper_publish_date"]
+        indexes = (
+            HashIndex(fields=("url",), name="paper_paper_url_hix"),
+            HashIndex(fields=("pdf_url",), name="paper_paper_pdf_url_hix"),
+        )
 
     def __str__(self):
         title = self.title
@@ -1071,19 +1074,20 @@ class PaperSubmission(DefaultModel):
     INITIATED = "INITIATED"
     FAILED = "FAILED"
     FAILED_DUPLICATE = "FAILED_DUPLICATE"
+    FAILED_TIMEOUT = "FAILED_TIMEOUT"
     PROCESSING = "PROCESSING"
     PROCESSING_CROSSREF = "PROCESSING_CROSSREF"
     PROCESSING_MANUBOT = "PROCESSING_MANUBOT"
-    PROCESSING_SEMANTIC_SCHOLAR = "PROCESSING_SEMANTIC_SCHOLAR"
 
     PAPER_STATUS_CHOICES = [
         (COMPLETE, COMPLETE),
         (INITIATED, INITIATED),
         (FAILED, FAILED),
+        (FAILED, FAILED_DUPLICATE),
+        (FAILED_TIMEOUT, FAILED_TIMEOUT),
         (PROCESSING, PROCESSING),
         (PROCESSING_CROSSREF, PROCESSING_CROSSREF),
         (PROCESSING_MANUBOT, PROCESSING_MANUBOT),
-        (PROCESSING_SEMANTIC_SCHOLAR, PROCESSING_SEMANTIC_SCHOLAR),
     ]
     paper = models.OneToOneField(
         Paper,
@@ -1095,7 +1099,7 @@ class PaperSubmission(DefaultModel):
     paper_status = models.CharField(
         choices=PAPER_STATUS_CHOICES, default=INITIATED, max_length=32
     )
-    url = models.URLField(max_length=1024, unique=True)
+    url = models.URLField(max_length=1024)
     uploaded_by = models.ForeignKey(
         "user.User",
         related_name="paper_submissions",
@@ -1106,35 +1110,31 @@ class PaperSubmission(DefaultModel):
         """,
     )
 
-    def set_complete_status(self, save=True):
-        self.paper_status = self.COMPLETE
+    def set_status(self, status, save=True):
+        self.paper_status = status
         if save:
             self.save()
+
+    def set_complete_status(self, save=True):
+        self.set_status(self.COMPLETE, save)
 
     def set_processing_status(self, save=True):
-        self.paper_status = self.PROCESSING
-        if save:
-            self.save()
+        self.set_status(self.PROCESSING, save)
 
     def set_duplicate_status(self, save=True):
-        self.paper_status = self.FAILED_DUPLICATE
-        if save:
-            self.save()
+        self.set_status(self.FAILED_DUPLICATE, save)
 
     def set_manubot_status(self, save=True):
-        self.paper_status = self.PROCESSING_MANUBOT
-        if save:
-            self.save()
+        self.set_status(self.PROCESSING_MANUBOT, save)
 
     def set_crossref_status(self, save=True):
-        self.paper_status = self.PROCESSING_CROSSREF
-        if save:
-            self.save()
+        self.set_status(self.PROCESSING_CROSSREF, save)
 
     def set_failed_status(self, save=True):
-        self.paper_status = self.FAILED
-        if save:
-            self.save()
+        self.set_status(self.FAILED, save)
+
+    def set_failed_timeout_status(self, save=True):
+        self.set_status(self.FAILED_TIMEOUT, save)
 
     def notify_status(self):
         from notification.models import Notification

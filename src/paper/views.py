@@ -1,79 +1,85 @@
-import json
-import datetime
 import base64
+import datetime
+import json
 
 from django.core.cache import cache
-from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
 from django.core.validators import URLValidator
 from django.db import IntegrityError
-from django.db.models import Count, Q, Prefetch, F, Sum, Value, IntegerField
-from django.db.models.functions import Coalesce, Cast
+from django.db.models import Count, F, IntegerField, Prefetch, Q, Sum, Value
+from django.db.models.functions import Cast, Coalesce
 from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.pagination import LimitOffsetPagination
-from rest_framework.utils.urls import replace_query_param
-from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
+from rest_framework.permissions import (
+    AllowAny,
+    IsAuthenticated,
+    IsAuthenticatedOrReadOnly,
+)
 from rest_framework.response import Response
+from rest_framework.utils.urls import replace_query_param
 
 from google_analytics.signals import get_event_hit_response
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import (
     AdditionalFile,
+    FeaturedPaper,
     Figure,
     Flag,
     Paper,
-    Vote,
-    FeaturedPaper,
     PaperSubmission,
+    Vote,
 )
-from paper.tasks import censored_paper_cleanup, celery_process_paper
 from paper.permissions import (
     CreatePaper,
-    UpdateOrDeleteAdditionalFile,
+    DownvotePaper,
     FlagPaper,
     IsAuthor,
     IsModeratorOrVerifiedAuthor,
+    UpdateOrDeleteAdditionalFile,
     UpdatePaper,
     UpvotePaper,
-    DownvotePaper,
 )
 from paper.serializers import (
     AdditionalFileSerializer,
     BookmarkSerializer,
-    HubPaperSerializer,
-    FlagSerializer,
-    FigureSerializer,
-    PaperSerializer,
     DynamicPaperSerializer,
-    PaperReferenceSerializer,
-    PaperVoteSerializer,
     FeaturedPaperSerializer,
+    FigureSerializer,
+    FlagSerializer,
+    HubPaperSerializer,
+    PaperReferenceSerializer,
+    PaperSerializer,
     PaperSubmissionSerializer,
+    PaperVoteSerializer,
 )
+from paper.tasks import celery_process_paper, censored_paper_cleanup
 from paper.utils import (
+    add_default_hub,
     clean_abstract,
+    get_cache_key,
     get_csl_item,
     get_pdf_location_for_csl_item,
-    get_cache_key,
-    add_default_hub
 )
 from purchase.models import Purchase
-from researchhub.lib import get_document_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
+from researchhub.lib import get_document_id_from_path
 from researchhub_document.permissions import HasDocumentCensorPermission
+from researchhub_document.utils import reset_unified_document_cache
 from researchhub_document.views.custom.unified_document_pagination import (
     UNIFIED_DOC_PAGE_SIZE,
 )
 from user.models import Author
 from utils.http import GET, POST, check_url_contains_pdf
+from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed
 from utils.sentry import log_error, log_info
-from utils.permissions import CreateOrUpdateIfAllowed, CreateOrReadOnly
+from utils.siftscience import decisions_api, events_api
 from utils.throttles import THROTTLE_CLASSES
 from utils.siftscience import events_api, decisions_api
 from rest_framework.permissions import AllowAny
@@ -86,6 +92,7 @@ from researchhub_document.related_models.constants.filters import (
 from researchhub_document.utils import (
     reset_unified_document_cache,
 )
+
 
 class PaperViewSet(viewsets.ModelViewSet):
     queryset = Paper.objects.filter()
@@ -613,7 +620,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         Perform an elasticsearch query for papers matching
         the input CSL_Item.
         """
-        from elasticsearch_dsl import Search, Q
+        from elasticsearch_dsl import Q, Search
 
         search = Search(index="paper")
         title = csl_item.get("title", "")
@@ -1221,6 +1228,20 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
     permission_classes = [CreateOrReadOnly]
 
     def create(self, *args, **kwargs):
+        data = self.request.data
+        url = data.get("url", "")
+
+        duplicate_papers = Paper.objects.filter(
+            Q(url__icontains=url) | Q(pdf_url__icontains=url)
+        )
+        if duplicate_papers.exists():
+            duplicate_paper = duplicate_papers.first()
+            serializer = DynamicPaperSerializer(
+                duplicate_paper, _include_fields=["doi", "id", "title", "url"]
+            )
+            data = {"data": serializer.data}
+            return Response(data, status=status.HTTP_403_FORBIDDEN)
+
         response = super().create(*args, **kwargs)
         if response.status_code == 201:
             data = response.data

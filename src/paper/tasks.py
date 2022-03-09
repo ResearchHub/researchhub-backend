@@ -17,6 +17,7 @@ import twitter
 from bs4 import BeautifulSoup
 from celery import chain
 from celery.decorators import periodic_task
+from celery.exceptions import SoftTimeLimitExceeded
 from celery.task.schedules import crontab
 from celery.utils.log import get_task_logger
 from django.apps import apps
@@ -1178,7 +1179,11 @@ def celery_process_paper(self, submission_id):
     task = chain(
         celery_manubot.s(), celery_crossref.s(), celery_create_paper.s()
     ).apply_async(
-        (args,), countdown=1, link_error=celery_handle_paper_processing_errors.s()
+        (args,),
+        countdown=1,
+        priority=1,
+        link_error=celery_handle_paper_processing_errors.s(),
+        soft_time_limit=60 * 2,
     )
 
 
@@ -1231,9 +1236,9 @@ def celery_manubot(self, celery_data):
             "abstract": cleaned_abstract,
             "csl_item": csl_item,
             "doi": doi,
-            "title": cleaned_title,
-            "raw_authors": raw_authors,
             "paper_publish_date": publish_date,
+            "raw_authors": raw_authors,
+            "title": cleaned_title,
         }
 
         if oa_pdf_location:
@@ -1292,7 +1297,9 @@ def celery_crossref(self, celery_data):
 
         return (paper_data, submission_id)
     except HTTPError as e:
-        raise CrossrefSearchError(e)
+        error = CrossrefSearchError(e, "Safe Error - Continuing")
+        sentry.log_info(error)
+        return (paper_data, submission_id)
     except Exception as e:
         raise e
 
@@ -1335,7 +1342,6 @@ def celery_create_paper(self, celery_data):
             countdown=3,
         )
         paper_submission.notify_status()
-        return True
     except ValidationError as e:
         raise e
     except Exception as e:
@@ -1345,13 +1351,9 @@ def celery_create_paper(self, celery_data):
 # @app.task(queue=f"{APP_ENV}_cermine_queue")
 @app.task()
 def celery_handle_paper_processing_errors(request, exc, traceback):
-    # from celery.contrib import rdb
-
-    # sentry.log_error(exc)
-
-    # rdb.set_trace()
-
     try:
+        sentry.log_error(exc)
+
         PaperSubmission = apps.get_model("paper.PaperSubmission")
         args = request.args[0]
         _, submission_id = args
@@ -1359,12 +1361,13 @@ def celery_handle_paper_processing_errors(request, exc, traceback):
 
         if isinstance(exc, DuplicatePaperError):
             paper_submission.set_duplicate_status()
+        elif isinstance(exc, SoftTimeLimitExceeded):
+            paper_submission.set_failed_timeout_status()
         else:
             paper_submission.set_failed_status()
 
         paper_submission.notify_status()
-
     except Exception as e:
-        sentry.log_error(e)
+        sentry.log_error(e, exc)
 
     return
