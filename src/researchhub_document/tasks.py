@@ -126,8 +126,6 @@ def preload_trending_documents(
 
     start_date_timestamp = int(start_date.timestamp())
     end_date_timestamp = int(end_date.timestamp())
-
-
     query_string = 'page=1&start_date__gte={}&end_date__lte={}&ordering={}&hub_id={}&'.format(
         start_date_timestamp,
         end_date_timestamp,
