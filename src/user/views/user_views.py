@@ -1121,6 +1121,11 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     Q(
                         unified_document__is_removed=False,
                         user__author_profile=author_id,
+                        content_type_id__in=[
+                            hypothesis_content_type,
+                            paper_content_type,
+                            post_content_type,
+                        ],
                         contribution_type__in=[
                             Contribution.SUBMITTER,
                             Contribution.SUPPORTER
@@ -1167,12 +1172,14 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 raise Exception('Unrecognized asset type')
 
 
-        return Contribution.objects.filter(query).select_related(
+        qs = Contribution.objects.filter(query).select_related(
             'content_type',
             'user',
             'user__author_profile',
             'unified_document',
         ).order_by(ordering)
+
+        return qs
 
     @action(
         detail=True,
