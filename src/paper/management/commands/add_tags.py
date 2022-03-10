@@ -14,7 +14,7 @@ import yake
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        papers = Paper.objects.filter(abstract__isnull=False)
+        papers = Paper.objects.filter(abstract__isnull=False, tags__isnull=True)
         print('Adding tags to papers')
         nltk.download('stopwords')
         nltk.download('punkt')
@@ -29,7 +29,7 @@ class Command(BaseCommand):
 
             custom_kw_extractor = yake.KeywordExtractor(**keyword_settings)
 
-            abstract = paper.abstract.lower() + paper.title.lower()
+            abstract = paper.abstract.lower() + paper.title.lower() + paper.paper_title.lower()
 
             # Get a set of common stopwords (i.e. "in", "the", etc...)
             stop_words = set(stopwords.words('english'))
