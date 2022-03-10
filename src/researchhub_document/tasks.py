@@ -79,13 +79,6 @@ def preload_trending_documents(
       DynamicUnifiedDocumentSerializer
     )
 
-
-    initial_date = datetime.now().replace(
-        hour=7,
-        minute=0,
-        second=0,
-        microsecond=0
-    )
     end_date = datetime.now()
     if time_scope == 'all_time':
         cache_pk = f'{document_type}_{hub_id}_{filtering}_all_time'
@@ -97,20 +90,15 @@ def preload_trending_documents(
         )
     elif time_scope == 'year':
         cache_pk = f'{document_type}_{hub_id}_{filtering}_year'
-        start_date = initial_date - timedelta(days=365)
+        start_date = datetime.now() - timedelta(days=365)
     elif time_scope == 'month':
         cache_pk = f'{document_type}_{hub_id}_{filtering}_month'
-        start_date = initial_date - timedelta(days=30)
+        start_date = datetime.now() - timedelta(days=30)
     elif time_scope == 'week':
         cache_pk = f'{document_type}_{hub_id}_{filtering}_week'
-        start_date = initial_date - timedelta(days=7)
-    else:
-        start_date = datetime.now().replace(
-            hour=7,
-            minute=0,
-            second=0,
-            microsecond=0
-        )
+        start_date = datetime.now() - timedelta(days=7)
+    else: # Today
+        start_date = datetime.now() - timedelta(hours=24)
         cache_pk = f'{document_type}_{hub_id}_{filtering}_today'
 
     query_string_filtering = 'top_rated'
@@ -138,7 +126,9 @@ def preload_trending_documents(
 
     start_date_timestamp = int(start_date.timestamp())
     end_date_timestamp = int(end_date.timestamp())
-    query_string = 'page=1&start_date__gte={}&end_date__lte={}&filtering={}&hub_id={}&'.format(
+
+
+    query_string = 'page=1&start_date__gte={}&end_date__lte={}&ordering={}&hub_id={}&'.format(
         start_date_timestamp,
         end_date_timestamp,
         query_string_filtering,
