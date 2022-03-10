@@ -44,8 +44,10 @@ from utils.permissions import (
     CreateOrUpdateIfAllowed,
     CreateOrReadOnly
 )
+from reputation.models import Distribution
 from user.models import User, Author, Action
 from user.serializers import UserSerializer
+from user.permissions import IsModerator
 from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
@@ -73,6 +75,41 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         return self.queryset.filter(user=user).order_by('-created_date')
+    
+    @action(
+        detail=False,
+        methods=['POST'],
+        permission_classes=[IsAuthenticated, IsModerator]
+    )
+    def send_rsc(self, request):
+        recipient_id = request.data.get('recipient_id', '')
+        amount = request.data.get('amount', 0)
+        if recipient_id:
+            user = request.user
+            user_id = user.id
+            content_type = ContentType.objects.get(model='distribution')
+            proof_content_type = ContentType.objects.get(model='user')
+            proof = {
+                'table': 'user_user',
+                'record': {'id': user_id, 'email': user.email, 'name': user.first_name + ' ' + user.last_name}
+            }
+            distribution = Distribution.objects.create(
+                amount=0,
+                distribution_type='MOD_PAYOUT',
+                proof_item_content_type=proof_content_type,
+                proof_item_object_id=user_id,
+                proof=proof,
+                recipient_id=recipient_id,
+                distributed_status=Distribution.DISTRIBUTED
+            )
+            purchase = Balance.objects.create(
+                user_id=recipient_id,
+                amount=amount,
+                content_type=content_type,
+                object_id=distribution.id
+            )
+        
+        return Response({"message": 'RSC Sent!'})
 
 
 class PurchaseViewSet(viewsets.ModelViewSet):
