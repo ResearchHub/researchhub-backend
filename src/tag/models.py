@@ -18,5 +18,5 @@ class Tag(models.Model):
         return self.key
 
     def save(self, *args, **kwargs):
-        self.key = self.key.lower()
+        self.key = self.key.lower().replace(' ', '-')
         return super(Tag, self).save(*args, **kwargs)
