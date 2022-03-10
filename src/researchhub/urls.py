@@ -13,6 +13,7 @@ import debug_toolbar
 import discussion.views
 import google_analytics.views
 import hub.views
+import tag.views
 import hypothesis.views as hypothesis_views
 import invite.views as invite_views
 import mailing_list.views
@@ -171,6 +172,12 @@ router.register(
     r'hub',
     hub.views.HubViewSet,
     basename='hub'
+)
+
+router.register(
+    r'tag',
+    tag.views.TagViewSet,
+    basename='tag'
 )
 
 router.register(
