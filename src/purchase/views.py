@@ -48,6 +48,7 @@ from reputation.models import Distribution
 from user.models import User, Author, Action
 from user.serializers import UserSerializer
 from user.permissions import IsModerator
+from purchase.permissions import CanSendRSC
 from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
@@ -79,7 +80,7 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
     @action(
         detail=False,
         methods=['POST'],
-        permission_classes=[IsAuthenticated, IsModerator]
+        permission_classes=[IsAuthenticated, IsModerator, CanSendRSC]
     )
     def send_rsc(self, request):
         recipient_id = request.data.get('recipient_id', '')
