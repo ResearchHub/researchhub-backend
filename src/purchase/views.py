@@ -63,6 +63,7 @@ from researchhub_document.related_models.constants.filters import (
     NEWEST,
     TOP
 )
+from user.related_models.gatekeeper_model import Gatekeeper
 
 class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Balance.objects.all()

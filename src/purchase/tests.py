@@ -13,6 +13,7 @@ from utils.test_helpers import (
     IntegrationTestHelper,
     TestHelper,
 )
+from user.related_models.gatekeeper_model import Gatekeeper
 
 # Create your tests here.
 class SendRSCTest(
@@ -32,14 +33,23 @@ class SendRSCTest(
         response = self.send_rsc(client, self.recipient)
         self.assertEqual(response.status_code, 403)
     
-    def test_moderator_user_send_rsc(self):
+    def test_gatekeeper_send_rsc(self):
         moderator = create_moderator(first_name='moderator', last_name='moderator')
+        Gatekeeper.objects.create(
+            type="SEND_RSC",
+            user=moderator
+        )
         self.client.force_authenticate(moderator)
         response = self.send_rsc(self.client, self.recipient)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.recipient.balances.count(), 1)
         self.assertEqual(int(self.recipient.balances.first().amount), self.balance_amount)
-        
+    
+    def test_moderator_user_send_rsc(self):
+        moderator = create_moderator(first_name='moderator', last_name='moderator')
+        self.client.force_authenticate(moderator)
+        response = self.send_rsc(self.client, self.recipient)
+        self.assertEqual(response.status_code, 403)
 
     def test_unauthenticated_user_send_rsc(self):
         response = self.send_rsc(self.client, self.recipient)
