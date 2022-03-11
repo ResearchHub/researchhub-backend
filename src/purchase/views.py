@@ -51,7 +51,7 @@ from user.permissions import IsModerator
 from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
-from reputation.distributions import create_purchase_distribution
+from reputation.distributions import create_purchase_distribution, Distribution
 from reputation.distributor import Distributor
 from researchhub_document.tasks import (
     invalidate_feed_cache
@@ -93,21 +93,19 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
                 'table': 'user_user',
                 'record': {'id': user_id, 'email': user.email, 'name': user.first_name + ' ' + user.last_name}
             }
-            distribution = Distribution.objects.create(
-                amount=0,
-                distribution_type='MOD_PAYOUT',
-                proof_item_content_type=proof_content_type,
-                proof_item_object_id=user_id,
-                proof=proof,
-                recipient_id=recipient_id,
-                distributed_status=Distribution.DISTRIBUTED
+            distribution = Distribution(
+                'MOD_PAYOUT', amount
+            )            
+            timestamp = time.time()
+            user_proof = User.objects.get(id=recipient_id)
+            distributor = Distributor(
+                distribution,
+                user_proof,
+                user_proof,
+                timestamp
             )
-            purchase = Balance.objects.create(
-                user_id=recipient_id,
-                amount=amount,
-                content_type=content_type,
-                object_id=distribution.id
-            )
+
+            distributor.distribute()
         
         return Response({"message": 'RSC Sent!'})
 
