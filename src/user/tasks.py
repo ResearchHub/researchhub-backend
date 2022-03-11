@@ -5,7 +5,7 @@ from datetime import timedelta
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from django.apps import apps
-from django.db.models import Count, Q
+from django.db.models import Count, Q, F
 from django.http.request import HttpRequest
 from django.core.cache import cache
 from django.utils import timezone
@@ -332,22 +332,27 @@ def notify_editor_inactivity():
                 contributions__contribution_type=Contribution.COMMENTER,
                 contributions__created_date__gte=last_week
             )
-        )
-    ).exclude(
-        paper_count__gte=1,
-        comment_count__gte=1
+        ),
+        total_contributions=F('paper_count') + F('comment_count')
+    ).filter(
+        total_contributions__lte=3
     )
 
     logging = []
     for inactive_contributor in inactive_contributors.iterator():
+        paper_count = inactive_contributor.paper_count
+        comment_count = inactive_contributor.comment_count
         logging.append(
             (
                 inactive_contributor.email,
-                f'Paper count: {inactive_contributor.paper_count}',
-                f'Comment count: {inactive_contributor.comment_count}'
+                f'Paper count: {paper_count}',
+                f'Comment count: {comment_count}'
             )
         )
-        inactive_contributor.notify_inactivity()
+        inactive_contributor.notify_inactivity(
+            paper_count,
+            comment_count
+        )
     log_info(logging)
 
 
