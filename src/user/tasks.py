@@ -335,7 +335,7 @@ def notify_editor_inactivity():
         ),
         total_contributions=F('paper_count') + F('comment_count')
     ).filter(
-        total_contributions__lte=3
+        total_contributions__lt=3
     )
 
     logging = []
