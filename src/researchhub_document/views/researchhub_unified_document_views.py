@@ -254,13 +254,19 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         filtering,
         hub_id,
         start_date,
-        end_date
+        end_date,
+        tag_id=0
     ):
         papers = Paper.objects.filter(
             uploaded_by__isnull=False
         ).values_list(
             'unified_document'
         )
+
+        tag_id = int(tag_id)
+        if tag_id != 0:
+            papers = papers.filter(tags__in=[tag_id])
+
         posts = ResearchhubPost.objects.filter(
             created_by__isnull=False
         ).values_list(
@@ -481,6 +487,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         is_anonymous = request.user.is_anonymous
         query_params = request.query_params
         subscribed_hubs = query_params.get('subscribed_hubs', 'false')
+        tag_id = query_params.get('tag', 0)
         use_v2_hot_score = query_params.get('hot_v2') == 'true'
 
         if subscribed_hubs == 'true' and not is_anonymous:
@@ -527,7 +534,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             filtering,
             hub_id,
             start_date,
-            end_date
+            end_date,
+            tag_id
         )
 
         context = self._get_serializer_context()

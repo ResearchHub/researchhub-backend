@@ -7,11 +7,6 @@ class Tag(models.Model):
     """
 
     key = models.CharField(max_length=1024, unique=True)
-    papers = models.ManyToManyField(
-        'paper.Paper',
-        related_name='tags',
-        blank=True
-    )
     created_date = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

@@ -141,6 +141,11 @@ class Paper(models.Model):
         related_name='papers',
         blank=True
     )
+    tags = models.ManyToManyField(
+        'tag.Tag',
+        related_name='papers',
+        blank=True
+    )
     summary = models.ForeignKey(
         Summary,
         blank=True,
