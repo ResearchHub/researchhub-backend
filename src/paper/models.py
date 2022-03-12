@@ -483,7 +483,7 @@ class Paper(models.Model):
     def get_tags(self):
         """Returns all tags associated with the paper
         """
-        return [t.key for t in self.tags.all()]
+        return [{"key": t.key, "id": t.id} for t in self.tags.all()]
 
     def calculate_hot_score(self):
         ALGO_START_UNIX = 1546329600

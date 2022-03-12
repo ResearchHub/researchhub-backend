@@ -221,7 +221,7 @@ class PaperPatchTest(
         data = response.data
         self.assertEquals(response.status_code, 200)
         self.assertEquals(data['title'], updated_title)
-        self.assertEquals(data['tags'], tags)
+        self.assertEquals([t["key"] for t in data['tags']], tags)
         self.assertEquals(
             data['raw_authors'],
             [

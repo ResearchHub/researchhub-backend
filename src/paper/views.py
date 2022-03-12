@@ -287,7 +287,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             instance_tags = []
 
             for tag in tags:
-                t, _ = Tag.objects.get_or_create(key=tag)
+                t, _ = Tag.objects.get_or_create(key=tag.lower())
                 instance_tags.append(t)
 
             instance.tags.set(instance_tags)
