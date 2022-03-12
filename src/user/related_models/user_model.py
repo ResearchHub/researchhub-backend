@@ -177,11 +177,13 @@ class User(AbstractUser):
 
         return total_balance
 
-    def notify_inactivity(self):
+    def notify_inactivity(self, paper_count=0, comment_count=0):
         recipient = [self.email]
         subject = '[Editor] Weekly Inactivity'
         email_context = {
-            'name': f'{self.first_name} {self.last_name}'
+            'name': f'{self.first_name} {self.last_name}',
+            'paper_count': paper_count,
+            'comment_count': comment_count
         }
         send_email_message(
             recipient,
