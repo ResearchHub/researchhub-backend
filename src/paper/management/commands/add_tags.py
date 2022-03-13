@@ -14,7 +14,12 @@ import yake
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        papers = Paper.objects.filter(abstract__isnull=False, tags__isnull=True)
+        papers = Paper.objects.filter(
+            abstract__isnull=False,
+            paper_title__isnull=False,
+            title__isnull=False,
+            tags__isnull=True
+        )
         print('Adding tags to papers')
         nltk.download('stopwords')
         nltk.download('punkt')

@@ -487,7 +487,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         is_anonymous = request.user.is_anonymous
         query_params = request.query_params
         subscribed_hubs = query_params.get('subscribed_hubs', 'false')
-        tag_id = query_params.get('tag', 0)
+        tag_id = query_params.get('tag_id', 0)
         use_v2_hot_score = query_params.get('hot_v2') == 'true'
 
         if subscribed_hubs == 'true' and not is_anonymous:
