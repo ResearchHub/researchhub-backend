@@ -30,6 +30,7 @@ class Command(BaseCommand):
         save = False
 
         if options['save']:
+            print('here')
             save = True
         if options['id']:
             docs = docs.filter(id=options['id'])
@@ -44,7 +45,7 @@ class Command(BaseCommand):
                 if doc.document_type.upper() in ['DISCUSSION', 'HYPOTHESIS', 'PAPER']:
                     hot_score_tpl = doc.calculate_hot_score_v2(should_save=save)
 
-                print(f'Doc: {doc.id}, {doc.document_type}, score: {hot_score_tpl[0]} - {i + 1}/{count}')
+                    print(f'Doc: {doc.id}, {doc.document_type}, score: {hot_score_tpl[0]} - {i + 1}/{count}')
 
             except Exception as e:
                 print(f'Error updating score for paper: {doc.id}', e)
