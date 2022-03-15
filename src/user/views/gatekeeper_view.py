@@ -1,3 +1,5 @@
+from django.db.models import Q
+
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -28,12 +30,12 @@ class GatekeeperViewSet(ModelViewSet):
             return Response(status=403)
 
         gatekeeper_type = request.query_params.get('type')
-        vote_exists = Gatekeeper.objects.filter(
-          email=curr_user.email,
+        exists = Gatekeeper.objects.filter(
+          Q(email=curr_user.email) | Q(user=curr_user),
           type=gatekeeper_type
         ).exists()
 
-        if vote_exists:
+        if exists:
             return Response(True, status=status.HTTP_200_OK)
 
         return Response(

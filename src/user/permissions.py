@@ -18,3 +18,11 @@ class Censor(AuthorizationBasedPermission):
     def is_authorized(self, request, view, obj):
         return request.user.moderator
 
+class IsModerator(AuthorizationBasedPermission):
+    message = 'Need to be a moderator.'
+
+    def has_permission(self, request, view):
+        return request.user.moderator
+
+    def is_authorized(self, request, view, obj):
+        return request.user.moderator

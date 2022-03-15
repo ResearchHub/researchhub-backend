@@ -1,4 +1,4 @@
-from django.db.models import CharField, EmailField
+from django.db.models import CharField, EmailField, ForeignKey, CASCADE
 
 from utils.models import DefaultModel
 
@@ -13,10 +13,11 @@ class Gatekeeper(DefaultModel):
         max_length=128,
         null=False,
     )
+    user = ForeignKey('user.User', on_delete=CASCADE, related_name='gatekeeper', null=True, blank=True)
     email = EmailField(
-        blank=False,
+        blank=True,
         db_index=True,
-        null=False,
+        null=True,
     )
 
     def __str__(self):
