@@ -37,11 +37,6 @@ def recalc_hot_score_task(
     model_name = content_type.model
     model_class = content_type.model_class()
     uni_doc = None
-    print('**********************')
-    print('content_type', content_type)
-    print('instance_id', instance_id)
-    print('model_class', model_class)
-    print('**********************')
 
     try:
         if model_name in ['hypothesis', 'researchhubpost', 'paper']:
