@@ -44,12 +44,15 @@ from utils.permissions import (
     CreateOrUpdateIfAllowed,
     CreateOrReadOnly
 )
+from reputation.models import Distribution
 from user.models import User, Author, Action
 from user.serializers import UserSerializer
+from user.permissions import IsModerator
+from purchase.permissions import CanSendRSC
 from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
-from reputation.distributions import create_purchase_distribution
+from reputation.distributions import create_purchase_distribution, Distribution
 from reputation.distributor import Distributor
 from researchhub_document.tasks import (
     invalidate_feed_cache
@@ -60,6 +63,7 @@ from researchhub_document.related_models.constants.filters import (
     NEWEST,
     TOP
 )
+from user.related_models.gatekeeper_model import Gatekeeper
 
 class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Balance.objects.all()
@@ -73,6 +77,39 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         return self.queryset.filter(user=user).order_by('-created_date')
+    
+    @action(
+        detail=False,
+        methods=['POST'],
+        permission_classes=[IsAuthenticated, IsModerator, CanSendRSC]
+    )
+    def send_rsc(self, request):
+        recipient_id = request.data.get('recipient_id', '')
+        amount = request.data.get('amount', 0)
+        if recipient_id:
+            user = request.user
+            user_id = user.id
+            content_type = ContentType.objects.get(model='distribution')
+            proof_content_type = ContentType.objects.get(model='user')
+            proof = {
+                'table': 'user_user',
+                'record': {'id': user_id, 'email': user.email, 'name': user.first_name + ' ' + user.last_name}
+            }
+            distribution = Distribution(
+                'MOD_PAYOUT', amount
+            )            
+            timestamp = time.time()
+            user_proof = User.objects.get(id=recipient_id)
+            distributor = Distributor(
+                distribution,
+                user_proof,
+                user_proof,
+                timestamp
+            )
+
+            distributor.distribute()
+        
+        return Response({"message": 'RSC Sent!'})
 
 
 class PurchaseViewSet(viewsets.ModelViewSet):
