@@ -37,6 +37,11 @@ def recalc_hot_score_task(
     model_name = content_type.model
     model_class = content_type.model_class()
     uni_doc = None
+    print('**********************')
+    print('content_type', content_type)
+    print('instance_id', instance_id)
+    print('model_class', model_class)
+    print('**********************')
 
     try:
         if model_name in ['hypothesis', 'researchhubpost', 'paper']:
@@ -61,7 +66,7 @@ def recalc_hot_score_task(
         elif model_name == 'paper':
             uni_doc = model_class.objects.get(id=instance_id).unified_document
 
-        uni_doc.calculate_hot_score_v2()
+        uni_doc.calculate_hot_score_v2(should_save=True)
     except Exception as error:
         print('recalc_hot_score error', error)
         sentry.log_error(error)

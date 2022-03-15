@@ -11,14 +11,23 @@ from discussion.models import Vote
 
 class HotScoreMixin:
 
+    def _c(self, num):
+        if num >= 0:
+            return 1
+        else:
+            return -1
+
     def _count_doc_comment_votes(self, doc):
         vote_total = 0
-        for t in doc.threads.filter(is_removed=False).iterator():
-            vote_total += max(0, t.calculate_score())
-            for c in t.comments.filter(is_removed=False).iterator():
-                vote_total += max(0, c.calculate_score())
-                for r in c.replies.filter(is_removed=False).iterator():
-                    vote_total += max(0, r.calculate_score())
+        try:
+            for t in doc.threads.filter(is_removed=False).iterator():
+                vote_total += max(0, t.calculate_score())
+                for c in t.comments.filter(is_removed=False).iterator():
+                    vote_total += max(0, c.calculate_score())
+                    for r in c.replies.filter(is_removed=False).iterator():
+                        vote_total += max(0, r.calculate_score())
+        except Exception as e:
+            print(e)
 
         return vote_total
 
@@ -57,10 +66,14 @@ class HotScoreMixin:
         return final_val
 
     def _calc_boost_score(self):
-        doc = self.get_document()
-        boost = doc.get_boost_amount()
-        date_val = self._get_date_val(self.created_date)
-        boost_score = date_val * math.log(boost + 1, 5)
+        boost_score = 0
+        try:
+            doc = self.get_document()
+            boost = doc.get_boost_amount()
+            date_val = self._get_date_val(self.created_date)
+            boost_score = date_val * math.log(boost + 1, 5)
+        except Exception as e:
+            print(e)
 
         return boost_score
 
@@ -89,32 +102,36 @@ class HotScoreMixin:
             doc_vote_net_score = doc.calculate_score()
 
         social_media_score = self._calc_social_media_score()
-        vote_score = math.log(total_comment_vote_score + doc_vote_net_score + 1, 3)
-        discussion_score = math.log(doc.discussion_count + 1, 2)
+        doc_vote_score = self._c(doc_vote_net_score) * math.log(abs(doc_vote_net_score) + 1, 3)
+        discussion_vote_score = math.log(max(0, total_comment_vote_score) + 1, 3)
+        discussion_count_score = math.log(doc.discussion_count + 1, 2)
 
         agg_score = (
-            vote_score +
-            discussion_score +
+            discussion_vote_score + 
+            doc_vote_score +
+            discussion_count_score +
             social_media_score +
             boost_score
         )
 
         hot_score = (agg_score * time_score) * 10000
 
-
         debug_obj = {
             'unified_doc_id': self.id,
             'inner_doc_id': doc.id,
             'document_type': self.document_type,
             'created_date': self.created_date,
-            'discussions': {
+            'discussion_count': {
                 'count': doc.discussion_count,
-                '=score': discussion_score 
+                '=score': discussion_count_score 
             },
+            'discussion_votes': {
+                'total_comment_vote_score': total_comment_vote_score,
+                '=score': discussion_vote_score 
+            },            
             'votes': {
                 'doc_votes': doc_vote_net_score,
-                'comment_votes': total_comment_vote_score,
-                '=score': vote_score
+                '=score': doc_vote_score
             },
             'social_media': {
                 '=score': social_media_score

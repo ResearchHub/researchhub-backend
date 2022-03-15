@@ -24,13 +24,12 @@ class Command(BaseCommand):
       )
 
     def handle(self, *args, **options):
-        docs = ResearchhubUnifiedDocument.objects.order_by('id')
+        docs = ResearchhubUnifiedDocument.objects.filter(is_removed=False).order_by('id')
 
         print('Recalculating hot score')
         save = False
 
         if options['save']:
-            print('here')
             save = True
         if options['id']:
             docs = docs.filter(id=options['id'])
