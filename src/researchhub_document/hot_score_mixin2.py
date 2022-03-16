@@ -41,7 +41,7 @@ class HotScoreMixin:
         epoch_date = datetime.datetime(2020, 1, 1)
 
         num_seconds_since_epoch = (input_date - epoch_date).total_seconds()
-        half_days_since_epoch = num_seconds_since_epoch / num_seconds_in_half_day
+        half_days_since_epoch = num_seconds_since_epoch / num_seconds_in_one_day
         time_score = half_days_since_epoch
 
         # Debug
@@ -88,7 +88,7 @@ class HotScoreMixin:
         social_media_score = self._calc_social_media_score()
         doc_vote_score = math.log(abs(doc_vote_net_score) + 1, 3)
         discussion_vote_score = math.log(max(0, total_comment_vote_score) + 1, 3)
-        discussion_count_score = math.log(doc.discussion_count + 1, 2)
+        discussion_count_score = doc.discussion_count
 
         agg_score = (
             discussion_vote_score +
