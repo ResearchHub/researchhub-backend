@@ -61,7 +61,7 @@ def recalc_hot_score_task(
         elif model_name == 'paper':
             uni_doc = model_class.objects.get(id=instance_id).unified_document
 
-        uni_doc.calculate_hot_score_v2()
+        uni_doc.calculate_hot_score_v2(should_save=True)
     except Exception as error:
         print('recalc_hot_score error', error)
         sentry.log_error(error)

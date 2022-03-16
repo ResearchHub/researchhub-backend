@@ -24,7 +24,7 @@ class Command(BaseCommand):
       )
 
     def handle(self, *args, **options):
-        docs = ResearchhubUnifiedDocument.objects.order_by('id')
+        docs = ResearchhubUnifiedDocument.objects.filter(is_removed=False).order_by('id')
 
         print('Recalculating hot score')
         save = False
@@ -44,7 +44,7 @@ class Command(BaseCommand):
                 if doc.document_type.upper() in ['DISCUSSION', 'HYPOTHESIS', 'PAPER']:
                     hot_score_tpl = doc.calculate_hot_score_v2(should_save=save)
 
-                print(f'Doc: {doc.id}, {doc.document_type}, score: {hot_score_tpl[0]} - {i + 1}/{count}')
+                    print(f'Doc: {doc.id}, {doc.document_type}, score: {hot_score_tpl[0]} - {i + 1}/{count}')
 
             except Exception as e:
                 print(f'Error updating score for paper: {doc.id}', e)
