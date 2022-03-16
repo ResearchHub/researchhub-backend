@@ -86,9 +86,9 @@ class HotScoreMixin:
         time_score = self._get_time_score(self.created_date)
         time_score_with_magnitude = self._c(doc_vote_net_score) * time_score
         social_media_score = self._calc_social_media_score()
-        doc_vote_score = math.log(abs(doc_vote_net_score) + 1, 5)
-        discussion_vote_score = math.log(max(0, total_comment_vote_score) + 1, 5)
-        discussion_count_score = math.log(doc.discussion_count + 1, 5)
+        doc_vote_score = math.log(abs(doc_vote_net_score) + 1, 3)
+        discussion_vote_score = math.log(max(0, total_comment_vote_score) + 1, 3)
+        discussion_count_score = math.log(doc.discussion_count + 1, 2)
 
         agg_score = (
             discussion_vote_score +
