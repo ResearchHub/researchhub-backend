@@ -41,8 +41,8 @@ def recalc_hot_score(instance, sender, **kwargs):
                     instance.object_id,
 
                 ),
-                priority=1,
-                countdown=1
+                priority=2,
+                countdown=5
             )
         elif type(instance) is PaperVote:
             paper = instance.paper
@@ -53,8 +53,20 @@ def recalc_hot_score(instance, sender, **kwargs):
                     paper.id
 
                 ),
-                priority=1,
-                countdown=1
+                priority=2,
+                countdown=5
+            )
+        elif type(instance) is ResearchhubUnifiedDocument:
+            inner_doc = instance.get_document()
+            content_type_id = ContentType.objects.get_for_model(inner_doc).id
+
+            recalc_hot_score_task.apply_async(
+                (
+                    content_type_id,
+                    inner_doc.id
+                ),
+                priority=2,
+                countdown=5
             )
     except Exception as error:
         print('recalc_hot_score error', error)
