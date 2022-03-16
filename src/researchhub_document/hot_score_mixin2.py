@@ -12,8 +12,10 @@ from discussion.models import Vote
 class HotScoreMixin:
 
     def _c(self, num):
-        if num >= 0:
+        if num > 0:
             return 1
+        elif num == 0:
+            return 0
         else:
             return -1
 
@@ -31,47 +33,30 @@ class HotScoreMixin:
 
         return vote_total
 
-    # Returns a value between 0 and 1
-    # The further away the given date is from now, the smaller the value
-    def _get_date_val(self, date):
+    def _get_time_score(self, date):
+        num_seconds_in_half_day = 43000
+        num_seconds_in_one_day = 86000
+
         input_date = date.replace(tzinfo=None)
-        now = datetime.datetime.now()
-
         epoch_date = datetime.datetime(2020, 1, 1)
-        days_since_epoch = (now - epoch_date).days
-        mins_since_epoch = days_since_epoch * 24 * 60
-        delta_dt = now - input_date
-        days_elapsed_since_input_date = delta_dt.days + delta_dt.seconds / 60 / 60 / 24
-        mins_elapsed_since_input_date = days_elapsed_since_input_date * 60 * 24
 
-        time_penalty = 0
-        if (days_elapsed_since_input_date > 1 and days_elapsed_since_input_date <= 5):
-            time_penalty = 0.25
-        elif (days_elapsed_since_input_date > 5 and days_elapsed_since_input_date <= 10):
-            time_penalty = 0.35
-        elif (days_elapsed_since_input_date > 10 and days_elapsed_since_input_date <= 25):
-            time_penalty = 0.5
-        elif (days_elapsed_since_input_date > 25):
-            time_penalty = 0.75
-
-        val = (mins_since_epoch - mins_elapsed_since_input_date) / mins_since_epoch
-        final_val = np.power(val - (val * time_penalty), 2)
-        # Ensure no negative values. This can happen if date is in future
-        final_val = max(0, final_val)
+        num_seconds_since_epoch = (input_date - epoch_date).total_seconds()
+        half_days_since_epoch = num_seconds_since_epoch / num_seconds_in_half_day
+        time_score = half_days_since_epoch
 
         # Debug
         if False:
-            print(f'Value for {date} is: {final_val}')
+            print(f'Num seconds since epoch: {num_seconds_since_epoch}')
+            print(f'Value for {date} is: {time_score}')
 
-        return final_val
+        return time_score
 
     def _calc_boost_score(self):
         boost_score = 0
         try:
             doc = self.get_document()
             boost = doc.get_boost_amount()
-            date_val = self._get_date_val(self.created_date)
-            boost_score = date_val * math.log(boost + 1, 5)
+            boost_score = math.log(boost + 1, 10)
         except Exception as e:
             print(e)
 
@@ -81,10 +66,8 @@ class HotScoreMixin:
         social_media_score = 0
         doc = self.get_document()
 
-        date_val = self._get_date_val(self.created_date)
         if self.document_type == PAPER:
-            twitter_score = math.log(doc.twitter_score+1, 7)
-            social_media_score = date_val * twitter_score
+            social_media_score = math.log(doc.twitter_score + 1, 7)
 
         return social_media_score
 
@@ -94,27 +77,28 @@ class HotScoreMixin:
 
         total_comment_vote_score = self._count_doc_comment_votes(doc)
         boost_score = self._calc_boost_score()
-        time_score = self._get_date_val(self.created_date)
 
         if self.document_type == PAPER:
             doc_vote_net_score = doc.calculate_score(ignore_twitter_score=True)
         else:
             doc_vote_net_score = doc.calculate_score()
 
+        time_score = self._get_time_score(self.created_date)
+        time_score_with_magnitude = self._c(doc_vote_net_score) * time_score
         social_media_score = self._calc_social_media_score()
-        doc_vote_score = self._c(doc_vote_net_score) * math.log(abs(doc_vote_net_score) + 1, 3)
-        discussion_vote_score = math.log(max(0, total_comment_vote_score) + 1, 3)
-        discussion_count_score = math.log(doc.discussion_count + 1, 2)
+        doc_vote_score = math.log(abs(doc_vote_net_score) + 1, 5)
+        discussion_vote_score = math.log(max(0, total_comment_vote_score) + 1, 5)
+        discussion_count_score = math.log(doc.discussion_count + 1, 5)
 
         agg_score = (
-            discussion_vote_score + 
+            discussion_vote_score +
             doc_vote_score +
             discussion_count_score +
             social_media_score +
             boost_score
         )
 
-        hot_score = (agg_score * time_score) * 10000
+        hot_score = agg_score + time_score_with_magnitude
 
         debug_obj = {
             'unified_doc_id': self.id,
@@ -123,12 +107,12 @@ class HotScoreMixin:
             'created_date': self.created_date,
             'discussion_count': {
                 'count': doc.discussion_count,
-                '=score': discussion_count_score 
+                '=score': discussion_count_score
             },
             'discussion_votes': {
                 'total_comment_vote_score': total_comment_vote_score,
                 '=score': discussion_vote_score 
-            },            
+            },
             'votes': {
                 'doc_votes': doc_vote_net_score,
                 '=score': doc_vote_score
@@ -141,6 +125,7 @@ class HotScoreMixin:
             },
             'agg_score': agg_score,
             'time_score': time_score,
+            'time_score_with_magnitude': time_score_with_magnitude,
             '=hot_score': hot_score,
         }
 
