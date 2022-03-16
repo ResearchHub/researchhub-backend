@@ -44,7 +44,6 @@ from utils.permissions import (
     CreateOrUpdateIfAllowed,
     CreateOrReadOnly
 )
-from reputation.models import Distribution
 from user.models import User, Author, Action
 from user.serializers import UserSerializer
 from user.permissions import IsModerator
@@ -96,8 +95,10 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
                 'record': {'id': user_id, 'email': user.email, 'name': user.first_name + ' ' + user.last_name}
             }
             distribution = Distribution(
-                'MOD_PAYOUT', amount
-            )            
+                'MOD_PAYOUT',
+                amount,
+                give_rep=False
+            )
             timestamp = time.time()
             user_proof = User.objects.get(id=recipient_id)
             distributor = Distributor(
