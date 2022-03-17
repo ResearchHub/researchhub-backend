@@ -2,165 +2,140 @@ import datetime
 import math
 from researchhub_document.related_models.constants.document_type import PAPER
 import numpy as np
+from django.db.models import (
+    Q,
+    Count
+)
+from discussion.models import Vote
 
 class HotScoreMixin:
-    # Returns a value between 0 and 1
-    # The further away the given date is from now, the smaller the value
-    def _get_date_val(self, date):
-        input_date = date.replace(tzinfo=None)
-        now = datetime.datetime.now()
-
-        epoch_date = datetime.datetime(2020, 1, 1)
-        days_since_epoch = (now - epoch_date).days
-        mins_since_epoch = days_since_epoch * 24 * 60
-        delta_dt = now - input_date
-        days_elapsed_since_input_date = delta_dt.days + delta_dt.seconds / 60 / 60 / 24
-        mins_elapsed_since_input_date = days_elapsed_since_input_date * 60 * 24
-
-        time_penalty = 0
-        if (days_elapsed_since_input_date > 1 and days_elapsed_since_input_date <= 5):
-            time_penalty = 0.25
-        elif (days_elapsed_since_input_date > 5 and days_elapsed_since_input_date <= 10):
-            time_penalty = 0.35
-        elif (days_elapsed_since_input_date > 10 and days_elapsed_since_input_date <= 25):
-            time_penalty = 0.5
-        elif (days_elapsed_since_input_date > 25):
-            time_penalty = 0.75
-
-        val = (mins_since_epoch - mins_elapsed_since_input_date) / mins_since_epoch
-        final_val = np.power(val - (val * time_penalty), 2)
-        # Ensure no negative values. This can happen if date is in future
-        final_val = max(0, final_val)
-
-        # Debug
-        if False:
-            print(f'Value for {date} is: {final_val}')
-
-        return final_val
-
-    def _calc_social_media_score(self):
-        social_media_score = 0
-        doc = self.get_document()
-
-        date_val = self._get_date_val(self.created_date)
-        if self.document_type == PAPER:
-            twitter_score = math.log(doc.twitter_score+1, 2)
-            social_media_score = date_val * twitter_score
-
-        return social_media_score
-
-    def _calc_boost_score(self):
-        doc = self.get_document()
-        boost = doc.get_boost_amount()
-        date_val = self._get_date_val(self.created_date)
-        boost_score = date_val * math.log(boost+1, 2)
-
-        return boost_score
-
-    def _calc_vote_score(self, votes):
-        return sum(
-            map(
-                self._get_date_val,
-                votes.values_list('created_date', flat=True)
-            )
-        )
 
     def _c(self, num):
-        if num >= 1:
+        if num > 0:
             return 1
         elif num == 0:
             return 0
         else:
             return -1
 
-    # The basic idea is that the score of a document depends on the sum
-    # of various interactions on it (i.e. votes). Each of which, depends
-    # on how recent these interactions were. The more recent the interaction
-    # is, the greater its value.
-    # NOTE: use endpoint /api/researchhub_unified_documents/{doc_id}/hot_score/?debug
-    # to see a breakdown of how the hot score is calculated for a given document
+    def _count_doc_comment_votes(self, doc):
+        vote_total = 0
+        try:
+            for t in doc.threads.filter(is_removed=False).iterator():
+                vote_total += max(0, t.calculate_score())
+                for c in t.comments.filter(is_removed=False).iterator():
+                    vote_total += max(0, c.calculate_score())
+                    for r in c.replies.filter(is_removed=False).iterator():
+                        vote_total += max(0, r.calculate_score())
+        except Exception as e:
+            print(e)
+
+        return vote_total
+
+    def _get_time_score(self, date):
+        num_seconds_in_half_day = 43000
+        num_seconds_in_one_day = 86000
+
+        input_date = date.replace(tzinfo=None)
+        epoch_date = datetime.datetime(2020, 1, 1)
+
+        num_seconds_since_epoch = (input_date - epoch_date).total_seconds()
+        half_days_since_epoch = num_seconds_since_epoch / num_seconds_in_half_day
+        time_score = half_days_since_epoch
+
+        # Debug
+        if False:
+            print(f'Num seconds since epoch: {num_seconds_since_epoch}')
+            print(f'Value for {date} is: {time_score}')
+
+        return time_score
+
+    def _calc_boost_score(self):
+        boost_score = 0
+        try:
+            doc = self.get_document()
+            boost = doc.get_boost_amount()
+            boost_score = math.log(boost + 1, 10)
+        except Exception as e:
+            print(e)
+
+        return boost_score
+
+    def _calc_social_media_score(self):
+        social_media_score = 0
+        doc = self.get_document()
+
+        if self.document_type == PAPER:
+            social_media_score = math.log(doc.twitter_score + 1, 10)
+
+        return social_media_score
+
+    # The basic idea is to take a bunch of signals (e.g discussion count) and
+    # add them to some time score elapsed since the epoch. The signals should be
+    # somewhat comparable to the time score. To do that, we pass these signals through
+    # log functions so that scores don't grow out of control.
     def calculate_hot_score_v2(self, should_save=False):
-        DOCUMENT_VOTE_WEIGHT = 1
-        DISCUSSION_VOTE_WEIGHT = 1
-        DOCUMENT_CREATED_WEIGHT = 3
+        MIN_REQ_DISCUSSIONS = 2
         hot_score = 0
         doc = self.get_document()
 
-        # Init debug
-        debug_obj = {
-            'unified_doc_id': self.id,
-            'inner_doc_id': doc.id,
-            'document_type': self.document_type,
-            'DISCUSSION_VOTE_WEIGHT': DISCUSSION_VOTE_WEIGHT,
-            'DOCUMENT_VOTE_WEIGHT': DOCUMENT_VOTE_WEIGHT,
-            'DOCUMENT_CREATED_WEIGHT': DOCUMENT_CREATED_WEIGHT,
-        }
+        if doc is None:
+            return (0,0)
 
-        # Doc vote score
         if self.document_type == PAPER:
             doc_vote_net_score = doc.calculate_score(ignore_twitter_score=True)
         else:
             doc_vote_net_score = doc.calculate_score()
 
-        doc_vote_time_score = self._calc_vote_score(doc.votes.all())
-        doc_vote_score = self._c(doc_vote_net_score) * doc_vote_time_score * DOCUMENT_VOTE_WEIGHT
-        debug_obj['doc_vote_score'] = {'vote_net_score': doc_vote_net_score, 'vote_time_score': doc_vote_time_score, '=doc_vote_score (WEIGHTED)': doc_vote_score}
-
-        # Doc boost score
+        total_comment_vote_score = self._count_doc_comment_votes(doc)
         boost_score = self._calc_boost_score()
-        debug_obj['doc_boost_score'] = {'=doc_boost_score': boost_score}
-
-        # Doc created date score
-        doc_created_score = self._get_date_val(self.created_date) * DOCUMENT_CREATED_WEIGHT
-        debug_obj['doc_created_score'] = {'created_date': self.created_date, '=doc_created_score (WEIGHTED)': doc_created_score}
-
-        # Doc social media score
         social_media_score = self._calc_social_media_score()
-        debug_obj['social_media_score'] = {'=social_media_score': social_media_score}
+        time_score = self._get_time_score(self.created_date)
+        time_score_with_magnitude = self._c(doc_vote_net_score + social_media_score) * time_score
+        doc_vote_score = math.log(abs(doc_vote_net_score) + 1, 3)
+        discussion_vote_score = math.log(doc.discussion_count + 1, 2) * math.log(max(0, total_comment_vote_score) + 1, 2)
 
-        # Doc discussion vote score
-        discussion_vote_score = 0
-        debug_obj['discussion_vote_score'] = {}
-        for t in doc.threads.filter(is_removed=False).iterator():
-            thread_vote_net_score = max(0, t.calculate_score())
-            thread_vote_time_score = self._calc_vote_score(t.votes.all())
-            thread_vote_score = self._c(thread_vote_net_score) * thread_vote_time_score * DISCUSSION_VOTE_WEIGHT
-            discussion_vote_score += thread_vote_score
+        # If basic criteria needed to show in trending is not available,
+        # penalize the score by subtracting time. This will result in the
+        # document being sent to the back of the feed
+        if doc.discussion_count < MIN_REQ_DISCUSSIONS and time_score_with_magnitude >= 0:
+            time_score_with_magnitude *= -1
 
-            debug_val = {'created_date': t.created_date, 'vote_net_score': thread_vote_net_score, 'vote_time_score': thread_vote_time_score, '=thread_vote_score (WEIGHTED)': thread_vote_score}
-            debug_obj['discussion_vote_score'][f'thread (id:{t.id})'] = debug_val
-            for c in t.comments.filter(is_removed=False).iterator():
-                comment_vote_net_score = max(0, c.calculate_score())
-                comment_vote_time_score = self._calc_vote_score(c.votes.all())
-                comment_vote_score = self._c(comment_vote_net_score) * comment_vote_time_score * DISCUSSION_VOTE_WEIGHT
-                discussion_vote_score += comment_vote_score
-
-                debug_val = {'created_date': c.created_date, 'vote_net_score': comment_vote_net_score, 'vote_time_score': comment_vote_time_score, '=comment_vote_score (WEIGHTED)': comment_vote_score}
-                debug_obj['discussion_vote_score'][f'thread (id:{t.id})'][f'comment (id:{c.id})'] = debug_val
-                for r in c.replies.filter(is_removed=False).iterator():
-                    reply_vote_net_score = max(0, r.calculate_score())
-                    reply_vote_time_score = self._calc_vote_score(r.votes.all())
-                    reply_vote_score = self._c(reply_vote_net_score) * reply_vote_time_score * DISCUSSION_VOTE_WEIGHT
-                    discussion_vote_score += reply_vote_score
-
-                    debug_val = {'created_date': r.created_date, 'vote_net_score': reply_vote_net_score, 'vote_time_score': reply_vote_time_score, '=reply_vote_score (WEIGHTED)': reply_vote_score}
-                    debug_obj['discussion_vote_score'][f'thread (id:{t.id})'][f'comment (id:{c.id})'][f'reply (id:{r.id})'] = debug_val
-
-        debug_obj['discussion_vote_score']['=discussion_vote_score'] = discussion_vote_score
-
-        hot_score = (
-            doc_created_score +
-            doc_vote_score +
+        agg_score = (
             discussion_vote_score +
-            social_media_score +
+            doc_vote_score +
             boost_score
         )
-        final_hot_score = hot_score * 10000
-        debug_obj['hot_score'] = hot_score
-        debug_obj['=hot_score (x10000)'] = final_hot_score
+
+        hot_score = (agg_score + time_score_with_magnitude) * 1000
+
+        debug_obj = {
+            'unified_doc_id': self.id,
+            'inner_doc_id': doc.id,
+            'document_type': self.document_type,
+            'created_date': self.created_date,
+            'discussion_votes': {
+                'total_comment_vote_score': total_comment_vote_score,
+                '=score': discussion_vote_score 
+            },
+            'votes': {
+                'doc_votes': doc_vote_net_score,
+                '=score': doc_vote_score
+            },
+            'social_media': {
+                '=score': social_media_score
+            },
+            'boost_score': {
+                '=score': boost_score
+            },
+            'agg_score': agg_score,
+            'time_score': time_score,
+            'time_score_with_magnitude': time_score_with_magnitude,
+            '=hot_score': hot_score,
+        }
 
         if should_save:
-            self.hot_score_v2 = final_hot_score
+            self.hot_score_v2 = hot_score
             self.save()
 
-        return (final_hot_score, debug_obj)
+        return (hot_score, debug_obj)
