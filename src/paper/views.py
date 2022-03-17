@@ -1235,7 +1235,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
         parsed_url = urlparse(url)
         if not parsed_url.scheme:
             url = f"http://{parsed_url.geturl()}"
-
+        import pdb; pdb.set_trace()
         duplicate_papers = Paper.objects.filter(
             Q(url__icontains=url) | Q(pdf_url__icontains=url)
         )
@@ -1247,6 +1247,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
             data = {"data": serializer.data}
             return Response(data, status=status.HTTP_403_FORBIDDEN)
 
+        data['uploaded_by'] = self.request.user.id
         response = super().create(*args, **kwargs)
         if response.status_code == 201:
             data = response.data
