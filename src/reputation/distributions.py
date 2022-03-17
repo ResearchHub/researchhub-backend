@@ -1,3 +1,6 @@
+import datetime
+import pytz
+
 class Distribution:
     def __init__(self, name, amount, give_rep=True):
         self._name = name
@@ -16,6 +19,52 @@ class Distribution:
     def gives_rep(self):
         return self._give_rep
 
+RSC_YEARLY_GIVEAWAY = 50000000
+MINUTES_IN_YEAR = 525960
+HOURS_IN_YEAR = MINUTES_IN_YEAR / 60
+DAYS_IN_YEAR = 365
+MONTHS_IN_YEAR = 12
+GROWTH = .2
+
+def calculate_paper_upvote_rsc():
+    from paper.models import Vote
+    today = datetime.datetime.now(
+        tz=pytz.utc
+    ).replace(
+        hour=0,
+        minute=0,
+        second=0
+    )
+    past_minute = today - datetime.timedelta(minutes=1)
+    past_hour = today - datetime.timedelta(minutes=60)
+    past_day = today - datetime.timedelta(days=1)
+    past_month = today - datetime.timedelta(days=30)
+    past_year = today - datetime.timedelta(days=365)
+
+    votes_in_past_minute = Vote.objects.filter(vote_type=1, created_date__gte=past_minute).count()
+    votes_in_past_hour = Vote.objects.filter(vote_type=1, created_date__gte=past_hour).count()
+    votes_in_past_day = Vote.objects.filter(vote_type=1, created_date__gte=past_day).count()
+    votes_in_past_month = Vote.objects.filter(vote_type=1, created_date__gte=past_month).count()
+    votes_in_past_year = Vote.objects.filter(vote_type=1, created_date__gte=past_year).count()
+
+    def calculate_rsc(timeframe, weight):
+        return RSC_YEARLY_GIVEAWAY * weight / timeframe
+
+    rsc_by_minute = calculate_rsc(votes_in_past_minute * MINUTES_IN_YEAR, .25)
+    rsc_by_hour = calculate_rsc(votes_in_past_hour * HOURS_IN_YEAR, .3)
+    rsc_by_day = calculate_rsc(votes_in_past_day * DAYS_IN_YEAR, .25)
+    rsc_by_month = calculate_rsc(votes_in_past_month * MONTHS_IN_YEAR, .1)
+    rsc_by_year = calculate_rsc(votes_in_past_year, .1)
+
+    rsc_distribute = rsc_by_minute + rsc_by_hour + rsc_by_day + rsc_by_month + rsc_by_year
+    rsc_distribute *= (1 - GROWTH)
+
+    return int(rsc_distribute)
+
+def create_paper_upvote_distribution():
+    return Distribution(
+        'PAPER_UPVOTED', calculate_paper_upvote_rsc()
+    )
 
 FlagPaper = Distribution(
     'FLAG_PAPER', 1

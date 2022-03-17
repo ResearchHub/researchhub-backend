@@ -81,7 +81,8 @@ def distribute_for_paper_upvoted(
         recipient
     ):
         distributor = Distributor(
-            distributions.PaperUpvoted,
+            #distributions.PaperUpvoted,
+            distributions.create_paper_upvote_distribution(),
             recipient,
             instance,
             timestamp,
