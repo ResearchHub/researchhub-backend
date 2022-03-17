@@ -1,6 +1,7 @@
 import base64
 import datetime
 import json
+from urllib.parse import urlparse
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
@@ -1229,6 +1230,11 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
     def create(self, *args, **kwargs):
         data = self.request.data
         url = data.get("url", "")
+
+        # Appends http if protocol does not exist
+        parsed_url = urlparse(url)
+        if not parsed_url.scheme:
+            url = f"http://{parsed_url.geturl()}"
 
         duplicate_papers = Paper.objects.filter(
             Q(url__icontains=url) | Q(pdf_url__icontains=url)
