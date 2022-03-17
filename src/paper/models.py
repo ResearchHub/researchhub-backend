@@ -3,6 +3,8 @@ import datetime
 import pytz
 import regex as re
 import requests
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
@@ -1136,7 +1138,20 @@ class PaperSubmission(DefaultModel):
     def set_failed_timeout_status(self, save=True):
         self.set_status(self.FAILED_TIMEOUT, save)
 
-    def notify_status(self):
+    def notify_status(self, requester):
+        paper_submission_id = self.id.slug
+        room = f"paper_submission_{paper_submission_id}"
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            room,
+            {
+                "type": "notify_paper_submission_status",
+                "id": self.id,
+            },
+        )
+
+    # TODO: delete
+    def old_notify_status(self):
         from notification.models import Notification
         from user.models import Action
 
