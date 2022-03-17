@@ -145,6 +145,7 @@ class SocialLoginSerializer(serializers.Serializer):
                 self.callback_url,
                 scope
             )
+            # import pdb; pdb.set_trace()
             token = client.get_access_token(code)
             access_token = token['access_token']
 
