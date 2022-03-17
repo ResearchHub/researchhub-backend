@@ -57,6 +57,7 @@ from utils.siftscience import events_api
 @api_view([RequestMethods.POST, RequestMethods.GET])
 @permission_classes([AllowAny])
 def test(request):
+    return Response(status=200)
     import pdb; pdb.set_trace()
 
 
