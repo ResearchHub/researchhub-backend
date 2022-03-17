@@ -1138,7 +1138,7 @@ class PaperSubmission(DefaultModel):
     def set_failed_timeout_status(self, save=True):
         self.set_status(self.FAILED_TIMEOUT, save)
 
-    def notify_status(self, requester):
+    def notify_status(self):
         paper_submission_id = self.id.slug
         room = f"paper_submission_{paper_submission_id}"
         channel_layer = get_channel_layer()
