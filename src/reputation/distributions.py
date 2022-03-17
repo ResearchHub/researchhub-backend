@@ -26,8 +26,18 @@ DAYS_IN_YEAR = 365
 MONTHS_IN_YEAR = 12
 GROWTH = .2
 
-def calculate_paper_upvote_rsc():
+def calculate_upvote_rsc():
     from paper.models import Vote
+    from discussion.models import (
+        Vote as ReactionVote
+    )
+
+    def calculate_rsc(timeframe, weight):
+        return RSC_YEARLY_GIVEAWAY * weight / timeframe
+
+    def calculate_votes(timeframe):
+        return Vote.objects.filter(vote_type=1, created_date__gte=timeframe).count() + ReactionVote.objects.filter(vote_type=1, created_date__gte=timeframe).count()
+
     today = datetime.datetime.now(
         tz=pytz.utc
     ).replace(
@@ -41,14 +51,11 @@ def calculate_paper_upvote_rsc():
     past_month = today - datetime.timedelta(days=30)
     past_year = today - datetime.timedelta(days=365)
 
-    votes_in_past_minute = Vote.objects.filter(vote_type=1, created_date__gte=past_minute).count()
-    votes_in_past_hour = Vote.objects.filter(vote_type=1, created_date__gte=past_hour).count()
-    votes_in_past_day = Vote.objects.filter(vote_type=1, created_date__gte=past_day).count()
-    votes_in_past_month = Vote.objects.filter(vote_type=1, created_date__gte=past_month).count()
-    votes_in_past_year = Vote.objects.filter(vote_type=1, created_date__gte=past_year).count()
-
-    def calculate_rsc(timeframe, weight):
-        return RSC_YEARLY_GIVEAWAY * weight / timeframe
+    votes_in_past_minute = calculate_votes(past_minute)
+    votes_in_past_hour = calculate_votes(past_hour)
+    votes_in_past_day = calculate_votes(past_day)
+    votes_in_past_month = calculate_votes(past_month)
+    votes_in_past_year = calculate_votes(past_year)
 
     rsc_by_minute = calculate_rsc(votes_in_past_minute * MINUTES_IN_YEAR, .25)
     rsc_by_hour = calculate_rsc(votes_in_past_hour * HOURS_IN_YEAR, .3)
@@ -61,9 +68,9 @@ def calculate_paper_upvote_rsc():
 
     return int(rsc_distribute)
 
-def create_paper_upvote_distribution():
+def create_upvote_distribution(vote_type):
     return Distribution(
-        'PAPER_UPVOTED', calculate_paper_upvote_rsc()
+        vote_type, calculate_upvote_rsc()
     )
 
 FlagPaper = Distribution(

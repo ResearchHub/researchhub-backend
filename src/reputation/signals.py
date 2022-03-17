@@ -81,8 +81,7 @@ def distribute_for_paper_upvoted(
         recipient
     ):
         distributor = Distributor(
-            #distributions.PaperUpvoted,
-            distributions.create_paper_upvote_distribution(),
+            distributions.create_upvote_distribution(distributions.PaperUpvoted.name),
             recipient,
             instance,
             timestamp,
@@ -555,15 +554,17 @@ def get_discussion_vote_item_distribution(instance):
 
     if vote_type == ReactionVote.UPVOTE:
         if item_type == Comment:
-            return distributions.CommentUpvoted
+            vote_type = distributions.CommentUpvoted.name
         elif item_type == Reply:
-            return distributions.ReplyUpvoted
+            vote_type = distributions.ReplyUpvoted.name
         elif item_type == Thread:
-            return distributions.ThreadUpvoted
+            vote_type = distributions.ThreadUpvoted.name
         elif item_type == ResearchhubPost:
-            return distributions.ResearchhubPostUpvoted
+            vote_type = distributions.ResearchhubPostUpvoted.name
         else:
             raise error
+
+        return distributions.create_upvote_distribution(vote_type)
     elif vote_type == ReactionVote.DOWNVOTE:
         if item_type == Comment:
             return distributions.CommentDownvoted
