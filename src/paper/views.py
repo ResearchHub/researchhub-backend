@@ -1247,7 +1247,6 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
             data = {"data": serializer.data}
             return Response(data, status=status.HTTP_403_FORBIDDEN)
 
-        data['uploaded_by'] = self.request.user.id
         response = super().create(*args, **kwargs)
         if response.status_code == 201:
             data = response.data

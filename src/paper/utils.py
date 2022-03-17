@@ -291,9 +291,11 @@ def get_csl_item(url) -> dict:
     from manubot.cite.citekey import citekey_to_csl_item, url_to_citekey
 
     try:
-        citekey = url_to_citekey(url)
-        citekey = RHCiteKey(citekey)
-        csl_item = citekey_to_csl_item(citekey)
+        # citekey = url_to_citekey(url)
+        # citekey = RHCiteKey(citekey)
+        # csl_item = citekey_to_csl_item(citekey)
+        citekey = RHCiteKey(url)
+        csl_item = citekey.csl_item
         return csl_item
     except Exception as e:
         raise ManubotProcessingError(e)

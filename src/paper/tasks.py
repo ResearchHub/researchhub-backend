@@ -8,6 +8,7 @@ import time
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
+from json.decoder import JSONDecodeError
 from subprocess import PIPE, run
 
 import feedparser
@@ -1302,6 +1303,9 @@ def celery_crossref(self, celery_data):
     except HTTPError as e:
         error = CrossrefSearchError(e, "Safe Error - Continuing")
         sentry.log_info(error)
+        return (paper_data, submission_id)
+    except JSONDecodeError as e:
+        error = CrossrefSearchError(e, "Safe Error - Continuing")
         return (paper_data, submission_id)
     except Exception as e:
         raise e
