@@ -12,7 +12,7 @@ from utils.models import DefaultModel
 from researchhub_document.tasks import (
     update_elastic_registry
 )
-from researchhub_document.hot_score_mixin2 import HotScoreMixin
+from researchhub_document.hot_score_mixin import HotScoreMixin
 
 
 class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
