@@ -1,4 +1,11 @@
+import random
+import requests
+import string
+import time
+from datetime import datetime
+
 from django.core.files.base import ContentFile
+from django.template.loader import render_to_string
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -24,6 +31,14 @@ from researchhub_document.related_models.constants.filters import (
     NEWEST,
     TOP
 )
+from researchhub.settings import (
+    BASE_FRONTEND_URL,
+    CROSSREF_DOI_PREFIX,
+    CROSSREF_LOGIN_ID,
+    CROSSREF_LOGIN_PASSWORD,
+    CROSSREF_API_URL
+)
+
 
 class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date')
@@ -71,7 +86,9 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             editor_type = data.get('editor_type')
             authors = data.get('authors', [])
             note_id = data.get('note_id', None)
+            title = data.get('title', '')
             is_discussion = document_type == DISCUSSION
+            doi = CROSSREF_DOI_PREFIX + ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(8))
 
             # logical ordering & not using signals to avoid race-conditions
             access_group = self.create_access_group(request)
@@ -83,12 +100,13 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             rh_post = ResearchhubPost.objects.create(
                 created_by=created_by,
                 document_type=document_type,
+                doi=doi,
                 editor_type=CK_EDITOR if editor_type is None else editor_type,
                 note_id=note_id,
                 prev_version=None,
                 preview_img=data.get('preview_img'),
                 renderable_text=data.get('renderable_text'),
-                title=data.get('title'),
+                title=title,
                 unified_document=unified_document,
             )
             file_name = f'RH-POST-{document_type}-USER-{created_by.id}.txt'
@@ -112,6 +130,28 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                 with_default=True,
                 document_types=['all', 'posts']
             )
+
+            # Registering DOI with Crossref
+            dt = datetime.today()
+            context = {
+                'timestamp': int(time.time()),
+                'first_name': created_by.author_profile.first_name,
+                'last_name': created_by.author_profile.last_name,
+                'title': title,
+                'publication_month': dt.month,
+                'publication_day': dt.day,
+                'publication_year': dt.year,
+                'doi': doi,
+                'url': f'{BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}',
+            }
+            crossref_xml = render_to_string('crossref.xml', context)
+            files = {
+                'operation': (None, 'doMDUpload'),
+                'login_id': (None, CROSSREF_LOGIN_ID),
+                'login_passwd': (None, CROSSREF_LOGIN_PASSWORD),
+                'fname': ('crossref.xml', crossref_xml),
+            }
+            crossref_response = requests.post(CROSSREF_API_URL, files=files)
 
             return Response(
                 ResearchhubPostSerializer(
