@@ -17,11 +17,11 @@ from django.contrib.contenttypes.models import ContentType
 from researchhub_document.tasks import recalc_hot_score_task
 from utils import sentry
 
-@receiver(
-    post_save,
-    sender=ResearchhubUnifiedDocument,
-    dispatch_uid='recalc_hot_score_on_unidoc_save',
-)
+# @receiver(
+#     post_save,
+#     sender=ResearchhubUnifiedDocument,
+#     dispatch_uid='recalc_hot_score_on_unidoc_save',
+# )
 @receiver(
     post_save,
     sender=Vote,
