@@ -54,13 +54,6 @@ from utils.throttles import captcha_unlock
 from utils.siftscience import events_api
 
 
-@api_view([RequestMethods.POST, RequestMethods.GET])
-@permission_classes([AllowAny])
-def test(request):
-    return Response(status=200)
-    import pdb; pdb.set_trace()
-
-
 @api_view([RequestMethods.POST])
 @permission_classes([AllowAny])
 def captcha_verify(request):
@@ -156,16 +149,6 @@ https://accounts.google.com/o/oauth2/v2/auth?
             )
 
     # def dispatch(self, request, *args, **kwargs):
-    #     # import pdb; pdb.set_trace()
-    #     # code = request.GET['code']
-    #     # res = requests.post('https://oauth2.googleapis.com/token', params={
-    #     #     'code': code,
-    #     #     'client_id': '501049108069-3gg2ef4jg5odm5fjmitcgs0291srt5v4.apps.googleusercontent.com',
-    #     #     'client_secret': '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',
-    #     #     'redirect_uri': 'http://localhost:8000/auth/google/login/callback/',
-    #     #     'grant_type': 'authorization_code'
-    #     # })
-
     #     if 'error' in request.GET or 'code' not in request.GET:
     #         # Distinguish cancel from error
     #         auth_error = request.GET.get('error', None)
@@ -195,7 +178,6 @@ https://accounts.google.com/o/oauth2/v2/auth?
     #         login.token = token
     #         if self.adapter.provider_id != OrcidProvider.id:
     #             if self.adapter.supports_state:
-    #                 import pdb; pdb.set_trace()
     #                 login.state = SocialLogin \
     #                     .verify_and_unstash_state(
     #                         request,

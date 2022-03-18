@@ -142,10 +142,9 @@ class SocialLoginSerializer(serializers.Serializer):
                 app.secret,
                 adapter.access_token_method,
                 adapter.access_token_url,
-                self.callback_url,
+                'postmessage',  # This is the callback url
                 scope
             )
-            # import pdb; pdb.set_trace()
             token = client.get_access_token(code)
             access_token = token['access_token']
 
