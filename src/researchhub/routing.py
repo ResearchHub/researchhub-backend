@@ -3,7 +3,7 @@ from channels.security.websocket import AllowedHostsOriginValidator
 
 import note.routing
 import notification.routing
-import paper.routing
+import user.routing
 from notification.token_auth import TokenAuthMiddlewareStack
 
 application = ProtocolTypeRouter(
@@ -15,7 +15,7 @@ application = ProtocolTypeRouter(
                     [
                         *note.routing.websocket_urlpatterns,
                         *notification.routing.websocket_urlpatterns,
-                        *paper.routing.websocket_urlpatterns,
+                        *user.routing.websocket_urlpatterns,
                     ]
                 )
             )

@@ -1207,13 +1207,17 @@ def celery_manubot(self, celery_data):
 
         # DOI duplicate check
         if doi:
-            if Paper.objects.filter(doi=doi).exists():
+            doi_paper_check = Paper.objects.filter(doi=doi)
+            if doi_paper_check.exists():
                 paper_submission.set_duplicate_status()
-                raise DuplicatePaperError(f"Duplicate DOI: {doi}")
+                duplicate_ids = doi_paper_check.values_list("id", flat=True)
+                raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
 
         # Url duplicate check
         oa_pdf_location = get_pdf_location_for_csl_item(csl_item)
         csl_item["oa_pdf_location"] = oa_pdf_location
+        print("----------@@@@@@@@@@@@@@@@@@@@@@-----------")
+        print(oa_pdf_location)
         if oa_pdf_location:
             urls = []
             oa_url = oa_pdf_location.get("url", [])
@@ -1224,9 +1228,13 @@ def celery_manubot(self, celery_data):
             urls.extend(oa_landing_page_url)
             urls.extend(oa_pdf_url)
 
-            if Paper.objects.filter(Q(url__in=urls) | Q(pdf_url__in=urls)).exists():
+            url_paper_check = Paper.objects.filter(
+                Q(url__in=urls) | Q(pdf_url__in=urls)
+            )
+            if url_paper_check.exists():
                 paper_submission.set_duplicate_status()
-                raise DuplicatePaperError(f"Duplicate URL: {urls}")
+                duplicate_ids = url_paper_check.values_list("id", flat=True)
+                raise DuplicatePaperError(f"Duplicate URL: {urls}", duplicate_ids)
 
         # Cleaning csl data
         cleaned_title = csl_item.get("title", "").strip()
@@ -1361,19 +1369,22 @@ def celery_handle_paper_processing_errors(request, exc, traceback):
     try:
         sentry.log_error(exc)
 
+        extra_metadata = {}
         PaperSubmission = apps.get_model("paper.PaperSubmission")
         args = request.args[0]
         _, submission_id = args
         paper_submission = PaperSubmission.objects.get(id=submission_id)
 
         if isinstance(exc, DuplicatePaperError):
+            duplicate_ids = exc.args[1]
+            extra_metadata["duplicate_ids"] = duplicate_ids
             paper_submission.set_duplicate_status()
         elif isinstance(exc, SoftTimeLimitExceeded):
             paper_submission.set_failed_timeout_status()
         else:
             paper_submission.set_failed_status()
 
-        paper_submission.notify_status()
+        paper_submission.notify_status(**extra_metadata)
     except Exception as e:
         sentry.log_error(e, exc)
 

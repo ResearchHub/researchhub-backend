@@ -1138,16 +1138,13 @@ class PaperSubmission(DefaultModel):
     def set_failed_timeout_status(self, save=True):
         self.set_status(self.FAILED_TIMEOUT, save)
 
-    def notify_status(self):
-        paper_submission_id = self.id
-        room = f"paper_submission_{paper_submission_id}"
+    def notify_status(self, **kwargs):
+        user_id = self.uploaded_by.id
+        room = f"{user_id}_paper_submissions"
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             room,
-            {
-                "type": "notify_paper_submission_status",
-                "id": self.id,
-            },
+            {"type": "notify_paper_submission_status", "id": self.id, **kwargs},
         )
 
     # TODO: delete

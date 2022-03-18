@@ -20,7 +20,8 @@ class RHCiteKey(CiteKey):
     Modified so that get_url_csl_item won't use greycite (extremely slow)
     """
 
-    @cached_property
+    # @cached_property
+    @property
     def csl_item(self):
         csl_item = self.get_url_csl_item(self.standard_accession)
         if not isinstance(csl_item, CSL_Item):
