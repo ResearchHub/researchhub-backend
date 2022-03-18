@@ -172,7 +172,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         return update_response
 
     def _get_document_filtering(self, query_params):
-        use_v2_hot_score = query_params.get('hot_v2') == 'true'
         filtering = query_params.get('ordering', None)
         if filtering == 'removed':
             filtering = 'removed'
@@ -183,10 +182,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         elif filtering == 'newest':
             filtering = '-created_date'
         elif filtering == 'hot':
-            if use_v2_hot_score:
-                filtering = '-hot_score_v2'
-            else:
-                filtering = '-hot_score'
+            filtering = '-hot_score'
         elif filtering == 'user_uploaded':
             filtering = 'user_uploaded'
         else:
@@ -458,8 +454,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             )
         elif filtering == '-created_date':
             qs = qs.order_by(filtering)
-        elif filtering == '-hot_score' or filtering == '-hot_score_v2':
-            qs = qs.order_by(filtering)
+        elif filtering == '-hot_score':
+            qs = qs.order_by('-hot_score_v2')
         elif filtering == 'user_uploaded':
             qs = qs.filter(
                 (
@@ -470,7 +466,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 '-created_date'
             )
         else:
-            qs = qs.order_by('-hot_score')
+            qs = qs.order_by('-hot_score_v2')
 
         return qs
 
@@ -501,7 +497,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         is_anonymous = request.user.is_anonymous
         query_params = request.query_params
         subscribed_hubs = query_params.get('subscribed_hubs', 'false')
-        use_v2_hot_score = query_params.get('hot_v2') == 'true'
 
         if subscribed_hubs == 'true' and not is_anonymous:
             return self._get_subscribed_unified_documents(request)
@@ -519,29 +514,24 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         )
         time_difference = end_date - start_date
         filtering = self._get_document_filtering(query_params)
+        date_range = get_date_range_key(start_date, end_date)
+        cache_hit = self._get_unifed_document_cache_hit(
+            document_request_type,
+            filtering,
+            hub_id,
+            page_number,
+            date_range
+        )
 
-        # FIXME: Temporary condition until V2 of the
-        # hot score is live. For V2, We will not be
-        # caching results, hence this check to only allow for v1.
-        if use_v2_hot_score == False:
-            date_range = get_date_range_key(start_date, end_date)
-            cache_hit = self._get_unifed_document_cache_hit(
-                document_request_type,
-                filtering,
-                hub_id,
-                page_number,
-                date_range
+        if cache_hit and page_number == 1:
+            return Response(cache_hit)
+        elif not cache_hit and page_number == 1:
+            reset_unified_document_cache(
+                hub_ids=[hub_id],
+                document_type=[document_request_type],
+                filters=[filtering],
+                date_ranges=[date_range],
             )
-
-            if cache_hit and page_number == 1:
-                return Response(cache_hit)
-            elif not cache_hit and page_number == 1:
-                reset_unified_document_cache(
-                    hub_ids=[hub_id],
-                    document_type=[document_request_type],
-                    filters=[filtering],
-                    date_ranges=[date_range],
-                )
 
         documents = self.get_filtered_queryset(
             document_request_type,

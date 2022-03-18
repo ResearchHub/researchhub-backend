@@ -75,7 +75,7 @@ class HotScoreMixin:
     # somewhat comparable to the time score. To do that, we pass these signals through
     # log functions so that scores don't grow out of control.
     def calculate_hot_score_v2(self, should_save=False):
-        MIN_REQ_DISCUSSIONS = 2
+        MIN_REQ_DISCUSSIONS = 1
         hot_score = 0
         doc = self.get_document()
 
@@ -93,12 +93,12 @@ class HotScoreMixin:
         time_score = self._get_time_score(self.created_date)
         time_score_with_magnitude = self._c(doc_vote_net_score + social_media_score) * time_score
         doc_vote_score = math.log(abs(doc_vote_net_score) + 1, 3)
-        discussion_vote_score = math.log(doc.discussion_count + 1, 2) * math.log(max(0, total_comment_vote_score) + 1, 2)
+        discussion_vote_score = math.log(doc.discussion_count + 1, 3) * math.log(max(0, total_comment_vote_score) + 1, 3)
 
         # If basic criteria needed to show in trending is not available,
         # penalize the score by subtracting time. This will result in the
         # document being sent to the back of the feed
-        if doc.discussion_count < MIN_REQ_DISCUSSIONS and time_score_with_magnitude >= 0:
+        if doc.discussion_count <= MIN_REQ_DISCUSSIONS and time_score_with_magnitude >= 0:
             time_score_with_magnitude *= -1
 
         agg_score = (
