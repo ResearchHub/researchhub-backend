@@ -1179,7 +1179,9 @@ def celery_process_paper(self, submission_id):
     )
 
     task = chain(
-        celery_manubot.s(), celery_crossref.s(), celery_create_paper.s()
+        celery_manubot.s().set(countdown=2),
+        celery_crossref.s().set(countdown=2),
+        celery_create_paper.s().set(countdown=2),
     ).apply_async(
         (args,),
         countdown=1,
@@ -1216,10 +1218,8 @@ def celery_manubot(self, celery_data):
         # Url duplicate check
         oa_pdf_location = get_pdf_location_for_csl_item(csl_item)
         csl_item["oa_pdf_location"] = oa_pdf_location
-        print("----------@@@@@@@@@@@@@@@@@@@@@@-----------")
-        print(oa_pdf_location)
+        urls = [url]
         if oa_pdf_location:
-            urls = []
             oa_url = oa_pdf_location.get("url", [])
             oa_landing_page_url = oa_pdf_location.get("url_for_landing_page", [])
             oa_pdf_url = oa_pdf_location.get("url_for_pdf", [])
@@ -1228,13 +1228,11 @@ def celery_manubot(self, celery_data):
             urls.extend(oa_landing_page_url)
             urls.extend(oa_pdf_url)
 
-            url_paper_check = Paper.objects.filter(
-                Q(url__in=urls) | Q(pdf_url__in=urls)
-            )
-            if url_paper_check.exists():
-                paper_submission.set_duplicate_status()
-                duplicate_ids = url_paper_check.values_list("id", flat=True)
-                raise DuplicatePaperError(f"Duplicate URL: {urls}", duplicate_ids)
+        url_paper_check = Paper.objects.filter(Q(url__in=urls) | Q(pdf_url__in=urls))
+        if url_paper_check.exists():
+            paper_submission.set_duplicate_status()
+            duplicate_ids = url_paper_check.values_list("id", flat=True)
+            raise DuplicatePaperError(f"Duplicate URL: {urls}", duplicate_ids)
 
         # Cleaning csl data
         cleaned_title = csl_item.get("title", "").strip()
@@ -1377,7 +1375,7 @@ def celery_handle_paper_processing_errors(request, exc, traceback):
 
         if isinstance(exc, DuplicatePaperError):
             duplicate_ids = exc.args[1]
-            extra_metadata["duplicate_ids"] = duplicate_ids
+            extra_metadata["duplicate_ids"] = list(duplicate_ids)
             paper_submission.set_duplicate_status()
         elif isinstance(exc, SoftTimeLimitExceeded):
             paper_submission.set_failed_timeout_status()
@@ -1386,6 +1384,7 @@ def celery_handle_paper_processing_errors(request, exc, traceback):
 
         paper_submission.notify_status(**extra_metadata)
     except Exception as e:
+        print(e)
         sentry.log_error(e, exc)
 
     return

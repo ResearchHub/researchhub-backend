@@ -49,4 +49,5 @@ class PaperSubmissionConsumer(WebsocketConsumer):
         submission = PaperSubmission.objects.get(id=submission_id)
         serialized_data = PaperSubmissionSerializer(submission).data
         data = {"data": serialized_data, **extra_metadata}
+        print(data)
         self.send(text_data=json.dumps(data))

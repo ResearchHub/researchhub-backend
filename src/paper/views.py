@@ -1239,7 +1239,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
         duplicate_papers = Paper.objects.filter(
             Q(url__icontains=url) | Q(pdf_url__icontains=url)
         )
-        if False and duplicate_papers.exists():
+        if duplicate_papers.exists():
             duplicate_paper = duplicate_papers.first()
             serializer = DynamicPaperSerializer(
                 duplicate_paper, _include_fields=["doi", "id", "title", "url"]
