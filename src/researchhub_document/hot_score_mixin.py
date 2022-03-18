@@ -66,7 +66,7 @@ class HotScoreMixin:
         doc = self.get_document()
 
         if self.document_type == PAPER:
-            social_media_score = math.log(doc.twitter_score + 1, 10)
+            social_media_score = math.log(doc.twitter_score + 1, 5)
 
         return social_media_score
 
@@ -92,13 +92,13 @@ class HotScoreMixin:
         social_media_score = self._calc_social_media_score()
         time_score = self._get_time_score(self.created_date)
         time_score_with_magnitude = self._c(doc_vote_net_score + social_media_score) * time_score
-        doc_vote_score = math.log(abs(doc_vote_net_score) + 1, 3)
-        discussion_vote_score = math.log(doc.discussion_count + 1, 3) * math.log(max(0, total_comment_vote_score) + 1, 3)
+        doc_vote_score = math.log(abs(doc_vote_net_score) + 1, 2)
+        discussion_vote_score = math.log(doc.discussion_count + 1, 2) + math.log(max(0, total_comment_vote_score) + 1, 3)
 
         # If basic criteria needed to show in trending is not available,
         # penalize the score by subtracting time. This will result in the
         # document being sent to the back of the feed
-        if doc.discussion_count <= MIN_REQ_DISCUSSIONS and time_score_with_magnitude >= 0:
+        if doc.discussion_count < MIN_REQ_DISCUSSIONS and time_score_with_magnitude >= 0:
             time_score_with_magnitude *= -1
 
         agg_score = (
