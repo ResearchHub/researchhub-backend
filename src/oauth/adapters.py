@@ -66,6 +66,7 @@ class GoogleOAuth2AdapterIdToken(GoogleOAuth2Adapter):
         resp = requests.get(
             self.profile_url,
             params={"access_token": token.token, "alt": "json"},
+            timeout=5
         )
         resp.raise_for_status()
         extra_data = resp.json()
