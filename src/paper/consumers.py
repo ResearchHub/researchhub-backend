@@ -10,7 +10,7 @@ from paper.serializers import PaperSubmissionSerializer
 class PaperSubmissionConsumer(WebsocketConsumer):
     def connect(self):
         kwargs = self.scope["url_route"]["kwargs"]
-        paper_submission_id = kwargs["organization_slug"]
+        paper_submission_id = kwargs["paper_submission_id"]
 
         room = f"paper_submission_{paper_submission_id}"
         self.room_group_name = room
