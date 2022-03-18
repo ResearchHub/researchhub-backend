@@ -356,11 +356,11 @@ ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = False
 if STAGING or PRODUCTION:
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https'
-# LOGIN_REDIRECT_URL = 'http://localhost:3000/orcid'
-# if STAGING:
-#     LOGIN_REDIRECT_URL = 'https://staging-web.researchhub.com/orcid'
-# if PRODUCTION:
-#     LOGIN_REDIRECT_URL = 'https://researchhub.com/orcid'
+LOGIN_REDIRECT_URL = 'http://localhost:3000/orcid'
+if STAGING:
+    LOGIN_REDIRECT_URL = 'https://staging-web.researchhub.com/orcid'
+if PRODUCTION:
+    LOGIN_REDIRECT_URL = 'https://researchhub.com/orcid'
 SOCIALACCOUNT_ADAPTER = 'oauth.adapters.SocialAccountAdapter'
 SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
 SOCIALACCOUNT_EMAIL_REQUIRED = False

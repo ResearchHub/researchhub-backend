@@ -96,15 +96,6 @@ class CallbackView(OAuth2CallbackView):
     """
     This class is copied from allauth/socialaccount/providers/oauth2/views.py
     but uses a custom method for `complete_social_login`
-
-
-https://accounts.google.com/o/oauth2/v2/auth?
- response_type=code&
- state=f061c71904f0117b75ea6659c5d041ea10a8b5105ed34374f3673041d4a3da3a&
- client_id=501049108069-3gg2ef4jg5odm5fjmitcgs0291srt5v4.apps.googleusercontent.com&
- scope=openid%20email&
- redirect_uri=http://localhost:8000/auth/google/login/callback/
-
     """
     permission_classes = (AllowAny,)
 
@@ -130,12 +121,13 @@ https://accounts.google.com/o/oauth2/v2/auth?
                 request, app, token, response=access_token
             )
             login.token = token
-            if self.adapter.supports_state:
-                login.state = SocialLogin.verify_and_unstash_state(
-                    request, get_request_param(request, "state")
-                )
-            else:
-                login.state = SocialLogin.unstash_state(request)
+            if self.adapter.provider_id != OrcidProvider.id:
+                if self.adapter.supports_state:
+                    login.state = SocialLogin.verify_and_unstash_state(
+                        request, get_request_param(request, "state")
+                    )
+                else:
+                    login.state = SocialLogin.unstash_state(request)
 
             return complete_social_login(request, login)
         except (
@@ -147,53 +139,6 @@ https://accounts.google.com/o/oauth2/v2/auth?
             return render_authentication_error(
                 request, self.adapter.provider_id, exception=e
             )
-
-    # def dispatch(self, request, *args, **kwargs):
-    #     if 'error' in request.GET or 'code' not in request.GET:
-    #         # Distinguish cancel from error
-    #         auth_error = request.GET.get('error', None)
-    #         if auth_error == self.adapter.login_cancelled_error:
-    #             error = AuthError.CANCELLED
-    #         else:
-    #             error = AuthError.UNKNOWN
-    #         return render_authentication_error(
-    #             request,
-    #             self.adapter.provider_id,
-    #             error=error)
-    #     app = self.adapter.get_provider().get_app(self.request)
-    #     client = self.get_client(request, app)
-    #     try:
-    #         try:
-    #             access_token = client.get_access_token(request.GET['code'])
-    #         except Exception:
-    #             access_token = client.get_access_token(
-    #                 request.GET['credential']
-    #             )
-    #         token = self.adapter.parse_token(access_token)
-    #         token.app = app
-    #         login = self.adapter.complete_login(request,
-    #                                             app,
-    #                                             token,
-    #                                             response=access_token)
-    #         login.token = token
-    #         if self.adapter.provider_id != OrcidProvider.id:
-    #             if self.adapter.supports_state:
-    #                 login.state = SocialLogin \
-    #                     .verify_and_unstash_state(
-    #                         request,
-    #                         get_request_param(request, 'state'))
-    #             else:
-    #                 login.state = SocialLogin.unstash_state(request)
-    #         return complete_social_login(request, login)
-    #     except (PermissionDenied,
-    #             OAuth2Error,
-    #             RequestException,
-    #             ProviderException) as e:
-    #         return render_authentication_error(
-    #             request,
-    #             self.adapter.provider_id,
-    #             exception=e
-    #         )
 
 
 google_callback = CallbackView.adapter_view(GoogleOAuth2Adapter)
