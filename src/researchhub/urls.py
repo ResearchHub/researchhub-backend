@@ -403,7 +403,6 @@ urlpatterns = [
     path('email_notifications/', mailing_list.views.email_notifications),
     path('health/', researchhub.views.healthcheck),
     path('', researchhub.views.index, name='index'),
-    path('accounts/', include('allauth.urls')),
 ]
 
 if 'silk' in INSTALLED_APPS:
