@@ -353,6 +353,7 @@ ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = False
 if STAGING or PRODUCTION:
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https'
 LOGIN_REDIRECT_URL = 'http://localhost:3000/orcid'
@@ -424,7 +425,7 @@ DATABASES = {
         'PASSWORD': DB_PASS,
         'TEST': {
             'NAME': 'test_researchhub',
-        }        
+        }
     }
 }
 
@@ -828,4 +829,3 @@ try:
 except Exception as e:
     log_error(e)
     print(e)
-

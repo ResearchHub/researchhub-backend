@@ -142,7 +142,7 @@ class SocialLoginSerializer(serializers.Serializer):
                 app.secret,
                 adapter.access_token_method,
                 adapter.access_token_url,
-                self.callback_url,
+                'postmessage',  # This is the callback url
                 scope
             )
             token = client.get_access_token(code)
