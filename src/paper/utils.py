@@ -295,6 +295,9 @@ def get_csl_item(url) -> dict:
         citekey = url_to_citekey(url)
         citekey = RHCiteKey(citekey)
         csl_item = citekey_to_csl_item(citekey)
+
+        if not csl_item:
+            raise ManubotProcessingError(f"Error searching for paper: {url}")
         return csl_item
     except Exception as e:
         raise ManubotProcessingError(e)
