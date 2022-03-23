@@ -123,7 +123,7 @@ def preload_trending_documents(
         'HTTP_HOST': http_host,
         'HTTP_X_FORWARDED_PROTO': protocol,
     }
-    print('query_string', query_string)
+
     document_view = ResearchhubUnifiedDocumentViewSet()
     http_req = HttpRequest()
     http_req.META = http_meta

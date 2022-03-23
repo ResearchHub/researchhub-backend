@@ -286,9 +286,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         start_date = date_ranges[0]
         end_date = date_ranges[1]
 
-        print('start_date', start_date)
-        print('end_date', end_date)
-
         papers = Paper.objects.filter(
             uploaded_by__isnull=False
         ).values_list(
@@ -489,10 +486,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             cache_pk = f'{document_type}_{hub_id}_{filtering}_{time_scope}'
             cache_key_hub = get_cache_key('hub', cache_pk)
             cache_hit = cache.get(cache_key_hub)
-
-        print('cache_hit', cache_hit)
-        print('cache_pk', cache_pk)
-        print('cache_pk_hub', cache_key_hub)
 
         if cache_hit:
             return cache_hit
