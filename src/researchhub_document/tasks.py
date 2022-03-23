@@ -79,26 +79,15 @@ def preload_trending_documents(
       DynamicUnifiedDocumentSerializer
     )
 
-    end_date = datetime.now()
     if time_scope == 'all_time':
         cache_pk = f'{document_type}_{hub_id}_{filtering}_all_time'
-        start_date = datetime(
-            year=2018,
-            month=12,
-            day=31,
-            hour=7
-        )
     elif time_scope == 'year':
         cache_pk = f'{document_type}_{hub_id}_{filtering}_year'
-        start_date = datetime.now() - timedelta(days=365)
     elif time_scope == 'month':
         cache_pk = f'{document_type}_{hub_id}_{filtering}_month'
-        start_date = datetime.now() - timedelta(days=30)
     elif time_scope == 'week':
         cache_pk = f'{document_type}_{hub_id}_{filtering}_week'
-        start_date = datetime.now() - timedelta(days=7)
     else: # Today
-        start_date = datetime.now() - timedelta(hours=24)
         cache_pk = f'{document_type}_{hub_id}_{filtering}_today'
 
     query_string_filtering = 'top_rated'
@@ -124,11 +113,8 @@ def preload_trending_documents(
         http_host = 'localhost:8000'
         protocol = 'http'
 
-    start_date_timestamp = int(start_date.timestamp())
-    end_date_timestamp = int(end_date.timestamp())
-    query_string = 'page=1&start_date__gte={}&end_date__lte={}&ordering={}&hub_id={}&'.format(
-        start_date_timestamp,
-        end_date_timestamp,
+    query_string = 'page=1&time={}&ordering={}&hub_id={}&'.format(
+        time_scope,
         query_string_filtering,
         hub_id
     )
@@ -137,7 +123,7 @@ def preload_trending_documents(
         'HTTP_HOST': http_host,
         'HTTP_X_FORWARDED_PROTO': protocol,
     }
-
+    print('query_string', query_string)
     document_view = ResearchhubUnifiedDocumentViewSet()
     http_req = HttpRequest()
     http_req.META = http_meta
@@ -149,8 +135,7 @@ def preload_trending_documents(
         document_type,
         filtering,
         hub_id,
-        start_date,
-        end_date
+        time_scope
     )
     page = document_view.paginate_queryset(documents)
     context = document_view._get_serializer_context()
