@@ -34,6 +34,7 @@ from researchhub_document.related_models.constants.filters import (
 from researchhub.settings import (
     BASE_FRONTEND_URL,
     CROSSREF_DOI_PREFIX,
+    CROSSREF_DOI_SUFFIX_LENGTH,
     CROSSREF_LOGIN_ID,
     CROSSREF_LOGIN_PASSWORD,
     CROSSREF_API_URL
@@ -87,8 +88,9 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             authors = data.get('authors', [])
             note_id = data.get('note_id', None)
             title = data.get('title', '')
+            assign_doi = data.get('assign_doi', False)
             is_discussion = document_type == DISCUSSION
-            doi = CROSSREF_DOI_PREFIX + ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(8))
+            doi = generate_doi() if assign_doi else None
 
             # logical ordering & not using signals to avoid race-conditions
             access_group = self.create_access_group(request)
@@ -131,27 +133,8 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                 document_types=['all', 'posts']
             )
 
-            # Registering DOI with Crossref
-            dt = datetime.today()
-            context = {
-                'timestamp': int(time.time()),
-                'first_name': created_by.author_profile.first_name,
-                'last_name': created_by.author_profile.last_name,
-                'title': title,
-                'publication_month': dt.month,
-                'publication_day': dt.day,
-                'publication_year': dt.year,
-                'doi': doi,
-                'url': f'{BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}',
-            }
-            crossref_xml = render_to_string('crossref.xml', context)
-            files = {
-                'operation': (None, 'doMDUpload'),
-                'login_id': (None, CROSSREF_LOGIN_ID),
-                'login_passwd': (None, CROSSREF_LOGIN_PASSWORD),
-                'fname': ('crossref.xml', crossref_xml),
-            }
-            crossref_response = requests.post(CROSSREF_API_URL, files=files)
+            if assign_doi:
+                register_doi(created_by, title, doi, rh_post)
 
             return Response(
                 ResearchhubPostSerializer(
@@ -166,10 +149,16 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
 
     def update_existing_researchhub_posts(self, request):
         data = request.data
+        created_by = request.user
         authors = data.pop('authors', None)
         hubs = data.pop('hubs', None)
+        title = data.get('title', '')
+        assign_doi = data.get('assign_doi', False)
+        doi = generate_doi() if assign_doi else None
 
         rh_post = ResearchhubPost.objects.get(id=data.get('post_id'))
+        rh_post.doi = doi or rh_post.doi
+        rh_post.save(update_fields=['doi'])
 
         serializer = ResearchhubPostSerializer(
             rh_post,
@@ -205,6 +194,9 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             document_types=['all', 'posts']
         )
 
+        if assign_doi:
+            register_doi(created_by, title, doi, rh_post)
+
         return Response(serializer.data, status=200)
 
     def create_access_group(self, request):
@@ -225,3 +217,33 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             return uni_doc
         except (KeyError, TypeError) as exception:
             print('create_unified_doc: ', exception)
+
+
+def generate_doi():
+    return CROSSREF_DOI_PREFIX \
+        + ''.join(random.choice(string.ascii_lowercase + string.digits)
+                  for _ in range(CROSSREF_DOI_SUFFIX_LENGTH))
+
+
+# Registering DOI with Crossref
+def register_doi(created_by, title, doi, rh_post):
+    dt = datetime.today()
+    context = {
+        'timestamp': int(time.time()),
+        'first_name': created_by.author_profile.first_name,
+        'last_name': created_by.author_profile.last_name,
+        'title': title,
+        'publication_month': dt.month,
+        'publication_day': dt.day,
+        'publication_year': dt.year,
+        'doi': doi,
+        'url': f'{BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}',
+    }
+    crossref_xml = render_to_string('crossref.xml', context)
+    files = {
+        'operation': (None, 'doMDUpload'),
+        'login_id': (None, CROSSREF_LOGIN_ID),
+        'login_passwd': (None, CROSSREF_LOGIN_PASSWORD),
+        'fname': ('crossref.xml', crossref_xml),
+    }
+    crossref_response = requests.post(CROSSREF_API_URL, files=files)

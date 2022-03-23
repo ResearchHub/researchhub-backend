@@ -150,6 +150,7 @@ class NoteSerializer(ModelSerializer):
             context=context,
             _include_fields=[
                 'authors',
+                'doi',
                 'hubs',
                 'id',
                 'slug',
