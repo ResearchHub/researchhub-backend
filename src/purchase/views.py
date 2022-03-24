@@ -242,7 +242,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 recipient = item.created_by
                 unified_doc = item.unified_document
 
-                hub_ids = unified_docs.hubs.values_list('id', flat=True)
+                hub_ids = unified_doc.hubs.values_list('id', flat=True)
                 invalidate_feed_cache(
                     hub_ids,
                     filters=[TRENDING],

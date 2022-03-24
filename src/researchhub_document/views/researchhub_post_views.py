@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 
 from django.core.files.base import ContentFile
+from django.contrib.contenttypes.models import ContentType
 from django.template.loader import render_to_string
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -33,11 +34,16 @@ from researchhub_document.related_models.constants.filters import (
 )
 from researchhub.settings import (
     BASE_FRONTEND_URL,
+    CROSSREF_DOI_RSC_FEE,
     CROSSREF_DOI_PREFIX,
     CROSSREF_DOI_SUFFIX_LENGTH,
     CROSSREF_LOGIN_ID,
     CROSSREF_LOGIN_PASSWORD,
     CROSSREF_API_URL
+)
+from purchase.models import (
+    Purchase,
+    Balance
 )
 
 
@@ -92,6 +98,9 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             is_discussion = document_type == DISCUSSION
             doi = generate_doi() if assign_doi else None
 
+            if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
+                return Response('Insufficient Funds', status=402)
+
             # logical ordering & not using signals to avoid race-conditions
             access_group = self.create_access_group(request)
             unified_document = self.create_unified_doc(request)
@@ -134,6 +143,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             )
 
             if assign_doi:
+                charge_doi_fee(created_by, rh_post)
                 register_doi(created_by, title, doi, rh_post)
 
             return Response(
@@ -155,6 +165,9 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
         title = data.get('title', '')
         assign_doi = data.get('assign_doi', False)
         doi = generate_doi() if assign_doi else None
+
+        if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
+            return Response('Insufficient Funds', status=402)
 
         rh_post = ResearchhubPost.objects.get(id=data.get('post_id'))
         rh_post.doi = doi or rh_post.doi
@@ -195,6 +208,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
         )
 
         if assign_doi:
+            charge_doi_fee(created_by, rh_post)
             register_doi(created_by, title, doi, rh_post)
 
         return Response(serializer.data, status=200)
@@ -225,7 +239,6 @@ def generate_doi():
                   for _ in range(CROSSREF_DOI_SUFFIX_LENGTH))
 
 
-# Registering DOI with Crossref
 def register_doi(created_by, title, doi, rh_post):
     dt = datetime.today()
     context = {
@@ -247,3 +260,22 @@ def register_doi(created_by, title, doi, rh_post):
         'fname': ('crossref.xml', crossref_xml),
     }
     crossref_response = requests.post(CROSSREF_API_URL, files=files)
+
+
+def charge_doi_fee(created_by, rh_post):
+    purchase = Purchase.objects.create(
+        user=created_by,
+        content_type=ContentType.objects.get(model='researchhubpost'),
+        object_id=rh_post.id,
+        purchase_method=Purchase.OFF_CHAIN,
+        purchase_type=Purchase.DOI,
+        amount=CROSSREF_DOI_RSC_FEE,
+        paid_status=Purchase.PAID
+    )
+    source_type = ContentType.objects.get_for_model(purchase)
+    Balance.objects.create(
+        user=created_by,
+        content_type=source_type,
+        object_id=purchase.id,
+        amount=f'-{CROSSREF_DOI_RSC_FEE}',
+    )

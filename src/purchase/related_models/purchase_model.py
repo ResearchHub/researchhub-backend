@@ -15,6 +15,7 @@ class Purchase(PaidStatusModelMixin):
     ON_CHAIN = 'ON_CHAIN'
 
     BOOST = 'BOOST'
+    DOI = 'DOI'
 
     PURCHASE_METHOD_CHOICES = [
         (OFF_CHAIN, OFF_CHAIN),
@@ -22,7 +23,8 @@ class Purchase(PaidStatusModelMixin):
     ]
 
     PURCHASE_TYPE_CHOICES = [
-        (BOOST, BOOST)
+        (BOOST, BOOST),
+        (DOI, DOI),
     ]
 
     user = models.ForeignKey(
