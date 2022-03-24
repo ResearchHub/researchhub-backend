@@ -1263,11 +1263,12 @@ def celery_manubot(self, celery_data):
     except DuplicatePaperError as e:
         raise e
     except ManubotProcessingError as e:
+        # TODO: Do we want some retrying logic for the future?
         # Retries 3 times (5min, 3hrs, 1day)
-        RETRY_BUCKET = (60 * 5, 60 * 60 * 3, 60 * 60 * 24)
-        retries = self.request.retries
-        if retries < 3:
-            self.retry(countdown=RETRY_BUCKET[retries])
+        # RETRY_BUCKET = (60 * 5, 60 * 60 * 3, 60 * 60 * 24)
+        # retries = self.request.retries
+        # if retries < 3:
+        #     self.retry(countdown=RETRY_BUCKET[retries])
         raise e
     except Exception as e:
         raise e
