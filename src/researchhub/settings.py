@@ -815,7 +815,7 @@ CROSSREF_DOI_PREFIX = '10.55277/ResearchHub.'
 CROSSREF_DOI_SUFFIX_LENGTH = 8
 CROSSREF_LOGIN_ID = os.environ.get('CROSSREF_LOGIN_ID', keys.CROSSREF_LOGIN_ID)
 CROSSREF_LOGIN_PASSWORD = os.environ.get('CROSSREF_LOGIN_PASSWORD', keys.CROSSREF_LOGIN_PASSWORD)
-CROSSREF_API_URL = 'https://doi.crossref.org/servlet/deposit' if PRODUCTION else 'https://test.crossref.org/servlet/deposit'
+CROSSREF_API_URL = 'https://doi.crossref.org/servlet/deposit' if STAGING or PRODUCTION else 'https://test.crossref.org/servlet/deposit'
 
 # Async Service API Key
 ASYNC_SERVICE_API_KEY = os.environ.get("ASYNC_SERVICE_API_KEY", keys.ASYNC_SERVICE_API_KEY or 'testapikeyservice')
