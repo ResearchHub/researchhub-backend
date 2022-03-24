@@ -1,4 +1,3 @@
-import datetime
 from collections import OrderedDict
 
 from django.core.cache import cache
@@ -25,7 +24,7 @@ from researchhub_document.models import (
 )
 from researchhub_document.utils import (
     reset_unified_document_cache,
-    get_date_range_key,
+    get_date_ranges_by_time_scope
 )
 from researchhub_document.serializers import (
     ResearchhubUnifiedDocumentSerializer,
@@ -280,9 +279,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         document_type,
         filtering,
         hub_id,
-        start_date,
-        end_date
+        time_scope,
     ):
+
+        date_ranges = get_date_ranges_by_time_scope(time_scope)
+        start_date = date_ranges[0]
+        end_date = date_ranges[1]
+
         papers = Paper.objects.filter(
             uploaded_by__isnull=False
         ).values_list(
@@ -476,11 +479,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         filtering,
         hub_id,
         page_number,
-        date_range
+        time_scope
     ):
         cache_hit = None
         if page_number == 1 and 'removed' not in filtering:
-            cache_pk = f'{document_type}_{hub_id}_{filtering}_{date_range}'
+            cache_pk = f'{document_type}_{hub_id}_{filtering}_{time_scope}'
             cache_key_hub = get_cache_key('hub', cache_pk)
             cache_hit = cache.get(cache_key_hub)
 
@@ -497,6 +500,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         is_anonymous = request.user.is_anonymous
         query_params = request.query_params
         subscribed_hubs = query_params.get('subscribed_hubs', 'false')
+        time_scope = query_params.get('time', 'today')
 
         if subscribed_hubs == 'true' and not is_anonymous:
             return self._get_subscribed_unified_documents(request)
@@ -504,23 +508,14 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         document_request_type = query_params.get('type', 'all')
         hub_id = query_params.get('hub_id', 0)
         page_number = int(query_params.get('page', 1))
-        start_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get('start_date__gte', 0)),
-            datetime.timezone.utc
-        )
-        end_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get('end_date__lte', 0)),
-            datetime.timezone.utc
-        )
-        time_difference = end_date - start_date
+
         filtering = self._get_document_filtering(query_params)
-        date_range = get_date_range_key(start_date, end_date)
         cache_hit = self._get_unifed_document_cache_hit(
             document_request_type,
             filtering,
             hub_id,
             page_number,
-            date_range
+            time_scope
         )
 
         if cache_hit and page_number == 1:
@@ -530,15 +525,14 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 hub_ids=[hub_id],
                 document_type=[document_request_type],
                 filters=[filtering],
-                date_ranges=[date_range],
+                date_ranges=[time_scope],
             )
 
         documents = self.get_filtered_queryset(
             document_request_type,
             filtering,
             hub_id,
-            start_date,
-            end_date
+            time_scope,
         )
 
         context = self._get_serializer_context()
@@ -565,15 +559,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         hubs = request.user.subscribed_hubs
         query_params = request.query_params
         document_request_type = query_params.get('type', 'all')
+        time_scope = query_params.get('time', 'today')
+
         page_number = int(query_params.get('page', 1))
-        start_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get('start_date__gte', 0)),
-            datetime.timezone.utc
-        )
-        end_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get('end_date__lte', 0)),
-            datetime.timezone.utc
-        )
         filtering = self._get_document_filtering(query_params)
 
         if filtering == '-hot_score' and page_number == 1:
@@ -622,8 +610,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     document_request_type,
                     filtering,
                     default_hub_id,
-                    start_date,
-                    end_date
+                    time_scope,
                 )
                 all_documents = all_documents.filter(
                     hubs__in=hubs.all()
@@ -649,37 +636,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 document_request_type,
                 filtering,
                 default_hub_id,
-                start_date,
-                end_date
+                time_scope,
             )
             all_documents = all_documents.filter(
                 hubs__in=hubs.all()
             ).distinct()
-
-        # if all_documents.count() < 1 and hubs.exists():
-        #     if document_request_type == 'all':
-        #         trending_pk = 'all_0_-hot_score_today'
-        #     elif document_request_type == 'posts':
-        #         trending_pk = 'posts_0_-hot_score_today'
-        #     else:
-        #         trending_pk = 'paper_0_-hot_score_today'
-
-        #     cache_key_hub = get_cache_key('hub', trending_pk)
-        #     cache_hit = cache.get(cache_key_hub)
-
-        #     if cache_hit and page_number == 1:
-        #         return Response(cache_hit)
-
-        #     all_documents = self.get_filtered_queryset(
-        #         document_request_type,
-        #         filtering,
-        #         default_hub_id,
-        #         start_date,
-        #         end_date
-        #     )
-        #     all_documents = all_documents.filter(
-        #         hubs__in=hubs.all()
-        #     ).distinct()
 
         context = self._get_serializer_context()
         page = self.paginate_queryset(all_documents)

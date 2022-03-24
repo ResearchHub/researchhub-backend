@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from researchhub_document.tasks import (
     preload_trending_documents,
     preload_hub_documents
@@ -51,26 +52,37 @@ def add_default_hub(hub_ids):
         return [0] + list(hub_ids)
     return hub_ids
 
-def get_date_range_key(start_date, end_date):
-    time_difference = end_date - start_date
-
-    if time_difference.days > 365:
-        return "all_time"
-    elif time_difference.days == 365:
-        return "year"
-    elif time_difference.days == 30 or time_difference.days == 31:
-        return "month"
-    elif time_difference.days == 7:
-        return "week"
-    else:
-        return "today"
-
 def get_doc_type_key(document):
     doc_type = document.document_type.lower()
     if doc_type == 'discussion':
         return 'posts'
 
     return doc_type
+
+def get_date_ranges_by_time_scope(time_scope):
+    end_date = datetime.now()
+    if time_scope == 'all_time':
+        start_date = datetime(
+            year=2018,
+            month=12,
+            day=31,
+            hour=0
+        )
+    elif time_scope == 'year':
+        start_date = datetime.now() - timedelta(days=365)
+    elif time_scope == 'month':
+        start_date = datetime.now() - timedelta(days=30)
+    elif time_scope == 'week':
+        start_date = datetime.now() - timedelta(days=7)
+    # Today
+    else:
+        # Given that our "today" results are minimal
+        # it makes sense to have a bit of an extra buffer
+        # for the forseeable future.
+        hours_buffer = 10
+        start_date = datetime.now() - timedelta(hours=(24 + hours_buffer))
+
+    return (start_date, end_date)
 
 def reset_unified_document_cache(
     hub_ids,
