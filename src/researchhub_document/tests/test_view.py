@@ -1,9 +1,13 @@
+import time
+
 from django.contrib.contenttypes.models import ContentType
 from hub.models import Hub
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.models import Permission
 from user.tests.helpers import create_random_default_user
 from paper.tests.helpers import create_paper
+from reputation.distributions import Distribution
+from reputation.distributor import Distributor
 
 from rest_framework.test import APITestCase
 from hub.tests.helpers import create_hub
@@ -318,3 +322,87 @@ class ViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['is_removed'], False)
+
+    def test_register_doi_with_sufficient_funds(self):
+        author = create_random_default_user('author')
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        distributor = Distributor(
+            Distribution('TEST_REWARD', 5, False),
+            author,
+            None,
+            time.time()
+        )
+        distributor.distribute()
+
+        doc_response = self.client.post("/api/researchhub_posts/", {
+          "assign_doi": True,
+          "document_type": "DISCUSSION",
+          "created_by": author.id,
+          "full_src": "body",
+          "is_public": True,
+          "renderable_text": "body",
+          "title": "title",
+          "hubs": [hub.id],
+        })
+
+        self.assertEqual(doc_response.status_code, 200)
+        self.assertEqual(int(author.get_balance()), 0)
+
+    def test_register_doi_with_insufficient_funds(self):
+        author = create_random_default_user('author')
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        distributor = Distributor(
+            Distribution('TEST_REWARD', 4, False),
+            author,
+            None,
+            time.time()
+        )
+        distributor.distribute()
+
+        doc_response = self.client.post("/api/researchhub_posts/", {
+          "assign_doi": True,
+          "document_type": "DISCUSSION",
+          "created_by": author.id,
+          "full_src": "body",
+          "is_public": True,
+          "renderable_text": "body",
+          "title": "title",
+          "hubs": [hub.id],
+        })
+
+        self.assertEqual(doc_response.status_code, 402)
+        self.assertEqual(int(author.get_balance()), 4)
+
+    def test_no_doi_with_sufficient_funds(self):
+        author = create_random_default_user('author')
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        distributor = Distributor(
+            Distribution('TEST_REWARD', 5, False),
+            author,
+            None,
+            time.time()
+        )
+        distributor.distribute()
+
+        doc_response = self.client.post("/api/researchhub_posts/", {
+          "assign_doi": False,
+          "document_type": "DISCUSSION",
+          "created_by": author.id,
+          "full_src": "body",
+          "is_public": True,
+          "renderable_text": "body",
+          "title": "title",
+          "hubs": [hub.id],
+        })
+
+        self.assertEqual(doc_response.status_code, 200)
+        self.assertEqual(int(author.get_balance()), 5)

@@ -1,4 +1,12 @@
+import random
+import requests
+import string
+import time
+from datetime import datetime
+
 from django.core.files.base import ContentFile
+from django.contrib.contenttypes.models import ContentType
+from django.template.loader import render_to_string
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -24,6 +32,20 @@ from researchhub_document.related_models.constants.filters import (
     NEWEST,
     TOP
 )
+from researchhub.settings import (
+    BASE_FRONTEND_URL,
+    CROSSREF_DOI_RSC_FEE,
+    CROSSREF_DOI_PREFIX,
+    CROSSREF_DOI_SUFFIX_LENGTH,
+    CROSSREF_LOGIN_ID,
+    CROSSREF_LOGIN_PASSWORD,
+    CROSSREF_API_URL
+)
+from purchase.models import (
+    Purchase,
+    Balance
+)
+
 
 class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date')
@@ -71,7 +93,13 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             editor_type = data.get('editor_type')
             authors = data.get('authors', [])
             note_id = data.get('note_id', None)
+            title = data.get('title', '')
+            assign_doi = data.get('assign_doi', False)
             is_discussion = document_type == DISCUSSION
+            doi = generate_doi() if assign_doi else None
+
+            if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
+                return Response('Insufficient Funds', status=402)
 
             # logical ordering & not using signals to avoid race-conditions
             access_group = self.create_access_group(request)
@@ -83,12 +111,13 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             rh_post = ResearchhubPost.objects.create(
                 created_by=created_by,
                 document_type=document_type,
+                doi=doi,
                 editor_type=CK_EDITOR if editor_type is None else editor_type,
                 note_id=note_id,
                 prev_version=None,
                 preview_img=data.get('preview_img'),
                 renderable_text=data.get('renderable_text'),
-                title=data.get('title'),
+                title=title,
                 unified_document=unified_document,
             )
             file_name = f'RH-POST-{document_type}-USER-{created_by.id}.txt'
@@ -113,6 +142,12 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                 document_types=['all', 'posts']
             )
 
+            if assign_doi:
+                crossref_response = register_doi(created_by, title, doi, rh_post)
+                if crossref_response.status_code != 200:
+                    return Response('Crossref API Failure', status=400)
+                charge_doi_fee(created_by, rh_post)
+
             return Response(
                 ResearchhubPostSerializer(
                     rh_post
@@ -126,10 +161,19 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
 
     def update_existing_researchhub_posts(self, request):
         data = request.data
+        created_by = request.user
         authors = data.pop('authors', None)
         hubs = data.pop('hubs', None)
+        title = data.get('title', '')
+        assign_doi = data.get('assign_doi', False)
+        doi = generate_doi() if assign_doi else None
+
+        if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
+            return Response('Insufficient Funds', status=402)
 
         rh_post = ResearchhubPost.objects.get(id=data.get('post_id'))
+        rh_post.doi = doi or rh_post.doi
+        rh_post.save(update_fields=['doi'])
 
         serializer = ResearchhubPostSerializer(
             rh_post,
@@ -165,6 +209,12 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             document_types=['all', 'posts']
         )
 
+        if assign_doi:
+            crossref_response = register_doi(created_by, title, doi, rh_post)
+            if crossref_response.status_code != 200:
+                return Response('Crossref API Failure', status=400)
+            charge_doi_fee(created_by, rh_post)
+
         return Response(serializer.data, status=200)
 
     def create_access_group(self, request):
@@ -185,3 +235,51 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             return uni_doc
         except (KeyError, TypeError) as exception:
             print('create_unified_doc: ', exception)
+
+
+def generate_doi():
+    return CROSSREF_DOI_PREFIX \
+        + ''.join(random.choice(string.ascii_lowercase + string.digits)
+                  for _ in range(CROSSREF_DOI_SUFFIX_LENGTH))
+
+
+def register_doi(created_by, title, doi, rh_post):
+    dt = datetime.today()
+    context = {
+        'timestamp': int(time.time()),
+        'first_name': created_by.author_profile.first_name,
+        'last_name': created_by.author_profile.last_name,
+        'title': title,
+        'publication_month': dt.month,
+        'publication_day': dt.day,
+        'publication_year': dt.year,
+        'doi': doi,
+        'url': f'{BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}',
+    }
+    crossref_xml = render_to_string('crossref.xml', context)
+    files = {
+        'operation': (None, 'doMDUpload'),
+        'login_id': (None, CROSSREF_LOGIN_ID),
+        'login_passwd': (None, CROSSREF_LOGIN_PASSWORD),
+        'fname': ('crossref.xml', crossref_xml),
+    }
+    crossref_response = requests.post(CROSSREF_API_URL, files=files)
+    return crossref_response
+
+
+def charge_doi_fee(created_by, rh_post):
+    purchase = Purchase.objects.create(
+        user=created_by,
+        content_type=ContentType.objects.get(model='researchhubpost'),
+        object_id=rh_post.id,
+        purchase_method=Purchase.OFF_CHAIN,
+        purchase_type=Purchase.DOI,
+        amount=CROSSREF_DOI_RSC_FEE,
+        paid_status=Purchase.PAID
+    )
+    Balance.objects.create(
+        user=created_by,
+        content_type=ContentType.objects.get_for_model(purchase),
+        object_id=purchase.id,
+        amount=-CROSSREF_DOI_RSC_FEE,
+    )

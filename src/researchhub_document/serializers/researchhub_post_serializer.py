@@ -33,6 +33,7 @@ class ResearchhubPostSerializer(
             'created_date',
             'discussion_count',
             'document_type',
+            'doi',
             'editor_type',
             'full_markdown',
             'hubs',

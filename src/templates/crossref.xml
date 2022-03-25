@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doi_batch xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.crossref.org/schema/5.3.0 https://www.crossref.org/schemas/crossref5.3.0.xsd"
+	xmlns="http://www.crossref.org/schema/5.3.0" xmlns:jats="http://www.ncbi.nlm.nih.gov/JATS1"
+	xmlns:fr="http://www.crossref.org/fundref.xsd" xmlns:mml="http://www.w3.org/1998/Math/MathML" version="5.3.0">
+	<head>
+		<doi_batch_id>researchhub</doi_batch_id>
+		<timestamp>{{ timestamp }}</timestamp>
+		<depositor>
+			<depositor_name>ResearchHub Technologies, Inc.</depositor_name>
+			<email_address>hello@researchhub.com</email_address>
+		</depositor>
+		<registrant>ResearchHub Technologies, Inc.</registrant>
+	</head>
+	<body>
+		<report-paper>
+			<report-paper_metadata language = "en">
+				<contributors>
+					<person_name sequence="first" contributor_role="author">
+						<given_name>{{ first_name }}</given_name>
+						<surname>{{ last_name }}</surname>
+					</person_name>
+				</contributors>
+				<titles>
+					<title>{{ title }}</title>
+				</titles>
+				<publication_date media_type = "online">
+					<month>{{ publication_month }}</month>
+					<day>{{ publication_day }}</day>
+					<year>{{ publication_year }}</year>
+				</publication_date>
+				<doi_data>
+					<doi>{{ doi }}</doi>
+					<resource>{{ url }}</resource>
+				</doi_data>
+			</report-paper_metadata>
+		</report-paper>
+	</body>
+</doi_batch>

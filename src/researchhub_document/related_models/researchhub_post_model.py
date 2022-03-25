@@ -114,6 +114,13 @@ class ResearchhubPost(AbstractGenericReactionModel):
         related_query_name='posts'
     )
     slug = models.SlugField(max_length=1024)
+    doi = models.CharField(
+        max_length=255,
+        default=None,
+        null=True,
+        blank=True,
+        unique=True
+    )
 
     @property
     def is_latest_version(self):
