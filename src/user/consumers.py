@@ -48,6 +48,17 @@ class PaperSubmissionConsumer(WebsocketConsumer):
 
         submission = PaperSubmission.objects.get(id=submission_id)
         serialized_data = PaperSubmissionSerializer(submission).data
-        data = {"data": serialized_data, **extra_metadata}
+        current_paper_data = DynamicPaperSerializer(
+            submission.paper, _include_fields=["id", "paper_title"]
+        ).data
+
+        if "id" not in current_paper_data:
+            current_paper_data["id"] = ""
+
+        data = {
+            "data": serialized_data,
+            "current_paper": current_paper_data,
+            **extra_metadata,
+        }
         print(data)
         self.send(text_data=json.dumps(data))
