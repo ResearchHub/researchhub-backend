@@ -350,108 +350,165 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 filtering
             )
         elif filtering == '-discussed':
-            paper_threads_count = Count('paper__threads', distinct=True, filter=Q(paper__threads__is_removed=False))
-            paper_comments_count = Count('paper__threads__comments', distinct=True, filter=Q(paper__threads__comments__is_removed=False))
-            paper_comments_replies_count = Count('paper__threads__comments__replies', distinct=True, filter=Q(paper__threads__comments__replies__is_removed=False))
-            posts_threads_count = Count('posts__threads', distinct=True, filter=Q(posts__threads__is_removed=False))
-            posts_comments_count = Count('posts__threads__comments', distinct=True, filter=Q(posts__threads__comments__is_removed=False))
-            posts_comments_replies_count = Count('posts__threads__comments__replies', distinct=True, filter=Q(posts__threads__comments__replies__is_removed=False))
-            hypothesis_threads_count = Count('hypothesis__threads', distinct=True, filter=Q(hypothesis__threads__is_removed=False))
-            hypothesis_comments_count = Count('hypothesis__threads__comments', distinct=True, filter=Q(hypothesis__threads__comments__is_removed=False))
-            hypothesis_comments_replies_count = Count('hypothesis__threads__comments__replies', distinct=True, filter=Q(hypothesis__threads__comments__replies__is_removed=False))
+
+            # Papers
+            paper_threads_Q = Q(
+                paper__threads__created_date__range=[
+                    start_date, end_date
+                ],
+                paper__threads__is_removed=False,
+                paper__threads__created_by__isnull=False
+            )
+
+            paper_comments_Q = Q(
+                paper__threads__comments__created_date__range=[
+                    start_date, end_date
+                ],
+                paper__threads__comments__is_removed=False,
+                paper__threads__comments__created_by__isnull=False
+            )
+
+            paper_replies_Q = Q(
+                paper__threads__comments__replies__created_date__range=[
+                    start_date, end_date
+                ],
+                paper__threads__comments__replies__is_removed=False,
+                paper__threads__comments__replies__created_by__isnull=False
+            )
+
+            # Posts
+            post_threads_Q = Q(
+                posts__threads__created_date__range=[
+                    start_date, end_date
+                ],
+                posts__threads__is_removed=False,
+                posts__threads__created_by__isnull=False
+            )
+
+            post_comments_Q = Q(
+                posts__threads__comments__created_date__range=[
+                    start_date, end_date
+                ],
+                posts__threads__comments__is_removed=False,
+                posts__threads__comments__created_by__isnull=False
+            )
+
+            post_replies_Q = Q(
+                posts__threads__comments__replies__created_date__range=[
+                    start_date, end_date
+                ],
+                posts__threads__comments__replies__is_removed=False,
+                posts__threads__comments__replies__created_by__isnull=False
+            )
+
+            # Hypothesis
+            hypothesis_threads_Q = Q(
+                posts__threads__created_date__range=[
+                    start_date, end_date
+                ],
+                posts__threads__is_removed=False,
+                posts__threads__created_by__isnull=False
+            )
+
+            hypothesis_comments_Q = Q(
+                posts__threads__comments__created_date__range=[
+                    start_date, end_date
+                ],
+                posts__threads__comments__is_removed=False,
+                posts__threads__comments__created_by__isnull=False
+            )
+
+            hypothesis_replies_Q = Q(
+                posts__threads__comments__replies__created_date__range=[
+                    start_date, end_date
+                ],
+                posts__threads__comments__replies__is_removed=False,
+                posts__threads__comments__replies__created_by__isnull=False
+            )
+
+            paper_threads_count = Count(
+                'paper__threads',
+                distinct=True,
+                filter=paper_threads_Q
+            )
+            paper_comments_count = Count(
+                'paper__threads__comments',
+                distinct=True,
+                filter=paper_comments_Q
+            )
+            paper_replies_count = Count(
+                'paper__threads__comments__replies',
+                distinct=True,
+                filter=paper_replies_Q
+            )
+            # Posts
+            post_threads_count = Count(
+                'posts__threads',
+                distinct=True,
+                filter=post_threads_Q
+            )
+            post_comments_count = Count(
+                'posts__threads__comments',
+                distinct=True,
+                filter=post_comments_Q
+            )
+            post_replies_count = Count(
+                'posts__threads__comments__replies',
+                distinct=True,
+                filter=post_replies_Q
+            )
+            # Hypothesis
+            hypothesis_threads_count = Count(
+                'hypothesis__threads',
+                distinct=True,
+                filter=hypothesis_threads_Q
+            )
+            hypothesis_comments_count = Count(
+                'hypothesis__threads__comments',
+                distinct=True,
+                filter=hypothesis_comments_Q
+            )
+            hypothesis_replies_count = Count(
+                'hypothesis__threads__comments__replies',
+                distinct=True,
+                filter=hypothesis_replies_Q
+            )
 
             qs = qs.filter(
-                (
-                    # Papers
-                    Q(
-                        paper__threads__created_date__range=[
-                            start_date, end_date
-                        ],
-                        paper__threads__is_removed=False,
-                        paper__threads__created_by__isnull=False
-                    ) |
-                    Q(
-                        paper__threads__comments__created_date__range=[
-                            start_date, end_date
-                        ],
-                        paper__threads__comments__is_removed=False,
-                        paper__threads__comments__created_by__isnull=False
-                    ) |
-                    Q(
-                        paper__threads__comments__replies__created_date__range=[
-                            start_date, end_date
-                        ],
-                        paper__threads__comments__replies__is_removed=False,
-                        paper__threads__comments__replies__created_by__isnull=False
-                    ) |
-
-                    # Posts
-                    Q(
-                        posts__threads__created_date__range=[
-                            start_date, end_date
-                        ],
-                        posts__threads__is_removed=False,
-                        posts__threads__created_by__isnull=False
-                    ) |
-                    Q(
-                        posts__threads__comments__created_date__range=[
-                            start_date, end_date
-                        ],
-                        posts__threads__comments__is_removed=False,
-                        posts__threads__comments__created_by__isnull=False
-                    ) |
-                    Q(
-                        posts__threads__comments__replies__created_date__range=[
-                            start_date, end_date
-                        ],
-                        posts__threads__comments__replies__is_removed=False,
-                        posts__threads__comments__replies__created_by__isnull=False
-                    ) |
-
-                    # # Hypothesis
-                    Q(
-                        hypothesis__threads__created_date__range=[
-                            start_date, end_date
-                        ],
-                        hypothesis__threads__is_removed=False,
-                        hypothesis__threads__created_by__isnull=False
-                    ) |
-                    Q(
-                        hypothesis__threads__comments__created_date__range=[
-                            start_date, end_date
-                        ],
-                        hypothesis__threads__comments__is_removed=False,
-                        hypothesis__threads__comments__created_by__isnull=False
-                    ) |
-                    Q(
-                        hypothesis__threads__comments__replies__created_date__range=[
-                            start_date, end_date
-                        ],
-                        hypothesis__threads__comments__replies__is_removed=False,
-                        hypothesis__threads__comments__replies__created_by__isnull=False
-                    )
-                )
+                paper_threads_Q |
+                paper_comments_Q |
+                paper_replies_Q |
+                post_threads_Q |
+                post_comments_Q |
+                post_replies_Q |
+                hypothesis_threads_Q |
+                hypothesis_comments_Q |
+                hypothesis_replies_Q
             ).annotate(
+                # Papers
+                paper_threads_count=paper_threads_count,
+                paper_comments_count=paper_comments_count,
+                paper_replies_count=paper_replies_count,
+                # Posts
+                post_threads_count=post_threads_count,
+                post_comments_count=post_comments_count,
+                post_replies_count=post_replies_count,
+                # # Hypothesis
+                hypothesis_threads_count=hypothesis_threads_count,
+                hypothesis_comments_count=hypothesis_comments_count,
+                hypothesis_replies_count=hypothesis_replies_count,
+                # # Add things up
                 discussed=(
                     paper_threads_count +
                     paper_comments_count +
-                    paper_comments_replies_count +
-                    posts_threads_count +
-                    posts_comments_count +
-                    posts_comments_replies_count +
+                    paper_replies_count +
+                    post_threads_count +
+                    post_comments_count +
+                    post_replies_count +
                     hypothesis_threads_count +
                     hypothesis_comments_count +
-                    hypothesis_comments_replies_count
-                ),
-                posts_threads_count=posts_threads_count,
-                posts_comments_replies_count=posts_comments_replies_count,
-                posts_comments_count=posts_comments_count,
-                paper_threads_count=paper_threads_count,
-                paper_comments_count=paper_comments_count,
-                paper_comments_replies_count=paper_comments_replies_count,
-                hypothesis_threads_count=hypothesis_threads_count,
-                hypothesis_comments_count=hypothesis_comments_count,
-                hypothesis_comments_replies_count=hypothesis_comments_replies_count,
+                    hypothesis_replies_count
+                )
             ).order_by(
                 '-discussed'
             )
