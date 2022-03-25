@@ -272,10 +272,9 @@ def charge_doi_fee(created_by, rh_post):
         amount=CROSSREF_DOI_RSC_FEE,
         paid_status=Purchase.PAID
     )
-    source_type = ContentType.objects.get_for_model(purchase)
     Balance.objects.create(
         user=created_by,
-        content_type=source_type,
+        content_type=ContentType.objects.get_for_model(purchase),
         object_id=purchase.id,
-        amount=f'-{CROSSREF_DOI_RSC_FEE}',
+        amount=-CROSSREF_DOI_RSC_FEE,
     )
