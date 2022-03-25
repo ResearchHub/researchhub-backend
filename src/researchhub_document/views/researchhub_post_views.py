@@ -143,8 +143,10 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             )
 
             if assign_doi:
+                crossref_response = register_doi(created_by, title, doi, rh_post)
+                if crossref_response.status_code != 200:
+                    return Response('Crossref API Failure', status=400)
                 charge_doi_fee(created_by, rh_post)
-                register_doi(created_by, title, doi, rh_post)
 
             return Response(
                 ResearchhubPostSerializer(
@@ -208,8 +210,10 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
         )
 
         if assign_doi:
+            crossref_response = register_doi(created_by, title, doi, rh_post)
+            if crossref_response.status_code != 200:
+                return Response('Crossref API Failure', status=400)
             charge_doi_fee(created_by, rh_post)
-            register_doi(created_by, title, doi, rh_post)
 
         return Response(serializer.data, status=200)
 
@@ -260,6 +264,7 @@ def register_doi(created_by, title, doi, rh_post):
         'fname': ('crossref.xml', crossref_xml),
     }
     crossref_response = requests.post(CROSSREF_API_URL, files=files)
+    return crossref_response
 
 
 def charge_doi_fee(created_by, rh_post):
