@@ -350,11 +350,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 filtering
             )
         elif filtering == '-discussed':
-            print('start_date', start_date)
-            print('end_date', end_date)
 
             # Papers
-
             paper_threads_Q = Q(
                 paper__threads__created_date__range=[
                     start_date, end_date
@@ -380,7 +377,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             )
 
             # Posts
-
             post_threads_Q = Q(
                 posts__threads__created_date__range=[
                     start_date, end_date
@@ -406,7 +402,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             )
 
             # Hypothesis
-
             hypothesis_threads_Q = Q(
                 posts__threads__created_date__range=[
                     start_date, end_date
@@ -597,17 +592,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             time_scope,
         )
 
-        time_start = perf_counter()
-        print(documents.count())
-        print('--------------------------------')
-        print(documents[0].__dict__)
-        print('--------------------------------')
-        print(documents[1].__dict__)
-        print('--------------------------------')
-        time_stop = perf_counter()
-        elapsed_time = str((time_stop - time_start) * 1000) + 'ms'
-        print(elapsed_time)
-        raise 4
         context = self._get_serializer_context()
         page = self.paginate_queryset(documents)
 
