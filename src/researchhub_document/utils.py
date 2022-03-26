@@ -101,6 +101,22 @@ def reset_unified_document_cache(
     date_ranges=CACHE_DATE_RANGES,
     use_celery=True
 ):
+    print('------------')
+    import inspect 
+    try:
+        frm = inspect.stack()[1]
+        mod = inspect.getmodule(frm[0])
+        print(frm.function)
+    except Exception as e:
+        pass
+    try:
+        frm = inspect.stack()[2]
+        mod = inspect.getmodule(frm[0])
+        print(frm.function)
+    except Exception as e:
+        pass
+    print('------------')
+
 
     for doc_type in document_type:
         for hub_id in hub_ids:
