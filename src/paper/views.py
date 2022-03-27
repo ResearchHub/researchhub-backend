@@ -355,7 +355,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         invalidate_feed_cache(
             hub_ids,
-            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+            filters=[TOP, TRENDING],
             with_default=True,
             document_types=['all', 'paper']
         )
@@ -654,7 +654,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         invalidate_feed_cache(
             hub_ids,
-            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+            filters=[TOP, TRENDING],
             with_default=True,
             document_types=['all', 'paper']
         )
