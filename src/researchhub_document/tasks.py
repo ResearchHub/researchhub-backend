@@ -90,6 +90,9 @@ def preload_trending_documents(
     else: # Today
         cache_pk = f'{document_type}_{hub_id}_{filtering}_today'
 
+
+    print('cache_pk', cache_pk)
+
     query_string_filtering = 'top_rated'
     if filtering == 'removed':
         query_string_filtering = 'removed'
@@ -274,14 +277,14 @@ def invalidate_feed_cache(
     if isinstance(hub_ids, QuerySet):
         hub_ids = list(hub_ids)
 
-    if DISCUSSED in filters:
-        invalidate_most_discussed_cache(hub_ids, document_types, date_ranges, with_default)
-    if TRENDING in filters:
-        invalidate_trending_cache(hub_ids, document_types, date_ranges, with_default)
-    if NEWEST in filters:
-        invalidate_newest_cache(hub_ids, document_types, date_ranges, with_default)
-    if TOP in filters:
-        invalidate_top_rated_cache(hub_ids, document_types, date_ranges, with_default)
+    # if DISCUSSED in filters:
+    #     invalidate_most_discussed_cache(hub_ids, document_types, date_ranges, with_default)
+    # if TRENDING in filters:
+    #     invalidate_trending_cache(hub_ids, document_types, date_ranges, with_default)
+    # if NEWEST in filters:
+    #     invalidate_newest_cache(hub_ids, document_types, date_ranges, with_default)
+    # if TOP in filters:
+    #     invalidate_top_rated_cache(hub_ids, document_types, date_ranges, with_default)
 
     if reload_cache:
         if with_default:
