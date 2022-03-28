@@ -60,9 +60,6 @@ from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.utils import (
     update_unified_document_to_paper,
 )
-from researchhub_document.tasks import (
-    invalidate_feed_cache
-)
 from researchhub_document.utils import (
     reset_unified_document_cache,
 )
@@ -482,11 +479,10 @@ class PaperSerializer(BasePaperSerializer):
 
                 hub_ids = unified_doc.hubs.values_list('id', flat=True)
                 if hub_ids.exists():
-                    invalidate_feed_cache(
+                    reset_unified_document_cache(
                         hub_ids,
+                        document_type=['paper', 'all'],
                         filters=[NEWEST],
-                        with_default=True,
-                        document_types=['all', 'paper']
                     )
 
                 return paper
