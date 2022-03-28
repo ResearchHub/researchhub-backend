@@ -108,6 +108,8 @@ def reset_unified_document_cache(
 
     if with_default and 0 not in hub_ids:
         hub_ids.append(0)
+    elif with_default and 0 in hub_ids:
+        hub_ids.remove(0)
 
     for doc_type in document_type:
         for hub_id in hub_ids:
