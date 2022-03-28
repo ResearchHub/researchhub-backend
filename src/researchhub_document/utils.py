@@ -21,6 +21,7 @@ from paper.utils import (
     add_default_hub
 )
 from django.core.cache import cache
+from django.db.models.query import QuerySet
 
 CACHE_TOP_RATED_DATES = (
     '-score_today',
@@ -99,8 +100,15 @@ def reset_unified_document_cache(
         TOP
     ],
     date_ranges=CACHE_DATE_RANGES,
+    with_default=True,
     use_celery=True
 ):
+    if isinstance(hub_ids, QuerySet):
+        hub_ids = list(hub_ids)
+
+    if with_default and 0 not in hub_ids:
+        hub_ids.append(0)
+
     for doc_type in document_type:
         for hub_id in hub_ids:
             for f in filters:
