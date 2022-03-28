@@ -52,9 +52,6 @@ from researchhub_document.permissions import (
     HasDocumentCensorPermission
 )
 from time import perf_counter
-from researchhub_document.tasks import (
-    invalidate_feed_cache
-)
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     TRENDING,
@@ -62,7 +59,8 @@ from researchhub_document.related_models.constants.filters import (
     TOP
 )
 from researchhub_document.utils import (
-    get_doc_type_key
+    get_doc_type_key,
+    reset_unified_document_cache
 )
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
@@ -88,11 +86,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         doc_type = get_doc_type_key(doc)
         hub_ids = doc.hubs.values_list('id', flat=True)
-        invalidate_feed_cache(
+        reset_unified_document_cache(
             hub_ids,
+            document_type=[doc_type, 'all'],
             filters=[NEWEST,TOP,TRENDING, DISCUSSED],
-            with_default=True,
-            document_types=['all', doc_type]
         )
 
         return Response(
@@ -114,11 +111,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         doc_type = get_doc_type_key(doc)
         hub_ids = doc.hubs.values_list('id', flat=True)
-        invalidate_feed_cache(
+        reset_unified_document_cache(
             hub_ids,
+            document_type=[doc_type, 'all'],
             filters=[NEWEST,TOP,TRENDING, DISCUSSED],
-            with_default=True,
-            document_types=['all', doc_type]
         )
 
         return Response(
@@ -161,11 +157,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         doc = self.get_object()
         doc_type = get_doc_type_key(doc)
-        invalidate_feed_cache(
+        reset_unified_document_cache(
             hub_ids,
+            document_type=[doc_type, 'all'],
             filters=[NEWEST,TOP,TRENDING, DISCUSSED],
-            with_default=True,
-            document_types=['all', doc_type]
         )
 
         return update_response
