@@ -575,8 +575,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             time_scope
         )
 
+
         if cache_hit and page_number == 1:
-            return Response(cache_hit)
+            return self._cache_response_with_latest_metadata(cache_hit)
         elif not cache_hit and page_number == 1:
             reset_unified_document_cache(
                 hub_ids=[hub_id],
@@ -610,6 +611,22 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         serializer_data = serializer.data
 
         return self.get_paginated_response(serializer_data)
+
+    def _cache_response_with_latest_metadata(self, cache_hit):
+        ids = [d['id'] for d in cache_hit['results']]
+        docs_in_cache = ResearchhubUnifiedDocument.objects.filter(id__in=ids).values('id', 'score')
+        docs_to_score_map = {d['id']:d['score'] for d in docs_in_cache}
+
+        for doc in cache_hit['results']:
+            doc.score = docs_to_score_map[doc['id']]
+
+            if 'documents' in doc:
+                if type(doc['documents']) == list:
+                    doc['documents'][0]['score'] = docs_to_score_map[doc['id']]
+                elif type(doc['documents']) == dict:
+                    doc['documents']['score'] = docs_to_score_map[doc['id']]
+
+        return Response(cache_hit)
 
     def _get_subscribed_unified_documents(self, request):
         default_hub_id = 0

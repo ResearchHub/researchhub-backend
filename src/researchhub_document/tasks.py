@@ -90,7 +90,6 @@ def preload_trending_documents(
     else: # Today
         cache_pk = f'{document_type}_{hub_id}_{filtering}_today'
 
-
     query_string_filtering = 'top_rated'
     if filtering == 'removed':
         query_string_filtering = 'removed'
@@ -147,7 +146,8 @@ def preload_trending_documents(
             'documents',
             'document_type',
             'hot_score',
-            'score'
+            'score',
+            'id',
         ],
         many=True,
         context=context,

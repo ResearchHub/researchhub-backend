@@ -393,6 +393,7 @@ def update_or_create_vote(request, user, item, vote_type):
             reset_unified_document_cache(
                 hub_ids,
                 document_type=[doc_type, 'all'],
+                filters=[TOP, TRENDING]                
             )
 
         # events_api.track_content_vote(user, vote, request)
@@ -404,6 +405,7 @@ def update_or_create_vote(request, user, item, vote_type):
         reset_unified_document_cache(
             hub_ids,
             document_type=[doc_type, 'all'],
+            filters=[TOP, TRENDING]
         )
 
     app_label = item._meta.app_label
