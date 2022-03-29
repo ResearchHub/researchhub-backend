@@ -123,7 +123,7 @@ def reset_unified_document_cache(
                                 f,
                                 time_scope,
                             ),
-                            priority=3,
+                            priority=2,
                             countdown=5
                         )
                     else:
@@ -136,7 +136,7 @@ def reset_unified_document_cache(
         if use_celery:
             preload_hub_documents.apply_async(
                 (doc_type, hub_ids),
-                priority=3,
+                priority=2,
                 countdown=5
             )
         else:

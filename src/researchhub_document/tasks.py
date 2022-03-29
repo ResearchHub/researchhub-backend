@@ -178,7 +178,7 @@ def preload_homepage_feed():
     )
     reset_unified_document_cache([0])
 
-# Executes every 5 minutes
+
 @periodic_task(
     run_every=crontab(minute='*/25'),
     priority=1,
