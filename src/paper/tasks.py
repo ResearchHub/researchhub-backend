@@ -1400,6 +1400,7 @@ def celery_crossref(self, celery_data):
             paper_data["raw_authors"] = raw_authors
             title = normalize("NFKD", results.get("title", [])[0])
             paper_data["title"] = title
+            paper_data["paper_title"] = title
             return celery_data
         raise CrossrefSearchError(f"Could not find Crossref data for: {dois}")
     except DuplicatePaperError as e:
