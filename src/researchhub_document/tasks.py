@@ -27,7 +27,6 @@ from researchhub.settings import (
 from django.contrib.contenttypes.models import ContentType
 from utils import sentry
 
-
 @app.task
 def recalc_hot_score_task(
     instance_content_type_id,
@@ -167,6 +166,17 @@ def preload_trending_documents(
 
     return paginated_response.data
 
+
+@periodic_task(
+    run_every=crontab(minute='*/15'),
+    priority=1,
+    options={'queue': f'{APP_ENV}_core_queue'}
+)
+def preload_homepage_feed():
+    from researchhub_document.utils import (
+        reset_unified_document_cache,
+    )
+    reset_unified_document_cache([0])
 
 # Executes every 5 minutes
 @periodic_task(

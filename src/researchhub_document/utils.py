@@ -100,7 +100,7 @@ def reset_unified_document_cache(
         TOP
     ],
     date_ranges=CACHE_DATE_RANGES,
-    with_default=True,
+    with_default=False,
     use_celery=True
 ):
     if isinstance(hub_ids, QuerySet):
