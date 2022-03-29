@@ -581,7 +581,7 @@ class PaperSerializer(BasePaperSerializer):
                 )
                 if len(updated_hub_ids) > 0:
                     reset_unified_document_cache(
-                        updated_hub_ids,
+                        hub_ids=updated_hub_ids,
                         document_type=['paper', 'all'],
                         filters=[NEWEST, TOP, TRENDING, DISCUSSED],
                     )
