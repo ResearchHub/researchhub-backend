@@ -41,7 +41,8 @@ from paper.utils import (
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url,
 )
-from reputation.models import Contribution
+from researchhub.lib import get_document_id_from_path
+from reputation.models import Contribution, AuthorRSC
 from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -737,7 +738,10 @@ class PaperSerializer(BasePaperSerializer):
                                 "last_name": author.get("last_name"),
                             }
                         ]
-                    ).aggregate(Sum("score"))["score__sum"]
+                    ).aggregate(
+                        Sum('score')
+                    )['score__sum']
+
                     scores.append(score)
         return scores
 

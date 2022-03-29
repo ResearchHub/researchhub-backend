@@ -44,6 +44,23 @@ class PaidStatusModelMixin(models.Model):
         self.paid_date = timezone.now()
         self.save()
 
+class AuthorRSC(models.Model):
+    author = models.ForeignKey(
+        'user.Author',
+        related_name='author_rsc',
+        on_delete=models.CASCADE,
+    )
+    paper = models.ForeignKey(
+        'paper.Paper',
+        related_name='author_rsc',
+        on_delete=models.CASCADE,
+    )
+    claimed = models.BooleanField(default=False)
+    amount = models.BigIntegerField(default=0)
+
+    def __str__(self):
+        return '{} {} - {} RSC'.format(author.first_name, author.last_name, self.amount)
+
 
 class Distribution(SoftDeletableModel, PaidStatusModelMixin):
     DISTRIBUTION_TYPE_CHOICES = distributions.DISTRIBUTION_TYPE_CHOICES

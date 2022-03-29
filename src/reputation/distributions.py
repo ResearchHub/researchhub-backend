@@ -1,5 +1,6 @@
 import datetime
 import pytz
+from time import time
 
 class Distribution:
     def __init__(self, name, amount, give_rep=True):
@@ -68,9 +69,34 @@ def calculate_upvote_rsc():
 
     return int(rsc_distribute)
 
-def create_upvote_distribution(vote_type):
+def create_upvote_distribution(vote_type, paper):
+    distribution_amount = calculate_upvote_rsc()
+
+    if paper:
+        distribution_amount *= .35 # authors get 75% of the upvote score
+        author_count = paper.authors.count()
+        author_distribution_amount = distribution_amount / author_count
+        for author in paper.authors.all():
+            if author.user:
+                timestamp = time()
+                distributor = Distributor(
+                    Distribution(vote_type, author_distribution_amount),
+                    author.user,
+                    paper,
+                    timestamp,
+                    paper.hubs.all(),
+                )
+                record = distributor.distribute()
+            else:
+                from reputation.models import AuthorRSC
+                AuthorRSC.objects.create(
+                    author=author,
+                    paper=paper,
+                    amount=author_distribution_amount,
+                )
+
     return Distribution(
-        vote_type, calculate_upvote_rsc()
+        vote_type, distribution_amount
     )
 
 FlagPaper = Distribution(
@@ -266,6 +292,10 @@ DISTRIBUTION_TYPE_CHOICES = [
     (
         SummaryDownvoted.name,
         SummaryDownvoted.name
+    ),
+    (
+        'UPVOTE_RSC_POT',
+        'UPVOTE_RSC_POT'
     ),
     (
         'REWARD',

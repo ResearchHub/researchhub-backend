@@ -8,6 +8,7 @@ from reputation.distributor import Distributor
 from utils.message import send_email_message
 from mailing_list.lib import base_email_context
 from researchhub.settings import BASE_FRONTEND_URL
+from django.db.models import Sum
 
 
 def get_formatted_token():
@@ -112,6 +113,25 @@ def send_rejection_email(case):
 
 def reward_author_claim_case(requestor_author):
     vote_reward = requestor_author.calculate_score()
+
+    author_pot_query = AuthorRSC.objects.filter(
+        author=requestor_author,
+        claimed=False,
+    )
+
+    author_pot_amount = author_pot_query.aggregate(
+        Sum('amount')
+    ).get('amount__sum', 0) or 0
+
+    if author_pot_amount:
+        distributor = Distributor(
+            dist('UPVOTE_RSC_POT', author_pot_amount),
+            requestor_author.user,
+            requestor_author,
+            time.time(),
+        )
+        record = distributor.distribute()
+
     try:
         distributor = Distributor(
             dist('REWARD', vote_reward, False),
