@@ -89,7 +89,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             document_type=[doc_type, 'all'],
-            filters=[NEWEST,TOP,TRENDING, DISCUSSED],
+            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
         )
 
         return Response(

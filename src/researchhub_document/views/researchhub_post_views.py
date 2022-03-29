@@ -19,9 +19,7 @@ from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.models import (
     ResearchhubPost, ResearchhubUnifiedDocument
 )
-from researchhub_document.tasks import (
-    invalidate_feed_cache
-)
+
 from researchhub_document.serializers.researchhub_post_serializer \
     import ResearchhubPostSerializer
 from utils.sentry import log_error
@@ -44,6 +42,9 @@ from researchhub.settings import (
 from purchase.models import (
     Purchase,
     Balance
+)
+from researchhub_document.utils import (
+    reset_unified_document_cache
 )
 
 
@@ -135,11 +136,10 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                 )
             )
 
-            invalidate_feed_cache(
+            reset_unified_document_cache(
                 hub_ids,
+                document_types=['all', 'posts'],
                 filters=[NEWEST],
-                with_default=True,
-                document_types=['all', 'posts']
             )
 
             if assign_doi:
@@ -202,11 +202,10 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             )
         )
 
-        invalidate_feed_cache(
+        reset_unified_document_cache(
             hub_ids,
+            document_types=['all', 'posts'],
             filters=[NEWEST, DISCUSSED, TOP, TRENDING],
-            with_default=True,
-            document_types=['all', 'posts']
         )
 
         if assign_doi:

@@ -53,9 +53,6 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from reputation.distributions import create_purchase_distribution, Distribution
 from reputation.distributor import Distributor
-from researchhub_document.tasks import (
-    invalidate_feed_cache
-)
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     TRENDING,
@@ -63,6 +60,9 @@ from researchhub_document.related_models.constants.filters import (
     TOP
 )
 from user.related_models.gatekeeper_model import Gatekeeper
+from researchhub_document.utils import (
+    reset_unified_document_cache
+)
 
 class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Balance.objects.all()
@@ -211,11 +211,10 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 transfer_rsc = True
 
                 hub_ids = paper.hubs.values_list('id', flat=True)
-                invalidate_feed_cache(
+                reset_unified_document_cache(
                     hub_ids,
+                    document_type=['all', 'paper'],
                     filters=[TRENDING],
-                    with_default=True,
-                    document_types=['all', 'paper']
                 )
             elif content_type_str == 'thread':
                 transfer_rsc = True
@@ -243,11 +242,10 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 unified_doc = item.unified_document
 
                 hub_ids = unified_doc.hubs.values_list('id', flat=True)
-                invalidate_feed_cache(
+                reset_unified_document_cache(
                     hub_ids,
+                    document_type=['all', 'posts'],
                     filters=[TRENDING],
-                    with_default=True,
-                    document_types=['all', 'posts']
                 )
 
             if unified_doc.is_removed:
