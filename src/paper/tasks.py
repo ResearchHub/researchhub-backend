@@ -6,11 +6,14 @@ import re
 import shutil
 import time
 import urllib.request
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from json.decoder import JSONDecodeError
 from subprocess import PIPE, run
+from unicodedata import normalize
 
+import cloudscraper
 import feedparser
 import fitz
 import requests
@@ -1166,6 +1169,10 @@ def pull_crossref_papers(start=0, force=False):
 # @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
 @app.task(bind=True)
 def celery_process_paper(self, submission_id):
+    """
+    from paper.tasks import celery_process_paper
+    z = celery_process_paper.apply_async((47,))
+    """
     PaperSubmission = apps.get_model("paper.PaperSubmission")
 
     paper_submission = PaperSubmission.objects.get(id=submission_id)
@@ -1179,9 +1186,10 @@ def celery_process_paper(self, submission_id):
     )
 
     task = chain(
-        celery_manubot.s().set(countdown=2),
-        celery_crossref.s().set(countdown=2),
-        celery_create_paper.s().set(countdown=2),
+        celery_get_doi.s().set(countdown=1),
+        celery_manubot.s().set(countdown=1),
+        celery_crossref.s().set(countdown=1),
+        celery_create_paper.s().set(countdown=1),
     ).apply_async(
         (args,),
         countdown=1,
@@ -1190,10 +1198,84 @@ def celery_process_paper(self, submission_id):
         soft_time_limit=60 * 2,
     )
 
+    # task = chord(
+    #     [celery_get_doi.s(args), celery_manubot.s(args)]
+    # )(celery_create_paper.s()).apply_async(
+    #     (args,),
+    #     countdown=1,
+    #     priority=1,
+    #     link_error=celery_handle_paper_processing_errors.s(),
+    #     soft_time_limit=60*2
+    # )
+
+
+# @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
+@app.task(bind=True)
+def celery_get_doi(self, celery_data):
+    paper_data, submission_id = celery_data
+    PaperSubmission = apps.get_model("paper.PaperSubmission")
+
+    try:
+        paper_submission = PaperSubmission.objects.get(id=submission_id)
+        paper_submission.set_processing_doi_status()
+        paper_submission.notify_status()
+
+        url = paper_data["url"]
+        scraper = cloudscraper.create_scraper()
+        res = scraper.get(url)
+        status_code = res.status_code
+        if status_code >= 200 and status_code < 400:
+            content = BeautifulSoup(res.content, "lxml")
+            dois = re.findall(
+                r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+(?=[\"])", str(content)
+            )
+            dois = list(map(str.strip, dois))
+
+            doi_counter = Counter(dois)
+            # most_common_doi = doi_counter.most_common(1)
+            # if most_common_doi:
+            #     doi = most_common_doi[0][0]
+            # else:
+            #     doi = None
+
+            paper_data["dois"] = [doi for doi, _ in doi_counter.most_common(5)]
+            return celery_data
+    except Exception as e:
+        raise e
+    return celery_data
+
 
 # @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
 @app.task(bind=True)
 def celery_manubot(self, celery_data):
+    paper_data, submission_id = celery_data
+    PaperSubmission = apps.get_model("paper.PaperSubmission")
+
+    try:
+        paper_submission = PaperSubmission.objects.get(id=submission_id)
+        paper_submission.set_manubot_status()
+        paper_submission.notify_status()
+
+        doi_exists = paper_data.get("dois", None)
+        if doi_exists:
+            return celery_data
+
+        url = paper_data["url"]
+        csl_item = get_csl_item(url)
+        doi = csl_item.get("DOI", None)
+        if doi:
+            paper_data["dois"] = [doi]
+        return celery_data
+    except ManubotProcessingError:
+        return celery_data
+    except Exception as e:
+        raise e
+
+
+# TODO: Delete
+# @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
+@app.task(bind=True)
+def OLD_celery_manubot(self, celery_data):
     paper_data, submission_id = celery_data
     Paper = apps.get_model("paper.Paper")
     PaperSubmission = apps.get_model("paper.PaperSubmission")
@@ -1278,6 +1360,7 @@ def celery_manubot(self, celery_data):
 @app.task(bind=True)
 def celery_crossref(self, celery_data):
     paper_data, submission_id = celery_data
+    Paper = apps.get_model("paper.Paper")
     PaperSubmission = apps.get_model("paper.PaperSubmission")
 
     try:
@@ -1285,35 +1368,42 @@ def celery_crossref(self, celery_data):
         paper_submission.set_crossref_status()
         paper_submission.notify_status()
 
-        doi = paper_data["doi"]
+        dois = paper_data.pop("dois", [])
         cr = Crossref()
-        params = {
-            "filters": {"type": "journal-article"},
-            "ids": [doi],
-        }
-        results = cr.works(**params).get("message")
+        results = None
+        for doi in dois:
+            try:
+                params = {
+                    "filters": {"type": "journal-article"},
+                    "ids": [doi],
+                }
+                results = cr.works(**params).get("message")
+                paper_data["doi"] = doi
+                break
+            except (HTTPError, JSONDecodeError) as e:
+                sentry.log_error(e)
+                print(e)
+                pass
 
         if results:
-            # Set abstract if it does not exist
-            current_abstract = paper_data["abstract"]
-            if not current_abstract:
-                abstract = clean_abstract(results.get("abstract", ""))
-                paper_data["abstract"] = abstract
+            # Duplicate DOI check
+            doi = paper_data["doi"]
+            doi_paper_check = Paper.objects.filter(doi=doi)
+            if doi_paper_check.exists():
+                paper_submission.set_duplicate_status()
+                duplicate_ids = doi_paper_check.values_list("id", flat=True)
+                raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
 
-            # Set raw authors if it does't exist
-            current_raw_authors = paper_data["raw_authors"]
-            if not current_raw_authors:
-                raw_authors = results.get("author", {})
-                paper_data["raw_authors"] = raw_authors
-
-        return (paper_data, submission_id)
-    except HTTPError as e:
-        error = CrossrefSearchError(e, "Safe Error - Continuing")
-        sentry.log_info(error)
-        return (paper_data, submission_id)
-    except JSONDecodeError as e:
-        error = CrossrefSearchError(e, "Safe Error - Continuing")
-        return (paper_data, submission_id)
+            abstract = clean_abstract(results.get("abstract", ""))
+            paper_data["abstract"] = abstract
+            raw_authors = results.get("author", {})
+            paper_data["raw_authors"] = raw_authors
+            title = normalize("NFKD", results.get("title", [])[0])
+            paper_data["title"] = title
+            return celery_data
+        raise CrossrefSearchError(f"Could not find Crossref data for: {dois}")
+    except DuplicatePaperError as e:
+        raise e
     except Exception as e:
         raise e
 

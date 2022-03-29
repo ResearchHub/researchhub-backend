@@ -1080,6 +1080,7 @@ class PaperSubmission(DefaultModel):
     PROCESSING = "PROCESSING"
     PROCESSING_CROSSREF = "PROCESSING_CROSSREF"
     PROCESSING_MANUBOT = "PROCESSING_MANUBOT"
+    PROCESSING_DOI = "PROCESSING_DOI"
 
     PAPER_STATUS_CHOICES = [
         (COMPLETE, COMPLETE),
@@ -1090,6 +1091,7 @@ class PaperSubmission(DefaultModel):
         (PROCESSING, PROCESSING),
         (PROCESSING_CROSSREF, PROCESSING_CROSSREF),
         (PROCESSING_MANUBOT, PROCESSING_MANUBOT),
+        (PROCESSING_DOI, PROCESSING_DOI),
     ]
     paper = models.OneToOneField(
         Paper,
@@ -1131,6 +1133,9 @@ class PaperSubmission(DefaultModel):
 
     def set_crossref_status(self, save=True):
         self.set_status(self.PROCESSING_CROSSREF, save)
+
+    def set_processing_doi_status(self, save=True):
+        self.set_status(self.PROCESSING_DOI, save)
 
     def set_failed_status(self, save=True):
         self.set_status(self.FAILED, save)
