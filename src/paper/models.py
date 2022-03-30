@@ -1093,6 +1093,11 @@ class PaperSubmission(DefaultModel):
         (PROCESSING_MANUBOT, PROCESSING_MANUBOT),
         (PROCESSING_DOI, PROCESSING_DOI),
     ]
+    doi = models.CharField(
+        blank=True,
+        null=True,
+        max_length=255,
+    )
     paper = models.OneToOneField(
         Paper,
         blank=True,
@@ -1103,6 +1108,7 @@ class PaperSubmission(DefaultModel):
     paper_status = models.CharField(
         choices=PAPER_STATUS_CHOICES, default=INITIATED, max_length=32
     )
+    status_read = models.BooleanField(default=False)
     url = models.URLField(max_length=1024)
     uploaded_by = models.ForeignKey(
         "user.User",
@@ -1116,6 +1122,7 @@ class PaperSubmission(DefaultModel):
 
     def set_status(self, status, save=True):
         self.paper_status = status
+        self.status_read = False
         if save:
             self.save()
 

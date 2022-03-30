@@ -20,6 +20,13 @@ class PaperSubmissionConsumer(WebsocketConsumer):
         )
         self.accept(subprotocol="Token")
 
+    def receive(self, text_data=None, bytes_data=None):
+        # TODO: Sanitize data?
+        data = json.loads(text_data)
+        submission_id = data["paper_submission_id"]
+        submission = PaperSubmission.objects.get(id=submission_id)
+        submission.status_read = True
+
     def disconnect(self, close_code):
         if close_code == 401 or not hasattr(self, "room_group_name"):
             return
