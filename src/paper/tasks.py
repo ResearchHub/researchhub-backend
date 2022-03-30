@@ -44,6 +44,7 @@ from discussion.models import Comment, Thread
 from hub.utils import scopus_to_rh_map
 from paper.exceptions import (
     CrossrefSearchError,
+    DOINotFoundError,
     DuplicatePaperError,
     ManubotProcessingError,
 )
@@ -1180,17 +1181,28 @@ def celery_process_paper(self, submission_id):
     paper_submission.notify_status()
     uploaded_by = paper_submission.uploaded_by
     url = paper_submission.url
+    doi = paper_submission.doi
     args = (
-        {"url": url, "uploaded_by_id": uploaded_by.id},
+        {"dois": [doi], "url": url, "uploaded_by_id": uploaded_by.id},
         submission_id,
     )
 
-    task = chain(
-        celery_get_doi.s().set(countdown=1),
-        celery_manubot.s().set(countdown=1),
-        celery_crossref.s().set(countdown=1),
-        celery_create_paper.s().set(countdown=1),
-    ).apply_async(
+    tasks = []
+    if url:
+        tasks.extend(
+            [
+                celery_get_doi.s().set(countdown=1),
+                celery_manubot.s().set(countdown=1),
+            ]
+        )
+    tasks.extend(
+        [
+            celery_crossref.s().set(countdown=1),
+            celery_create_paper.s().set(countdown=1),
+        ]
+    )
+
+    chain(*tasks).apply_async(
         (args,),
         countdown=1,
         priority=1,
@@ -1369,6 +1381,10 @@ def celery_crossref(self, celery_data):
         paper_submission.notify_status()
 
         dois = paper_data.pop("dois", [])
+
+        if not dois:
+            raise DOINotFoundError("No DOIs were found")
+
         cr = Crossref()
         results = None
         for doi in dois:
@@ -1403,6 +1419,8 @@ def celery_crossref(self, celery_data):
             paper_data["paper_title"] = title
             return celery_data
         raise CrossrefSearchError(f"Could not find Crossref data for: {dois}")
+    except DOINotFoundError as e:
+        raise e
     except DuplicatePaperError as e:
         raise e
     except Exception as e:
@@ -1471,6 +1489,8 @@ def celery_handle_paper_processing_errors(request, exc, traceback):
             paper_submission.set_duplicate_status()
         elif isinstance(exc, SoftTimeLimitExceeded):
             paper_submission.set_failed_timeout_status()
+        elif isinstance(exc, DOINotFoundError):
+            paper_submission.set_failed_doi_status()
         else:
             paper_submission.set_failed_status()
 

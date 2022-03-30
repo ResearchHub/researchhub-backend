@@ -3,6 +3,7 @@ import datetime
 import json
 from urllib.parse import urlparse
 
+import requests
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
@@ -1244,11 +1245,48 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
             serializer = DynamicPaperSerializer(
                 duplicate_paper, _include_fields=["doi", "id", "title", "url"]
             )
-            data = {"data": serializer.data}
-            return Response(data, status=status.HTTP_403_FORBIDDEN)
+            duplicate_data = {"data": serializer.data}
+            return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
 
         data["uploaded_by"] = self.request.user.id
         response = super().create(*args, **kwargs)
+        if response.status_code == 201:
+            data = response.data
+            celery_process_paper.apply_async(
+                (data["id"],),
+                priority=1,
+                countdown=3,
+            )
+        return response
+
+    @action(detail=False, methods=["post"])
+    def create_from_doi(self, request):
+        data = request.data
+        # TODO: Sanitize?
+        doi = data.get("doi", None)
+
+        # DOI validity check
+        doi_res = requests.post(
+            "https://dx.doi.org/", data={"hdl": doi}, allow_redirects=False, timeout=5
+        )
+        if doi_res.status_code == status.HTTP_404_NOT_FOUND:
+            return Response(
+                {"data": "Invalid DOI - Ensure it is in the form of '10.1000/abc123'"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Duplicate DOI check
+        duplicate_papers = Paper.objects.filter(doi__contains=doi)
+        if duplicate_papers.exists():
+            duplicate_paper = duplicate_papers.first()
+            serializer = DynamicPaperSerializer(
+                duplicate_paper, _include_fields=["doi", "id", "title", "url"]
+            )
+            duplicate_data = {"data": serializer.data}
+            return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
+
+        data["uploaded_by"] = request.user.id
+        response = super().create(request)
         if response.status_code == 201:
             data = response.data
             celery_process_paper.apply_async(

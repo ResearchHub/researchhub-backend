@@ -21,6 +21,10 @@ class DuplicatePaperError(Exception):
     pass
 
 
+class DOINotFoundError(Exception):
+    pass
+
+
 class ManubotProcessingError(Exception):
     pass
 

@@ -1077,6 +1077,7 @@ class PaperSubmission(DefaultModel):
     FAILED = "FAILED"
     FAILED_DUPLICATE = "FAILED_DUPLICATE"
     FAILED_TIMEOUT = "FAILED_TIMEOUT"
+    FAILED_DOI = "FAILED_DOI"
     PROCESSING = "PROCESSING"
     PROCESSING_CROSSREF = "PROCESSING_CROSSREF"
     PROCESSING_MANUBOT = "PROCESSING_MANUBOT"
@@ -1088,6 +1089,7 @@ class PaperSubmission(DefaultModel):
         (FAILED, FAILED),
         (FAILED, FAILED_DUPLICATE),
         (FAILED_TIMEOUT, FAILED_TIMEOUT),
+        (FAILED_DOI, FAILED_DOI),
         (PROCESSING, PROCESSING),
         (PROCESSING_CROSSREF, PROCESSING_CROSSREF),
         (PROCESSING_MANUBOT, PROCESSING_MANUBOT),
@@ -1109,7 +1111,7 @@ class PaperSubmission(DefaultModel):
         choices=PAPER_STATUS_CHOICES, default=INITIATED, max_length=32
     )
     status_read = models.BooleanField(default=False)
-    url = models.URLField(max_length=1024)
+    url = models.URLField(blank=True, null=True, max_length=1024)
     uploaded_by = models.ForeignKey(
         "user.User",
         related_name="paper_submissions",
@@ -1149,6 +1151,9 @@ class PaperSubmission(DefaultModel):
 
     def set_failed_timeout_status(self, save=True):
         self.set_status(self.FAILED_TIMEOUT, save)
+
+    def set_failed_doi_status(self, save=True):
+        self.set_status(self.FAILED_DOI, save)
 
     def notify_status(self, **kwargs):
         user_id = self.uploaded_by.id
