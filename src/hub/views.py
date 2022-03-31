@@ -95,7 +95,12 @@ class HubViewSet(viewsets.ModelViewSet):
         return response
 
     def get_queryset(self):
-        if 'score' in self.request.query_params.get('ordering', ''):
+        ordering = self.request.query_params.get('ordering', '')
+        print('ordering', ordering)
+        return self.get_ordered_queryset(ordering)
+
+    def get_ordered_queryset(self, ordering):
+        if 'score' in ordering:
             two_weeks_ago = timezone.now().date() - timedelta(days=14)
             num_upvotes = Count(
                 'papers__vote__vote_type',
@@ -111,14 +116,6 @@ class HubViewSet(viewsets.ModelViewSet):
                     papers__vote__created_date__gte=two_weeks_ago
                 )
             )
-            # TODO: figure out bug with actions_past_two_weeks filter
-            # actions_past_two_weeks = Count(
-            #     'actions',
-            #     filter=Q(
-            #         actions__created_date__gte=two_weeks_ago,
-            #         actions__user__isnull=False
-            #     )
-            # )
             paper_count = Count(
                 'papers',
                 filter=Q(

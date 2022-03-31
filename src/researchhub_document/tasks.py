@@ -171,7 +171,21 @@ def preload_trending_documents(
 
 
 @periodic_task(
-    run_every=crontab(minute='*/1'),
+    run_every=crontab(minute='*/60'),
+    priority=1,
+    options={'queue': f'{APP_ENV}_core_queue'}
+)
+def preload_homepage_feed():
+    from researchhub_document.utils import (
+        reset_unified_document_cache,
+    )
+    reset_unified_document_cache(
+        with_default_hub=True
+    )
+
+
+@periodic_task(
+    run_every=crontab(minute='*/60'),
     priority=1,
     options={'queue': f'{APP_ENV}_core_queue'}
 )
@@ -179,10 +193,11 @@ def preload_hub_feeds():
     from researchhub_document.utils import (
         reset_unified_document_cache,
     )
+    from hub.views import HubViewSet
 
-    Hub = apps.get_model('hub.Hub')
-    hubs = Hub.objects.all()
-    ids = hubs.values_list('id', flat=True)
+    view = HubViewSet()
+    qs = view.get_ordered_queryset('score')
+    ids = qs.values_list('id', flat=True)
 
     reset_unified_document_cache(
         hub_ids=ids,
