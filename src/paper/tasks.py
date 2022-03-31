@@ -1029,11 +1029,11 @@ RETRY_MAX = 20
 NUM_DUP_STOP = 30
 
 # Pull Daily
-@periodic_task(
-    run_every=crontab(minute=0, hour='*/6'),
-    priority=1,
-    options={'queue': f'{APP_ENV}_autopull_queue'}
-)
+# @periodic_task(
+#     run_every=crontab(minute=0, hour='*/6'),
+#     priority=1,
+#     options={'queue': f'{APP_ENV}_autopull_queue'}
+# )
 def pull_crossref_papers(start=0, force=False):
     # Temporarily disabling autopull
     return

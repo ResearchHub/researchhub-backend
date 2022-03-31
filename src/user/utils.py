@@ -74,7 +74,7 @@ def reset_latest_acitvity_cache(
         if use_celery:
             preload_latest_activity.apply_async(
                 ('', ordering),
-                priority=3
+                priority=1
             )
         else:
             preload_latest_activity('', ordering)
@@ -84,7 +84,7 @@ def reset_latest_acitvity_cache(
         if use_celery:
             preload_latest_activity.apply_async(
                 (hub_id, ordering),
-                priority=3
+                priority=1
             )
         else:
             preload_latest_activity(hub_id, ordering)

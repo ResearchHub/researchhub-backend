@@ -171,7 +171,7 @@ def preload_trending_documents(
 
 
 @periodic_task(
-    run_every=crontab(minute='*/60'),
+    run_every=crontab(minute='*/30'),
     priority=1,
     options={'queue': f'{APP_ENV}_core_queue'}
 )

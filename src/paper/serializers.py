@@ -467,7 +467,7 @@ class PaperSerializer(BasePaperSerializer):
                         unified_doc_id,
                         paper_id
                     ),
-                    priority=2,
+                    priority=3,
                     countdown=10
                 )
 
