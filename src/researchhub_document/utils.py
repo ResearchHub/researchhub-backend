@@ -120,8 +120,8 @@ def reset_unified_document_cache(
                             f,
                             time_scope,
                         ),
-                        priority=2,
-                        countdown=5
+                        priority=1,
+                        countdown=1
                     )
 
 
