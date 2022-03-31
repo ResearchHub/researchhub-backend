@@ -150,7 +150,9 @@ class HubViewSet(viewsets.ModelViewSet):
         hub.discussion_count = hub.get_discussion_count()
 
         hub.save(update_fields=['is_removed', 'paper_count', 'discussion_count'])
-        reset_unified_document_cache([0])
+        reset_unified_document_cache(
+            with_default_hub=True
+        )
 
         return Response(
             self.get_serializer(instance=hub).data,

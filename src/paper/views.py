@@ -357,6 +357,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             hub_ids,
             filters=[TRENDING, TOP, DISCUSSED, NEWEST],
             document_type=['all', 'paper'],
+            with_default_hub=True,
         )
 
         return Response('Paper was deleted.', status=200)
@@ -382,6 +383,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             hub_ids,
             filters=[TRENDING, TOP, DISCUSSED, NEWEST],
             document_type=['all', 'paper'],
+            with_default_hub=True,
         )
         return Response(
             self.get_serializer(instance=paper).data,

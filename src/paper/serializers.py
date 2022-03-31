@@ -483,6 +483,7 @@ class PaperSerializer(BasePaperSerializer):
                         hub_ids,
                         document_type=['paper', 'all'],
                         filters=[NEWEST],
+                        with_default_hub=True,
                     )
 
                 return paper

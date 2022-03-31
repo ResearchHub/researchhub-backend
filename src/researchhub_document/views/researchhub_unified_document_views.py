@@ -91,6 +91,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             hub_ids,
             document_type=[doc_type, 'all'],
             filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+            with_default_hub=True,
         )
 
         return Response(

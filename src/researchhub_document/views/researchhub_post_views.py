@@ -140,6 +140,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                 hub_ids,
                 document_types=['all', 'posts'],
                 filters=[NEWEST],
+                with_default_hub=True,
             )
 
             if assign_doi:

@@ -66,6 +66,7 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
             hub_ids,
             document_type=['all', 'hypothesis'],
             filters=[NEWEST],
+            with_default_hub=True,
         )
         return Response(data, status=200)
 
