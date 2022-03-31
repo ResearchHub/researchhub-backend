@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 from researchhub_document.tasks import (
-    preload_trending_documents,
-    preload_hub_documents
+    preload_trending_documents
 )
 from researchhub_document.related_models.constants.document_type import (
     PAPER,
@@ -101,7 +100,6 @@ def reset_unified_document_cache(
     ],
     date_ranges=CACHE_DATE_RANGES,
     with_default=False,
-    use_celery=True
 ):
     if isinstance(hub_ids, QuerySet):
         hub_ids = list(hub_ids)
@@ -126,21 +124,6 @@ def reset_unified_document_cache(
                             priority=2,
                             countdown=5
                         )
-                    else:
-                        preload_trending_documents(
-                            doc_type,
-                            hub_id,
-                            f,
-                            time_scope
-                        )
-        if use_celery:
-            preload_hub_documents.apply_async(
-                (doc_type, hub_ids),
-                priority=2,
-                countdown=5
-            )
-        else:
-            preload_hub_documents(doc_type, hub_ids)
 
 
 def update_unified_document_to_paper(paper):

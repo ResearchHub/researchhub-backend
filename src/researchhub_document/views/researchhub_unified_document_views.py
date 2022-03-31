@@ -5,6 +5,8 @@ from django.db.models import (
     Q,
     Count
 )
+from datetime import datetime, timedelta
+from dateutil import parser
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
 from rest_framework.decorators import action
@@ -15,7 +17,6 @@ from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated
 )
-
 from hypothesis.models import Hypothesis
 from paper.utils import get_cache_key
 from researchhub_document.models import (
@@ -570,9 +571,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             time_scope
         )
 
-
         if cache_hit and page_number == 1:
-            return self._cache_response_with_latest_metadata(cache_hit)
+            cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
+            return Response(cache_hit)
         elif not cache_hit and page_number == 1:
             reset_unified_document_cache(
                 hub_ids=[hub_id],
@@ -607,7 +608,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         return self.get_paginated_response(serializer_data)
 
-    def _cache_response_with_latest_metadata(self, cache_hit):
+    def _cache_hit_with_latest_metadata(self, cache_hit):
         ids = [d['id'] for d in cache_hit['results']]
         docs_in_cache = ResearchhubUnifiedDocument.objects.filter(id__in=ids).values('id', 'score')
         docs_to_score_map = {d['id']:d['score'] for d in docs_in_cache}
@@ -621,11 +622,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 elif type(doc['documents']) == dict:
                     doc['documents']['score'] = docs_to_score_map[doc['id']]
 
-        return Response(cache_hit)
+        return cache_hit
 
     def _get_subscribed_unified_documents(self, request):
         default_hub_id = 0
-        hubs = request.user.subscribed_hubs
+        hub_ids = request.user.subscribed_hubs.values_list('id', flat=True)
         query_params = request.query_params
         document_request_type = query_params.get('type', 'all')
         time_scope = query_params.get('time', 'today')
@@ -633,74 +634,24 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         page_number = int(query_params.get('page', 1))
         filtering = self._get_document_filtering(query_params)
 
-        if filtering == '-hot_score' and page_number == 1:
-            all_documents = {}
-            for hub in hubs.iterator():
-                hub_name = hub.slug
-                cache_pk = f'{document_request_type}_{hub_name}'
-                cache_key = get_cache_key('documents', cache_pk)
-                cache_hit = cache.get(cache_key)
-                if cache_hit:
-                    for hit in cache_hit:
-                        documents = hit['documents']
-                        documents_type = type(documents)
-                        if document_request_type == 'all':
-                            if documents_type not in (OrderedDict, dict):
-                                # This is hit when the document is a
-                                # researchhub post.
-                                if len(documents) == 0:
-                                    continue
-                                else:
-                                    document = documents[0]
-                            else:
-                                # This is hit when the document is a paper
-                                document = documents
-                        elif document_request_type == 'posts':
-                            if documents_type not in (OrderedDict, dict):
-                                if len(documents) == 0:
-                                    continue
-                                else:
-                                    document = documents[0]
-                            else:
-                                continue
-                        else:
-                            if documents_type in (OrderedDict, dict):
-                                document = documents
-                            else:
-                                continue
+        all_documents = {}
+        for hub_id in hub_ids:
+            cache_hit = self._get_unifed_document_cache_hit(
+                document_request_type,
+                filtering,
+                hub_id,
+                page_number,
+                time_scope
+            )
 
-                        document_id = document['id']
-                        if document_id not in all_documents:
-                            all_documents[document_id] = hit
-            all_documents = list(all_documents.values())
+            if cache_hit:
+                cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
+                for doc in cache_hit['results']:
+                    if doc['id'] not in all_documents:
+                        all_documents[doc['id']] = doc
 
-            if len(all_documents) < 1:
-                all_documents = self.get_filtered_queryset(
-                    document_request_type,
-                    filtering,
-                    default_hub_id,
-                    time_scope,
-                )
-                all_documents = all_documents.filter(
-                    hubs__in=hubs.all()
-                ).distinct()
-            else:
-                all_documents = sorted(
-                    all_documents, key=lambda doc: -doc['hot_score']
-                )
-                all_documents = all_documents[:UNIFIED_DOC_PAGE_SIZE]
-                next_page = request.build_absolute_uri()
-                if len(all_documents) < UNIFIED_DOC_PAGE_SIZE:
-                    next_page = None
-                else:
-                    next_page = replace_query_param(next_page, 'page', 2)
-                res = {
-                    'count': len(all_documents),
-                    'next': next_page,
-                    'results': all_documents
-                }
-                return Response(res, status=status.HTTP_200_OK)
-        else:
+        all_documents = list(all_documents.values())
+        if len(all_documents) == 0:
             all_documents = self.get_filtered_queryset(
                 document_request_type,
                 filtering,
@@ -708,24 +659,57 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 time_scope,
             )
             all_documents = all_documents.filter(
-                hubs__in=hubs.all()
+                hubs__in=hub_ids
             ).distinct()
 
-        context = self._get_serializer_context()
-        page = self.paginate_queryset(all_documents)
-        serializer = self.dynamic_serializer_class(
-            page,
-            _include_fields=[
-                'documents',
-                'document_type',
-                'hot_score',
-                'score'
-            ],
-            many=True,
-            context=context
-        )
-        serializer_data = serializer.data
-        return self.get_paginated_response(serializer_data)
+            context = self._get_serializer_context()
+            page = self.paginate_queryset(all_documents)
+            serializer = self.dynamic_serializer_class(
+                page,
+                _include_fields=[
+                    'documents',
+                    'document_type',
+                    'hot_score',
+                    'score'
+                ],
+                many=True,
+                context=context
+            )
+            serializer_data = serializer.data
+            return self.get_paginated_response(serializer_data)
+
+        else:
+            ordering = query_params.get('ordering', None)
+            if ordering == 'top_rated':
+                sort_key = 'score'
+            elif ordering == 'most_discussed':
+                sort_key = 'hot_score_v2'
+            elif ordering == 'newest':
+                sort_key = 'created_date'
+            else:
+                sort_key = 'hot_score_v2'
+
+            def compare(doc):
+                if sort_key == 'created_date':
+                    return -parser.parse(doc['created_date']).timestamp()
+                else:
+                    return -doc[sort_key]
+
+            all_documents = sorted(all_documents, key=compare)
+            all_documents = all_documents[:UNIFIED_DOC_PAGE_SIZE]
+            next_page = request.build_absolute_uri()
+            if len(all_documents) < UNIFIED_DOC_PAGE_SIZE:
+                next_page = None
+            else:
+                next_page = replace_query_param(next_page, 'page', 2)
+
+            res = {
+                'count': len(all_documents),
+                'next': next_page,
+                'results': all_documents
+            }
+            return Response(res, status=status.HTTP_200_OK)
+
 
     @action(
         detail=False,

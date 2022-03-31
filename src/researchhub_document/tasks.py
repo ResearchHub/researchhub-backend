@@ -142,9 +142,12 @@ def preload_trending_documents(
         page,
         _include_fields=[
             'created_by',
+            'created_date',
             'documents',
             'document_type',
             'hot_score',
+            'hot_score_v2',
+            'discussed',
             'score',
             'id',
         ],
@@ -168,7 +171,7 @@ def preload_trending_documents(
 
 
 @periodic_task(
-    run_every=crontab(minute='*/15'),
+    run_every=crontab(minute='*/7'),
     priority=1,
     options={'queue': f'{APP_ENV}_core_queue'}
 )
@@ -180,70 +183,24 @@ def preload_homepage_feed():
 
 
 @periodic_task(
-    run_every=crontab(minute='*/25'),
+    run_every=crontab(minute='*/1'),
     priority=1,
     options={'queue': f'{APP_ENV}_core_queue'}
 )
-def preload_hub_documents(
-    document_type=ALL.lower(),
-    hub_ids=None
-):
-    from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
-    from researchhub_document.serializers import (
-      DynamicUnifiedDocumentSerializer
+def preload_hub_feeds():
+    from researchhub_document.utils import (
+        reset_unified_document_cache,
     )
 
     Hub = apps.get_model('hub.Hub')
     hubs = Hub.objects.all()
-
-    document_view = ResearchhubUnifiedDocumentViewSet()
-
-    if document_type == ALL.lower():
-        document_types = [PAPER, ELN, DISCUSSION]
-    elif document_type == POSTS.lower():
-        document_types = [ELN, DISCUSSION]
-    else:
-        document_types = [PAPER]
-
-    if hub_ids:
-        hubs = hubs.filter(id__in=hub_ids)
-
-    data = []
-    for hub in hubs.iterator():
-        hub_name = hub.slug
-        cache_pk = f'{document_type}_{hub_name}'
-        documents = hub.related_documents.get_queryset().filter(
-            document_type__in=document_types,
-            is_removed=False
-        ).order_by(
-            '-hot_score'
-        )[:20]
-        cache_key = get_cache_key('documents', cache_pk)
-        context = document_view._get_serializer_context()
-        serializer = DynamicUnifiedDocumentSerializer(
-            documents,
-            _include_fields=[
-                'created_by',
-                'documents',
-                'document_type',
-                'hot_score',
-                'score'
-            ],
-            many=True,
-            context=context
-        )
-
-        serializer_data = serializer.data
-        data.append(serializer_data)
-        cache.set(
-            cache_key,
-            serializer_data,
-            timeout=None
-        )
-    return data
+    ids = hubs.values_list('id', flat=True)
+    reset_unified_document_cache(
+        hub_ids=ids,
+        document_type=["all"]
+    )
 
 
 @app.task
 def update_elastic_registry(post):
     registry.update(post)
-
