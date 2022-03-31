@@ -138,7 +138,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
 
             reset_unified_document_cache(
                 hub_ids,
-                document_types=['all', 'posts'],
+                document_type=['all', 'posts'],
                 filters=[NEWEST],
                 with_default_hub=True,
             )
@@ -205,7 +205,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
 
         reset_unified_document_cache(
             hub_ids,
-            document_types=['all', 'posts'],
+            document_type=['all', 'posts'],
             filters=[NEWEST, DISCUSSED, TOP, TRENDING],
         )
 
