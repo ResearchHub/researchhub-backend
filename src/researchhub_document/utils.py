@@ -85,7 +85,7 @@ def get_date_ranges_by_time_scope(time_scope):
     return (start_date, end_date)
 
 def reset_unified_document_cache(
-    hub_ids,
+    hub_ids=[],
     document_type=[
         ALL.lower(),
         POSTS.lower(),
@@ -106,24 +106,23 @@ def reset_unified_document_cache(
 
     if with_default and 0 not in hub_ids:
         hub_ids.append(0)
-    elif with_default and 0 in hub_ids:
+    elif with_default is False and 0 in hub_ids:
         hub_ids.remove(0)
 
     for doc_type in document_type:
         for hub_id in hub_ids:
             for f in filters:
                 for time_scope in date_ranges:
-                    if use_celery:
-                        preload_trending_documents.apply_async(
-                            (
-                                doc_type,
-                                hub_id,
-                                f,
-                                time_scope,
-                            ),
-                            priority=2,
-                            countdown=5
-                        )
+                    preload_trending_documents.apply_async(
+                        (
+                            doc_type,
+                            hub_id,
+                            f,
+                            time_scope,
+                        ),
+                        priority=2,
+                        countdown=5
+                    )
 
 
 def update_unified_document_to_paper(paper):
