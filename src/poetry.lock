@@ -665,11 +665,11 @@ six = "*"
 
 [[package]]
 name = "django-debug-toolbar"
-version = "3.2.4"
+version = "3.1.1"
 description = "A configurable set of panels that display various debug information about the current request/response."
 category = "main"
 optional = false
-python-versions = ">=3.6"
+python-versions = ">=3.5"
 
 [package.dependencies]
 Django = ">=2.2"
@@ -2815,7 +2815,7 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "3338e82cd8af778e11d678b7ae521454bb2f2a60e0f2c15cae3db5abd155a29e"
+content-hash = "34c0a9d489679b4c513d28b832867c17ff8f34d61e56f052995dec97edc0ff54"
 
 [metadata.files]
 aiohttp = [
@@ -3173,8 +3173,8 @@ django-dbbackup = [
     {file = "django-dbbackup-3.3.0.tar.gz", hash = "sha256:bb109735cae98b64ad084e5b461b7aca2d7b39992f10c9ed9435e3ebb6fb76c8"},
 ]
 django-debug-toolbar = [
-    {file = "django-debug-toolbar-3.2.4.tar.gz", hash = "sha256:644bbd5c428d3283aa9115722471769cac1bec189edf3a0c855fd8ff870375a9"},
-    {file = "django_debug_toolbar-3.2.4-py3-none-any.whl", hash = "sha256:6b633b6cfee24f232d73569870f19aa86c819d750e7f3e833f2344a9eb4b4409"},
+    {file = "django-debug-toolbar-3.1.1.tar.gz", hash = "sha256:c97921a9cd421d392e7860dc4b464db8e06c8628df4dc58fedab012888c293c6"},
+    {file = "django_debug_toolbar-3.1.1-py3-none-any.whl", hash = "sha256:a1ce0665f7ef47d27b8df4b5d1058748e1f08500a01421a30d35164f38aaaf4c"},
 ]
 django-elasticsearch-debug-toolbar = [
     {file = "django-elasticsearch-debug-toolbar-2.0.0.tar.gz", hash = "sha256:fa9ab66f0c3e48a5877523506e72c1111982ff4bb4643fe260a53737815b797f"},
