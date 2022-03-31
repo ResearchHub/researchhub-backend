@@ -433,7 +433,7 @@ unicode_backport = ["unicodedata2"]
 
 [[package]]
 name = "click"
-version = "8.1.0"
+version = "8.1.2"
 description = "Composable command line interface toolkit"
 category = "main"
 optional = false
@@ -558,7 +558,7 @@ python-versions = "*"
 
 [[package]]
 name = "dj-rest-auth"
-version = "2.2.3"
+version = "2.2.4"
 description = "Authentication and Registration in Django Rest Framework"
 category = "main"
 optional = false
@@ -569,7 +569,7 @@ Django = ">=2.0"
 djangorestframework = ">=3.7.0"
 
 [package.extras]
-with_social = ["django-allauth (>=0.40.0,<0.48.0)"]
+with_social = ["django-allauth (>=0.40.0,<0.51.0)"]
 
 [[package]]
 name = "django"
@@ -1689,7 +1689,7 @@ python-versions = "*"
 
 [[package]]
 name = "newrelic"
-version = "7.6.0.173"
+version = "7.8.0.174"
 description = "New Relic Python Agent"
 category = "main"
 optional = false
@@ -2485,7 +2485,7 @@ tests = ["pytest", "typeguard", "pygments", "littleutils", "cython"]
 
 [[package]]
 name = "stripe"
-version = "2.69.0"
+version = "2.70.0"
 description = "Python bindings for the Stripe API"
 category = "main"
 optional = false
@@ -3082,8 +3082,8 @@ charset-normalizer = [
     {file = "charset_normalizer-2.0.12-py3-none-any.whl", hash = "sha256:6881edbebdb17b39b4eaaa821b438bf6eddffb4468cf344f09f89def34a8b1df"},
 ]
 click = [
-    {file = "click-8.1.0-py3-none-any.whl", hash = "sha256:19a4baa64da924c5e0cd889aba8e947f280309f1a2ce0947a3e3a7bcb7cc72d6"},
-    {file = "click-8.1.0.tar.gz", hash = "sha256:977c213473c7665d3aa092b41ff12063227751c41d7b17165013e10069cc5cd2"},
+    {file = "click-8.1.2-py3-none-any.whl", hash = "sha256:24e1a4a9ec5bf6299411369b208c1df2188d9eb8d916302fe6bf03faed227f1e"},
+    {file = "click-8.1.2.tar.gz", hash = "sha256:479707fe14d9ec9a0757618b7a100a0ae4c4e236fac5b7f80ca68028141a1a72"},
 ]
 cloudscraper = [
     {file = "cloudscraper-1.2.60-py2.py3-none-any.whl", hash = "sha256:37afe061dee27c6ee1524ff3ca779ef0cc1d63298c3b65ec25f86d1e4b4a2eb9"},
@@ -3143,7 +3143,7 @@ distlib = [
     {file = "distlib-0.3.4.zip", hash = "sha256:e4b58818180336dc9c529bfb9a0b58728ffc09ad92027a3f30b7cd91e3458579"},
 ]
 dj-rest-auth = [
-    {file = "dj-rest-auth-2.2.3.tar.gz", hash = "sha256:f292f3dffb8fc896da10adf47e94a254fb8bf42e672a066e63566363d764ad42"},
+    {file = "dj-rest-auth-2.2.4.tar.gz", hash = "sha256:cf15155756b60a02842c54af62a213975c4eed250a2cce5d31b80dc6cf8592f1"},
 ]
 django = [
     {file = "Django-2.2-py3-none-any.whl", hash = "sha256:a2814bffd1f007805b19194eb0b9a331933b82bd5da1c3ba3d7b7ba16e06dc4b"},
@@ -3779,21 +3779,21 @@ netaddr = [
     {file = "netaddr-0.8.0.tar.gz", hash = "sha256:d6cc57c7a07b1d9d2e917aa8b36ae8ce61c35ba3fcd1b83ca31c5a0ee2b5a243"},
 ]
 newrelic = [
-    {file = "newrelic-7.6.0.173-cp27-cp27m-manylinux1_x86_64.whl", hash = "sha256:a6c55a045a23b4feeef441d2d05cddd87527510e4ee5f522c34aa6dbad302973"},
-    {file = "newrelic-7.6.0.173-cp27-cp27m-manylinux2010_x86_64.whl", hash = "sha256:c00e254ae02df93467df0c3f9344fe9002c2174cfdcf0a6f12df43c7a5103757"},
-    {file = "newrelic-7.6.0.173-cp27-cp27mu-manylinux1_x86_64.whl", hash = "sha256:7fc955d8d64d526d52677568d2f13a5b73ab6c7138cb7aa06a9bf9d4d3c46f7a"},
-    {file = "newrelic-7.6.0.173-cp27-cp27mu-manylinux2010_x86_64.whl", hash = "sha256:e6d6f90644ed1972513e9fe2ce59b4eaf4be814bc36fd85f5eeac09519a392a7"},
-    {file = "newrelic-7.6.0.173-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:48c7b6f6ed00935aaa46f0099dd59a791ef975836179686bfed8641e4c2ea45b"},
-    {file = "newrelic-7.6.0.173-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:90e7182dca3af174e44894ecfb21178713eb563826e42a883add5585cf31a9e0"},
-    {file = "newrelic-7.6.0.173-cp36-cp36m-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:03e9121f784888f4aa85078fbfde3452842053414816fb7fb23c98ab8fbf0000"},
-    {file = "newrelic-7.6.0.173-cp36-cp36m-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:6645f7d53c056b0d04081aace1639e01e4f35d89dc8a3f697328f2741eecd334"},
-    {file = "newrelic-7.6.0.173-cp37-cp37m-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ab1b00378f4cc6d690aa0ccaa4a1d7ac05ebb134b0517ffa73edce56c7de998a"},
-    {file = "newrelic-7.6.0.173-cp37-cp37m-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:4779e0e84a00b67c0de62b211e8b5e2d8bedc26695a8801a38eb20936557d831"},
-    {file = "newrelic-7.6.0.173-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:8333451a5e81df82e1b4b6c9eaa0d08f1081bc10a048c951fb90c88a0c3dbbdd"},
-    {file = "newrelic-7.6.0.173-cp38-cp38-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:c3a2e36b603686b2084e40fd2409f3e31b3c452ac7e3d7e6bd60a5dc3e64f0c1"},
-    {file = "newrelic-7.6.0.173-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:dc826b1fc4f8e88009fce09fb5a8a2517603ae2aa13b13d7a7982ba68c604a39"},
-    {file = "newrelic-7.6.0.173-cp39-cp39-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:bd79597e024e35ea4e9a3e917cf1f3ace94adade97ffb89805332f11e46d2719"},
-    {file = "newrelic-7.6.0.173.tar.gz", hash = "sha256:91a014aa757cd5c826a1c9548c083c2cbe00136f7d7653cbf74e163e78648da8"},
+    {file = "newrelic-7.8.0.174-cp27-cp27m-manylinux1_x86_64.whl", hash = "sha256:00dfb03dcd0ebc1e7f43253efa6749ce2ae2ee2e5d23a77e20da787cf8f424ac"},
+    {file = "newrelic-7.8.0.174-cp27-cp27m-manylinux2010_x86_64.whl", hash = "sha256:e7de0a6efcdeca50f76b7a7f4979bb745b92f950211f9203b9959ff7137dbc25"},
+    {file = "newrelic-7.8.0.174-cp27-cp27mu-manylinux1_x86_64.whl", hash = "sha256:70af627ae677840d2b21b8b082c759a39e95c47e83fb0332f38cfefb3b55449e"},
+    {file = "newrelic-7.8.0.174-cp27-cp27mu-manylinux2010_x86_64.whl", hash = "sha256:f3aa90de5bb2ac098b4bf80123fca8989fb48efee8530a9f1231fac1709ecf02"},
+    {file = "newrelic-7.8.0.174-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:575040846f2ae564d6814bdd904bf0e5421532935e968c8cf2679a08485cc75d"},
+    {file = "newrelic-7.8.0.174-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:fee7ff8b33e8d60687015ae35edf88e8cf4b895a3a7c5d6415f20fda366d5cf3"},
+    {file = "newrelic-7.8.0.174-cp36-cp36m-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:6b58b4e8512b25f73fa68123addd63df6e83484495136ab5193bb71f3eea47a3"},
+    {file = "newrelic-7.8.0.174-cp36-cp36m-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:01dfa796fc13a8d80c8a55bb4874ce8d3e5ee8dbe667394b4aac46765516575d"},
+    {file = "newrelic-7.8.0.174-cp37-cp37m-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:cba73fe320040fd39ac3d2ca3cfc2ee9dbcf69aa447dbf6afa3f514f63f5d99d"},
+    {file = "newrelic-7.8.0.174-cp37-cp37m-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:7f666292f66067d33408f2c44f4dea53a0f31c2059632df2c21b8ecd6b24c691"},
+    {file = "newrelic-7.8.0.174-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:4e68f45856116cd7f44df81580bf78d1627284be1567637d389bd54d97fffaab"},
+    {file = "newrelic-7.8.0.174-cp38-cp38-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:1442da7d8937900b98ffc88a9b2161ffa97536d38ec5ce5b0bbdb9723c96e188"},
+    {file = "newrelic-7.8.0.174-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:01402c6c3b8a6fe270b62c18809844237c3bd8a05e1b982988d724507813e2ad"},
+    {file = "newrelic-7.8.0.174-cp39-cp39-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:fcd1c510acb0fe2f79c8e6fcd4422972b79308bd0f41ed6609dc89abab741aea"},
+    {file = "newrelic-7.8.0.174.tar.gz", hash = "sha256:435635c7e7f712e09911ce7e1562a66412b6adda82635ac7b24daae9aa7c1b4b"},
 ]
 nltk = [
     {file = "nltk-3.7-py3-none-any.whl", hash = "sha256:ba3de02490308b248f9b94c8bc1ac0683e9aa2ec49ee78536d8667afb5e3eec8"},
@@ -4387,8 +4387,8 @@ stack-data = [
     {file = "stack_data-0.2.0.tar.gz", hash = "sha256:45692d41bd633a9503a5195552df22b583caf16f0b27c4e58c98d88c8b648e12"},
 ]
 stripe = [
-    {file = "stripe-2.69.0-py2.py3-none-any.whl", hash = "sha256:f5eb83b81f7ac19be21d77c99a070b983ea8adc26851e88affbe90731fa7d3eb"},
-    {file = "stripe-2.69.0.tar.gz", hash = "sha256:883078fc5bd3737e1d0580c3008323c586da36b7ae8479a57b8d161340d3cb9f"},
+    {file = "stripe-2.70.0-py2.py3-none-any.whl", hash = "sha256:7e3f50e844913e036f5419d73274315ae0d72315d36d3f791fdb572b1e84660c"},
+    {file = "stripe-2.70.0.tar.gz", hash = "sha256:ed8897f68e6bac3398cc998eb5634551840630d6504c0026fcfd0ad91c9a74a4"},
 ]
 tenacity = [
     {file = "tenacity-8.0.1-py3-none-any.whl", hash = "sha256:f78f4ea81b0fabc06728c11dc2a8c01277bfc5181b321a4770471902e3eb844a"},
