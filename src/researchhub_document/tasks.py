@@ -182,23 +182,23 @@ def preload_homepage_feed():
     reset_unified_document_cache(with_default=True)
 
 
-# @periodic_task(
-#     run_every=crontab(minute='*/7'),
-#     priority=1,
-#     options={'queue': f'{APP_ENV}_core_queue'}
-# )
-# def preload_hub_feeds():
-#     from researchhub_document.utils import (
-#         reset_unified_document_cache,
-#     )
+@periodic_task(
+    run_every=crontab(minute='*/7'),
+    priority=1,
+    options={'queue': f'{APP_ENV}_core_queue'}
+)
+def preload_hub_feeds():
+    from researchhub_document.utils import (
+        reset_unified_document_cache,
+    )
 
-#     Hub = apps.get_model('hub.Hub')
-#     hubs = Hub.objects.all()
-#     ids = hubs.values_list('id', flat=True)
-#     reset_unified_document_cache(
-#         hub_ids=ids,
-#         document_type=["all"]
-#     )
+    Hub = apps.get_model('hub.Hub')
+    hubs = Hub.objects.all()
+    ids = hubs.values_list('id', flat=True)
+    reset_unified_document_cache(
+        hub_ids=ids,
+        document_type=["all"]
+    )
 
 
 @app.task
