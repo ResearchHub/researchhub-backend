@@ -575,11 +575,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
             return Response(cache_hit)
         elif not cache_hit and page_number == 1:
+            with_default_hub = True if hub_id == 0 else False
             reset_unified_document_cache(
                 hub_ids=[hub_id],
                 document_type=[document_request_type],
                 filters=[filtering],
                 date_ranges=[time_scope],
+                with_default_hub=with_default_hub,
             )
 
         documents = self.get_filtered_queryset(

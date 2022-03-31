@@ -99,20 +99,26 @@ def reset_unified_document_cache(
         TOP
     ],
     date_ranges=CACHE_DATE_RANGES,
-    with_default=False,
+    with_default_hub=False,
 ):
     if isinstance(hub_ids, QuerySet):
         hub_ids = list(hub_ids)
 
-    if with_default and 0 not in hub_ids:
+    if with_default_hub and 0 not in hub_ids:
         hub_ids.append(0)
-    elif with_default is False and 0 in hub_ids:
+    elif with_default_hub is False and 0 in hub_ids:
         hub_ids.remove(0)
 
     for doc_type in document_type:
         for hub_id in hub_ids:
             for f in filters:
                 for time_scope in date_ranges:
+                    # Only homepage gets top priority
+                    if hub_id == 0:
+                        priority = 1
+                    else:
+                        priority = 3
+
                     preload_trending_documents.apply_async(
                         (
                             doc_type,
@@ -120,7 +126,7 @@ def reset_unified_document_cache(
                             f,
                             time_scope,
                         ),
-                        priority=1,
+                        priority=priority,
                         countdown=1
                     )
 
