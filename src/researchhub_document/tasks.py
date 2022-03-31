@@ -171,7 +171,7 @@ def preload_trending_documents(
 
 
 @periodic_task(
-    run_every=crontab(minute='*/7'),
+    run_every=crontab(minute='*/5'),
     priority=1,
     options={'queue': f'{APP_ENV}_core_queue'}
 )
@@ -183,7 +183,7 @@ def preload_homepage_feed():
 
 
 @periodic_task(
-    run_every=crontab(minute='*/1'),
+    run_every=crontab(minute='*/7'),
     priority=1,
     options={'queue': f'{APP_ENV}_core_queue'}
 )
