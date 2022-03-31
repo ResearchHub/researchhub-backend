@@ -1395,6 +1395,8 @@ def celery_crossref(self, celery_data):
                 }
                 results = cr.works(**params).get("message")
                 paper_data["doi"] = doi
+                paper_submission.doi = doi
+                paper_submission.save()
                 break
             except (HTTPError, JSONDecodeError) as e:
                 sentry.log_error(e)

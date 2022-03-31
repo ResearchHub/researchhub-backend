@@ -26,6 +26,8 @@ class PaperSubmissionConsumer(WebsocketConsumer):
         submission_id = data["paper_submission_id"]
         submission = PaperSubmission.objects.get(id=submission_id)
         submission.status_read = True
+        submission.save()
+        self.notify_paper_submission_status({"id": submission.id})
 
     def disconnect(self, close_code):
         if close_code == 401 or not hasattr(self, "room_group_name"):
