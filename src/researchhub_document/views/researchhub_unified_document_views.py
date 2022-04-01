@@ -620,9 +620,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             doc.score = docs_to_score_map[doc['id']]
 
             if 'documents' in doc:
-                if type(doc['documents']) == list:
+                if isinstance(doc['documents'], list):
                     doc['documents'][0]['score'] = docs_to_score_map[doc['id']]
-                elif type(doc['documents']) == dict:
+                elif isinstance(doc['documents'], dict):
                     doc['documents']['score'] = docs_to_score_map[doc['id']]
 
         return cache_hit

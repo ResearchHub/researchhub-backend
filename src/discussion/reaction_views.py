@@ -371,7 +371,7 @@ def create_vote(user, item, vote_type):
 
 def update_or_create_vote(request, user, item, vote_type):
     cache_filters_to_reset = [TOP, TRENDING]
-    if type(item) in [Thread, Comment, Reply]:
+    if isinstance(item, (Thread, Comment, Reply)):
         cache_filters_to_reset = [TRENDING]
 
     hub_ids = [0]
