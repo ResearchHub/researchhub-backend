@@ -47,15 +47,15 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: '3.8.5'
+    - name: Updating pip
+      run: |
+        pip install poetry
+        poetry run pip install --upgrade pip
+        poetry run pip install -U pip setuptools
     - name: Install Dependencies
       working-directory: ./src
       run: |
-        pip install poetry
         poetry install
-    - name: Updating pip
-      run: |
-        poetry run pip install --upgrade pip
-        poetry run pip install -U pip setuptools
     - name: Run Tests
       working-directory: ./src
       run: |
