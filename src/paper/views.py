@@ -1241,9 +1241,10 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
             Q(url__icontains=url) | Q(pdf_url__icontains=url)
         )
         if duplicate_papers.exists():
-            duplicate_paper = duplicate_papers.first()
             serializer = DynamicPaperSerializer(
-                duplicate_paper, _include_fields=["doi", "id", "title", "url"]
+                duplicate_papers,
+                _include_fields=["doi", "id", "title", "url"],
+                many=True,
             )
             duplicate_data = {"data": serializer.data}
             return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
@@ -1278,9 +1279,10 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
         # Duplicate DOI check
         duplicate_papers = Paper.objects.filter(doi__contains=doi)
         if duplicate_papers.exists():
-            duplicate_paper = duplicate_papers.first()
             serializer = DynamicPaperSerializer(
-                duplicate_paper, _include_fields=["doi", "id", "title", "url"]
+                duplicate_papers,
+                _include_fields=["doi", "id", "title", "url"],
+                many=True,
             )
             duplicate_data = {"data": serializer.data}
             return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
