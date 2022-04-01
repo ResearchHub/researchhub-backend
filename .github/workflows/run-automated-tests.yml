@@ -48,6 +48,7 @@ jobs:
       with:
         python-version: '3.8.5'
     - name: Updating pip
+      working-directory: ./src
       run: |
         pip install poetry
         poetry run pip install --upgrade pip
