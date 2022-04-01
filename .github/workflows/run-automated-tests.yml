@@ -50,13 +50,13 @@ jobs:
     - name: Install Dependencies
       working-directory: ./src
       run: |
+        pip install --upgrade pip
         pip install poetry
         poetry install
     - name: Run Tests
       working-directory: ./src
       run: |
         cp config/ci/* config
-        poetry run pip install --upgrade pip
         poetry run python manage.py migrate
         poetry run python manage.py collectstatic --noinput
         poetry run python manage.py test
