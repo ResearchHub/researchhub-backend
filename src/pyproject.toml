@@ -72,6 +72,7 @@ iso8601 = "1.0.2"
 dj-rest-auth = "^2.2.2"
 black = "^22.1.0"
 cloudscraper = "^1.2.60"
+setuptools = "61.3.0"
 
 [tool.poetry.dev-dependencies]
 
