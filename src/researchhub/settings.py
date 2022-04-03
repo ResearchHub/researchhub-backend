@@ -243,6 +243,7 @@ INSTALLED_APPS = [
     'summary',
     'user',
     'new_feature_release',
+    'peer_review',
 ]
 
 SITE_ID = 1
