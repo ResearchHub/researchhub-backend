@@ -47,7 +47,7 @@ class PeerReviewDecision(models.Model):
         on_delete=models.CASCADE,
     )
 
-    doc_revision = models.ForeignKey(
+    doc_version = models.ForeignKey(
         'note.NoteContent',
         blank=False,
         null=True,

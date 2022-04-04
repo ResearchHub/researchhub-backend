@@ -6,6 +6,7 @@ from peer_review.models import PeerReviewRequest
 from peer_review.serializers import PeerReviewRequestSerializer
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from utils.http import DELETE, POST, PATCH, PUT
 
 
 class PeerReviewRequestViewSet(ModelViewSet):
@@ -15,15 +16,15 @@ class PeerReviewRequestViewSet(ModelViewSet):
     serializer_class = PeerReviewRequestSerializer
 
     @action(
-        detail=True,
-        methods=['post'],
+        detail=False,
+        methods=[POST],
         # permission_classes=[HasDocumentCensorPermission]
     )
     def request_review(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        print('to implement')
+        return Response(serializer.data)
 
     def invite_reviewers(self):
         print('to implement')
