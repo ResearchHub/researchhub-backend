@@ -4,6 +4,7 @@ from rest_framework.permissions import (
 )
 from peer_review.models import PeerReviewRequest
 from peer_review.serializers import PeerReviewRequestSerializer
+from peer_review.permissions import IsAllowedToRequest
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from utils.http import DELETE, POST, PATCH, PUT
@@ -18,7 +19,7 @@ class PeerReviewRequestViewSet(ModelViewSet):
     @action(
         detail=False,
         methods=[POST],
-        # permission_classes=[HasDocumentCensorPermission]
+        permission_classes=[IsAllowedToRequest]
     )
     def request_review(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

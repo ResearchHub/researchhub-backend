@@ -17,18 +17,6 @@ class PeerReviewRequestSerializer(ModelSerializer):
         ]
 
     def validate(self, data):
-        uni_doc = data['unified_document']
-        requested_by_user = self.context['request'].user
-
-        is_author_requesting_review = uni_doc.authors.filter(
-            id=requested_by_user.id
-        ).exists()
-
-        if is_author_requesting_review is False:
-            raise ValidationError(
-                'Peer reviews must be requested by authors or moderators'
-            )
-
         return data
 
     def create(self, validated_data):
