@@ -4,7 +4,7 @@ from user.tests.helpers import (
     create_moderator,
 )
 from hub.tests.helpers import create_hub
-from note.models import NoteContent
+from peer_review.models import PeerReviewRequest
 
 
 class PeerReviewRequestViewTests(APITestCase):
@@ -54,7 +54,6 @@ class PeerReviewRequestViewTests(APITestCase):
         })
         self.post = doc_response.data
 
-
     def test_author_can_request_review(self):
         self.client.force_authenticate(self.author)
 
@@ -64,6 +63,83 @@ class PeerReviewRequestViewTests(APITestCase):
         })
 
         self.assertIn('id', review_request_response.data)
+
+    def test_author_can_request_review_when_publishing(self):
+        self.client.force_authenticate(self.author)
+
+        # Create Note
+        note_response = self.client.post(
+            '/api/note/',
+            {
+                'grouping': 'WORKSPACE',
+                'organization_slug': self.org['slug'],
+                'title': 'TEST'
+            }
+        )
+        note = note_response.data
+
+        # Create Note version
+        note_version_response = self.client.post(
+            '/api/note_content/',
+            {
+                'full_src': 'test content',
+                'note': note['id'],
+                'plain_text': 'test content'
+            }
+        )
+
+        # Publish + Request review
+        doc_response = self.client.post("/api/researchhub_posts/", {
+            "document_type": "DISCUSSION",
+            "created_by": self.author.id,
+            "full_src": "body",
+            "renderable_text": "body",
+            "title": "title",
+            "note_id": note['id'],
+            "hubs": [self.hub.id],
+            "request_peer_review": True,
+        })
+
+        p = PeerReviewRequest.objects.get(unified_document=doc_response.data['unified_document_id'])
+        self.assertEqual(doc_response.data['unified_document_id'], p.unified_document_id)
+
+    def test_author_can_decline_review_when_publishing(self):
+        self.client.force_authenticate(self.author)
+
+        # Create Note
+        note_response = self.client.post(
+            '/api/note/',
+            {
+                'grouping': 'WORKSPACE',
+                'organization_slug': self.org['slug'],
+                'title': 'TEST'
+            }
+        )
+        note = note_response.data
+
+        # Create Note version
+        note_version_response = self.client.post(
+            '/api/note_content/',
+            {
+                'full_src': 'test content',
+                'note': note['id'],
+                'plain_text': 'test content'
+            }
+        )
+
+        # Publish + Request review
+        doc_response = self.client.post("/api/researchhub_posts/", {
+            "document_type": "DISCUSSION",
+            "created_by": self.author.id,
+            "full_src": "body",
+            "renderable_text": "body",
+            "title": "title",
+            "note_id": note['id'],
+            "hubs": [self.hub.id],
+        })
+
+        p = PeerReviewRequest.objects.filter(unified_document=doc_response.data['unified_document_id'])
+        self.assertEqual(p.count(), 0)
 
     def test_non_author_cannot_request_review(self):
         self.client.force_authenticate(self.non_author)
@@ -82,7 +158,7 @@ class PeerReviewRequestViewTests(APITestCase):
             "unified_document": self.post['unified_document_id'],
             "doc_version": self.post['note']['latest_version']['id'],
         })
-        print(review_request_response)
+
         self.assertIn('id', review_request_response.data)
 
     # def test_moderator_can_invite_reviewers(self):

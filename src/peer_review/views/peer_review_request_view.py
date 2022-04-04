@@ -26,15 +26,3 @@ class PeerReviewRequestViewSet(ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         return Response(serializer.data)
-
-    def invite_reviewers(self):
-        print('to implement')
-
-    def accept_review_request(self):
-        print('to implement')
-
-    def decline_review_request(self):
-        print('to implement')
-
-    def accept_review(self):
-        print('to implement')
