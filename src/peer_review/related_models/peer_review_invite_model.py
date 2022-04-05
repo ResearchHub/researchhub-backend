@@ -22,6 +22,12 @@ class PeerReviewInvite(DefaultModel):
         on_delete=models.CASCADE,
     )
 
+    invited_email = models.EmailField(
+        unique=False,
+        null=True,
+        blank=True,
+    )
+
     invited_by_user = models.ForeignKey(
         'user.User',
         related_name='peer_review_users_invited',

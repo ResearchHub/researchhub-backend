@@ -6,6 +6,7 @@ class PeerReviewInviteSerializer(ModelSerializer):
         model = PeerReviewInvite
         fields = [
             'invited_user',
+            'invited_email',
             'invited_by_user',
             'peer_review_request',
             'id',
