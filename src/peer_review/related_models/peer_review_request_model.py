@@ -1,8 +1,8 @@
 from django.db import models
 from researchhub_document.models import ResearchhubUnifiedDocument
+from utils.models import DefaultModel
 
-
-class PeerReviewRequest(models.Model):
+class PeerReviewRequest(DefaultModel):
     PENDING = 'PENDING'
     CLOSED = 'CLOSED'
 
@@ -41,3 +41,8 @@ class PeerReviewRequest(models.Model):
         blank=False,
         null=False,
     )
+
+    created_date = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_date']

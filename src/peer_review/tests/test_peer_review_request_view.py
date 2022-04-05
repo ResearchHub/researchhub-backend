@@ -4,7 +4,9 @@ from user.tests.helpers import (
     create_moderator,
 )
 from hub.tests.helpers import create_hub
+from peer_review.tests.helpers import create_peer_review_request
 from peer_review.models import PeerReviewRequest
+from user.models import Organization, User
 
 
 class PeerReviewRequestViewTests(APITestCase):
@@ -160,6 +162,48 @@ class PeerReviewRequestViewTests(APITestCase):
         })
 
         self.assertIn('id', review_request_response.data)
+
+    def test_moderator_can_view_all_review_requests(self):
+        self.user1 = create_random_default_user('regular_user')
+        self.user2 = create_random_default_user('regular_user2')
+
+        review_request_for_user1 = create_peer_review_request(
+            requested_by_user=self.user1,
+            organization=Organization.objects.get(id=self.org['id']),
+            title='Some random post title',
+            body='some text',
+        )
+        review_request_for_user2 = create_peer_review_request(
+            requested_by_user=self.user2,
+            organization=Organization.objects.get(id=self.org['id']),
+            title='Some random post title',
+            body='some text',
+        )
+
+        self.client.force_authenticate(self.moderator)
+        review_request_response = self.client.get("/api/peer_review_requests/")
+        self.assertEqual(review_request_response.data['count'], 2)
+
+    def test_author_can_review_own_requests(self):
+        self.user1 = create_random_default_user('regular_user')
+        self.user2 = create_random_default_user('regular_user2')
+
+        review_request_for_user1 = create_peer_review_request(
+            requested_by_user=self.user1,
+            organization=Organization.objects.get(id=self.org['id']),
+            title='Some random post title',
+            body='some text',
+        )
+        review_request_for_user2 = create_peer_review_request(
+            requested_by_user=self.user2,
+            organization=Organization.objects.get(id=self.org['id']),
+            title='Some random post title',
+            body='some text',
+        )
+
+        self.client.force_authenticate(self.user1)
+        review_request_response = self.client.get("/api/peer_review_requests/")
+        self.assertEqual(review_request_response.data['count'], 1)
 
     # def test_moderator_can_invite_reviewers(self):
     #     self.assertEqual(False, True)
