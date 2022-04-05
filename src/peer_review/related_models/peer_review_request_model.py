@@ -2,6 +2,7 @@ from django.db import models
 from researchhub_document.models import ResearchhubUnifiedDocument
 from utils.models import DefaultModel
 
+
 class PeerReviewRequest(DefaultModel):
     PENDING = 'PENDING'
     CLOSED = 'CLOSED'

@@ -19,3 +19,13 @@ class IsAllowedToRequest(BasePermission):
             return True
 
         return False
+
+
+class IsAllowedToInvite(BasePermission):
+    message = 'Only moderators are allowed to invite peer reviewers'
+
+    def has_permission(self, request, view):
+        if request.user.moderator:
+            return True
+
+        return False

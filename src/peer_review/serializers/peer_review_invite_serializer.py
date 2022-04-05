@@ -1,20 +1,20 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField, ValidationError
-from peer_review.models import PeerReviewRequest
+from peer_review.models import PeerReviewInvite
 
-class PeerReviewRequestSerializer(ModelSerializer):
+class PeerReviewInviteSerializer(ModelSerializer):
     class Meta:
-        model = PeerReviewRequest
+        model = PeerReviewInvite
         fields = [
-            'requested_by_user',
-            'unified_document',
-            'doc_version',
+            'invited_user',
+            'invited_by_user',
+            'peer_review_request',
             'id',
             'status',
             'created_date',
         ]
         read_only_fields = [
-            'status',
             'id',
+            'status',
             'created_date',
         ]
 
@@ -23,8 +23,8 @@ class PeerReviewRequestSerializer(ModelSerializer):
 
     def create(self, validated_data):
         data = validated_data
-        data['requested_by_user'] = self.context['request'].user
+        data['invited_by_user'] = self.context['request'].user
 
-        instance = PeerReviewRequest(**data)
+        instance = PeerReviewInvite(**data)
         instance.save()
         return instance

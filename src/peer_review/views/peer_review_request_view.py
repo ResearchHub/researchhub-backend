@@ -3,9 +3,13 @@ from rest_framework.permissions import (
     IsAuthenticated,
 )
 from peer_review.models import PeerReviewRequest
-from peer_review.serializers import PeerReviewRequestSerializer
+from peer_review.serializers import (
+    PeerReviewRequestSerializer,
+    PeerReviewInviteSerializer,
+)
 from peer_review.permissions import (
     IsAllowedToRequest,
+    IsAllowedToInvite,
 )
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -41,3 +45,17 @@ class PeerReviewRequestViewSet(ModelViewSet):
         page = self.paginate_queryset(queryset)
         serializer = PeerReviewRequestSerializer(page, many=True)
         return self.get_paginated_response(serializer.data)
+
+    @action(
+        detail=False,
+        methods=[POST],
+        permission_classes=[IsAllowedToInvite]
+    )
+    def invite_to_review(self, request, *args, **kwargs):
+        serializer = PeerReviewInviteSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)

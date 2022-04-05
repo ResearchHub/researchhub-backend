@@ -1,7 +1,9 @@
 from django.db import models
+from utils.models import DefaultModel
+from peer_review.models import PeerReviewRequest
 
 
-class PeerReviewInvite(models.Model):
+class PeerReviewInvite(DefaultModel):
     INVITED = 'INVITED'
     ACCEPTED = 'ACCEPTED'
     DECLINED = 'DECLINED'
@@ -23,6 +25,14 @@ class PeerReviewInvite(models.Model):
     invited_by_user = models.ForeignKey(
         'user.User',
         related_name='peer_review_users_invited',
+        blank=False,
+        null=True,
+        on_delete=models.CASCADE,
+    )
+
+    peer_review_request = models.ForeignKey(
+        PeerReviewRequest,
+        related_name='invites',
         blank=False,
         null=False,
         on_delete=models.CASCADE,

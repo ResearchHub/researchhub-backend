@@ -205,8 +205,43 @@ class PeerReviewRequestViewTests(APITestCase):
         review_request_response = self.client.get("/api/peer_review_requests/")
         self.assertEqual(review_request_response.data['count'], 1)
 
-    # def test_moderator_can_invite_reviewers(self):
-    #     self.assertEqual(False, True)
+    def test_moderator_can_review_own_requests(self):
+        user1 = create_random_default_user('regular_user')
+        user2 = create_random_default_user('regular_user')
+
+        review_request_for_user1 = create_peer_review_request(
+            requested_by_user=user1,
+            organization=Organization.objects.get(id=self.org['id']),
+            title='Some random post title',
+            body='some text',
+        )
+
+        self.client.force_authenticate(self.moderator)
+        review_request_response = self.client.post("/api/peer_review_requests/invite_to_review/",{
+            'invited_user': user2.id,
+            'peer_review_request': review_request_for_user1.id,
+        })
+
+        self.assertIn('id', review_request_response.data)
+
+    def test_non_moderator_can_review_own_requests(self):
+        user1 = create_random_default_user('regular_user')
+        user2 = create_random_default_user('regular_user')
+
+        review_request_for_user1 = create_peer_review_request(
+            requested_by_user=user1,
+            organization=Organization.objects.get(id=self.org['id']),
+            title='Some random post title',
+            body='some text',
+        )
+
+        self.client.force_authenticate(user2)
+        review_request_response = self.client.post("/api/peer_review_requests/invite_to_review/",{
+            'invited_user': user2.id,
+            'peer_review_request': review_request_for_user1.id,
+        })
+
+        self.assertEqual(403, review_request_response.status_code)
 
     # def test_moderator_can_invite_reviewers(self):
     #     self.assertEqual(False, True)
