@@ -1467,6 +1467,7 @@ def celery_create_paper(self, celery_data):
             countdown=3,
         )
         paper_submission.notify_status()
+        return paper_id
     except ValidationError as e:
         raise e
     except Exception as e:
