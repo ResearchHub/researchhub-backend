@@ -1,6 +1,10 @@
 import datetime
 import pytz
 from time import time
+from researchhub_case.models import AuthorClaimCase
+from researchhub_case.constants.case_constants import (
+    APPROVED
+)
 
 class Distribution:
     def __init__(self, name, amount, give_rep=True):
@@ -80,7 +84,7 @@ def create_upvote_distribution(vote_type, paper):
         author_count = paper.true_author_count()
 
         for author in paper.authors.all():
-            if author.user:
+            if author.user and AuthorClaimCase.objects.filter(target_paper=paper, requestor=author.user, status=APPROVED).exists():
                 timestamp = time()
                 amt = author_distribution_amount / author_count
                 distributor = Distributor(
