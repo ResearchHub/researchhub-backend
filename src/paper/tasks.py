@@ -59,6 +59,7 @@ from paper.utils import (
     get_crossref_results,
     get_csl_item,
     get_pdf_from_url,
+    get_pdf_location_for_csl_item,
     get_redirect_url,
     merge_paper_bulletpoints,
     merge_paper_threads,
@@ -138,8 +139,18 @@ def download_pdf(paper_id, retry=0):
     pdf_url_contains_pdf = check_url_contains_pdf(pdf_url)
     url = pdf_url or paper_url
     url_has_pdf = check_url_contains_pdf(paper_url) or pdf_url_contains_pdf
+    oa_pdf_url = None
 
-    if paper_url and url_has_pdf:
+    if (paper_url or pdf_url) and not url_has_pdf:
+        csl_item = get_csl_item(url)
+        oa_result = get_pdf_location_for_csl_item(csl_item)
+        if oa_result:
+            oa_url_1 = oa_result.get("url", None)
+            oa_url_2 = oa_result.get("url_for_pdf", None)
+            oa_pdf_url = oa_url_1 or oa_url_2
+            url = oa_pdf_url
+
+    if (paper_url and url_has_pdf) or oa_pdf_url:
         try:
             pdf = get_pdf_from_url(url)
             filename = paper.url.split("/").pop()

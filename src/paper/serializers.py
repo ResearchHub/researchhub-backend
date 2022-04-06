@@ -52,7 +52,10 @@ from researchhub_document.related_models.constants.filters import (
     TOP,
     TRENDING,
 )
-from researchhub_document.utils import update_unified_document_to_paper
+from researchhub_document.utils import (
+    reset_unified_document_cache,
+    update_unified_document_to_paper,
+)
 from user.models import Author, User
 from user.serializers import (
     AuthorSerializer,
@@ -62,9 +65,6 @@ from user.serializers import (
 )
 from utils.http import check_url_contains_pdf, get_user_from_request
 from utils.siftscience import events_api, update_user_risk_score
-from researchhub_document.utils import (
-    reset_unified_document_cache,
-)
 
 
 class BasePaperSerializer(serializers.ModelSerializer):
@@ -351,6 +351,11 @@ class PaperSerializer(BasePaperSerializer):
             user = None
         validated_data["uploaded_by"] = user
 
+        if "url" in validated_data or "pdf_url" in validated_data:
+            error = Exception("URL uploading is deprecated")
+            sentry.log_error(error, base_error=error.trigger)
+            raise error
+
         # Prepare validated_data by removing m2m
         authors = validated_data.pop("authors")
         hubs = validated_data.pop("hubs")
@@ -445,7 +450,7 @@ class PaperSerializer(BasePaperSerializer):
                 if hub_ids.exists():
                     reset_unified_document_cache(
                         hub_ids,
-                        document_type=['paper', 'all'],
+                        document_type=["paper", "all"],
                         filters=[NEWEST],
                         with_default_hub=True,
                     )
@@ -535,7 +540,7 @@ class PaperSerializer(BasePaperSerializer):
                 if len(updated_hub_ids) > 0:
                     reset_unified_document_cache(
                         hub_ids=updated_hub_ids,
-                        document_type=['paper', 'all'],
+                        document_type=["paper", "all"],
                         filters=[NEWEST, TOP, TRENDING, DISCUSSED],
                     )
 

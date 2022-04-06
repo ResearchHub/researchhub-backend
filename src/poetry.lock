@@ -1583,11 +1583,11 @@ urllib3 = ">=1.23"
 
 [[package]]
 name = "manubot"
-version = "0.5.2"
+version = "0.5.3"
 description = "\"Python utilities for Manubot: Manuscripts, open and automated\""
 category = "main"
 optional = false
-python-versions = ">=3.6"
+python-versions = ">=3.7"
 
 [package.dependencies]
 errorhandler = "*"
@@ -2815,7 +2815,7 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "06040852159caa082108631feccc4a261f80a6d2f5aa68a0d1400adc9a5cdbe5"
+content-hash = "358c2b4bbc5045377d101b583f1a492ee8750325f769ed917b8e25f4ef595437"
 
 [metadata.files]
 aiohttp = [
@@ -3613,8 +3613,8 @@ mailchimp-marketing = [
     {file = "mailchimp_marketing-3.0.74-py3-none-any.whl", hash = "sha256:e01cf850237743220854eb5c942da44fb76f5b21e62ef8e6b429c9bac6bfdd0b"},
 ]
 manubot = [
-    {file = "manubot-0.5.2-py3-none-any.whl", hash = "sha256:6aa83e23860fbe79c8357270edcd4aba1d8cd39bdf79027a355999da97ab7dad"},
-    {file = "manubot-0.5.2.tar.gz", hash = "sha256:94d76f98c940265bfa9ab41ebd934afe7a6352d1bf20850c40891e72ef3eb613"},
+    {file = "manubot-0.5.3-py3-none-any.whl", hash = "sha256:c3c9de141098ef0bad61159d83203ee5c3142187080f3182e58459adbcb7001b"},
+    {file = "manubot-0.5.3.tar.gz", hash = "sha256:e125b2496583203f15b8ff4f68b7e10187e7664719c7da9634eac0f57ea62868"},
 ]
 markupsafe = [
     {file = "MarkupSafe-2.1.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:86b1f75c4e7c2ac2ccdaec2b9022845dbb81880ca318bb7a0a01fbf7813e3812"},
