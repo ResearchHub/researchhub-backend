@@ -158,7 +158,6 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
     )
     token_address = models.CharField(
         max_length=255,
-        choices=TOKEN_ADDRESS_CHOICES
     )
     amount = models.CharField(max_length=255, default='0.0')
     fee = models.CharField(max_length=255, default='0.0')
