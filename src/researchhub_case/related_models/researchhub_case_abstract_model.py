@@ -1,7 +1,6 @@
 from django.db import models
 
 from researchhub_case.constants.case_constants import RH_CASE_TYPES
-from user.models import User
 from utils.models import DefaultModel
 
 
@@ -13,21 +12,21 @@ class AbstractResearchhubCase(DefaultModel):
       null=False,
     )
     creator = models.ForeignKey(
-        User,
+        'user.User',
         blank=False,
         null=True,
         on_delete=models.CASCADE,
         related_name='created_cases',
     )
     moderator = models.ForeignKey(
-        User,
+        'user.User',
         blank=True,
         null=True,
         on_delete=models.CASCADE,
         related_name='moderating_cases',
     )
     requestor = models.ForeignKey(
-        User,
+        'user.User',
         blank=False,
         null=True,
         on_delete=models.CASCADE,

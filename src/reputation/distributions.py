@@ -1,7 +1,6 @@
 import datetime
 import pytz
 from time import time
-from researchhub_case.models import AuthorClaimCase
 from researchhub_case.constants.case_constants import (
     APPROVED
 )
@@ -78,6 +77,7 @@ def create_upvote_distribution(vote_type, paper):
 
     if paper:
         from reputation.distributor import Distributor
+        from researchhub_case.models import AuthorClaimCase
         author_distribution_amount = distribution_amount * .75
         distribution_amount *= .25 # authors get 75% of the upvote score
         distributed_amount = 0
