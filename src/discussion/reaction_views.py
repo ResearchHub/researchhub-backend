@@ -33,6 +33,7 @@ from researchhub_document.related_models.constants.filters import (
     NEWEST,
     TOP
 )
+from discussion.models import Comment, Reply, Thread
 
 
 class ReactionViewActionMixin:
@@ -369,6 +370,10 @@ def create_vote(user, item, vote_type):
 
 
 def update_or_create_vote(request, user, item, vote_type):
+    cache_filters_to_reset = [TOP, TRENDING]
+    if isinstance(item, (Thread, Comment, Reply)):
+        cache_filters_to_reset = [TRENDING]
+
     hub_ids = [0]
     # NOTE: Hypothesis citations do not have a unified document attached
     has_unified_doc = hasattr(item, 'unified_document')
@@ -382,7 +387,6 @@ def update_or_create_vote(request, user, item, vote_type):
         )
 
     vote = retrieve_vote(user, item)
-
     # TODO: calvinhlee - figure out how to handle contributions
     if vote is not None:
         vote.vote_type = vote_type
@@ -393,6 +397,7 @@ def update_or_create_vote(request, user, item, vote_type):
             reset_unified_document_cache(
                 hub_ids,
                 document_type=[doc_type, 'all'],
+                filters=cache_filters_to_reset
             )
 
         # events_api.track_content_vote(user, vote, request)
@@ -404,6 +409,7 @@ def update_or_create_vote(request, user, item, vote_type):
         reset_unified_document_cache(
             hub_ids,
             document_type=[doc_type, 'all'],
+            filters=cache_filters_to_reset
         )
 
     app_label = item._meta.app_label

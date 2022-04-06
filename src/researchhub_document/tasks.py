@@ -27,7 +27,6 @@ from researchhub.settings import (
 from django.contrib.contenttypes.models import ContentType
 from utils import sentry
 
-
 @app.task
 def recalc_hot_score_task(
     instance_content_type_id,
@@ -143,10 +142,13 @@ def preload_trending_documents(
         page,
         _include_fields=[
             'created_by',
+            'created_date',
             'documents',
             'document_type',
             'hot_score',
-            'score'
+            'hot_score_v2',
+            'score',
+            'id',
         ],
         many=True,
         context=context,
@@ -167,124 +169,41 @@ def preload_trending_documents(
     return paginated_response.data
 
 
-# Executes every 5 minutes
 @periodic_task(
-    run_every=crontab(minute='*/25'),
+    run_every=crontab(minute='*/1'),
     priority=1,
     options={'queue': f'{APP_ENV}_core_queue'}
 )
-def preload_hub_documents(
-    document_type=ALL.lower(),
-    hub_ids=None
-):
-    from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
-    from researchhub_document.serializers import (
-      DynamicUnifiedDocumentSerializer
+def preload_homepage_feed():
+    from researchhub_document.utils import (
+        reset_unified_document_cache,
+    )
+    reset_unified_document_cache(
+        with_default_hub=True
     )
 
-    Hub = apps.get_model('hub.Hub')
-    hubs = Hub.objects.all()
 
-    document_view = ResearchhubUnifiedDocumentViewSet()
+@periodic_task(
+    run_every=crontab(minute='*/1'),
+    priority=1,
+    options={'queue': f'{APP_ENV}_core_queue'}
+)
+def preload_hub_feeds():
+    from researchhub_document.utils import (
+        reset_unified_document_cache,
+    )
+    from hub.views import HubViewSet
 
-    if document_type == ALL.lower():
-        document_types = [PAPER, ELN, DISCUSSION]
-    elif document_type == POSTS.lower():
-        document_types = [ELN, DISCUSSION]
-    else:
-        document_types = [PAPER]
+    view = HubViewSet()
+    qs = view.get_ordered_queryset('score')
+    ids = qs.values_list('id', flat=True)
 
-    if hub_ids:
-        hubs = hubs.filter(id__in=hub_ids)
-
-    data = []
-    for hub in hubs.iterator():
-        hub_name = hub.slug
-        cache_pk = f'{document_type}_{hub_name}'
-        documents = hub.related_documents.get_queryset().filter(
-            document_type__in=document_types,
-            is_removed=False
-        ).order_by(
-            '-hot_score'
-        )[:20]
-        cache_key = get_cache_key('documents', cache_pk)
-        context = document_view._get_serializer_context()
-        serializer = DynamicUnifiedDocumentSerializer(
-            documents,
-            _include_fields=[
-                'created_by',
-                'documents',
-                'document_type',
-                'hot_score',
-                'score'
-            ],
-            many=True,
-            context=context
-        )
-
-        serializer_data = serializer.data
-        data.append(serializer_data)
-        cache.set(
-            cache_key,
-            serializer_data,
-            timeout=None
-        )
-    return data
+    reset_unified_document_cache(
+        hub_ids=ids,
+        document_type=["all"]
+    )
 
 
 @app.task
 def update_elastic_registry(post):
     registry.update(post)
-
-
-def invalidate_feed_cache(
-    hub_ids,
-    filters,
-    with_default=True,
-    document_types=[
-        ALL.lower(),
-        POSTS.lower(),
-        PAPER.lower(),
-        HYPOTHESIS.lower()
-    ],
-    date_ranges=[
-        'today',
-        'week',
-        'month',
-        'year',
-        'all_time'
-    ],
-    reload_cache=True
-):
-
-    from researchhub_document.utils import (
-        invalidate_most_discussed_cache,
-        invalidate_newest_cache,
-        invalidate_top_rated_cache,
-        invalidate_trending_cache
-    )
-    from researchhub_document.related_models.constants.filters import (
-        DISCUSSED,
-        TRENDING,
-        NEWEST,
-        TOP
-    )
-    from researchhub_document.utils import reset_unified_document_cache
-
-    if isinstance(hub_ids, QuerySet):
-        hub_ids = list(hub_ids)
-
-    if DISCUSSED in filters:
-        invalidate_most_discussed_cache(hub_ids, document_types, date_ranges, with_default)
-    if TRENDING in filters:
-        invalidate_trending_cache(hub_ids, document_types, date_ranges, with_default)
-    if NEWEST in filters:
-        invalidate_newest_cache(hub_ids, document_types, date_ranges, with_default)
-    if TOP in filters:
-        invalidate_top_rated_cache(hub_ids, document_types, date_ranges, with_default)
-
-    if reload_cache:
-        if with_default:
-            hub_ids.append(0)
-
-        reset_unified_document_cache(hub_ids=hub_ids, document_type=document_types, filters=filters, date_ranges=date_ranges)

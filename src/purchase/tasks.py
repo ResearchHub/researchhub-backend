@@ -31,7 +31,7 @@ def update_purchases():
                 id=purchase.object_id
             )
             paper.calculate_hot_score()
-    reset_unified_document_cache([0])
+    reset_unified_document_cache(with_default_hub=True)
 
 
 @app.task

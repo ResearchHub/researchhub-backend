@@ -27,8 +27,8 @@ from researchhub_document.related_models.constants.filters import (
     NEWEST,
     TOP
 )
-from researchhub_document.tasks import (
-    invalidate_feed_cache
+from researchhub_document.utils import (
+    reset_unified_document_cache,
 )
 
 class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
@@ -62,11 +62,11 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         data = serializer.data
 
         hub_ids = unified_doc.hubs.values_list('id', flat=True)
-        invalidate_feed_cache(
+        reset_unified_document_cache(
             hub_ids,
+            document_type=['all', 'hypothesis'],
             filters=[NEWEST],
-            with_default=True,
-            document_types=['all', 'hypothesis']
+            with_default_hub=True,
         )
         return Response(data, status=200)
 

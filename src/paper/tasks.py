@@ -657,40 +657,6 @@ def celery_update_hot_scores():
         paper.calculate_hot_score()
 
 
-# Executes every 5 minutes
-@periodic_task(
-    run_every=crontab(minute='*/5'),
-    priority=1,
-    options={'queue': f'{APP_ENV}_core_queue'}
-)
-def celery_preload_hub_papers(hub_ids=None):
-    from paper.serializers import HubPaperSerializer
-    context = {}
-    context['user_no_balance'] = True
-    Hub = apps.get_model('hub.Hub')
-    hubs = Hub.objects.all()
-    if hub_ids:
-        hubs = hubs.filter(id__in=hub_ids)
-
-    for hub in hubs.iterator():
-        hub_name = hub.slug
-        papers = hub.papers.get_queryset().filter(
-            is_removed=False,
-            uploaded_by_id__isnull=False
-        ).order_by(
-            '-hot_score'
-        )[:20]
-        cache_key = get_cache_key('papers', hub_name)
-        serializer = HubPaperSerializer(papers, many=True, context=context)
-
-        cache.set(
-            cache_key,
-            serializer.data,
-            timeout=None
-        )
-    return True
-
-
 @app.task
 def preload_trending_papers(hub_id, ordering, time_difference, context):
     from paper.serializers import HubPaperSerializer
@@ -1063,11 +1029,11 @@ RETRY_MAX = 20
 NUM_DUP_STOP = 30
 
 # Pull Daily
-@periodic_task(
-    run_every=crontab(minute=0, hour='*/6'),
-    priority=1,
-    options={'queue': f'{APP_ENV}_autopull_queue'}
-)
+# @periodic_task(
+#     run_every=crontab(minute=0, hour='*/6'),
+#     priority=1,
+#     options={'queue': f'{APP_ENV}_autopull_queue'}
+# )
 def pull_crossref_papers(start=0, force=False):
     # Temporarily disabling autopull
     return

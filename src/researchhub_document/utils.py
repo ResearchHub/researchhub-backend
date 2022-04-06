@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 from researchhub_document.tasks import (
-    preload_trending_documents,
-    preload_hub_documents
+    preload_trending_documents
 )
 from researchhub_document.related_models.constants.document_type import (
     PAPER,
@@ -21,6 +20,7 @@ from paper.utils import (
     add_default_hub
 )
 from django.core.cache import cache
+from django.db.models.query import QuerySet
 
 CACHE_TOP_RATED_DATES = (
     '-score_today',
@@ -85,7 +85,7 @@ def get_date_ranges_by_time_scope(time_scope):
     return (start_date, end_date)
 
 def reset_unified_document_cache(
-    hub_ids,
+    hub_ids=[],
     document_type=[
         ALL.lower(),
         POSTS.lower(),
@@ -99,55 +99,36 @@ def reset_unified_document_cache(
         TOP
     ],
     date_ranges=CACHE_DATE_RANGES,
-    use_celery=True
+    with_default_hub=False,
 ):
-    print('------------')
-    import inspect 
-    try:
-        frm = inspect.stack()[1]
-        mod = inspect.getmodule(frm[0])
-        print(frm.function)
-    except Exception as e:
-        pass
-    try:
-        frm = inspect.stack()[2]
-        mod = inspect.getmodule(frm[0])
-        print(frm.function)
-    except Exception as e:
-        pass
-    print('------------')
+    if isinstance(hub_ids, QuerySet):
+        hub_ids = list(hub_ids)
 
+    if with_default_hub and 0 not in hub_ids:
+        hub_ids.append(0)
+    elif with_default_hub is False and 0 in hub_ids:
+        hub_ids.remove(0)
 
     for doc_type in document_type:
         for hub_id in hub_ids:
             for f in filters:
                 for time_scope in date_ranges:
-                    if use_celery:
-                        preload_trending_documents.apply_async(
-                            (
-                                doc_type,
-                                hub_id,
-                                f,
-                                time_scope,
-                            ),
-                            priority=1,
-                            countdown=1
-                        )
+                    # Only homepage gets top priority
+                    if hub_id == 0:
+                        priority = 1
                     else:
-                        preload_trending_documents(
+                        priority = 3
+
+                    preload_trending_documents.apply_async(
+                        (
                             doc_type,
                             hub_id,
                             f,
-                            time_scope
-                        )
-        if use_celery:
-            preload_hub_documents.apply_async(
-                (doc_type, hub_ids),
-                priority=1,
-                countdown=1
-            )
-        else:
-            preload_hub_documents(doc_type, hub_ids)
+                            time_scope,
+                        ),
+                        priority=priority,
+                        countdown=1
+                    )
 
 
 def update_unified_document_to_paper(paper):
@@ -165,7 +146,7 @@ def update_unified_document_to_paper(paper):
             paper.calculate_hot_score()
             rh_unified_doc.save()
             reset_unified_document_cache(
-                [0] + list(hubs.values_list('id', flat=True))
+                list(hubs.values_list('id', flat=True))
             )
         except Exception as e:
             print(e)

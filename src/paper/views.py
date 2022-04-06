@@ -89,14 +89,14 @@ from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from utils.siftscience import events_api, decisions_api
 from rest_framework.permissions import AllowAny
-from researchhub_document.tasks import (
-    invalidate_feed_cache
-)
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     TRENDING,
     NEWEST,
     TOP
+)
+from researchhub_document.utils import (
+    reset_unified_document_cache,
 )
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -353,11 +353,11 @@ class PaperViewSet(viewsets.ModelViewSet):
         unified_document.is_removed = True
         unified_document.save()
 
-        invalidate_feed_cache(
+        reset_unified_document_cache(
             hub_ids,
-            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
-            with_default=True,
-            document_types=['all', 'paper']
+            filters=[TRENDING, TOP, DISCUSSED, NEWEST],
+            document_type=['all', 'paper'],
+            with_default_hub=True,
         )
 
         return Response('Paper was deleted.', status=200)
@@ -379,11 +379,11 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper.reset_cache(use_celery=False)
 
         hub_ids = paper.hubs.values_list('id', flat=True)
-        invalidate_feed_cache(
+        reset_unified_document_cache(
             hub_ids,
-            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
-            with_default=True,
-            document_types=['all', 'paper']
+            filters=[TRENDING, TOP, DISCUSSED, NEWEST],
+            document_type=['all', 'paper'],
+            with_default_hub=True,
         )
         return Response(
             self.get_serializer(instance=paper).data,
@@ -407,11 +407,10 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper.reset_cache(use_celery=False)
 
         hub_ids = paper.hubs.values_list('id', flat=True)
-        invalidate_feed_cache(
+        reset_unified_document_cache(
             hub_ids,
-            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
-            with_default=True,
-            document_types=['all', 'paper']
+            filters=[TRENDING, TOP, DISCUSSED, NEWEST],
+            document_type=['all', 'paper'],
         )
         return Response(
             self.get_serializer(instance=paper).data,
@@ -620,11 +619,10 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(request, user, paper, Vote.UPVOTE)
 
-        invalidate_feed_cache(
+        reset_unified_document_cache(
             hub_ids,
-            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
-            with_default=True,
-            document_types=['all', 'paper']
+            filters=[TRENDING, TOP],
+            document_type=['all', 'paper'],
         )
         paper.reset_cache()
 
@@ -652,11 +650,10 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
         response = update_or_create_vote(request, user, paper, Vote.DOWNVOTE)
 
-        invalidate_feed_cache(
+        reset_unified_document_cache(
             hub_ids,
-            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
-            with_default=True,
-            document_types=['all', 'paper']
+            filters=[TRENDING, TOP],
+            document_type=['all', 'paper'],
         )
         paper.reset_cache()
 

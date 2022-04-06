@@ -59,9 +59,6 @@ from .utils import (
     get_thread_id_from_path,
     get_comment_id_from_path,
 )
-from researchhub_document.tasks import (
-    invalidate_feed_cache
-)
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     TRENDING,
@@ -69,6 +66,9 @@ from researchhub_document.related_models.constants.filters import (
     TOP
 )
 from researchhub_document.utils import get_doc_type_key
+from researchhub_document.utils import (
+    reset_unified_document_cache,
+)
 
 DOCUMENT_MODELS = {
     'citation': Citation,
@@ -132,11 +132,10 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         )
 
         doc_type = get_doc_type_key(unified_document)
-        invalidate_feed_cache(
+        reset_unified_document_cache(
             hub_ids=hubs,
-            filters=[DISCUSSED],
-            with_default=True,
-            document_types=['all', doc_type]
+            document_type=[doc_type, 'all'],
+            filters=[DISCUSSED, TRENDING],
         )
 
         return response
@@ -322,11 +321,10 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         )
 
         doc_type = get_doc_type_key(unified_document)
-        invalidate_feed_cache(
+        reset_unified_document_cache(
             hub_ids=hubs,
-            filters=[DISCUSSED],
-            with_default=True,
-            document_types=['all', doc_type]
+            document_type=[doc_type, 'all'],
+            filters=[DISCUSSED, TRENDING]
         )
 
         return response
@@ -432,11 +430,10 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         )
 
         doc_type = get_doc_type_key(unified_document)
-        invalidate_feed_cache(
+        reset_unified_document_cache(
             hub_ids=hubs,
-            filters=[DISCUSSED],
-            with_default=True,
-            document_types=['all', doc_type]
+            document_type=[doc_type, 'all'],
+            filters=[DISCUSSED, TRENDING]
         )
 
         return self.get_self_upvote_response(request, response, Reply)
