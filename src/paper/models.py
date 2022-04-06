@@ -345,6 +345,16 @@ class Paper(models.Model):
             return [self.get_vote_for_index(vote) for vote in all_votes]
         return {}
 
+    def true_author_count(self):
+        registered_author_count = self.authors.count()
+        raw_author_count = len(self.raw_authors)
+
+        for author in self.raw_authors:
+            if self.authors.filter(first_name=author.get('first_name'), last_name=author.get('last_name')).exists():
+                raw_author_count -= 1
+        
+        return raw_author_count + registered_author_count
+
     def calculate_hot_score(self):
         ALGO_START_UNIX = 1546329600
         TWITTER_BOOST = 100

@@ -5,6 +5,7 @@ from utils import sentry
 
 from reputation.distributions import Distribution as dist
 from reputation.distributor import Distributor
+from reputation.models import AuthorRSC
 from utils.message import send_email_message
 from mailing_list.lib import base_email_context
 from researchhub.settings import BASE_FRONTEND_URL
@@ -111,17 +112,19 @@ def send_rejection_email(case):
     )
 
 
-def reward_author_claim_case(requestor_author):
+def reward_author_claim_case(requestor_author, paper, claim_case):
     vote_reward = requestor_author.calculate_score()
 
     author_pot_query = AuthorRSC.objects.filter(
-        author=requestor_author,
-        claimed=False,
+        paper=paper,
     )
 
     author_pot_amount = author_pot_query.aggregate(
         Sum('amount')
     ).get('amount__sum', 0) or 0
+
+    author_count = paper.true_author_count()
+    author_pot_amount /= author_count
 
     if author_pot_amount:
         distributor = Distributor(
@@ -131,6 +134,7 @@ def reward_author_claim_case(requestor_author):
             time.time(),
         )
         record = distributor.distribute()
+        claim_case.claimed_rsc.add(*author_pot_query)
 
     try:
         distributor = Distributor(

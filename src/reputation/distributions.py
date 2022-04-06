@@ -73,27 +73,32 @@ def create_upvote_distribution(vote_type, paper):
     distribution_amount = calculate_upvote_rsc()
 
     if paper:
-        distribution_amount *= .35 # authors get 75% of the upvote score
-        author_count = paper.authors.count()
-        author_distribution_amount = distribution_amount / author_count
+        from reputation.distributor import Distributor
+        author_distribution_amount = distribution_amount * .75
+        distribution_amount *= .25 # authors get 75% of the upvote score
+        distributed_amount = 0
+        author_count = paper.true_author_count()
+
         for author in paper.authors.all():
             if author.user:
                 timestamp = time()
+                amt = author_distribution_amount / author_count
                 distributor = Distributor(
-                    Distribution(vote_type, author_distribution_amount),
+                    Distribution(vote_type, amt),
                     author.user,
                     paper,
                     timestamp,
                     paper.hubs.all(),
                 )
                 record = distributor.distribute()
-            else:
-                from reputation.models import AuthorRSC
-                AuthorRSC.objects.create(
-                    author=author,
-                    paper=paper,
-                    amount=author_distribution_amount,
-                )
+                distributed_amount += amt
+        
+
+        from reputation.models import AuthorRSC
+        AuthorRSC.objects.create(
+            paper=paper,
+            amount=author_distribution_amount - distributed_amount,
+        )
 
     return Distribution(
         vote_type, distribution_amount

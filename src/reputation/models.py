@@ -49,13 +49,14 @@ class AuthorRSC(models.Model):
         'user.Author',
         related_name='author_rsc',
         on_delete=models.CASCADE,
+        blank=True,
+        null=True,
     )
     paper = models.ForeignKey(
         'paper.Paper',
         related_name='author_rsc',
         on_delete=models.CASCADE,
     )
-    claimed = models.BooleanField(default=False)
     amount = models.BigIntegerField(default=0)
 
     def __str__(self):

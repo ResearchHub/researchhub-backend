@@ -81,23 +81,13 @@ def distribute_for_paper_upvoted(
         recipient
     ):
         distributor = Distributor(
-            distributions.create_upvote_distribution(distributions.PaperUpvoted.name, instance),
+            distributions.create_upvote_distribution(distributions.PaperUpvoted.name, instance.paper),
             recipient,
             instance,
             timestamp,
             instance.paper.hubs.all(),
         )
         record = distributor.distribute()
-
-        distributor = Distributor(
-            distributions.create_upvote_distribution(distributions.PaperUpvoted.name, instance),
-            recipient,
-            instance,
-            timestamp,
-            instance.paper.hubs.all(),
-        )
-        record = distributor.distribute()
-
 
 def is_eligible_for_paper_upvoted(created, voter, paper_uploader):
     return (
