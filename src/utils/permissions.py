@@ -1,7 +1,8 @@
 from rest_framework.exceptions import PermissionDenied  # noqa: F401
-from rest_framework.permissions import BasePermission, SAFE_METHODS
-from utils.http import RequestMethods
+from rest_framework.permissions import SAFE_METHODS, BasePermission
+
 from researchhub.settings import ASYNC_SERVICE_API_KEY
+from utils.http import RequestMethods
 
 
 class ReadOnly(BasePermission):
@@ -26,6 +27,11 @@ class CreateOrReadOnly(BasePermission):
         return (request.method in SAFE_METHODS) or (
             request.method == RequestMethods.POST
         )
+
+
+class CreateOnly(BasePermission):
+    def has_permission(self, request, view):
+        return request.method == RequestMethods.POST
 
 
 class CreateOrUpdateOrReadOnly(BasePermission):

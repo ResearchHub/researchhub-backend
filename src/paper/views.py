@@ -79,18 +79,16 @@ from researchhub_document.related_models.constants.filters import (
     TOP,
     TRENDING,
 )
+from researchhub_document.utils import reset_unified_document_cache
 from researchhub_document.views.custom.unified_document_pagination import (
     UNIFIED_DOC_PAGE_SIZE,
 )
 from user.models import Author
 from utils.http import GET, POST, check_url_contains_pdf
-from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed
+from utils.permissions import CreateOnly, CreateOrUpdateIfAllowed
 from utils.sentry import log_error, log_info
 from utils.siftscience import decisions_api, events_api
 from utils.throttles import THROTTLE_CLASSES
-from researchhub_document.utils import (
-    reset_unified_document_cache,
-)
 
 
 class PaperViewSet(viewsets.ModelViewSet):
@@ -327,7 +325,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             filters=[TRENDING, TOP, DISCUSSED, NEWEST],
-            document_type=['all', 'paper'],
+            document_type=["all", "paper"],
             with_default_hub=True,
         )
 
@@ -349,17 +347,14 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper.save()
         paper.reset_cache(use_celery=False)
 
-        hub_ids = paper.hubs.values_list('id', flat=True)
+        hub_ids = paper.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
             hub_ids,
             filters=[TRENDING, TOP, DISCUSSED, NEWEST],
-            document_type=['all', 'paper'],
+            document_type=["all", "paper"],
             with_default_hub=True,
         )
-        return Response(
-            self.get_serializer(instance=paper).data,
-            status=200
-        )
+        return Response(self.get_serializer(instance=paper).data, status=200)
         return Response(self.get_serializer(instance=paper).data, status=200)
 
     @action(
@@ -378,16 +373,13 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper.save()
         paper.reset_cache(use_celery=False)
 
-        hub_ids = paper.hubs.values_list('id', flat=True)
+        hub_ids = paper.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
             hub_ids,
             filters=[TRENDING, TOP, DISCUSSED, NEWEST],
-            document_type=['all', 'paper'],
+            document_type=["all", "paper"],
         )
-        return Response(
-            self.get_serializer(instance=paper).data,
-            status=200
-        )
+        return Response(self.get_serializer(instance=paper).data, status=200)
         return Response(self.get_serializer(instance=paper).data, status=200)
 
     @action(
@@ -556,7 +548,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             filters=[TRENDING, TOP],
-            document_type=['all', 'paper'],
+            document_type=["all", "paper"],
         )
         paper.reset_cache()
 
@@ -583,7 +575,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             filters=[TRENDING, TOP],
-            document_type=['all', 'paper'],
+            document_type=["all", "paper"],
         )
         paper.reset_cache()
 
@@ -1226,7 +1218,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
     queryset = PaperSubmission.objects.all()
     serializer_class = PaperSubmissionSerializer
     throttle_classes = THROTTLE_CLASSES
-    permission_classes = [CreateOrReadOnly]
+    permission_classes = [CreateOnly]
 
     def create(self, *args, **kwargs):
         data = self.request.data

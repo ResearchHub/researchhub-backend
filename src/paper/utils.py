@@ -691,3 +691,12 @@ def is_blank_str(string):
         return False
 
     return True
+
+
+def format_raw_authors(raw_authors):
+    for author in raw_authors:
+        first_name = author.pop("given", "")
+        last_name = author.pop("family", "")
+        author["first_name"] = first_name
+        author["last_name"] = last_name
+    return raw_authors

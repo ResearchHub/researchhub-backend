@@ -44,7 +44,7 @@ class PaperSubmissionViewTests(APITestCase):
         self.assertEqual(self.true_doi, doi)
 
         paper_id = celery_create_paper.apply((celery_data,)).result
-        self.assertEqual(paper_id, 1)
+        self.assertEqual(isinstance(paper_id, int), True)
 
     def _duplicate_doi_flow(self):
         self.client.force_authenticate(self.submitter)

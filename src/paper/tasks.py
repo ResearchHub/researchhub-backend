@@ -54,11 +54,11 @@ from paper.utils import (
     check_pdf_title,
     clean_abstract,
     fitz_extract_figures,
+    format_raw_authors,
     get_cache_key,
     get_crossref_results,
     get_csl_item,
     get_pdf_from_url,
-    get_pdf_location_for_csl_item,
     get_redirect_url,
     merge_paper_bulletpoints,
     merge_paper_threads,
@@ -1284,90 +1284,6 @@ def celery_manubot(self, celery_data):
         raise e
 
 
-# TODO: Delete
-# @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
-@app.task(bind=True)
-def OLD_celery_manubot(self, celery_data):
-    paper_data, submission_id = celery_data
-    Paper = apps.get_model("paper.Paper")
-    PaperSubmission = apps.get_model("paper.PaperSubmission")
-
-    try:
-        paper_submission = PaperSubmission.objects.get(id=submission_id)
-        paper_submission.set_manubot_status()
-        paper_submission.notify_status()
-
-        url = paper_data["url"]
-        csl_item = get_csl_item(url)
-        doi = csl_item.get("DOI", None)
-
-        # DOI duplicate check
-        if doi:
-            doi_paper_check = Paper.objects.filter(doi=doi)
-            if doi_paper_check.exists():
-                paper_submission.set_duplicate_status()
-                duplicate_ids = doi_paper_check.values_list("id", flat=True)
-                raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
-
-        # Url duplicate check
-        oa_pdf_location = get_pdf_location_for_csl_item(csl_item)
-        csl_item["oa_pdf_location"] = oa_pdf_location
-        urls = [url]
-        if oa_pdf_location:
-            oa_url = oa_pdf_location.get("url", [])
-            oa_landing_page_url = oa_pdf_location.get("url_for_landing_page", [])
-            oa_pdf_url = oa_pdf_location.get("url_for_pdf", [])
-
-            urls.extend(oa_url)
-            urls.extend(oa_landing_page_url)
-            urls.extend(oa_pdf_url)
-
-        url_paper_check = Paper.objects.filter(Q(url__in=urls) | Q(pdf_url__in=urls))
-        if url_paper_check.exists():
-            paper_submission.set_duplicate_status()
-            duplicate_ids = url_paper_check.values_list("id", flat=True)
-            raise DuplicatePaperError(f"Duplicate URL: {urls}", duplicate_ids)
-
-        # Cleaning csl data
-        cleaned_title = csl_item.get("title", "").strip()
-        abstract = csl_item.get("abstract", "")
-        cleaned_abstract = clean_abstract(abstract)
-        publish_date = csl_item.get_date("issued", fill=True)
-        raw_authors = csl_item.get("author", {})
-        paper_data = {
-            **paper_data,
-            "abstract": cleaned_abstract,
-            "csl_item": csl_item,
-            "doi": doi,
-            "paper_publish_date": publish_date,
-            "raw_authors": raw_authors,
-            "title": cleaned_title,
-        }
-
-        if oa_pdf_location:
-            if oa_url:
-                paper_data["url"] = oa_url
-            if oa_pdf_url:
-                paper_data["pdf_url"] = oa_pdf_url
-
-            license = oa_pdf_location.get("license", None)
-            paper_data["pdf_license"] = license
-
-        return (paper_data, submission_id)
-    except DuplicatePaperError as e:
-        raise e
-    except ManubotProcessingError as e:
-        # TODO: Do we want some retrying logic for the future?
-        # Retries 3 times (5min, 3hrs, 1day)
-        # RETRY_BUCKET = (60 * 5, 60 * 60 * 3, 60 * 60 * 24)
-        # retries = self.request.retries
-        # if retries < 3:
-        #     self.retry(countdown=RETRY_BUCKET[retries])
-        raise e
-    except Exception as e:
-        raise e
-
-
 # @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
 @app.task(bind=True)
 def celery_crossref(self, celery_data):
@@ -1414,8 +1330,8 @@ def celery_crossref(self, celery_data):
 
             abstract = clean_abstract(results.get("abstract", ""))
             paper_data["abstract"] = abstract
-            raw_authors = results.get("author", {})
-            paper_data["raw_authors"] = raw_authors
+            raw_authors = results.get("author", [])
+            paper_data["raw_authors"] = format_raw_authors(raw_authors)
             title = normalize("NFKD", results.get("title", [])[0])
             paper_data["title"] = title
             paper_data["paper_title"] = title
