@@ -69,28 +69,37 @@ def handle_spam_user_task(user_id):
 @app.task
 def reinstate_user_task(user_id):
     User = apps.get_model('user.User')
+    ResearchhubUnifiedDocument = apps.get_model(
+        'researchhub_document.ResearchhubUnifiedDocument'
+    )
     user = User.objects.get(id=user_id)
 
     papers = Paper.objects.filter(uploaded_by=user)
     papers.update(is_removed=False)
     user.paper_votes.update(is_removed=False)
 
-    hub_ids = list(Hub.objects.filter(papers__in=list(user.papers.values_list(flat=True))).values_list(flat=True).distinct())
+    ResearchhubUnifiedDocument.objects.filter(paper__in=papers).update(is_removed=False)
+
+    hub_ids = list(
+        Hub.objects.filter(
+            papers__in=list(user.papers.values_list(flat=True))
+        ).values_list(flat=True).distinct()
+    )
 
     # Update discussions
     for thr in Thread.objects.filter(created_by=user):
-        thr.is_removed = False
         thr.update_discussion_count()
+        thr.is_removed = False
         thr.save()
 
     for com in Comment.objects.filter(created_by=user):
-        com.is_removed = False
         com.update_discussion_count()
+        com.is_removed = False
         com.save()
 
     for rep in Reply.objects.filter(created_by=user):
-        rep.is_removed = False
         rep.update_discussion_count()
+        rep.is_removed = False
         rep.save()
 
     reset_unified_document_cache(hub_ids, {}, None)

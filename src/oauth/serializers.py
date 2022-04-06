@@ -237,7 +237,6 @@ class SocialLoginSerializer(serializers.Serializer):
             sentry.log_error(e)
             pass
 
-
         request = self._get_request()
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:
@@ -253,8 +252,6 @@ class SocialLoginSerializer(serializers.Serializer):
                 country = geo.country(ip)
                 user.country_code = country.get('country_code')
                 user.save()
-                if country.get('country_code') in ['ID']:
-                    user.set_probable_spammer()
             except Exception as e:
                 print(e)
                 sentry.log_error(e)
