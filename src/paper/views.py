@@ -1236,6 +1236,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
         parsed_url = urlparse(url)
         if not parsed_url.scheme:
             url = f"http://{parsed_url.geturl()}"
+            data["url"] = url
 
         duplicate_papers = Paper.objects.filter(
             Q(url__icontains=url) | Q(pdf_url__icontains=url)
