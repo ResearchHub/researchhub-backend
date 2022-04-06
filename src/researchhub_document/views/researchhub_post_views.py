@@ -47,6 +47,11 @@ from researchhub_document.utils import (
     reset_unified_document_cache
 )
 
+from peer_review.serializers import PeerReviewRequestSerializer
+from peer_review.models import PeerReviewRequest
+from note.models import Note
+from note.models import NoteContent
+
 
 class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date')
@@ -96,6 +101,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             note_id = data.get('note_id', None)
             title = data.get('title', '')
             assign_doi = data.get('assign_doi', False)
+            peer_review_is_requested = data.get('request_peer_review', False)
             is_discussion = document_type == DISCUSSION
             doi = generate_doi() if assign_doi else None
 
@@ -148,6 +154,13 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                 if crossref_response.status_code != 200:
                     return Response('Crossref API Failure', status=400)
                 charge_doi_fee(created_by, rh_post)
+
+            if peer_review_is_requested and note_id:
+                request_peer_review(
+                    request=request,
+                    requested_by=request.user,
+                    post=rh_post
+                )
 
             return Response(
                 ResearchhubPostSerializer(
@@ -236,6 +249,20 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
         except (KeyError, TypeError) as exception:
             print('create_unified_doc: ', exception)
 
+
+def request_peer_review(request, requested_by, post):
+    doc_version = NoteContent.objects.filter(note_id=post.note_id).latest('id')
+    serializer = PeerReviewRequestSerializer(
+        data={
+            'requested_by_user': requested_by.id,
+            'unified_document': post.unified_document_id,
+            'doc_version': doc_version.id,
+        },
+        context={'request': request}
+    )
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return serializer.data
 
 def generate_doi():
     return CROSSREF_DOI_PREFIX \
