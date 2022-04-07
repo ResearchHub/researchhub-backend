@@ -4,6 +4,7 @@ from rest_framework import serializers
 from search.documents.paper import PaperDocument
 from paper.models import Paper
 from utils.sentry import log_error
+from user.models import User
 from user.serializers import UserSerializer
 
 
@@ -35,7 +36,7 @@ class PaperDocumentSerializer(DocumentSerializer):
             'paper_title',
             'uploaded_by',
             'unified_doc_id',
-            'uploaded_by_id',
+            'uploaded_by',
             'url',
         ]
 
@@ -47,8 +48,8 @@ class PaperDocumentSerializer(DocumentSerializer):
     def get_slug(self, hit):
         slug = ''
         try:
-            obj = Paper.objects.get(id=hit['id'])
-            slug = obj.slug
+            paper = Paper.objects.get(id=hit['id'])
+            slug = paper.slug
         except:
             pass
 
@@ -61,12 +62,13 @@ class PaperDocumentSerializer(DocumentSerializer):
         except Exception as e:
             log_error(e, 'A Paper must have unified document')
 
-    def get_uploaded_by(self, obj):
+    def get_uploaded_by(self, hit):
         try:
-            author = User.objects.get(
-                id=obj.uploaded_by_id
+            paper = Paper.objects.get(id=hit['id'])
+            user = User.objects.get(
+                id=paper.uploaded_by
             )
-            return UserSerializer(author, read_only=True).data
+            return UserSerializer(user, read_only=True).data
         except:
             pass
 
