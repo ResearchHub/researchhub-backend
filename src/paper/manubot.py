@@ -19,7 +19,7 @@ url_retrievers = [
 ]
 
 
-def get_url_csl_item(self, url: str) -> CSLItem:
+def get_url_csl_item(url: str) -> CSLItem:
     """
     Get csl_item for a URL trying a sequence of strategies.
     This function uses a list of CSL JSON Item metadata retrievers, specified
@@ -68,20 +68,9 @@ class RHCiteKey(CiteKey):
     def csl_item(self):
         handler = self.handler
         if isinstance(handler, Handler_URL):
-            handler = RHHandler_URL()
+            handler = RHHandler_URL(prefix_lower="url")
         csl_item = handler.get_csl_item(self)
         if not isinstance(csl_item, CSL_Item):
             csl_item = CSL_Item(csl_item)
         csl_item.set_id(self.standard_id)
         return csl_item
-
-
-"""
-from manubot.cite.citekey import CiteKey, citekey_to_csl_item, url_to_citekey
-from paper.manubot import RHCiteKey
-
-url = 'https://library.seg.org/doi/10.1190/geo2020-0417.1'
-citekey = url_to_citekey(url)
-citekey = RHCiteKey(citekey)
-csl_item = citekey_to_csl_item(citekey)
-"""

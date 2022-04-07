@@ -24,13 +24,13 @@ from celery.decorators import periodic_task
 from celery.exceptions import SoftTimeLimitExceeded
 from celery.task.schedules import crontab
 from celery.utils.log import get_task_logger
+from cloudscraper.exceptions import CloudflareChallengeError
 from django.apps import apps
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
-from django.db.models import Q
 from django.http.request import HttpRequest
 from django.utils.text import slugify
 from habanero import Crossref
@@ -1181,10 +1181,6 @@ def pull_crossref_papers(start=0, force=False):
 # @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
 @app.task(bind=True)
 def celery_process_paper(self, submission_id):
-    """
-    from paper.tasks import celery_process_paper
-    z = celery_process_paper.apply_async((47,))
-    """
     PaperSubmission = apps.get_model("paper.PaperSubmission")
 
     paper_submission = PaperSubmission.objects.get(id=submission_id)
@@ -1193,10 +1189,14 @@ def celery_process_paper(self, submission_id):
     uploaded_by = paper_submission.uploaded_by
     url = paper_submission.url
     doi = paper_submission.doi
+    celery_data = {"url": url, "uploaded_by_id": uploaded_by.id}
     args = (
-        {"dois": [doi], "url": url, "uploaded_by_id": uploaded_by.id},
+        celery_data,
         submission_id,
     )
+
+    if doi:
+        celery_data["dois"] = [doi]
 
     tasks = []
     if url:
@@ -1263,6 +1263,9 @@ def celery_get_doi(self, celery_data):
 
             paper_data["dois"] = [doi for doi, _ in doi_counter.most_common(5)]
             return celery_data
+    except CloudflareChallengeError as e:
+        sentry.log_info(e)
+        return celery_data
     except Exception as e:
         raise e
     return celery_data
