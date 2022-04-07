@@ -13,6 +13,7 @@ class PaperDocumentSerializer(DocumentSerializer):
     highlight = serializers.SerializerMethodField()
     unified_doc_id = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
+    uploaded_date = serializers.SerializerMethodField()
 
     class Meta(object):
         document = PaperDocument
@@ -66,11 +67,18 @@ class PaperDocumentSerializer(DocumentSerializer):
         try:
             paper = Paper.objects.get(id=hit['id'])
             user = User.objects.get(
-                id=paper.uploaded_by
+                id=paper.uploaded_by.id
             )
             return UserSerializer(user, read_only=True).data
-        except:
-            pass
+        except Exception as e:
+            print(e)
+
+    def get_uploaded_date(self, hit):
+        try:
+            paper = Paper.objects.get(id=hit['id'])
+            return paper.uploaded_date
+        except Exception as e:
+            print(e)
 
 
 class CrossrefPaperSerializer(serializers.Serializer):
