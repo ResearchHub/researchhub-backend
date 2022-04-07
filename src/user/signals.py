@@ -145,20 +145,6 @@ def handle_spam(sender, instance, **kwargs):
     if user and user.probable_spammer:
         instance.is_removed = True
 
-    if sender in (Thread,):
-        thread = instance
-
-        duplicate_thread = False
-        if thread.plain_text:
-            duplicate_thread = Thread.objects.filter(plain_text=thread.plain_text.strip(), paper=thread.paper).count() > 1
-
-        if len(thread.plain_text) <= 25 or duplicate_thread:
-            thread.is_removed = True
-
-        if duplicate_thread:
-            thread.created_by.probable_spammer = True
-            thread.created_by.save()
-
 
 @receiver(
     post_save,
