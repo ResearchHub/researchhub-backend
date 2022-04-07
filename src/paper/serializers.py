@@ -102,8 +102,8 @@ class BasePaperSerializer(serializers.ModelSerializer):
         ]
         model = Paper
 
-    #def get_uploaded_by(self, obj):
-    #    return UserSerializer(obj.uploaded_by, read_only=True).data
+    # def get_uploaded_by(self, obj):
+    #     return UserSerializer(obj.uploaded_by, read_only=True).data
 
     def get_unified_document_id(self, instance):
         try:
