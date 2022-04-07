@@ -1260,14 +1260,19 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
         doi = data.get("doi", None)
 
         # DOI validity check
+        doi_url = urlparse(doi)
         doi_res = requests.post(
             "https://dx.doi.org/", data={"hdl": doi}, allow_redirects=False, timeout=5
         )
-        if doi_res.status_code == status.HTTP_404_NOT_FOUND:
-            return Response(
-                {"data": "Invalid DOI - Ensure it is in the form of '10.1000/abc123'"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+        invalid_doi_res = Response(
+            {"data": "Invalid DOI - Ensure it is in the form of '10.1000/abc123'"},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+        if doi_url.scheme:
+            # Avoiding data that comes in as a url
+            return invalid_doi_res
+        elif doi_res.status_code == status.HTTP_404_NOT_FOUND:
+            return invalid_doi_res
 
         # Duplicate DOI check
         duplicate_papers = Paper.objects.filter(doi__contains=doi)

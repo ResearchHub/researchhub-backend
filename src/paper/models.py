@@ -6,7 +6,6 @@ import requests
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.contrib.contenttypes.fields import GenericRelation
-from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.contrib.postgres.indexes import HashIndex
 from django.core.validators import FileExtensionValidator
@@ -30,7 +29,6 @@ from paper.tasks import (
     celery_paper_reset_cache,
 )
 from paper.utils import (
-    MANUBOT_PAPER_TYPES,
     get_csl_item,
     paper_piecewise_log,
     parse_author_name,
@@ -1163,19 +1161,3 @@ class PaperSubmission(DefaultModel):
             room,
             {"type": "notify_paper_submission_status", "id": self.id, **kwargs},
         )
-
-    # TODO: delete
-    def old_notify_status(self):
-        from notification.models import Notification
-        from user.models import Action
-
-        action = Action.objects.get(
-            content_type=ContentType.objects.get_for_model(self),
-            object_id=self.id,
-        )
-        notification = Notification.objects.create(
-            recipient=self.uploaded_by,
-            action_user=self.uploaded_by,
-            action=action,
-        )
-        notification.send_notification()

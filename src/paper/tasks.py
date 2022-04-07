@@ -67,7 +67,17 @@ from paper.utils import (
     reset_paper_cache,
 )
 from purchase.models import Wallet
-from researchhub.celery import app
+from researchhub.celery import (
+    QUEUE_CACHES,
+    QUEUE_CERMINE,
+    QUEUE_EXTERNAL_REPORTING,
+    QUEUE_HOT_SCORE,
+    QUEUE_PAPER_METADATA,
+    QUEUE_PAPER_MISC,
+    QUEUE_PULL_PAPERS,
+    QUEUE_TWITTER,
+    app,
+)
 from researchhub.settings import APP_ENV, PRODUCTION, STAGING
 from researchhub_document.utils import update_unified_document_to_paper
 from utils import sentry
@@ -78,15 +88,6 @@ from utils.arxiv.categories import (
 )
 from utils.crossref import get_crossref_issued_date
 from utils.http import check_url_contains_pdf
-from researchhub.celery import (
-    QUEUE_HOT_SCORE,
-    QUEUE_PAPER_MISC,
-    QUEUE_CERMINE,
-    QUEUE_TWITTER,
-    QUEUE_PULL_PAPERS,
-    QUEUE_CACHES,
-    QUEUE_EXTERNAL_REPORTING,
-)
 from utils.twitter import RATE_LIMIT_CODE, get_twitter_results, get_twitter_url_results
 
 logger = get_task_logger(__name__)
@@ -636,11 +637,7 @@ def handle_duplicate_doi(new_paper, doi):
     new_paper.delete()
 
 
-@periodic_task(
-    run_every=crontab(minute=0, hour=0),
-    priority=5,
-    queue=QUEUE_HOT_SCORE
-)
+@periodic_task(run_every=crontab(minute=0, hour=0), priority=5, queue=QUEUE_HOT_SCORE)
 def celery_update_hot_scores():
     Paper = apps.get_model("paper.Paper")
     start_date = datetime.now() - timedelta(days=4)
@@ -1178,8 +1175,7 @@ def pull_crossref_papers(start=0, force=False):
     return total_results
 
 
-# @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
-@app.task(bind=True)
+@app.task(bind=True, queue=QUEUE_PAPER_METADATA)
 def celery_process_paper(self, submission_id):
     PaperSubmission = apps.get_model("paper.PaperSubmission")
 
@@ -1221,22 +1217,12 @@ def celery_process_paper(self, submission_id):
         soft_time_limit=60 * 2,
     )
 
-    # task = chord(
-    #     [celery_get_doi.s(args), celery_manubot.s(args)]
-    # )(celery_create_paper.s()).apply_async(
-    #     (args,),
-    #     countdown=1,
-    #     priority=1,
-    #     link_error=celery_handle_paper_processing_errors.s(),
-    #     soft_time_limit=60*2
-    # )
 
-
-# @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
-@app.task(bind=True)
+@app.task(bind=True, queue=QUEUE_PAPER_METADATA)
 def celery_get_doi(self, celery_data):
     paper_data, submission_id = celery_data
     PaperSubmission = apps.get_model("paper.PaperSubmission")
+    r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9].+?(?=[\";%<>\?#&])"
 
     try:
         paper_submission = PaperSubmission.objects.get(id=submission_id)
@@ -1250,17 +1236,11 @@ def celery_get_doi(self, celery_data):
         if status_code >= 200 and status_code < 400:
             content = BeautifulSoup(res.content, "lxml")
             dois = re.findall(
-                r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+(?=[\"])", str(content)
+                r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+(?=[\";%\?\<])", str(content)
             )
             dois = list(map(str.strip, dois))
 
             doi_counter = Counter(dois)
-            # most_common_doi = doi_counter.most_common(1)
-            # if most_common_doi:
-            #     doi = most_common_doi[0][0]
-            # else:
-            #     doi = None
-
             paper_data["dois"] = [doi for doi, _ in doi_counter.most_common(5)]
             return celery_data
     except CloudflareChallengeError as e:
@@ -1271,8 +1251,7 @@ def celery_get_doi(self, celery_data):
     return celery_data
 
 
-# @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
-@app.task(bind=True)
+@app.task(bind=True, queue=QUEUE_PAPER_METADATA)
 def celery_manubot(self, celery_data):
     paper_data, submission_id = celery_data
     PaperSubmission = apps.get_model("paper.PaperSubmission")
@@ -1298,8 +1277,7 @@ def celery_manubot(self, celery_data):
         raise e
 
 
-# @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
-@app.task(bind=True)
+@app.task(bind=True, queue=QUEUE_PAPER_METADATA)
 def celery_crossref(self, celery_data):
     paper_data, submission_id = celery_data
     Paper = apps.get_model("paper.Paper")
@@ -1359,8 +1337,7 @@ def celery_crossref(self, celery_data):
         raise e
 
 
-# @app.task(bind=True, queue=f"{APP_ENV}_cermine_queue")
-@app.task(bind=True)
+@app.task(bind=True, queue=QUEUE_PAPER_METADATA)
 def celery_create_paper(self, celery_data):
     from reputation.tasks import create_contribution
 
@@ -1404,8 +1381,7 @@ def celery_create_paper(self, celery_data):
         raise e
 
 
-# @app.task(queue=f"{APP_ENV}_cermine_queue")
-@app.task()
+@app.task(queue=QUEUE_PAPER_METADATA)
 def celery_handle_paper_processing_errors(request, exc, traceback):
     try:
         sentry.log_error(exc)
@@ -1429,7 +1405,6 @@ def celery_handle_paper_processing_errors(request, exc, traceback):
 
         paper_submission.notify_status(**extra_metadata)
     except Exception as e:
-        print(e)
         sentry.log_error(e, exc)
 
     return

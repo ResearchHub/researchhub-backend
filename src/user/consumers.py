@@ -69,5 +69,4 @@ class PaperSubmissionConsumer(WebsocketConsumer):
             "current_paper": current_paper_data,
             **extra_metadata,
         }
-        print(data)
         self.send(text_data=json.dumps(data))
