@@ -74,11 +74,19 @@ from utils.twitter import (
 )
 
 from utils.http import check_url_contains_pdf
-
+from researchhub.celery import (
+    QUEUE_HOT_SCORE,
+    QUEUE_PAPER_MISC,
+    QUEUE_CERMINE,
+    QUEUE_TWITTER,
+    QUEUE_PULL_PAPERS,
+    QUEUE_CACHES,
+    QUEUE_EXTERNAL_REPORTING,
+)
 logger = get_task_logger(__name__)
 
 
-@app.task
+@app.task(queue=QUEUE_CACHES)
 def celery_paper_reset_cache(paper_id):
     from paper.serializers import PaperSerializer
     Paper = apps.get_model('paper.Paper')
@@ -92,7 +100,7 @@ def celery_paper_reset_cache(paper_id):
     return data
 
 
-@app.task
+@app.task(queue=QUEUE_PAPER_MISC)
 def censored_paper_cleanup(paper_id):
     Paper = apps.get_model('paper.Paper')
     paper = Paper.objects.filter(id=paper_id).first()
@@ -112,7 +120,7 @@ def censored_paper_cleanup(paper_id):
         uploaded_by.set_probable_spammer()
 
 
-@app.task
+@app.task(queue=QUEUE_PAPER_MISC)
 def download_pdf(paper_id, retry=0):
     if retry > 3:
         return
@@ -151,7 +159,7 @@ def download_pdf(paper_id, retry=0):
             )
 
 
-@app.task
+@app.task(queue=QUEUE_PAPER_MISC)
 def add_references(paper_id):
     if paper_id is None:
         return
@@ -161,7 +169,7 @@ def add_references(paper_id):
     paper.add_references()
 
 
-@app.task
+@app.task(queue=QUEUE_PAPER_MISC)
 def add_orcid_authors(paper_id):
     if paper_id is None:
         return False, 'No Paper Id'
@@ -197,7 +205,7 @@ def add_orcid_authors(paper_id):
     return True
 
 
-@app.task
+@app.task(queue=QUEUE_PAPER_MISC)
 def celery_extract_figures(paper_id):
     if paper_id is None:
         return
@@ -264,7 +272,7 @@ def celery_extract_figures(paper_id):
         cache.delete(cache_key)
 
 
-@app.task
+@app.task(queue=QUEUE_PAPER_MISC)
 def celery_extract_pdf_preview(paper_id, retry=0):
     if paper_id is None or retry > 2:
         print('No paper id for pdf preview')
@@ -321,7 +329,7 @@ def celery_extract_pdf_preview(paper_id, retry=0):
     return True
 
 
-@app.task
+@app.task(queue=QUEUE_PAPER_MISC)
 def celery_extract_meta_data(paper_id, title, check_title):
     if paper_id is None:
         return
@@ -376,7 +384,7 @@ def celery_extract_meta_data(paper_id, title, check_title):
         sentry.log_info(e)
 
 
-@app.task
+@app.task(queue=QUEUE_PAPER_MISC)
 def celery_extract_twitter_comments(paper_id):
     # TODO: Optimize this
     return
@@ -463,7 +471,7 @@ def celery_extract_twitter_comments(paper_id):
         return
 
 
-@app.task
+@app.task(queue=QUEUE_PAPER_MISC)
 def celery_get_paper_citation_count(paper_id, doi):
     if not doi:
         return
@@ -494,7 +502,7 @@ def celery_get_paper_citation_count(paper_id, doi):
     paper.save()
 
 
-@app.task(queue=f'{APP_ENV}_cermine_queue')
+@app.task(queue=QUEUE_CERMINE)
 def celery_extract_pdf_sections(paper_id):
     if paper_id is None:
         return False, 'No Paper Id'
@@ -571,7 +579,7 @@ def celery_extract_pdf_sections(paper_id):
         return True, return_code
 
 
-@app.task(queue=f'{APP_ENV}_twitter_queue', ignore_result=False)
+@app.task(queue=QUEUE_TWITTER, ignore_result=False)
 def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     if paper_id is None or iteration > 2:
         return False
@@ -631,7 +639,7 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     return True, score
 
 
-@app.task
+@app.task(queue=QUEUE_PAPER_MISC)
 def handle_duplicate_doi(new_paper, doi):
     Paper = apps.get_model('paper.Paper')
     original_paper = Paper.objects.filter(doi=doi).order_by('uploaded_date')[0]
@@ -644,7 +652,7 @@ def handle_duplicate_doi(new_paper, doi):
 @periodic_task(
     run_every=crontab(minute=0, hour=0),
     priority=5,
-    options={'queue': f'{APP_ENV}_core_queue'}
+    queue=QUEUE_HOT_SCORE
 )
 def celery_update_hot_scores():
     Paper = apps.get_model('paper.Paper')
@@ -657,7 +665,7 @@ def celery_update_hot_scores():
         paper.calculate_hot_score()
 
 
-@app.task
+@app.task(queue=QUEUE_CACHES)
 def preload_trending_papers(hub_id, ordering, time_difference, context):
     from paper.serializers import HubPaperSerializer
     from paper.views import PaperViewSet
@@ -768,7 +776,7 @@ def preload_trending_papers(hub_id, ordering, time_difference, context):
 @periodic_task(
     run_every=crontab(minute=50, hour=23),
     priority=2,
-    options={'queue': f'{APP_ENV}_core_queue'}
+    queue=QUEUE_EXTERNAL_REPORTING,
 )
 def log_daily_uploads():
     from analytics.amplitude import Amplitude
@@ -821,11 +829,11 @@ NUM_DUP_STOP = 30  # Number of dups to hit before determining we're done
 BASE_URL = 'http://export.arxiv.org/api/query?'
 
 # Pull Daily (arxiv updates 20:00 EST)
-@periodic_task(
-    run_every=crontab(minute=0, hour='*/2'),
-    priority=2,
-    options={'queue': f'{APP_ENV}_autopull_queue'}
-)
+# @periodic_task(
+#     run_every=crontab(minute=0, hour='*/2'),
+#     priority=2,
+#     queue=QUEUE_PULL_PAPERS,
+# )
 def pull_papers(start=0, force=False):
     # Temporarily disabling autopull
     return
@@ -1032,7 +1040,7 @@ NUM_DUP_STOP = 30
 # @periodic_task(
 #     run_every=crontab(minute=0, hour='*/6'),
 #     priority=1,
-#     options={'queue': f'{APP_ENV}_autopull_queue'}
+#     queue=QUEUE_PULL_PAPERS
 # )
 def pull_crossref_papers(start=0, force=False):
     # Temporarily disabling autopull

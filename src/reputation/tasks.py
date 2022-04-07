@@ -25,10 +25,14 @@ from reputation.distributor import RewardDistributor
 from utils.sentry import log_info
 from utils.message import send_email_message
 from mailing_list.lib import base_email_context
+from researchhub.celery import (
+    QUEUE_CONTRIBUTIONS,
+    QUEUE_PURCHASES,
+)
 
 DEFAULT_REWARD = 1000000
 
-@app.task
+@app.task(queue=QUEUE_CONTRIBUTIONS)
 def create_contribution(
     contribution_type,
     instance_type,
@@ -69,7 +73,7 @@ def create_contribution(
     )
 
 
-@app.task
+@app.task(queue=QUEUE_CONTRIBUTIONS)
 def create_author_contribution(
     contribution_type,
     user_id,
@@ -101,7 +105,7 @@ def create_author_contribution(
     Contribution.objects.bulk_create(contributions)
 
 
-@app.task
+@app.task(queue=QUEUE_PURCHASES)
 def distribute_round_robin(paper_id):
     reward_dis = RewardDistributor()
     paper = Paper.objects.get(id=paper_id)

@@ -9,12 +9,16 @@ from purchase.models import Purchase, Support
 from researchhub.settings import APP_ENV, BASE_FRONTEND_URL
 from researchhub_document.utils import reset_unified_document_cache
 from utils.message import send_email_message
+from researchhub.celery import (
+    QUEUE_NOTIFICATION,
+    QUEUE_PURCHASES
+)
 
 
 @periodic_task(
     run_every=crontab(minute='*/30'),
-    priority=2,
-    options={'queue': f'{APP_ENV}_core_queue'}
+    priority=3,
+    queue=QUEUE_PURCHASES,
 )
 def update_purchases():
     PAPER_CONTENT_TYPE = ContentType.objects.get(
@@ -34,7 +38,7 @@ def update_purchases():
     reset_unified_document_cache(with_default_hub=True)
 
 
-@app.task
+@app.task(queue=QUEUE_NOTIFICATION)
 def send_support_email(
     profile_url,
     sender_name,

@@ -26,8 +26,14 @@ from researchhub.settings import (
 )
 from django.contrib.contenttypes.models import ContentType
 from utils import sentry
+from researchhub.celery import (
+    QUEUE_CACHES,
+    QUEUE_HOT_SCORE,
+    QUEUE_ELASTIC_SEARCH,
+)
 
-@app.task
+
+@app.task(queue=QUEUE_HOT_SCORE)
 def recalc_hot_score_task(
     instance_content_type_id,
     instance_id
@@ -66,7 +72,7 @@ def recalc_hot_score_task(
         sentry.log_error(error)
 
 
-@app.task
+@app.task(queue=QUEUE_CACHES)
 def preload_trending_documents(
     document_type,
     hub_id,
@@ -172,7 +178,7 @@ def preload_trending_documents(
 @periodic_task(
     run_every=crontab(minute='*/30'),
     priority=1,
-    options={'queue': f'{APP_ENV}_core_queue'}
+    queue=QUEUE_CACHES,
 )
 def preload_homepage_feed():
     from researchhub_document.utils import (
@@ -186,7 +192,7 @@ def preload_homepage_feed():
 @periodic_task(
     run_every=crontab(minute='*/60'),
     priority=1,
-    options={'queue': f'{APP_ENV}_core_queue'}
+    queue=QUEUE_CACHES,
 )
 def preload_hub_feeds():
     from researchhub_document.utils import (
@@ -204,6 +210,6 @@ def preload_hub_feeds():
     )
 
 
-@app.task
+@app.task(queue=QUEUE_ELASTIC_SEARCH)
 def update_elastic_registry(post):
     registry.update(post)

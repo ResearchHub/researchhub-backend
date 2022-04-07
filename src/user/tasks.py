@@ -32,6 +32,13 @@ from researchhub_document.utils import reset_unified_document_cache
 from researchhub.settings import STAGING, PRODUCTION, APP_ENV
 from user.editor_payout_tasks import editor_daily_payout_task
 from utils.sentry import log_info
+from researchhub.celery import (
+    QUEUE_NOTIFICATION,
+    QUEUE_PAPER_MISC,
+    QUEUE_CACHES,
+    QUEUE_PURCHASES,
+    QUEUE_ELASTIC_SEARCH,
+)
 
 
 @app.task
@@ -105,7 +112,7 @@ def reinstate_user_task(user_id):
     reset_unified_document_cache(hub_ids, {}, None)
 
 
-@app.task
+@app.task(queue=QUEUE_PAPER_MISC)
 def link_author_to_papers(author_id, orcid_account_id):
     Author = apps.get_model('user.Author')
     try:
@@ -128,7 +135,7 @@ def link_author_to_papers(author_id, orcid_account_id):
         )
 
 
-@app.task
+@app.task(queue=QUEUE_PAPER_MISC)
 def link_paper_to_authors(paper_id):
     try:
         paper = Paper.objects.get(pk=paper_id)
@@ -243,7 +250,7 @@ def filter_comments_on_my_threads(comments, threads):
     return [comment for comment in comments if comment.parent in threads]
 
 
-@app.task
+@app.task(queue=QUEUE_CACHES)
 def preload_latest_activity(hub_ids, ordering):
     from user.views import UserViewSet
     from reputation.serializers import DynamicContributionSerializer
@@ -309,7 +316,7 @@ def preload_latest_activity(hub_ids, ordering):
     return paginated_response.data
 
 
-@app.task
+@app.task(queue=QUEUE_ELASTIC_SEARCH)
 def update_elastic_registry(user_id):
     Author = apps.get_model('user.Author')
     user_author = Author.objects.get(user_id=user_id)
@@ -320,7 +327,7 @@ def update_elastic_registry(user_id):
 @periodic_task(
     run_every=crontab(hour=6, minute=0, day_of_week=1),
     priority=5,
-    options={'queue': f'{APP_ENV}_core_queue'}
+    queue=QUEUE_NOTIFICATION
 )
 def notify_editor_inactivity():
     User = apps.get_model('user.User')
@@ -368,7 +375,7 @@ def notify_editor_inactivity():
 @periodic_task(
     run_every=crontab(hour=15, minute=0),  # 3:00 PM PST (pst is system time)
     priority=2,
-    options={'queue': f'{APP_ENV}_core_queue'}
+    queue=QUEUE_PURCHASES,
 )
 def execute_editor_daily_payout_task():
     log_info(f"{APP_ENV}-running payout")
