@@ -17,6 +17,7 @@ class PaperDocumentSerializer(DocumentSerializer):
             'id',
             'authors',
             'abstract',
+            'uploaded_date',
             'raw_authors',
             'authors_str',
             'hot_score',
@@ -30,6 +31,7 @@ class PaperDocumentSerializer(DocumentSerializer):
             'title',
             'abstract',
             'paper_title',
+            'uploaded_by',
             'unified_doc_id',
             'url',
         ]
