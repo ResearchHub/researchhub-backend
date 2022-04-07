@@ -347,11 +347,13 @@ class Paper(models.Model):
 
     def true_author_count(self):
         registered_author_count = self.authors.count()
-        raw_author_count = len(self.raw_authors)
+        raw_author_count = 0
 
-        for author in self.raw_authors:
-            if self.authors.filter(first_name=author.get('first_name'), last_name=author.get('last_name')).exists():
-                raw_author_count -= 1
+        if isinstance(self.raw_authors, list):
+            raw_author_count = len(self.raw_authors)
+            for author in self.raw_authors:
+                if self.authors.filter(first_name=author.get('first_name'), last_name=author.get('last_name')).exists():
+                    raw_author_count -= 1
         
         return raw_author_count + registered_author_count
 
