@@ -70,6 +70,7 @@ from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 from hypothesis.related_models.hypothesis import Hypothesis
 from user.filters import UserFilter
+from utils.sentry import log_info
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -106,7 +107,7 @@ class UserViewSet(viewsets.ModelViewSet):
             return qs.filter(id=user.id)
         else:
             return User.objects.none()
-    
+
     @action(
         detail=False,
         methods=['GET'],
@@ -115,7 +116,6 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_referral_reputation(self, request):
         show_referral = calculate_show_referral(request.user)
         return Response({'show_referral': show_referral})
-
 
     @action(
         detail=False,
@@ -610,8 +610,14 @@ class UserViewSet(viewsets.ModelViewSet):
 
             if not user.moderator or user.email not in EMAIL_WHITELIST:
                 if 'mark_as_probable_spammer_content_abuse' in decision_id:
+                    log_info(
+                        f'Possible Spammer - {user.id}: {user.first_name} {user.last_name} - {decision_id}'
+                    )
                     user.set_probable_spammer()
                 elif 'suspend_user_content_abuse' in decision_id:
+                    log_info(
+                        f'Suspending User - {user.id}: {user.first_name} {user.last_name} - {decision_id}'
+                    )
                     user.set_suspended(is_manual=False)
             serialized = UserSerializer(user)
             return Response(serialized.data, status=200)
@@ -806,7 +812,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             'doc_dps_get_hubs': {
                 '_include_fields': [
                     'name',
-                    'slug',   
+                    'slug',
                 ]
             },
             'pap_dps_get_uploaded_by': {
@@ -845,7 +851,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             'pap_dps_get_hubs': {
                 '_include_fields': [
                     'name',
-                    'slug',   
+                    'slug',
                 ]
             },
             'doc_dps_get_user_vote': {
@@ -1033,7 +1039,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             'hyp_dhs_get_hubs': {
                 '_include_fields': [
                     'name',
-                    'slug',   
+                    'slug',
                 ]
             },
         }
