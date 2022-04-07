@@ -1,1 +1,1 @@
-celery -A researchhub worker -Q development_core_queue -l info --concurrency=1 --prefetch-multiplier=1 -P prefork
+celery -A researchhub worker -Q caches,hot_score,elastic_search,external_reporting,notifications,paper_misc,cermine,twitter,pull_papers,logs,purchases,contributions,author_claim -l info --concurrency=1 --prefetch-multiplier=1 -P prefork

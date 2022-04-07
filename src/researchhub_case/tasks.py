@@ -11,9 +11,11 @@ from utils import sentry
 from researchhub_case.constants.case_constants import (
     APPROVED, INITIATED, DENIED
 )
+from researchhub.celery import (
+    QUEUE_AUTHOR_CLAIM
+)
 
-
-@app.task
+@app.task(queue=QUEUE_AUTHOR_CLAIM)
 def trigger_email_validation_flow(
     case_id,
 ):
@@ -33,7 +35,7 @@ def trigger_email_validation_flow(
             sentry.log_error(exception)
 
 
-@app.task
+@app.task(queue=QUEUE_AUTHOR_CLAIM)
 def after_approval_flow(
     case_id
 ):
@@ -51,7 +53,7 @@ def after_approval_flow(
         except Exception as exception:
             sentry.log_error(exception)
 
-@app.task
+@app.task(queue=QUEUE_AUTHOR_CLAIM)
 def after_rejection_flow(
     case_id,
     notify_user=False,

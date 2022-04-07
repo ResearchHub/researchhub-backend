@@ -18,6 +18,21 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 # Loads tasks in `tasks.py` from installed apps.
 app.autodiscover_tasks()
 
+# Queues
+QUEUE_CACHES = 'caches'
+QUEUE_HOT_SCORE = 'hot_score'
+QUEUE_ELASTIC_SEARCH = 'elastic_search'
+QUEUE_EXTERNAL_REPORTING = 'external_reporting'
+QUEUE_NOTIFICATION = 'notifications'
+QUEUE_PAPER_MISC = 'paper_misc'
+QUEUE_CERMINE = 'cermine'
+QUEUE_TWITTER = 'twitter'
+QUEUE_PULL_PAPERS = 'pull_papers'
+QUEUE_LOGS = 'logs'
+QUEUE_PURCHASES = 'purchases'
+QUEUE_CONTRIBUTIONS = 'contributions'
+QUEUE_AUTHOR_CLAIM = 'author_claim'
+
 
 # Celery Debug/Test Functions
 @app.task(bind=True)

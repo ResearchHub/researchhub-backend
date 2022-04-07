@@ -8,7 +8,9 @@ from user.models import Author
 from utils import sentry
 from utils.exceptions import OrcidApiError
 from utils.http import http_request, GET, POST
-
+from researchhub.celery import (
+    QUEUE_CERMINE,
+)
 orcid = SOCIALACCOUNT_PROVIDERS['orcid']
 
 
@@ -126,8 +128,8 @@ orcid_api = OrcidApi()
 
 
 # TODO: calvinhlee - temporarily relocating worker
-# @app.task(queue=f'{APP_ENV}_autopull_queue', ignore_result=False)
-@app.task(queue=f'{APP_ENV}_cermine_queue', ignore_result=False)
+# @app.task(queue=QUEUE_PULL_PAPERS, ignore_result=False)
+@app.task(queue=QUEUE_CERMINE, ignore_result=False)
 def celery_add_author(result, authors, attempts=2):
     tries = attempts
     while tries > 0:

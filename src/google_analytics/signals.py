@@ -27,6 +27,10 @@ from researchhub_document.related_models.researchhub_post_model \
     import ResearchhubPost
 from summary.models import Summary
 from user.models import User
+from researchhub.celery import (
+    QUEUE_EXTERNAL_REPORTING
+)
+
 ga = GoogleAnalytics()
 
 
@@ -313,7 +317,7 @@ def get_event_hit_response(
     return True
 
 
-@app.task
+@app.task(queue=QUEUE_EXTERNAL_REPORTING)
 def celery_get_event_hit_response(category, action, label, value, date):
     date = datetime.datetime.fromtimestamp(date)
     fields = Hit.build_event_fields(

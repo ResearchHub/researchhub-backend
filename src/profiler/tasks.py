@@ -5,9 +5,12 @@ from django.core.files import File
 from researchhub.celery import app
 from profiler.models import Profile, Traceback
 from utils import sentry
+from researchhub.celery import (
+    QUEUE_LOGS,
+)
 
 
-@app.task
+@app.task(queue=QUEUE_LOGS)
 def log_traceback(data, total_view_time, traceback):
     queries = data['queries']
     view_name = data['view_name']

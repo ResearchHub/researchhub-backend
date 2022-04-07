@@ -18,9 +18,12 @@ from researchhub.celery import app
 from researchhub_document.models import ResearchhubPost
 from utils.message import send_email_message
 from user.models import Action, User
+from researchhub.celery import (
+    QUEUE_NOTIFICATION
+)
 
 
-@app.task
+@app.task(queue=QUEUE_NOTIFICATION)
 def notify_immediate(action_id):
     actions_notifications([action_id], NotificationFrequencies.IMMEDIATE)
 
