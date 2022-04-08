@@ -272,7 +272,7 @@ class UserViewSet(viewsets.ModelViewSet):
                         'reputation_records__amount',
                         filter=Q(**time_filter) & ~Q(reputation_records__distribution_type__in=['REFERRAL', 'REWARD', 'REFERRAL_APPROVED'])
                     ), 0)
-                ).order_by(F('hub_rep').desc(nulls_last=True), '-reputation')
+                ).order_by('-reputation')
         elif leaderboard_type == 'authors':
             serializerClass = AuthorSerializer
             items = Author.objects.filter(user__is_suspended=False).order_by('-author_score')
