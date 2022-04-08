@@ -495,6 +495,7 @@ def distribute_for_discussion_vote(
                 timestamp,
                 hubs.all()
             )
+            distributor.distribute()
         except TypeError as e:
             error = ReputationSignalError(
                 e,
@@ -563,7 +564,7 @@ def get_discussion_vote_item_distribution(instance):
         else:
             raise error
 
-        return distributions.create_upvote_distribution(vote_type)
+        return distributions.create_upvote_distribution(vote_type, instance.paper)
     elif vote_type == ReactionVote.DOWNVOTE:
         if item_type == Comment:
             return distributions.CommentDownvoted
