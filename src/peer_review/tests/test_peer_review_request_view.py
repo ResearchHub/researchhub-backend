@@ -216,17 +216,17 @@ class PeerReviewRequestViewTests(APITestCase):
         )
 
         self.client.force_authenticate(self.moderator)
-        review_request_response = self.client.post("/api/peer_review_requests/invite_to_review/",{
+        response = self.client.post("/api/peer_review_invites/invite/",{
             'recipient_email': "some_user@example.com",
             'peer_review_request': review_request_for_author.id,
         })
-
+        print(response.data)
         self.assertEqual(
-            review_request_response.data['recipient_email'],
+            response.data['recipient_email'],
             "some_user@example.com"
         )
 
-    def test_moderator_can_invite_people_via_email_to_peer_review(self):
+    def test_moderator_can_invite_users_to_peer_review(self):
         author = create_random_default_user('regular_user')
         peer_reviewer = create_random_default_user('peer_reviewer')
 
@@ -238,15 +238,15 @@ class PeerReviewRequestViewTests(APITestCase):
         )
 
         self.client.force_authenticate(self.moderator)
-        review_request_response = self.client.post("/api/peer_review_requests/invite_to_review/",{
+        response = self.client.post("/api/peer_review_invites/invite/",{
             'recipient': peer_reviewer.id,
             'peer_review_request': review_request_for_author.id,
         })
 
-        print(review_request_response.data)
+        print(response.data)
 
         self.assertEqual(
-            review_request_response.data['recipient'],
+            response.data['recipient'],
             peer_reviewer.id
         )
 

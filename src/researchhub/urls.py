@@ -31,7 +31,11 @@ import search.urls
 import summary.views
 import user.views
 
-from peer_review.views import PeerReviewViewSet, PeerReviewRequestViewSet
+from peer_review.views import (
+    PeerReviewViewSet,
+    PeerReviewRequestViewSet,
+    PeerReviewInviteViewSet,
+)
 from user.views import GatekeeperViewSet
 
 from researchhub.settings import USE_DEBUG_TOOLBAR, INSTALLED_APPS
@@ -345,6 +349,12 @@ router.register(
     r'peer_review_requests',
     PeerReviewRequestViewSet,
     basename='peer_review_requests'
+)
+
+router.register(
+    r'peer_review_invites',
+    PeerReviewInviteViewSet,
+    basename='peer_review_invites'
 )
 
 urlpatterns = [
