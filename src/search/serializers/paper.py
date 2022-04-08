@@ -39,26 +39,27 @@ class PaperDocumentSerializer(DocumentSerializer):
         ]
 
     def get_highlight(self, obj):
-        if hasattr(obj.meta, 'highlight'):
-            return obj.meta.highlight.__dict__['_d_']
-        return {}
+        try:
+            if hasattr(obj.meta, 'highlight'):
+                return obj.meta.highlight.__dict__['_d_']
+            return {}
+        except Exception as e:
+            log_error(e, 'Paper is missing highlight')
 
     def get_slug(self, hit):
-        slug = ''
         try:
             paper = Paper.objects.get(id=hit['id'])
             slug = paper.slug
-        except:
-            log_error(e, 'A paper must have slug')
-
-        return slug
+            return slug
+        except Exception as e:
+            log_error(e, 'Paper is missing slug')
 
     def get_unified_doc_id(self, paper):
         try:
             obj = Paper.objects.get(id=paper.id)
             return obj.unified_document.id
         except Exception as e:
-            log_error(e, 'A paper must have unified_document')
+            log_error(e, 'Paper is missing unified_document')
 
     def get_uploaded_by(self, hit):
         try:
@@ -68,14 +69,14 @@ class PaperDocumentSerializer(DocumentSerializer):
             )
             return UserSerializer(user, read_only=True).data
         except Exception as e:
-            log_error(e, 'A paper must have uploaded_by')
+            log_error(e, 'Paper is missing uploaded_by')
 
     def get_uploaded_date(self, hit):
         try:
             paper = Paper.objects.get(id=hit['id'])
             return paper.uploaded_date
         except Exception as e:
-            log_error(e, 'A paper must have uploaded_date')
+            log_error(e, 'Paper is missing uploaded_date')
 
 
 class CrossrefPaperSerializer(serializers.Serializer):
