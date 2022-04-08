@@ -18,6 +18,9 @@ from researchhub_case.constants.case_constants import (
 )
 from researchhub_case.models import AuthorClaimCase
 from user.models import Author
+from researchhub_case.tasks import (
+    after_approval_flow,
+)
 
 class BaseTests(TestCase, TestHelper):
     def setUp(self):
@@ -57,6 +60,9 @@ class BaseTests(TestCase, TestHelper):
             last_name='Last',
             email='user2@gmail.com',
         )
+
+        if Author.objects.count() > 0:
+            Author.objects.all().delete()
         
         university = self.create_university()
         author = Author.objects.create(
@@ -85,10 +91,12 @@ class BaseTests(TestCase, TestHelper):
         author_user = self.create_user(
             first_name='First',
             last_name='Last',
-            email='user2@gmail.com',
+            email='user3@gmail.com',
         )
         
         university = self.create_university()
+        if Author.objects.count() > 0:
+            Author.objects.all().delete()
         author = Author.objects.create(
             user=author_user,
             first_name=self.original_paper.raw_authors[0].get('first_name'),
@@ -98,3 +106,56 @@ class BaseTests(TestCase, TestHelper):
 
         self.original_paper.authors.add(author)
         AuthorClaimCase.objects.create(target_paper=self.original_paper, requestor=author.user, status=APPROVED)
+        distribution = create_upvote_distribution(1, self.original_paper)
+        distribution_amount = calculate_upvote_rsc()
+        self.assertEquals(Distribution.objects.count(), 1)
+        self.assertEquals(Distribution.objects.first().amount, math.floor(distribution_amount * .75 / 3))
+
+    def test_author_claim_pot(
+        self,
+    ):
+        if Distribution.objects.count() > 0:
+            Distribution.objects.all().delete()
+        
+        if AuthorRSC.objects.count() > 0:
+            AuthorRSC.objects.all().delete()
+
+        self.original_paper.raw_authors = [
+            {'first_name': 'First', 'last_name': 'Last'},
+            {'first_name': 'Jimmy', 'last_name': 'Johns'},
+            {'first_name': 'Ronald', 'last_name': 'McDonald'},
+        ]
+
+        self.original_paper.save()
+
+        university = self.create_university()
+        author_user = self.create_user(
+            first_name='First',
+            last_name='Last',
+            email='user3@gmail.com',
+        )
+
+        distribution = create_upvote_distribution(1, self.original_paper)
+        distribution_amount = calculate_upvote_rsc()
+        
+        university = self.create_university()
+        if Author.objects.count() > 0:
+            Author.objects.all().delete()
+        author = Author.objects.create(
+            user=author_user,
+            first_name=self.original_paper.raw_authors[0].get('first_name'),
+            last_name=self.original_paper.raw_authors[0].get('last_name'),
+            university=university
+        )
+
+        self.original_paper.authors.add(author)
+        case = AuthorClaimCase.objects.create(target_paper=self.original_paper, requestor=author.user, status=APPROVED)
+
+        after_approval_flow.apply(
+            (case.id,),
+            priority=2,
+            countdown=5
+        )
+
+        self.assertEquals(Distribution.objects.count(), 2)
+        self.assertEquals(Distribution.objects.filter(distribution_type='UPVOTE_RSC_POT').first().amount, math.floor(distribution_amount * .75 / 3))
