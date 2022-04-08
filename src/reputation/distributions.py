@@ -30,7 +30,7 @@ DAYS_IN_YEAR = 365
 MONTHS_IN_YEAR = 12
 GROWTH = .2
 
-def calculate_upvote_rsc():
+def calculate_rsc_per_upvote():
     from paper.models import Vote
     from discussion.models import (
         Vote as ReactionVote
@@ -73,7 +73,7 @@ def calculate_upvote_rsc():
     return int(rsc_distribute)
 
 def create_upvote_distribution(vote_type, paper):
-    distribution_amount = calculate_upvote_rsc()
+    distribution_amount = calculate_rsc_per_upvote()
 
     if paper:
         from reputation.distributor import Distributor
