@@ -52,6 +52,7 @@ class PeerReviewRequestViewSet(ModelViewSet):
         permission_classes=[IsAllowedToInvite]
     )
     def invite_to_review(self, request, *args, **kwargs):
+        print('request.data', request.data)
         serializer = PeerReviewInviteSerializer(
             data=request.data,
             context={'request': request}
