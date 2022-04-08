@@ -69,6 +69,5 @@ class AuthorClaimCase(AbstractResearchhubCase):
     claimed_rsc = models.ManyToManyField(
       AuthorRSC,
       blank=True,
-      null=True,
       related_name="claim_case"
     )
