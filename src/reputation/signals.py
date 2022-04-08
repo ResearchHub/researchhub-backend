@@ -485,23 +485,25 @@ def distribute_for_discussion_vote(
 
         # TODO: This needs to be altered so that if the vote changes the
         # original distribution is deleted if not yet withdrawn
-        try:
-            # NOTE: Only comment seems to be supporting distribution
-            distribution = get_discussion_vote_item_distribution(instance)
-            distributor = Distributor(
-                distribution,
-                recipient,
-                instance,
-                timestamp,
-                hubs.all()
-            )
-            distributor.distribute()
-        except TypeError as e:
-            error = ReputationSignalError(
-                e,
-                'Failed to distribute for reaction vote'
-            )
-            print(error)
+
+        if created:
+            try:
+                # NOTE: Only comment seems to be supporting distribution
+                distribution = get_discussion_vote_item_distribution(instance)
+                distributor = Distributor(
+                    distribution,
+                    recipient,
+                    instance,
+                    timestamp,
+                    hubs.all()
+                )
+                distributor.distribute()
+            except TypeError as e:
+                error = ReputationSignalError(
+                    e,
+                    'Failed to distribute for reaction vote'
+                )
+                print(error)
 
     if distributor is not None:
         record = distributor.distribute()
@@ -564,7 +566,7 @@ def get_discussion_vote_item_distribution(instance):
         else:
             raise error
 
-        return distributions.create_upvote_distribution(vote_type, instance.paper)
+        return distributions.create_upvote_distribution(vote_type)
     elif vote_type == ReactionVote.DOWNVOTE:
         if item_type == Comment:
             return distributions.CommentDownvoted

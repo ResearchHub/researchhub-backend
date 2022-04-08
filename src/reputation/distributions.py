@@ -72,7 +72,7 @@ def calculate_rsc_per_upvote():
 
     return int(rsc_distribute)
 
-def create_upvote_distribution(vote_type, paper):
+def create_upvote_distribution(vote_type, paper=None):
     distribution_amount = calculate_rsc_per_upvote()
 
     if paper:
