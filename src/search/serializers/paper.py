@@ -49,7 +49,7 @@ class PaperDocumentSerializer(DocumentSerializer):
             paper = Paper.objects.get(id=hit['id'])
             slug = paper.slug
         except:
-            pass
+            log_error(e, 'A paper must have slug')
 
         return slug
 
@@ -58,7 +58,7 @@ class PaperDocumentSerializer(DocumentSerializer):
             obj = Paper.objects.get(id=paper.id)
             return obj.unified_document.id
         except Exception as e:
-            log_error(e, 'A Paper must have unified document')
+            log_error(e, 'A paper must have unified_document')
 
     def get_uploaded_by(self, hit):
         try:
@@ -68,14 +68,14 @@ class PaperDocumentSerializer(DocumentSerializer):
             )
             return UserSerializer(user, read_only=True).data
         except Exception as e:
-            print(e)
+            log_error(e, 'A paper must have uploaded_by')
 
     def get_uploaded_date(self, hit):
         try:
             paper = Paper.objects.get(id=hit['id'])
             return paper.uploaded_date
         except Exception as e:
-            print(e)
+            log_error(e, 'A paper must have uploaded_date')
 
 
 class CrossrefPaperSerializer(serializers.Serializer):
