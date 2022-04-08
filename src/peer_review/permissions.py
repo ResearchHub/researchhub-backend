@@ -22,10 +22,20 @@ class IsAllowedToRequest(BasePermission):
 
 
 class IsAllowedToInvite(BasePermission):
-    message = 'Only moderators are allowed to invite peer reviewers'
+    message = 'You are not allowed to invite peer reviewers'
 
     def has_permission(self, request, view):
         if request.user.moderator:
+            return True
+
+        return False
+
+
+class IsAllowedToAcceptInvite(BasePermission):
+    message = 'You cannot accept this invite. Please make sure you are logged into the right account.'
+
+    def has_object_permission(self, request, view, obj):
+        if obj.inviter.id == request.user.id:
             return True
 
         return False
