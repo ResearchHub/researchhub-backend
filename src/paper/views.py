@@ -1268,8 +1268,8 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
             {"data": "Invalid DOI - Ensure it is in the form of '10.1000/abc123'"},
             status=status.HTTP_404_NOT_FOUND,
         )
-        if doi_url.scheme:
-            # Avoiding data that comes in as a url
+        if doi_url.scheme or "doi.org" in doi:
+            # Avoiding data that comes in as a url or as a DOI url
             return invalid_doi_res
         elif doi_res.status_code == status.HTTP_404_NOT_FOUND:
             return invalid_doi_res
