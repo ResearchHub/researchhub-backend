@@ -17,8 +17,8 @@ class PeerReviewInvite(DefaultModel):
     invited_user = models.ForeignKey(
         'user.User',
         related_name='peer_review_invites',
-        blank=False,
-        null=False,
+        blank=True,
+        null=True,
         on_delete=models.CASCADE,
     )
 
