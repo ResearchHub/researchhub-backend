@@ -23,7 +23,7 @@ class Distribution:
     def gives_rep(self):
         return self._give_rep
 
-RSC_YEARLY_GIVEAWAY = 50000000
+RSC_YEARLY_GIVEAWAY = 5000000
 MINUTES_IN_YEAR = 525960
 HOURS_IN_YEAR = MINUTES_IN_YEAR / 60
 DAYS_IN_YEAR = 365
