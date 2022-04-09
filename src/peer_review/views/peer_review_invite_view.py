@@ -22,20 +22,6 @@ class PeerReviewInviteViewSet(ModelViewSet):
     serializer_class = PeerReviewInviteSerializer
     queryset = PeerReviewInvite.objects.all()
 
-
-    def list(self, request, pk=None):
-        print('implement')
-        # queryset = self.get_queryset()
-
-        # if request.user.moderator:
-        #     queryset = self.queryset
-        # else:
-        #     queryset = self.queryset.filter(requested_by_user=request.user)
-
-        # page = self.paginate_queryset(queryset)
-        # serializer = PeerReviewRequestSerializer(page, many=True)
-        # return self.get_paginated_response(serializer.data)
-
     @action(
         detail=False,
         methods=[POST],
