@@ -143,7 +143,7 @@ class PeerReviewRequestViewTests(APITestCase):
         p = PeerReviewRequest.objects.filter(unified_document=doc_response.data['unified_document_id'])
         self.assertEqual(p.count(), 0)
 
-    def test_non_author_cannot_request_review(self):
+    def test_NON_AUTHOR_cannot_request_review(self):
         self.client.force_authenticate(self.non_author)
 
         review_request_response = self.client.post("/api/peer_review_requests/request_review/",{
@@ -163,7 +163,7 @@ class PeerReviewRequestViewTests(APITestCase):
 
         self.assertIn('id', review_request_response.data)
 
-    def test_moderator_can_view_all_review_requests(self):
+    def test_MODERATOR_can_view_all_review_requests(self):
         self.user1 = create_random_default_user('regular_user')
         self.user2 = create_random_default_user('regular_user2')
 
@@ -205,7 +205,7 @@ class PeerReviewRequestViewTests(APITestCase):
         review_request_response = self.client.get("/api/peer_review_requests/")
         self.assertEqual(review_request_response.data['count'], 1)
 
-    def test_moderator_can_invite_people_via_email_to_peer_review(self):
+    def test_MODERATOR_can_invite_people_VIA_EMAIL_to_peer_review(self):
         author = create_random_default_user('regular_user')
 
         review_request_for_author = create_peer_review_request(
@@ -220,13 +220,13 @@ class PeerReviewRequestViewTests(APITestCase):
             'recipient_email': "some_user@example.com",
             'peer_review_request': review_request_for_author.id,
         })
-        print(response.data)
+
         self.assertEqual(
             response.data['recipient_email'],
             "some_user@example.com"
         )
 
-    def test_moderator_can_invite_users_to_peer_review(self):
+    def test_MODERATOR_can_invite_users_to_peer_review(self):
         author = create_random_default_user('regular_user')
         peer_reviewer = create_random_default_user('peer_reviewer')
 
@@ -243,22 +243,112 @@ class PeerReviewRequestViewTests(APITestCase):
             'peer_review_request': review_request_for_author.id,
         })
 
-        print(response.data)
-
         self.assertEqual(
             response.data['recipient'],
             peer_reviewer.id
         )
 
-        # self.assertEqual(
-        #     review_request_response.data['recipient_email'],
-        #     "some_user@example.com"
-        # )
+    def test_INVITED_peer_reviewer_can_accept_invite(self):
+        author = create_random_default_user('regular_user')
+        peer_reviewer = create_random_default_user('peer_reviewer')
 
+        review_request_for_author = create_peer_review_request(
+            requested_by_user=author,
+            organization=Organization.objects.get(id=self.org['id']),
+            title='Some random post title',
+            body='some text',
+        )
 
-    # def test_moderator_can_invite_reviewers(self):
-    #     self.assertEqual(False, True)
+        self.client.force_authenticate(self.moderator)
+        invite_response = self.client.post("/api/peer_review_invites/invite/",{
+            'recipient': peer_reviewer.id,
+            'peer_review_request': review_request_for_author.id,
+        })
 
+        self.client.force_authenticate(peer_reviewer)
+        response = self.client.post(f'/api/peer_review_invites/{invite_response.data["id"]}/accept/')
+
+        self.assertEqual(
+            response.data['status'],
+            'ACCEPTED'
+        )
+
+    def test_UNINVITED_user_cannot_accept_invite(self):
+        author = create_random_default_user('regular_user')
+        user = create_random_default_user('random_user')
+        peer_reviewer = create_random_default_user('peer_reviewer')
+
+        review_request_for_author = create_peer_review_request(
+            requested_by_user=author,
+            organization=Organization.objects.get(id=self.org['id']),
+            title='Some random post title',
+            body='some text',
+        )
+
+        self.client.force_authenticate(self.moderator)
+        invite_response = self.client.post("/api/peer_review_invites/invite/",{
+            'recipient': peer_reviewer.id,
+            'peer_review_request': review_request_for_author.id,
+        })
+
+        self.client.force_authenticate(user)
+        response = self.client.post(f'/api/peer_review_invites/{invite_response.data["id"]}/accept/')
+
+        self.assertEqual(
+            response.status_code,
+            403
+        )
+
+    def test_INVITED_peer_reviewer_can_decline_invite(self):
+        author = create_random_default_user('regular_user')
+        peer_reviewer = create_random_default_user('peer_reviewer')
+
+        review_request_for_author = create_peer_review_request(
+            requested_by_user=author,
+            organization=Organization.objects.get(id=self.org['id']),
+            title='Some random post title',
+            body='some text',
+        )
+
+        self.client.force_authenticate(self.moderator)
+        invite_response = self.client.post("/api/peer_review_invites/invite/",{
+            'recipient': peer_reviewer.id,
+            'peer_review_request': review_request_for_author.id,
+        })
+
+        self.client.force_authenticate(peer_reviewer)
+        response = self.client.post(f'/api/peer_review_invites/{invite_response.data["id"]}/decline/')
+
+        self.assertEqual(
+            response.data['status'],
+            'DECLINED'
+        )
+
+    def test_UNINVITED_user_cannot_decline_invite(self):
+        author = create_random_default_user('regular_user')
+        user = create_random_default_user('random_user')
+        peer_reviewer = create_random_default_user('peer_reviewer')
+
+        review_request_for_author = create_peer_review_request(
+            requested_by_user=author,
+            organization=Organization.objects.get(id=self.org['id']),
+            title='Some random post title',
+            body='some text',
+        )
+
+        self.client.force_authenticate(self.moderator)
+        invite_response = self.client.post("/api/peer_review_invites/invite/",{
+            'recipient': peer_reviewer.id,
+            'peer_review_request': review_request_for_author.id,
+        })
+
+        self.client.force_authenticate(user)
+        response = self.client.post(f'/api/peer_review_invites/{invite_response.data["id"]}/decline/')
+
+        self.assertEqual(
+            response.status_code,
+            403
+        )
     # def test_invited_reviewer_accept(self):
     #     self.assertEqual(False, True)
 
