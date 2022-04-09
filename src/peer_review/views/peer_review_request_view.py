@@ -8,6 +8,8 @@ from peer_review.serializers import (
 )
 from peer_review.permissions import (
     IsAllowedToRequest,
+    IsAllowedToList,
+    IsAllowedToRetrieve
 )
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -15,11 +17,18 @@ from utils.http import POST
 
 
 class PeerReviewRequestViewSet(ModelViewSet):
-    permission_classes = [
+    permission_classes = (
         IsAuthenticated,
-    ]
+        (IsAllowedToList|IsAllowedToRetrieve),
+    )
     serializer_class = PeerReviewRequestSerializer
     queryset = PeerReviewRequest.objects.all()
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        serializer = self.serializer_class(instance)
+        return Response(serializer.data)
 
     @action(
         detail=False,
@@ -43,4 +52,3 @@ class PeerReviewRequestViewSet(ModelViewSet):
         page = self.paginate_queryset(queryset)
         serializer = PeerReviewRequestSerializer(page, many=True)
         return self.get_paginated_response(serializer.data)
-

@@ -2,6 +2,7 @@ from rest_framework.permissions import BasePermission
 from researchhub_document.models import (
     ResearchhubUnifiedDocument
 )
+from peer_review.models import PeerReviewRequest
 
 
 class IsAllowedToRequest(BasePermission):
@@ -37,5 +38,26 @@ class IsAllowedToAcceptInvite(BasePermission):
     def has_object_permission(self, request, view, obj):
         if obj.recipient_email == request.user.email:
             return True
+
+        return False
+
+
+class IsAllowedToList(BasePermission):
+    message = 'You do not have permission to view this'
+
+    def has_permission(self, request, view):
+        if request.method == 'GET' and view.action == 'list':
+            return True
+
+        return False
+
+
+class IsAllowedToRetrieve(BasePermission):
+    message = 'You do not have permission to view this'
+
+    def has_permission(self, request, view):
+        if request.method == 'GET' and view.action == 'retrieve':
+            if request.user.moderator:
+                return True
 
         return False

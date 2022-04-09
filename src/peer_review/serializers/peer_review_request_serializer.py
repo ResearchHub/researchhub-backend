@@ -1,7 +1,12 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField, ValidationError
-from peer_review.models import PeerReviewRequest
+from peer_review.models import (
+    PeerReviewRequest,
+    PeerReviewInvite,
+)
 
 class PeerReviewRequestSerializer(ModelSerializer):
+    invites = SerializerMethodField()
+
     class Meta:
         model = PeerReviewRequest
         fields = [
@@ -11,6 +16,7 @@ class PeerReviewRequestSerializer(ModelSerializer):
             'id',
             'status',
             'created_date',
+            'invites',
         ]
         read_only_fields = [
             'status',
@@ -28,3 +34,14 @@ class PeerReviewRequestSerializer(ModelSerializer):
         instance = PeerReviewRequest(**data)
         instance.save()
         return instance
+
+    def get_invites(self, obj):
+        from peer_review.serializers import PeerReviewInviteSerializer
+
+        invites = PeerReviewInvite.objects.filter(peer_review_request=obj.id)
+        serializer = PeerReviewInviteSerializer(
+            invites,
+            many=True,
+        )
+
+        return serializer.data
