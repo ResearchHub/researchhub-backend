@@ -2,7 +2,11 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import (
     IsAuthenticated,
 )
-from peer_review.models import PeerReviewInvite
+from user.models import User
+from peer_review.models import (
+    PeerReviewInvite,
+    PeerReview,
+)
 from peer_review.serializers import (
     PeerReviewInviteSerializer,
 )
@@ -49,9 +53,17 @@ class PeerReviewInviteViewSet(ModelViewSet):
         invite.save()
         invite.accept()
 
+        reviewer = User.objects.get(email=invite.recipient_email)
+        review = PeerReview.objects.create(
+            assigned_user=reviewer,
+            unified_document=invite.peer_review_request.unified_document,
+        )
+
+        invite.peer_review_request.peer_review = review
+        invite.peer_review_request.save()
+
         serializer = self.serializer_class(invite)
         data = serializer.data
-
         return Response(data)
 
     @action(

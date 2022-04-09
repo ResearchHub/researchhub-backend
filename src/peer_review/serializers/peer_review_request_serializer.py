@@ -6,11 +6,13 @@ from peer_review.models import (
 
 class PeerReviewRequestSerializer(ModelSerializer):
     invites = SerializerMethodField()
+    peer_review = SerializerMethodField()
 
     class Meta:
         model = PeerReviewRequest
         fields = [
             'requested_by_user',
+            'peer_review',
             'unified_document',
             'doc_version',
             'id',
@@ -45,3 +47,6 @@ class PeerReviewRequestSerializer(ModelSerializer):
         )
 
         return serializer.data
+
+    def get_peer_review(self, obj):
+        print('something')

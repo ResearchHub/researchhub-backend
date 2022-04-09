@@ -416,14 +416,29 @@ class PeerReviewRequestViewTests(APITestCase):
             403
         )
 
-    # def test_invited_reviewer_accept(self):
-    #     self.assertEqual(False, True)
+    def test_accepting_peer_review_request_CREATES_peer_review(self):
+        author = create_random_default_user('regular_user')
+        user = create_random_default_user('random_user')
+        peer_reviewer = create_random_default_user('peer_reviewer')
 
-    # def test_invited_reviewer_declines(self):
-    #     self.assertEqual(False, True)
+        # Create review
+        review_request_for_author = create_peer_review_request(
+            requested_by_user=author,
+            organization=Organization.objects.get(id=self.org['id']),
+            title='Some random post title',
+            body='some text',
+        )
 
-    # def test_user_not_invited_cannot_accept(self):
-    #     self.assertEqual(False, True)
+        # Invite user
+        self.client.force_authenticate(self.moderator)
+        invite_response = self.client.post("/api/peer_review_invites/invite/",{
+            'recipient': peer_reviewer.id,
+            'peer_review_request': review_request_for_author.id,
+        })
 
-    # def test_user_not_invited_cannot_decline(self):
-    #     self.assertEqual(False, True)
+        # Accept invite
+        self.client.force_authenticate(peer_reviewer)
+        response = self.client.post(f'/api/peer_review_invites/{invite_response.data["id"]}/accept/')
+
+
+        self.assertIn('id', response.data['peer_review'])
