@@ -50,11 +50,7 @@ class PeerReviewInviteViewSet(ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
 
-        invite = serializer.data
-        if invite['recipient'] is not None:
-            invite['recipient_email'] = None
-
-        return Response(invite)
+        return Response(serializer.data)
 
     @action(
         detail=True,
@@ -62,6 +58,27 @@ class PeerReviewInviteViewSet(ModelViewSet):
         permission_classes=[IsAllowedToAcceptInvite]
     )
     def accept(self, request, pk=None):
-        print('here')
-        # if 
-        # invite.accept()
+        invite = self.get_object()
+        invite.status = PeerReviewInvite.ACCEPTED
+        invite.save()
+        invite.accept()
+
+        serializer = self.serializer_class(invite)
+        data = serializer.data
+
+        return Response(data)
+
+    @action(
+        detail=True,
+        methods=[POST],
+        permission_classes=[IsAllowedToAcceptInvite]
+    )
+    def decline(self, request, pk=None):
+        invite = self.get_object()
+        invite.status = PeerReviewInvite.DECLINED
+        invite.save()
+
+        serializer = self.serializer_class(invite)
+        data = serializer.data
+
+        return Response(data)

@@ -35,7 +35,7 @@ class IsAllowedToAcceptInvite(BasePermission):
     message = 'You cannot accept this invite. Please make sure you are logged into the right account.'
 
     def has_object_permission(self, request, view, obj):
-        if obj.inviter.id == request.user.id:
+        if obj.recipient_email == request.user.email:
             return True
 
         return False
