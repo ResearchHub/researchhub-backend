@@ -542,6 +542,7 @@ class PaperSerializer(BasePaperSerializer):
                         hub_ids=updated_hub_ids,
                         document_type=["paper", "all"],
                         filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+                        with_default_hub=True,
                     )
 
                 if request:
