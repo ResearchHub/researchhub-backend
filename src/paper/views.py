@@ -197,9 +197,19 @@ class PaperViewSet(viewsets.ModelViewSet):
         else:
             return queryset
 
-    def create(self, *args, **kwargs):
+    def create(self, request, *args, **kwargs):
         try:
-            response = super().create(*args, **kwargs)
+            doi = request.data.get("doi", "")
+            duplicate_papers = Paper.objects.filter(doi=doi)
+            if duplicate_papers:
+                serializer = DynamicPaperSerializer(
+                    duplicate_papers[:1],
+                    _include_fields=["doi", "id", "title", "url"],
+                    many=True,
+                )
+                duplicate_data = {"data": serializer.data}
+                return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
+            response = super().create(request, *args, **kwargs)
             return response
         except IntegrityError as e:
             return self._get_integrity_error_response(e)

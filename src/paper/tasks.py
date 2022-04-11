@@ -31,6 +31,7 @@ from django.core.exceptions import ValidationError
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
+from django.db.models import Q
 from django.http.request import HttpRequest
 from django.utils.text import slugify
 from habanero import Crossref
@@ -1199,15 +1200,23 @@ def celery_process_paper(self, submission_id):
         tasks.extend(
             [
                 celery_get_doi.s().set(countdown=1),
-                celery_manubot.s().set(countdown=1),
+                celery_manubot_doi.s().set(countdown=1),
             ]
         )
-    tasks.extend(
-        [
-            celery_crossref.s().set(countdown=1),
-            celery_create_paper.s().set(countdown=1),
-        ]
-    )
+
+    # Specific Crossref bypass for Manubot
+    if "arxiv" in url:
+        tasks.extend(
+            [celery_manubot.s().set(countdown=1)],
+        )
+    else:
+        tasks.extend(
+            [
+                celery_crossref.s().set(countdown=1),
+            ]
+        )
+
+    tasks.extend([celery_create_paper.s().set(countdown=1)])
 
     chain(*tasks).apply_async(
         (args,),
@@ -1251,7 +1260,7 @@ def celery_get_doi(self, celery_data):
 
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA)
-def celery_manubot(self, celery_data):
+def celery_manubot_doi(self, celery_data):
     paper_data, submission_id = celery_data
     PaperSubmission = apps.get_model("paper.PaperSubmission")
 
@@ -1272,6 +1281,88 @@ def celery_manubot(self, celery_data):
         return celery_data
     except ManubotProcessingError:
         return celery_data
+    except Exception as e:
+        raise e
+
+
+@app.task(bind=True, queue=QUEUE_PAPER_METADATA)
+def celery_manubot(self, celery_data):
+    paper_data, submission_id = celery_data
+    Paper = apps.get_model("paper.Paper")
+    PaperSubmission = apps.get_model("paper.PaperSubmission")
+
+    try:
+        paper_submission = PaperSubmission.objects.get(id=submission_id)
+        paper_submission.set_manubot_status()
+        paper_submission.notify_status()
+
+        paper_data.pop("dois")
+        url = paper_data["url"]
+        csl_item = get_csl_item(url)
+        doi = csl_item.get("DOI", None)
+        identifier = csl_item.get("id", None)
+
+        # DOI duplicate check
+        if doi:
+            doi_paper_check = Paper.objects.filter(doi=doi)
+            if doi_paper_check.exists():
+                paper_submission.set_duplicate_status()
+                duplicate_ids = doi_paper_check.values_list("id", flat=True)
+                raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
+        else:
+            doi = identifier
+
+        paper_submission.doi = doi
+        paper_submission.save()
+
+        # Url duplicate check
+        oa_pdf_location = get_pdf_location_for_csl_item(csl_item)
+        csl_item["oa_pdf_location"] = oa_pdf_location
+        urls = [url]
+        if oa_pdf_location:
+            oa_url = oa_pdf_location.get("url", [])
+            oa_landing_page_url = oa_pdf_location.get("url_for_landing_page", [])
+            oa_pdf_url = oa_pdf_location.get("url_for_pdf", [])
+
+            urls.extend(oa_url)
+            urls.extend(oa_landing_page_url)
+            urls.extend(oa_pdf_url)
+
+        url_paper_check = Paper.objects.filter(Q(url__in=urls) | Q(pdf_url__in=urls))
+        if url_paper_check.exists():
+            paper_submission.set_duplicate_status()
+            duplicate_ids = url_paper_check.values_list("id", flat=True)
+            raise DuplicatePaperError(f"Duplicate URL: {urls}", duplicate_ids)
+
+        # Cleaning csl data
+        cleaned_title = csl_item.get("title", "").strip()
+        abstract = csl_item.get("abstract", "")
+        cleaned_abstract = clean_abstract(abstract)
+        publish_date = csl_item.get_date("issued", fill=True)
+        raw_authors = csl_item.get("author", [])
+        raw_authors = format_raw_authors(raw_authors)
+        paper_data = {
+            **paper_data,
+            "abstract": cleaned_abstract,
+            "csl_item": csl_item,
+            "doi": doi,
+            "paper_publish_date": publish_date,
+            "raw_authors": raw_authors,
+            "title": cleaned_title,
+        }
+
+        if oa_pdf_location:
+            if oa_pdf_url:
+                paper_data["pdf_url"] = oa_pdf_url
+
+            license = oa_pdf_location.get("license", None)
+            paper_data["pdf_license"] = license
+
+        return (paper_data, submission_id)
+    except DuplicatePaperError as e:
+        raise e
+    except ManubotProcessingError as e:
+        raise e
     except Exception as e:
         raise e
 

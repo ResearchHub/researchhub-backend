@@ -695,8 +695,19 @@ def is_blank_str(string):
 
 def format_raw_authors(raw_authors):
     for author in raw_authors:
-        first_name = author.pop("given", "")
-        last_name = author.pop("family", "")
-        author["first_name"] = first_name
-        author["last_name"] = last_name
+        if "family" in author:
+            first_name = author.pop("given", "")
+            last_name = author.pop("family", "")
+
+            author["first_name"] = first_name
+            author["last_name"] = last_name
+        elif "literal" in author:
+            name = author.pop("literal", "")
+            names = name.split(" ")
+            first_name = names[0]
+            last_name = names[-1]
+
+            author["first_name"] = first_name
+            author["last_name"] = last_name
+
     return raw_authors
