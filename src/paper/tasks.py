@@ -1222,7 +1222,6 @@ def celery_process_paper(self, submission_id):
 def celery_get_doi(self, celery_data):
     paper_data, submission_id = celery_data
     PaperSubmission = apps.get_model("paper.PaperSubmission")
-    r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9].+?(?=[\";%<>\?#&])"
 
     try:
         paper_submission = PaperSubmission.objects.get(id=submission_id)
@@ -1236,7 +1235,7 @@ def celery_get_doi(self, celery_data):
         if status_code >= 200 and status_code < 400:
             content = BeautifulSoup(res.content, "lxml")
             dois = re.findall(
-                r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+(?=[\";%\?\<])", str(content)
+                r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9].+?(?=[\";%<>\?#&])", str(content)
             )
             dois = list(map(str.strip, dois))
 
