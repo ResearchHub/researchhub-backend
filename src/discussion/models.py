@@ -231,7 +231,8 @@ class BaseComment(models.Model):
                 'created_by', 'id'
             )
             thread_ids = list(map(lambda t: t['id'], threads))
-
+        else:
+            return []
 
         comments = Comment.objects.filter(
             parent_id__in=thread_ids
@@ -349,6 +350,10 @@ class Thread(BaseComment):
         hypothesis = self.hypothesis
         if hypothesis:
             return hypothesis.unified_document
+
+        peer_review = self.peer_review
+        if peer_review:
+            return peer_review.unified_document
 
         citation = self.citation
         if citation:

@@ -5,7 +5,9 @@ from peer_review.models import (
 )
 from user.models import User
 
+
 MINUTES_TO_EXPIRE_INVITE = 10080
+
 
 class PeerReviewInviteSerializer(ModelSerializer):
     peer_review = SerializerMethodField()
@@ -55,4 +57,3 @@ class PeerReviewInviteSerializer(ModelSerializer):
             return serializer.data
 
         return None
-

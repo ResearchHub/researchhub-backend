@@ -7,7 +7,9 @@ from discussion.reaction_serializers import (
     DynamicVoteSerializer  # Import is needed for discussion serializer imports
 )
 from researchhub.settings import PAGINATION_PAGE_SIZE
-from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub.serializers import (
+    DynamicModelFieldSerializer,
+)
 from user.serializers import MinimalUserSerializer, DynamicUserSerializer, DynamicMinimalUserSerializer
 from utils.http import get_user_from_request
 # TODO: Make is_public editable for creator as a delete mechanism
@@ -55,6 +57,7 @@ class DynamicThreadSerializer(
     )
     paper = serializers.SerializerMethodField()
     post = serializers.SerializerMethodField()
+    peer_review = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
@@ -161,12 +164,26 @@ class DynamicThreadSerializer(
         )
         return serializer.data
 
+    def get_peer_review(self, obj):
+        from peer_review.serializers import DynamicPeerReviewSerializer
+
+        review = obj.peer_review
+        if review:
+            serializer = DynamicPeerReviewSerializer(
+                review,
+                context=context,
+                **_context_fields,
+            )
+            return serializer.data
+
+        return None
+
     def get_score(self, obj):
         return obj.calculate_score()
 
     def get_unified_document(self, thread):
         from researchhub_document.serializers import (
-          DynamicUnifiedDocumentSerializer
+            DynamicUnifiedDocumentSerializer
         )
         context = self.context
         _context_fields = context.get('dis_dts_get_unified_document', {})
@@ -518,6 +535,7 @@ class ThreadSerializer(
             'entity_key',
             'external_metadata',
             'hypothesis',
+            'peer_review',
             'id',
             'is_created_by_editor',
             'is_public',
@@ -597,6 +615,17 @@ class ThreadSerializer(
         if obj.hypothesis:
             return obj.hypothesis.slug
 
+    def get_peer_review(self, obj):
+        from peer_review.serializers import DynamicPeerReviewSerializer
+
+        review = obj.peer_review
+        if review:
+            serializer = PeerReviewSerializer(
+                review,
+            )
+            return serializer.data
+
+        return None
 
 class SimpleThreadSerializer(ThreadSerializer):
     class Meta:

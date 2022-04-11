@@ -69,8 +69,11 @@ from researchhub_document.utils import get_doc_type_key
 from researchhub_document.utils import (
     reset_unified_document_cache,
 )
+from peer_review.models import PeerReview
 
-DOCUMENT_MODELS = {
+
+RELATED_DISCUSSION_MODELS = {
+    'peer_review': PeerReview,
     'citation': Citation,
     'hypothesis': Hypothesis,
     'paper': Paper,
@@ -94,20 +97,26 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date',)
 
     def create(self, request, *args, **kwargs):
-        document_type = request.path.split('/')[2]
-        document_id = get_document_id_from_path(request)
-        document = DOCUMENT_MODELS[document_type].objects.get(id=document_id)
-        unified_document = document.unified_document if (
-            document_type != 'citation'
-        ) else document.source  # citation's unidoc is called "source"
+        model = request.path.split('/')[2]
+        model_id = get_document_id_from_path(request)
+        instance = RELATED_DISCUSSION_MODELS[model].objects.get(id=model_id)
 
-        unified_doc_id = unified_document.id
+        if model == 'citation':
+            unified_document = instance.source
+        else:
+            unified_document = instance.unified_document
 
         if request.query_params.get('created_location') == 'progress':
             request.data['created_location'] = (
                 BaseComment.CREATED_LOCATION_PROGRESS
             )
 
+        print('------------')
+        print('request.data', request.data)
+        print('unified_document', unified_document)
+        print('args', *args)
+        print('kwargs', **kwargs)
+        print('------------')
         response = super().create(request, *args, **kwargs)
         response = self.get_self_upvote_response(request, response, Thread)
         hubs = list(unified_document.hubs.all().values_list('id', flat=True))
@@ -119,12 +128,13 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             Thread,
             is_thread=True
         )
+
         create_contribution.apply_async(
             (
                 Contribution.COMMENTER,
                 {'app_label': 'discussion', 'model': 'thread'},
                 request.user.id,
-                unified_doc_id,
+                unified_document.id,
                 discussion_id
             ),
             priority=2,
@@ -293,7 +303,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     def create(self, request, *args, **kwargs):
         document_type = request.path.split('/')[2]
         document_id = get_document_id_from_path(request)
-        document = DOCUMENT_MODELS[document_type].objects.get(id=document_id)
+        document = RELATED_DISCUSSION_MODELS[document_type].objects.get(id=document_id)
         unified_document = document.unified_document
         unified_doc_id = unified_document.id
 
@@ -403,7 +413,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     def create(self, request, *args, **kwargs):
         document_type = request.path.split('/')[2]
         document_id = get_document_id_from_path(request)
-        document = DOCUMENT_MODELS[document_type].objects.get(id=document_id)
+        document = RELATED_DISCUSSION_MODELS[document_type].objects.get(id=document_id)
         unified_document = document.unified_document
         unified_doc_id = unified_document.id
 
