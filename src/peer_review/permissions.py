@@ -61,3 +61,12 @@ class IsAllowedToRetrieve(BasePermission):
                 return True
 
         return False
+
+class IsAllowedToCreateDecision(BasePermission):
+    message = 'You do not have permission to do this'
+
+    def has_object_permission(self, request, view, obj):
+        if obj.assigned_user.id == request.user.id:
+            return True
+
+        return False

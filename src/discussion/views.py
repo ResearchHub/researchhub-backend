@@ -111,12 +111,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 BaseComment.CREATED_LOCATION_PROGRESS
             )
 
-        print('------------')
-        print('request.data', request.data)
-        print('unified_document', unified_document)
-        print('args', *args)
-        print('kwargs', **kwargs)
-        print('------------')
         response = super().create(request, *args, **kwargs)
         response = self.get_self_upvote_response(request, response, Thread)
         hubs = list(unified_document.hubs.all().values_list('id', flat=True))

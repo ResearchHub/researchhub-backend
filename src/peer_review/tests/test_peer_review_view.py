@@ -21,8 +21,8 @@ from discussion.models import (
 class PeerReviewViewTests(APITestCase):
     def setUp(self):
         moderator = create_moderator(first_name='moderator', last_name='moderator')
-        author = create_random_default_user('regular_user')
-        peer_reviewer = create_random_default_user('peer_reviewer')
+        self.author = create_random_default_user('regular_user')
+        self.peer_reviewer = create_random_default_user('peer_reviewer')
 
         # Create org
         self.client.force_authenticate(moderator)
@@ -31,7 +31,7 @@ class PeerReviewViewTests(APITestCase):
 
         # Create review
         self.review_request_for_author = create_peer_review_request(
-            requested_by_user=author,
+            requested_by_user=self.author,
             organization=Organization.objects.get(id=self.org['id']),
             title='Some random post title',
             body='some text',
@@ -39,12 +39,12 @@ class PeerReviewViewTests(APITestCase):
 
         # Invite user
         invite_response = self.client.post("/api/peer_review_invites/invite/",{
-            'recipient': peer_reviewer.id,
+            'recipient': self.peer_reviewer.id,
             'peer_review_request': self.review_request_for_author.id,
         })
 
         # Retrieve request + details
-        self.client.force_authenticate(peer_reviewer)
+        self.client.force_authenticate(self.peer_reviewer)
         response = self.client.post(f'/api/peer_review_invites/{invite_response.data["id"]}/accept/')
 
         self.peer_review = response.data['peer_review']
@@ -55,11 +55,11 @@ class PeerReviewViewTests(APITestCase):
         )
         author = self.review_request_for_author.requested_by_user
 
-
+        self.client.force_authenticate(author)
         response = self.client.post(f'/api/peer_review/{self.peer_review["id"]}/discussion/?source=researchhub&is_removed=False&',{
             'plain_text': "some text",
             'peer_review': self.peer_review['id'],
-            'text':{'ops': [{'insert': 'some text\n'}]},
+            'text': {'ops': [{'insert': 'some text\n'}]},
         })
 
         t = Thread.objects.get(id=response.data['id'])
@@ -73,4 +73,51 @@ class PeerReviewViewTests(APITestCase):
             self.peer_review["id"],
         )
 
+    def test_reviewer_can_create_thread(self):
+        print('to implement')
 
+    def test_outsider_user_cannot_create_thread(self):
+        print('to implement')
+
+    def test_peer_reviewer_can_create_peer_review_decision(self):
+        unified_doc = ResearchhubUnifiedDocument.objects.get(
+            id=self.peer_review['unified_document'],
+        )
+
+        self.client.force_authenticate(self.peer_reviewer)
+        response = self.client.post(f'/api/peer_review/{self.peer_review["id"]}/create_decision/',{
+            'decision': "CHANGES_REQUESTED",
+            'discussion': {
+                'plain_text': "some text",
+                'text': {'ops': [{'insert': 'some text\n'}]},
+            }
+        })
+
+        self.assertEqual(
+            self.peer_review["id"],
+            response.data['peer_review']['id'],
+        )
+
+        self.assertEqual(
+            self.peer_review["id"],
+            response.data['discussion_thread']['peer_review'],
+        )
+
+    def test_author_cannot_create_peer_review_decision(self):
+        unified_doc = ResearchhubUnifiedDocument.objects.get(
+            id=self.peer_review['unified_document'],
+        )
+
+        self.client.force_authenticate(self.author)
+        response = self.client.post(f'/api/peer_review/{self.peer_review["id"]}/create_decision/',{
+            'decision': "CHANGES_REQUESTED",
+            'discussion': {
+                'plain_text': "some text",
+                'text': {'ops': [{'insert': 'some text\n'}]},
+            }
+        })
+
+        self.assertEqual(
+            response.status_code,
+            403,
+        )
