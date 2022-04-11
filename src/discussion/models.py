@@ -315,6 +315,13 @@ class Thread(BaseComment):
         null=True,
         blank=True,
     )
+    peer_review = models.ForeignKey(
+        'peer_review.PeerReview',
+        on_delete=models.SET_NULL,
+        related_name='threads',
+        blank=True,
+        null=True
+    )
     actions = GenericRelation(
         'user.Action',
         object_id_field='object_id',

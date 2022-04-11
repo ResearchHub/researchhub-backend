@@ -67,6 +67,6 @@ class PeerReviewDecision(models.Model):
         Thread,
         blank=True,
         null=True,
-        related_name='peer_review',
+        related_name='peer_review_decision',
         on_delete=models.SET_NULL,
     )
