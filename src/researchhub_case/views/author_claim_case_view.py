@@ -1,8 +1,8 @@
+from django.core.paginator import Paginator
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.pagination import PageNumberPagination
 
 from hub.permissions import IsModerator
 from researchhub_case.constants.case_constants import (
@@ -23,8 +23,8 @@ from utils.permissions import (
 
 
 class AuthorClaimCaseViewSet(ModelViewSet):
-    ordering = ['-created_date']
-    pagination_class = PageNumberPagination
+    ordering = ['-updated_date']
+    pagination_size = 10
     permission_classes = [IsAuthenticated, CreateOrReadOnly]
     queryset = AuthorClaimCase.objects.all()
     serializer_class = AuthorClaimCaseSerializer
@@ -113,7 +113,6 @@ class AuthorClaimCaseViewSet(ModelViewSet):
             return Response('DENIED_WRONG_USER', status=400)
 
     def _get_author_claim_cases_for_mods(self, request):
-        # TODO: calvinhlee - paginate this
         try:
             case_status = request.query_params.get('case_status')
             if (case_status == 'CLOSED'):
@@ -125,12 +124,24 @@ class AuthorClaimCaseViewSet(ModelViewSet):
 
             target_case_set = AuthorClaimCase.objects.filter(
                 status__in=case_query_status
+            ).order_by('-updated_date')
+            page_num = int(request.query_params.get('page')) or 1
+            paginator = Paginator(target_case_set, self.pagination_size)
+            pagination = paginator.page(page_num)
+
+            return Response(
+                data={
+                    'count': paginator.count,
+                    'has_more': pagination.has_next(),
+                    'page': page_num,
+                    'result': AuthorClaimCaseSerializer(
+                        pagination.object_list,
+                        many=True
+                    ).data,
+                },
+                status=200
             )
-            serialized_result = AuthorClaimCaseSerializer(
-                target_case_set,
-                many=True
-            )
-            return Response(data=serialized_result.data, status=200)
+
         except (KeyError, TypeError) as e:
             return Response(e, status=400)
 
@@ -143,9 +154,13 @@ class AuthorClaimCaseViewSet(ModelViewSet):
 
             if update_status == APPROVED:
                 if case.target_paper is None:
-                    return Response('Cannot approve. No paper id found.', status=500)
+                    return Response(
+                        'Cannot approve. No paper id found.', 
+                        status=500)
                 else:
-                    move_paper_to_author(case.target_paper, case.requestor.author_profile)
+                    move_paper_to_author(
+                        case.target_paper, 
+                        case.requestor.author_profile)
                     case.status = update_status
                     case.save()
                     after_approval_flow.apply_async(
