@@ -1204,17 +1204,11 @@ def celery_process_paper(self, submission_id):
             ]
         )
 
-    # Specific Crossref bypass for Manubot
-    if "arxiv" in url:
-        tasks.extend(
-            [celery_manubot.s().set(countdown=1)],
-        )
+    # Specific Crossref bypass for Manubot (Arxiv links)
+    if url and "arxiv" in url:
+        tasks.extend([celery_manubot.s().set(countdown=1)])
     else:
-        tasks.extend(
-            [
-                celery_crossref.s().set(countdown=1),
-            ]
-        )
+        tasks.extend([celery_crossref.s().set(countdown=1)])
 
     tasks.extend([celery_create_paper.s().set(countdown=1)])
 
