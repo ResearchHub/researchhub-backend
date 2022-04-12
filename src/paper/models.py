@@ -1,121 +1,99 @@
-import requests
 import datetime
+
 import pytz
 import regex as re
-
+import requests
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
-from django.db import models, transaction
-from django.db.models import Count, Q, Avg, F, Sum, IntegerField
-from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
-from django.db.models.functions import Extract, Cast
+from django.contrib.postgres.indexes import HashIndex
 from django.core.validators import FileExtensionValidator
-
+from django.db import models, transaction
+from django.db.models import Avg, Count, F, IntegerField, Q, Sum
+from django.db.models.functions import Cast, Extract
+from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from manubot.cite.doi import get_doi_csl_item
 from manubot.cite.unpaywall import Unpaywall
 
+import utils.sentry as sentry
+from discussion.models import Thread
+from hub.models import Hub
+from hub.serializers import HubSerializer
 from paper.lib import journal_hosts
+from paper.tasks import (
+    celery_extract_figures,
+    celery_extract_meta_data,
+    celery_extract_pdf_preview,
+    celery_extract_twitter_comments,
+    celery_paper_reset_cache,
+)
 from paper.utils import (
-    MANUBOT_PAPER_TYPES,
-    populate_metadata_from_manubot_url,
-    populate_metadata_from_manubot_pdf_url,
-    populate_pdf_url_from_journal_url,
-    populate_metadata_from_pdf,
-    populate_metadata_from_crossref,
-    parse_author_name,
     get_csl_item,
     paper_piecewise_log,
+    parse_author_name,
+    populate_metadata_from_crossref,
+    populate_metadata_from_manubot_pdf_url,
+    populate_metadata_from_manubot_url,
+    populate_metadata_from_pdf,
+    populate_pdf_url_from_journal_url,
 )
-from hub.serializers import HubSerializer
-
-from .tasks import (
-    celery_extract_figures,
-    celery_extract_pdf_preview,
-    celery_extract_meta_data,
-    celery_extract_twitter_comments,
-    celery_paper_reset_cache
-)
+from purchase.models import Purchase
 from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
 from summary.models import Summary
-from hub.models import Hub
-from purchase.models import Purchase
-from discussion.models import Thread
-
-from utils.http import check_url_contains_pdf
 from utils.arxiv import Arxiv
 from utils.crossref import Crossref
-import utils.sentry as sentry
+from utils.http import check_url_contains_pdf
+from utils.models import DefaultModel
 from utils.semantic_scholar import SemanticScholar
 from utils.twitter import (
-    get_twitter_url_results,
     get_twitter_doi_results,
-    get_twitter_results
+    get_twitter_results,
+    get_twitter_url_results,
 )
 
-DOI_IDENTIFIER = '10.'
-ARXIV_IDENTIFIER = 'arXiv:'
+DOI_IDENTIFIER = "10."
+ARXIV_IDENTIFIER = "arXiv:"
 HOT_SCORE_WEIGHT = 5
-HELP_TEXT_IS_PUBLIC = (
-    'Hides the paper from the public.'
-)
-HELP_TEXT_IS_REMOVED = (
-    'Hides the paper because it is not allowed.'
-)
+HELP_TEXT_IS_PUBLIC = "Hides the paper from the public."
+HELP_TEXT_IS_REMOVED = "Hides the paper because it is not allowed."
 
 
 class Paper(models.Model):
-    REGULAR = 'REGULAR'
-    PRE_REGISTRATION = 'PRE_REGISTRATION'
-    COMPLETE = 'COMPLETE'
-    PARTIAL = 'PARTIAL'
-    INCOMPLETE = 'INCOMPLETE'
+    REGULAR = "REGULAR"
+    PRE_REGISTRATION = "PRE_REGISTRATION"
+    COMPLETE = "COMPLETE"
+    PARTIAL = "PARTIAL"
+    INCOMPLETE = "INCOMPLETE"
 
-    PAPER_TYPE_CHOICES = [
-        (REGULAR, REGULAR),
-        (PRE_REGISTRATION, PRE_REGISTRATION)
-    ]
+    PAPER_TYPE_CHOICES = [(REGULAR, REGULAR), (PRE_REGISTRATION, PRE_REGISTRATION)]
     PAPER_COMPLETENESS = [
         (COMPLETE, COMPLETE),
         (PARTIAL, PARTIAL),
-        (INCOMPLETE, INCOMPLETE)
+        (INCOMPLETE, INCOMPLETE),
     ]
 
-    CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS['PROGRESS']
-    CREATED_LOCATION_CHOICES = [
-        (CREATED_LOCATION_PROGRESS, 'Progress')
-    ]
+    CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS["PROGRESS"]
+    CREATED_LOCATION_CHOICES = [(CREATED_LOCATION_PROGRESS, "Progress")]
 
     uploaded_date = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_date = models.DateTimeField(auto_now=True)
     twitter_score_updated_date = models.DateTimeField(null=True, blank=True)
-    is_public = models.BooleanField(
-        default=True,
-        help_text=HELP_TEXT_IS_PUBLIC
-    )
+    is_public = models.BooleanField(default=True, help_text=HELP_TEXT_IS_PUBLIC)
 
     # TODO clean this up to use SoftDeleteable mixin in utils
-    is_removed = models.BooleanField(
-        default=False,
-        help_text=HELP_TEXT_IS_REMOVED
-    )
+    is_removed = models.BooleanField(default=False, help_text=HELP_TEXT_IS_REMOVED)
 
     is_removed_by_user = models.BooleanField(
-        default=False,
-        help_text=HELP_TEXT_IS_REMOVED
+        default=False, help_text=HELP_TEXT_IS_REMOVED
     )
-    bullet_low_quality = models.BooleanField(
-        default=False
-    )
-    summary_low_quality = models.BooleanField(
-        default=False
-    )
+    bullet_low_quality = models.BooleanField(default=False)
+    summary_low_quality = models.BooleanField(default=False)
     score = models.IntegerField(default=0, db_index=True)
     discussion_count = models.IntegerField(default=0, db_index=True)
     hot_score = models.IntegerField(
-        default=0,
-        db_index=True,
-        help_text='Legacy. Refer to UnifiedDocument'
+        default=0, db_index=True, help_text="Legacy. Refer to UnifiedDocument"
     )
     twitter_score = models.IntegerField(default=1)
 
@@ -126,142 +104,96 @@ class Paper(models.Model):
 
     # Moderators are obsolete, in favor of super mods on the user
     moderators = models.ManyToManyField(
-        'user.User',
-        related_name='moderated_papers',
-        blank=True
+        "user.User", related_name="moderated_papers", blank=True
     )
     authors = models.ManyToManyField(
-        'user.Author',
-        related_name='authored_papers',
+        "user.Author",
+        related_name="authored_papers",
         blank=True,
-        help_text='Author that participated in the research paper'
+        help_text="Author that participated in the research paper",
     )
-    hubs = models.ManyToManyField(
-        'hub.Hub',
-        related_name='papers',
-        blank=True
-    )
+    hubs = models.ManyToManyField("hub.Hub", related_name="papers", blank=True)
     summary = models.ForeignKey(
-        Summary,
-        blank=True,
-        null=True,
-        related_name='papers',
-        on_delete=models.SET_NULL
+        Summary, blank=True, null=True, related_name="papers", on_delete=models.SET_NULL
     )
     file = models.FileField(
         max_length=512,
-        upload_to='uploads/papers/%Y/%m/%d',
+        upload_to="uploads/papers/%Y/%m/%d",
         default=None,
         null=True,
         blank=True,
-        validators=[FileExtensionValidator(['pdf'])]
+        validators=[FileExtensionValidator(["pdf"])],
     )
     pdf_file_extract = models.FileField(
         max_length=512,
-        upload_to='uploads/papers/%Y/%m/%d/pdf_extract',
+        upload_to="uploads/papers/%Y/%m/%d/pdf_extract",
         default=None,
         null=True,
-        blank=True
+        blank=True,
     )
     edited_file_extract = models.FileField(
         max_length=512,
-        upload_to='uploads/papers/%Y/%m/%d/edited_extract',
+        upload_to="uploads/papers/%Y/%m/%d/edited_extract",
         default=None,
         null=True,
-        blank=True
+        blank=True,
     )
     file_created_location = models.CharField(
         choices=CREATED_LOCATION_CHOICES,
         max_length=255,
         default=None,
         null=True,
-        blank=True
+        blank=True,
     )
     retrieved_from_external_source = models.BooleanField(default=False)
     external_source = models.CharField(
-        max_length=255,
-        default=None,
-        null=True,
-        blank=True
+        max_length=255, default=None, null=True, blank=True
     )
     paper_type = models.CharField(
-        choices=PAPER_TYPE_CHOICES,
-        max_length=32,
-        default=REGULAR
+        choices=PAPER_TYPE_CHOICES, max_length=32, default=REGULAR
     )
     completeness = models.CharField(
-        choices=PAPER_COMPLETENESS,
-        max_length=16,
-        default=INCOMPLETE
+        choices=PAPER_COMPLETENESS, max_length=16, default=INCOMPLETE
     )
 
     # User generated
     title = models.CharField(max_length=1024)  # User generated title
-    tagline = models.CharField(
-        max_length=255,
-        default=None,
-        null=True,
-        blank=True
-    )
+    tagline = models.CharField(max_length=255, default=None, null=True, blank=True)
     uploaded_by = models.ForeignKey(
-        'user.User',
-        related_name='papers',
+        "user.User",
+        related_name="papers",
         on_delete=models.SET_NULL,
         blank=True,
         null=True,
         help_text=(
-            'RH User account that submitted this paper. ' +
-            'NOTE: user didnt necessarily had to be the author'
-        )
+            "RH User account that submitted this paper. "
+            + "NOTE: user didnt necessarily had to be the author"
+        ),
     )
 
     # Metadata
     doi = models.CharField(
-        max_length=255,
-        default=None,
-        null=True,
-        blank=True,
-        unique=True
+        max_length=255, default=None, null=True, blank=True, unique=True
     )
     alternate_ids = JSONField(
         default=dict,
         blank=True,
     )
     paper_title = models.CharField(  # Official paper title
-        max_length=1024,
-        default=None,
-        null=True,
-        blank=True
+        max_length=1024, default=None, null=True, blank=True
     )
-    paper_publish_date = models.DateField(
-        null=True,
-        blank=True
-    )
+    paper_publish_date = models.DateField(null=True, blank=True)
     raw_authors = JSONField(blank=True, null=True)
-    abstract = models.TextField(
-        default=None,
-        null=True,
-        blank=True
-    )
+    abstract = models.TextField(default=None, null=True, blank=True)
     publication_type = models.CharField(
-        max_length=255,
-        default=None,
-        null=True,
-        blank=True
+        max_length=255, default=None, null=True, blank=True
     )
     references = models.ManyToManyField(
-        'self',
-        symmetrical=False,
-        related_name='referenced_by',
-        blank=True
+        "self", symmetrical=False, related_name="referenced_by", blank=True
     )
     # Can be the url entered by users during upload (seed URL)
     url = models.URLField(
-        max_length=1024,
-        default=None,
-        null=True,
-        blank=True,
-        unique=True
+        max_length=1024, default=None, null=True, blank=True, unique=True
     )
     pdf_url = models.URLField(
         max_length=1024,
@@ -269,64 +201,56 @@ class Paper(models.Model):
         null=True,
         blank=True,
     )
-    pdf_license = models.CharField(
-        max_length=255,
-        default=None,
-        null=True,
-        blank=True
-    )
+    pdf_license = models.CharField(max_length=255, default=None, null=True, blank=True)
     pdf_license_url = models.URLField(
-        max_length=1024,
-        default=None,
-        null=True,
-        blank=True
+        max_length=1024, default=None, null=True, blank=True
     )
     csl_item = JSONField(
         default=None,
         null=True,
         blank=True,
-        help_text='bibliographic metadata as a single '
-                  'Citation Styles Language JSON item.'
+        help_text="bibliographic metadata as a single "
+        "Citation Styles Language JSON item.",
     )
     oa_pdf_location = JSONField(
         default=None,
         null=True,
         blank=True,
-        help_text='PDF availability in Unpaywall OA Location format.'
+        help_text="PDF availability in Unpaywall OA Location format.",
     )
-    external_metadata = JSONField(
-        null=True,
-        blank=True
-    )
+    external_metadata = JSONField(null=True, blank=True)
 
     purchases = GenericRelation(
-        'purchase.Purchase',
-        object_id_field='object_id',
-        content_type_field='content_type',
-        related_query_name='paper'
+        "purchase.Purchase",
+        object_id_field="object_id",
+        content_type_field="content_type",
+        related_query_name="paper",
     )
 
     actions = GenericRelation(
-        'user.Action',
-        object_id_field='object_id',
-        content_type_field='content_type',
-        related_query_name='papers'
+        "user.Action",
+        object_id_field="object_id",
+        content_type_field="content_type",
+        related_query_name="papers",
     )
-
-    slug = models.SlugField(max_length=1024)
+    # Slug is automatically generated on a signal, so it is not needed in a form
+    slug = models.SlugField(max_length=1024, blank=True)
 
     class Meta:
-        ordering = ['-paper_publish_date']
+        indexes = (
+            HashIndex(fields=("url",), name="paper_paper_url_hix"),
+            HashIndex(fields=("pdf_url",), name="paper_paper_pdf_url_hix"),
+        )
 
     def __str__(self):
         title = self.title
         uploaded_by = self.uploaded_by
         if title and uploaded_by:
-            return '{} - {}'.format(title, uploaded_by)
+            return "{} - {}".format(title, uploaded_by)
         elif title:
             return title
         else:
-            return 'titleless paper'
+            return "titleless paper"
 
     @property
     def is_hidden(self):
@@ -356,67 +280,6 @@ class Paper(models.Model):
     def children(self):
         return self.threads.all()
 
-    @classmethod
-    def create_manubot_paper(cls, doi):
-        csl_item = get_doi_csl_item(doi)
-        return Paper.create_from_csl_item(
-            csl_item,
-            doi=doi,
-            externally_sourced=True,
-            is_public=False
-        )
-
-    @classmethod
-    def create_crossref_paper(cls, identifier):
-        return Crossref(id=identifier).create_paper()
-
-    @classmethod
-    def create_from_csl_item(
-        cls,
-        csl_item,
-        doi=None,
-        externally_sourced=False,
-        is_public=None
-    ):
-        """
-        Create a paper object from a CSL_Item.
-        This may be useful if we want to auto-populate the paper
-        database at some point.
-        """
-        from manubot.cite.csl_item import CSL_Item
-
-        if not isinstance(csl_item, CSL_Item):
-            csl_item = CSL_Item(csl_item)
-
-        if csl_item['type'] not in MANUBOT_PAPER_TYPES:
-            return None
-
-        is_public = True
-        external_source = None
-        if externally_sourced is True:
-            is_public = False
-            external_source = 'manubot'
-
-        if 'DOI' in csl_item:
-            doi = csl_item['DOI'].lower()
-
-        paper_publish_date = csl_item.get_date('issued', fill=True)
-
-        paper = cls(
-            abstract=csl_item.get('abstract', None),
-            doi=doi,
-            is_public=is_public,
-            title=csl_item.get('title', None),
-            paper_title=csl_item.get('title', None),
-            url=csl_item.get('URL', None),
-            csl_item=csl_item,
-            external_source=external_source,
-            retrieved_from_external_source=externally_sourced,
-            paper_publish_date=paper_publish_date
-        )
-        paper.save()
-        return paper
-
     @property
     def raw_authors_indexing(self):
         authors = []
@@ -425,11 +288,13 @@ class Paper(models.Model):
 
         for author in self.raw_authors:
             if isinstance(author, dict):
-                authors.append({
-                    'first_name': author.get('first_name'),
-                    'last_name': author.get('last_name'),
-                    'full_name': f'{author.get("first_name")} {author.get("last_name")}',
-                })
+                authors.append(
+                    {
+                        "first_name": author.get("first_name"),
+                        "last_name": author.get("last_name"),
+                        "full_name": f'{author.get("first_name")} {author.get("last_name")}',
+                    }
+                )
 
         return authors
 
@@ -439,7 +304,7 @@ class Paper(models.Model):
 
     @property
     def discussion_count_indexing(self):
-        '''Number of discussions.'''
+        """Number of discussions."""
         return self.get_discussion_count()
 
     @property
@@ -452,7 +317,7 @@ class Paper(models.Model):
 
     @property
     def score_indexing(self):
-        '''Score for Elasticsearch indexing.'''
+        """Score for Elasticsearch indexing."""
         return self.calculate_score()
 
     @property
@@ -463,15 +328,15 @@ class Paper(models.Model):
     def summary_indexing(self):
         if self.summary:
             return self.summary.summary_plain_text
-        return ''
+        return ""
 
     @property
     def abstract_indexing(self):
-        return self.abstract if self.abstract else ''
+        return self.abstract if self.abstract else ""
 
     @property
     def doi_indexing(self):
-        return self.doi or ''
+        return self.doi or ""
 
     @property
     def votes_indexing(self):
@@ -491,15 +356,9 @@ class Paper(models.Model):
             paid_status=Purchase.PAID,
             amount__gt=0,
             user__moderator=True,
-            boost_time__gte=0
+            boost_time__gte=0,
         )
-        today = datetime.datetime.now(
-            tz=pytz.utc
-        ).replace(
-            hour=0,
-            minute=0,
-            second=0
-        )
+        today = datetime.datetime.now(tz=pytz.utc).replace(hour=0, minute=0, second=0)
         score = self.score
         unified_doc = self.unified_document
 
@@ -514,17 +373,20 @@ class Paper(models.Model):
                 uploaded_date = timeframe.replace(
                     hour=original_uploaded_date.hour,
                     minute=original_uploaded_date.minute,
-                    second=original_uploaded_date.second
+                    second=original_uploaded_date.second,
                 )
 
             votes = self.votes
             if votes.exists():
-                vote_avg_epoch = self.votes.aggregate(
-                    avg=Avg(
-                        Extract('created_date', 'epoch'),
-                        output_field=models.IntegerField()
-                    )
-                )['avg'] or 0
+                vote_avg_epoch = (
+                    self.votes.aggregate(
+                        avg=Avg(
+                            Extract("created_date", "epoch"),
+                            output_field=models.IntegerField(),
+                        )
+                    )["avg"]
+                    or 0
+                )
                 num_votes = votes.count()
             else:
                 num_votes = 0
@@ -532,16 +394,12 @@ class Paper(models.Model):
 
             twitter_boost_score = 0
             if twitter_score > 0:
-                twitter_epoch = (
-                    (uploaded_date.timestamp() - ALGO_START_UNIX) / TIME_DIV
-                )
+                twitter_epoch = (uploaded_date.timestamp() - ALGO_START_UNIX) / TIME_DIV
                 twitter_boost_score = (
                     paper_piecewise_log(twitter_score + 1) * TWITTER_BOOST
                 ) / twitter_epoch
 
-            vote_avg = (
-                max(0, vote_avg_epoch - ALGO_START_UNIX)
-            ) / TIME_DIV
+            vote_avg = (max(0, vote_avg_epoch - ALGO_START_UNIX)) / TIME_DIV
 
             base_score = paper_piecewise_log(score + 1)
             uploaded_date_score = uploaded_date.timestamp() / TIME_DIV
@@ -556,40 +414,37 @@ class Paper(models.Model):
             # and it gives a it better score
 
             if original_uploaded_date > timeframe:
-                uploaded_date_delta = (
-                    original_uploaded_date - timeframe
+                uploaded_date_delta = original_uploaded_date - timeframe
+                delta_days = (
+                    paper_piecewise_log(
+                        uploaded_date_delta.total_seconds() / HOUR_SECONDS
+                    )
+                    * DATE_BOOST
                 )
-                delta_days = paper_piecewise_log(
-                    uploaded_date_delta.total_seconds() / HOUR_SECONDS
-                ) * DATE_BOOST
                 uploaded_date_score += delta_days
             else:
-                uploaded_date_delta = (
-                    timeframe - original_uploaded_date
+                uploaded_date_delta = timeframe - original_uploaded_date
+                delta_days = (
+                    -paper_piecewise_log(
+                        (uploaded_date_delta.total_seconds() / HOUR_SECONDS) + 1
+                    )
+                    * DATE_BOOST
                 )
-                delta_days = -paper_piecewise_log(
-                    (uploaded_date_delta.total_seconds() / HOUR_SECONDS) + 1
-                ) * DATE_BOOST
                 uploaded_date_score += delta_days
 
             boost_score = 0
             if boosts.exists():
-                boost_amount = sum(
-                    map(int, boosts.values_list(
-                        'amount',
-                        flat=True
-                    ))
-                )
+                boost_amount = sum(map(int, boosts.values_list("amount", flat=True)))
                 boost_score = paper_piecewise_log(boost_amount + 1)
 
             hot_score = (
-                base_score +
-                uploaded_date_score +
-                vote_avg +
-                vote_score +
-                discussion_score +
-                twitter_boost_score +
-                boost_score
+                base_score
+                + uploaded_date_score
+                + vote_avg
+                + vote_score
+                + discussion_score
+                + twitter_boost_score
+                + boost_score
             ) * 1000
 
             completeness = self.completeness
@@ -617,29 +472,30 @@ class Paper(models.Model):
         doi = self.doi
 
         if doi:
-            doi_results = set({
-                res.user.name: res.id for res in get_twitter_doi_results(
-                    self.doi,
-                    filters=''
-                )
-            }.values())
+            doi_results = set(
+                {
+                    res.user.name: res.id
+                    for res in get_twitter_doi_results(self.doi, filters="")
+                }.values()
+            )
             result_ids |= doi_results
 
         if url:
-            url_results = set({
-                res.user.name: res.id for res in get_twitter_url_results(
-                    self.url,
-                    filters=''
-                )
-            }.values())
+            url_results = set(
+                {
+                    res.user.name: res.id
+                    for res in get_twitter_url_results(self.url, filters="")
+                }.values()
+            )
             result_ids |= url_results
 
         if paper_title:
-            title_results = set({
-                res.user.name: res.id for res in get_twitter_results(
-                    self.paper_title
-                )
-            }.values())
+            title_results = set(
+                {
+                    res.user.name: res.id
+                    for res in get_twitter_results(self.paper_title)
+                }.values()
+            )
             result_ids |= title_results
 
         self.twitter_score_updated_date = datetime.datetime.now()
@@ -649,42 +505,36 @@ class Paper(models.Model):
         return self.twitter_score
 
     def get_discussion_count(self):
-        sources = [
-            Thread.RESEARCHHUB,
-            Thread.INLINE_ABSTRACT,
-            Thread.INLINE_PAPER_BODY
-        ]
+        sources = [Thread.RESEARCHHUB, Thread.INLINE_ABSTRACT, Thread.INLINE_PAPER_BODY]
 
         thread_count = self.threads.aggregate(
             discussion_count=Count(
                 1,
                 filter=Q(
-                    is_removed=False,
-                    created_by__isnull=False,
-                    source__in=sources
-                )
+                    is_removed=False, created_by__isnull=False, source__in=sources
+                ),
             )
-        )['discussion_count']
+        )["discussion_count"]
         comment_count = self.threads.aggregate(
             discussion_count=Count(
-                'comments',
+                "comments",
                 filter=Q(
                     comments__is_removed=False,
                     comments__created_by__isnull=False,
-                    source__in=sources
-                )
+                    source__in=sources,
+                ),
             )
-        )['discussion_count']
+        )["discussion_count"]
         reply_count = self.threads.aggregate(
             discussion_count=Count(
-                'comments__replies',
+                "comments__replies",
                 filter=Q(
                     comments__replies__is_removed=False,
                     comments__replies__created_by__isnull=False,
-                    source__in=sources
-                )
+                    source__in=sources,
+                ),
             )
-        )['discussion_count']
+        )["discussion_count"]
         return thread_count + comment_count + reply_count
 
     def extract_figures(self, use_celery=True):
@@ -723,8 +573,8 @@ class Paper(models.Model):
             if self.pdf_url and journal_host in self.pdf_url:
                 return
 
-        regex = r'(.*doi\.org\/)(.*)'
-        doi = self.doi or ''
+        regex = r"(.*doi\.org\/)(.*)"
+        doi = self.doi or ""
 
         regex_doi = re.search(regex, doi)
         if regex_doi and len(regex_doi.groups()) > 1:
@@ -741,8 +591,8 @@ class Paper(models.Model):
             self.is_removed = True
 
         res = requests.get(
-            'https://doi.org/api/handles/{}'.format(doi),
-            headers=requests.utils.default_headers()
+            "https://doi.org/api/handles/{}".format(doi),
+            headers=requests.utils.default_headers(),
         )
         if res.status_code >= 200 and res.status_code < 400 and has_doi:
             self.is_removed = False
@@ -753,12 +603,7 @@ class Paper(models.Model):
         self.save()
         return self.is_removed
 
-    def extract_meta_data(
-        self,
-        title=None,
-        check_title=False,
-        use_celery=True
-    ):
+    def extract_meta_data(self, title=None, check_title=False, use_celery=True):
         if TESTING:
             return
 
@@ -778,10 +623,7 @@ class Paper(models.Model):
         else:
             celery_extract_meta_data(self.id, title, check_title)
 
-    def extract_twitter_comments(
-        self,
-        use_celery=True
-    ):
+    def extract_twitter_comments(self, use_celery=True):
         if TESTING:
             return
 
@@ -794,36 +636,30 @@ class Paper(models.Model):
         else:
             celery_extract_twitter_comments(self.id)
 
-    def calculate_score(
-        self,
-        ignore_self_vote=False,
-        ignore_twitter_score=False
-    ):
+    def calculate_score(self, ignore_self_vote=False, ignore_twitter_score=False):
         qs = self.votes.filter(
-            created_by__is_suspended=False,
-            created_by__probable_spammer=False
+            created_by__is_suspended=False, created_by__probable_spammer=False
         )
 
         if ignore_self_vote:
-            qs = qs.exclude(paper__uploaded_by=F('created_by'))
+            qs = qs.exclude(paper__uploaded_by=F("created_by"))
 
         score = qs.aggregate(
-            score=Count(
-                'id', filter=Q(vote_type=Vote.UPVOTE)
-            ) - Count(
-                'id', filter=Q(vote_type=Vote.DOWNVOTE)
-            )
-        ).get('score', 0)
+            score=Count("id", filter=Q(vote_type=Vote.UPVOTE))
+            - Count("id", filter=Q(vote_type=Vote.DOWNVOTE))
+        ).get("score", 0)
 
         if not ignore_twitter_score:
             score += self.twitter_score
         return score
 
     def get_vote_for_index(self, vote):
-        wrapper = dict_to_obj({
-            'vote_type': vote.vote_type,
-            'updated_date': vote.updated_date,
-        })
+        wrapper = dict_to_obj(
+            {
+                "vote_type": vote.vote_type,
+                "updated_date": vote.updated_date,
+            }
+        )
 
         return wrapper
 
@@ -836,33 +672,30 @@ class Paper(models.Model):
         return
         # This method and following methods need fixing
         ss_id = self.doi
-        ss_id_type = SemanticScholar.ID_TYPES['doi']
+        ss_id_type = SemanticScholar.ID_TYPES["doi"]
         # TODO: Modify this to try all availble alternate id keys
         if (ss_id is None) and (self.alternate_ids != {}):
-            ss_id = self.alternate_ids['arxiv']
-            ss_id_type = SemanticScholar.ID_TYPES['arxiv']
+            ss_id = self.alternate_ids["arxiv"]
+            ss_id_type = SemanticScholar.ID_TYPES["arxiv"]
         if ss_id is not None:
             semantic_paper = SemanticScholar(ss_id, id_type=ss_id_type)
             references = semantic_paper.references
             referenced_by = semantic_paper.referenced_by
 
             if self.references.count() < 1:
-                self.add_or_create_reference_papers(references, 'references')
+                self.add_or_create_reference_papers(references, "references")
 
             if self.referenced_by.count() < 1:
-                self.add_or_create_reference_papers(
-                    referenced_by,
-                    'referenced_by'
-                )
+                self.add_or_create_reference_papers(referenced_by, "referenced_by")
 
     def add_or_create_reference_papers(self, reference_list, reference_field):
         arxiv_ids = []
         dois = []
         for ref in reference_list:
-            if ref['doi'] is not None:
-                dois.append(ref['doi'])
-            elif ref['arxivId'] is not None:
-                arxiv_ids.append('arXiv:' + ref['arxivId'])
+            if ref["doi"] is not None:
+                dois.append(ref["doi"])
+            elif ref["arxivId"] is not None:
+                arxiv_ids.append("arXiv:" + ref["arxivId"])
             else:
                 pass
 
@@ -873,57 +706,41 @@ class Paper(models.Model):
             Q(doi__in=dois) | Q(alternate_ids__arxiv__in=arxiv_ids)
         )
 
-        if reference_field == 'referenced_by':
+        if reference_field == "referenced_by":
             for existing_paper in existing_papers:
                 existing_paper.references.add(self)
         else:
             self.references.add(*existing_papers)
 
         arxiv_id_hits = set(
-            existing_papers.filter(
-                doi__isnull=True
-            ).values_list('alternate_ids__arxiv', flat=True)
+            existing_papers.filter(doi__isnull=True).values_list(
+                "alternate_ids__arxiv", flat=True
+            )
         )
         arxiv_id_misses = arxiv_id_set.difference(arxiv_id_hits)
         self._create_reference_papers_from_arxiv_misses(
-            arxiv_id_misses,
-            reference_field
+            arxiv_id_misses, reference_field
         )
 
-        doi_hits = set(existing_papers.values_list('doi', flat=True))
+        doi_hits = set(existing_papers.values_list("doi", flat=True))
         doi_misses = doi_set.difference(doi_hits)
-        self._create_reference_papers_from_doi_misses(
-            doi_misses,
-            reference_field
-        )
+        self._create_reference_papers_from_doi_misses(doi_misses, reference_field)
 
         self.save()
 
-    def _create_reference_papers_from_arxiv_misses(
-        self,
-        id_list,
-        reference_field
-    ):
+    def _create_reference_papers_from_arxiv_misses(self, id_list, reference_field):
         id_count = len(id_list)
         for idx, current_id in enumerate(id_list):
-            print(
-                f'Creating paper from arxiv miss: {idx + 1} / {id_count}'
-            )
+            print(f"Creating paper from arxiv miss: {idx + 1} / {id_count}")
             arxiv_paper = Arxiv(id=current_id)
             arxiv_paper.create_paper()
             arxiv_paper.add_hubs()
 
-    def _create_reference_papers_from_doi_misses(
-        self,
-        id_list,
-        reference_field
-    ):
+    def _create_reference_papers_from_doi_misses(self, id_list, reference_field):
         id_count = len(id_list)
 
         for idx, current_id in enumerate(id_list):
-            print(
-                f'Creating paper from doi miss: {idx + 1} / {id_count}'
-            )
+            print(f"Creating paper from doi miss: {idx + 1} / {id_count}")
 
             if not current_id:
                 continue
@@ -945,101 +762,82 @@ class Paper(models.Model):
             crossref_paper = Crossref(id=current_id)
 
             semantic_paper = SemanticScholar(
-                current_id,
-                id_type=SemanticScholar.ID_TYPES['doi']
+                current_id, id_type=SemanticScholar.ID_TYPES["doi"]
             )
             if semantic_paper is not None:
                 if semantic_paper.hub_candidates is not None:
                     HUB_INSTANCE = 0
                     hubs = [
-                        Hub.objects.get_or_create(
-                            name=hub_name.lower()
-                        )[HUB_INSTANCE]
-                        for hub_name
-                        in semantic_paper.hub_candidates
+                        Hub.objects.get_or_create(name=hub_name.lower())[HUB_INSTANCE]
+                        for hub_name in semantic_paper.hub_candidates
                     ]
                 # TODO: Restructure this to not use transaction atomic?
                 try:
-                    print('Trying semantic scholar')
+                    print("Trying semantic scholar")
                     with transaction.atomic():
                         new_paper = semantic_paper.create_paper()
-                        new_paper.paper_publish_date = (
-                            crossref_paper.paper_publish_date
-                        )
+                        new_paper.paper_publish_date = crossref_paper.paper_publish_date
                 except Exception as e:
-                    print(
-                        f'Error creating semantic paper: {e}',
-                        'Falling back...'
-                    )
+                    print(f"Error creating semantic paper: {e}", "Falling back...")
                     try:
-                        print('Trying manubot')
+                        print("Trying manubot")
                         new_paper = Paper.create_manubot_paper(current_id)
                     except Exception as e:
-                        print(
-                            f'Error creating manubot paper: {e}',
-                            'Falling back...'
-                        )
+                        print(f"Error creating manubot paper: {e}", "Falling back...")
                         try:
-                            print('Trying crossref')
+                            print("Trying crossref")
                             with transaction.atomic():
                                 new_paper = crossref_paper.create_paper()
                                 new_paper.abstract = semantic_paper.abstract
                         except Exception as e:
                             print(
-                                f'Error creating crossref paper: {e}',
+                                f"Error creating crossref paper: {e}",
                             )
 
             if new_paper is not None:
                 new_paper.hubs.add(*hubs)
 
-                if reference_field == 'referenced_by':
+                if reference_field == "referenced_by":
                     new_paper.references.add(self)
                 else:
                     self.references.add(new_paper)
                 try:
                     new_paper.save()
                 except Exception as e:
-                    print(f'Error saving reference paper: {e}')
+                    print(f"Error saving reference paper: {e}")
             else:
-                print('No new paper')
+                print("No new paper")
 
     def get_promoted_score(self):
         purchases = self.purchases.filter(
-            paid_status=Purchase.PAID,
-            amount__gt=0,
-            boost_time__gt=0
+            paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
         )
         if purchases.exists():
             base_score = self.score
-            boost_amount = purchases.annotate(
-                amount_as_int=Cast('amount', IntegerField())
-            ).aggregate(
-                sum=Sum('amount_as_int')
-            ).get('sum', 0)
+            boost_amount = (
+                purchases.annotate(amount_as_int=Cast("amount", IntegerField()))
+                .aggregate(sum=Sum("amount_as_int"))
+                .get("sum", 0)
+            )
             return base_score + boost_amount
         return False
 
     def get_boost_amount(self):
         purchases = self.purchases.filter(
-            paid_status=Purchase.PAID,
-            amount__gt=0,
-            boost_time__gt=0
+            paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
         )
         if purchases.exists():
-            boost_amount = purchases.annotate(
-                amount_as_int=Cast('amount', IntegerField())
-            ).aggregate(
-                sum=Sum('amount_as_int')
-            ).get('sum', 0)
+            boost_amount = (
+                purchases.annotate(amount_as_int=Cast("amount", IntegerField()))
+                .aggregate(sum=Sum("amount_as_int"))
+                .get("sum", 0)
+            )
             return boost_amount
         return 0
 
     def reset_cache(self, use_celery=True):
         if use_celery:
-            celery_paper_reset_cache.apply_async(
-                (self.id,),
-                priority=2
-            )
+            celery_paper_reset_cache.apply_async((self.id,), priority=2)
         else:
             celery_paper_reset_cache(self.id)
 
@@ -1051,11 +849,13 @@ class Paper(models.Model):
         csl_item = self.csl_item
         retrieved_csl = False
         if not csl_item:
-            fields = ['doi', 'url', 'pdf_url']
+            fields = ["doi", "url", "pdf_url"]
             for field in fields:
                 item = getattr(self, field)
+                if not item:
+                    continue
                 try:
-                    if field == 'doi':
+                    if field == "doi":
                         csl_item = get_doi_csl_item(item)
                     else:
                         csl_item = get_csl_item(item)
@@ -1083,7 +883,7 @@ class Paper(models.Model):
         if not best_openly_licensed_pdf:
             return None
 
-        license = best_openly_licensed_pdf.get('license', None)
+        license = best_openly_licensed_pdf.get("license", None)
         if save:
             self.pdf_license = license
             self.save()
@@ -1100,13 +900,13 @@ class Paper(models.Model):
 
 
 class MetadataRetrievalAttempt(models.Model):
-    CROSSREF_DOI = 'CROSSREF_DOI'
-    CROSSREF_QUERY = 'CROSSREF_QUERY'
-    MANUBOT_DOI = 'MANUBOT_DOI'
-    MANUBOT_PDF_URL = 'MANUBOT_PDF_URL'
-    MANUBOT_URL = 'MANUBOT_URL'
-    PARSE_PDF = 'PARSE_PDF'
-    PDF_FROM_URL = 'PDF_FROM_URL'
+    CROSSREF_DOI = "CROSSREF_DOI"
+    CROSSREF_QUERY = "CROSSREF_QUERY"
+    MANUBOT_DOI = "MANUBOT_DOI"
+    MANUBOT_PDF_URL = "MANUBOT_PDF_URL"
+    MANUBOT_URL = "MANUBOT_URL"
+    PARSE_PDF = "PARSE_PDF"
+    PDF_FROM_URL = "PDF_FROM_URL"
 
     METHOD_CHOICES = [
         (CROSSREF_DOI, CROSSREF_DOI),
@@ -1115,7 +915,7 @@ class MetadataRetrievalAttempt(models.Model):
         (MANUBOT_PDF_URL, MANUBOT_PDF_URL),
         (MANUBOT_URL, MANUBOT_URL),
         (PARSE_PDF, PARSE_PDF),
-        (PDF_FROM_URL, PDF_FROM_URL)
+        (PDF_FROM_URL, PDF_FROM_URL),
     ]
 
     POPULATE_METADATA_METHODS = {
@@ -1130,14 +930,9 @@ class MetadataRetrievalAttempt(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now_add=True)
     paper = models.ForeignKey(
-        Paper,
-        on_delete=models.CASCADE,
-        related_name='metadata_retrieval_attempts'
+        Paper, on_delete=models.CASCADE, related_name="metadata_retrieval_attempts"
     )
-    method = models.CharField(
-        choices=METHOD_CHOICES,
-        max_length=125
-    )
+    method = models.CharField(choices=METHOD_CHOICES, max_length=125)
 
     @classmethod
     def get_url_method_priority_list(cls, url):
@@ -1159,44 +954,29 @@ class MetadataRetrievalAttempt(models.Model):
 
 
 class Figure(models.Model):
-    FIGURE = 'FIGURE'
-    PREVIEW = 'PREVIEW'
-    FIGURE_TYPE_CHOICES = [
-        (FIGURE, 'Figure'),
-        (PREVIEW, 'Preview')
-    ]
+    FIGURE = "FIGURE"
+    PREVIEW = "PREVIEW"
+    FIGURE_TYPE_CHOICES = [(FIGURE, "Figure"), (PREVIEW, "Preview")]
 
-    CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS['PROGRESS']
-    CREATED_LOCATION_CHOICES = [
-        (CREATED_LOCATION_PROGRESS, 'Progress')
-    ]
+    CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS["PROGRESS"]
+    CREATED_LOCATION_CHOICES = [(CREATED_LOCATION_PROGRESS, "Progress")]
 
     file = models.FileField(
-        upload_to='uploads/figures/%Y/%m/%d',
-        default=None,
-        null=True,
-        blank=True
+        upload_to="uploads/figures/%Y/%m/%d", default=None, null=True, blank=True
     )
-    paper = models.ForeignKey(
-        Paper,
-        on_delete=models.CASCADE,
-        related_name='figures'
-    )
+    paper = models.ForeignKey(Paper, on_delete=models.CASCADE, related_name="figures")
     figure_type = models.CharField(choices=FIGURE_TYPE_CHOICES, max_length=16)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(
-        'user.User',
-        on_delete=models.SET_NULL,
-        related_name='figures',
-        null=True
+        "user.User", on_delete=models.SET_NULL, related_name="figures", null=True
     )
     created_location = models.CharField(
         choices=CREATED_LOCATION_CHOICES,
         max_length=255,
         default=None,
         null=True,
-        blank=True
+        blank=True,
     )
 
 
@@ -1204,20 +984,17 @@ class Vote(models.Model):
     UPVOTE = 1
     DOWNVOTE = 2
     VOTE_TYPE_CHOICES = [
-        (UPVOTE, 'Upvote'),
-        (DOWNVOTE, 'Downvote'),
+        (UPVOTE, "Upvote"),
+        (DOWNVOTE, "Downvote"),
     ]
     paper = models.ForeignKey(
-        Paper,
-        on_delete=models.CASCADE,
-        related_name='votes',
-        related_query_name='vote'
+        Paper, on_delete=models.CASCADE, related_name="votes", related_query_name="vote"
     )
     created_by = models.ForeignKey(
-        'user.User',
+        "user.User",
         on_delete=models.CASCADE,
-        related_name='paper_votes',
-        related_query_name='paper_vote'
+        related_name="paper_votes",
+        related_query_name="paper_vote",
     )
     created_date = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_date = models.DateTimeField(auto_now=True, db_index=True)
@@ -1227,27 +1004,23 @@ class Vote(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['paper', 'created_by'],
-                name='unique_paper_vote'
+                fields=["paper", "created_by"], name="unique_paper_vote"
             )
         ]
 
     def __str__(self):
-        return '{} - {}'.format(self.created_by, self.vote_type)
+        return "{} - {}".format(self.created_by, self.vote_type)
 
 
 class Flag(models.Model):
     paper = models.ForeignKey(
-        Paper,
-        on_delete=models.CASCADE,
-        related_name='flags',
-        related_query_name='flag'
+        Paper, on_delete=models.CASCADE, related_name="flags", related_query_name="flag"
     )
     created_by = models.ForeignKey(
-        'user.User',
+        "user.User",
         on_delete=models.CASCADE,
-        related_name='paper_flags',
-        related_query_name='paper_flag'
+        related_name="paper_flags",
+        related_query_name="paper_flag",
     )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -1256,8 +1029,7 @@ class Flag(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['paper', 'created_by'],
-                name='unique_paper_flag'
+                fields=["paper", "created_by"], name="unique_paper_flag"
             )
         ]
 
@@ -1265,39 +1037,127 @@ class Flag(models.Model):
 class AdditionalFile(models.Model):
     file = models.FileField(
         max_length=1024,
-        upload_to='uploads/paper_additional_files/%Y/%m/%d',
+        upload_to="uploads/paper_additional_files/%Y/%m/%d",
         default=None,
         null=True,
-        blank=True
+        blank=True,
     )
     paper = models.ForeignKey(
         Paper,
         on_delete=models.CASCADE,
-        related_name='additional_files',
-        related_query_name='additional_file'
+        related_name="additional_files",
+        related_query_name="additional_file",
     )
     created_by = models.ForeignKey(
-        'user.User',
+        "user.User",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='paper_additional_files',
-        related_query_name='paper_additional_file'
+        related_name="paper_additional_files",
+        related_query_name="paper_additional_file",
     )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
 
 class FeaturedPaper(models.Model):
-    paper = models.ForeignKey(
-        Paper,
-        on_delete=models.CASCADE,
-        related_name='featured'
-    )
+    paper = models.ForeignKey(Paper, on_delete=models.CASCADE, related_name="featured")
     user = models.ForeignKey(
-        'user.User',
-        on_delete=models.CASCADE,
-        related_name='featured_papers'
+        "user.User", on_delete=models.CASCADE, related_name="featured_papers"
     )
     ordinal = models.IntegerField(default=0)
     created_date = models.DateTimeField(auto_now_add=True)
+
+
+class PaperSubmission(DefaultModel):
+    COMPLETE = "COMPLETE"
+    INITIATED = "INITIATED"
+    FAILED = "FAILED"
+    FAILED_DUPLICATE = "FAILED_DUPLICATE"
+    FAILED_TIMEOUT = "FAILED_TIMEOUT"
+    FAILED_DOI = "FAILED_DOI"
+    PROCESSING = "PROCESSING"
+    PROCESSING_CROSSREF = "PROCESSING_CROSSREF"
+    PROCESSING_MANUBOT = "PROCESSING_MANUBOT"
+    PROCESSING_DOI = "PROCESSING_DOI"
+
+    PAPER_STATUS_CHOICES = [
+        (COMPLETE, COMPLETE),
+        (INITIATED, INITIATED),
+        (FAILED, FAILED),
+        (FAILED, FAILED_DUPLICATE),
+        (FAILED_TIMEOUT, FAILED_TIMEOUT),
+        (FAILED_DOI, FAILED_DOI),
+        (PROCESSING, PROCESSING),
+        (PROCESSING_CROSSREF, PROCESSING_CROSSREF),
+        (PROCESSING_MANUBOT, PROCESSING_MANUBOT),
+        (PROCESSING_DOI, PROCESSING_DOI),
+    ]
+    doi = models.CharField(
+        blank=True,
+        null=True,
+        max_length=255,
+    )
+    paper = models.OneToOneField(
+        Paper,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="submission",
+    )
+    paper_status = models.CharField(
+        choices=PAPER_STATUS_CHOICES, default=INITIATED, max_length=32
+    )
+    status_read = models.BooleanField(default=False)
+    url = models.URLField(blank=True, null=True, max_length=1024)
+    uploaded_by = models.ForeignKey(
+        "user.User",
+        related_name="paper_submissions",
+        on_delete=models.CASCADE,
+        help_text="""
+            RH User account that submitted this paper.
+            NOTE: user didnt necessarily had to be the author.
+        """,
+    )
+
+    def set_status(self, status, save=True):
+        self.paper_status = status
+        self.status_read = False
+        if save:
+            self.save()
+
+    def set_complete_status(self, save=True):
+        self.set_status(self.COMPLETE, save)
+
+    def set_processing_status(self, save=True):
+        self.set_status(self.PROCESSING, save)
+
+    def set_duplicate_status(self, save=True):
+        self.set_status(self.FAILED_DUPLICATE, save)
+
+    def set_manubot_status(self, save=True):
+        self.set_status(self.PROCESSING_MANUBOT, save)
+
+    def set_crossref_status(self, save=True):
+        self.set_status(self.PROCESSING_CROSSREF, save)
+
+    def set_processing_doi_status(self, save=True):
+        self.set_status(self.PROCESSING_DOI, save)
+
+    def set_failed_status(self, save=True):
+        self.set_status(self.FAILED, save)
+
+    def set_failed_timeout_status(self, save=True):
+        self.set_status(self.FAILED_TIMEOUT, save)
+
+    def set_failed_doi_status(self, save=True):
+        self.set_status(self.FAILED_DOI, save)
+
+    def notify_status(self, **kwargs):
+        user_id = self.uploaded_by.id
+        room = f"{user_id}_paper_submissions"
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            room,
+            {"type": "notify_paper_submission_status", "id": self.id, **kwargs},
+        )

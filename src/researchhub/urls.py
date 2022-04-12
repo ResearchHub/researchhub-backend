@@ -40,205 +40,167 @@ from user.views import editor_views
 router = routers.DefaultRouter()
 
 router.register(
-    r'new_feature_release',
+    r"new_feature_release",
     new_feature_release.views.NewFeatureViewSet,
-    basename='new_feature_release',
+    basename="new_feature_release",
 )
 
 # NOTE: calvinhlee - the way coments are handled is very inefficient. We need to refactor this
 router.register(
-    r'paper/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply',
+    r"paper/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
     discussion.views.ReplyViewSet,
-    basename='discussion_thread_comment_replies'
+    basename="discussion_thread_comment_replies",
 )
 
 router.register(
-    r'paper/([0-9]+)/discussion/([0-9]+)/comment',
+    r"paper/([0-9]+)/discussion/([0-9]+)/comment",
     discussion.views.CommentViewSet,
-    basename='discussion_thread_comments'
+    basename="discussion_thread_comments",
 )
 
 router.register(
-    r'paper/([0-9]+)/discussion',
+    r"paper/([0-9]+)/discussion",
     discussion.views.ThreadViewSet,
-    basename='discussion_threads'
+    basename="discussion_threads",
 )
 
 router.register(
-    r'post/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply',
+    r"post/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
     discussion.views.ReplyViewSet,
-    basename='post_discussion_thread_comment_replies'
+    basename="post_discussion_thread_comment_replies",
 )
 
 router.register(
-    r'post/([0-9]+)/discussion/([0-9]+)/comment',
+    r"post/([0-9]+)/discussion/([0-9]+)/comment",
     discussion.views.CommentViewSet,
-    basename='post_discussion_thread_comments'
+    basename="post_discussion_thread_comments",
 )
 
 router.register(
-    r'post/([0-9]+)/discussion',
+    r"post/([0-9]+)/discussion",
     discussion.views.ThreadViewSet,
-    basename='post_discussion_threads'
+    basename="post_discussion_threads",
 )
 
 router.register(
-    r'hypothesis/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply',
+    r"hypothesis/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
     discussion.views.ReplyViewSet,
-    basename='hypothesis_discussion_thread_comment_replies'
+    basename="hypothesis_discussion_thread_comment_replies",
 )
 
 router.register(
-    r'hypothesis/([0-9]+)/discussion/([0-9]+)/comment',
+    r"hypothesis/([0-9]+)/discussion/([0-9]+)/comment",
     discussion.views.CommentViewSet,
-    basename='hypothesis_discussion_thread_comments'
+    basename="hypothesis_discussion_thread_comments",
 )
 
 router.register(
-    r'hypothesis/([0-9]+)/discussion',
+    r"hypothesis/([0-9]+)/discussion",
     discussion.views.ThreadViewSet,
-    basename='hypothesis_discussion_threads'
+    basename="hypothesis_discussion_threads",
 )
 
 router.register(
-    r'citation/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply',
+    r"citation/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
     discussion.views.ReplyViewSet,
-    basename='citation_discussion_thread_comment_replies'
+    basename="citation_discussion_thread_comment_replies",
 )
 
 router.register(
-    r'citation/([0-9]+)/discussion/([0-9]+)/comment',
+    r"citation/([0-9]+)/discussion/([0-9]+)/comment",
     discussion.views.CommentViewSet,
-    basename='citation_discussion_thread_comments'
+    basename="citation_discussion_thread_comments",
 )
 
 router.register(
-    r'citation/([0-9]+)/discussion',
+    r"citation/([0-9]+)/discussion",
     discussion.views.ThreadViewSet,
-    basename='citation_discussion_threads'
+    basename="citation_discussion_threads",
 )
 
 
 router.register(
-    r'paper/discussion/file',
+    r"paper/discussion/file",
     discussion.views.CommentFileUpload,
-    basename='discussion_file_upload'
+    basename="discussion_file_upload",
 )
 
 
 router.register(
-    r'paper/([0-9]+)/bullet_point',
+    r"paper/([0-9]+)/bullet_point",
     bullet_point.views.BulletPointViewSet,
-    basename='bullet_points'
+    basename="bullet_points",
 )
 
 router.register(
-    r'paper/featured_papers',
+    r"paper/featured_papers",
     paper.views.FeaturedPaperViewSet,
-    basename='featured_papers'
+    basename="featured_papers",
 )
 
 router.register(
-    r'paper/([0-9]+)/additional_file',
+    r"paper/([0-9]+)/additional_file",
     paper.views.AdditionalFileViewSet,
-    basename='additional_files'
+    basename="additional_files",
+)
+
+router.register(r"paper", paper.views.PaperViewSet, basename="paper")
+
+router.register(
+    r"paper_submission",
+    paper.views.PaperSubmissionViewSet,
+    basename="paper_submission",
+)
+
+router.register(r"author", user.views.AuthorViewSet, basename="author")
+
+router.register(
+    r"bullet_point", bullet_point.views.BulletPointViewSet, basename="bullet_point"
+)
+
+router.register(r"summary", summary.views.SummaryViewSet, basename="summary")
+
+router.register(r"hub", hub.views.HubViewSet, basename="hub")
+
+router.register(r"hub_category", hub.views.HubCategoryViewSet, basename="hub_category")
+
+router.register(r"university", user.views.UniversityViewSet, basename="university")
+
+router.register(r"major", user.views.MajorViewSet, basename="major")
+
+router.register(
+    r"organization", user.views.OrganizationViewSet, basename="organization"
 )
 
 router.register(
-    r'paper',
-    paper.views.PaperViewSet,
-    basename='paper'
-)
-
-router.register(
-    r'author',
-    user.views.AuthorViewSet,
-    basename='author'
-)
-
-router.register(
-    r'bullet_point',
-    bullet_point.views.BulletPointViewSet,
-    basename='bullet_point'
-)
-
-router.register(
-    r'summary',
-    summary.views.SummaryViewSet,
-    basename='summary'
-)
-
-router.register(
-    r'hub',
-    hub.views.HubViewSet,
-    basename='hub'
-)
-
-router.register(
-    r'hub_category',
-    hub.views.HubCategoryViewSet,
-    basename='hub_category'
-)
-
-router.register(
-    r'university',
-    user.views.UniversityViewSet,
-    basename='university'
-)
-
-router.register(
-    r'major',
-    user.views.MajorViewSet,
-    basename='major'
-)
-
-router.register(
-    r'organization',
-    user.views.OrganizationViewSet,
-    basename='organization'
-)
-
-router.register(
-    r'email_recipient',
+    r"email_recipient",
     mailing_list.views.EmailRecipientViewSet,
-    basename='email_recipient'
+    basename="email_recipient",
 )
 
 router.register(
-    r'notification',
-    notification.views.NotificationViewSet,
-    basename='notification'
+    r"notification", notification.views.NotificationViewSet, basename="notification"
 )
 
-router.register(
-    r'figure',
-    paper.views.FigureViewSet,
-    basename='figure'
-)
+router.register(r"figure", paper.views.FigureViewSet, basename="figure")
 
 router.register(
-    r'analytics/websiteviews',
+    r"analytics/websiteviews",
     analytics.views.WebsiteVisitsViewSet,
-    basename='websiteviews'
+    basename="websiteviews",
 )
 
 router.register(
-    r'events/paper',
-    analytics.views.PaperEventViewSet,
-    basename='events_paper'
+    r"events/paper", analytics.views.PaperEventViewSet, basename="events_paper"
 )
 
 router.register(
-    r'events/amplitude/forward_event',
+    r"events/amplitude/forward_event",
     analytics.views.AmplitudeViewSet,
-    basename='events_amplitude'
+    basename="events_amplitude",
 )
 
-router.register(
-    r'purchase',
-    purchase.views.PurchaseViewSet,
-    basename='purchase'
-)
+router.register(r"purchase", purchase.views.PurchaseViewSet, basename="purchase")
 
 
 # Deprecated endpoints
@@ -255,85 +217,59 @@ router.register(
 #     basename='stripe'
 # )
 
-router.register(
-    r'transactions',
-    purchase.views.BalanceViewSet,
-    basename="transactions"
-)
+router.register(r"transactions", purchase.views.BalanceViewSet, basename="transactions")
 
-router.register(r'user', user.views.UserViewSet)
+router.register(r"user", user.views.UserViewSet)
 
-router.register(r'withdrawal', reputation.views.WithdrawalViewSet)
+router.register(r"withdrawal", reputation.views.WithdrawalViewSet)
 
-router.register(r'deposit', reputation.views.DepositViewSet)
+router.register(r"deposit", reputation.views.DepositViewSet)
 
-router.register(r'user_verification', user.views.VerificationViewSet)
+router.register(r"user_verification", user.views.VerificationViewSet)
 
 router.register(
-    r'author_claim_case',
+    r"author_claim_case",
     researchhub_case_views.AuthorClaimCaseViewSet,
-    basename='author_claim_case'
+    basename="author_claim_case",
 )
 
 router.register(
-    r'researchhub_posts',
+    r"researchhub_posts",
     researchhub_document_views.ResearchhubPostViewSet,
-    basename='researchhub_posts'
+    basename="researchhub_posts",
 )
 
 router.register(
-    r'researchhub_unified_documents',
+    r"researchhub_unified_documents",
     researchhub_document_views.ResearchhubUnifiedDocumentViewSet,
-    basename='researchhub_unified_documents',
+    basename="researchhub_unified_documents",
 )
 
 router.register(
-    r'hypothesis',
-    hypothesis_views.HypothesisViewSet,
-    basename='hypothesis'
+    r"hypothesis", hypothesis_views.HypothesisViewSet, basename="hypothesis"
+)
+
+router.register(r"citation", hypothesis_views.CitationViewSet, basename="citations")
+
+router.register(r"note", note_views.NoteViewSet, basename="notes")
+
+router.register(r"note_content", note_views.NoteContentViewSet, basename="note_content")
+
+router.register(
+    r"note_template", note_views.NoteTemplateViewSet, basename="note_template"
 )
 
 router.register(
-    r'citation',
-    hypothesis_views.CitationViewSet,
-    basename='citations'
-)
-
-router.register(
-    r'note',
-    note_views.NoteViewSet,
-    basename='notes'
-)
-
-router.register(
-    r'note_content',
-    note_views.NoteContentViewSet,
-    basename='note_content'
-)
-
-router.register(
-    r'note_template',
-    note_views.NoteTemplateViewSet,
-    basename='note_template'
-)
-
-router.register(
-    r'invite/organization',
+    r"invite/organization",
     invite_views.OrganizationInvitationViewSet,
-    basename='organization_invite'
+    basename="organization_invite",
 )
 
 router.register(
-    r'invite/note',
-    invite_views.NoteInvitationViewSet,
-    basename='note_invite'
+    r"invite/note", invite_views.NoteInvitationViewSet, basename="note_invite"
 )
 
-router.register(
-    r'gatekeeper',
-    GatekeeperViewSet,
-    basename='gatekeeper'
-)
+router.register(r"gatekeeper", GatekeeperViewSet, basename="gatekeeper")
 
 router.register(
     r'peer_reviews',
@@ -348,80 +284,60 @@ router.register(
 )
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    re_path(r'^api/', include(router.urls)),
-    path('api/events/forward_event/', google_analytics.views.forward_event),
+    path("admin/", admin.site.urls),
+    re_path(r"^api/", include(router.urls)),
+    path("api/events/forward_event/", google_analytics.views.forward_event),
     # TODO: calvinhlee - consolidate all mod views into 1 set
+    path("api/get_hub_active_contributors/", editor_views.get_hub_active_contributors),
     path(
-        'api/get_hub_active_contributors/',
-        editor_views.get_hub_active_contributors
+        "api/moderators/get_editors_by_contributions/",
+        editor_views.get_editors_by_contributions,
     ),
+    path("api/reputation/distribute_rsc/", reputation.views.distribute_rsc),
+    path("api/permissions/", researchhub.views.permissions, name="permissions"),
+    path("api/search/", include(search.urls)),
+    path("api/auth/orcid/connect/", oauth.views.orcid_connect, name="orcid_login"),
     path(
-        'api/moderators/get_editors_by_contributions/',
-        editor_views.get_editors_by_contributions
-    ),
-    path(
-        'api/reputation/distribute_rsc/',
-        reputation.views.distribute_rsc
-    ),
-    path(
-        'api/permissions/',
-        researchhub.views.permissions,
-        name='permissions'
-    ),
-    path('api/search/', include(search.urls)),
-    path(
-        'api/auth/orcid/connect/',
-        oauth.views.orcid_connect,
-        name='orcid_login'
-    ),
-    path(
-        'api/auth/orcid/login/callback/',
+        "api/auth/orcid/login/callback/",
         oauth.views.orcid_callback,
-        name='orcid_callback'
+        name="orcid_callback",
     ),
     path(
-        'auth/google/yolo/callback/',
+        "auth/google/yolo/callback/",
         oauth.views.google_yolo_callback,
-        name='google_yolo_callback'
+        name="google_yolo_callback",
     ),
     path(
-        'api/auth/google/yolo/',
+        "api/auth/google/yolo/",
         oauth.views.GoogleYoloLogin.as_view(),
-        name='google_yolo'
+        name="google_yolo",
     ),
     path(
-        'auth/google/login/callback/',
+        "auth/google/login/callback/",
         oauth.views.google_callback,
-        name='google_callback'
+        name="google_callback",
     ),
+    path("api/auth/captcha_verify/", oauth.views.captcha_verify, name="captcha_verify"),
     path(
-        'api/auth/captcha_verify/',
-        oauth.views.captcha_verify,
-        name='captcha_verify'
+        "api/auth/google/login/", oauth.views.GoogleLogin.as_view(), name="google_login"
     ),
+    path(r"api/auth/", include("dj_rest_auth.urls")),
+    re_path(r"^auth/signup/", include(oauth.urls.registration_urls)),
+    re_path(r"^auth/", include(oauth.urls.default_urls)),
     path(
-        'api/auth/google/login/',
-        oauth.views.GoogleLogin.as_view(),
-        name='google_login'
+        "api/ckeditor/webhook/document_removed/",
+        note_views.note_view.ckeditor_webhook_document_removed,
     ),
-    path(r'api/auth/', include('dj_rest_auth.urls')),
-    re_path(r'^auth/signup/', include(oauth.urls.registration_urls)),
-    re_path(r'^auth/', include(oauth.urls.default_urls)),
-    path(
-        'api/ckeditor/webhook/document_removed/',
-        note_views.note_view.ckeditor_webhook_document_removed
-    ),
-    path('api/ckeditor/token/', note_views.note_view.ckeditor_token),
-    path('email_notifications/', mailing_list.views.email_notifications),
-    path('health/', researchhub.views.healthcheck),
-    path('', researchhub.views.index, name='index'),
+    path("api/ckeditor/token/", note_views.note_view.ckeditor_token),
+    path("email_notifications/", mailing_list.views.email_notifications),
+    path("health/", researchhub.views.healthcheck),
+    path("", researchhub.views.index, name="index"),
 ]
 
-if 'silk' in INSTALLED_APPS:
+if "silk" in INSTALLED_APPS:
     urlpatterns = [
-        path('silk/', include('silk.urls', namespace='silk')),
+        path("silk/", include("silk.urls", namespace="silk")),
     ] + urlpatterns
 
 if USE_DEBUG_TOOLBAR:
-    urlpatterns += [path('__debug__/', include(debug_toolbar.urls))]
+    urlpatterns += [path("__debug__/", include(debug_toolbar.urls))]

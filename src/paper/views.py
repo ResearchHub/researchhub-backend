@@ -1,129 +1,118 @@
-import json
-import datetime
 import base64
+import datetime
+import json
+from urllib.parse import urlparse
 
+import requests
 from django.core.cache import cache
-from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
 from django.core.validators import URLValidator
 from django.db import IntegrityError
-from django.db.models import (
-    Count,
-    Q,
-    Prefetch,
-    F,
-    Sum,
-    Value,
-    IntegerField
-)
-from django.db.models.functions import (
-    Coalesce,
-    Cast
-)
+from django.db.models import Count, F, IntegerField, Prefetch, Q, Sum, Value
+from django.db.models.functions import Cast, Coalesce
 from django_filters.rest_framework import DjangoFilterBackend
-from django.contrib.postgres.search import TrigramSimilarity
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.pagination import LimitOffsetPagination
-from rest_framework.utils.urls import replace_query_param
 from rest_framework.permissions import (
+    AllowAny,
+    IsAuthenticated,
     IsAuthenticatedOrReadOnly,
-    IsAuthenticated
 )
 from rest_framework.response import Response
+from rest_framework.utils.urls import replace_query_param
 
-from bullet_point.models import BulletPoint
 from google_analytics.signals import get_event_hit_response
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import (
     AdditionalFile,
+    FeaturedPaper,
     Figure,
     Flag,
     Paper,
+    PaperSubmission,
     Vote,
-    FeaturedPaper
 )
-from paper.tasks import censored_paper_cleanup
 from paper.permissions import (
     CreatePaper,
-    UpdateOrDeleteAdditionalFile,
+    DownvotePaper,
     FlagPaper,
     IsAuthor,
     IsModeratorOrVerifiedAuthor,
+    UpdateOrDeleteAdditionalFile,
     UpdatePaper,
     UpvotePaper,
-    DownvotePaper
 )
 from paper.serializers import (
     AdditionalFileSerializer,
     BookmarkSerializer,
-    HubPaperSerializer,
-    FlagSerializer,
-    FigureSerializer,
-    PaperSerializer,
     DynamicPaperSerializer,
-    PaperReferenceSerializer,
-    PaperVoteSerializer,
     FeaturedPaperSerializer,
+    FigureSerializer,
+    FlagSerializer,
+    HubPaperSerializer,
+    PaperReferenceSerializer,
+    PaperSerializer,
+    PaperSubmissionSerializer,
+    PaperVoteSerializer,
 )
+from paper.tasks import celery_process_paper, censored_paper_cleanup
 from paper.utils import (
+    add_default_hub,
     clean_abstract,
+    get_cache_key,
     get_csl_item,
     get_pdf_location_for_csl_item,
-    get_cache_key,
-    add_default_hub
 )
 from purchase.models import Purchase
-from researchhub.lib import get_document_id_from_path
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
+from researchhub.lib import get_document_id_from_path
 from researchhub_document.permissions import HasDocumentCensorPermission
-from researchhub_document.views.custom.unified_document_pagination import UNIFIED_DOC_PAGE_SIZE
-from user.models import Author
-from utils.http import GET, POST, check_url_contains_pdf
-from utils.sentry import log_error, log_info
-from utils.permissions import CreateOrUpdateIfAllowed
-from utils.throttles import THROTTLE_CLASSES
-from utils.siftscience import events_api, decisions_api
-from rest_framework.permissions import AllowAny
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
-    TRENDING,
     NEWEST,
-    TOP
+    TOP,
+    TRENDING,
 )
-from researchhub_document.utils import (
-    reset_unified_document_cache,
+from researchhub_document.utils import reset_unified_document_cache
+from researchhub_document.views.custom.unified_document_pagination import (
+    UNIFIED_DOC_PAGE_SIZE,
 )
+from user.models import Author
+from utils.http import GET, POST, check_url_contains_pdf
+from utils.permissions import CreateOnly, CreateOrUpdateIfAllowed
+from utils.sentry import log_error, log_info
+from utils.siftscience import decisions_api, events_api
+from utils.throttles import THROTTLE_CLASSES
+
 
 class PaperViewSet(viewsets.ModelViewSet):
     queryset = Paper.objects.filter()
     serializer_class = PaperSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
-    search_fields = ('title', 'doi', 'paper_title')
+    search_fields = ("title", "doi", "paper_title")
     filter_class = PaperFilter
     throttle_classes = THROTTLE_CLASSES
-    ordering = ('-uploaded_date')
+    ordering = "-uploaded_date"
 
     permission_classes = [
-        IsAuthenticatedOrReadOnly
-        & CreatePaper
-        & UpdatePaper
-        & CreateOrUpdateIfAllowed
+        IsAuthenticatedOrReadOnly & CreatePaper & UpdatePaper & CreateOrUpdateIfAllowed
     ]
 
     def prefetch_lookups(self):
         return (
-            'uploaded_by',
-            'uploaded_by__bookmarks',
-            'uploaded_by__author_profile',
-            'uploaded_by__author_profile__user',
-            'uploaded_by__subscribed_hubs',
-            'authors',
-            'authors__user',
+            "uploaded_by",
+            "uploaded_by__bookmarks",
+            "uploaded_by__author_profile",
+            "uploaded_by__author_profile__user",
+            "uploaded_by__subscribed_hubs",
+            "authors",
+            "authors__user",
             # Prefetch(
             #     'bullet_points',
             #     queryset=BulletPoint.objects.filter(
@@ -138,56 +127,56 @@ class PaperViewSet(viewsets.ModelViewSet):
             # 'summary__proposed_by__subscribed_hubs',
             # 'summary__proposed_by__author_profile',
             # 'summary__paper',
-            'moderators',
-            'hubs',
-            'hubs__subscribers',
-            'votes',
-            'flags',
-            'purchases',
-            'threads',
-            'threads__comments',
+            "moderators",
+            "hubs",
+            "hubs__subscribers",
+            "votes",
+            "flags",
+            "purchases",
+            "threads",
+            "threads__comments",
             Prefetch(
-                'figures',
-                queryset=Figure.objects.filter(
-                    figure_type=Figure.FIGURE
-                ).order_by(
-                    'created_date'
+                "figures",
+                queryset=Figure.objects.filter(figure_type=Figure.FIGURE).order_by(
+                    "created_date"
                 ),
-                to_attr='figure_list',
+                to_attr="figure_list",
             ),
             Prefetch(
-                'figures',
-                queryset=Figure.objects.filter(
-                    figure_type=Figure.PREVIEW
-                ).order_by(
-                    'created_date'
+                "figures",
+                queryset=Figure.objects.filter(figure_type=Figure.PREVIEW).order_by(
+                    "created_date"
                 ),
-                to_attr='preview_list',
+                to_attr="preview_list",
             ),
             Prefetch(
-                'votes',
+                "votes",
                 queryset=Vote.objects.filter(
                     created_by=self.request.user.id,
                 ),
-                to_attr='vote_created_by',
+                to_attr="vote_created_by",
             ),
             Prefetch(
-                'flags',
+                "flags",
                 queryset=Flag.objects.filter(
                     created_by=self.request.user.id,
                 ),
-                to_attr='flag_created_by',
+                to_attr="flag_created_by",
             ),
         )
 
     def get_queryset(self, prefetch=True, include_autopull=False):
         query_params = self.request.query_params
         queryset = self.queryset
-        ordering = query_params.get('ordering', None)
-        external_source = query_params.get('external_source', False)
+        ordering = query_params.get("ordering", None)
+        external_source = query_params.get("external_source", False)
         # queryset = queryset.filter(pdf_license__isnull=False)
 
-        if query_params.get('make_public') or query_params.get('all') or (ordering and 'removed' in ordering):
+        if (
+            query_params.get("make_public")
+            or query_params.get("all")
+            or (ordering and "removed" in ordering)
+        ):
             pass
         else:
             queryset = queryset.filter(is_removed=False)
@@ -201,19 +190,26 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         if not user.is_anonymous and user.moderator and external_source:
             queryset = queryset.filter(
-                is_removed=False,
-                retrieved_from_external_source=True
+                is_removed=False, retrieved_from_external_source=True
             )
         if prefetch:
-            return queryset.prefetch_related(
-                *self.prefetch_lookups()
-            )
+            return queryset.prefetch_related(*self.prefetch_lookups())
         else:
             return queryset
 
-    def create(self, *args, **kwargs):
+    def create(self, request, *args, **kwargs):
         try:
-            response = super().create(*args, **kwargs)
+            doi = request.data.get("doi", "")
+            duplicate_papers = Paper.objects.filter(doi=doi)
+            if duplicate_papers:
+                serializer = DynamicPaperSerializer(
+                    duplicate_papers[:1],
+                    _include_fields=["doi", "id", "title", "url"],
+                    many=True,
+                )
+                duplicate_data = {"data": serializer.data}
+                return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
+            response = super().create(request, *args, **kwargs)
             return response
         except IntegrityError as e:
             return self._get_integrity_error_response(e)
@@ -222,49 +218,41 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def _get_integrity_error_response(self, error):
         error_message = str(error)
-        parts = error_message.split('DETAIL:')
+        parts = error_message.split("DETAIL:")
         try:
             error_message = parts[1].strip()
-            if 'url' in error_message:
-                error_message = 'A paper with this url already exists.'
-            if 'doi' in error_message:
-                error_message = 'A paper with this DOI already exists.'
-            if 'DOI' in error_message:
-                error_message = 'Invalid DOI'
+            if "url" in error_message:
+                error_message = "A paper with this url already exists."
+            if "doi" in error_message:
+                error_message = "A paper with this DOI already exists."
+            if "DOI" in error_message:
+                error_message = "Invalid DOI"
         except IndexError:
-            error_message = 'A paper with this url or DOI already exists.'
-        return Response(
-            {'error': error_message},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+            error_message = "A paper with this url or DOI already exists."
+        return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        context = {
-            'request': request,
-            'get_raw_author_scores': True
-        }
-        cache_key = get_cache_key('paper', instance.id)
+        context = {"request": request, "get_raw_author_scores": True}
+        cache_key = get_cache_key("paper", instance.id)
         cache_hit = cache.get(cache_key)
         if cache_hit is not None:
-            vote = self.serializer_class(
-                context=context
-            ).get_user_vote(instance)
-            cache_hit['user_vote'] = vote
+            vote = self.serializer_class(context=context).get_user_vote(instance)
+            cache_hit["user_vote"] = vote
             return Response(cache_hit)
 
-        if request.query_params.get('make_public') and not instance.is_public:
+        if request.query_params.get("make_public") and not instance.is_public:
             instance.is_public = True
             instance.save()
         serializer = self.serializer_class(instance, context=context)
         serializer_data = serializer.data
 
-        cache.set(cache_key, serializer_data, timeout=60*60*24*7)
+        cache.set(cache_key, serializer_data, timeout=60 * 60 * 24 * 7)
         return Response(serializer_data)
 
     def list(self, request, *args, **kwargs):
         default_pagination_class = self.pagination_class
-        if request.query_params.get('limit'):
+        if request.query_params.get("limit"):
             self.pagination_class = LimitOffsetPagination
         else:
             self.pagination_class = default_pagination_class
@@ -277,9 +265,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         # file created location when a file is actually being added and not
         # just any updates to the paper
         created_location = None
-        if request.query_params.get('created_location') == 'progress':
+        if request.query_params.get("created_location") == "progress":
             created_location = Paper.CREATED_LOCATION_PROGRESS
-            request.data['file_created_location'] = created_location
+            request.data["file_created_location"] = created_location
 
         response = super().update(request, *args, **kwargs)
 
@@ -292,9 +280,9 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def _send_created_location_ga_event(self, instance, user):
         created = True
-        category = 'Paper'
-        label = 'Pdf from Progress'
-        action = 'Upload'
+        category = "Paper"
+        label = "Pdf from Progress"
+        action = "Upload"
         user_id = user.id
         paper_id = instance.id
         date = instance.updated_date
@@ -307,41 +295,32 @@ class PaperViewSet(viewsets.ModelViewSet):
             action=action,
             user_id=user_id,
             paper_id=paper_id,
-            date=date
+            date=date,
         )
 
     @action(
         detail=True,
-        methods=['put', 'patch', 'delete'],
-        permission_classes=[HasDocumentCensorPermission]
+        methods=["put", "patch", "delete"],
+        permission_classes=[HasDocumentCensorPermission],
     )
     def censor(self, request, pk=None):
         paper = self.get_object()
         paper_id = paper.id
         unified_doc = paper.unified_document
-        cache_key = get_cache_key('paper', paper_id)
+        cache_key = get_cache_key("paper", paper_id)
         cache.delete(cache_key)
-        hub_ids = list(paper.hubs.values_list('id', flat=True))
+        hub_ids = list(paper.hubs.values_list("id", flat=True))
 
-        content_id = f'{type(paper).__name__}_{paper_id}'
+        content_id = f"{type(paper).__name__}_{paper_id}"
         user = request.user
         content_creator = paper.uploaded_by
         if content_creator:
-            events_api.track_flag_content(
-                content_creator,
-                content_id,
-                user.id
-            )
+            events_api.track_flag_content(content_creator, content_id, user.id)
             decisions_api.apply_bad_content_decision(
-                content_creator,
-                content_id,
-                'MANUAL_REVIEW',
-                user
+                content_creator, content_id, "MANUAL_REVIEW", user
             )
             decisions_api.apply_bad_user_decision(
-                content_creator,
-                'MANUAL_REVIEW',
-                user
+                content_creator, "MANUAL_REVIEW", user
             )
 
         Contribution.objects.filter(unified_document=unified_doc).delete()
@@ -356,71 +335,67 @@ class PaperViewSet(viewsets.ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             filters=[TRENDING, TOP, DISCUSSED, NEWEST],
-            document_type=['all', 'paper'],
+            document_type=["all", "paper"],
             with_default_hub=True,
         )
 
-        return Response('Paper was deleted.', status=200)
+        return Response("Paper was deleted.", status=200)
 
     @action(
         detail=True,
-        methods=['put', 'patch', 'delete'],
-        permission_classes=[HasDocumentCensorPermission]
+        methods=["put", "patch", "delete"],
+        permission_classes=[HasDocumentCensorPermission],
     )
     def censor_paper(self, request, pk=None):
         paper = None
         try:
             paper = self.get_object()
         except Exception:
-            paper = Paper.objects.get(id=request.data['id'])
+            paper = Paper.objects.get(id=request.data["id"])
             pass
         paper.is_removed = True
         paper.save()
         paper.reset_cache(use_celery=False)
 
-        hub_ids = paper.hubs.values_list('id', flat=True)
+        hub_ids = paper.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
             hub_ids,
             filters=[TRENDING, TOP, DISCUSSED, NEWEST],
-            document_type=['all', 'paper'],
+            document_type=["all", "paper"],
             with_default_hub=True,
         )
-        return Response(
-            self.get_serializer(instance=paper).data,
-            status=200
-        )
+        return Response(self.get_serializer(instance=paper).data, status=200)
+        return Response(self.get_serializer(instance=paper).data, status=200)
 
     @action(
         detail=True,
-        methods=['put', 'patch', 'delete'],
-        permission_classes=[HasDocumentCensorPermission]
+        methods=["put", "patch", "delete"],
+        permission_classes=[HasDocumentCensorPermission],
     )
     def restore_paper(self, request, pk=None):
         paper = None
         try:
             paper = self.get_object()
         except Exception:
-            paper = Paper.objects.get(id=request.data['id'])
+            paper = Paper.objects.get(id=request.data["id"])
             pass
         paper.is_removed = False
         paper.save()
         paper.reset_cache(use_celery=False)
 
-        hub_ids = paper.hubs.values_list('id', flat=True)
+        hub_ids = paper.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
             hub_ids,
             filters=[TRENDING, TOP, DISCUSSED, NEWEST],
-            document_type=['all', 'paper'],
+            document_type=["all", "paper"],
         )
-        return Response(
-            self.get_serializer(instance=paper).data,
-            status=200
-        )
+        return Response(self.get_serializer(instance=paper).data, status=200)
+        return Response(self.get_serializer(instance=paper).data, status=200)
 
     @action(
         detail=True,
-        methods=['put', 'patch', 'delete'],
-        permission_classes=[HasDocumentCensorPermission]
+        methods=["put", "patch", "delete"],
+        permission_classes=[HasDocumentCensorPermission],
     )
     def censor_pdf(self, request, pk=None):
         paper = self.get_object()
@@ -431,44 +406,28 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper.figures.all().delete()
         paper.save()
 
-        content_id = f'{type(paper).__name__}_{paper_id}'
+        content_id = f"{type(paper).__name__}_{paper_id}"
         user = request.user
         content_creator = paper.uploaded_by
-        events_api.track_flag_content(
-            content_creator,
-            content_id,
-            user.id
-        )
+        events_api.track_flag_content(content_creator, content_id, user.id)
         decisions_api.apply_bad_content_decision(
-            content_creator,
-            content_id,
-            'MANUAL_REVIEW',
-            user
+            content_creator, content_id, "MANUAL_REVIEW", user
         )
-        decisions_api.apply_bad_user_decision(
-            content_creator,
-            'MANUAL_REVIEW',
-            user
-        )
+        decisions_api.apply_bad_user_decision(content_creator, "MANUAL_REVIEW", user)
 
-        hub_ids = list(paper.hubs.values_list('id', flat=True))
+        hub_ids = list(paper.hubs.values_list("id", flat=True))
         hub_ids = add_default_hub(hub_ids)
 
         paper.reset_cache(use_celery=False)
-        return Response(
-            self.get_serializer(instance=paper).data,
-            status=200
-        )
+        return Response(self.get_serializer(instance=paper).data, status=200)
 
     @action(
-        detail=True,
-        methods=['post', 'put', 'patch'],
-        permission_classes=[IsAuthor]
+        detail=True, methods=["post", "put", "patch"], permission_classes=[IsAuthor]
     )
     def assign_moderator(self, request, pk=None):
-        '''Assign users as paper moderators'''
+        """Assign users as paper moderators"""
         paper = self.get_object()
-        moderators = request.data.get('moderators')
+        moderators = request.data.get("moderators")
         if not isinstance(moderators, list):
             moderators = [moderators]
         paper.moderators.add(*moderators)
@@ -477,25 +436,21 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=['post'],
-        permission_classes=[
-            IsAuthenticatedOrReadOnly
-            & CreateOrUpdateIfAllowed
-        ]
+        methods=["post"],
+        permission_classes=[IsAuthenticatedOrReadOnly & CreateOrUpdateIfAllowed],
     )
     def bookmark(self, request, pk=None):
         paper = self.get_object()
         user = request.user
 
         if paper in user.bookmarks.all():
-            return Response('Bookmark already added', status=400)
+            return Response("Bookmark already added", status=400)
         else:
             user.bookmarks.add(paper)
             user.save()
-            serialized = BookmarkSerializer({
-                'user': user.id,
-                'bookmarks': user.bookmarks.all()
-            })
+            serialized = BookmarkSerializer(
+                {"user": user.id, "bookmarks": user.bookmarks.all()}
+            )
             return Response(serialized.data, status=201)
 
     @bookmark.mapping.delete
@@ -509,49 +464,34 @@ class PaperViewSet(viewsets.ModelViewSet):
             return Response(paper.id, status=200)
         except Exception as e:
             print(e)
-            return Response(
-                f'Failed to remove {paper.id} from bookmarks',
-                status=400
-            )
+            return Response(f"Failed to remove {paper.id} from bookmarks", status=400)
 
     @action(
         detail=True,
-        methods=['post'],
+        methods=["post"],
         permission_classes=[
-            FlagPaper
-            & CreateOrUpdateIfAllowed
-        ]  # Also applies to delete_flag below
+            FlagPaper & CreateOrUpdateIfAllowed
+        ],  # Also applies to delete_flag below
     )
     def flag(self, request, pk=None):
         paper = self.get_object()
-        reason = request.data.get('reason')
+        reason = request.data.get("reason")
         referrer = request.user
-        flag = Flag.objects.create(
-            paper=paper,
-            created_by=referrer,
-            reason=reason
-        )
+        flag = Flag.objects.create(paper=paper, created_by=referrer, reason=reason)
 
-        content_id = f'{type(paper).__name__}_{paper.id}'
-        events_api.track_flag_content(
-            paper.uploaded_by,
-            content_id,
-            referrer.id
-        )
+        content_id = f"{type(paper).__name__}_{paper.id}"
+        events_api.track_flag_content(paper.uploaded_by, content_id, referrer.id)
         return Response(FlagSerializer(flag).data, status=201)
 
     @flag.mapping.delete
     def delete_flag(self, request, pk=None):
         try:
-            flag = Flag.objects.get(
-                paper=pk,
-                created_by=request.user.id
-            )
+            flag = Flag.objects.get(paper=pk, created_by=request.user.id)
             flag_id = flag.id
             flag.delete()
             return Response(flag_id, status=200)
         except Exception as e:
-            return Response(f'Failed to delete flag: {e}', status=400)
+            return Response(f"Failed to delete flag: {e}", status=400)
 
     @action(detail=True, methods=[GET])
     def referenced_by(self, request, pk=None):
@@ -577,7 +517,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=["get"])
     def user_vote(self, request, pk=None):
         paper = self.get_object()
         user = request.user
@@ -594,19 +534,16 @@ class PaperViewSet(viewsets.ModelViewSet):
             vote.delete()
             return Response(vote_id, status=200)
         except Exception as e:
-            return Response(f'Failed to delete vote: {e}', status=400)
+            return Response(f"Failed to delete vote: {e}", status=400)
 
     @action(
         detail=True,
-        methods=['post', 'put', 'patch'],
-        permission_classes=[
-            UpvotePaper
-            & CreateOrUpdateIfAllowed
-        ]
+        methods=["post", "put", "patch"],
+        permission_classes=[UpvotePaper & CreateOrUpdateIfAllowed],
     )
     def upvote(self, request, pk=None):
         paper = self.get_object()
-        hub_ids = list(paper.hubs.values_list('id', flat=True))
+        hub_ids = list(paper.hubs.values_list("id", flat=True))
         hub_ids = add_default_hub(hub_ids)
         user = request.user
 
@@ -614,15 +551,14 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         if vote_exists:
             return Response(
-                'This vote already exists',
-                status=status.HTTP_400_BAD_REQUEST
+                "This vote already exists", status=status.HTTP_400_BAD_REQUEST
             )
         response = update_or_create_vote(request, user, paper, Vote.UPVOTE)
 
         reset_unified_document_cache(
             hub_ids,
             filters=[TRENDING, TOP],
-            document_type=['all', 'paper'],
+            document_type=["all", "paper"],
         )
         paper.reset_cache()
 
@@ -630,30 +566,26 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=['post', 'put', 'patch'],
-        permission_classes=[
-            DownvotePaper
-            & CreateOrUpdateIfAllowed
-        ]
+        methods=["post", "put", "patch"],
+        permission_classes=[DownvotePaper & CreateOrUpdateIfAllowed],
     )
     def downvote(self, request, pk=None):
         paper = self.get_object()
-        hub_ids = list(paper.hubs.values_list('id', flat=True))
+        hub_ids = list(paper.hubs.values_list("id", flat=True))
         user = request.user
 
         vote_exists = find_vote(user, paper, Vote.DOWNVOTE)
 
         if vote_exists:
             return Response(
-                'This vote already exists',
-                status=status.HTTP_400_BAD_REQUEST
+                "This vote already exists", status=status.HTTP_400_BAD_REQUEST
             )
         response = update_or_create_vote(request, user, paper, Vote.DOWNVOTE)
 
         reset_unified_document_cache(
             hub_ids,
             filters=[TRENDING, TOP],
-            document_type=['all', 'paper'],
+            document_type=["all", "paper"],
         )
         paper.reset_cache()
 
@@ -661,10 +593,10 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=['get'],
+        methods=["get"],
     )
     def check_user_vote(self, request):
-        paper_ids = request.query_params['paper_ids'].split(',')
+        paper_ids = request.query_params["paper_ids"].split(",")
         user = request.user
         response = {}
 
@@ -680,9 +612,9 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=[POST])
     def check_url(self, request):
-        url = request.data.get('url', None)
+        url = request.data.get("url", None)
         url_is_pdf = check_url_contains_pdf(url)
-        data = {'found_file': url_is_pdf}
+        data = {"found_file": url_is_pdf}
         return Response(data, status=status.HTTP_200_OK)
 
     @staticmethod
@@ -691,16 +623,17 @@ class PaperViewSet(viewsets.ModelViewSet):
         Perform an elasticsearch query for papers matching
         the input CSL_Item.
         """
-        from elasticsearch_dsl import Search, Q
+        from elasticsearch_dsl import Q, Search
+
         search = Search(index="paper")
-        title = csl_item.get('title', '')
+        title = csl_item.get("title", "")
         query = Q("match", title=title) | Q("match", paper_title=title)
-        if csl_item.get('DOI'):
-            query |= Q("match", doi=csl_item['DOI'])
+        if csl_item.get("DOI"):
+            query |= Q("match", doi=csl_item["DOI"])
         search.query(query)
         return search
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=["post"])
     def search_by_url(self, request):
         # TODO: Ensure we are saving data from here, license, title,
         # publish date, authors, pdf
@@ -710,13 +643,13 @@ class PaperViewSet(viewsets.ModelViewSet):
         Retrieve bibliographic metadata and potential paper matches
         from the database for `url` (specified via request post data).
         """
-        url = request.data.get('url').strip()
-        data = {'url': url}
+        url = request.data.get("url").strip()
+        data = {"url": url}
 
         if not url:
             return Response(
                 "search_by_url requests must specify 'url'",
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
         try:
             URLValidator()(url)
@@ -724,11 +657,11 @@ class PaperViewSet(viewsets.ModelViewSet):
             print(e)
             return Response(
                 f"Double check that URL is valid: {url}",
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         url_is_pdf = check_url_contains_pdf(url)
-        data['url_is_pdf'] = url_is_pdf
+        data["url_is_pdf"] = url_is_pdf
 
         duplicate_papers = Paper.objects.filter(
             Q(url__icontains=url) | Q(pdf_url__icontains=url)
@@ -736,53 +669,45 @@ class PaperViewSet(viewsets.ModelViewSet):
         if duplicate_papers.exists():
             duplicate_paper = duplicate_papers.first()
             serializer_data = self.serializer_class(
-                duplicate_paper,
-                context={'purchase_minimal_serialization': True}
+                duplicate_paper, context={"purchase_minimal_serialization": True}
             ).data
-            data = {
-                'key': 'url',
-                'results': serializer_data
-            }
+            data = {"key": "url", "results": serializer_data}
             return Response(data, status=status.HTTP_403_FORBIDDEN)
 
         try:
             csl_item = get_csl_item(url)
         except Exception as error:
-            data['warning'] = f"Generating csl_item failed with:\n{error}"
+            data["warning"] = f"Generating csl_item failed with:\n{error}"
             log_error(error)
             csl_item = None
 
         if csl_item:
             # Cleaning csl data
-            cleaned_title = csl_item.get('title', '').strip()
-            csl_item['title'] = cleaned_title
-            abstract = csl_item.get('abstract', '')
+            cleaned_title = csl_item.get("title", "").strip()
+            csl_item["title"] = cleaned_title
+            abstract = csl_item.get("abstract", "")
             cleaned_abstract = clean_abstract(abstract)
-            csl_item['abstract'] = cleaned_abstract
+            csl_item["abstract"] = cleaned_abstract
 
-            url_is_unsupported_pdf = url_is_pdf and csl_item.get('URL') == url
-            data['url_is_unsupported_pdf'] = url_is_unsupported_pdf
+            url_is_unsupported_pdf = url_is_pdf and csl_item.get("URL") == url
+            data["url_is_unsupported_pdf"] = url_is_unsupported_pdf
             csl_item.url_is_unsupported_pdf = url_is_unsupported_pdf
-            data['csl_item'] = csl_item
-            data['oa_pdf_location'] = get_pdf_location_for_csl_item(csl_item)
-            doi = csl_item.get('DOI', None)
+            data["csl_item"] = csl_item
+            data["oa_pdf_location"] = get_pdf_location_for_csl_item(csl_item)
+            doi = csl_item.get("DOI", None)
 
             duplicate_papers = Paper.objects.exclude(doi=None).filter(doi=doi)
             if duplicate_papers.exists():
                 duplicate_paper = duplicate_papers.first()
                 serializer_data = self.serializer_class(
-                    duplicate_paper,
-                    context={'purchase_minimal_serialization': True}
+                    duplicate_paper, context={"purchase_minimal_serialization": True}
                 ).data
-                data = {
-                    'key': 'doi',
-                    'results': serializer_data
-                }
+                data = {"key": "doi", "results": serializer_data}
                 return Response(data, status=status.HTTP_403_FORBIDDEN)
 
-            data['paper_publish_date'] = csl_item.get_date('issued', fill=True)
+            data["paper_publish_date"] = csl_item.get_date("issued", fill=True)
 
-        if csl_item and request.data.get('search', False):
+        if csl_item and request.data.get("search", False):
             # search existing papers
             search = self.search_by_csl_item(csl_item)
             try:
@@ -790,142 +715,129 @@ class PaperViewSet(viewsets.ModelViewSet):
             except ConnectionError:
                 return Response(
                     "Search failed due to an elasticsearch ConnectionError.",
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            data['search'] = [hit.to_dict() for hit in search.hits]
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+            data["search"] = [hit.to_dict() for hit in search.hits]
 
         return Response(data, status=status.HTTP_200_OK)
 
     def calculate_paper_ordering(self, papers, ordering, start_date, end_date):
-        if 'hot_score' in ordering:
+        if "hot_score" in ordering:
             order_papers = papers.order_by(ordering)
-        elif 'score' in ordering:
+        elif "score" in ordering:
             boost_amount = Coalesce(
                 Sum(
-                    Cast(
-                        'purchases__amount',
-                        output_field=IntegerField()
-                    ),
+                    Cast("purchases__amount", output_field=IntegerField()),
                     filter=Q(
                         purchases__paid_status=Purchase.PAID,
                         purchases__user__moderator=True,
                         purchases__amount__gt=0,
-                        purchases__boost_time__gt=0
-                        )
+                        purchases__boost_time__gt=0,
                     ),
-                Value(0)
+                ),
+                Value(0),
             )
-            order_papers = papers.filter(
-                uploaded_date__range=[start_date, end_date],
-            ).annotate(
-                total_score=boost_amount + F('score')
-            ).order_by('-total_score')
-        elif 'discussed' in ordering:
-            threads_count = Count('threads')
-            comments_count = Count('threads__comments')
+            order_papers = (
+                papers.filter(
+                    uploaded_date__range=[start_date, end_date],
+                )
+                .annotate(total_score=boost_amount + F("score"))
+                .order_by("-total_score")
+            )
+        elif "discussed" in ordering:
+            threads_count = Count("threads")
+            comments_count = Count("threads__comments")
 
-            order_papers = papers.filter(
-                Q(threads__source='researchhub') |
-                Q(threads__comments__source='researchhub'),
-                Q(threads__created_date__range=[
-                    start_date, end_date
-                ]) |
-                Q(threads__comments__created_date__range=[
-                    start_date, end_date
-                ])
-            ).annotate(
-                discussed=threads_count + comments_count,
-                discussed_secondary=F('discussion_count')
-            ).order_by(
-                ordering, ordering + '_secondary'
+            order_papers = (
+                papers.filter(
+                    Q(threads__source="researchhub")
+                    | Q(threads__comments__source="researchhub"),
+                    Q(threads__created_date__range=[start_date, end_date])
+                    | Q(threads__comments__created_date__range=[start_date, end_date]),
+                )
+                .annotate(
+                    discussed=threads_count + comments_count,
+                    discussed_secondary=F("discussion_count"),
+                )
+                .order_by(ordering, ordering + "_secondary")
             )
-        elif 'removed' in ordering:
-            order_papers = papers.order_by('-uploaded_date')
-        elif 'twitter_score' in ordering:
-            order_papers = papers.order_by('-twitter_score')
-        elif 'user-uploaded' in ordering:
-            order_papers = papers.filter(
-                uploaded_date__gte=start_date
-            ).order_by('-uploaded_date')
+        elif "removed" in ordering:
+            order_papers = papers.order_by("-uploaded_date")
+        elif "twitter_score" in ordering:
+            order_papers = papers.order_by("-twitter_score")
+        elif "user-uploaded" in ordering:
+            order_papers = papers.filter(uploaded_date__gte=start_date).order_by(
+                "-uploaded_date"
+            )
         else:
             order_papers = papers.order_by(ordering)
 
         return order_papers
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=["get"])
     def get_hub_papers(self, request):
         # TODO: Delete this
 
-        subscribed_hubs = request.GET.get('subscribed_hubs', False)
-        external_source = request.GET.get('external_source', False)
+        subscribed_hubs = request.GET.get("subscribed_hubs", False)
+        external_source = request.GET.get("external_source", False)
         is_anonymous = request.user.is_anonymous
         if subscribed_hubs and not is_anonymous:
             return self.subscribed_hub_papers(request)
 
-        page_number = int(request.GET['page'])
+        page_number = int(request.GET["page"])
         start_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get('start_date__gte', 0)),
-            datetime.timezone.utc
+            int(request.GET.get("start_date__gte", 0)), datetime.timezone.utc
         )
         end_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get('end_date__lte', 0)),
-            datetime.timezone.utc
+            int(request.GET.get("end_date__lte", 0)), datetime.timezone.utc
         )
         ordering = self._set_hub_paper_ordering(request)
-        hub_id = request.GET.get('hub_id', 0)
+        hub_id = request.GET.get("hub_id", 0)
 
         cache_hit = None
         time_difference = end_date - start_date
-        if page_number == 1 and 'removed' not in ordering and not external_source:
-            cache_pk = ''
+        if page_number == 1 and "removed" not in ordering and not external_source:
+            cache_pk = ""
             if time_difference.days > 365:
-                cache_pk = f'{hub_id}_{ordering}_all_time'
+                cache_pk = f"{hub_id}_{ordering}_all_time"
             elif time_difference.days == 365:
-                cache_pk = f'{hub_id}_{ordering}_year'
+                cache_pk = f"{hub_id}_{ordering}_year"
             elif time_difference.days == 30 or time_difference.days == 31:
-                cache_pk = f'{hub_id}_{ordering}_month'
+                cache_pk = f"{hub_id}_{ordering}_month"
             elif time_difference.days == 7:
-                cache_pk = f'{hub_id}_{ordering}_week'
+                cache_pk = f"{hub_id}_{ordering}_week"
             else:
-                cache_pk = f'{hub_id}_{ordering}_today'
+                cache_pk = f"{hub_id}_{ordering}_today"
 
-            cache_key_hub = get_cache_key('hub', cache_pk)
+            cache_key_hub = get_cache_key("hub", cache_pk)
             cache_hit = cache.get(cache_key_hub)
 
             if cache_hit and page_number == 1:
                 return Response(cache_hit)
 
         context = self.get_serializer_context()
-        context['user_no_balance'] = True
-        context['exclude_promoted_score'] = True
-        context['include_wallet'] = False
+        context["user_no_balance"] = True
+        context["exclude_promoted_score"] = True
+        context["include_wallet"] = False
 
         # if not cache_hit and page_number == 1:
-            # reset_cache([hub_id], ordering, time_difference.days)
+        # reset_cache([hub_id], ordering, time_difference.days)
 
         papers = self._get_filtered_papers(hub_id, ordering)
         order_papers = self.calculate_paper_ordering(
-            papers,
-            ordering,
-            start_date,
-            end_date
+            papers, ordering, start_date, end_date
         )
         page = self.paginate_queryset(order_papers)
         serializer = HubPaperSerializer(page, many=True, context=context)
         serializer_data = serializer.data
 
         res = self.get_paginated_response(
-            {
-                'data': serializer_data,
-                'no_results': False,
-                'feed_type': 'all'
-            }
+            {"data": serializer_data, "no_results": False, "feed_type": "all"}
         )
         return res
 
     @action(
-        detail=True,
-        methods=['get'],
-        permission_classes=[IsAuthenticatedOrReadOnly]
+        detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
     )
     def pdf_extract(self, request, pk=None):
         paper = Paper.objects.get(id=pk)
@@ -934,9 +846,8 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         external_source = paper.external_source
         if (
-            (external_source and external_source.lower() == 'arxiv') or
-            'arxiv' in paper.alternate_ids
-        ):
+            external_source and external_source.lower() == "arxiv"
+        ) or "arxiv" in paper.alternate_ids:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         if not pdf_file.name:
@@ -950,84 +861,67 @@ class PaperViewSet(viewsets.ModelViewSet):
         b64_string = base64.b64encode(html_bytes)
         return Response(b64_string, status=status.HTTP_200_OK)
 
-    @action(
-        detail=True,
-        methods=['post'],
-        permission_classes=[AllowAny]
-    )
+    @action(detail=True, methods=["post"], permission_classes=[AllowAny])
     def edit_file_extract(self, request, pk=None):
         paper = self.get_object()
         data = request.data
-        filename = f'{paper.id}.json'
+        filename = f"{paper.id}.json"
         paper.edited_file_extract.save(
-            filename,
-            ContentFile(json.dumps(data).encode('utf8'))
+            filename, ContentFile(json.dumps(data).encode("utf8"))
         )
         return Response(status=status.HTTP_200_OK)
 
     def subscribed_hub_papers(self, request):
-        feed_type = 'subscribed'
+        feed_type = "subscribed"
         user = request.user
         hubs = user.subscribed_hubs.all()
-        page_number = int(request.GET['page'])
+        page_number = int(request.GET["page"])
         start_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get('start_date__gte', 0)),
-            datetime.timezone.utc
+            int(request.GET.get("start_date__gte", 0)), datetime.timezone.utc
         )
         end_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get('end_date__lte', 0)),
-            datetime.timezone.utc
+            int(request.GET.get("end_date__lte", 0)), datetime.timezone.utc
         )
         ordering = self._set_hub_paper_ordering(request)
 
-        if ordering == '-hot_score' and page_number == 1:
+        if ordering == "-hot_score" and page_number == 1:
             papers = {}
             for hub in hubs.iterator():
                 hub_name = hub.slug
-                cache_key = get_cache_key('papers', hub_name)
+                cache_key = get_cache_key("papers", hub_name)
                 cache_hit = cache.get(cache_key)
                 if cache_hit:
                     for hit in cache_hit:
-                        paper_id = hit['id']
-                        abstract = hit.get('abstract', None)
+                        paper_id = hit["id"]
+                        abstract = hit.get("abstract", None)
                         if paper_id not in papers and abstract:
                             papers[paper_id] = hit
             papers = list(papers.values())
 
             if len(papers) < 1:
-                qs = self.get_queryset(
-                    include_autopull=True
-                ).order_by(
-                    '-hot_score'
-                )
-                papers = qs.filter(
-                    hubs__in=hubs
-                ).distinct()
+                qs = self.get_queryset(include_autopull=True).order_by("-hot_score")
+                papers = qs.filter(hubs__in=hubs).distinct()
             else:
-                papers = sorted(papers, key=lambda paper: -paper['hot_score'])
+                papers = sorted(papers, key=lambda paper: -paper["hot_score"])
                 papers = papers[:UNIFIED_DOC_PAGE_SIZE]
                 next_page = request.build_absolute_uri()
                 if len(papers) < UNIFIED_DOC_PAGE_SIZE:
                     next_page = None
                 else:
-                    next_page = replace_query_param(next_page, 'page', 2)
+                    next_page = replace_query_param(next_page, "page", 2)
                 res = {
-                    'count': len(papers),
-                    'next': next_page,
-                    'results': {
-                        'data': papers,
-                        'no_results': False,
-                        'feed_type': feed_type
-                    }
+                    "count": len(papers),
+                    "next": next_page,
+                    "results": {
+                        "data": papers,
+                        "no_results": False,
+                        "feed_type": feed_type,
+                    },
                 }
                 return Response(res, status=status.HTTP_200_OK)
 
         else:
-            qs = self.get_queryset(
-                include_autopull=True
-                ).order_by(
-                    '-hot_score'
-                )
+            qs = self.get_queryset(include_autopull=True).order_by("-hot_score")
             papers = qs.filter(hubs__in=hubs).distinct()
 
         if papers.count() < 1:
@@ -1037,26 +931,23 @@ class PaperViewSet(viewsets.ModelViewSet):
                     Page: {page_number}
                 """
             )
-            trending_pk = '0_-hot_score_today'
-            cache_key_hub = get_cache_key('hub', trending_pk)
+            trending_pk = "0_-hot_score_today"
+            cache_key_hub = get_cache_key("hub", trending_pk)
             cache_hit = cache.get(cache_key_hub)
 
             if cache_hit and page_number == 1:
                 return Response(cache_hit)
 
-            feed_type = 'all'
-            papers = self.get_queryset().order_by('-hot_score')
+            feed_type = "all"
+            papers = self.get_queryset().order_by("-hot_score")
 
         context = self.get_serializer_context()
-        context['user_no_balance'] = True
-        context['exclude_promoted_score'] = True
-        context['include_wallet'] = False
+        context["user_no_balance"] = True
+        context["exclude_promoted_score"] = True
+        context["include_wallet"] = False
 
         order_papers = self.calculate_paper_ordering(
-            papers,
-            ordering,
-            start_date,
-            end_date
+            papers, ordering, start_date, end_date
         )
 
         page = self.paginate_queryset(order_papers)
@@ -1064,30 +955,26 @@ class PaperViewSet(viewsets.ModelViewSet):
         serializer_data = serializer.data
 
         return self.get_paginated_response(
-            {
-                'data': serializer_data,
-                'no_results': False,
-                'feed_type': feed_type
-            }
+            {"data": serializer_data, "no_results": False, "feed_type": feed_type}
         )
 
     def _set_hub_paper_ordering(self, request):
-        ordering = request.query_params.get('ordering', None)
+        ordering = request.query_params.get("ordering", None)
         # TODO send correct ordering from frontend
-        if ordering == 'removed':
-            ordering = 'removed'
-        elif ordering == 'top_rated':
-            ordering = '-score'
-        elif ordering == 'most_discussed':
-            ordering = '-discussed'
-        elif ordering == 'newest':
-            ordering = '-uploaded_date'
-        elif ordering == 'hot':
-            ordering = '-hot_score'
-        elif ordering == 'user-uploaded':
-            ordering = 'user-uploaded'
+        if ordering == "removed":
+            ordering = "removed"
+        elif ordering == "top_rated":
+            ordering = "-score"
+        elif ordering == "most_discussed":
+            ordering = "-discussed"
+        elif ordering == "newest":
+            ordering = "-uploaded_date"
+        elif ordering == "hot":
+            ordering = "-hot_score"
+        elif ordering == "user-uploaded":
+            ordering = "user-uploaded"
         else:
-            ordering = '-score'
+            ordering = "-score"
         return ordering
 
     def _get_filtered_papers(self, hub_id, ordering):
@@ -1096,40 +983,30 @@ class PaperViewSet(viewsets.ModelViewSet):
         if int(hub_id) == 0:
             qs = self.get_queryset(
                 prefetch=False,
-            ).prefetch_related(
-                *self.prefetch_lookups()
-            )
+            ).prefetch_related(*self.prefetch_lookups())
 
-            if 'removed' in ordering:
-                qs = qs.filter(
-                    is_removed=True
-                )
-            elif 'user-uploaded' in ordering:
-                qs = qs.filter(
-                    uploaded_by_id__isnull=False
-                )
+            if "removed" in ordering:
+                qs = qs.filter(is_removed=True)
+            elif "user-uploaded" in ordering:
+                qs = qs.filter(uploaded_by_id__isnull=False)
             else:
                 qs = qs.filter(
                     is_removed=False,
                     is_removed_by_user=False,
                 )
         else:
-            qs = self.get_queryset(
-                prefetch=False
-            ).filter(
-                hubs__id__in=[int(hub_id)],
-            ).prefetch_related(
-                *self.prefetch_lookups()
+            qs = (
+                self.get_queryset(prefetch=False)
+                .filter(
+                    hubs__id__in=[int(hub_id)],
+                )
+                .prefetch_related(*self.prefetch_lookups())
             )
 
-            if 'removed' in ordering:
-                qs = qs.filter(
-                    is_removed=True
-                )
-            elif 'user-uploaded' in ordering:
-                qs = qs.filter(
-                    uploaded_by_id__isnull=False
-                )
+            if "removed" in ordering:
+                qs = qs.filter(is_removed=True)
+            elif "user-uploaded" in ordering:
+                qs = qs.filter(uploaded_by_id__isnull=False)
             else:
                 qs = qs.filter(
                     is_removed=False,
@@ -1140,37 +1017,29 @@ class PaperViewSet(viewsets.ModelViewSet):
 
 class FeaturedPaperViewSet(viewsets.ModelViewSet):
     queryset = FeaturedPaper.objects.filter(
-        paper__is_removed=False,
-        user__is_suspended=False
+        paper__is_removed=False, user__is_suspended=False
     )
     serializer_class = FeaturedPaperSerializer
     throttle_classes = THROTTLE_CLASSES
     permission_classes = [IsAuthenticatedOrReadOnly]
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    search_fields = ['paper__title', 'user__id']
-    filterset_fields = ['paper__title']
+    search_fields = ["paper__title", "user__id"]
+    filterset_fields = ["paper__title"]
 
     def create(self, request):
         user = request.user
-        orderings = request.data['ordering']
+        orderings = request.data["ordering"]
         featured_papers = []
 
         self.queryset.filter(user=user).delete()
         for ordering in orderings:
-            ordinal = ordering['ordinal']
-            paper_id = ordering['paper_id']
+            ordinal = ordering["ordinal"]
+            paper_id = ordering["paper_id"]
             featured_papers.append(
-                FeaturedPaper(
-                    ordinal=ordinal,
-                    paper_id=paper_id,
-                    user=user
-                )
+                FeaturedPaper(ordinal=ordinal, paper_id=paper_id, user=user)
             )
         FeaturedPaper.objects.bulk_create(featured_papers)
-        serializer = self.serializer_class(
-            featured_papers,
-            many=True
-        )
+        serializer = self.serializer_class(featured_papers, many=True)
         data = serializer.data
 
         return Response(data, status=200)
@@ -1185,9 +1054,7 @@ class FeaturedPaperViewSet(viewsets.ModelViewSet):
         papers = self.queryset.filter(
             user=user,
             is_removed=False,
-        ).order_by(
-            'ordinal'
-        )
+        ).order_by("ordinal")
 
         page = self.paginate_queryset(papers)
         if page is not None:
@@ -1201,10 +1068,7 @@ class AdditionalFileViewSet(viewsets.ModelViewSet):
     queryset = AdditionalFile.objects.all()
     serializer_class = AdditionalFileSerializer
     throttle_classes = THROTTLE_CLASSES
-    permission_classes = [
-        IsAuthenticatedOrReadOnly
-        & UpdateOrDeleteAdditionalFile
-    ]
+    permission_classes = [IsAuthenticatedOrReadOnly & UpdateOrDeleteAdditionalFile]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -1219,9 +1083,7 @@ class FigureViewSet(viewsets.ModelViewSet):
     serializer_class = FigureSerializer
     throttle_classes = THROTTLE_CLASSES
 
-    permission_classes = [
-        IsModeratorOrVerifiedAuthor
-    ]
+    permission_classes = [IsModeratorOrVerifiedAuthor]
 
     def get_queryset(self):
         return self.queryset
@@ -1234,17 +1096,14 @@ class FigureViewSet(viewsets.ModelViewSet):
         if figure_type:
             figures = figures.filter(figure_type=figure_type)
 
-        figures = figures.order_by('-figure_type', 'created_date')
+        figures = figures.order_by("-figure_type", "created_date")
         figure_serializer = self.serializer_class(figures, many=True)
         return figure_serializer.data
 
     @action(
         detail=True,
-        methods=['post'],
-        permission_classes=[
-            IsAuthor
-            & CreateOrUpdateIfAllowed
-        ]
+        methods=["post"],
+        permission_classes=[IsAuthor & CreateOrUpdateIfAllowed],
     )
     def add_figure(self, request, pk=None):
         user = request.user
@@ -1252,12 +1111,12 @@ class FigureViewSet(viewsets.ModelViewSet):
             user = None
 
         created_location = None
-        if request.query_params.get('created_location') == 'progress':
+        if request.query_params.get("created_location") == "progress":
             created_location = Figure.CREATED_LOCATION_PROGRESS
 
         paper = Paper.objects.get(id=pk)
         figures = request.FILES.values()
-        figure_type = request.data.get('figure_type')
+        figure_type = request.data.get("figure_type")
         urls = []
         try:
             for figure in figures:
@@ -1266,21 +1125,18 @@ class FigureViewSet(viewsets.ModelViewSet):
                     file=figure,
                     figure_type=figure_type,
                     created_by=user,
-                    created_location=created_location
+                    created_location=created_location,
                 )
-                urls.append({'id': fig.id, 'file': fig.file.url})
-            return Response({'files': urls}, status=200)
+                urls.append({"id": fig.id, "file": fig.file.url})
+            return Response({"files": urls}, status=200)
         except Exception as e:
             log_error(e)
             return Response(status=500)
 
     @action(
         detail=True,
-        methods=['delete'],
-        permission_classes=[
-            IsAuthor
-            & CreateOrUpdateIfAllowed
-        ]
+        methods=["delete"],
+        permission_classes=[IsAuthor & CreateOrUpdateIfAllowed],
     )
     def delete_figure(self, request, pk=None):
         figure = self.get_queryset().get(id=pk)
@@ -1288,59 +1144,37 @@ class FigureViewSet(viewsets.ModelViewSet):
         return Response(status=200)
 
     @action(
-        detail=True,
-        methods=['get'],
-        permission_classes=[IsAuthenticatedOrReadOnly]
+        detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
     )
     def get_all_figures(self, request, pk=None):
-        cache_key = get_cache_key('figure', pk)
+        cache_key = get_cache_key("figure", pk)
         cache_hit = cache.get(cache_key)
         if cache_hit is not None:
-            return Response(
-                {'data': cache_hit},
-                status=status.HTTP_200_OK
-            )
+            return Response({"data": cache_hit}, status=status.HTTP_200_OK)
 
         serializer_data = self.get_figures(pk)
-        cache.set(cache_key, serializer_data, timeout=60*60*24*7)
-        return Response(
-            {'data': serializer_data},
-            status=status.HTTP_200_OK
-        )
+        cache.set(cache_key, serializer_data, timeout=60 * 60 * 24 * 7)
+        return Response({"data": serializer_data}, status=status.HTTP_200_OK)
 
     @action(
-        detail=True,
-        methods=['get'],
-        permission_classes=[IsAuthenticatedOrReadOnly]
+        detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
     )
     def get_preview_figures(self, request, pk=None):
         # Returns pdf preview figures
         serializer_data = self.get_figures(pk, figure_type=Figure.PREVIEW)
-        return Response(
-            {'data': serializer_data},
-            status=status.HTTP_200_OK
-        )
+        return Response({"data": serializer_data}, status=status.HTTP_200_OK)
 
     @action(
-        detail=True,
-        methods=['get'],
-        permission_classes=[IsAuthenticatedOrReadOnly]
+        detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
     )
     def get_regular_figures(self, request, pk=None):
         # Returns regular figures
         serializer_data = self.get_figures(pk, figure_type=Figure.FIGURE)
-        return Response(
-            {'data': serializer_data},
-            status=status.HTTP_200_OK
-        )
+        return Response({"data": serializer_data}, status=status.HTTP_200_OK)
 
 
 def find_vote(user, paper, vote_type):
-    vote = Vote.objects.filter(
-        paper=paper,
-        created_by=user,
-        vote_type=vote_type
-    )
+    vote = Vote.objects.filter(paper=paper, created_by=user, vote_type=vote_type)
     if vote:
         return True
     return False
@@ -1361,13 +1195,13 @@ def update_or_create_vote(request, user, paper, vote_type):
     create_contribution.apply_async(
         (
             Contribution.UPVOTER,
-            {'app_label': 'paper', 'model': 'vote'},
+            {"app_label": "paper", "model": "vote"},
             user.id,
             unified_doc_id,
-            vote.id
+            vote.id,
         ),
         priority=3,
-        countdown=10
+        countdown=10,
     )
     return get_vote_response(vote, 201)
 
@@ -1380,18 +1214,94 @@ def get_vote_response(vote, status_code):
 
 def retrieve_vote(user, paper):
     try:
-        return Vote.objects.get(
-            paper=paper,
-            created_by=user.id
-        )
+        return Vote.objects.get(paper=paper, created_by=user.id)
     except Vote.DoesNotExist:
         return None
 
 
 def create_vote(user, paper, vote_type):
-    vote = Vote.objects.create(
-        created_by=user,
-        paper=paper,
-        vote_type=vote_type
-    )
+    vote = Vote.objects.create(created_by=user, paper=paper, vote_type=vote_type)
     return vote
+
+
+class PaperSubmissionViewSet(viewsets.ModelViewSet):
+    queryset = PaperSubmission.objects.all()
+    serializer_class = PaperSubmissionSerializer
+    throttle_classes = THROTTLE_CLASSES
+    permission_classes = [CreateOnly]
+
+    def create(self, *args, **kwargs):
+        data = self.request.data
+        url = data.get("url", "")
+
+        # Appends http if protocol does not exist
+        parsed_url = urlparse(url)
+        if not parsed_url.scheme:
+            url = f"http://{parsed_url.geturl()}"
+            data["url"] = url
+
+        duplicate_papers = Paper.objects.filter(
+            Q(url__icontains=url) | Q(pdf_url__icontains=url)
+        )
+        if duplicate_papers:
+            serializer = DynamicPaperSerializer(
+                duplicate_papers,
+                _include_fields=["doi", "id", "title", "url"],
+                many=True,
+            )
+            duplicate_data = {"data": serializer.data}
+            return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
+
+        data["uploaded_by"] = self.request.user.id
+        response = super().create(*args, **kwargs)
+        if response.status_code == 201:
+            data = response.data
+            celery_process_paper.apply_async(
+                (data["id"],),
+                priority=1,
+                countdown=3,
+            )
+        return response
+
+    @action(detail=False, methods=["post"])
+    def create_from_doi(self, request):
+        data = request.data
+        # TODO: Sanitize?
+        doi = data.get("doi", None)
+
+        # DOI validity check
+        doi_url = urlparse(doi)
+        doi_res = requests.post(
+            "https://dx.doi.org/", data={"hdl": doi}, allow_redirects=False, timeout=5
+        )
+        invalid_doi_res = Response(
+            {"data": "Invalid DOI - Ensure it is in the form of '10.1000/abc123'"},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+        if doi_url.scheme or "doi.org" in doi:
+            # Avoiding data that comes in as a url or as a DOI url
+            return invalid_doi_res
+        elif doi_res.status_code == status.HTTP_404_NOT_FOUND:
+            return invalid_doi_res
+
+        # Duplicate DOI check
+        duplicate_papers = Paper.objects.filter(doi__contains=doi)
+        if duplicate_papers:
+            serializer = DynamicPaperSerializer(
+                duplicate_papers,
+                _include_fields=["doi", "id", "title", "url"],
+                many=True,
+            )
+            duplicate_data = {"data": serializer.data}
+            return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
+
+        data["uploaded_by"] = request.user.id
+        response = super().create(request)
+        if response.status_code == 201:
+            data = response.data
+            celery_process_paper.apply_async(
+                (data["id"],),
+                priority=1,
+                countdown=3,
+            )
+        return response
