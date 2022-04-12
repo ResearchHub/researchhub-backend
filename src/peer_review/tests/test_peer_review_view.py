@@ -141,5 +141,26 @@ class PeerReviewViewTests(APITestCase):
             object_id=response.data['id'],
             contribution_type=Contribution.PEER_REVIEWER,
         )
-        print(contrib.__dict__)
+
         self.assertTrue(contrib)
+
+    def test_peer_review_timeline_has_decisions(self):
+        unified_doc = ResearchhubUnifiedDocument.objects.get(
+            id=self.peer_review['unified_document'],
+        )
+
+        self.client.force_authenticate(self.peer_reviewer)
+        decision_response = self.client.post(f'/api/peer_review/{self.peer_review["id"]}/create_decision/',{
+            'decision': "CHANGES_REQUESTED",
+            'discussion': {
+                'plain_text': "some text",
+                'text': {'ops': [{'insert': 'some text\n'}]},
+            }
+        })
+
+        timeline_response = self.client.get(f'/api/peer_review/{self.peer_review["id"]}/timeline/')
+
+        self.assertEqual(
+            decision_response.data['id'],
+            timeline_response.data['results'][0]['source']['id'],
+        )

@@ -2,6 +2,7 @@ from rest_framework.serializers import ModelSerializer, SerializerMethodField, V
 from peer_review.models import (
     PeerReviewDecision,
 )
+from researchhub.serializers import DynamicModelFieldSerializer
 from user.models import User
 from discussion.models import Thread
 from researchhub.settings import TESTING
@@ -107,3 +108,10 @@ class PeerReviewDecisionSerializer(ModelSerializer):
             return serializer.data
 
         return None
+
+class DynamicPeerReviewDecisionSerializer(
+    DynamicModelFieldSerializer,
+):
+    class Meta:
+        model = PeerReviewDecision
+        fields = '__all__'

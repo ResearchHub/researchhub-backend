@@ -287,6 +287,16 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
                 context=context,
                 **_context_fields
             )
+        elif model_name == 'peer review decision':
+            from peer_review.serializers import (
+                DynamicPeerReviewDecisionSerializer
+            )
+            serializer = DynamicPeerReviewDecisionSerializer(
+                obj,
+                context=context,
+                **_context_fields
+            )
+
 
         if serializer is not None:
             return serializer.data
