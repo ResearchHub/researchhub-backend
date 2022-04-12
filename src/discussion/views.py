@@ -131,7 +131,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 unified_document.id,
                 discussion_id
             ),
-            priority=2,
+            priority=1,
             countdown=10
         )
 

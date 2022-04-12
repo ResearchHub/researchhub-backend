@@ -16,6 +16,7 @@ from researchhub_document.models import (
 from discussion.models import (
     Thread,
 )
+from reputation.models import Contribution
 
 
 class PeerReviewViewTests(APITestCase):
@@ -121,3 +122,24 @@ class PeerReviewViewTests(APITestCase):
             response.status_code,
             403,
         )
+
+    def test_creating_peer_review_decision_creates_contribution(self):
+        unified_doc = ResearchhubUnifiedDocument.objects.get(
+            id=self.peer_review['unified_document'],
+        )
+
+        self.client.force_authenticate(self.peer_reviewer)
+        response = self.client.post(f'/api/peer_review/{self.peer_review["id"]}/create_decision/',{
+            'decision': "CHANGES_REQUESTED",
+            'discussion': {
+                'plain_text': "some text",
+                'text': {'ops': [{'insert': 'some text\n'}]},
+            }
+        })
+
+        contrib = Contribution.objects.get(
+            object_id=response.data['id'],
+            contribution_type=Contribution.PEER_REVIEWER,
+        )
+        print(contrib.__dict__)
+        self.assertTrue(contrib)
