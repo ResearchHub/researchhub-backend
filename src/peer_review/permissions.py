@@ -2,6 +2,7 @@ from rest_framework.permissions import BasePermission
 from researchhub_document.models import (
     ResearchhubUnifiedDocument
 )
+from peer_review.models import PeerReviewRequest
 
 
 class IsAllowedToRequest(BasePermission):
@@ -22,10 +23,41 @@ class IsAllowedToRequest(BasePermission):
 
 
 class IsAllowedToInvite(BasePermission):
-    message = 'Only moderators are allowed to invite peer reviewers'
+    message = 'You are not allowed to invite peer reviewers'
 
     def has_permission(self, request, view):
         if request.user.moderator:
             return True
+
+        return False
+
+
+class IsAllowedToAcceptInvite(BasePermission):
+    message = 'You cannot accept this invite. Please make sure you are logged into the right account.'
+
+    def has_object_permission(self, request, view, obj):
+        if obj.recipient_email == request.user.email:
+            return True
+
+        return False
+
+
+class IsAllowedToList(BasePermission):
+    message = 'You do not have permission to view this'
+
+    def has_permission(self, request, view):
+        if request.method == 'GET' and view.action == 'list':
+            return True
+
+        return False
+
+
+class IsAllowedToRetrieve(BasePermission):
+    message = 'You do not have permission to view this'
+
+    def has_permission(self, request, view):
+        if request.method == 'GET' and view.action == 'retrieve':
+            if request.user.moderator:
+                return True
 
         return False

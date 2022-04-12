@@ -43,6 +43,14 @@ class PeerReviewRequest(DefaultModel):
         null=False,
     )
 
+    peer_review = models.ForeignKey(
+        'peer_review.PeerReview',
+        related_name='peer_review_requests',
+        blank=True,
+        null=True,
+        on_delete=models.CASCADE,
+    )
+
     created_date = models.DateTimeField(auto_now_add=True)
 
     class Meta:

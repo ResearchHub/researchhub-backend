@@ -5,23 +5,30 @@ from rest_framework.permissions import (
 from peer_review.models import PeerReviewRequest
 from peer_review.serializers import (
     PeerReviewRequestSerializer,
-    PeerReviewInviteSerializer,
 )
 from peer_review.permissions import (
     IsAllowedToRequest,
-    IsAllowedToInvite,
+    IsAllowedToList,
+    IsAllowedToRetrieve
 )
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from utils.http import DELETE, POST, PATCH, PUT, GET
+from utils.http import POST
 
 
 class PeerReviewRequestViewSet(ModelViewSet):
-    permission_classes = [
+    permission_classes = (
         IsAuthenticated,
-    ]
+        (IsAllowedToList|IsAllowedToRetrieve),
+    )
     serializer_class = PeerReviewRequestSerializer
     queryset = PeerReviewRequest.objects.all()
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        serializer = self.serializer_class(instance)
+        return Response(serializer.data)
 
     @action(
         detail=False,
@@ -45,17 +52,3 @@ class PeerReviewRequestViewSet(ModelViewSet):
         page = self.paginate_queryset(queryset)
         serializer = PeerReviewRequestSerializer(page, many=True)
         return self.get_paginated_response(serializer.data)
-
-    @action(
-        detail=False,
-        methods=[POST],
-        permission_classes=[IsAllowedToInvite]
-    )
-    def invite_to_review(self, request, *args, **kwargs):
-        serializer = PeerReviewInviteSerializer(
-            data=request.data,
-            context={'request': request}
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
