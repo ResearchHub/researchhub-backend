@@ -1,76 +1,62 @@
 import hmac
-
-from hashlib import sha1
 from datetime import timedelta
+from hashlib import sha1
 
-from django.db import IntegrityError
-from django.db.models import Sum, Q, F
-from django.db.models.functions import Coalesce
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.db import IntegrityError
+from django.db.models import F, Q, Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.decorators import method_decorator
-from django.contrib.contenttypes.models import ContentType
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
-from rest_framework.utils.urls import replace_query_param
+from rest_framework.decorators import action
+from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated,
-    IsAuthenticatedOrReadOnly
+    IsAuthenticatedOrReadOnly,
 )
-from rest_framework.filters import SearchFilter, OrderingFilter
-from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.utils.urls import replace_query_param
 
-from discussion.models import Thread, Comment, Reply
-from discussion.serializers import (
-    DynamicThreadSerializer
-)
-from user.tasks import handle_spam_user_task, reinstate_user_task
-from reputation.models import Distribution, Contribution
-from reputation.serializers import DynamicContributionSerializer
-from researchhub.settings import SIFT_WEBHOOK_SECRET_KEY, EMAIL_WHITELIST
-from researchhub_document.serializers import DynamicPostSerializer
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from paper.models import Paper
-from paper.utils import get_cache_key
-from paper.views import PaperViewSet
-from paper.serializers import (
-    DynamicPaperSerializer
-)
+from discussion.models import Comment, Reply, Thread
 from discussion.serializers import (
     CommentSerializer,
-    ReplySerializer
+    DynamicThreadSerializer,
+    ReplySerializer,
 )
-from user.filters import AuthorFilter
-from user.models import (
-    User,
-    University,
-    Author,
-    Major,
-    Verification,
-    Follow,
-)
-from user.permissions import UpdateAuthor, Censor
-from user.utils import reset_latest_acitvity_cache, calculate_show_referral
+from hypothesis.related_models.hypothesis import Hypothesis
+from paper.models import Paper
+from paper.serializers import DynamicPaperSerializer
+from paper.utils import get_cache_key
+from paper.views import PaperViewSet
+from reputation.models import Contribution, Distribution
+from reputation.serializers import DynamicContributionSerializer
+from researchhub.settings import EMAIL_WHITELIST, SIFT_WEBHOOK_SECRET_KEY
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.serializers import DynamicPostSerializer
+from user.filters import AuthorFilter, UserFilter
+from user.models import Author, Follow, Major, University, User, Verification
+from user.permissions import Censor, UpdateAuthor
 from user.serializers import (
-    AuthorSerializer,
     AuthorEditableSerializer,
+    AuthorSerializer,
+    MajorSerializer,
     UniversitySerializer,
+    UserActions,
     UserEditableSerializer,
     UserSerializer,
-    UserActions,
-    MajorSerializer,
     VerificationSerializer,
 )
-from utils.http import DELETE, POST, PATCH, PUT
-from utils.http import RequestMethods
+from user.tasks import handle_spam_user_task, reinstate_user_task
+from user.utils import calculate_show_referral, reset_latest_acitvity_cache
+from utils.http import DELETE, PATCH, POST, PUT, RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
-from utils.throttles import THROTTLE_CLASSES
-from hypothesis.related_models.hypothesis import Hypothesis
-from user.filters import UserFilter
 from utils.sentry import log_info
+from utils.throttles import THROTTLE_CLASSES
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -81,23 +67,19 @@ class UserViewSet(viewsets.ModelViewSet):
     filter_class = UserFilter
 
     def get_serializer_class(self):
-        if self.request.GET.get('referral_code') or self.request.GET.get('invited_by'):
+        if self.request.GET.get("referral_code") or self.request.GET.get("invited_by"):
             return UserSerializer
         else:
             return self.serializer_class
 
     def get_serializer_context(self):
-        return {
-            'get_subscribed': True,
-            'get_balance': True,
-            'user': self.request.user
-        }
+        return {"get_subscribed": True, "get_balance": True, "user": self.request.user}
 
     def get_queryset(self):
         user = self.request.user
         qs = self.queryset
-        author_profile = self.request.query_params.get('author_profile')
-        if self.request.GET.get('referral_code') or self.request.GET.get('invited_by'):
+        author_profile = self.request.query_params.get("author_profile")
+        if self.request.GET.get("referral_code") or self.request.GET.get("invited_by"):
             return qs
         elif author_profile:
             return User.objects.filter(author_profile=author_profile)
@@ -108,31 +90,20 @@ class UserViewSet(viewsets.ModelViewSet):
         else:
             return User.objects.none()
 
-    @action(
-        detail=False,
-        methods=['GET'],
-        permission_classes=[IsAuthenticated]
-    )
+    @action(detail=False, methods=["GET"], permission_classes=[IsAuthenticated])
     def get_referral_reputation(self, request):
         show_referral = calculate_show_referral(request.user)
-        return Response({'show_referral': show_referral})
+        return Response({"show_referral": show_referral})
 
-    @action(
-        detail=False,
-        methods=[POST],
-        permission_classes=[IsAuthenticated, Censor]
-    )
+    @action(detail=False, methods=[POST], permission_classes=[IsAuthenticated, Censor])
     def censor(self, request, pk=None):
-        author_id = request.data.get('authorId')
+        author_id = request.data.get("authorId")
         user_to_censor = User.objects.get(author_profile__id=author_id)
         user_to_censor.set_probable_spammer()
         user_to_censor.set_suspended()
         handle_spam_user_task(user_to_censor.id)
 
-        return Response(
-            {'message': 'User is Censored'},
-            status=200
-        )
+        return Response({"message": "User is Censored"}, status=200)
 
     @action(
         detail=False,
@@ -143,16 +114,20 @@ class UserViewSet(viewsets.ModelViewSet):
         Gets the amount of RSC earned from referrals
         """
 
-        distributions = Distribution.objects.filter(
-            proof_item_content_type=ContentType.objects.get_for_model(User),
-            proof_item_object_id=request.user.id
-        ).exclude(recipient=request.user.id).aggregate(rsc_earned=Sum('amount'))
+        distributions = (
+            Distribution.objects.filter(
+                proof_item_content_type=ContentType.objects.get_for_model(User),
+                proof_item_object_id=request.user.id,
+            )
+            .exclude(recipient=request.user.id)
+            .aggregate(rsc_earned=Sum("amount"))
+        )
 
-        amount = distributions.get('rsc_earned') or 0
+        amount = distributions.get("rsc_earned") or 0
 
-        return Response({'amount': amount})
+        return Response({"amount": amount})
 
-    @method_decorator(cache_page(60*60*6))
+    @method_decorator(cache_page(60 * 60 * 6))
     @action(
         detail=False,
         methods=[RequestMethods.GET],
@@ -161,17 +136,17 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         Leaderboard serves both Papers and Users
         """
-        hub_id = request.GET.get('hub_id')
+        hub_id = request.GET.get("hub_id")
         if hub_id:
             hub_id = int(hub_id)
 
-        leaderboard_type = request.GET.get('type', 'users')
+        leaderboard_type = request.GET.get("type", "users")
         """
         createdByOptions can be values:
         1. created_date
         2. published_date
         """
-        created_by_options = request.GET.get('dateOption', 'created_date')
+        created_by_options = request.GET.get("dateOption", "created_date")
 
         """
         Timeframe can be values:
@@ -181,155 +156,167 @@ class UserViewSet(viewsets.ModelViewSet):
         4. past_month
         5. past_year
         """
-        timeframe = request.GET.get('timeframe', 'all_time')
+        timeframe = request.GET.get("timeframe", "all_time")
 
-        context = {'request': request}
+        context = {"request": request}
         serializer_kwargs = {}
         time_filter = {}
-        if leaderboard_type == 'papers':
-            if created_by_options == 'created_date':
-                keyword = 'uploaded_date__gte'
+        if leaderboard_type == "papers":
+            if created_by_options == "created_date":
+                keyword = "uploaded_date__gte"
             else:
-                keyword = 'paper_publish_date__gte'
-        elif leaderboard_type == 'users':
-            keyword = 'reputation_records__created_date__gte'
+                keyword = "paper_publish_date__gte"
+        elif leaderboard_type == "users":
+            keyword = "reputation_records__created_date__gte"
         else:
-            keyword = 'created_date__gte'
+            keyword = "created_date__gte"
 
-        if timeframe == 'today':
+        if timeframe == "today":
             time_filter = {keyword: timezone.now().date()}
-        elif timeframe == 'past_week':
+        elif timeframe == "past_week":
             time_filter = {keyword: timezone.now().date() - timedelta(days=7)}
-        elif timeframe == 'past_month':
+        elif timeframe == "past_month":
             time_filter = {keyword: timezone.now().date() - timedelta(days=30)}
-        elif timeframe == 'past_year':
-            if leaderboard_type == 'papers':
-                keyword = 'uploaded_date__year__gte'
+        elif timeframe == "past_year":
+            if leaderboard_type == "papers":
+                keyword = "uploaded_date__year__gte"
             else:
-                keyword = 'created_date__year__gte'
+                keyword = "created_date__year__gte"
             time_filter = {keyword: timezone.now().year}
 
         items = []
         serializerClass = None
-        if leaderboard_type == 'papers':
+        if leaderboard_type == "papers":
             serializerClass = DynamicPaperSerializer
             if hub_id and hub_id != 0:
-                items = Paper.objects.exclude(
-                    is_public=False,
-                ).filter(
-                    **time_filter,
-                    hubs__in=[hub_id],
-                    is_removed=False
-                ).order_by('-score')
+                items = (
+                    Paper.objects.exclude(
+                        is_public=False,
+                    )
+                    .filter(**time_filter, hubs__in=[hub_id], is_removed=False)
+                    .order_by("-score")
+                )
             else:
-                items = Paper.objects.exclude(
-                    is_public=False
-                ).filter(
-                    **time_filter,
-                    is_removed=False
-                ).order_by(
-                    '-score'
+                items = (
+                    Paper.objects.exclude(is_public=False)
+                    .filter(**time_filter, is_removed=False)
+                    .order_by("-score")
                 )
             serializer_kwargs = {
-                '_include_fields': [
-                    'id',
-                    'abstract',
-                    'boost_amount',
-                    'discussion_count',
-                    'file',
-                    'hubs',
-                    'paper_title',
-                    'score',
-                    'title',
-                    'slug',
-                    'uploaded_by',
-                    'uploaded_date',
+                "_include_fields": [
+                    "id",
+                    "abstract",
+                    "boost_amount",
+                    "discussion_count",
+                    "file",
+                    "hubs",
+                    "paper_title",
+                    "score",
+                    "title",
+                    "slug",
+                    "uploaded_by",
+                    "uploaded_date",
                 ]
             }
-        elif leaderboard_type == 'users':
+        elif leaderboard_type == "users":
             serializerClass = UserSerializer
             if hub_id and hub_id != 0:
-                items = User.objects.filter(
-                    is_active=True,
-                    is_suspended=False,
-                    probable_spammer=False,
-                ).annotate(
-                    hub_rep=Coalesce(Sum(
-                        'reputation_records__amount',
-                        filter=Q(
-                            **time_filter,
-                            reputation_records__hubs__in=[hub_id],
-                        ) & ~Q(reputation_records__distribution_type__in=['REFERRAL', 'REWARD', 'REFERRAL_APPROVED']),
-                    ), 0)
-                ).order_by(F('hub_rep').desc(nulls_last=True), '-reputation')
+                items = (
+                    User.objects.filter(
+                        is_active=True,
+                        is_suspended=False,
+                        probable_spammer=False,
+                    )
+                    .annotate(
+                        hub_rep=Coalesce(
+                            Sum(
+                                "reputation_records__amount",
+                                filter=Q(
+                                    **time_filter,
+                                    reputation_records__hubs__in=[hub_id],
+                                )
+                                & ~Q(
+                                    reputation_records__distribution_type__in=[
+                                        "REFERRAL",
+                                        "REWARD",
+                                        "REFERRAL_APPROVED",
+                                    ]
+                                ),
+                            ),
+                            0,
+                        )
+                    )
+                    .order_by(F("hub_rep").desc(nulls_last=True), "-reputation")
+                )
             else:
-                items = User.objects.filter(
-                    is_active=True,
-                    is_suspended=False,
-                    probable_spammer=False,
-                ).annotate(
-                    hub_rep=Coalesce(Sum(
-                        'reputation_records__amount',
-                        filter=Q(**time_filter) & ~Q(reputation_records__distribution_type__in=['REFERRAL', 'REWARD', 'REFERRAL_APPROVED'])
-                    ), 0)
-                ).order_by('-reputation')
-        elif leaderboard_type == 'authors':
+                items = (
+                    User.objects.filter(
+                        is_active=True,
+                        is_suspended=False,
+                        probable_spammer=False,
+                    )
+                    .annotate(
+                        hub_rep=Coalesce(
+                            Sum(
+                                "reputation_records__amount",
+                                filter=Q(**time_filter)
+                                & ~Q(
+                                    reputation_records__distribution_type__in=[
+                                        "REFERRAL",
+                                        "REWARD",
+                                        "REFERRAL_APPROVED",
+                                    ]
+                                ),
+                            ),
+                            0,
+                        )
+                    )
+                    .order_by("-reputation")
+                )
+        elif leaderboard_type == "authors":
             serializerClass = AuthorSerializer
-            items = Author.objects.filter(user__is_suspended=False).order_by('-author_score')
+            items = Author.objects.filter(user__is_suspended=False).order_by(
+                "-author_score"
+            )
 
         page = self.paginate_queryset(items)
         serializer = serializerClass(
-            page,
-            many=True,
-            context=context,
-            **serializer_kwargs
+            page, many=True, context=context, **serializer_kwargs
         )
 
         return self.get_paginated_response(serializer.data)
 
     @action(
-        detail=True,
-        methods=[RequestMethods.POST],
-        permission_classes=[IsAuthenticated]
+        detail=True, methods=[RequestMethods.POST], permission_classes=[IsAuthenticated]
     )
     def follow(self, request, pk=None):
         data = request.data
         user = self.get_object()
-        followee_id = data.get('followee_id')
+        followee_id = data.get("followee_id")
         followee = Author.objects.get(id=followee_id).user
 
         try:
-            follow = Follow.objects.create(
-                user=user,
-                followee=followee
-            )
+            follow = Follow.objects.create(user=user, followee=followee)
         except IntegrityError:
-            follow = Follow.objects.get(
-                user=user,
-                followee=followee
-            )
+            follow = Follow.objects.get(user=user, followee=followee)
             follow.delete()
 
         is_following = user.following.filter(followee=followee).exists()
         return Response(is_following, status=200)
 
     @action(
-        detail=True,
-        methods=[RequestMethods.GET],
-        permission_classes=[IsAuthenticated]
+        detail=True, methods=[RequestMethods.GET], permission_classes=[IsAuthenticated]
     )
     def following(self, request, pk=None):
         user = self.get_object()
-        following_ids = user.following.values_list('followee')
+        following_ids = user.following.values_list("followee")
         following = self.queryset.filter(id__in=following_ids)
         serializer = UserSerializer(following, many=True)
-        data = {user['id']: user for user in serializer.data}
+        data = {user["id"]: user for user in serializer.data}
         return Response(data, status=200)
 
     @action(
-        detail=True,
-        methods=[RequestMethods.GET],
-        permission_classes=[IsAuthenticated]
+        detail=True, methods=[RequestMethods.GET], permission_classes=[IsAuthenticated]
     )
     def check_follow(self, request, pk=None):
         user = request.user
@@ -337,17 +324,12 @@ class UserViewSet(viewsets.ModelViewSet):
         is_following = user.following.filter(followee=followee).exists()
         return Response(is_following, status=200)
 
-
-    @action(
-        detail=False,
-        methods=[RequestMethods.GET],
-        permission_classes=[AllowAny]
-    )
+    @action(detail=False, methods=[RequestMethods.GET], permission_classes=[AllowAny])
     def following_latest_activity(self, request):
         query_params = request.query_params
-        ordering = query_params.get('ordering', '-created_date')
-        hub_ids = query_params.get('hub_ids', '')
-        page_number = query_params.get('page', 1)
+        ordering = query_params.get("ordering", "-created_date")
+        hub_ids = query_params.get("hub_ids", "")
+        page_number = query_params.get("page", 1)
 
         cache_hit = self._get_latest_activity_cache_hit(request, hub_ids)
         if cache_hit and page_number == 1:
@@ -360,12 +342,12 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = DynamicContributionSerializer(
             page,
             _include_fields=[
-                'contribution_type',
-                'created_date',
-                'id',
-                'source',
-                'unified_document',
-                'user'
+                "contribution_type",
+                "created_date",
+                "id",
+                "source",
+                "unified_document",
+                "user",
             ],
             context=context,
             many=True,
@@ -377,41 +359,39 @@ class UserViewSet(viewsets.ModelViewSet):
         return response
 
     def _get_latest_activity_cache_hit(self, request, hub_ids):
-        hub_ids_list = hub_ids.split(',')
+        hub_ids_list = hub_ids.split(",")
         if len(hub_ids_list) > 1:
             results = {}
             count = 0
-            previous = ''
+            previous = ""
             next_url = request.build_absolute_uri()
             for hub_id in hub_ids_list:
-                cache_key = get_cache_key('contributions', hub_id)
+                cache_key = get_cache_key("contributions", hub_id)
                 cache_hit = cache.get(cache_key)
                 if not cache_hit:
                     return None
 
-                for hit in cache_hit['results']:
-                    hit_id = hit['id']
+                for hit in cache_hit["results"]:
+                    hit_id = hit["id"]
                     if hit_id not in results:
                         results[hit_id] = hit
-                count += cache_hit.get('count', 1)
+                count += cache_hit.get("count", 1)
 
             results = list(results.values())
             results = sorted(
-                results,
-                key=lambda contrib: contrib['created_date'],
-                reverse=True
+                results, key=lambda contrib: contrib["created_date"], reverse=True
             )[:10]
-            next_url = replace_query_param(next_url, 'page', 2)
+            next_url = replace_query_param(next_url, "page", 2)
 
             data = {
-                'count': count,
-                'next': next_url,
-                'previous': previous,
-                'results': results
+                "count": count,
+                "next": next_url,
+                "previous": previous,
+                "results": results,
             }
             return data
         else:
-            cache_key = get_cache_key('contributions', hub_ids)
+            cache_key = get_cache_key("contributions", hub_ids)
             cache_hit = cache.get(cache_key)
             return cache_hit
 
@@ -430,106 +410,105 @@ class UserViewSet(viewsets.ModelViewSet):
         removed_comments = Comment.objects.filter(is_removed=True)
         removed_replies = Reply.objects.filter(is_removed=True)
 
-        contributions = Contribution.objects.select_related(
-            'content_type',
-            'user',
-            'user__author_profile',
-            'unified_document',
-        ).prefetch_related(
-            'unified_document__hubs',
-        ).filter(
-            unified_document__is_removed=False,
-            contribution_type__in=contribution_type,
-        ).exclude(
-            (
+        contributions = (
+            Contribution.objects.select_related(
+                "content_type",
+                "user",
+                "user__author_profile",
+                "unified_document",
+            )
+            .prefetch_related(
+                "unified_document__hubs",
+            )
+            .filter(
+                unified_document__is_removed=False,
+                contribution_type__in=contribution_type,
+            )
+            .exclude(
                 (
-                    Q(content_type=thread_content_type) &
-                    Q(object_id__in=removed_threads)
-                ) |
-                (
-                    Q(content_type=comment_content_type) &
-                    Q(object_id__in=removed_comments)
-                ) |
-                (
-                    Q(content_type=reply_content_type) &
-                    Q(object_id__in=removed_replies)
+                    (
+                        Q(content_type=thread_content_type)
+                        & Q(object_id__in=removed_threads)
+                    )
+                    | (
+                        Q(content_type=comment_content_type)
+                        & Q(object_id__in=removed_comments)
+                    )
+                    | (
+                        Q(content_type=reply_content_type)
+                        & Q(object_id__in=removed_replies)
+                    )
                 )
             )
         )
 
         if hub_ids:
-            hub_ids = hub_ids.split(',')
+            hub_ids = hub_ids.split(",")
             hub_ids = [int(i) for i in hub_ids]
             contributions = contributions.filter(
                 unified_document__hubs__in=hub_ids
-            ).order_by(
-                ordering
-            )
+            ).order_by(ordering)
         else:
-            contributions = contributions.order_by(
-                ordering
-            )
+            contributions = contributions.order_by(ordering)
         contributions = contributions.distinct()
         return contributions
 
     def _get_latest_activity_context(self):
         context = {
-            'doc_duds_get_documents': {
-                '_include_fields': [
-                    'created_date',
-                    'id',
-                    'slug',
-                    'title',
+            "doc_duds_get_documents": {
+                "_include_fields": [
+                    "created_date",
+                    "id",
+                    "slug",
+                    "title",
                 ]
             },
-            'doc_duds_get_hubs': {
-                '_include_fields': [
-                    'name',
-                    'is_locked',
-                    'slug',
-                    'is_removed',
-                    'hub_image'
+            "doc_duds_get_hubs": {
+                "_include_fields": [
+                    "name",
+                    "is_locked",
+                    "slug",
+                    "is_removed",
+                    "hub_image",
                 ]
             },
-            'rep_dcs_get_source': {
-                '_include_fields': [
-                    'abstract',
-                    'amount',
-                    'id',
-                    'paper_title',
-                    'slug',
-                    'text',
-                    'title'
+            "rep_dcs_get_source": {
+                "_include_fields": [
+                    "abstract",
+                    "amount",
+                    "id",
+                    "paper_title",
+                    "slug",
+                    "text",
+                    "title",
                 ]
             },
-            'rep_dcs_get_unified_document': {
-                '_include_fields': [
-                    'created_date',
-                    'documents',
-                    'document_type',
-                    'hubs',
+            "rep_dcs_get_unified_document": {
+                "_include_fields": [
+                    "created_date",
+                    "documents",
+                    "document_type",
+                    "hubs",
                 ]
             },
-            'rep_dcs_get_user': {
-                '_include_fields': [
-                    'author_profile',
+            "rep_dcs_get_user": {
+                "_include_fields": [
+                    "author_profile",
                 ]
             },
-            'usr_dus_get_author_profile': {
-                '_include_fields': [
-                    'id',
-                    'first_name',
-                    'last_name',
-                    'profile_image',
+            "usr_dus_get_author_profile": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
                 ]
-            }
+            },
         }
         return context
 
     @action(
-        detail=True,
-        methods=[RequestMethods.GET],
-        permission_classes=[IsAuthenticated]
+        detail=True, methods=[RequestMethods.GET], permission_classes=[IsAuthenticated]
     )
     def actions(self, request, pk=None):
         user_actions = UserActions(user=request.user)
@@ -575,7 +554,7 @@ class UserViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated, Censor],
     )
     def reinstate(self, request):
-        author_id = request.data['author_id']
+        author_id = request.data["author_id"]
         user = Author.objects.get(id=author_id).user
         user.is_suspended = False
         user.probable_spammer = False
@@ -597,46 +576,46 @@ class UserViewSet(viewsets.ModelViewSet):
         postback_signature = request.headers.get("X-Sift-Science-Signature")
 
         # Next, let's try to assemble the signature on our side to verify
-        key = SIFT_WEBHOOK_SECRET_KEY.encode('utf-8')
+        key = SIFT_WEBHOOK_SECRET_KEY.encode("utf-8")
         postback_body = request.body
 
         h = hmac.new(key, postback_body, sha1)
         verification_signature = "sha1={}".format(h.hexdigest())
 
         if verification_signature == postback_signature:
-            decision_id = request.data['decision']['id']
-            user_id = request.data['entity']['id']
+            decision_id = request.data["decision"]["id"]
+            user_id = request.data["entity"]["id"]
             user = User.objects.get(id=user_id)
 
             if not user.moderator or user.email not in EMAIL_WHITELIST:
-                if 'mark_as_probable_spammer_content_abuse' in decision_id:
+                if "mark_as_probable_spammer_content_abuse" in decision_id:
                     log_info(
-                        f'Possible Spammer - {user.id}: {user.first_name} {user.last_name} - {decision_id}'
+                        f"Possible Spammer - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
                     )
                     user.set_probable_spammer()
-                elif 'suspend_user_content_abuse' in decision_id:
+                elif "suspend_user_content_abuse" in decision_id:
                     log_info(
-                        f'Suspending User - {user.id}: {user.first_name} {user.last_name} - {decision_id}'
+                        f"Suspending User - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
                     )
                     user.set_suspended(is_manual=False)
             serialized = UserSerializer(user)
             return Response(serialized.data, status=200)
         else:
-            raise Exception('Sift verification signature mismatch')
+            raise Exception("Sift verification signature mismatch")
 
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = University.objects.all()
     serializer_class = UniversitySerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
-    search_fields = ('name', 'city', 'state', 'country')
+    search_fields = ("name", "city", "state", "country")
     permission_classes = [AllowAny]
 
-    @method_decorator(cache_page(60*60*6))
+    @method_decorator(cache_page(60 * 60 * 6))
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
 
-    @method_decorator(cache_page(60*60*6))
+    @method_decorator(cache_page(60 * 60 * 6))
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
@@ -645,7 +624,7 @@ class MajorViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Major.objects.all()
     serializer_class = MajorSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
-    search_fields = ('major', 'major_category')
+    search_fields = ("major", "major_category")
     permission_classes = [AllowAny]
 
 
@@ -655,17 +634,17 @@ class VerificationViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=['post'],
+        methods=["post"],
     )
     def bulk_upload(self, request):
-        images = request.data.getlist('images')
+        images = request.data.getlist("images")
         for image in images:
             Verification.objects.create(
                 file=image,
                 user=request.user,
             )
 
-        return Response({'message': 'Verification was uploaded!'})
+        return Response({"message": "Verification was uploaded!"})
 
 
 class AuthorViewSet(viewsets.ModelViewSet):
@@ -673,39 +652,33 @@ class AuthorViewSet(viewsets.ModelViewSet):
     serializer_class = AuthorSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     filter_class = AuthorFilter
-    search_fields = ('first_name', 'last_name')
+    search_fields = ("first_name", "last_name")
     permission_classes = [
-        IsAuthenticatedOrReadOnly
-        & UpdateAuthor
-        & CreateOrUpdateIfAllowed
+        IsAuthenticatedOrReadOnly & UpdateAuthor & CreateOrUpdateIfAllowed
     ]
     throttle_classes = THROTTLE_CLASSES
 
     def create(self, request, *args, **kwargs):
-        '''Override to use an editable serializer.'''
+        """Override to use an editable serializer."""
         serializer = AuthorEditableSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(
-            serializer.data,
-            status=status.HTTP_201_CREATED,
-            headers=headers
+            serializer.data, status=status.HTTP_201_CREATED, headers=headers
         )
 
     def update(self, request, *args, **kwargs):
-        '''Override to use an editable serializer.'''
-        partial = kwargs.pop('partial', False)
+        """Override to use an editable serializer."""
+        partial = kwargs.pop("partial", False)
         instance = self.get_object()
         serializer = AuthorEditableSerializer(
-            instance,
-            data=request.data,
-            partial=partial
+            instance, data=request.data, partial=partial
         )
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
-        if getattr(instance, '_prefetched_objects_cache', None):
+        if getattr(instance, "_prefetched_objects_cache", None):
             # If 'prefetch_related' has been applied to a queryset, we need to
             # forcibly invalidate the prefetch cache on the instance.
             instance._prefetched_objects_cache = {}
@@ -714,332 +687,330 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=['get'],
+        methods=["get"],
     )
     def get_authored_papers(self, request, pk=None):
         author = self.get_object()
         prefetch_lookups = PaperViewSet.prefetch_lookups(self)
-        authored_papers = author.authored_papers.filter(
-            is_removed=False
-        ).prefetch_related(
-            *prefetch_lookups,
-        ).order_by('-score')
+        authored_papers = (
+            author.authored_papers.filter(is_removed=False)
+            .prefetch_related(
+                *prefetch_lookups,
+            )
+            .order_by("-score")
+        )
         context = self._get_authored_papers_context()
         page = self.paginate_queryset(authored_papers)
         serializer = DynamicPaperSerializer(
             page,
             _include_fields=[
-                'id',
-                'abstract',
-                'authors',
-                'boost_amount',
-                'file',
-                'first_preview',
-                'hubs',
-                'paper_title',
-                'score',
-                'title',
-                'uploaded_by',
-                'uploaded_date',
-                'url',
-                'paper_publish_date',
-                'slug',
+                "id",
+                "abstract",
+                "authors",
+                "boost_amount",
+                "file",
+                "first_preview",
+                "hubs",
+                "paper_title",
+                "score",
+                "title",
+                "uploaded_by",
+                "uploaded_date",
+                "url",
+                "paper_publish_date",
+                "slug",
             ],
             many=True,
-            context=context
+            context=context,
         )
         response = self.get_paginated_response(serializer.data)
         return response
 
     def _get_authored_papers_context(self):
         context = {
-            'pap_dps_get_authors': {
-                '_include_fields': [
-                    'id',
-                    'first_name',
-                    'last_name',
-                    'profile_image',
+            "pap_dps_get_authors": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
                 ]
             },
-            'pap_dps_get_uploaded_by': {
-                '_include_fields': [
-                    'id',
-                    'author_profile',
+            "pap_dps_get_uploaded_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
                 ]
             },
-            'pap_dps_get_first_preview': {
-                '_include_fields': [
-                    'file',
+            "pap_dps_get_first_preview": {
+                "_include_fields": [
+                    "file",
                 ]
             },
-            'usr_dus_get_author_profile': {
-                '_include_fields': [
-                    'id',
-                    'first_name',
-                    'last_name',
-                    'profile_image'
+            "usr_dus_get_author_profile": {
+                "_include_fields": ["id", "first_name", "last_name", "profile_image"]
+            },
+            "doc_duds_get_hubs": {
+                "_include_fields": [
+                    "id",
+                    "name",
+                    "slug",
+                    "hub_image",
                 ]
             },
-            'doc_duds_get_hubs': {
-                '_include_fields': [
-                    'id',
-                    'name',
-                    'slug',
-                    'hub_image',
-                ]
-            }
         }
         return context
 
     def _get_contribution_context(self, filter_by_user_id):
         context = {
-            'request': self.request,
-            '_config': {
-                'filter_by_user_id': filter_by_user_id,
+            "request": self.request,
+            "_config": {
+                "filter_by_user_id": filter_by_user_id,
             },
-            'doc_dps_get_created_by': {
-                '_include_fields': [
-                    'id',
-                    'author_profile',
+            "doc_dps_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
                 ]
             },
-            'doc_duds_get_created_by': {
-                '_include_fields': [
-                    'id',
-                    'author_profile',
+            "doc_duds_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
                 ]
             },
-            'doc_dps_get_hubs': {
-                '_include_fields': [
-                    'name',
-                    'slug',
+            "doc_dps_get_hubs": {
+                "_include_fields": [
+                    "name",
+                    "slug",
                 ]
             },
-            'pap_dps_get_uploaded_by': {
-                '_include_fields': [
-                    'id',
-                    'author_profile',
+            "pap_dps_get_uploaded_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
                 ]
             },
-            'dis_dts_get_created_by': {
-                '_include_fields': [
-                    'id',
-                    'author_profile',
+            "dis_dts_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
                 ]
             },
-            'dis_dcs_get_created_by': {
-                '_include_fields': [
-                    'author_profile',
-                    'id',
+            "dis_dcs_get_created_by": {
+                "_include_fields": [
+                    "author_profile",
+                    "id",
                 ]
             },
-            'dis_drs_get_created_by': {
-                '_include_fields': [
-                    'author_profile',
-                    'id',
+            "dis_drs_get_created_by": {
+                "_include_fields": [
+                    "author_profile",
+                    "id",
                 ]
             },
-            'pap_dps_get_user_vote': {
-                '_include_fields': [
-                    'id',
-                    'created_by',
-                    'created_date',
-                    'vote_type',
-                    'paper',
+            "pap_dps_get_user_vote": {
+                "_include_fields": [
+                    "id",
+                    "created_by",
+                    "created_date",
+                    "vote_type",
+                    "paper",
                 ]
             },
-            'pap_dps_get_hubs': {
-                '_include_fields': [
-                    'name',
-                    'slug',
+            "pap_dps_get_hubs": {
+                "_include_fields": [
+                    "name",
+                    "slug",
                 ]
             },
-            'doc_dps_get_user_vote': {
-                '_include_fields': [
-                    'id',
-                    'content_type',
-                    'created_by',
-                    'created_date',
-                    'vote_type',
-                    'item',
+            "pap_dpvs_paper": {"_exclude_fields": "__all__"},
+            "doc_dps_get_user_vote": {
+                "_include_fields": [
+                    "id",
+                    "content_type",
+                    "created_by",
+                    "created_date",
+                    "vote_type",
+                    "item",
                 ]
             },
-            'dis_drs_get_user_vote': {
-                '_include_fields': [
-                    'id',
-                    'content_type',
-                    'created_by',
-                    'created_date',
-                    'vote_type',
-                    'item',
+            "dis_drs_get_user_vote": {
+                "_include_fields": [
+                    "id",
+                    "content_type",
+                    "created_by",
+                    "created_date",
+                    "vote_type",
+                    "item",
                 ]
             },
-            'dis_dcs_get_user_vote': {
-                '_include_fields': [
-                    'id',
-                    'content_type',
-                    'created_by',
-                    'created_date',
-                    'vote_type',
-                    'item',
+            "dis_dcs_get_user_vote": {
+                "_include_fields": [
+                    "id",
+                    "content_type",
+                    "created_by",
+                    "created_date",
+                    "vote_type",
+                    "item",
                 ]
             },
-            'dis_dts_get_user_vote': {
-                '_include_fields': [
-                    'id',
-                    'content_type',
-                    'created_by',
-                    'created_date',
-                    'vote_type',
-                    'item',
+            "dis_dts_get_user_vote": {
+                "_include_fields": [
+                    "id",
+                    "content_type",
+                    "created_by",
+                    "created_date",
+                    "vote_type",
+                    "item",
                 ]
             },
-            'dis_dts_get_comments': {
-                '_include_fields': [
-                    'created_by',
-                    'created_date',
-                    'updated_date',
-                    'created_location',
-                    'external_metadata',
-                    'id',
-                    'is_created_by_editor',
-                    'is_public',
-                    'is_removed',
-                    'paper_id',
-                    'parent',
-                    'plain_text',
-                    'promoted',
-                    'replies',
-                    'reply_count',
-                    'score',
-                    'source',
-                    'text',
-                    'thread_id',
-                    'user_flag',
-                    'user_vote',
-                    'was_edited',
+            "dis_dts_get_comments": {
+                "_include_fields": [
+                    "created_by",
+                    "created_date",
+                    "updated_date",
+                    "created_location",
+                    "external_metadata",
+                    "id",
+                    "is_created_by_editor",
+                    "is_public",
+                    "is_removed",
+                    "paper_id",
+                    "parent",
+                    "plain_text",
+                    "promoted",
+                    "replies",
+                    "reply_count",
+                    "score",
+                    "source",
+                    "text",
+                    "thread_id",
+                    "user_flag",
+                    "user_vote",
+                    "was_edited",
                 ]
             },
-            'dis_dcs_get_replies': {
-                '_include_fields': [
-                    'created_by',
-                    'created_location',
-                    'id',
-                    'is_created_by_editor',
-                    'is_public',
-                    'is_removed',
-                    'paper_id',
-                    'parent',
-                    'plain_text',
-                    'promoted',
-                    'score',
-                    'text',
-                    'thread_id',
-                    'user_flag',
-                    'user_vote',
-                    'created_date',
-                    'updated_date',
+            "dis_dcs_get_replies": {
+                "_include_fields": [
+                    "created_by",
+                    "created_location",
+                    "id",
+                    "is_created_by_editor",
+                    "is_public",
+                    "is_removed",
+                    "paper_id",
+                    "parent",
+                    "plain_text",
+                    "promoted",
+                    "score",
+                    "text",
+                    "thread_id",
+                    "user_flag",
+                    "user_vote",
+                    "created_date",
+                    "updated_date",
                 ]
             },
-            'doc_duds_get_documents': {
-                '_include_fields': [
-                    'promoted',
-                    'abstract',
-                    'aggregate_citation_consensus',
-                    'created_by',
-                    'created_date',
-                    'hot_score',
-                    'hubs',
-                    'id',
-                    'discussion_count',
-                    'paper_title',
-                    'preview_img',
-                    'renderable_text',
-                    'score',
-                    'slug',
-                    'title',
-                    'uploaded_by',
-                    'uploaded_date',
-                    'user_vote',
+            "doc_duds_get_documents": {
+                "_include_fields": [
+                    "promoted",
+                    "abstract",
+                    "aggregate_citation_consensus",
+                    "created_by",
+                    "created_date",
+                    "hot_score",
+                    "hubs",
+                    "id",
+                    "discussion_count",
+                    "paper_title",
+                    "preview_img",
+                    "renderable_text",
+                    "score",
+                    "slug",
+                    "title",
+                    "uploaded_by",
+                    "uploaded_date",
+                    "user_vote",
                 ]
             },
-            'rep_dcs_get_author': {
-                '_include_fields': [
-                    'id',
-                    'first_name',
-                    'last_name',
-                    'profile_image',
+            "rep_dcs_get_author": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
                 ]
             },
-            'rep_dcs_get_unified_document': {
-                '_include_fields': [
-                    'id',
-                    'document_type',
-                    'documents',
-                    'hubs',
+            "rep_dcs_get_unified_document": {
+                "_include_fields": [
+                    "id",
+                    "document_type",
+                    "documents",
+                    "hubs",
                 ]
             },
-            'rep_dcs_get_source': {
-                '_include_fields': [
-                    'replies',
-                    'content_type',
-                    'promoted',
-                    'comments',
-                    'discussion_type',
-                    'amount',
-                    'paper_title',
-                    'slug',
-                    'block_key',
-                    'comment_count',
-                    'context_title',
-                    'created_by',
-                    'created_date',
-                    'created_location',
-                    'entity_key',
-                    'external_metadata',
-                    'hypothesis',
-                    'citation',
-                    'id',
-                    'is_public',
-                    'is_removed',
-                    'paper_slug',
-                    'paper',
-                    'post_slug',
-                    'post',
-                    'plain_text',
-                    'promoted',
-                    'score',
-                    'source',
-                    'text',
-                    'title',
-                    'user_flag',
-                    'user_vote',
-                    'was_edited',
-                    'document_meta',
+            "rep_dcs_get_source": {
+                "_include_fields": [
+                    "replies",
+                    "content_type",
+                    "promoted",
+                    "comments",
+                    "discussion_type",
+                    "amount",
+                    "paper_title",
+                    "slug",
+                    "block_key",
+                    "comment_count",
+                    "context_title",
+                    "created_by",
+                    "created_date",
+                    "created_location",
+                    "entity_key",
+                    "external_metadata",
+                    "hypothesis",
+                    "citation",
+                    "id",
+                    "is_public",
+                    "is_removed",
+                    "paper_slug",
+                    "paper",
+                    "post_slug",
+                    "post",
+                    "plain_text",
+                    "promoted",
+                    "score",
+                    "source",
+                    "text",
+                    "title",
+                    "user_flag",
+                    "user_vote",
+                    "was_edited",
+                    "document_meta",
                 ]
             },
-            'dis_dts_get_paper': {
-                '_include_fields': [
-                    'id',
-                    'slug',
+            "dis_dts_get_paper": {
+                "_include_fields": [
+                    "id",
+                    "slug",
                 ]
             },
-            'dis_dts_get_post': {
-                '_include_fields': [
-                    'id',
-                    'slug',
+            "dis_dts_get_post": {
+                "_include_fields": [
+                    "id",
+                    "slug",
                 ]
             },
-            'doc_duds_get_hubs': {
-                '_include_fields': [
-                    'name',
-                    'slug',
+            "doc_duds_get_hubs": {
+                "_include_fields": [
+                    "name",
+                    "slug",
                 ]
             },
-            'hyp_dhs_get_hubs': {
-                '_include_fields': [
-                    'name',
-                    'slug',
+            "hyp_dhs_get_hubs": {
+                "_include_fields": [
+                    "name",
+                    "slug",
                 ]
             },
         }
@@ -1047,28 +1018,30 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=['get'],
+        methods=["get"],
     )
     def contributions(self, request, pk=None):
         author = self.get_object()
 
         query_params = request.query_params
-        ordering = query_params.get('ordering', '-created_date')
-        asset_type = query_params.get('type', 'overview')
-        contributions = self._get_author_contribution_queryset(author.id, ordering, asset_type)
+        ordering = query_params.get("ordering", "-created_date")
+        asset_type = query_params.get("type", "overview")
+        contributions = self._get_author_contribution_queryset(
+            author.id, ordering, asset_type
+        )
 
         page = self.paginate_queryset(contributions)
         context = self._get_contribution_context(author.user_id)
         serializer = DynamicContributionSerializer(
             page,
             _include_fields=[
-                'contribution_type',
-                'created_date',
-                'id',
-                'source',
-                'created_by',
-                'unified_document',
-                'author'
+                "contribution_type",
+                "created_date",
+                "id",
+                "source",
+                "created_by",
+                "unified_document",
+                "author",
             ],
             context=context,
             many=True,
@@ -1082,22 +1055,19 @@ class AuthorViewSet(viewsets.ModelViewSet):
         user = author.user
 
         if user:
-            user_replies = Reply.objects.filter(
-                created_by_id=user.id,
-                is_removed=False
-            )
+            user_replies = Reply.objects.filter(created_by_id=user.id, is_removed=False)
             user_comments = Comment.objects.filter(
-                Q(is_removed=False) &
-                (
-                    Q(created_by_id=user.id) |
-                    Q(id__in=[r.object_id for r in user_replies])
+                Q(is_removed=False)
+                & (
+                    Q(created_by_id=user.id)
+                    | Q(id__in=[r.object_id for r in user_replies])
                 )
             )
             user_threads = Thread.objects.filter(
-                Q(is_removed=False) &
-                (
-                    Q(created_by_id=user.id) |
-                    Q(id__in=[c.parent_id for c in user_comments])
+                Q(is_removed=False)
+                & (
+                    Q(created_by_id=user.id)
+                    | Q(id__in=[c.parent_id for c in user_comments])
                 )
             )
 
@@ -1120,11 +1090,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         unified_document__is_removed=False,
                         content_type=thread_content_type,
                         object_id__in=author_threads,
-                        contribution_type__in=[
-                            Contribution.COMMENTER
-                        ],
-                    ) |
-                    Q(
+                        contribution_type__in=[Contribution.COMMENTER],
+                    )
+                    | Q(
                         unified_document__is_removed=False,
                         user__author_profile=author_id,
                         content_type_id__in=[
@@ -1134,7 +1102,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         ],
                         contribution_type__in=[
                             Contribution.SUBMITTER,
-                            Contribution.SUPPORTER
+                            Contribution.SUPPORTER,
                         ],
                     )
                 )
@@ -1143,62 +1111,55 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     unified_document__is_removed=False,
                     user__author_profile=author_id,
                     content_type_id=post_content_type,
-                    contribution_type__in=[
-                        Contribution.SUBMITTER
-                    ],
+                    contribution_type__in=[Contribution.SUBMITTER],
                 )
             elif asset_type == "hypothesis":
                 query |= Q(
                     unified_document__is_removed=False,
                     user__author_profile=author_id,
                     content_type_id=hypothesis_content_type,
-                    contribution_type__in=[
-                        Contribution.SUBMITTER
-                    ],
+                    contribution_type__in=[Contribution.SUBMITTER],
                 )
             elif asset_type == "comment":
                 query |= Q(
                     unified_document__is_removed=False,
                     content_type=thread_content_type,
                     object_id__in=author_threads,
-                    contribution_type__in=[
-                        Contribution.COMMENTER
-                    ],
+                    contribution_type__in=[Contribution.COMMENTER],
                 )
             elif asset_type == "paper":
                 query |= Q(
                     unified_document__is_removed=False,
                     user__author_profile=author_id,
                     content_type_id=paper_content_type,
-                    contribution_type__in=[
-                        Contribution.SUBMITTER
-                    ],
+                    contribution_type__in=[Contribution.SUBMITTER],
                 )
             else:
-                raise Exception('Unrecognized asset type')
+                raise Exception("Unrecognized asset type")
 
-
-        qs = Contribution.objects.filter(query).select_related(
-            'content_type',
-            'user',
-            'user__author_profile',
-            'unified_document',
-        ).order_by(ordering)
+        qs = (
+            Contribution.objects.filter(query)
+            .select_related(
+                "content_type",
+                "user",
+                "user__author_profile",
+                "unified_document",
+            )
+            .order_by(ordering)
+        )
 
         return qs
 
     @action(
         detail=True,
-        methods=['get'],
+        methods=["get"],
     )
     def get_user_discussions(self, request, pk=None):
         author = self.get_object()
         user = author.user
 
         if user:
-            user_discussions = user.thread_set.filter(
-                is_removed=False
-            ).order_by('-id')
+            user_discussions = user.thread_set.filter(is_removed=False).order_by("-id")
         else:
             user_discussions = self.queryset.none()
 
@@ -1207,54 +1168,49 @@ class AuthorViewSet(viewsets.ModelViewSet):
         serializer = DynamicThreadSerializer(
             page,
             _include_fields=[
-                'id',
-                'comment_count',
-                'created_by',
-                'created_date',
-                'paper',
-                'post',
-                'score',
-                'text',
+                "id",
+                "comment_count",
+                "created_by",
+                "created_date",
+                "paper",
+                "post",
+                "score",
+                "text",
             ],
             many=True,
-            context=context
+            context=context,
         )
         return self.get_paginated_response(serializer.data)
 
     def _get_user_discussion_context(self):
         context = {
-            'dis_dts_get_created_by': {
-                '_include_fields': [
-                    'id',
-                    'author_profile',
+            "dis_dts_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
                 ]
             },
-            'dis_dts_get_paper': {
-                '_include_fields': [
-                    'id',
-                    'slug',
+            "dis_dts_get_paper": {
+                "_include_fields": [
+                    "id",
+                    "slug",
                 ]
             },
-            'dis_dts_get_post': {
-                '_include_fields': [
-                    'id',
-                    'slug',
+            "dis_dts_get_post": {
+                "_include_fields": [
+                    "id",
+                    "slug",
                 ]
             },
-            'usr_dus_get_author_profile': {
-                '_include_fields': [
-                    'id',
-                    'first_name',
-                    'last_name',
-                    'profile_image'
-                ]
+            "usr_dus_get_author_profile": {
+                "_include_fields": ["id", "first_name", "last_name", "profile_image"]
             },
         }
         return context
 
     @action(
         detail=True,
-        methods=['get'],
+        methods=["get"],
     )
     def get_user_contributions(self, request, pk=None):
         author = self.get_object()
@@ -1262,9 +1218,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
         if user:
             prefetch_lookups = PaperViewSet.prefetch_lookups(self)
-            user_paper_uploads = user.papers.filter(
-                is_removed=False
-            ).prefetch_related(
+            user_paper_uploads = user.papers.filter(is_removed=False).prefetch_related(
                 *prefetch_lookups
             )
         else:
@@ -1275,20 +1229,20 @@ class AuthorViewSet(viewsets.ModelViewSet):
         serializer = DynamicPaperSerializer(
             page,
             _include_fields=[
-                'id',
-                'abstract',
-                'boost_amount',
-                'file',
-                'hubs',
-                'paper_title',
-                'score',
-                'title',
-                'slug',
-                'uploaded_by',
-                'uploaded_date',
+                "id",
+                "abstract",
+                "boost_amount",
+                "file",
+                "hubs",
+                "paper_title",
+                "score",
+                "title",
+                "slug",
+                "uploaded_by",
+                "uploaded_date",
             ],
             many=True,
-            context=context
+            context=context,
         )
         response = self.get_paginated_response(serializer.data)
 
@@ -1296,34 +1250,29 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
     def _get_user_contributions_context(self):
         context = {
-            'pap_dps_get_uploaded_by': {
-                '_include_fields': [
-                    'id',
-                    'author_profile',
+            "pap_dps_get_uploaded_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
                 ]
             },
-            'usr_dus_get_author_profile': {
-                '_include_fields': [
-                    'id',
-                    'first_name',
-                    'last_name',
-                    'profile_image'
+            "usr_dus_get_author_profile": {
+                "_include_fields": ["id", "first_name", "last_name", "profile_image"]
+            },
+            "doc_duds_get_hubs": {
+                "_include_fields": [
+                    "id",
+                    "name",
+                    "slug",
+                    "hub_image",
                 ]
             },
-            'doc_duds_get_hubs': {
-                '_include_fields': [
-                    'id',
-                    'name',
-                    'slug',
-                    'hub_image',
-                ]
-            }
         }
         return context
 
     @action(
         detail=True,
-        methods=['get'],
+        methods=["get"],
     )
     def get_user_posts(self, request, pk=None):
         author = self.get_object()
@@ -1331,8 +1280,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
         if user:
             user_posts = user.created_posts.all().prefetch_related(
-                'unified_document',
-                'purchases'
+                "unified_document", "purchases"
             )
         else:
             user_posts = self.queryset.none()
@@ -1342,44 +1290,39 @@ class AuthorViewSet(viewsets.ModelViewSet):
         serializer = DynamicPostSerializer(
             page,
             _include_fields=[
-                'id',
-                'created_by',
-                'hubs',
-                'boost_amount',
-                'renderable_text',
-                'score',
-                'slug',
-                'title',
+                "id",
+                "created_by",
+                "hubs",
+                "boost_amount",
+                "renderable_text",
+                "score",
+                "slug",
+                "title",
             ],
             many=True,
-            context=context
+            context=context,
         )
         response = self.get_paginated_response(serializer.data)
         return response
 
     def _get_user_posts_context(self):
         context = {
-            'doc_dps_get_created_by': {
-                '_include_fields': [
-                    'id',
-                    'author_profile',
+            "doc_dps_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
                 ]
             },
-            'usr_dus_get_author_profile': {
-                '_include_fields': [
-                    'id',
-                    'first_name',
-                    'last_name',
-                    'profile_image'
+            "usr_dus_get_author_profile": {
+                "_include_fields": ["id", "first_name", "last_name", "profile_image"]
+            },
+            "doc_dps_get_hubs": {
+                "_include_fields": [
+                    "id",
+                    "name",
+                    "slug",
+                    "hub_image",
                 ]
             },
-            'doc_dps_get_hubs': {
-                '_include_fields': [
-                    'id',
-                    'name',
-                    'slug',
-                    'hub_image',
-                ]
-            }
         }
         return context
