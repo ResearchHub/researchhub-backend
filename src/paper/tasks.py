@@ -1208,7 +1208,7 @@ def celery_process_paper(self, submission_id):
 
     # Specific Crossref bypass for Manubot (Arxiv links)
     parsed_url = urlparse(url)
-    if "arxiv" in parsed_url.netloc:
+    if parsed_url.netloc == "arxiv.org":
         tasks.extend([celery_manubot.s().set(countdown=1)])
     else:
         tasks.extend([celery_crossref.s().set(countdown=1)])
