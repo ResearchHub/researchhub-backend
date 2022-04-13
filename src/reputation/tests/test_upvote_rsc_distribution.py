@@ -131,12 +131,15 @@ class BaseTests(TestCase, TestHelper):
             email='user3@gmail.com',
         )
 
+        self.user.reputation = 50000
+        self.user.save()
+
         thread = Thread.objects.create(created_by=new_user, paper=self.original_paper)
         thread_ct = ContentType.objects.get(model='thread')
 
         thread_vote = DiscussionVote.objects.create(item=thread, content_type=thread_ct, vote_type=1, created_by=self.user)
 
-        distribution = create_upvote_distribution(1, self.original_paper, thread_vote)
+        distribution = create_upvote_distribution(1, None, thread_vote)
         self.assertEquals(Distribution.objects.count(), 1)
         distribution_amount = calculate_rsc_per_upvote()
         self.assertEquals(distribution.amount, distribution_amount)
@@ -159,12 +162,15 @@ class BaseTests(TestCase, TestHelper):
             email='user3@gmail.com',
         )
 
+        new_user.reputation = 50000
+        new_user.save()
+
         thread = Thread.objects.create(created_by=new_user, paper=self.original_paper)
         comment_ct = ContentType.objects.get(model='comment')
         comment = Comment.objects.create(created_by=self.user, parent=thread)
         comment_vote = DiscussionVote.objects.create(item=comment, content_type=comment_ct, vote_type=1, created_by=new_user)
 
-        distribution = create_upvote_distribution(1, self.original_paper, comment_vote)
+        distribution = create_upvote_distribution(1, None, comment_vote)
         self.assertEquals(Distribution.objects.count(), 1)
         distribution_amount = calculate_rsc_per_upvote()
         self.assertEquals(distribution.amount, distribution_amount)
@@ -187,13 +193,16 @@ class BaseTests(TestCase, TestHelper):
             email='user3@gmail.com',
         )
 
+        self.user.reputation = 50000
+        self.user.save()
+
         thread = Thread.objects.create(created_by=new_user, paper=self.original_paper)
         reply_ct = ContentType.objects.get(model='reply')
         comment = Comment.objects.create(created_by=self.user, parent=thread)
         reply = Reply.objects.create(created_by=new_user, parent=comment)
         reply_vote = DiscussionVote.objects.create(item=reply, content_type=reply_ct, vote_type=1, created_by=self.user)
 
-        distribution = create_upvote_distribution(1, self.original_paper, reply_vote)
+        distribution = create_upvote_distribution(1, None, reply_vote)
         self.assertEquals(Distribution.objects.count(), 1)
         distribution_amount = calculate_rsc_per_upvote()
         self.assertEquals(distribution.amount, distribution_amount)

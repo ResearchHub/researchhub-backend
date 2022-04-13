@@ -6,10 +6,15 @@ from researchhub_case.constants.case_constants import (
 )
 
 class Distribution:
-    def __init__(self, name, amount, give_rep=True):
+    def __init__(self, name, amount, give_rep=True, reputation=1):
         self._name = name
         self._amount = amount
+        self._reputation = reputation
         self._give_rep = give_rep
+    
+    @property
+    def reputation(self):
+        return self._reputation
 
     @property
     def name(self):
@@ -78,9 +83,10 @@ def create_upvote_distribution(vote_type, paper=None, vote=None):
     eligible_enhanced_upvote = False
     if vote:
         eligible_enhanced_upvote = calculate_eligible_enhanced_upvotes(vote.created_by)
+
     if not eligible_enhanced_upvote:
         return Distribution(
-            vote_type, 1
+            vote_type, 1, 1
         )
 
     distribution_amount = calculate_rsc_per_upvote()
@@ -115,7 +121,7 @@ def create_upvote_distribution(vote_type, paper=None, vote=None):
         )
 
     return Distribution(
-        vote_type, distribution_amount
+        vote_type, distribution_amount, 1
     )
 
 FlagPaper = Distribution(
@@ -129,86 +135,86 @@ CreateBulletPoint = Distribution(
     'CREATE_BULLET_POINT', 1
 )
 BulletPointCensored = Distribution(
-    'BULLET_POINT_CENSORED', -2
+    'BULLET_POINT_CENSORED', -2, True, -2
 )
 BulletPointFlagged = Distribution(
-    'BULLET_POINT_FLAGGED', -2
+    'BULLET_POINT_FLAGGED', -2, True, -2
 )
 BulletPointUpvoted = Distribution(
     'BULLET_POINT_UPVOTED', 1
 )
 BulletPointDownvoted = Distribution(
-    'BULLET_POINT_DOWNVOTED', -1
+    'BULLET_POINT_DOWNVOTED', -1, True, -1
 )
 
 CommentCensored = Distribution(
-    'COMMENT_CENSORED', -2
+    'COMMENT_CENSORED', -2, True, -2
 )
 CommentFlagged = Distribution(
-    'COMMENT_FLAGGED', -2
+    'COMMENT_FLAGGED', -2, True, -2
 )
 CommentUpvoted = Distribution(
     'COMMENT_UPVOTED', 1
 )
 CommentDownvoted = Distribution(
-    'COMMENT_DOWNVOTED', -1
+    'COMMENT_DOWNVOTED', -1, True, -1
 )
 
 ReplyCensored = Distribution(
-    'REPLY_CENSORED', -2
+    'REPLY_CENSORED', -2, True, -2
 )
 ReplyFlagged = Distribution(
-    'REPLY_FLAGGED', -2
+    'REPLY_FLAGGED', -2, True, -2
 )
 ReplyUpvoted = Distribution(
     'REPLY_UPVOTED', 1
 )
 ReplyDownvoted = Distribution(
-    'REPLY_DOWNVOTED', -1
+    'REPLY_DOWNVOTED', -1, True, -1
 )
 
 ThreadCensored = Distribution(
-    'THREAD_CENSORED', -2
+    'THREAD_CENSORED', -2, True, -2
 )
 ThreadFlagged = Distribution(
-    'THREAD_FLAGGED', -2
+    'THREAD_FLAGGED', -2, True, -2
 )
 ThreadUpvoted = Distribution(
     'THREAD_UPVOTED', 1
 )
 ThreadDownvoted = Distribution(
-    'THREAD_DOWNVOTED', -1
+    'THREAD_DOWNVOTED', -1, True, -1
 )
 
 CreateSummary = Distribution(
     'CREATE_SUMMARY', 1
 )
 CreateFirstSummary = Distribution(
-    'CREATE_FIRST_SUMMARY', 5
+    'CREATE_FIRST_SUMMARY', 5, True, 5
 )
 SummaryApproved = Distribution(
-    'SUMMARY_APPROVED', 15
+    'SUMMARY_APPROVED', 15, True, 15
 )
 SummaryRejected = Distribution(
-    'SUMMARY_REJECTED', -2
+    'SUMMARY_REJECTED', -2, True, -2
 )
 SummaryFlagged = Distribution(
-    'SUMMARY_FLAGGED', -5
+    'SUMMARY_FLAGGED', -5, True, -5
 )
 SummaryUpvoted = Distribution(
     'SUMMARY_UPVOTED', 1
 )
 SummaryDownvoted = Distribution(
-    'SUMMARY_DOWNVOTED', -1
+    'SUMMARY_DOWNVOTED', -1, True, -1
 )
 ResearchhubPostUpvoted = Distribution(
     'RESEARCHHUB_POST_UPVOTED', 1
 )
 ResearchhubPostDownvoted = Distribution(
-    'RESEARCHHUB_POST_DOWNVOTED', -1
+    'RESEARCHHUB_POST_DOWNVOTED', -1, True, -1
 )
 ResearchhubPostCensored = Distribution(
-    'RESEARCHHUB_POST_CENSORED', -2
+    'RESEARCHHUB_POST_CENSORED', -2, True, -2
 )
 Referral = Distribution(
     'REFERRAL', 50, False
