@@ -497,7 +497,6 @@ def distribute_for_discussion_vote(
                     timestamp,
                     hubs.all()
                 )
-                distributor.distribute()
             except TypeError as e:
                 error = ReputationSignalError(
                     e,
@@ -505,7 +504,7 @@ def distribute_for_discussion_vote(
                 )
                 print(error)
 
-    if distributor is not None:
+    if distributor is not None and recipient != instance.created_by:
         record = distributor.distribute()
 
 
