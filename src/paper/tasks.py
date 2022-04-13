@@ -1242,7 +1242,7 @@ def celery_get_doi(self, celery_data):
         if status_code >= 200 and status_code < 400:
             content = BeautifulSoup(res.content, "lxml")
             dois = re.findall(
-                r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9].+?(?=[\";%<>\?#&\.])", str(content)
+                r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+?(?=[\";%<>\?#&])", str(content)
             )
             dois = list(map(str.strip, dois))
             dois = clean_dois(parsed_url, dois)
