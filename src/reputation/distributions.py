@@ -72,7 +72,17 @@ def calculate_rsc_per_upvote():
 
     return int(rsc_distribute)
 
-def create_upvote_distribution(vote_type, paper=None):
+def create_upvote_distribution(vote_type, paper=None, vote=None):
+    from user.utils import calculate_eligible_enhanced_upvotes
+
+    eligible_enhanced_upvote = False
+    if vote:
+        eligible_enhanced_upvote = calculate_eligible_enhanced_upvotes(vote.created_by)
+    if not eligible_enhanced_upvote:
+        return Distribution(
+            vote_type, 1
+        )
+
     distribution_amount = calculate_rsc_per_upvote()
 
     if paper:

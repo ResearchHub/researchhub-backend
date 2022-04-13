@@ -42,7 +42,7 @@ class BaseTests(TestCase, TestHelper):
         self,
     ):
         distribution_amount = calculate_rsc_per_upvote()
-        create_upvote_distribution(1, self.original_paper)
+        create_upvote_distribution(1, self.original_paper, PaperVote.objects.first())
         self.assertEquals(AuthorRSC.objects.count(), 1)
         self.assertEquals(AuthorRSC.objects.first().amount, math.floor(distribution_amount * .75))
     
@@ -73,7 +73,7 @@ class BaseTests(TestCase, TestHelper):
         )
 
         self.original_paper.authors.add(author)
-        distribution = create_upvote_distribution(1, self.original_paper)
+        distribution = create_upvote_distribution(1, self.original_paper, PaperVote.objects.first())
         distribution_amount = calculate_rsc_per_upvote()
         self.assertEquals(Distribution.objects.count(), 0)
         self.assertEquals(distribution.amount, distribution_amount * .25)
@@ -106,7 +106,7 @@ class BaseTests(TestCase, TestHelper):
 
         self.original_paper.authors.add(author)
         AuthorClaimCase.objects.create(target_paper=self.original_paper, requestor=author.user, status=APPROVED)
-        distribution = create_upvote_distribution(1, self.original_paper)
+        distribution = create_upvote_distribution(1, self.original_paper, PaperVote.objects.first())
         distribution_amount = calculate_rsc_per_upvote()
         self.assertEquals(Distribution.objects.count(), 1)
         self.assertEquals(Distribution.objects.first().amount, math.floor(distribution_amount * .75 / 3))
@@ -116,7 +116,7 @@ class BaseTests(TestCase, TestHelper):
     ):
         if Distribution.objects.count() > 0:
             Distribution.objects.all().delete()
-        
+
         if AuthorRSC.objects.count() > 0:
             AuthorRSC.objects.all().delete()
 
@@ -135,7 +135,7 @@ class BaseTests(TestCase, TestHelper):
             email='user3@gmail.com',
         )
 
-        distribution = create_upvote_distribution(1, self.original_paper)
+        distribution = create_upvote_distribution(1, self.original_paper, PaperVote.objects.first())
         distribution_amount = calculate_rsc_per_upvote()
         
         university = self.create_university()

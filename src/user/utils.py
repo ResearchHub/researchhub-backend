@@ -1,7 +1,7 @@
 from utils.sentry import log_error
 from user.tasks import preload_latest_activity
 from paper.models import Paper
-from user.aggregates import TenPercentile
+from user.aggregates import TenPercentile, TwoPercentile
 from user.models import User
 
 def move_paper_to_author(target_paper, target_author, source_author=None):
@@ -59,8 +59,15 @@ def calculate_show_referral(user):
     aggregation = User.objects.all().aggregate(TenPercentile('reputation'))
     percentage = aggregation['reputation__ten-percentile']
     reputation = user.reputation
-    show_referral = float(reputation) > percentage
+    show_referral = float(reputation) >= percentage
     return show_referral
+
+def calculate_eligible_enhanced_upvotes(user):
+    aggregation = User.objects.all().aggregate(TwoPercentile('reputation'))
+    percentage = aggregation['reputation__two-percentile']
+    reputation = user.reputation
+    eligible = float(reputation) >= percentage
+    return eligible
 
 
 def reset_latest_acitvity_cache(
