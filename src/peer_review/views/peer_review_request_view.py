@@ -5,6 +5,7 @@ from rest_framework.permissions import (
 from peer_review.models import PeerReviewRequest
 from peer_review.serializers import (
     PeerReviewRequestSerializer,
+    DynamicPeerReviewRequestSerializer,
 )
 from peer_review.permissions import (
     IsAllowedToRequest,
@@ -50,5 +51,34 @@ class PeerReviewRequestViewSet(ModelViewSet):
             queryset = self.queryset.filter(requested_by_user=request.user)
 
         page = self.paginate_queryset(queryset)
-        serializer = PeerReviewRequestSerializer(page, many=True)
+        context = self._get_serializer_context()
+        serializer = DynamicPeerReviewRequestSerializer(
+            page,
+            _include_fields=[
+                'id',
+                'unified_document',
+                'requested_by_user'
+            ],
+            context=context,
+            many=True
+        )
         return self.get_paginated_response(serializer.data)
+
+    def _get_serializer_context(self):
+        context = {
+            'pr_dprrs_get_requested_by_user': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'author_profile',
+                ]
+            },
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                ]
+            }
+        }
+
+        return context

@@ -3,6 +3,30 @@ from peer_review.models import (
     PeerReviewRequest,
     PeerReviewInvite,
 )
+from researchhub.serializers import DynamicModelFieldSerializer
+
+class DynamicPeerReviewRequestSerializer(
+    DynamicModelFieldSerializer,
+):
+    requested_by_user = SerializerMethodField()
+
+    class Meta:
+        model = PeerReviewRequest
+        fields = '__all__'
+
+    def get_requested_by_user(self, obj):
+        from user.serializers import DynamicUserSerializer
+
+        context = self.context
+        _context_fields = context.get("pr_dprrs_get_requested_by_user", {})
+
+        serializer = DynamicUserSerializer(
+            obj.requested_by_user,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data            
+
 
 class PeerReviewRequestSerializer(ModelSerializer):
     invites = SerializerMethodField()
