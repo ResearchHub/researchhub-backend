@@ -12,6 +12,7 @@ from io import BytesIO
 from json.decoder import JSONDecodeError
 from subprocess import PIPE, run
 from unicodedata import normalize
+from urllib.parse import urlparse
 
 import cloudscraper
 import feedparser
@@ -54,6 +55,7 @@ from paper.utils import (
     check_crossref_title,
     check_pdf_title,
     clean_abstract,
+    clean_dois,
     fitz_extract_figures,
     format_raw_authors,
     get_cache_key,
@@ -1205,7 +1207,8 @@ def celery_process_paper(self, submission_id):
         )
 
     # Specific Crossref bypass for Manubot (Arxiv links)
-    if url and "arxiv" in url:
+    parsed_url = urlparse(url)
+    if "arxiv" in parsed_url.netloc:
         tasks.extend([celery_manubot.s().set(countdown=1)])
     else:
         tasks.extend([celery_crossref.s().set(countdown=1)])
@@ -1232,6 +1235,7 @@ def celery_get_doi(self, celery_data):
         paper_submission.notify_status()
 
         url = paper_data["url"]
+        parsed_url = urlparse(url)
         scraper = cloudscraper.create_scraper()
         res = scraper.get(url)
         status_code = res.status_code
@@ -1241,9 +1245,10 @@ def celery_get_doi(self, celery_data):
                 r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9].+?(?=[\";%<>\?#&])", str(content)
             )
             dois = list(map(str.strip, dois))
+            dois = clean_dois(parsed_url, dois)
 
             doi_counter = Counter(dois)
-            paper_data["dois"] = [doi for doi, _ in doi_counter.most_common(5)]
+            paper_data["dois"] = [doi for doi, _ in doi_counter.most_common(1)]
             return celery_data
     except CloudflareChallengeError as e:
         sentry.log_info(e)
