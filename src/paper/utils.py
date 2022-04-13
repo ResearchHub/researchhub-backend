@@ -5,6 +5,7 @@ from datetime import datetime
 import fitz
 import jellyfish
 import nltk
+import regex as re
 import requests
 from bs4 import BeautifulSoup
 from django.core.cache import cache
@@ -711,3 +712,11 @@ def format_raw_authors(raw_authors):
             author["last_name"] = last_name
 
     return raw_authors
+
+
+def clean_dois(parsed_url, dois):
+    netloc = parsed_url.netloc
+    if "biorxiv" in netloc:
+        version_regex = r"v[0-9]+$"
+        dois = list(map(lambda doi: re.sub(version_regex, "", doi), dois))
+    return dois
