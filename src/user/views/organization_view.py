@@ -479,13 +479,14 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             templates = NoteTemplate.objects.filter(
                 Q(created_by=user) |
                 Q(is_default=True)
-            )
+            ).exclude(is_removed=True)
         else:
             organization = self.get_object(slug=True)
-            templates = organization.created_templates.all()
+            templates = organization.created_templates.exclude(is_removed=True)
             templates = templates.union(
                 NoteTemplate.objects.filter(
-                    is_default=True
+                    is_default=True,
+                    is_removed=False
                 )
             )
 

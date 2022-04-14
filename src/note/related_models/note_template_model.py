@@ -31,3 +31,7 @@ class NoteTemplate(DefaultModel):
         null=True,
         blank=True
     )
+    is_removed = models.BooleanField(
+        default=False,
+        db_index=True
+    )
