@@ -8,6 +8,7 @@ from researchhub_case.related_models.researchhub_case_abstract_model import (
 )
 from user.models import Author
 from paper.models import Paper
+from reputation.models import AuthorRSC
 
 
 class AuthorClaimCase(AbstractResearchhubCase):
@@ -64,4 +65,9 @@ class AuthorClaimCase(AbstractResearchhubCase):
       max_length=255,
       null=True,
       blank=False,
+    )
+    claimed_rsc = models.ManyToManyField(
+      AuthorRSC,
+      blank=True,
+      related_name="claim_case"
     )

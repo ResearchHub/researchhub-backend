@@ -43,7 +43,8 @@ def after_approval_flow(
     if instance.status == APPROVED:
         try:
             requestor_author = instance.requestor.author_profile
-            reward_author_claim_case(requestor_author)
+
+            reward_author_claim_case(requestor_author, instance.target_paper, instance)
             if instance.target_paper is None:
                 raise Exception(
                     f'Cannot approve claim because paper was not found'

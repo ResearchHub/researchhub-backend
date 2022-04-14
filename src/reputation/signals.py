@@ -1,35 +1,28 @@
 from datetime import timedelta
 from time import time
 
+from django.contrib.admin.options import get_content_type_for_model
 from django.db.models import Q
-from django.db.models.signals import m2m_changed, post_save, post_delete
+from django.db.models.signals import m2m_changed, post_delete, post_save
 from django.dispatch import receiver
 from django.utils import timezone
-from django.contrib.admin.options import get_content_type_for_model
 
 import reputation.distributions as distributions
-from researchhub_document.models import ResearchhubPost
-from hypothesis.models import Hypothesis, Citation
-from bullet_point.models import (
-    BulletPoint,
-    Vote as BulletPointVote
-)
+from bullet_point.models import BulletPoint
+from bullet_point.models import Vote as BulletPointVote
 from discussion.lib import check_is_discussion_item
-from discussion.models import (
-    Comment,
-    Reply,
-    Thread,
-    Vote as ReactionVote
-)
-from paper.models import (
-    Paper,
-    Vote as PaperVote
-)
+from discussion.models import Comment, Reply, Thread
+from discussion.models import Vote as ReactionVote
+from hypothesis.models import Citation, Hypothesis
+from paper.models import Paper
+from paper.models import Vote as PaperVote
 from purchase.models import Purchase
 from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError
-from reputation.models import Distribution, Contribution
-from summary.models import Summary, Vote as SummaryVote
+from reputation.models import Contribution, Distribution
+from researchhub_document.models import ResearchhubPost
+from summary.models import Summary
+from summary.models import Vote as SummaryVote
 from user.utils import reset_latest_acitvity_cache
 from utils import sentry
 
@@ -40,48 +33,30 @@ NEW_USER_BONUS_REPUTATION_LIMIT = 200
 NEW_USER_BONUS_DAYS_LIMIT = 30
 
 
-@receiver(
-    m2m_changed,
-    sender=Paper.hubs.through,
-    dispatch_uid='paper_hubs_changed'
-)
+@receiver(m2m_changed, sender=Paper.hubs.through, dispatch_uid="paper_hubs_changed")
 def update_distribution_for_hub_changes(
-    sender,
-    instance,
-    action,
-    reverse,
-    model,
-    pk_set,
-    **kwargs
+    sender, instance, action, reverse, model, pk_set, **kwargs
 ):
     if (action == "post_add") and pk_set is not None:
         distributions = Distribution.objects.filter(
             proof_item_object_id=instance.id,
-            proof_item_content_type=get_content_type_for_model(instance)
+            proof_item_content_type=get_content_type_for_model(instance),
         )
         for distribution in distributions:
             distribution.hubs.add(*instance.hubs.all())
 
 
-@receiver(post_save, sender=PaperVote, dispatch_uid='paper_upvoted')
-def distribute_for_paper_upvoted(
-    sender,
-    instance,
-    created,
-    update_fields,
-    **kwargs
-):
+@receiver(post_save, sender=PaperVote, dispatch_uid="paper_upvoted")
+def distribute_for_paper_upvoted(sender, instance, created, update_fields, **kwargs):
     """Distributes reputation to the uploader."""
     timestamp = time()
     recipient = instance.paper.uploaded_by
 
-    if is_eligible_for_paper_upvoted(
-        created,
-        instance.created_by,
-        recipient
-    ):
+    if is_eligible_for_paper_upvoted(created, instance.created_by, recipient):
         distributor = Distributor(
-            distributions.PaperUpvoted,
+            distributions.create_upvote_distribution(
+                distributions.PaperUpvoted.name, instance.paper, instance
+            ),
             recipient,
             instance,
             timestamp,
@@ -91,22 +66,13 @@ def distribute_for_paper_upvoted(
 
 
 def is_eligible_for_paper_upvoted(created, voter, paper_uploader):
-    return (
-        created
-        and is_eligible_user(paper_uploader)
-        and (voter != paper_uploader)
-    )
+    return created and is_eligible_user(paper_uploader) and (voter != paper_uploader)
 
 
-@receiver(post_delete, sender=Paper, dispatch_uid='censor_paper')
-def distribute_for_censor_paper(
-    sender,
-    instance,
-    using,
-    **kwargs
-):
+@receiver(post_delete, sender=Paper, dispatch_uid="censor_paper")
+def distribute_for_censor_paper(sender, instance, using, **kwargs):
     timestamp = time()
-    flags = instance.flags.select_related('created_by').all()
+    flags = instance.flags.select_related("created_by").all()
     for flag in flags:
         recipient = flag.created_by
         if is_eligible_user(recipient):
@@ -120,24 +86,14 @@ def distribute_for_censor_paper(
             record = distributor.distribute()
 
 
-@receiver(post_save, sender=Summary, dispatch_uid='create_summary')
-def distribute_for_create_summary(
-    sender,
-    instance,
-    created,
-    update_fields,
-    **kwargs
-):
+@receiver(post_save, sender=Summary, dispatch_uid="create_summary")
+def distribute_for_create_summary(sender, instance, created, update_fields, **kwargs):
     timestamp = time()
     recipient = instance.proposed_by
 
     if is_eligible_for_create_summary(created, recipient):
         distribution = distributions.CreateSummary
-    elif is_eligible_for_create_first_summary(
-        created,
-        update_fields,
-        instance
-    ):
+    elif is_eligible_for_create_first_summary(created, update_fields, instance):
         distribution = distributions.CreateFirstSummary
     else:
         return
@@ -157,14 +113,8 @@ def distribute_for_create_summary(
         record = distributor.distribute()
 
 
-@receiver(post_save, sender=SummaryVote, dispatch_uid='summary_vote')
-def distribute_for_summary_vote(
-    sender,
-    instance,
-    created,
-    update_fields,
-    **kwargs
-):
+@receiver(post_save, sender=SummaryVote, dispatch_uid="summary_vote")
+def distribute_for_summary_vote(sender, instance, created, update_fields, **kwargs):
     timestamp = time()
     voter = instance.created_by
     recipient = instance.summary.proposed_by
@@ -174,22 +124,14 @@ def distribute_for_summary_vote(
         distribution = get_summary_vote_item_distribution(instance)
 
         distributor = Distributor(
-            distribution,
-            recipient,
-            instance,
-            timestamp,
-            hubs.all()
+            distribution, recipient, instance, timestamp, hubs.all()
         )
 
         record = distributor.distribute()
 
 
 def is_eligible_for_create_summary(created, user):
-    return (
-        created
-        and is_eligible_user(user)
-        and is_eligible_for_new_user_bonus(user)
-    )
+    return created and is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
 
 
 def is_eligible_for_create_first_summary(created, update_fields, summary):
@@ -219,12 +161,12 @@ def get_summary_vote_item_distribution(instance):
     elif vote_type == SummaryVote.DOWNVOTE:
         return distributions.SummaryDownvoted
     else:
-        raise TypeError('No vote type for summary instance')
+        raise TypeError("No vote type for summary instance")
 
 
 def check_approved_updated(update_fields):
     if update_fields is not None:
-        return 'approved' in update_fields
+        return "approved" in update_fields
     return False
 
 
@@ -238,15 +180,14 @@ def check_summary_distribution_interval(distribution):
     return distribution.created_date < time_ago
 
 
-@receiver(post_save, sender=BulletPoint, dispatch_uid='create_bullet_point')
+@receiver(post_save, sender=BulletPoint, dispatch_uid="create_bullet_point")
 def distribute_for_create_bullet_point(sender, instance, created, **kwargs):
     timestamp = time()
     recipient = instance.created_by
     hubs = None
     if created and is_eligible_for_create_bullet_point(recipient):
-        if (
-            isinstance(instance, BulletPoint)
-            and check_key_takeaway_interval(instance, recipient)
+        if isinstance(instance, BulletPoint) and check_key_takeaway_interval(
+            instance, recipient
         ):
             distribution = distributions.CreateBulletPoint
             hubs = instance.paper.hubs
@@ -254,22 +195,14 @@ def distribute_for_create_bullet_point(sender, instance, created, **kwargs):
             return
 
         distributor = Distributor(
-            distribution,
-            recipient,
-            instance,
-            timestamp,
-            hubs.all()
+            distribution, recipient, instance, timestamp, hubs.all()
         )
         record = distributor.distribute()
 
 
-@receiver(post_save, sender=BulletPointVote, dispatch_uid='bullet_point_vote')
+@receiver(post_save, sender=BulletPointVote, dispatch_uid="bullet_point_vote")
 def distribute_for_bullet_point_vote(
-    sender,
-    instance,
-    created,
-    update_fields,
-    **kwargs
+    sender, instance, created, update_fields, **kwargs
 ):
     timestamp = time()
     voter = instance.created_by
@@ -280,11 +213,7 @@ def distribute_for_bullet_point_vote(
         distribution = get_bulletpoint_vote_item_distribution(instance)
 
         distributor = Distributor(
-            distribution,
-            recipient,
-            instance,
-            timestamp,
-            hubs.all()
+            distribution, recipient, instance, timestamp, hubs.all()
         )
 
         record = distributor.distribute()
@@ -313,15 +242,14 @@ def get_bulletpoint_vote_item_distribution(instance):
     elif vote_type == BulletPointVote.DOWNVOTE:
         return distributions.BulletPointDownvoted
     else:
-        raise TypeError('No vote type for bulletpoint instance')
+        raise TypeError("No vote type for bulletpoint instance")
 
 
 def check_key_takeaway_interval(bullet_point, recipient):
     if bullet_point.bullet_type == BulletPoint.BULLETPOINT_KEYTAKEAWAY:
         time_ago = timezone.now() - timedelta(hours=1)
         key_takeaway_count = recipient.bullet_points.filter(
-            created_date__gte=time_ago,
-            bullet_type=BulletPoint.BULLETPOINT_KEYTAKEAWAY
+            created_date__gte=time_ago, bullet_type=BulletPoint.BULLETPOINT_KEYTAKEAWAY
         ).count()
         if key_takeaway_count < 5:
             return True
@@ -332,17 +260,11 @@ def check_reply_to_other_creator(reply):
     return reply.parent.created_by is not reply.created_by
 
 
-@receiver(post_save, sender=BulletPoint, dispatch_uid='censor_bullet_point')
-@receiver(post_save, sender=Comment, dispatch_uid='censor_comment')
-@receiver(post_save, sender=Reply, dispatch_uid='censor_reply')
-@receiver(post_save, sender=Thread, dispatch_uid='censor_thread')
-def distribute_for_censor(
-    sender,
-    instance,
-    created,
-    update_fields,
-    **kwargs
-):
+@receiver(post_save, sender=BulletPoint, dispatch_uid="censor_bullet_point")
+@receiver(post_save, sender=Comment, dispatch_uid="censor_comment")
+@receiver(post_save, sender=Reply, dispatch_uid="censor_reply")
+@receiver(post_save, sender=Thread, dispatch_uid="censor_thread")
+def distribute_for_censor(sender, instance, created, update_fields, **kwargs):
     timestamp = time()
     distributor = None
     hubs = None
@@ -368,36 +290,26 @@ def distribute_for_censor(
 
             if is_eligible_user(recipient):
                 distributor = Distributor(
-                    distribution,
-                    recipient,
-                    instance,
-                    timestamp,
-                    all_hubs
+                    distribution, recipient, instance, timestamp, all_hubs
                 )
 
         except TypeError as e:
-            error = ReputationSignalError(
-                e,
-                'Failed to distribute'
-            )
+            error = ReputationSignalError(e, "Failed to distribute")
             print(error)
+            sentry.log_error(error)
 
     if distributor is not None:
         distributor.distribute()
 
 
 def check_censored(created, update_fields):
-    return (
-        not created
-        and (update_fields is not None)
-        and ('censor' in update_fields)
-    )
+    return not created and (update_fields is not None) and ("censor" in update_fields)
 
 
 def get_discussion_censored_distribution(instance):
     item_type = type(instance)
 
-    error = TypeError(f'Instance of type {item_type} is not supported')
+    error = TypeError(f"Instance of type {item_type} is not supported")
 
     if item_type == Comment:
         return distributions.CommentCensored
@@ -427,29 +339,22 @@ def get_discussion_hubs(instance):
     return hubs
 
 
-@receiver(post_save, sender=ReactionVote, dispatch_uid='discussion_vote')
-def distribute_for_discussion_vote(
-    sender,
-    instance,
-    created,
-    update_fields,
-    **kwargs
-):
+@receiver(post_save, sender=ReactionVote, dispatch_uid="discussion_vote")
+def distribute_for_discussion_vote(sender, instance, created, update_fields, **kwargs):
     """Distributes reputation to the creator of the item voted on."""
     timestamp = time()
     distributor = None
     try:
         recipient = instance.item.created_by
     except Exception as e:
-        error = ReputationSignalError(e, 'Invalid recipient')
-        print(error)
+        error = ReputationSignalError(e, "Invalid recipient")
+        sentry.log_error(e)
         return
 
     voter = instance.created_by
 
     if (
-        created
-        or vote_type_updated(update_fields)
+        created or vote_type_updated(update_fields)
     ) and is_eligible_for_discussion_vote(recipient, voter):
         hubs = None
         item = instance.item
@@ -486,24 +391,21 @@ def distribute_for_discussion_vote(
 
         # TODO: This needs to be altered so that if the vote changes the
         # original distribution is deleted if not yet withdrawn
-        try:
-            # NOTE: Only comment seems to be supporting distribution
-            distribution = get_discussion_vote_item_distribution(instance)
-            distributor = Distributor(
-                distribution,
-                recipient,
-                instance,
-                timestamp,
-                hubs.all()
-            )
-        except TypeError as e:
-            error = ReputationSignalError(
-                e,
-                'Failed to distribute for reaction vote'
-            )
-            print(error)
 
-    if distributor is not None:
+        if created:
+            try:
+                # NOTE: Only comment seems to be supporting distribution
+                distribution = get_discussion_vote_item_distribution(instance)
+                distributor = Distributor(
+                    distribution, recipient, instance, timestamp, hubs.all()
+                )
+            except TypeError as e:
+                error = ReputationSignalError(
+                    e, "Failed to distribute for reaction vote"
+                )
+                sentry.log_error(error)
+
+    if distributor is not None and recipient != instance.created_by:
         record = distributor.distribute()
 
 
@@ -526,14 +428,14 @@ def is_eligible_user(user):
 
 def vote_type_updated(update_fields):
     if update_fields is not None:
-        return 'vote_type' in update_fields
+        return "vote_type" in update_fields
     return False
 
 
 def get_discussion_flag_item_distribution(instance):
     item_type = type(instance.item)
 
-    error = TypeError(f'Instance of type {item_type} is not supported')
+    error = TypeError(f"Instance of type {item_type} is not supported")
 
     if item_type == Comment:
         return distributions.CommentFlagged
@@ -550,19 +452,21 @@ def get_discussion_vote_item_distribution(instance):
     item = instance.item
     item_type = type(item)
 
-    error = TypeError(f'Instance of type {item_type} is not supported')
+    error = TypeError(f"Instance of type {item_type} is not supported")
 
     if vote_type == ReactionVote.UPVOTE:
         if item_type == Comment:
-            return distributions.CommentUpvoted
+            vote_type = distributions.CommentUpvoted.name
         elif item_type == Reply:
-            return distributions.ReplyUpvoted
+            vote_type = distributions.ReplyUpvoted.name
         elif item_type == Thread:
-            return distributions.ThreadUpvoted
+            vote_type = distributions.ThreadUpvoted.name
         elif item_type == ResearchhubPost:
-            return distributions.ResearchhubPostUpvoted
+            vote_type = distributions.ResearchhubPostUpvoted.name
         else:
             raise error
+
+        return distributions.create_upvote_distribution(vote_type, None, instance)
     elif vote_type == ReactionVote.DOWNVOTE:
         if item_type == Comment:
             return distributions.CommentDownvoted
@@ -578,20 +482,19 @@ def get_discussion_vote_item_distribution(instance):
         return distributions.NeutralVote
 
 
-@receiver(post_delete, sender=Distribution, dispatch_uid='delete_distribution')
+@receiver(post_delete, sender=Distribution, dispatch_uid="delete_distribution")
 def revoke_reputation(sender, instance, **kwargs):
     # TODO: Use F expression here to avoid race conditions
     recipient = instance.recipient
     amount = instance.amount
     current = recipient.reputation
     recipient.reputation = current - amount
-    recipient.save(update_fields=['reputation'])
+    recipient.save(update_fields=["reputation"])
 
 
 def is_eligible_for_new_user_bonus(user):
-    return (
-        (user.date_joined > new_user_cutoff_date())
-        and (user.reputation < NEW_USER_BONUS_REPUTATION_LIMIT)
+    return (user.date_joined > new_user_cutoff_date()) and (
+        user.reputation < NEW_USER_BONUS_REPUTATION_LIMIT
     )
 
 
@@ -599,7 +502,7 @@ def new_user_cutoff_date():
     return timezone.now() - timedelta(days=NEW_USER_BONUS_DAYS_LIMIT)
 
 
-@receiver(post_save, sender=Contribution, dispatch_uid='preload_latest_activity')
+@receiver(post_save, sender=Contribution, dispatch_uid="preload_latest_activity")
 def preload_latest_activity(sender, instance, created, **kwargs):
     if created:
         # Resetting latest activity on a per hub basis
@@ -607,12 +510,12 @@ def preload_latest_activity(sender, instance, created, **kwargs):
         if isinstance(item, Purchase):
             item = item.item
 
-        if hasattr(item, 'hubs'):
-            hub_ids = item.hubs.values_list('id', flat=True)
-        elif hasattr(item, 'unified_document'):
-            hub_ids = item.unified_document.hubs.values_list('id', flat=True)
+        if hasattr(item, "hubs"):
+            hub_ids = item.hubs.values_list("id", flat=True)
+        elif hasattr(item, "unified_document"):
+            hub_ids = item.unified_document.hubs.values_list("id", flat=True)
         else:
             return
 
-        hub_ids_str = ','.join([str(hub_id) for hub_id in hub_ids])
+        hub_ids_str = ",".join([str(hub_id) for hub_id in hub_ids])
         reset_latest_acitvity_cache(hub_ids_str)

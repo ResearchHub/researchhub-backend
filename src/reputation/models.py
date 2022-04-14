@@ -44,6 +44,24 @@ class PaidStatusModelMixin(models.Model):
         self.paid_date = timezone.now()
         self.save()
 
+class AuthorRSC(models.Model):
+    author = models.ForeignKey(
+        'user.Author',
+        related_name='author_rsc',
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+    )
+    paper = models.ForeignKey(
+        'paper.Paper',
+        related_name='author_rsc',
+        on_delete=models.CASCADE,
+    )
+    amount = models.BigIntegerField(default=0)
+
+    def __str__(self):
+        return '{} {} - {} RSC'.format(author.first_name, author.last_name, self.amount)
+
 
 class Distribution(SoftDeletableModel, PaidStatusModelMixin):
     DISTRIBUTION_TYPE_CHOICES = distributions.DISTRIBUTION_TYPE_CHOICES
@@ -68,7 +86,7 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
         Hub,
         related_name='reputation_records',
     )
-    amount = models.IntegerField(default=0)
+    amount = models.BigIntegerField(default=0)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     distribution_type = models.CharField(

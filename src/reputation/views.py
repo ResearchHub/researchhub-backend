@@ -392,7 +392,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 minutes = int(round(time_since_withdrawal.seconds / 60, 0))
                 # return (False, "The next time you're able to withdraw is in {} minutes".format(minutes))
 
-        return (True, None)
+        return (valid, None)
 
     def _check_withdrawal_amount(self, amount, transaction_fee, user):
         if transaction_fee < 0:

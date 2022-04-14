@@ -145,7 +145,7 @@ class AuthorClaimCaseViewSet(ModelViewSet):
                     move_paper_to_author(case.target_paper, case.requestor.author_profile)
                     case.status = update_status
                     case.save()
-                    after_approval_flow.apply_async(
+                    after_approval_flow.apply(
                         (case_id,),
                         priority=2,
                         countdown=5

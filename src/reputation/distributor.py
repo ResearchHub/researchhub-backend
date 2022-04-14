@@ -106,7 +106,7 @@ class Distributor:
             if self.distribution.gives_rep:
                 # updates at the SQL level and does not call save() or emit signals
                 users.update(
-                    reputation=models.F('reputation') + self.distribution.amount
+                    reputation=models.F('reputation') + self.distribution.reputation
                 )
             self._record_balance(record)
 
