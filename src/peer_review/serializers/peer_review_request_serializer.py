@@ -9,6 +9,7 @@ class DynamicPeerReviewRequestSerializer(
     DynamicModelFieldSerializer,
 ):
     requested_by_user = SerializerMethodField()
+    unified_document = SerializerMethodField()
 
     class Meta:
         model = PeerReviewRequest
@@ -22,6 +23,19 @@ class DynamicPeerReviewRequestSerializer(
 
         serializer = DynamicUserSerializer(
             obj.requested_by_user,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
+
+    def get_unified_document(self, obj):
+        from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
+
+        context = self.context
+        _context_fields = context.get("pr_dprrs_get_unified_document", {})
+
+        serializer = DynamicUnifiedDocumentSerializer(
+            obj.unified_document,
             context=context,
             **_context_fields
         )

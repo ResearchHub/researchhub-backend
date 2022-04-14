@@ -57,7 +57,8 @@ class PeerReviewRequestViewSet(ModelViewSet):
             _include_fields=[
                 'id',
                 'unified_document',
-                'requested_by_user'
+                'requested_by_user',
+                'created_date',
             ],
             context=context,
             many=True
@@ -74,11 +75,28 @@ class PeerReviewRequestViewSet(ModelViewSet):
                     'author_profile',
                 ]
             },
+            'pr_dprrs_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'documents',
+                    'document_type',
+                ]
+            },
             'usr_dus_get_author_profile': {
                 '_include_fields': [
                     'id',
+                    'profile_image',
+                    'first_name',
+                    'last_name',
                 ]
-            }
+            },
+            'doc_duds_get_documents': {
+                '_include_fields': [
+                    'id',
+                    'title',
+                    'slug',
+                ]
+            },
         }
 
         return context
