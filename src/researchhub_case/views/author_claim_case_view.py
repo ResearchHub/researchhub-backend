@@ -148,7 +148,7 @@ class AuthorClaimCaseViewSet(ModelViewSet):
                     )
                     case.status = update_status
                     case.save()
-                    after_approval_flow.apply_async((case_id,), priority=2, countdown=5)
+                    after_approval_flow.apply((case_id,), priority=2, countdown=5)
                     return Response("Success", status=200)
             elif update_status == DENIED:
                 notify_user = request_data["notify_user"]
