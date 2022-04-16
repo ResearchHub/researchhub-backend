@@ -113,21 +113,10 @@ class AuthorClaimCaseViewSet(ModelViewSet):
             target_case_set = AuthorClaimCase.objects.filter(
                 status__in=case_query_status
             ).order_by("-updated_date")
-            page_num = int(request.query_params.get("page")) or 1
-            paginator = Paginator(target_case_set, self.pagination_size)
-            pagination = paginator.page(page_num)
-
-            return Response(
-                data={
-                    "count": paginator.count,
-                    "has_more": pagination.has_next(),
-                    "page": page_num,
-                    "result": AuthorClaimCaseSerializer(
-                        pagination.object_list, many=True
-                    ).data,
-                },
-                status=200,
-            )
+            page = self.paginate_queryset(target_case_set)
+            serializer = self.serializer_class(page, many=True)
+            serializer_data = serializer.data
+            return self.get_paginated_response(serializer_data)
 
         except (KeyError, TypeError) as e:
             return Response(e, status=400)
