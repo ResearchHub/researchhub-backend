@@ -4,10 +4,31 @@ from peer_review.models import (
     PeerReview
 )
 from user.models import User
-
+from researchhub.serializers import DynamicModelFieldSerializer
 
 MINUTES_TO_EXPIRE_INVITE = 10080
 
+class DynamicPeerReviewInviteSerializer(
+    DynamicModelFieldSerializer,
+):
+    recipient = SerializerMethodField()
+
+    class Meta:
+        model = PeerReviewInvite
+        fields = '__all__'
+
+    def get_recipient(self, obj):
+        from user.serializers import DynamicUserSerializer
+
+        context = self.context
+        _context_fields = context.get("pr_dpris_get_recipient", {})
+
+        serializer = DynamicUserSerializer(
+            obj.recipient,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data        
 
 class PeerReviewInviteSerializer(ModelSerializer):
     peer_review = SerializerMethodField()

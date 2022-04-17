@@ -1,5 +1,13 @@
 from rest_framework.test import APITestCase
+<<<<<<< HEAD
 
+=======
+from peer_review.related_models.peer_review_invite_model import PeerReviewInvite
+from user.tests.helpers import (
+    create_random_default_user,
+    create_moderator,
+)
+>>>>>>> a5d6109e (#1558 adding invites to peer review request object)
 from hub.tests.helpers import create_hub
 from peer_review.models import PeerReviewRequest
 from peer_review.tests.helpers import create_peer_review_request
@@ -256,4 +264,34 @@ class PeerReviewRequestViewTests(APITestCase):
             f"/api/peer_review_requests/{review_request_for_author.id}/"
         )
 
+<<<<<<< HEAD
         self.assertEqual(response.status_code, 403)
+=======
+    def test_listing_requests_returns_invites(self):
+        author = create_random_default_user('regular_user')
+        user = create_random_default_user('random_user')
+        peer_reviewer = create_random_default_user('peer_reviewer')
+
+        # Create review request
+        review_request_for_author = create_peer_review_request(
+            requested_by_user=author,
+            organization=Organization.objects.get(id=self.org['id']),
+            title='Some random post title',
+            body='some text',
+        )
+
+        # Invite user
+        self.client.force_authenticate(self.moderator)
+        invite_response = self.client.post("/api/peer_review_invites/invite/",{
+            'recipient': peer_reviewer.id,
+            'peer_review_request': review_request_for_author.id,
+        })
+
+        # Fetch list
+        list_response = self.client.get("/api/peer_review_requests/")
+
+        self.assertEqual(
+            len(list_response.data['results'][0]['invites']),
+            1
+        )
+>>>>>>> a5d6109e (#1558 adding invites to peer review request object)

@@ -10,6 +10,7 @@ class DynamicPeerReviewRequestSerializer(
 ):
     requested_by_user = SerializerMethodField()
     unified_document = SerializerMethodField()
+    invites = SerializerMethodField()
 
     class Meta:
         model = PeerReviewRequest
@@ -39,7 +40,22 @@ class DynamicPeerReviewRequestSerializer(
             context=context,
             **_context_fields
         )
-        return serializer.data            
+        return serializer.data
+
+    def get_invites(self, obj):
+        from peer_review.serializers.peer_review_invite_serializer import DynamicPeerReviewInviteSerializer
+
+        context = self.context
+        _context_fields = context.get("pr_dprrs_get_invites", {})
+
+        serializer = DynamicPeerReviewInviteSerializer(
+            obj.invites,
+            context=context,
+            **_context_fields,
+            many=True,
+        )
+
+        return serializer.data
 
 
 class PeerReviewRequestSerializer(ModelSerializer):

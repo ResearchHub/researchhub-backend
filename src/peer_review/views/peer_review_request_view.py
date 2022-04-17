@@ -52,6 +52,7 @@ class PeerReviewRequestViewSet(ModelViewSet):
 
         page = self.paginate_queryset(queryset)
         context = self._get_serializer_context()
+
         serializer = DynamicPeerReviewRequestSerializer(
             page,
             _include_fields=[
@@ -59,6 +60,7 @@ class PeerReviewRequestViewSet(ModelViewSet):
                 'unified_document',
                 'requested_by_user',
                 'created_date',
+                'invites',
             ],
             context=context,
             many=True
@@ -67,6 +69,18 @@ class PeerReviewRequestViewSet(ModelViewSet):
 
     def _get_serializer_context(self):
         context = {
+            'pr_dpris_get_recipient': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'pr_dprrs_get_invites': {
+                '_include_fields': [
+                    'id',
+                    'recipient'
+                ]
+            },
             'pr_dprrs_get_requested_by_user': {
                 '_include_fields': [
                     'id',

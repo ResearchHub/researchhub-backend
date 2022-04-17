@@ -2,6 +2,7 @@ from rest_framework.test import APITestCase
 from user.tests.helpers import (
     create_random_default_user,
     create_moderator,
+    create_user,
 )
 from hub.tests.helpers import create_hub
 from peer_review.tests.helpers import create_peer_review_request
@@ -239,12 +240,10 @@ class PeerReviewInviteViewTests(APITestCase):
             403
         )
 
-    def test_accepting_peer_review_request_CREATES_peer_review(self):
+    def test_inviting_by_email_finds_and_assigns_user_if_exists(self):
         author = create_random_default_user('regular_user')
-        user = create_random_default_user('random_user')
-        peer_reviewer = create_random_default_user('peer_reviewer')
+        invited_user = create_user(email="invited@example.com")
 
-        # Create review
         review_request_for_author = create_peer_review_request(
             requested_by_user=author,
             organization=Organization.objects.get(id=self.org['id']),
@@ -252,16 +251,13 @@ class PeerReviewInviteViewTests(APITestCase):
             body='some text',
         )
 
-        # Invite user
         self.client.force_authenticate(self.moderator)
-        invite_response = self.client.post("/api/peer_review_invites/invite/",{
-            'recipient': peer_reviewer.id,
+        response = self.client.post("/api/peer_review_invites/invite/",{
+            'recipient_email': "invited@example.com",
             'peer_review_request': review_request_for_author.id,
         })
 
-        # Accept invite
-        self.client.force_authenticate(peer_reviewer)
-        response = self.client.post(f'/api/peer_review_invites/{invite_response.data["id"]}/accept/')
-
-
-        self.assertIn('id', response.data['peer_review'])
+        self.assertEqual(
+            response.data['recipient'],
+            invited_user.id,
+        )
