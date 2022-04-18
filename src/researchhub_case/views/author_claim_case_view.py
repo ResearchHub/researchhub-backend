@@ -1,29 +1,32 @@
+from django.core.paginator import Paginator
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-from rest_framework.permissions import IsAuthenticated
 
 from hub.permissions import IsModerator
 from researchhub_case.constants.case_constants import (
-    ALLOWED_VALIDATION_ATTEMPT_COUNT, 
-    APPROVED, DENIED, INITIATED, INVALIDATED, NULLIFIED, OPEN
-)
-from researchhub_case.tasks import (
-    after_approval_flow,
-    after_rejection_flow,
+    ALLOWED_VALIDATION_ATTEMPT_COUNT,
+    APPROVED,
+    DENIED,
+    INITIATED,
+    INVALIDATED,
+    NULLIFIED,
+    OPEN,
 )
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.serializers import AuthorClaimCaseSerializer
-from utils.http import GET, POST
+from researchhub_case.tasks import after_approval_flow, after_rejection_flow
 from user.utils import move_paper_to_author
-from utils.permissions import (
-    CreateOrReadOnly,
-)
+from utils.http import GET, POST
+from utils.permissions import CreateOrReadOnly
 
 
 class AuthorClaimCaseViewSet(ModelViewSet):
+    ordering = ["-updated_date"]
+    pagination_size = 10
     permission_classes = [IsAuthenticated, CreateOrReadOnly]
-    queryset = AuthorClaimCase.objects.all().order_by("-created_date")
+    queryset = AuthorClaimCase.objects.all()
     serializer_class = AuthorClaimCaseSerializer
 
     def create(self, request, *args, **kwargs):
@@ -33,27 +36,17 @@ class AuthorClaimCaseViewSet(ModelViewSet):
             return Response(str(error.args), status=400)
 
     def retrieve(self, request, *args, **kwargs):
-        return Response('Method not allowed to public', status=400)
+        return Response("Method not allowed to public", status=400)
 
-    @action(
-        detail=False,
-        methods=[GET],
-        permission_classes=[IsModerator]
-    )
+    @action(detail=False, methods=[GET], permission_classes=[IsModerator])
     def count(self, request, pk=None):
         try:
             close_count = AuthorClaimCase.objects.filter(
                 status__in=[APPROVED, DENIED, INVALIDATED, NULLIFIED]
             ).count()
-            open_count = AuthorClaimCase.objects.filter(
-                status__in=[OPEN]
-            ).count()
+            open_count = AuthorClaimCase.objects.filter(status__in=[OPEN]).count()
             return Response(
-                data={
-                    'closed_count': close_count,
-                    'open_count': open_count
-                },
-                status=200
+                data={"closed_count": close_count, "open_count": open_count}, status=200
             )
         except (KeyError, TypeError) as e:
             return Response(e, status=400)
@@ -66,21 +59,19 @@ class AuthorClaimCaseViewSet(ModelViewSet):
     )
     def author_claim_token_validation(self, request, pk=None):
         try:
-            validation_token = request.data.get('token')
+            validation_token = request.data.get("token")
             target_case = AuthorClaimCase.objects.get(
-                status=INITIATED,
-                validation_token=validation_token
+                status=INITIATED, validation_token=validation_token
             )
             invalidation_result = self._check_and_invalidate_case(
-                target_case,
-                request.user
+                target_case, request.user
             )
-            if (invalidation_result is not None):
+            if invalidation_result is not None:
                 return invalidation_result
-            
+
             target_case.status = OPEN
             target_case.save()
-            return Response('SUCCESS',  status=200)
+            return Response("SUCCESS", status=200)
 
         except (KeyError, TypeError) as e:
             return Response(e, status=400)
@@ -92,76 +83,71 @@ class AuthorClaimCaseViewSet(ModelViewSet):
         permission_classes=[IsModerator],
     )
     def moderator(self, request, pk=None):
-        if (request.method == GET):
+        if request.method == GET:
             return self._get_author_claim_cases_for_mods(request)
         else:
             return self._post_author_claim_cases_for_mods(request)
 
     def _check_and_invalidate_case(self, target_case, current_user):
         attempt_count = target_case.validation_attempt_count
-        if (ALLOWED_VALIDATION_ATTEMPT_COUNT < attempt_count):
+        if ALLOWED_VALIDATION_ATTEMPT_COUNT < attempt_count:
             target_case.status = INVALIDATED
             target_case.save()
-            return Response('DENIED_TOO_MANY_ATTEMPS', status=400)
-            
-        if (target_case.requestor.id != current_user.id):
+            return Response("DENIED_TOO_MANY_ATTEMPS", status=400)
+
+        if target_case.requestor.id != current_user.id:
             target_case.validation_attempt_count += 1
             target_case.save()
-            return Response('DENIED_WRONG_USER', status=400)
+            return Response("DENIED_WRONG_USER", status=400)
 
     def _get_author_claim_cases_for_mods(self, request):
-        # TODO: calvinhlee - paginate this
         try:
-            case_status = request.query_params.get('case_status')
-            if (case_status == 'CLOSED'):
+            case_status = request.query_params.get("case_status")
+            if case_status == "CLOSED":
                 case_query_status = [APPROVED, DENIED, INVALIDATED, NULLIFIED]
-            elif (case_status == 'OPEN'):
+            elif case_status == "OPEN":
                 case_query_status = [OPEN]
             else:
-                return Response('Bad case status', status=400)
+                return Response("Bad case status", status=400)
 
             target_case_set = AuthorClaimCase.objects.filter(
                 status__in=case_query_status
-            )
-            serialized_result = AuthorClaimCaseSerializer(
-                target_case_set,
-                many=True
-            )
-            return Response(data=serialized_result.data, status=200)
+            ).order_by("-updated_date")
+            page = self.paginate_queryset(target_case_set)
+            serializer = self.serializer_class(page, many=True)
+            serializer_data = serializer.data
+            return self.get_paginated_response(serializer_data)
+
         except (KeyError, TypeError) as e:
             return Response(e, status=400)
 
     def _post_author_claim_cases_for_mods(self, request):
         try:
             request_data = request.data
-            update_status = request_data['update_status']
-            case_id = request_data['case_id']
+            update_status = request_data["update_status"]
+            case_id = request_data["case_id"]
             case = AuthorClaimCase.objects.get(id=case_id, status=OPEN)
 
             if update_status == APPROVED:
                 if case.target_paper is None:
-                    return Response('Cannot approve. No paper id found.', status=500)
+                    return Response("Cannot approve. No paper id found.", status=500)
                 else:
-                    move_paper_to_author(case.target_paper, case.requestor.author_profile)
+                    move_paper_to_author(
+                        case.target_paper, case.requestor.author_profile
+                    )
                     case.status = update_status
                     case.save()
-                    after_approval_flow.apply(
-                        (case_id,),
-                        priority=2,
-                        countdown=5
-                    )
-                    return Response('Success', status=200)
+                    after_approval_flow.apply((case_id,), priority=2, countdown=5)
+                    return Response("Success", status=200)
             elif update_status == DENIED:
-                notify_user = request_data['notify_user']
+                notify_user = request_data["notify_user"]
                 after_rejection_flow.apply_async(
-                    (case_id, notify_user),
-                    priority=2,
-                    countdown=5
+                    (case_id, notify_user), priority=2, countdown=5
                 )
                 case.status = update_status
                 case.save()
-                return Response('Success', status=200)
+                return Response("Success", status=200)
             else:
-                return Response('Unrecognized status', status=400)
+                return Response("Unrecognized status", status=400)
         except (KeyError, TypeError) as e:
             return Response(e, status=400)
