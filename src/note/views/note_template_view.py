@@ -71,7 +71,13 @@ class NoteTemplateViewSet(ModelViewSet):
     )
     def delete(self, request, pk=None):
         template = NoteTemplate.objects.get(id=pk)
-        template.is_removed = True
-        template.save()
+
+        if template.is_default:
+            status_code = 403
+        else:
+            template.is_removed = True
+            template.save()
+            status_code = 200
+
         serializer = self.serializer_class(template)
-        return Response(serializer.data, status=200)
+        return Response(serializer.data, status=status_code)
