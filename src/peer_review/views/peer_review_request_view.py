@@ -78,7 +78,8 @@ class PeerReviewRequestViewSet(ModelViewSet):
             'pr_dprrs_get_invites': {
                 '_include_fields': [
                     'id',
-                    'recipient'
+                    'recipient',
+                    'status',
                 ]
             },
             'pr_dprrs_get_requested_by_user': {
