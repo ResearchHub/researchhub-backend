@@ -719,3 +719,41 @@ class NoteTests(APITestCase):
             f"/api/note/{note['id']}/"
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_user_can_delete_own_org_templates(self):
+        # Create template
+        response = self.client.post(
+            '/api/note_template/',
+            {
+                'full_src': 'test',
+                'is_default': False,
+                'organization': self.org['id'],
+                'name': 'NON-DEFAULT TEMPLATE'
+            }
+        )
+        template = response.data
+
+        # Delete template
+        delete_response = self.client.post(f"/api/note_template/{template['id']}/delete/")
+
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertEqual(delete_response.data['is_removed'], True)
+
+    def test_user_cannot_delete_default_template(self):
+        # Create template
+        response = self.client.post(
+            '/api/note_template/',
+            {
+                'full_src': 'test',
+                'is_default': True,
+                'organization': self.org['id'],
+                'name': 'DEFAULT TEMPLATE'
+            }
+        )
+        template = response.data
+
+        # Delete template
+        delete_response = self.client.post(f"/api/note_template/{template['id']}/delete/")
+
+        self.assertEqual(delete_response.status_code, 403)
+        self.assertEqual(delete_response.data['is_removed'], False)
