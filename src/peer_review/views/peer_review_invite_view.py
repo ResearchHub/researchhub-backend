@@ -92,6 +92,7 @@ class PeerReviewInviteViewSet(ModelViewSet):
                 'requested_by_user',
                 'created_date',
                 'status',
+                'peer_review',
             ],
             context=context,
             many=False
