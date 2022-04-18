@@ -83,9 +83,6 @@ class PeerReviewInviteViewSet(ModelViewSet):
         invite.save()
         invite.accept()
 
-        # serializer = self.serializer_class(invite)
-        # data = serializer.data
-
         context = self._get_serializer_context()
         serializer = DynamicPeerReviewInviteSerializer(
             invite,
@@ -94,9 +91,10 @@ class PeerReviewInviteViewSet(ModelViewSet):
                 'unified_document',
                 'requested_by_user',
                 'created_date',
+                'status',
             ],
             context=context,
-            many=True
+            many=False
         )
 
         return Response(serializer.data)
