@@ -38,10 +38,14 @@ class PeerReviewInviteViewSet(ModelViewSet):
         invite_data = request.data
         invite_data['inviter'] = request.user.id
 
-        if request.data.get('recipient_email', None):
-            recipient_user = User.objects.get(email=request.data['recipient_email'])
-            invite_data['recipient'] = recipient_user.id
-        elif request.data.get('recipient', None):
+        is_invited_by_email = request.data.get('recipient_email', False)
+        is_invited_by_user_id = request.data.get('recipient', False)
+
+        if is_invited_by_email:
+            recipient_user = User.objects.filter(email=request.data['recipient_email']).first()
+            if recipient_user:
+                invite_data['recipient'] = recipient_user.id
+        elif is_invited_by_user_id:
             recipient_user = User.objects.get(id=request.data['recipient'])
             invite_data['recipient_email'] = recipient_user.email
 

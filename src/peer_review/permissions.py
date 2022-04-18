@@ -1,3 +1,4 @@
+from lib2to3.pytree import Base
 from rest_framework.permissions import BasePermission
 from researchhub_document.models import (
     ResearchhubUnifiedDocument
@@ -70,3 +71,10 @@ class IsAllowedToCreateDecision(BasePermission):
             return True
 
         return False
+
+class IsAllowedToCreateOrUpdate(BasePermission):
+    def has_permission(self, request, view):
+        if request.method == 'PUT' or request.method == 'POST':
+                return False
+
+        return True

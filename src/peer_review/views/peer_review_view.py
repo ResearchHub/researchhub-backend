@@ -5,6 +5,7 @@ from rest_framework.permissions import (
 )
 from peer_review.permissions import (
     IsAllowedToCreateDecision,
+    IsAllowedToCreateOrUpdate,
 )
 from utils.http import DELETE, POST, PATCH, PUT, GET
 from peer_review.models import (
@@ -25,9 +26,75 @@ from reputation.serializers import DynamicContributionSerializer
 class PeerReviewViewSet(ModelViewSet):
     permission_classes = [
         IsAuthenticated,
+        IsAllowedToCreateOrUpdate,
     ]
     serializer_class = PeerReviewSerializer
     queryset = PeerReview.objects.all()
+
+    @action(
+        detail=True,
+        methods=[GET],
+    )
+    def timeline(self, request, pk=None):
+        thread_content_type = ContentType.objects.get_for_model(Thread)
+        peer_review_decision_content_type = ContentType.objects.get_for_model(PeerReviewDecision)
+
+        contribution_type = [
+            Contribution.PEER_REVIEWER,
+            Contribution.COMMENTER,
+        ]
+
+        qs = Contribution.objects.filter(
+            unified_document__is_removed=False,
+            contribution_type__in=contribution_type,
+            content_type_id__in=[
+                thread_content_type,
+                peer_review_decision_content_type,
+            ],
+        ).select_related(
+            'content_type',
+            'user',
+            'user__author_profile',
+            'unified_document',
+        ).prefetch_related(
+            'unified_document__hubs',
+        )
+
+        page = self.paginate_queryset(qs)
+        context = self._get_contribution_context()
+        serializer = DynamicContributionSerializer(
+            page,
+            _include_fields=[
+                'contribution_type',
+                'created_date',
+                'id',
+                'source',
+                'created_by',
+                'unified_document',
+                'author'
+            ],
+            context=context,
+            many=True,
+        )
+
+        response = self.get_paginated_response(serializer.data)
+        return response
+
+    @action(
+        detail=True,
+        methods=[POST],
+        permission_classes=[IsAllowedToCreateDecision]
+    )
+    def create_decision(self, request, pk=None):
+        review = self.get_object()
+        request.data['unified_document'] = review.unified_document.id
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.context['peer_review'] = review
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+
+        return Response(serializer.data)
 
     def get_serializer_class(self):
         if self.action == 'create_decision':
@@ -285,68 +352,3 @@ class PeerReviewViewSet(ModelViewSet):
             },
         }
         return context
-
-    @action(
-        detail=True,
-        methods=[GET],
-    )
-    def timeline(self, request, pk=None):
-        thread_content_type = ContentType.objects.get_for_model(Thread)
-        peer_review_decision_content_type = ContentType.objects.get_for_model(PeerReviewDecision)
-
-        contribution_type = [
-            Contribution.PEER_REVIEWER,
-            Contribution.COMMENTER,
-        ]
-
-        qs = Contribution.objects.filter(
-            unified_document__is_removed=False,
-            contribution_type__in=contribution_type,
-            content_type_id__in=[
-                thread_content_type,
-                peer_review_decision_content_type,
-            ],
-        ).select_related(
-            'content_type',
-            'user',
-            'user__author_profile',
-            'unified_document',
-        ).prefetch_related(
-            'unified_document__hubs',
-        )
-
-        page = self.paginate_queryset(qs)
-        context = self._get_contribution_context()
-        serializer = DynamicContributionSerializer(
-            page,
-            _include_fields=[
-                'contribution_type',
-                'created_date',
-                'id',
-                'source',
-                'created_by',
-                'unified_document',
-                'author'
-            ],
-            context=context,
-            many=True,
-        )
-
-        response = self.get_paginated_response(serializer.data)
-        return response
-
-    @action(
-        detail=True,
-        methods=[POST],
-        permission_classes=[IsAllowedToCreateDecision]
-    )
-    def create_decision(self, request, pk=None):
-        review = self.get_object()
-        request.data['unified_document'] = review.unified_document.id
-
-        serializer = self.get_serializer(data=request.data)
-        serializer.context['peer_review'] = review
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-
-        return Response(serializer.data)
