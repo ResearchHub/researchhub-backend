@@ -24,6 +24,7 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 from rest_framework.utils.urls import replace_query_param
+from rest_framework_api_key.permissions import HasAPIKey
 
 from google_analytics.signals import get_event_hit_response
 from paper.exceptions import PaperSerializerError
@@ -101,7 +102,10 @@ class PaperViewSet(viewsets.ModelViewSet):
     ordering = "-uploaded_date"
 
     permission_classes = [
-        IsAuthenticatedOrReadOnly & CreatePaper & UpdatePaper & CreateOrUpdateIfAllowed
+        (IsAuthenticatedOrReadOnly | HasAPIKey)
+        & CreatePaper
+        & UpdatePaper
+        & CreateOrUpdateIfAllowed
     ]
 
     def prefetch_lookups(self):
