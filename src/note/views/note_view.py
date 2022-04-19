@@ -51,7 +51,7 @@ from researchhub.settings import (
     CKEDITOR_CLOUD_ACCESS_KEY,
     CKEDITOR_CLOUD_ENVIRONMENT_ID
 )
-
+from researchhub.settings import TESTING
 
 class NoteViewSet(ModelViewSet):
     ordering = ('-created_date')
@@ -531,7 +531,10 @@ class NoteContentViewSet(ModelViewSet):
             full_src,
             user
         )
-        note_content.src.save(file_name, full_src_file)
+
+        if not TESTING:
+            note_content.src.save(file_name, full_src_file)
+
         serializer = self.serializer_class(note_content)
         data = serializer.data
         return Response(data, status=200)
