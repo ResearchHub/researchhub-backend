@@ -14,7 +14,7 @@ class IsAllowedToRequest(BasePermission):
         uni_doc = ResearchhubUnifiedDocument.objects.get(id=request.data['unified_document'])
 
         is_author_requesting_review = uni_doc.authors.filter(
-            id=requested_by_user.id
+            id=requested_by_user.author_profile.id
         ).exists()
 
         if is_author_requesting_review or requested_by_user.moderator:
@@ -72,9 +72,23 @@ class IsAllowedToCreateDecision(BasePermission):
 
         return False
 
-class IsAllowedToCreateOrUpdate(BasePermission):
+class IsAllowedToCreateOrUpdatePeerReview(BasePermission):
     def has_permission(self, request, view):
         if request.method == 'PUT' or request.method == 'POST':
-                return False
+            return False
+
+        return True
+
+class IsAllowedToCreateOrUpdatePeerReviewInvite(BasePermission):
+    def has_permission(self, request, view):
+        if request.method == 'PUT' or request.method == 'POST':
+            return False
+
+        return True
+
+class IsAllowedToCreateOrUpdatePeerReviewRequest(BasePermission):
+    def has_permission(self, request, view):
+        if request.method == 'PUT' or request.method == 'POST':
+            return False
 
         return True

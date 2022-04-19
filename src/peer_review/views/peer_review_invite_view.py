@@ -15,7 +15,8 @@ from peer_review.serializers import (
 )
 from peer_review.permissions import (
     IsAllowedToInvite,
-    IsAllowedToAcceptInvite
+    IsAllowedToAcceptInvite,
+    IsAllowedToCreateOrUpdatePeerReviewInvite,
 )
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -25,6 +26,7 @@ from utils.http import DELETE, POST, PATCH, PUT, GET
 class PeerReviewInviteViewSet(ModelViewSet):
     permission_classes = [
         IsAuthenticated,
+        IsAllowedToCreateOrUpdatePeerReviewInvite
     ]
     serializer_class = PeerReviewInviteSerializer
     queryset = PeerReviewInvite.objects.all()
@@ -92,7 +94,6 @@ class PeerReviewInviteViewSet(ModelViewSet):
                 'requested_by_user',
                 'created_date',
                 'status',
-                'peer_review',
             ],
             context=context,
             many=False

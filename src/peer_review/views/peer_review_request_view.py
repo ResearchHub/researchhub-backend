@@ -8,6 +8,7 @@ from peer_review.serializers import (
     DynamicPeerReviewRequestSerializer,
 )
 from peer_review.permissions import (
+    IsAllowedToCreateOrUpdatePeerReviewRequest,
     IsAllowedToRequest,
     IsAllowedToList,
     IsAllowedToRetrieve
@@ -20,6 +21,7 @@ from utils.http import POST
 class PeerReviewRequestViewSet(ModelViewSet):
     permission_classes = (
         IsAuthenticated,
+        IsAllowedToCreateOrUpdatePeerReviewRequest,
         (IsAllowedToList|IsAllowedToRetrieve),
     )
     serializer_class = PeerReviewRequestSerializer

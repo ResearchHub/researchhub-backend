@@ -5,7 +5,7 @@ from rest_framework.permissions import (
 )
 from peer_review.permissions import (
     IsAllowedToCreateDecision,
-    IsAllowedToCreateOrUpdate,
+    IsAllowedToCreateOrUpdatePeerReview,
 )
 from utils.http import DELETE, POST, PATCH, PUT, GET
 from peer_review.models import (
@@ -26,7 +26,7 @@ from reputation.serializers import DynamicContributionSerializer
 class PeerReviewViewSet(ModelViewSet):
     permission_classes = [
         IsAuthenticated,
-        IsAllowedToCreateOrUpdate,
+        IsAllowedToCreateOrUpdatePeerReview,
     ]
     serializer_class = PeerReviewSerializer
     queryset = PeerReview.objects.all()

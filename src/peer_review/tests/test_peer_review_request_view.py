@@ -51,6 +51,7 @@ class PeerReviewRequestViewTests(APITestCase):
         self.note_version = note_version_response.data
 
         # Author Publish
+<<<<<<< HEAD
         doc_response = self.client.post(
             "/api/researchhub_posts/",
             {
@@ -63,6 +64,18 @@ class PeerReviewRequestViewTests(APITestCase):
                 "hubs": [self.hub.id],
             },
         )
+=======
+        doc_response = self.client.post("/api/researchhub_posts/", {
+            "document_type": "DISCUSSION",
+            "full_src": "body",
+            "renderable_text": "body",
+            "title": "title",
+            "note_id": self.note['id'],
+            "hubs": [self.hub.id],
+            "authors": [self.author.author_profile.id]
+        })
+
+>>>>>>> 871b865a (Fixing tests)
         self.post = doc_response.data
 
     def test_author_can_request_review(self):
