@@ -51,6 +51,7 @@ from peer_review.serializers import PeerReviewRequestSerializer
 from peer_review.models import PeerReviewRequest
 from note.models import Note
 from note.models import NoteContent
+from researchhub.settings import TESTING
 
 
 class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
@@ -130,10 +131,12 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             file_name = f'RH-POST-{document_type}-USER-{created_by.id}.txt'
             full_src_file = ContentFile(data['full_src'].encode())
             rh_post.authors.set(authors)
-            if is_discussion:
-                rh_post.discussion_src.save(file_name, full_src_file)
-            else:
-                rh_post.eln_src.save(file_name, full_src_file)
+
+            if not TESTING:
+                if is_discussion:
+                    rh_post.discussion_src.save(file_name, full_src_file)
+                else:
+                    rh_post.eln_src.save(file_name, full_src_file)
 
             hub_ids = list(
                 unified_document.hubs.values_list(
