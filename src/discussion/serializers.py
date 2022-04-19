@@ -6,6 +6,7 @@ from discussion.reaction_serializers import (
     GenericReactionSerializerMixin,
     DynamicVoteSerializer  # Import is needed for discussion serializer imports
 )
+from discussion.review_serializer import DynamicReviewSerializer, ReviewSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE
 from researchhub.serializers import (
     DynamicModelFieldSerializer,
@@ -58,6 +59,7 @@ class DynamicThreadSerializer(
     paper = serializers.SerializerMethodField()
     post = serializers.SerializerMethodField()
     peer_review = serializers.SerializerMethodField()
+    review = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
@@ -115,6 +117,21 @@ class DynamicThreadSerializer(
                 ).data
             return False
         return False
+
+    def get_review(self, obj):
+        if obj.review:
+            context = self.context
+            _context_fields = context.get("dis_dts_get_review", {})
+
+            serializer = DynamicReviewSerializer(
+                obj.review,
+                context=context,
+                **_context_fields
+            )
+
+            return serializer.data
+
+        return None
 
     def get_created_by(self, thread):
         context = self.context
@@ -517,6 +534,7 @@ class ThreadSerializer(
     post_slug = serializers.SerializerMethodField()
     hypothesis_slug = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
+    review = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -547,6 +565,7 @@ class ThreadSerializer(
             'post_slug',
             'post',
             'promoted',
+            'review',
             'score',
             'source',
             'text',
@@ -569,6 +588,12 @@ class ThreadSerializer(
 
     def get_score(self, obj):
         return obj.calculate_score()
+
+    def get_review(self, obj):
+        if obj.review:
+            return ReviewSerializer(obj.review).data
+
+        return None
 
     def get_user_vote(self, obj):
         user = get_user_from_request(self.context)
