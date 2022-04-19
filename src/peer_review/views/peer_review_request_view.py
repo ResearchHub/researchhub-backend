@@ -5,8 +5,10 @@ from rest_framework.permissions import (
 from peer_review.models import PeerReviewRequest
 from peer_review.serializers import (
     PeerReviewRequestSerializer,
+    DynamicPeerReviewRequestSerializer,
 )
 from peer_review.permissions import (
+    IsAllowedToCreateOrUpdatePeerReviewRequest,
     IsAllowedToRequest,
     IsAllowedToList,
     IsAllowedToRetrieve
@@ -19,6 +21,7 @@ from utils.http import POST
 class PeerReviewRequestViewSet(ModelViewSet):
     permission_classes = (
         IsAuthenticated,
+        IsAllowedToCreateOrUpdatePeerReviewRequest,
         (IsAllowedToList|IsAllowedToRetrieve),
     )
     serializer_class = PeerReviewRequestSerializer
@@ -50,5 +53,67 @@ class PeerReviewRequestViewSet(ModelViewSet):
             queryset = self.queryset.filter(requested_by_user=request.user)
 
         page = self.paginate_queryset(queryset)
-        serializer = PeerReviewRequestSerializer(page, many=True)
+        context = self._get_serializer_context()
+
+        serializer = DynamicPeerReviewRequestSerializer(
+            page,
+            _include_fields=[
+                'id',
+                'unified_document',
+                'requested_by_user',
+                'created_date',
+                'invites',
+            ],
+            context=context,
+            many=True
+        )
         return self.get_paginated_response(serializer.data)
+
+    def _get_serializer_context(self):
+        context = {
+            'pr_dpris_get_recipient': {
+                '_include_fields': [
+                    'id',
+                    'author_profile',
+                ]
+            },
+            'pr_dprrs_get_invites': {
+                '_include_fields': [
+                    'id',
+                    'recipient',
+                    'status',
+                ]
+            },
+            'pr_dprrs_get_requested_by_user': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'author_profile',
+                ]
+            },
+            'pr_dprrs_get_unified_document': {
+                '_include_fields': [
+                    'id',
+                    'documents',
+                    'document_type',
+                ]
+            },
+            'usr_dus_get_author_profile': {
+                '_include_fields': [
+                    'id',
+                    'profile_image',
+                    'first_name',
+                    'last_name',
+                ]
+            },
+            'doc_duds_get_documents': {
+                '_include_fields': [
+                    'id',
+                    'title',
+                    'slug',
+                ]
+            },
+        }
+
+        return context

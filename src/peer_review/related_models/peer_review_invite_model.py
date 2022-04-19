@@ -17,7 +17,6 @@ class PeerReviewInvite(Invitation):
 
     peer_review_request = models.ForeignKey(
         PeerReviewRequest,
-        related_name='invites',
         blank=False,
         null=False,
         on_delete=models.CASCADE,

@@ -1,7 +1,9 @@
+from regex import P
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import (
     IsAuthenticated,
 )
+from peer_review.related_models.peer_review_request_model import PeerReviewRequest
 from user.models import User
 from peer_review.models import (
     PeerReviewInvite,
@@ -9,10 +11,12 @@ from peer_review.models import (
 )
 from peer_review.serializers import (
     PeerReviewInviteSerializer,
+    DynamicPeerReviewInviteSerializer
 )
 from peer_review.permissions import (
     IsAllowedToInvite,
-    IsAllowedToAcceptInvite
+    IsAllowedToAcceptInvite,
+    IsAllowedToCreateOrUpdatePeerReviewInvite,
 )
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -22,6 +26,7 @@ from utils.http import DELETE, POST, PATCH, PUT, GET
 class PeerReviewInviteViewSet(ModelViewSet):
     permission_classes = [
         IsAuthenticated,
+        IsAllowedToCreateOrUpdatePeerReviewInvite
     ]
     serializer_class = PeerReviewInviteSerializer
     queryset = PeerReviewInvite.objects.all()
@@ -32,15 +37,42 @@ class PeerReviewInviteViewSet(ModelViewSet):
         permission_classes=[IsAllowedToInvite]
     )
     def invite(self, request, *args, **kwargs):
-        request.data['inviter'] = request.user.id
+        invite_data = request.data
+        invite_data['inviter'] = request.user.id
+
+        is_invited_by_email = request.data.get('recipient_email', False)
+        is_invited_by_user_id = request.data.get('recipient', False)
+
+        if is_invited_by_email:
+            recipient_user = User.objects.filter(email=request.data['recipient_email']).first()
+            if recipient_user:
+                invite_data['recipient'] = recipient_user.id
+        elif is_invited_by_user_id:
+            recipient_user = User.objects.get(id=request.data['recipient'])
+            invite_data['recipient_email'] = recipient_user.email
+
         serializer = PeerReviewInviteSerializer(
-            data=request.data,
+            data=invite_data,
             context={'request': request}
         )
+
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
 
         return Response(serializer.data)
+
+    def _get_serializer_context(self):
+        context = {
+            'pr_dpris_get_recipient': {
+                '_include_fields': [
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'author_profile',
+                ]
+            }
+        }
+        return context
 
     @action(
         detail=True,
@@ -53,18 +85,21 @@ class PeerReviewInviteViewSet(ModelViewSet):
         invite.save()
         invite.accept()
 
-        reviewer = User.objects.get(email=invite.recipient_email)
-        review = PeerReview.objects.create(
-            assigned_user=reviewer,
-            unified_document=invite.peer_review_request.unified_document,
+        context = self._get_serializer_context()
+        serializer = DynamicPeerReviewInviteSerializer(
+            invite,
+            _include_fields=[
+                'id',
+                'unified_document',
+                'requested_by_user',
+                'created_date',
+                'status',
+            ],
+            context=context,
+            many=False
         )
 
-        invite.peer_review_request.peer_review = review
-        invite.peer_review_request.save()
-
-        serializer = self.serializer_class(invite)
-        data = serializer.data
-        return Response(data)
+        return Response(serializer.data)
 
     @action(
         detail=True,

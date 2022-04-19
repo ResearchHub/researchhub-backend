@@ -1,9 +1,10 @@
 from django.db import models
 from discussion.models import Thread
 from researchhub_document.models import ResearchhubUnifiedDocument
+from utils.models import DefaultModel
 
 
-class PeerReview(models.Model):
+class PeerReview(DefaultModel):
     assigned_user = models.ForeignKey(
         'user.User',
         related_name='assigned_reviews',
@@ -21,13 +22,11 @@ class PeerReview(models.Model):
     )
 
 
-class PeerReviewDecision(models.Model):
-    PENDING = 'PENDING'
+class PeerReviewDecision(DefaultModel):
     APPROVED = 'APPROVED'
     CHANGES_REQUESTED = 'CHANGES_REQUESTED'
 
     DECISION_CHOICES = [
-        (PENDING, PENDING),
         (APPROVED, APPROVED),
         (CHANGES_REQUESTED, CHANGES_REQUESTED)
     ]
@@ -49,7 +48,7 @@ class PeerReviewDecision(models.Model):
 
     doc_version = models.ForeignKey(
         'note.NoteContent',
-        blank=False,
+        blank=True,
         null=True,
         related_name='peer_review_decisions',
         on_delete=models.SET_NULL,
@@ -58,7 +57,6 @@ class PeerReviewDecision(models.Model):
     decision = models.CharField(
         choices=DECISION_CHOICES,
         max_length=32,
-        default=PENDING,
         blank=False,
         null=False,
     )
@@ -67,6 +65,6 @@ class PeerReviewDecision(models.Model):
         Thread,
         blank=True,
         null=True,
-        related_name='peer_review',
+        related_name='peer_review_decision',
         on_delete=models.SET_NULL,
     )

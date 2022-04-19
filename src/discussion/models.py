@@ -231,7 +231,8 @@ class BaseComment(models.Model):
                 'created_by', 'id'
             )
             thread_ids = list(map(lambda t: t['id'], threads))
-
+        else:
+            return []
 
         comments = Comment.objects.filter(
             parent_id__in=thread_ids
@@ -315,6 +316,13 @@ class Thread(BaseComment):
         null=True,
         blank=True,
     )
+    peer_review = models.ForeignKey(
+        'peer_review.PeerReview',
+        on_delete=models.SET_NULL,
+        related_name='threads',
+        blank=True,
+        null=True
+    )
     actions = GenericRelation(
         'user.Action',
         object_id_field='object_id',
@@ -342,6 +350,10 @@ class Thread(BaseComment):
         hypothesis = self.hypothesis
         if hypothesis:
             return hypothesis.unified_document
+
+        peer_review = self.peer_review
+        if peer_review:
+            return peer_review.unified_document
 
         citation = self.citation
         if citation:

@@ -55,3 +55,8 @@ class PeerReviewRequest(DefaultModel):
 
     class Meta:
         ordering = ['-created_date']
+
+    @property
+    def invites(self):
+        from peer_review.related_models.peer_review_invite_model import PeerReviewInvite
+        return PeerReviewInvite.objects.filter(peer_review_request=self)

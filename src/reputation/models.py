@@ -218,6 +218,7 @@ class Contribution(models.Model):
     COMMENTER = 'COMMENTER'
     SUPPORTER = 'SUPPORTER'
     VIEWER = 'VIEWER'
+    PEER_REVIEWER = 'PEER_REVIEWER'
 
     contribution_choices = [
         # (PAPER, PAPER),
@@ -227,7 +228,8 @@ class Contribution(models.Model):
         (CURATOR, CURATOR),
         (COMMENTER, COMMENTER),
         (SUPPORTER, SUPPORTER),
-        (VIEWER, VIEWER)
+        (VIEWER, VIEWER),
+        (PEER_REVIEWER, PEER_REVIEWER),
     ]
 
     contribution_type = models.CharField(

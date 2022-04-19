@@ -1,3 +1,4 @@
+from lib2to3.pytree import Base
 from rest_framework.permissions import BasePermission
 from researchhub_document.models import (
     ResearchhubUnifiedDocument
@@ -13,7 +14,7 @@ class IsAllowedToRequest(BasePermission):
         uni_doc = ResearchhubUnifiedDocument.objects.get(id=request.data['unified_document'])
 
         is_author_requesting_review = uni_doc.authors.filter(
-            id=requested_by_user.id
+            id=requested_by_user.author_profile.id
         ).exists()
 
         if is_author_requesting_review or requested_by_user.moderator:
@@ -61,3 +62,33 @@ class IsAllowedToRetrieve(BasePermission):
                 return True
 
         return False
+
+class IsAllowedToCreateDecision(BasePermission):
+    message = 'You do not have permission to do this'
+
+    def has_object_permission(self, request, view, obj):
+        if obj.assigned_user.id == request.user.id:
+            return True
+
+        return False
+
+class IsAllowedToCreateOrUpdatePeerReview(BasePermission):
+    def has_permission(self, request, view):
+        if request.method == 'PUT' or request.method == 'POST':
+            return False
+
+        return True
+
+class IsAllowedToCreateOrUpdatePeerReviewInvite(BasePermission):
+    def has_permission(self, request, view):
+        if request.method == 'PUT' or request.method == 'POST':
+            return False
+
+        return True
+
+class IsAllowedToCreateOrUpdatePeerReviewRequest(BasePermission):
+    def has_permission(self, request, view):
+        if request.method == 'PUT' or request.method == 'POST':
+            return False
+
+        return True
