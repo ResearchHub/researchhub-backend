@@ -32,9 +32,6 @@ class PeerReviewDecisionSerializer(ModelSerializer):
             'created_date',
         ]
 
-    def validate(self, data):
-        return data
-
     def _create_contribution(self, decision):
         use_async = True
         if TESTING:

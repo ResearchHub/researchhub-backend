@@ -80,9 +80,6 @@ class PeerReviewRequestSerializer(ModelSerializer):
             'created_date',
         ]
 
-    def validate(self, data):
-        return data
-
     def create(self, validated_data):
         data = validated_data
         data['requested_by_user'] = self.context['request'].user

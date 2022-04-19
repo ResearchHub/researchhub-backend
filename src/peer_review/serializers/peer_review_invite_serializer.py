@@ -51,9 +51,6 @@ class PeerReviewInviteSerializer(ModelSerializer):
             'created_date',
         ]
 
-    def validate(self, data):
-        return data
-
     def to_internal_value(self, data):
         data['expiration_time'] = MINUTES_TO_EXPIRE_INVITE
 
