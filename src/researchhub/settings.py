@@ -477,7 +477,6 @@ EMAIL_WHITELIST = [
     "joey@quantfive.org",
     "leosun@quantfive.org",
     "patrick@quantfive.org",
-    "val@quantfive.org",
     "patrick.lu@berkeley.edu",
     "calvinhlee@berkeley.edu",
     "pdj7@georgetown.edu",
