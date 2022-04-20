@@ -24,7 +24,6 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 from rest_framework.utils.urls import replace_query_param
-from rest_framework_api_key.permissions import HasAPIKey
 
 from google_analytics.signals import get_event_hit_response
 from paper.exceptions import PaperSerializerError
@@ -86,7 +85,7 @@ from researchhub_document.views.custom.unified_document_pagination import (
 )
 from user.models import Author
 from utils.http import GET, POST, check_url_contains_pdf
-from utils.permissions import CreateOnly, CreateOrUpdateIfAllowed
+from utils.permissions import CreateOnly, CreateOrUpdateIfAllowed, HasAPIKey
 from utils.sentry import log_error, log_info
 from utils.siftscience import decisions_api, events_api
 from utils.throttles import THROTTLE_CLASSES
@@ -1232,7 +1231,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
     queryset = PaperSubmission.objects.all()
     serializer_class = PaperSubmissionSerializer
     throttle_classes = THROTTLE_CLASSES
-    permission_classes = [CreateOnly]
+    permission_classes = [IsAuthenticated | HasAPIKey, CreateOnly]
 
     def create(self, *args, **kwargs):
         data = self.request.data

@@ -3,13 +3,13 @@
 The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/2.2/topics/http/urls/
 """
+import debug_toolbar
 from django.contrib import admin
 from django.urls import include, path, re_path
 from rest_framework import routers
 
 import analytics.views
 import bullet_point.views
-import debug_toolbar
 import discussion.views
 import google_analytics.views
 import hub.views
@@ -24,21 +24,18 @@ import oauth.views
 import paper.views
 import purchase.views
 import reputation.views
+import researchhub.views
 import researchhub_case.views as researchhub_case_views
 import researchhub_document.views as researchhub_document_views
-import researchhub.views
 import search.urls
 import summary.views
 import user.views
-
 from peer_review.views import (
-    PeerReviewViewSet,
-    PeerReviewRequestViewSet,
     PeerReviewInviteViewSet,
+    PeerReviewRequestViewSet,
+    PeerReviewViewSet,
 )
-from user.views import GatekeeperViewSet
-
-from researchhub.settings import USE_DEBUG_TOOLBAR, INSTALLED_APPS
+from researchhub.settings import INSTALLED_APPS, USE_DEBUG_TOOLBAR
 from user.views import editor_views
 
 router = routers.DefaultRouter()
@@ -123,21 +120,21 @@ router.register(
 )
 
 router.register(
-    r'peer_review/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply',
+    r"peer_review/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
     discussion.views.ReplyViewSet,
-    basename='post_discussion_thread_comment_replies'
+    basename="post_discussion_thread_comment_replies",
 )
 
 router.register(
-    r'peer_review/([0-9]+)/discussion/([0-9]+)/comment',
+    r"peer_review/([0-9]+)/discussion/([0-9]+)/comment",
     discussion.views.CommentViewSet,
-    basename='post_discussion_thread_comments'
+    basename="post_discussion_thread_comments",
 )
 
 router.register(
-    r'peer_review/([0-9]+)/discussion',
+    r"peer_review/([0-9]+)/discussion",
     discussion.views.ThreadViewSet,
-    basename='post_discussion_threads'
+    basename="post_discussion_threads",
 )
 
 
@@ -291,24 +288,18 @@ router.register(
     r"invite/note", invite_views.NoteInvitationViewSet, basename="note_invite"
 )
 
-router.register(r"gatekeeper", GatekeeperViewSet, basename="gatekeeper")
+router.register(r"gatekeeper", user.views.GatekeeperViewSet, basename="gatekeeper")
+
+router.register(r"token", user.views.UserApiTokenViewSet, basename="user_api_token")
+
+router.register(r"peer_review", PeerReviewViewSet, basename="peer_review")
 
 router.register(
-    r'peer_review',
-    PeerReviewViewSet,
-    basename='peer_review'
+    r"peer_review_requests", PeerReviewRequestViewSet, basename="peer_review_requests"
 )
 
 router.register(
-    r'peer_review_requests',
-    PeerReviewRequestViewSet,
-    basename='peer_review_requests'
-)
-
-router.register(
-    r'peer_review_invites',
-    PeerReviewInviteViewSet,
-    basename='peer_review_invites'
+    r"peer_review_invites", PeerReviewInviteViewSet, basename="peer_review_invites"
 )
 
 urlpatterns = [

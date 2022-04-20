@@ -18,6 +18,7 @@ import sentry_sdk
 import stripe
 from celery.task.schedules import crontab
 from sentry_sdk.integrations.django import DjangoIntegration
+from web3 import Web3
 
 from utils.sentry import log_error
 
@@ -57,10 +58,7 @@ elif CLOUD:
 
 # Django Debug Toolbar
 USE_DEBUG_TOOLBAR = False
-try:
-    USE_DEBUG_TOOLBAR = keys.USE_DEBUG_TOOLBAR
-except:
-    pass
+USE_DEBUG_TOOLBAR = getattr(keys, "USE_DEBUG_TOOLBAR", False)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
@@ -263,7 +261,7 @@ PAGINATION_PAGE_SIZE = 10
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework.authentication.TokenAuthentication",
+        "researchhub.middleware.ApiTokenSession.UserApiTokenAuth",
     ),
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -662,8 +660,9 @@ if elastic_token:
             "elasticapm.processors.sanitize_http_request_cookies",
             "elasticapm.processors.sanitize_http_headers",
             "elasticapm.processors.sanitize_http_wsgi_env",
-            # 'elasticapm.processors.sanitize_http_request_querystring',  Breaking in elasticapm 6.x
             "elasticapm.processors.sanitize_http_request_body",
+            # Breaking in elasticapm 6.x
+            # 'elasticapm.processors.sanitize_http_request_querystring',
         ),
     }
 
@@ -768,8 +767,6 @@ ASYNC_SERVICE_API_KEY = os.environ.get(
     "ASYNC_SERVICE_API_KEY", keys.ASYNC_SERVICE_API_KEY or "testapikeyservice"
 )
 
-from web3 import Web3
-
 WEB3_NETWORK = os.environ.get("WEB3_NETWORK", "rinkeby")
 PROVIDER_URL = os.environ.get("PROVIDER_URL", keys.PROVIDER_URL)
 WEB3_KEYSTORE_BUCKET = os.environ.get("WEB3_KEYSTORE_BUCKET", keys.WEB3_KEYSTORE_BUCKET)
@@ -789,3 +786,6 @@ try:
 except Exception as e:
     log_error(e)
     print(e)
+
+# API Key Settings
+API_KEY_CUSTOM_HEADER = "HTTP_RH_API_KEY"
