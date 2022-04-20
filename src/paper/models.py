@@ -1,3 +1,4 @@
+from paper.related_models.async_paper_updator_model import AsyncPaperUpdator
 from paper.related_models.paper_model import (
     ARXIV_IDENTIFIER,
     DOI_IDENTIFIER,
