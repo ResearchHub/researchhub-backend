@@ -32,7 +32,8 @@ class UserApiTokenViewSet(ModelViewSet):
         api_token = UserApiToken.objects.get_from_key(pk)
         api_token.revoked = True
         api_token.save()
-        return Response({"data": "revoked"}, status=200)
+        serializer = self.get_serializer(api_token)
+        return Response(serializer.data, status=200)
 
     @action(detail=False, methods=[DELETE])
     def revoke_token(self, request):
@@ -46,4 +47,4 @@ class UserApiTokenViewSet(ModelViewSet):
 
         tokens = self.get_queryset().filter(**filters)
         tokens.update(revoked=True)
-        return Response({"data": "revoked"}, status=200)
+        return Response({"data": "Revoked"}, status=200)
