@@ -7,7 +7,7 @@ from django.db.models import (
 )
 
 from hub.models import Hub
-from paper.models import PaperSubmission
+from paper.related_models.paper_submission_model import PaperSubmission
 from utils.models import DefaultModel
 
 
