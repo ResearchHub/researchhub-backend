@@ -41,15 +41,13 @@ class ReviewTests(APITestCase):
 
     def test_creates_non_review_comment(self):
         self.client.force_authenticate(self.user)
-        review_response = self.client.post(f'/api/paper/{self.paper.id}/discussion/?source=researchhub&is_removed=False',{
-            'score': 7,
-            'plain_text': "review text",
+        response = self.client.post(f'/api/paper/{self.paper.id}/discussion/?source=researchhub&is_removed=False',{
+            'plain_text': "some text",
             'paper': self.paper.id,
-            'text': {'ops': [{'insert': 'review text'}]},
+            'text': {'ops': [{'insert': 'some text'}]},
         })
-
 
         self.assertEqual(
             None,
-            review_response.data['review'],
+            response.data['review'],
         )

@@ -4,7 +4,6 @@ from lib2to3.pgen2.token import COMMENT
 
 from django.contrib.admin.options import get_content_type_for_model
 from django.core.files.base import ContentFile
-from django.db import transaction
 from django.core.files.storage import default_storage
 from django.db.models import Count, Q
 from rest_framework import status, viewsets
@@ -45,8 +44,7 @@ from discussion.permissions import (
     UpvoteDiscussionThread,
     Vote as VotePermission
 )
-from hypothesis.models import Hypothesis, Citation
-from researchhub_document.models import ResearchhubPost
+
 from paper.models import Paper
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
@@ -73,21 +71,9 @@ from researchhub_document.utils import get_doc_type_key
 from researchhub_document.utils import (
     reset_unified_document_cache,
 )
-from peer_review.models import PeerReview
+
 from discussion.review_serializer import ReviewSerializer
-
-
-COMMENT_TYPE = 'COMMENT'
-REVIEW_TYPE = 'REVIEW'
-DISCUSSION_TYPES = [COMMENT_TYPE, REVIEW_TYPE]
-
-RELATED_DISCUSSION_MODELS = {
-    'peer_review': PeerReview,
-    'citation': Citation,
-    'hypothesis': Hypothesis,
-    'paper': Paper,
-    'post': ResearchhubPost,
-}
+from discussion.services import create_thread
 
 class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     serializer_class = ThreadSerializer
@@ -105,75 +91,32 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date',)
 
     def create(self, request, *args, **kwargs):
-        model = request.path.split('/')[2]
-        model_id = get_document_id_from_path(request)
-        instance = RELATED_DISCUSSION_MODELS[model].objects.get(id=model_id)
-        discussion_type = request.query_params.get('discussion_type', COMMENT_TYPE)
+        for_model = request.path.split('/')[2]
+        for_model_id = get_document_id_from_path(request)
 
-        if model == 'citation':
-            unified_document = instance.source
-        else:
-            unified_document = instance.unified_document
-
-        if request.query_params.get('created_location') == 'progress':
-            request.data['created_location'] = (
-                BaseComment.CREATED_LOCATION_PROGRESS
-            )
-
-        thread_response = None
         try:
-            with transaction.atomic():
-                thread_response = super().create(request, *args, **kwargs)
-                thread_response = self.get_self_upvote_response(request, thread_response, Thread)
-                hubs = list(unified_document.hubs.all().values_list('id', flat=True))
-                discussion_id = thread_response.data['id']
-
-                if discussion_type == REVIEW_TYPE:
-                    review_data = { 'score': request.data['score'] }
-                    review_serializer = ReviewSerializer(data=review_data)
-                    review_serializer.is_valid()
-                    self.perform_create(review_serializer)
-
-                    thread = Thread.objects.get(id=thread_response.data['id'])
-                    thread.review = Review.objects.get(id=review_serializer.data['id'])
-                    thread.save()
-
-                    thread_response.data['review'] = review_serializer.data
+            thread = create_thread(request.data, request.user, for_model, for_model_id)
+            doc_type = get_doc_type_key(thread.unified_document)
+            hubs = list(thread.unified_document.hubs.all().values_list('id', flat=True))
+            
+            reset_unified_document_cache(
+                hub_ids=hubs,
+                document_type=[doc_type, 'all'],
+                filters=[DISCUSSED, TRENDING],
+            )
         except Exception as error:
             message = "Failed to create comment"
+            print('error', error)
             log_error(error, message)
             return Response(
                 message,
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        self.sift_track_create_content_comment(
-            request,
-            thread_response,
-            Thread,
-            is_thread=True
+        return Response(
+            ThreadSerializer(thread).data,
+            status=status.HTTP_201_CREATED,
         )
-
-        create_contribution.apply_async(
-            (
-                Contribution.COMMENTER,
-                {'app_label': 'discussion', 'model': 'thread'},
-                request.user.id,
-                unified_document.id,
-                discussion_id
-            ),
-            priority=1,
-            countdown=10
-        )
-
-        doc_type = get_doc_type_key(unified_document)
-        reset_unified_document_cache(
-            hub_ids=hubs,
-            document_type=[doc_type, 'all'],
-            filters=[DISCUSSED, TRENDING],
-        )
-
-        return thread_response
 
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
