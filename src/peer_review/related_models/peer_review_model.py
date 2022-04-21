@@ -17,8 +17,8 @@ class PeerReview(DefaultModel):
         ResearchhubUnifiedDocument,
         related_name='peer_reviews',
         blank=False,
-        null=False,
-        on_delete=models.CASCADE,
+        null=True,
+        on_delete=models.SET_NULL,
     )
 
 

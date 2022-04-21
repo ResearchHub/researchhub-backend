@@ -20,3 +20,11 @@ class Review(DefaultModel):
         null=True,
         on_delete=models.SET_NULL,
     )
+    unified_document = models.ForeignKey(
+        'researchhub_document.ResearchhubUnifiedDocument',
+        related_name='reviews',
+        blank=False,
+        null=True,
+        on_delete=models.SET_NULL,
+    )
+

@@ -33,9 +33,3 @@ def create_thread(data, user, for_model, for_model_id, context, with_contributio
         )
 
     return thread
-
-def create_review(data):
-    serializer = ReviewSerializer(data=data)
-    serializer.is_valid()
-    instance = serializer.create()
-    return serializer.data

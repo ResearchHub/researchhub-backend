@@ -314,7 +314,7 @@ router.register(
 )
 
 router.register(
-     r"researchhub_unified_documents/([0-9]+)/review/([0-9]+)/",
+     r"researchhub_unified_documents/([0-9]+)/review",
     ReviewViewSet,
     basename='review'
 )

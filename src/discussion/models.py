@@ -324,15 +324,15 @@ class Thread(BaseComment):
         blank=True,
         null=True
     )
-    # review = models.OneToOneField(
-    #     Review,
-    #     related_name='thread',
-    #     blank=True,
-    #     null=True,
-    #     default=None,
-    #     unique=False,
-    #     on_delete=models.SET_NULL
-    # )
+    review = models.OneToOneField(
+        Review,
+        related_name='thread',
+        blank=True,
+        null=True,
+        default=None,
+        unique=False,
+        on_delete=models.SET_NULL
+    )
     actions = GenericRelation(
         'user.Action',
         object_id_field='object_id',

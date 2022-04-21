@@ -12,13 +12,21 @@ class ReviewViewTests(APITestCase):
     
     def test_create_review(self):
         self.client.force_authenticate(self.user)
-        print(self.paper.unified_document)
-        # response = self.client.post(f'/api/researchhub_unified_documents/{self.paper.id}/discussion/?discussion_type=REVIEW',{
-        #     'score': 7,
-        #     'plain_text': "review text",
-        #     'paper': self.paper.id,
-        #     'text': {'ops': [{'insert': 'review text'}]},
-        # })
+        print(self.paper.unified_document.id)
+        print(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/')
+        response = self.client.post(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/',{
+            'review': {
+                'score': 7,
+            },
+            'discussion': {
+                'plain_text': "review text",
+                'paper': self.paper.id,
+                'text': {'ops': [{'insert': 'review text'}]},
+            }
+        })
+
+        print(response)
+        print(response.data)
 
         # self.assertIn('id', response.data['review'])
         # self.assertEqual(response.data['review']['score'], 7)
@@ -41,7 +49,7 @@ class ReviewViewTests(APITestCase):
 
     def test_creates_non_review_comment(self):
         self.client.force_authenticate(self.user)
-        response = self.client.post(f'/api/paper/{self.paper.id}/discussion/?source=researchhub&is_removed=False',{
+        response = self.client.post(f'/api/researchhub_unified_documents/{self.paper.id}/discussion/?source=researchhub&is_removed=False',{
             'plain_text': "some text",
             'paper': self.paper.id,
             'text': {'ops': [{'insert': 'some text'}]},

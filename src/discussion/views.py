@@ -73,7 +73,6 @@ from researchhub_document.utils import (
 from review.serializers.review_serializer import ReviewSerializer
 from discussion.services import (
     create_thread,
-    create_review,
 )
 from discussion.constants import (
     RELATED_DISCUSSION_MODELS,
