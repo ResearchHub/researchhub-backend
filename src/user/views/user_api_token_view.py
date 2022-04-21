@@ -7,12 +7,14 @@ from user.models import UserApiToken
 from user.permissions import CreateOrViweOrRevokeUserApiToken
 from user.serializers import UserApiTokenSerializer
 from utils.http import DELETE
+from utils.throttles import THROTTLE_CLASSES
 
 
 class UserApiTokenViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated, CreateOrViweOrRevokeUserApiToken]
     queryset = UserApiToken.objects.all()
     serializer_class = UserApiTokenSerializer
+    throttle_classes = THROTTLE_CLASSES
     lookup_value_regex = r"[aA-zZ0-9]+\.[aA-zZ0-9]+"
 
     def get_queryset(self):
