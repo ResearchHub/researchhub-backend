@@ -1,6 +1,5 @@
 import base64
 import hashlib
-from lib2to3.pgen2.token import COMMENT
 
 from django.contrib.admin.options import get_content_type_for_model
 from django.core.files.base import ContentFile
