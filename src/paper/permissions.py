@@ -1,6 +1,6 @@
 from django.db.models import Q
 
-from src.paper.related_models.paper_submission_model import PaperSubmission
+from paper.related_models.paper_submission_model import PaperSubmission
 from user.models import Author
 from utils.http import POST, RequestMethods
 from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission

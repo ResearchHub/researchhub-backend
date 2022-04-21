@@ -1,7 +1,7 @@
 from rest_framework.viewsets import ModelViewSet
 
 from paper.models import AsyncPaperUpdator
-from src.paper.permissions import IsAllowedToUpdateAsyncPaper
+from paper.permissions import IsAllowedToUpdateAsyncPaper
 
 
 class AsyncPaperUpdatorViewSet(ModelViewSet):
