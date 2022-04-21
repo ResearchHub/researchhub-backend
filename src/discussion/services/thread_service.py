@@ -33,3 +33,10 @@ def create_thread(data, user, for_model, for_model_id, context, with_contributio
         )
 
     return thread
+
+def update_thread(data, context):
+    print('data', data)
+    serializer = ThreadSerializer(data=data, context=context)
+    serializer.is_valid()
+    updated = serializer.update(serializer.validated_data)
+    return updated

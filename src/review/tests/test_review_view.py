@@ -1,3 +1,4 @@
+from unittest import skip
 from rest_framework.test import APITestCase
 from discussion.tests.helpers import (
     create_paper,
@@ -57,4 +58,47 @@ class ReviewViewTests(APITestCase):
         self.assertEqual(
             response.data['results'][0]['review']['id'],
             review_response.data['review']['id'],
+        )
+
+    @skip
+    def test_author_can_update_review_data(self):
+        self.client.force_authenticate(self.user)
+
+        # Create review
+        create_response = self.client.post(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/',{
+            'review': {
+                'score': 7,
+            },
+            'discussion': {
+                'plain_text': "review text",
+                'paper': self.paper.id,
+                'text': {'ops': [{'insert': 'review text'}]},
+            }
+        })
+
+        print('create_response', create_response)
+
+        # update review
+        review = create_response.data['review']
+        update_response = self.client.put(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/{review["id"]}/',{
+            'review': {
+                'score': 3,
+            },
+            'discussion': {
+                'plain_text': "updated",
+                'paper': self.paper.id,
+                'text': {'ops': [{'insert': 'updated'}]},
+            }
+        })
+
+        print('update_response', update_response)
+        print('update_response', update_response.data)
+
+        self.assertEqual(
+            update_response.data['discussion']['text'],
+            'updated',
+        )
+        self.assertEqual(
+            create_response.data['discussion']['id'],
+            update_response.data['discussion']['id'],
         )

@@ -6,6 +6,8 @@ from rest_framework.permissions import (
 )
 from discussion.models import Thread
 from discussion.reaction_views import ReactionViewActionMixin
+from discussion.services.thread_service import update_thread
+from review.models.review_model import Review
 from utils.sentry import log_error
 from discussion.serializers import ThreadSerializer
 from review.permissions import (
@@ -92,7 +94,7 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 filters=[DISCUSSED, TRENDING],
             )
 
-            self.sift_track_update_content_comment(
+            self.sift_track_create_content_comment(
                 request,
                 response.data['thread'],
                 Thread,
@@ -103,11 +105,26 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
 
     def update(self, request, *args, **kwargs):
-        response = super().update(request, *args, **kwargs)
-        self.sift_track_update_content_comment(
-            request,
-            response.data,
-            Thread,
-            is_thread=True
-        )
-        return response
+        pass
+        # review = Review.objects.get(id=kwargs['pk'])
+        # thread = Thread.objects.get(review=Review)
+        # print('review', review)
+        # print('thread', thread)
+
+        # if request.data.get('discussion'):
+        #     thread = update_thread(
+        #         data=request.data['discussion'],
+        #         context={'request': request}
+        #     )
+        # if request.data.get('review'):
+        #     pass
+        #     # update_thread(data=request.data, context={'request': request})
+
+        # response = Response({
+        #     'thread': ThreadSerializer(thread).data,
+        #     # 'review': ReviewSerializer(review).data
+        # },
+        #     status=status.HTTP_200_OK,
+        # )
+
+        # return response

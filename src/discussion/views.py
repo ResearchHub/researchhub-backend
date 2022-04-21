@@ -126,7 +126,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             status=status.HTTP_201_CREATED,
         )
 
-        self.sift_track_update_content_comment(
+        self.sift_track_create_content_comment(
             request,
             response.data,
             Thread,
