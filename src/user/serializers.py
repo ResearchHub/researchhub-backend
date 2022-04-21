@@ -70,7 +70,7 @@ class GatekeeperSerializer(ModelSerializer):
 class UserApiTokenSerializer(ModelSerializer):
     class Meta:
         model = UserApiToken
-        fields = "__all__"
+        fields = ["name", "prefix", "revoked"]
         read_only_fields = [field.name for field in UserApiToken._meta.fields]
 
 

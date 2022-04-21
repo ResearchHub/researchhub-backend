@@ -1,17 +1,24 @@
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from user.models import UserApiToken
-from user.permissions import CreateOrRevokeUserApiToken
+from user.permissions import CreateOrViweOrRevokeUserApiToken
 from user.serializers import UserApiTokenSerializer
+from utils.http import DELETE
 
 
 class UserApiTokenViewSet(ModelViewSet):
-    permission_classes = [IsAuthenticated, CreateOrRevokeUserApiToken]
+    permission_classes = [IsAuthenticated, CreateOrViweOrRevokeUserApiToken]
     queryset = UserApiToken.objects.all()
     serializer_class = UserApiTokenSerializer
     lookup_value_regex = r"[aA-zZ0-9]+\.[aA-zZ0-9]+"
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        return qs.filter(user=user, revoked=False)
 
     def create(self, request):
         user = request.user
@@ -25,4 +32,18 @@ class UserApiTokenViewSet(ModelViewSet):
         api_token = UserApiToken.objects.get_from_key(pk)
         api_token.revoked = True
         api_token.save()
+        return Response({"data": "revoked"}, status=200)
+
+    @action(detail=False, methods=[DELETE])
+    def revoke_token(self, request):
+        filters = {}
+        data = request.data
+
+        if "name" in data:
+            filters["name"] = data.get("name")
+        if "prefix" in data:
+            filters["prefix"] = data.get("prefix")
+
+        tokens = self.get_queryset().filter(**filters)
+        tokens.update(revoked=True)
         return Response({"data": "revoked"}, status=200)
