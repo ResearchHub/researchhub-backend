@@ -1,6 +1,6 @@
-from rest_framework.serializers import ModelSerializer, SerializerMethodField
+from rest_framework.serializers import ModelSerializer
 
-from src.paper.related_models.async_paper_updator_model import AsyncPaperUpdator
+from paper.related_models.async_paper_updator_model import AsyncPaperUpdator
 
 
 class AsyncPaperUpdatorSerializer(ModelSerializer):
