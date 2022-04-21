@@ -121,16 +121,26 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        return Response(
+        response = Response(
             ThreadSerializer(thread).data,
             status=status.HTTP_201_CREATED,
         )
+
+        self.sift_track_update_content_comment(
+            request,
+            response.data,
+            Thread,
+            is_thread=True
+        )
+
+        return response
+
 
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
         self.sift_track_update_content_comment(
             request,
-            response,
+            response.data,
             Thread,
             is_thread=True
         )
@@ -291,7 +301,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         response = super().create(request, *args, **kwargs)
         response = self.get_self_upvote_response(request, response, Comment)
         hubs = list(unified_document.hubs.all().values_list('id', flat=True))
-        self.sift_track_create_content_comment(request, response, Comment)
+        self.sift_track_create_content_comment(request, response.data, Comment)
 
         discussion_id = response.data['id']
         create_contribution.apply_async(
@@ -317,7 +327,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
-        self.sift_track_update_content_comment(request, response, Comment)
+        self.sift_track_update_content_comment(request, response.data, Comment)
         return response
 
     @action(
@@ -400,7 +410,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         response = super().create(request, *args, **kwargs)
         hubs = list(unified_document.hubs.all().values_list('id', flat=True))
-        self.sift_track_create_content_comment(request, response, Reply)
+        self.sift_track_create_content_comment(request, response.data, Reply)
 
         discussion_id = response.data['id']
         create_contribution.apply_async(
@@ -426,7 +436,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
-        self.sift_track_update_content_comment(request, response, Reply)
+        self.sift_track_update_content_comment(request, response.data, Reply)
         return response
 
     @action(

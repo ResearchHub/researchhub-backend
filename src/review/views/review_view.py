@@ -4,6 +4,8 @@ from rest_framework import status, viewsets
 from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly,
 )
+from discussion.models import Thread
+from discussion.reaction_views import ReactionViewActionMixin
 from utils.sentry import log_error
 from discussion.serializers import ThreadSerializer
 from review.permissions import (
@@ -18,8 +20,16 @@ from researchhub_document.models import (
 )
 from discussion.services import create_thread
 from review.services import create_review
+from researchhub_document.utils import (
+    get_doc_type_key,
+    reset_unified_document_cache,
+)
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    TRENDING,
+)
 
-class ReviewViewSet(viewsets.ModelViewSet):
+class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     serializer_class = ReviewSerializer
     throttle_classes = THROTTLE_CLASSES
 
@@ -34,6 +44,8 @@ class ReviewViewSet(viewsets.ModelViewSet):
 
     def create(self, request, pk, **kwargs):
         unified_document = ResearchhubUnifiedDocument.objects.get(id=pk)
+        has_discussion = request.data.get('discussion', False)
+
         try:
             with transaction.atomic():
                 review = create_review(
@@ -43,7 +55,7 @@ class ReviewViewSet(viewsets.ModelViewSet):
                 )
 
                 thread = None
-                if request.data.get('discussion'):
+                if has_discussion:
                     thread = create_thread(
                         data=request.data['discussion'],
                         user=request.user,
@@ -63,9 +75,39 @@ class ReviewViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        return Response({
+        response = Response({
             'thread': ThreadSerializer(thread).data,
             'review': ReviewSerializer(review).data
         },
             status=status.HTTP_201_CREATED,
         )
+
+        if has_discussion:
+            doc_type = get_doc_type_key(thread.unified_document)
+            hubs = list(thread.unified_document.hubs.all().values_list('id', flat=True))
+            
+            reset_unified_document_cache(
+                hub_ids=hubs,
+                document_type=[doc_type, 'all'],
+                filters=[DISCUSSED, TRENDING],
+            )
+
+            self.sift_track_update_content_comment(
+                request,
+                response.data['thread'],
+                Thread,
+                is_thread=True
+            )
+        
+        return response
+
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        self.sift_track_update_content_comment(
+            request,
+            response.data,
+            Thread,
+            is_thread=True
+        )
+        return response

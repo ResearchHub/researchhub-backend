@@ -275,11 +275,11 @@ class ReactionViewActionMixin:
     def sift_track_create_content_comment(
         self,
         request,
-        response,
+        data,
         model,
         is_thread=False
     ):
-        item = model.objects.get(pk=response.data['id'])
+        item = model.objects.get(pk=data['id'])
         tracked_comment = events_api.track_content_comment(
             item.created_by,
             item,
@@ -291,11 +291,12 @@ class ReactionViewActionMixin:
     def sift_track_update_content_comment(
         self,
         request,
-        response,
+        data,
         model,
         is_thread=False
     ):
-        item = model.objects.get(pk=response.data['id'])
+
+        item = model.objects.get(pk=data['id'])
         tracked_comment = events_api.track_content_comment(
             item.created_by,
             item,
