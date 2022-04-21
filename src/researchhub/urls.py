@@ -30,6 +30,7 @@ import researchhub.views
 import search.urls
 import summary.views
 import user.views
+from review.views import ReviewViewSet
 
 from peer_review.views import (
     PeerReviewViewSet,
@@ -293,6 +294,7 @@ router.register(
 
 router.register(r"gatekeeper", GatekeeperViewSet, basename="gatekeeper")
 
+
 router.register(
     r'peer_review',
     PeerReviewViewSet,
@@ -309,6 +311,12 @@ router.register(
     r'peer_review_invites',
     PeerReviewInviteViewSet,
     basename='peer_review_invites'
+)
+
+router.register(
+     r"researchhub_unified_documents/([0-9]+)/review/([0-9]+)/",
+    ReviewViewSet,
+    basename='review'
 )
 
 urlpatterns = [

@@ -6,7 +6,7 @@ from discussion.reaction_serializers import (
     GenericReactionSerializerMixin,
     DynamicVoteSerializer  # Import is needed for discussion serializer imports
 )
-from discussion.review_serializer import DynamicReviewSerializer, ReviewSerializer
+from review.serializers.review_serializer import DynamicReviewSerializer, ReviewSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE
 from researchhub.serializers import (
     DynamicModelFieldSerializer,
@@ -626,6 +626,7 @@ class ThreadSerializer(
         return comment_serializer.data
 
     def get_comment_count(self, obj):
+        print('obj', obj)
         return self._comments_query(obj).count()
 
     def get_paper_slug(self, obj):
@@ -645,7 +646,7 @@ class ThreadSerializer(
 
         review = obj.peer_review
         if review:
-            serializer = PeerReviewSerializer(
+            serializer = DynamicPeerReviewSerializer(
                 review,
             )
             return serializer.data

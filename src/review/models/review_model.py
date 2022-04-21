@@ -13,3 +13,10 @@ class Review(DefaultModel):
             MinValueValidator(1)
         ]
     )
+    created_by = models.ForeignKey(
+        'user.User',
+        related_name='reviews',
+        blank=False,
+        null=True,
+        on_delete=models.SET_NULL,
+    )

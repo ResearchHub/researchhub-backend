@@ -7,7 +7,6 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db.models import Count, Q
 from rest_framework import status, viewsets
-from discussion.related_models.review_model import Review
 from utils.sentry import log_error, log_info
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
@@ -71,15 +70,19 @@ from researchhub_document.utils import get_doc_type_key
 from researchhub_document.utils import (
     reset_unified_document_cache,
 )
-
-from discussion.review_serializer import ReviewSerializer
-from discussion.services import create_thread
+from review.serializers.review_serializer import ReviewSerializer
+from discussion.services import (
+    create_thread,
+    create_review,
+)
+from discussion.constants import (
+    RELATED_DISCUSSION_MODELS,
+)
 
 class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     serializer_class = ThreadSerializer
     throttle_classes = THROTTLE_CLASSES
 
-    # Optional attributes
     permission_classes = [
         IsAuthenticatedOrReadOnly
         & CreateDiscussionThread
@@ -95,7 +98,13 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         for_model_id = get_document_id_from_path(request)
 
         try:
-            thread = create_thread(request.data, request.user, for_model, for_model_id)
+            thread = create_thread(
+                request.data,
+                request.user,
+                for_model,
+                for_model_id,
+                context={'request': request}
+            )
             doc_type = get_doc_type_key(thread.unified_document)
             hubs = list(thread.unified_document.hubs.all().values_list('id', flat=True))
             

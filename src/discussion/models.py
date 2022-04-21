@@ -11,7 +11,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.core.cache import cache
 from django.db import models
-from discussion.related_models.review_model import Review
+from review.models import Review
 from hub.models import Hub
 
 from paper.utils import get_cache_key
@@ -324,15 +324,15 @@ class Thread(BaseComment):
         blank=True,
         null=True
     )
-    review = models.OneToOneField(
-        Review,
-        related_name='thread',
-        blank=True,
-        null=True,
-        default=None,
-        unique=False,
-        on_delete=models.SET_NULL
-    )
+    # review = models.OneToOneField(
+    #     Review,
+    #     related_name='thread',
+    #     blank=True,
+    #     null=True,
+    #     default=None,
+    #     unique=False,
+    #     on_delete=models.SET_NULL
+    # )
     actions = GenericRelation(
         'user.Action',
         object_id_field='object_id',

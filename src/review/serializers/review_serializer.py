@@ -1,6 +1,6 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField, ValidationError
-from discussion.related_models import Review
 from researchhub.serializers import DynamicModelFieldSerializer
+from review.models import Review
 
 
 class ReviewSerializer(ModelSerializer):
