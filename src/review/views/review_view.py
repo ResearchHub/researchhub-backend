@@ -36,6 +36,13 @@ class ReviewViewSet(viewsets.ModelViewSet):
         unified_document = ResearchhubUnifiedDocument.objects.get(id=pk)
         try:
             with transaction.atomic():
+                review = create_review(
+                    data=request.data['review'],
+                    unified_document=unified_document,
+                    context={'request': request}
+                )
+
+                thread = None
                 if request.data.get('discussion'):
                     thread = create_thread(
                         data=request.data['discussion'],
@@ -45,14 +52,8 @@ class ReviewViewSet(viewsets.ModelViewSet):
                         context={'request': request}
                     )
 
-                review = create_review(
-                    data=request.data['review'],
-                    unified_document=unified_document,
-                    context={'request': request}
-                )
-
-                thread.review = review
-                thread.save()
+                    thread.review = review
+                    thread.save()
 
         except Exception as error:
             message = "Failed to create review"

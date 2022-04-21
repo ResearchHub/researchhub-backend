@@ -12,8 +12,6 @@ class ReviewViewTests(APITestCase):
     
     def test_create_review_with_discussion(self):
         self.client.force_authenticate(self.user)
-        print(self.paper.unified_document.id)
-        print(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/')
         response = self.client.post(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/',{
             'review': {
                 'score': 7,
@@ -27,6 +25,17 @@ class ReviewViewTests(APITestCase):
 
         self.assertIn('id', response.data['review'])
         self.assertIn('id', response.data['thread'])
+
+    def test_create_review_without_discussion(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.post(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/',{
+            'review': {
+                'score': 3,
+            },
+        })
+
+        self.assertIn('id', response.data['review'])
+        self.assertNotIn('id', response.data['thread'])
 
     def test_discussion_list_includes_review_data(self):
         self.client.force_authenticate(self.user)
