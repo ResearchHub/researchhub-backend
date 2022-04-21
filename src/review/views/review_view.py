@@ -1,8 +1,11 @@
-from httplib2 import Response
+from rest_framework.response import Response
+from django.db import transaction
 from rest_framework import status, viewsets
 from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly,
 )
+from utils.sentry import log_error
+from discussion.serializers import ThreadSerializer
 from review.permissions import (
     CreateReview,
     UpdateReview,
@@ -31,21 +34,37 @@ class ReviewViewSet(viewsets.ModelViewSet):
 
     def create(self, request, pk, **kwargs):
         unified_document = ResearchhubUnifiedDocument.objects.get(id=pk)
-        thread = create_thread(
-            data=request.data['discussion'],
-            user=request.user,
-            for_model=unified_document.get_document().__class__.__name__,
-            for_model_id=unified_document.get_document().id,
-            context={'request': request}
+        try:
+            with transaction.atomic():
+                if request.data.get('discussion'):
+                    thread = create_thread(
+                        data=request.data['discussion'],
+                        user=request.user,
+                        for_model=unified_document.get_document().__class__.__name__,
+                        for_model_id=unified_document.get_document().id,
+                        context={'request': request}
+                    )
+
+                review = create_review(
+                    data=request.data['review'],
+                    unified_document=unified_document,
+                    context={'request': request}
+                )
+
+                thread.review = review
+                thread.save()
+
+        except Exception as error:
+            message = "Failed to create review"
+            log_error(error, message)
+            return Response(
+                message,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response({
+            'thread': ThreadSerializer(thread).data,
+            'review': ReviewSerializer(review).data
+        },
+            status=status.HTTP_201_CREATED,
         )
-
-        review = create_review(
-            data=request.data['review'],
-            unified_document=unified_document,
-            context={'request': request}
-        )
-
-        thread.review = review
-        thread.save()
-
-        return Response('a')

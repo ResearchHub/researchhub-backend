@@ -113,7 +113,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 filters=[DISCUSSED, TRENDING],
             )
         except Exception as error:
-            message = "Failed to create comment"
+            message = "Failed to create thread"
             print('error', error)
             log_error(error, message)
             return Response(

@@ -10,7 +10,7 @@ class ReviewViewTests(APITestCase):
         self.user = create_random_authenticated_user('discussion_views')
         self.paper = create_paper(uploaded_by=self.user)
     
-    def test_create_review(self):
+    def test_create_review_with_discussion(self):
         self.client.force_authenticate(self.user)
         print(self.paper.unified_document.id)
         print(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/')
@@ -25,11 +25,8 @@ class ReviewViewTests(APITestCase):
             }
         })
 
-        print(response)
-        print(response.data)
-
-        # self.assertIn('id', response.data['review'])
-        # self.assertEqual(response.data['review']['score'], 7)
+        self.assertIn('id', response.data['review'])
+        self.assertIn('id', response.data['thread'])
 
     def test_discussion_list_includes_review_data(self):
         self.client.force_authenticate(self.user)
