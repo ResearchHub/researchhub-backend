@@ -389,12 +389,12 @@ class UserEditableSerializer(ModelSerializer):
     class Meta:
         model = User
         exclude = [
-            "email",
             "password",
             "groups",
             "is_superuser",
             "is_staff",
             "user_permissions",
+            "username",
         ]
         read_only_fields = [
             "moderator",
