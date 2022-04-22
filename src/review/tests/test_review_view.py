@@ -13,7 +13,7 @@ class ReviewViewTests(APITestCase):
     
     def test_create_review_with_discussion(self):
         self.client.force_authenticate(self.user)
-        response = self.client.post(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/',{
+        response = self.client.post(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/create_review/',{
             'review': {
                 'score': 7,
             },
@@ -24,12 +24,15 @@ class ReviewViewTests(APITestCase):
             }
         })
 
+        print(response)
+        print(response.data)
+
         self.assertIn('id', response.data['review'])
         self.assertIn('id', response.data['thread'])
 
     def test_create_review_without_discussion(self):
         self.client.force_authenticate(self.user)
-        response = self.client.post(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/',{
+        response = self.client.post(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/create_review/',{
             'review': {
                 'score': 3,
             },
@@ -42,7 +45,7 @@ class ReviewViewTests(APITestCase):
         self.client.force_authenticate(self.user)
         
         # Create review
-        review_response = self.client.post(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/',{
+        review_response = self.client.post(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/create_review/',{
             'review': {
                 'score': 7,
             },
@@ -65,7 +68,7 @@ class ReviewViewTests(APITestCase):
         self.client.force_authenticate(self.user)
 
         # Create review
-        create_response = self.client.post(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/',{
+        create_response = self.client.post(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/create_review/',{
             'review': {
                 'score': 7,
             },
@@ -76,11 +79,9 @@ class ReviewViewTests(APITestCase):
             }
         })
 
-        print('create_response', create_response)
-
         # update review
         review = create_response.data['review']
-        update_response = self.client.put(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/{review["id"]}/',{
+        update_response = self.client.put(f'/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/{review["id"]}/update_review',{
             'review': {
                 'score': 3,
             },

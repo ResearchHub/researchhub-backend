@@ -4,6 +4,7 @@ from rest_framework import status, viewsets
 from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly,
 )
+from rest_framework.decorators import action
 from discussion.models import Thread
 from discussion.reaction_views import ReactionViewActionMixin
 from discussion.services.thread_service import update_thread
@@ -44,7 +45,11 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     order_fields = '__all__'
     ordering = ('-created_date',)
 
-    def create(self, request, pk, **kwargs):
+    @action(
+        detail=False,
+        methods=['post'],
+    )
+    def create_review(self, request,pk=None):
         unified_document = ResearchhubUnifiedDocument.objects.get(id=pk)
         has_discussion = request.data.get('discussion', False)
 
@@ -103,8 +108,11 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         
         return response
 
-
-    def update(self, request, *args, **kwargs):
+    @action(
+        detail=True,
+        methods=['put', 'patch'],
+    )
+    def update_review(self, request, *args, **kwargs):
         pass
         # review = Review.objects.get(id=kwargs['pk'])
         # thread = Thread.objects.get(review=Review)
