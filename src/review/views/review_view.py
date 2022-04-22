@@ -43,6 +43,7 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     ]
     filter_backends = (OrderingFilter,)
     order_fields = '__all__'
+    queryset = Review.objects.all()
     ordering = ('-created_date',)
 
     @action(

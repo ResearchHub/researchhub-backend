@@ -13,4 +13,5 @@ class UpdateReview(AuthorizationBasedPermission):
     message = 'Action not permitted.'
 
     def is_authorized(self, request, view, obj):
+        print('obj', obj.__dict__)
         return obj.created_by == request.user
