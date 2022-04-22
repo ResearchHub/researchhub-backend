@@ -34,7 +34,7 @@ class IsModerator(AuthorizationBasedPermission):
         return request.user.moderator
 
 
-class CreateOrViweOrRevokeUserApiToken(BasePermission):
+class CreateOrViewOrRevokeUserApiToken(BasePermission):
     message = "Action not permitted"
 
     def has_object_permission(self, request, view, obj):

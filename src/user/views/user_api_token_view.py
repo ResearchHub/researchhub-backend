@@ -4,14 +4,14 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from user.models import UserApiToken
-from user.permissions import CreateOrViweOrRevokeUserApiToken
+from user.permissions import CreateOrViewOrRevokeUserApiToken
 from user.serializers import UserApiTokenSerializer
 from utils.http import DELETE
 from utils.throttles import THROTTLE_CLASSES
 
 
 class UserApiTokenViewSet(ModelViewSet):
-    permission_classes = [IsAuthenticated, CreateOrViweOrRevokeUserApiToken]
+    permission_classes = [IsAuthenticated, CreateOrViewOrRevokeUserApiToken]
     queryset = UserApiToken.objects.all()
     serializer_class = UserApiTokenSerializer
     throttle_classes = THROTTLE_CLASSES

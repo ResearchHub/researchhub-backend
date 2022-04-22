@@ -1,4 +1,4 @@
-from django.contrib.auth.models import AnonymousUser
+from rest_framework import exceptions
 from rest_framework.authentication import TokenAuthentication
 from rest_framework_api_key.permissions import KeyParser
 
@@ -15,7 +15,7 @@ def get_user(request):
         token = UserApiToken.objects.get_from_key(key)
         user = token.user
     except UserApiToken.DoesNotExist:
-        user = AnonymousUser()
+        raise exceptions.PermissionDenied("Invalid API key")
 
     request._cached_user = user
     return user, key
