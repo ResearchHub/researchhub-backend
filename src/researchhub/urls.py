@@ -27,6 +27,7 @@ import reputation.views
 import researchhub_case.views as researchhub_case_views
 import researchhub_document.views as researchhub_document_views
 import researchhub.views
+from review.views.review_view import ReviewViewSet
 import search.urls
 import summary.views
 import user.views
@@ -309,6 +310,12 @@ router.register(
     r'peer_review_invites',
     PeerReviewInviteViewSet,
     basename='peer_review_invites'
+)
+
+router.register(
+     r"researchhub_unified_documents/([0-9]+)/review",
+    ReviewViewSet,
+    basename='review'
 )
 
 urlpatterns = [

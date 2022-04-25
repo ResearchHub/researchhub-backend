@@ -74,6 +74,20 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
         else:
             return PaperSerializer(instance.paper, context=context).data
 
+class MinimalUnifiedDocumentSerializer(ModelSerializer):
+    reviews = SerializerMethodField()
+    
+    class Meta(object):
+        model = ResearchhubUnifiedDocument
+        fields = [
+            'reviews'
+        ]
+        read_only_fields = [
+            'reviews',
+        ]
+
+    def get_reviews(self, obj):
+        return obj.get_review_details()
 
 class ContributionUnifiedDocumentSerializer(
     ResearchhubUnifiedDocumentSerializer
@@ -144,3 +158,4 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
             **_context_fields
         )
         return serializer.data
+

@@ -296,6 +296,13 @@ class Paper(models.Model):
         return authors
 
     @property
+    def reviews(self):
+        uni_doc = self.unified_document
+        print(uni_doc.reviews)
+        return {}
+
+
+    @property
     def authors_indexing(self):
         return [parse_author_name(author) for author in self.authors.all()]
 

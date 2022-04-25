@@ -85,6 +85,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     file = serializers.SerializerMethodField()
     discussion_users = serializers.SerializerMethodField()
     unified_document_id = serializers.SerializerMethodField()
+    unified_document = serializers.SerializerMethodField()
 
     class Meta:
         abstract = True
@@ -267,6 +268,11 @@ class BasePaperSerializer(serializers.ModelSerializer):
                 except Vote.DoesNotExist:
                     pass
         return vote
+
+    def get_unified_document(self, paper):
+        from researchhub_document.serializers.researchhub_unified_document_serializer import MinimalUnifiedDocumentSerializer
+        uni_doc = MinimalUnifiedDocumentSerializer(paper.unified_document)
+        return uni_doc.data
 
     def get_promoted(self, paper):
         return paper.get_promoted_score()
