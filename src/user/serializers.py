@@ -383,6 +383,7 @@ class DynamicMinimalUserSerializer(DynamicModelFieldSerializer):
 class UserEditableSerializer(ModelSerializer):
     author_profile = AuthorSerializer()
     balance = SerializerMethodField()
+    email = SerializerMethodField()
     organization_slug = SerializerMethodField()
     subscribed = SerializerMethodField()
 
@@ -399,6 +400,13 @@ class UserEditableSerializer(ModelSerializer):
         read_only_fields = [
             "moderator",
         ]
+
+    def get_email(self, user):
+        context = self.context
+        request_user = context.get("user", None)
+        if request_user and request_user == user:
+            return user.email
+        return None
 
     def get_balance(self, user):
         context = self.context
