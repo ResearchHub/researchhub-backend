@@ -149,7 +149,10 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             filters=[DISCUSSED, TRENDING],
         )
 
-        return Response(ThreadSerializer(created_thread).data, status=status.HTTP_201_CREATED)
+        return Response(
+            self.serializer_class(created_thread).data,
+            status=status.HTTP_201_CREATED
+        )
 
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
