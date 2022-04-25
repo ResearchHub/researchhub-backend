@@ -602,6 +602,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 'document_type',
                 'hot_score',
                 'hot_score_v2',
+                'reviews',
                 'score',
             ],
             many=True,

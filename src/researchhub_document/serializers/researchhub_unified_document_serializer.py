@@ -104,6 +104,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     created_by = SerializerMethodField()
     access_group = SerializerMethodField()
     hubs = SerializerMethodField()
+    reviews = SerializerMethodField()
 
     class Meta:
         model = ResearchhubUnifiedDocument
@@ -159,3 +160,5 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
+    def get_reviews(self, obj):
+        return obj.get_review_details()
