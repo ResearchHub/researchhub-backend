@@ -297,7 +297,6 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
                 **_context_fields
             )
 
-
         if serializer is not None:
             return serializer.data
         return None
