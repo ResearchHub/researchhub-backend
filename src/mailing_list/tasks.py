@@ -265,6 +265,8 @@ def actions_notifications(action_ids, notif_interval=NotificationFrequencies.IMM
                         subscription = r.comment_subscription
                     elif isinstance(item, Reply):
                         subscription = r.reply_subscription
+                    else:
+                        subscription = r
 
                     if r.receives_notifications and not subscription.none:
                         if user_to_action.get(r):
