@@ -27,3 +27,6 @@ class Review(DefaultModel):
         null=True,
         on_delete=models.SET_NULL,
     )
+    is_removed = models.BooleanField(
+        default=False,
+    )

@@ -9,12 +9,13 @@ class ReviewSerializer(ModelSerializer):
         fields = [
             'id',
             'score',
+            'created_by',
+            'unified_document',
+            'is_removed',
         ]
         read_only_fields = [
             'created_date',
             'updated_date',
-            'created_by',
-            'unified_document',
         ]
 
 class DynamicReviewSerializer(

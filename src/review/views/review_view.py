@@ -39,9 +39,8 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
     def create(self, request, *args, **kwargs):
         unified_document = ResearchhubUnifiedDocument.objects.get(id=args[0])
-        print('unified_document', unified_document)
         request.data['created_by'] = request.user.id
         request.data['unified_document'] = unified_document.id
-
         response = super().create(request, *args, **kwargs)
+
         return response

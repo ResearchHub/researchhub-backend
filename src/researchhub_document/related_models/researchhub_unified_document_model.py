@@ -118,12 +118,19 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
 
     def get_review_details(self):
         details = { 'avg': 0, 'count': 0 }
+        
+        review_scores = Review.objects.filter(
+            unified_document=self,
+            is_removed=False
+        ).values('score')
 
-        review_scores = Review.objects.filter(unified_document=self).values('score')
         details['count'] = review_scores.count()
 
         if review_scores.count() > 0:
-            details['avg'] = review_scores.aggregate(avg=Avg('score'))['avg']
+            details['avg'] = round(
+                review_scores.aggregate(avg=Avg('score'))['avg'],
+                1
+            )
 
         return details        
 

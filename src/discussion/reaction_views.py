@@ -147,6 +147,20 @@ class ReactionViewActionMixin:
             content_type=content_type,
             object_id=item.id
         ).delete()
+
+        try:
+            if item.review:
+                item.review.is_removed = True
+                item.review.save()
+        except Exception as e:
+            pass
+
+        try:
+            if item.paper:
+                item.paper.reset_cache()
+        except Exception as e:
+            pass
+        
         return Response(
             self.get_serializer(instance=item).data,
             status=200
