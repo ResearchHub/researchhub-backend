@@ -861,6 +861,14 @@ django = ">=2.2"
 pytz = "*"
 
 [[package]]
+name = "djangorestframework-api-key"
+version = "2.2.0"
+description = "API key permissions for the Django REST Framework"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[[package]]
 name = "elastic-apm"
 version = "6.3.3"
 description = "The official Python module for Elastic APM"
@@ -2816,7 +2824,7 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "6f31cd1ecba2d353a190c27f2fb897a13e0a2f1626d8db04f0e4f6837fa1706d"
+content-hash = "0018515e9ca74ca4bebc9ab28bf6b3d4a697b25e5d14e4e33341670e1f76c15c"
 
 [metadata.files]
 aiohttp = [
@@ -3230,6 +3238,10 @@ django-timezone-field = [
 djangorestframework = [
     {file = "djangorestframework-3.13.1-py3-none-any.whl", hash = "sha256:24c4bf58ed7e85d1fe4ba250ab2da926d263cd57d64b03e8dcef0ac683f8b1aa"},
     {file = "djangorestframework-3.13.1.tar.gz", hash = "sha256:0c33407ce23acc68eca2a6e46424b008c9c02eceb8cf18581921d0092bc1f2ee"},
+]
+djangorestframework-api-key = [
+    {file = "djangorestframework-api-key-2.2.0.tar.gz", hash = "sha256:41b7c988f356d62410fb42b9982a3017be035b84d68f187e127c0b52e6557b19"},
+    {file = "djangorestframework_api_key-2.2.0-py3-none-any.whl", hash = "sha256:c9884e52f2802994a02781eaba0a63a628a150ed55d58603d5c9c57a6657de43"},
 ]
 elastic-apm = [
     {file = "elastic-apm-6.3.3.tar.gz", hash = "sha256:f42866ad25bf914a9ccf0a8feb66c69394395a07b1c90c3842991c3f2c8bb5d3"},

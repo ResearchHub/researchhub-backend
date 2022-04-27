@@ -35,6 +35,7 @@ from user.models import (
     Organization,
     University,
     User,
+    UserApiToken,
     Verification,
 )
 from user.related_models.gatekeeper_model import Gatekeeper
@@ -64,6 +65,13 @@ class GatekeeperSerializer(ModelSerializer):
         model = Gatekeeper
         fields = "__all__"
         read_only_fields = [field.name for field in Gatekeeper._meta.fields]
+
+
+class UserApiTokenSerializer(ModelSerializer):
+    class Meta:
+        model = UserApiToken
+        fields = ["name", "prefix", "revoked"]
+        read_only_fields = [field.name for field in UserApiToken._meta.fields]
 
 
 class AuthorSerializer(ModelSerializer):
@@ -375,22 +383,30 @@ class DynamicMinimalUserSerializer(DynamicModelFieldSerializer):
 class UserEditableSerializer(ModelSerializer):
     author_profile = AuthorSerializer()
     balance = SerializerMethodField()
+    email = SerializerMethodField()
     organization_slug = SerializerMethodField()
     subscribed = SerializerMethodField()
 
     class Meta:
         model = User
         exclude = [
-            "email",
             "password",
             "groups",
             "is_superuser",
             "is_staff",
             "user_permissions",
+            "username",
         ]
         read_only_fields = [
             "moderator",
         ]
+
+    def get_email(self, user):
+        context = self.context
+        request_user = context.get("user", None)
+        if request_user and request_user == user:
+            return user.email
+        return None
 
     def get_balance(self, user):
         context = self.context

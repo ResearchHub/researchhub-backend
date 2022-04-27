@@ -85,7 +85,7 @@ from researchhub_document.views.custom.unified_document_pagination import (
 )
 from user.models import Author
 from utils.http import GET, POST, check_url_contains_pdf
-from utils.permissions import CreateOnly, CreateOrUpdateIfAllowed
+from utils.permissions import CreateOnly, CreateOrUpdateIfAllowed, HasAPIKey
 from utils.sentry import log_error, log_info
 from utils.siftscience import decisions_api, events_api
 from utils.throttles import THROTTLE_CLASSES
@@ -101,7 +101,10 @@ class PaperViewSet(viewsets.ModelViewSet):
     ordering = "-uploaded_date"
 
     permission_classes = [
-        IsAuthenticatedOrReadOnly & CreatePaper & UpdatePaper & CreateOrUpdateIfAllowed
+        (IsAuthenticatedOrReadOnly | HasAPIKey)
+        & CreatePaper
+        & UpdatePaper
+        & CreateOrUpdateIfAllowed
     ]
 
     def prefetch_lookups(self):
@@ -1228,7 +1231,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
     queryset = PaperSubmission.objects.all()
     serializer_class = PaperSubmissionSerializer
     throttle_classes = THROTTLE_CLASSES
-    permission_classes = [CreateOnly]
+    permission_classes = [IsAuthenticated | HasAPIKey, CreateOnly]
 
     def create(self, *args, **kwargs):
         data = self.request.data
