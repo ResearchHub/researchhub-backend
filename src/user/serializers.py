@@ -69,6 +69,7 @@ class GatekeeperSerializer(ModelSerializer):
 class AuthorSerializer(ModelSerializer):
     added_as_editor_date = SerializerMethodField()
     is_hub_editor_of = SerializerMethodField()
+    is_hub_editor = SerializerMethodField()
     num_posts = SerializerMethodField()
     orcid_id = SerializerMethodField()
     reputation = SerializerMethodField()
