@@ -993,6 +993,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "title",
                     "user_flag",
                     "user_vote",
+                    "unified_document",
                     "was_edited",
                     "document_meta",
                 ]

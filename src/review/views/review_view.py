@@ -29,9 +29,8 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     throttle_classes = THROTTLE_CLASSES
 
     permission_classes = [
-        IsAuthenticatedOrReadOnly
-        & AllowedToCreateReview
-        & AllowedToUpdateReview
+        IsAuthenticatedOrReadOnly,
+        (AllowedToCreateReview|AllowedToUpdateReview),
     ]
     filter_backends = (OrderingFilter,)
     order_fields = '__all__'
@@ -39,8 +38,6 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     ordering = ('-created_date',)
 
     def create(self, request, *args, **kwargs):
-        print(args[0])
-        print(args)
         unified_document = ResearchhubUnifiedDocument.objects.get(id=args[0])
         print('unified_document', unified_document)
         request.data['created_by'] = request.user.id

@@ -80,9 +80,11 @@ class MinimalUnifiedDocumentSerializer(ModelSerializer):
     class Meta(object):
         model = ResearchhubUnifiedDocument
         fields = [
+            'id',
             'reviews'
         ]
         read_only_fields = [
+            'id',
             'reviews',
         ]
 

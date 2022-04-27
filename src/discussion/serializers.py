@@ -542,6 +542,7 @@ class ThreadSerializer(
     score = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
+    unified_document = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -576,6 +577,7 @@ class ThreadSerializer(
             'title',
             'user_flag',
             'user_vote',
+            'unified_document',
             'was_edited',
         ]
         read_only_fields = [
@@ -655,6 +657,11 @@ class ThreadSerializer(
             return serializer.data
 
         return None
+
+    def get_unified_document(self, obj):
+        from researchhub_document.serializers.researchhub_unified_document_serializer import MinimalUnifiedDocumentSerializer
+        uni_doc = MinimalUnifiedDocumentSerializer(obj.unified_document)
+        return uni_doc.data
 
 class SimpleThreadSerializer(ThreadSerializer):
     class Meta:
