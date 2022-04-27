@@ -83,7 +83,7 @@ class BaseTests(TestCase):
 class UserTests(BaseTests):
     def test_string_representation(self):
         user = self.create_user()
-        expected = f"{self.id}: {self.first_name} {self.last_name}"
+        expected = f"{user.id}: {user.first_name} {user.last_name}"
         self.assertEqual(str(user), expected)
 
     def test_username_is_set_to_email(self):
