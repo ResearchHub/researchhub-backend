@@ -84,6 +84,7 @@ class AuthorSerializer(ModelSerializer):
             "claimed_by_user_author_id",
             "is_claimed",
             "is_hub_editor_of",
+            "is_hub_editor",
             "num_posts",
             "orcid_id",
             "reputation",
@@ -191,6 +192,10 @@ class AuthorSerializer(ModelSerializer):
         return SimpleHubSerializer(
             Hub.objects.filter(id__in=target_hub_ids), many=True
         ).data
+
+    def get_is_hub_editor(self, author):
+        user = author.user
+        return user.is_hub_editor()
 
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
