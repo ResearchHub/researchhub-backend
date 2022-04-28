@@ -4,7 +4,9 @@ from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly,
 )
 from rest_framework.decorators import action
+from discussion.models import Thread
 from discussion.reaction_views import ReactionViewActionMixin
+from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from review.models.review_model import Review
 from utils.sentry import log_error
 from discussion.serializers import ThreadSerializer
@@ -42,5 +44,24 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         request.data['created_by'] = request.user.id
         request.data['unified_document'] = unified_document.id
         response = super().create(request, *args, **kwargs)
+
+        return response
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+
+        try:
+            thread = Thread.objects.get(review_id=response.data['id'])
+            doc = thread.unified_document
+            doc_type = get_doc_type_key(doc)
+            hubs = list(doc.hubs.all().values_list('id', flat=True))
+
+            reset_unified_document_cache(
+                hub_ids=hubs,
+                document_type=[doc_type, 'all'],
+                filters=[DISCUSSED, TRENDING]
+            )
+        except Exception as e:
+            pass        
 
         return response

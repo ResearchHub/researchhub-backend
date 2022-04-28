@@ -152,6 +152,16 @@ class ReactionViewActionMixin:
             if item.review:
                 item.review.is_removed = True
                 item.review.save()
+
+                doc = item.unified_document
+                doc_type = get_doc_type_key(doc)
+                hubs = list(doc.hubs.all().values_list('id', flat=True))
+
+                reset_unified_document_cache(
+                    hub_ids=hubs,
+                    document_type=[doc_type, 'all'],
+                    filters=[DISCUSSED, TRENDING]
+                )
         except Exception as e:
             pass
 
