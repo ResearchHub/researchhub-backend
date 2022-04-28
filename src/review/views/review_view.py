@@ -9,9 +9,7 @@ from discussion.reaction_views import ReactionViewActionMixin
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from review.models.review_model import Review
 from utils.sentry import log_error
-from discussion.serializers import ThreadSerializer
 from review.permissions import (
-    AllowedToCreateReview,
     AllowedToUpdateReview,
 )
 from utils import sentry
@@ -32,7 +30,7 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
     permission_classes = [
         IsAuthenticatedOrReadOnly,
-        (AllowedToCreateReview|AllowedToUpdateReview),
+        AllowedToUpdateReview,
     ]
     filter_backends = (OrderingFilter,)
     order_fields = '__all__'
