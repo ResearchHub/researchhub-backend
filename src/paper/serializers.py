@@ -41,8 +41,7 @@ from paper.utils import (
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url,
 )
-from researchhub.lib import get_document_id_from_path
-from reputation.models import Contribution, AuthorRSC
+from reputation.models import AuthorRSC, Contribution
 from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -360,7 +359,7 @@ class PaperSerializer(BasePaperSerializer):
 
         if "url" in validated_data or "pdf_url" in validated_data:
             error = Exception("URL uploading is deprecated")
-            sentry.log_error(error, base_error=error.trigger)
+            sentry.log_error(error)
             raise error
 
         # Prepare validated_data by removing m2m
@@ -744,9 +743,7 @@ class PaperSerializer(BasePaperSerializer):
                                 "last_name": author.get("last_name"),
                             }
                         ]
-                    ).aggregate(
-                        Sum('score')
-                    )['score__sum']
+                    ).aggregate(Sum("score"))["score__sum"]
 
                     scores.append(score)
         return scores

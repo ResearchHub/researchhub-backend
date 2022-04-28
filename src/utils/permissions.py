@@ -1,7 +1,9 @@
 from rest_framework.exceptions import PermissionDenied  # noqa: F401
 from rest_framework.permissions import SAFE_METHODS, BasePermission
+from rest_framework_api_key.permissions import BaseHasAPIKey
 
 from researchhub.settings import ASYNC_SERVICE_API_KEY
+from user.models import UserApiToken
 from utils.http import RequestMethods
 
 
@@ -78,3 +80,7 @@ class RuleBasedPermission(BasePermission):
 class APIPermission(BasePermission):
     def has_permission(self, request, view):
         return request.headers.get("researchhub-async-api-key") == ASYNC_SERVICE_API_KEY
+
+
+class HasAPIKey(BaseHasAPIKey):
+    model = UserApiToken

@@ -1,28 +1,58 @@
-from utils.http import RequestMethods
+from rest_framework.permissions import BasePermission
+
+from utils.http import DELETE, GET, POST, RequestMethods
 from utils.permissions import AuthorizationBasedPermission
 
 
 class UpdateAuthor(AuthorizationBasedPermission):
-    message = 'Action not permitted.'
+    message = "Action not permitted."
 
     def is_authorized(self, request, view, obj):
-        if (request.method == RequestMethods.PUT) or (
-            request.method == RequestMethods.PATCH
-        ) or (request.method == RequestMethods.DELETE):
+        if (
+            (request.method == RequestMethods.PUT)
+            or (request.method == RequestMethods.PATCH)
+            or (request.method == RequestMethods.DELETE)
+        ):
             return request.user == obj.user
         return True
 
+
 class Censor(AuthorizationBasedPermission):
-    message = 'Need to be a moderator to censor users.'
+    message = "Need to be a moderator to censor users."
 
     def is_authorized(self, request, view, obj):
         return request.user.moderator
 
+
 class IsModerator(AuthorizationBasedPermission):
-    message = 'Need to be a moderator.'
+    message = "Need to be a moderator."
 
     def has_permission(self, request, view):
         return request.user.moderator
 
     def is_authorized(self, request, view, obj):
         return request.user.moderator
+
+
+class CreateOrViewOrRevokeUserApiToken(BasePermission):
+    message = "Action not permitted"
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if user.is_anonymous:
+            return False
+
+        if obj.user == user and request.method == DELETE:
+            return True
+
+        return False
+
+    def has_permission(self, request, view):
+        user = request.user
+        if user.is_anonymous:
+            return False
+
+        if request.method in (POST, GET, DELETE):
+            return True
+
+        return False
