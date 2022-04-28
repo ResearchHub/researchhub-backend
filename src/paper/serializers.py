@@ -269,9 +269,19 @@ class BasePaperSerializer(serializers.ModelSerializer):
         return vote
 
     def get_unified_document(self, paper):
-        from researchhub_document.serializers.researchhub_unified_document_serializer import MinimalUnifiedDocumentSerializer
-        uni_doc = MinimalUnifiedDocumentSerializer(paper.unified_document)
-        return uni_doc.data
+        from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
+
+        serializer = DynamicUnifiedDocumentSerializer(
+            paper.unified_document,
+            _include_fields=[
+                'id',
+                'reviews'
+            ],
+            context={},
+            many=False
+        )
+
+        return serializer.data
 
     def get_promoted(self, paper):
         return paper.get_promoted_score()
@@ -908,11 +918,16 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
     def get_unified_document(self, paper):
         from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 
-        context = self.context
-        _context_fields = context.get("pap_dps_get_unified_document", {})
         serializer = DynamicUnifiedDocumentSerializer(
-            paper.unified_document, context=context, **_context_fields
+            paper.unified_document,
+            _include_fields=[
+                'id',
+                'reviews'
+            ],
+            context={},
+            many=False
         )
+
         return serializer.data
 
     def get_uploaded_by(self, paper):

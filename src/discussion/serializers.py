@@ -659,9 +659,19 @@ class ThreadSerializer(
         return None
 
     def get_unified_document(self, obj):
-        from researchhub_document.serializers.researchhub_unified_document_serializer import MinimalUnifiedDocumentSerializer
-        uni_doc = MinimalUnifiedDocumentSerializer(obj.unified_document)
-        return uni_doc.data
+        from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
+
+        serializer = DynamicUnifiedDocumentSerializer(
+            obj.unified_document,
+            _include_fields=[
+                'id',
+                'reviews'
+            ],
+            context={},
+            many=False
+        )
+
+        return serializer.data
 
 class SimpleThreadSerializer(ThreadSerializer):
     class Meta:

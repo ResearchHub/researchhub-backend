@@ -42,7 +42,6 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             'src',
             'title',
             'unified_document',
-            'unified_document_id',
             'vote_meta',
         ]
         read_only_fields = [
@@ -60,7 +59,6 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             'slug',
             'src',
             'unified_document',
-            'unified_document_id',
             'vote_meta',
         ]
 

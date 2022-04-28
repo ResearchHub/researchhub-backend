@@ -74,22 +74,6 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
         else:
             return PaperSerializer(instance.paper, context=context).data
 
-class MinimalUnifiedDocumentSerializer(ModelSerializer):
-    reviews = SerializerMethodField()
-    
-    class Meta(object):
-        model = ResearchhubUnifiedDocument
-        fields = [
-            'id',
-            'reviews'
-        ]
-        read_only_fields = [
-            'id',
-            'reviews',
-        ]
-
-    def get_reviews(self, obj):
-        return obj.get_review_details()
 
 class ContributionUnifiedDocumentSerializer(
     ResearchhubUnifiedDocumentSerializer
