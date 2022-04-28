@@ -204,7 +204,8 @@ class AuthorSerializer(ModelSerializer):
 
     def get_is_hub_editor(self, author):
         user = author.user
-        return user.is_hub_editor()
+        if user:
+            return user.is_hub_editor()
 
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
