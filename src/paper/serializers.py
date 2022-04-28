@@ -268,11 +268,11 @@ class BasePaperSerializer(serializers.ModelSerializer):
                     pass
         return vote
 
-    def get_unified_document(self, paper):
+    def get_unified_document(self, obj):
         from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 
         serializer = DynamicUnifiedDocumentSerializer(
-            paper.unified_document,
+            obj.unified_document,
             _include_fields=[
                 'id',
                 'reviews'
