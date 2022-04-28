@@ -13,6 +13,7 @@ from rest_framework.permissions import (
     IsAuthenticated
 )
 from rest_framework.response import Response
+from review.models.review_model import Review
 
 from utils.throttles import THROTTLE_CLASSES
 
@@ -113,6 +114,12 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         response = super().create(request, *args, **kwargs)
         response = self.get_self_upvote_response(request, response, Thread)
+
+        created_thread = Thread.objects.get(id=response.data['id'])
+        if request.data.get('review'):
+            created_thread.review_id = request.data.get('review')
+            created_thread.save()
+
         hubs = list(unified_document.hubs.all().values_list('id', flat=True))
         discussion_id = response.data['id']
 
@@ -142,7 +149,10 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             filters=[DISCUSSED, TRENDING],
         )
 
-        return response
+        return Response(
+            self.serializer_class(created_thread).data,
+            status=status.HTTP_201_CREATED
+        )
 
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)

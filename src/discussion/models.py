@@ -20,6 +20,7 @@ from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.models import Permission
 from .reaction_models import Flag, Vote, Endorsement
 from django.apps import apps
+from review.models import Review
 
 HELP_TEXT_WAS_EDITED = (
     'True if the comment text was edited after first being created.'
@@ -320,6 +321,13 @@ class Thread(BaseComment):
         'peer_review.PeerReview',
         on_delete=models.SET_NULL,
         related_name='threads',
+        blank=True,
+        null=True
+    )
+    review = models.ForeignKey(
+        'review.Review',
+        on_delete=models.SET_NULL,
+        related_name='thread',
         blank=True,
         null=True
     )

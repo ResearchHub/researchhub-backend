@@ -153,6 +153,7 @@ def preload_trending_documents(
             'document_type',
             'hot_score',
             'hot_score_v2',
+            'reviews',
             'score',
             'id',
         ],

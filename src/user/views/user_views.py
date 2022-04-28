@@ -38,6 +38,7 @@ from reputation.serializers import DynamicContributionSerializer
 from researchhub.settings import EMAIL_WHITELIST, SIFT_WEBHOOK_SECRET_KEY
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.serializers import DynamicPostSerializer
+from review.models.review_model import Review
 from user.filters import AuthorFilter, UserFilter
 from user.models import Author, Follow, Major, University, User, Verification
 from user.permissions import Censor, UpdateAuthor
@@ -797,6 +798,12 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "author_profile",
                 ]
             },
+            "dis_dts_get_review": {
+                "_include_fields": [
+                    "id",
+                    "score",
+                ]
+            },
             "dis_dcs_get_created_by": {
                 "_include_fields": [
                     "author_profile",
@@ -979,12 +986,14 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "post",
                     "plain_text",
                     "promoted",
+                    "review",
                     "score",
                     "source",
                     "text",
                     "title",
                     "user_flag",
                     "user_vote",
+                    "unified_document",
                     "was_edited",
                     "document_meta",
                 ]
@@ -1079,6 +1088,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         paper_content_type = ContentType.objects.get_for_model(Paper)
         hypothesis_content_type = ContentType.objects.get_for_model(Hypothesis)
+        review_content_type = ContentType.objects.get_for_model(Review)
 
         types = asset_type.split(",")
 
@@ -1099,6 +1109,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                             hypothesis_content_type,
                             paper_content_type,
                             post_content_type,
+                            review_content_type,
                         ],
                         contribution_type__in=[
                             Contribution.SUBMITTER,

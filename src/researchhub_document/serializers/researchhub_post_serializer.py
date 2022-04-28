@@ -46,6 +46,7 @@ class ResearchhubPostSerializer(
             'title',
             'slug',
             'unified_document_id',
+            'unified_document',
             'version_number',
             'boost_amount',
             'is_removed',
@@ -86,6 +87,7 @@ class ResearchhubPostSerializer(
     unified_document_id = SerializerMethodField(
         method_name='get_unified_document_id'
     )
+    unified_document = SerializerMethodField()
 
     def get_post_src(self, instance):
         try:
@@ -115,6 +117,21 @@ class ResearchhubPostSerializer(
         unified_document = instance.unified_document
         return instance.unified_document.id \
             if unified_document is not None else None
+
+    def get_unified_document(self, obj):
+        from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
+
+        serializer = DynamicUnifiedDocumentSerializer(
+            obj.unified_document,
+            _include_fields=[
+                'id',
+                'reviews'
+            ],
+            context={},
+            many=False
+        )
+
+        return serializer.data
 
     def get_full_markdown(self, instance):
         try:
