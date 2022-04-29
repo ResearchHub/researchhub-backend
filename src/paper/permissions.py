@@ -82,8 +82,10 @@ class IsAllowedToUpdateAsyncPaper(AuthorizationBasedPermission):
     def is_authorized(self, request, view, obj):
         if request.method != POST:
             return False
+        import pdb
 
-        submission_id = request.query_params.get("submission_id", None)
+        pdb.set_trace()
+        submission_id = request.data.get("submission_id", None)
         if submission_id is not None:
             return PaperSubmission.objects.filter(
                 ~Q(paper_status=PaperSubmission.COMPLETE),

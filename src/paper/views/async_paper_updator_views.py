@@ -10,6 +10,3 @@ class AsyncPaperUpdatorViewSet(ModelViewSet):
     permission_classes = [IsAllowedToUpdateAsyncPaper]
     queryset = AsyncPaperUpdator.objects.filter()
     serializer_class = AsyncPaperUpdatorSerializer
-
-    def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
