@@ -33,7 +33,7 @@ class AsyncPaperUpdator(DefaultModel):
         help_text="Self-explanatory",
         null=False,
         on_delete=CASCADE,
-        related_name="async_upadtor",
+        related_name="async_updator",
     )
     title = CharField(
         blank=True,

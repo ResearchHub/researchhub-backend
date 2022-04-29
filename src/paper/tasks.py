@@ -1437,12 +1437,18 @@ def celery_create_paper(self, celery_data):
     Contribution = apps.get_model("reputation.Contribution")
 
     try:
-        paper = Paper(**paper_data)
-        paper.full_clean()
-        paper.save()
-        paper_id = paper.id
-
         paper_submission = PaperSubmission.objects.get(id=submission_id)
+        async_paper_updator = paper_submission.async_updator
+        paper = Paper(**paper_data)
+        if async_paper_updator is not None:
+            paper.doi = async_paper_updator.doi
+            paper.hub.add(*async_paper_updator.hubs)
+            paper.title = async_paper_updator.title
+
+        paper.full_clean()
+        paper_id = paper.id
+        paper.save()
+
         paper_submission.set_complete_status(save=False)
         paper_submission.paper = paper
         paper_submission.save()
