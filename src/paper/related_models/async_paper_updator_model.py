@@ -35,4 +35,9 @@ class AsyncPaperUpdator(DefaultModel):
         on_delete=CASCADE,
         related_name="async_upadtor",
     )
-    title = CharField(max_length=1024, help_text="User generated title")
+    title = CharField(
+        blank=True,
+        help_text="User generated title",
+        max_length=1024,
+        null=True,
+    )
