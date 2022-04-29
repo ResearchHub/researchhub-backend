@@ -1446,9 +1446,9 @@ def celery_create_paper(self, celery_data):
             paper.title = async_paper_updator.title
 
         paper.full_clean()
-        paper_id = paper.id
         paper.save()
 
+        paper_id = paper.id
         paper_submission.set_complete_status(save=False)
         paper_submission.paper = paper
         paper_submission.save()
