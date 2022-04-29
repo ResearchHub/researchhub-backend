@@ -4,6 +4,6 @@ from paper.related_models.async_paper_updator_model import AsyncPaperUpdator
 
 
 class AsyncPaperUpdatorSerializer(ModelSerializer):
-    class Metea:
+    class Meta:
         model = AsyncPaperUpdator
         fields = "__all__"
