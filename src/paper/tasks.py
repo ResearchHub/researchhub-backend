@@ -1440,6 +1440,7 @@ def celery_create_paper(self, celery_data):
         paper_submission = PaperSubmission.objects.get(id=submission_id)
         async_paper_updator = getattr(paper_submission, "async_updator", None)
         paper = Paper(**paper_data)
+
         if async_paper_updator is not None:
             paper.doi = async_paper_updator.doi
             paper.hub.add(*async_paper_updator.hubs)
