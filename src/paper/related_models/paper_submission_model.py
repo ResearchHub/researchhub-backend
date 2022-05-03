@@ -2,7 +2,7 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db import models
 
-from paper.models import Paper
+from paper.related_models.paper_model import Paper
 from utils.models import DefaultModel
 
 

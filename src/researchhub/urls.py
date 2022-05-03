@@ -21,7 +21,7 @@ import note.views as note_views
 import notification.views
 import oauth.urls
 import oauth.views
-import paper.views
+import paper.views as paper_views
 import purchase.views
 import reputation.views
 import researchhub.views
@@ -155,21 +155,27 @@ router.register(
 
 router.register(
     r"paper/featured_papers",
-    paper.views.FeaturedPaperViewSet,
+    paper_views.FeaturedPaperViewSet,
     basename="featured_papers",
 )
 
 router.register(
     r"paper/([0-9]+)/additional_file",
-    paper.views.AdditionalFileViewSet,
+    paper_views.AdditionalFileViewSet,
     basename="additional_files",
 )
 
-router.register(r"paper", paper.views.PaperViewSet, basename="paper")
+router.register(
+    r"paper/async_paper_updator",
+    paper_views.AsyncPaperUpdatorViewSet,
+    "async_paper_updator",
+)
+
+router.register(r"paper", paper_views.PaperViewSet, basename="paper")
 
 router.register(
     r"paper_submission",
-    paper.views.PaperSubmissionViewSet,
+    paper_views.PaperSubmissionViewSet,
     basename="paper_submission",
 )
 
@@ -203,7 +209,7 @@ router.register(
     r"notification", notification.views.NotificationViewSet, basename="notification"
 )
 
-router.register(r"figure", paper.views.FigureViewSet, basename="figure")
+router.register(r"figure", paper_views.FigureViewSet, basename="figure")
 
 router.register(
     r"analytics/websiteviews",
