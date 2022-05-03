@@ -273,12 +273,9 @@ class BasePaperSerializer(serializers.ModelSerializer):
 
         serializer = DynamicUnifiedDocumentSerializer(
             obj.unified_document,
-            _include_fields=[
-                'id',
-                'reviews'
-            ],
+            _include_fields=["id", "reviews"],
             context={},
-            many=False
+            many=False,
         )
 
         return serializer.data
@@ -920,12 +917,9 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
 
         serializer = DynamicUnifiedDocumentSerializer(
             paper.unified_document,
-            _include_fields=[
-                'id',
-                'reviews'
-            ],
+            _include_fields=["id", "reviews"],
             context={},
-            many=False
+            many=False,
         )
 
         return serializer.data
@@ -1038,6 +1032,7 @@ class PaperSubmissionSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id",
             "created_date",
+            "doi",
             "paper_status",
             "updated_date",
         ]
