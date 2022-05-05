@@ -73,7 +73,8 @@ class DashboardViewSet(viewsets.GenericViewSet):
                     "source",
                     "user",
                     "amount",
-                    "plain_text" "title",
+                    "plain_text",
+                    "title",
                     "slug",
                 ]
             },
