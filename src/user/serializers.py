@@ -721,8 +721,8 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
         context = self.context
         _context_fields = context.get("usr_das_get_item", {})
         item = action.item
-        ignored_items = [BulletPoint, BulletVote, Summary, SummaryVote]
-        if type(item) in ignored_items:
+        ignored_items = (BulletPoint, BulletVote, Summary, SummaryVote)
+        if isinstance(item, ignored_items):
             return None
 
         if isinstance(item, Withdrawal):

@@ -157,5 +157,13 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 ]
             },
             "pap_dpss_get_paper": {"_include_fields": ["id", "title"]},
+            "pap_dps_get_unified_document": {
+                "_include_fields": [
+                    "id",
+                    "title",
+                    "document_type",
+                    "slug",
+                ]
+            },
         }
         return context

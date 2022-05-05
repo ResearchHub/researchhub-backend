@@ -27,8 +27,6 @@ import reputation.views
 import researchhub.views
 import researchhub_case.views as researchhub_case_views
 import researchhub_document.views as researchhub_document_views
-import researchhub.views
-from review.views.review_view import ReviewViewSet
 import search.urls
 import summary.views
 import user.views
@@ -38,6 +36,7 @@ from peer_review.views import (
     PeerReviewViewSet,
 )
 from researchhub.settings import INSTALLED_APPS, USE_DEBUG_TOOLBAR
+from review.views.review_view import ReviewViewSet
 from user.views import editor_views
 
 router = routers.DefaultRouter()
@@ -199,6 +198,8 @@ router.register(
     r"organization", user.views.OrganizationViewSet, basename="organization"
 )
 
+router.register(r"dashboard", user.views.DashboardViewSet, basename="dashboard")
+
 router.register(
     r"email_recipient",
     mailing_list.views.EmailRecipientViewSet,
@@ -313,9 +314,7 @@ router.register(
 )
 
 router.register(
-     r"researchhub_unified_documents/([0-9]+)/review",
-    ReviewViewSet,
-    basename='review'
+    r"researchhub_unified_documents/([0-9]+)/review", ReviewViewSet, basename="review"
 )
 
 urlpatterns = [
