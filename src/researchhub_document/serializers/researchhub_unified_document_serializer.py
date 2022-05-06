@@ -130,8 +130,9 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_reviews(self, obj):
-        context = self.context
-        get_reviews = context.get("doc_duds_get_reviews", None)
-        if get_reviews:
-            return obj.get_review_details()
-        return None
+        return obj.get_review_details()
+        # context = self.context
+        # get_reviews = context.get("doc_duds_get_reviews", None)
+        # if get_reviews:
+        #     return obj.get_review_details()
+        # return None
