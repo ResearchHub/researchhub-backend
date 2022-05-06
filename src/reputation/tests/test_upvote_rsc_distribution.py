@@ -6,7 +6,7 @@ from django.test import Client, TestCase
 
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as DiscussionVote
-from paper.models import Vote as PaperVote
+from paper.models import VotePaperLegacy
 from purchase.models import Balance
 from reputation.distributions import (
     calculate_rsc_per_upvote,

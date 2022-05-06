@@ -11,18 +11,12 @@ from django.db.models import (
     UniqueConstraint,
 )
 
+from discussion.constants.flag_reason_choices import FLAG_REASON_CHOICES, SPAM
+from discussion.constants.vote_choices import DOWNVOTE, UPVOTE, VOTE_TYPE_CHOICES
 from utils.models import DefaultModel
 
 
 class Vote(DefaultModel):
-    NEUTRAL = 0
-    UPVOTE = 1
-    DOWNVOTE = 2
-    VOTE_TYPE_CHOICES = [
-        (NEUTRAL, "Neutral"),
-        (UPVOTE, "Upvote"),
-        (DOWNVOTE, "Downvote"),
-    ]
     content_type = ForeignKey(ContentType, on_delete=CASCADE)
     object_id = PositiveIntegerField()
     item = GenericForeignKey("content_type", "object_id")
@@ -75,7 +69,13 @@ class Flag(DefaultModel):
     created_by = ForeignKey("user.User", on_delete=CASCADE)
     item = GenericForeignKey("content_type", "object_id")
     object_id = PositiveIntegerField()
-    reason = CharField(max_length=255, blank=True)
+    reason = CharField(max_length=255, blank=True, help_text="May be deprecated")
+    reason_choices = CharField(
+        default=SPAM,
+        blank=False,
+        choices=FLAG_REASON_CHOICES,
+        max_length=225,
+    )
 
     class Meta:
         constraints = [
@@ -117,8 +117,8 @@ class AbstractGenericReactionModel(DefaultModel):
             created_by__is_suspended=False, created_by__probable_spammer=False
         )
         score = qs.aggregate(
-            score=Count("id", filter=Q(vote_type=Vote.UPVOTE))
-            - Count("id", filter=Q(vote_type=Vote.DOWNVOTE))
+            score=Count("id", filter=Q(vote_type=UPVOTE))
+            - Count("id", filter=Q(vote_type=DOWNVOTE))
         ).get("score", 0)
         return score
 

@@ -15,7 +15,7 @@ from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as ReactionVote
 from hypothesis.models import Citation, Hypothesis
 from paper.models import Paper
-from paper.models import Vote as PaperVote
+from paper.models import VotePaperLegacy as PaperVote
 from purchase.models import Purchase
 from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError

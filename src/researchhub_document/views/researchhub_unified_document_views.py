@@ -16,8 +16,7 @@ from rest_framework.viewsets import ModelViewSet
 from discussion.models import Vote as ReactionVote
 from discussion.reaction_serializers import VoteSerializer as ReactionVoteSerializer
 from hypothesis.models import Hypothesis
-from paper.models import Paper
-from paper.models import Vote as PaperVote
+from paper.models import Paper, VotePaperLegacy
 from paper.serializers import PaperVoteSerializer
 from paper.utils import get_cache_key
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument

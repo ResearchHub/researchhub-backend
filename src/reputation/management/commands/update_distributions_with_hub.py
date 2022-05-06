@@ -1,36 +1,27 @@
-'''
+"""
 Set all distribution statuses to so they are eligible for withdrawal.
-'''
+"""
 from django.core.management.base import BaseCommand
 
+from bullet_point.models import BulletPoint
+from bullet_point.models import Endorsement as BulletPointEndorsement
+from bullet_point.models import Flag as BulletPointFlag
+from discussion.models import Comment
+from discussion.models import Endorsement as DiscussionEndorsement
+from discussion.models import Flag as DiscussionFlag
+from discussion.models import Reply, Thread
+from discussion.models import Vote as DiscussionVote
+from paper.models import Flag as PaperFlag
+from paper.models import Paper, VotePaperLegacy
 from reputation.models import Distribution
 
-from bullet_point.models import (
-    BulletPoint,
-    Endorsement as BulletPointEndorsement,
-    Flag as BulletPointFlag
-)
-from discussion.models import (
-    Comment,
-    Endorsement as DiscussionEndorsement,
-    Flag as DiscussionFlag,
-    Reply,
-    Thread,
-    Vote as DiscussionVote
-)
-from paper.models import (
-    Flag as PaperFlag,
-    Paper,
-    Vote as PaperVote
-)
 
 class Command(BaseCommand):
-
     def handle(self, *args, **options):
         distributions = Distribution.objects.all()
         count = distributions.count()
         for i, distribution in enumerate(distributions):
-            print('{} / {}'.format(i, count))
+            print("{} / {}".format(i, count))
             instance = distribution.proof_item
             hubs = None
             if isinstance(instance, BulletPoint) and instance.paper:

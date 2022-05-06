@@ -18,8 +18,7 @@ from discussion.models import Vote as DiscussionVote
 from hub.models import Hub
 from hub.serializers import HubSerializer, SimpleHubSerializer
 from hypothesis.models import Hypothesis
-from paper.models import Paper, PaperSubmission
-from paper.models import Vote as PaperVote
+from paper.models import Paper, PaperSubmission, VotePaperLegacy
 from purchase.models import Purchase
 from reputation.models import Contribution, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer

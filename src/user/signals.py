@@ -21,7 +21,7 @@ from discussion.models import Vote as ReactionVote
 from hypothesis.models import Hypothesis
 from notification.models import Notification
 from paper.models import Paper, PaperSubmission
-from paper.models import Vote as PaperVote
+from paper.models import VotePaperLegacy as PaperVote
 from purchase.models import Wallet
 from reputation import distributions
 from reputation.distributor import Distributor

@@ -16,6 +16,7 @@ from manubot.cite.unpaywall import Unpaywall
 
 import utils.sentry as sentry
 from discussion.models import Thread
+from discussion.reaction_models import AbstractGenericReactionModel
 from hub.models import Hub
 from hub.serializers import HubSerializer
 from paper.lib import journal_hosts
@@ -57,7 +58,7 @@ HELP_TEXT_IS_PUBLIC = "Hides the paper from the public."
 HELP_TEXT_IS_REMOVED = "Hides the paper because it is not allowed."
 
 
-class Paper(models.Model):
+class Paper(AbstractGenericReactionModel):
     REGULAR = "REGULAR"
     PRE_REGISTRATION = "PRE_REGISTRATION"
     COMPLETE = "COMPLETE"
@@ -78,10 +79,8 @@ class Paper(models.Model):
     updated_date = models.DateTimeField(auto_now=True)
     twitter_score_updated_date = models.DateTimeField(null=True, blank=True)
     is_public = models.BooleanField(default=True, help_text=HELP_TEXT_IS_PUBLIC)
-
     # TODO clean this up to use SoftDeleteable mixin in utils
     is_removed = models.BooleanField(default=False, help_text=HELP_TEXT_IS_REMOVED)
-
     is_removed_by_user = models.BooleanField(
         default=False, help_text=HELP_TEXT_IS_REMOVED
     )
@@ -93,7 +92,6 @@ class Paper(models.Model):
         default=0, db_index=True, help_text="Legacy. Refer to UnifiedDocument"
     )
     twitter_score = models.IntegerField(default=1)
-
     views = models.IntegerField(default=0)
     downloads = models.IntegerField(default=0)
     twitter_mentions = models.IntegerField(default=0)
@@ -664,8 +662,8 @@ class Paper(models.Model):
             qs = qs.exclude(paper__uploaded_by=F("created_by"))
 
         score = qs.aggregate(
-            score=Count("id", filter=Q(vote_type=Vote.UPVOTE))
-            - Count("id", filter=Q(vote_type=Vote.DOWNVOTE))
+            score=Count("id", filter=Q(vote_type=VotePaperLegacy.UPVOTE))
+            - Count("id", filter=Q(vote_type=VotePaperLegacy.DOWNVOTE))
         ).get("score", 0)
 
         if not ignore_twitter_score:
@@ -999,7 +997,7 @@ class Figure(models.Model):
     )
 
 
-class Vote(models.Model):
+class VotePaperLegacy(models.Model):
     UPVOTE = 1
     DOWNVOTE = 2
     VOTE_TYPE_CHOICES = [
@@ -1007,7 +1005,10 @@ class Vote(models.Model):
         (DOWNVOTE, "Downvote"),
     ]
     paper = models.ForeignKey(
-        Paper, on_delete=models.CASCADE, related_name="votes", related_query_name="vote"
+        Paper,
+        on_delete=models.CASCADE,
+        related_name="votes_legacy",
+        related_query_name="vote",
     )
     created_by = models.ForeignKey(
         "user.User",
@@ -1031,9 +1032,12 @@ class Vote(models.Model):
         return "{} - {}".format(self.created_by, self.vote_type)
 
 
-class Flag(models.Model):
+class FlagPaperLegacy(models.Model):
     paper = models.ForeignKey(
-        Paper, on_delete=models.CASCADE, related_name="flags", related_query_name="flag"
+        Paper,
+        on_delete=models.CASCADE,
+        related_name="flags_legacy",
+        related_query_name="flag",
     )
     created_by = models.ForeignKey(
         "user.User",

@@ -1,24 +1,24 @@
-import numpy as np
 import time
 
-from django.db import transaction, models
-from django.db.models import FloatField, Func, Q, Count
-from django.db.models.functions import Cast
-from django.db.models.aggregates import Sum
+import numpy as np
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
+from django.db import models, transaction
+from django.db.models import Count, FloatField, Func, Q
+from django.db.models.aggregates import Sum
+from django.db.models.functions import Cast
 
-from reputation.exceptions import ReputationDistributorError
-from reputation.models import Distribution, Contribution
-from reputation.distributions import Distribution as dist
-from reputation.serializers import get_model_serializer
-from purchase.models import Balance
-from user.models import User
 import utils.sentry as sentry
+from purchase.models import Balance
+from reputation.distributions import Distribution as dist
+from reputation.exceptions import ReputationDistributorError
+from reputation.models import Contribution, Distribution
+from reputation.serializers import get_model_serializer
+from user.models import User
 
 
 class Distributor:
-    '''
+    """
     Distributes an amount to the request user's reputation and logs this event
     by creating an Distribution record in the database.
 
@@ -35,15 +35,9 @@ class Distributor:
             timestamp
         proof_item (obj) - (same as db_record above)
 
-    '''
-    def __init__(
-        self,
-        distribution,
-        recipient,
-        db_record,
-        timestamp,
-        hubs=None
-    ):
+    """
+
+    def __init__(self, distribution, recipient, db_record, timestamp, hubs=None):
         self.distribution = distribution
         self.recipient = recipient
         self.proof = self.generate_proof(db_record, timestamp)
@@ -55,12 +49,12 @@ class Distributor:
         if db_record:
             serializer = get_model_serializer(type(db_record))
             obj = serializer(db_record).data
-            if obj.get('password'):
-                del obj['password']
+            if obj.get("password"):
+                del obj["password"]
             proof = {
-                'timestamp': timestamp,
-                'table': db_record._meta.db_table,
-                'record': obj
+                "timestamp": timestamp,
+                "table": db_record._meta.db_table,
+                "record": obj,
             }
             return proof
         return None
@@ -74,7 +68,7 @@ class Distributor:
         except Exception as e:
             record.set_distributed_failed()
 
-            error_message = f'Distribution {record.id} failed'
+            error_message = f"Distribution {record.id} failed"
             error = ReputationDistributorError(e, error_message)
             sentry.log_error(error)
             print(error_message, e)
@@ -86,10 +80,10 @@ class Distributor:
             amount=self.distribution.amount,
             distribution_type=self.distribution.name,
             proof=self.proof,
-            proof_item_content_type=get_content_type_for_model(
-                self.proof_item
-            ) if self.proof_item else None,
-            proof_item_object_id=self.proof_item.id if self.proof_item else None
+            proof_item_content_type=get_content_type_for_model(self.proof_item)
+            if self.proof_item
+            else None,
+            proof_item_object_id=self.proof_item.id if self.proof_item else None,
         )
 
         if self.hubs:
@@ -99,14 +93,14 @@ class Distributor:
     def _update_reputation_and_balance(self, record):
         # Prevents simultaneous changes to the user
         users = User.objects.filter(pk=self.recipient.id).select_for_update(
-            of=('self',)
+            of=("self",)
         )
 
         with transaction.atomic():
             if self.distribution.gives_rep:
                 # updates at the SQL level and does not call save() or emit signals
                 users.update(
-                    reputation=models.F('reputation') + self.distribution.reputation
+                    reputation=models.F("reputation") + self.distribution.reputation
                 )
             self._record_balance(record)
 
@@ -116,43 +110,50 @@ class Distributor:
             user=self.recipient,
             content_type=content_type,
             object_id=distribution.id,
-            amount=self.distribution.amount  # db converts integer to string
+            amount=self.distribution.amount,  # db converts integer to string
         )
 
 
 class RewardDistributor:
     prob_keys = (
-        'SUBMITTER',
-        'AUTHOR',
-        'UPVOTER'
-        'CURATOR',
-        'COMMENTER',
+        "SUBMITTER",
+        "AUTHOR",
+        "UPVOTER" "CURATOR",
+        "COMMENTER",
     )
     prob_by_key = {
-        'SUBMITTER': 0.1,
-        'UPVOTER': 0.2,
-        'AUTHOR': 0.4,
-        'CURATOR': 0.15,
-        'COMMENTER': 0.15
+        "SUBMITTER": 0.1,
+        "UPVOTER": 0.2,
+        "AUTHOR": 0.4,
+        "CURATOR": 0.15,
+        "COMMENTER": 0.15,
     }
 
     def get_papers_prob_dist(self, items):
-        papers = items.order_by('id')
+        papers = items.order_by("id")
         weekly_total_score = papers.aggregate(
-            total_sum=Sum('score') + Count('threads__votes', filter=Q(threads__votes__vote_type=1, threads__is_removed=False))
-        )['total_sum']
+            total_sum=Sum("score")
+            + Count(
+                "threads__votes",
+                filter=Q(threads__votes__vote_type=1, threads__is_removed=False),
+            )
+        )["total_sum"]
         prob_dist = papers.annotate(
             p=Cast(
                 Func(
-                    Sum('score') + Count('threads__votes', filter=Q(threads__votes__vote_type=1, threads__is_removed=False)),
-                    function='ABS'
-                )/float(weekly_total_score),
-                FloatField()
+                    Sum("score")
+                    + Count(
+                        "threads__votes",
+                        filter=Q(
+                            threads__votes__vote_type=1, threads__is_removed=False
+                        ),
+                    ),
+                    function="ABS",
+                )
+                / float(weekly_total_score),
+                FloatField(),
             )
-        ).values_list(
-            'p',
-            flat=True
-        )
+        ).values_list("p", flat=True)
         return papers, np.array(prob_dist)
 
     def get_random_item(self, items, p=None):
@@ -161,11 +162,13 @@ class RewardDistributor:
         return item
 
     def generate_distribution(self, item, amount=1, distribute=True):
-        from paper.models import Paper, Vote
-        from user.models import User, Author
-        from bullet_point.models import BulletPoint, Vote as BulletPointVote
-        from summary.models import Summary, Vote as SummaryVote
-        from discussion.models import Thread, Comment, Reply
+        from bullet_point.models import BulletPoint
+        from bullet_point.models import Vote as BulletPointVote
+        from discussion.models import Comment, Reply, Thread
+        from paper.models import Paper, VotePaperLegacy
+        from summary.models import Summary
+        from summary.models import Vote as SummaryVote
+        from user.models import Author, User
 
         item_type = type(item)
 
@@ -188,7 +191,7 @@ class RewardDistributor:
             recipient = item.proposed_by
         elif item_type is SummaryVote:
             recipient = item.created_by
-        elif item_type is Vote:
+        elif item_type is VotePaperLegacy:
             recipient = item.created_by
         elif item_type is User:
             recipient = item
@@ -197,15 +200,12 @@ class RewardDistributor:
         elif item_type in (Thread, Comment, Reply):
             recipient = item.created_by
         else:
-            error = Exception(f'Missing instance type: {str(item_type)}')
+            error = Exception(f"Missing instance type: {str(item_type)}")
             sentry.log_error(error)
             raise error
 
         distributor = Distributor(
-            dist('REWARD', amount, False),
-            recipient,
-            item,
-            time.time()
+            dist("REWARD", amount, False), recipient, item, time.time()
         )
 
         if distribute:

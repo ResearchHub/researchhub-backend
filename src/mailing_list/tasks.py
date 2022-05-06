@@ -12,8 +12,7 @@ from hub.models import Hub
 from hypothesis.models import Hypothesis
 from mailing_list.lib import base_email_context
 from mailing_list.models import EmailTaskLog, NotificationFrequencies
-from paper.models import Paper
-from paper.models import Vote as PaperVote
+from paper.models import Paper, VotePaperLegacy
 from researchhub.celery import QUEUE_NOTIFICATION, app
 from researchhub_document.models import ResearchhubPost
 from user.models import Action, User
@@ -136,7 +135,7 @@ def send_hub_digest(frequency):
     upvotes = Count(
         "vote",
         filter=Q(
-            vote__vote_type=PaperVote.UPVOTE,
+            vote__vote_type=VotePaperLegacy.UPVOTE,
             vote__updated_date__gte=start_date,
             vote__updated_date__lte=end_date,
         ),
@@ -145,7 +144,7 @@ def send_hub_digest(frequency):
     downvotes = Count(
         "vote",
         filter=Q(
-            vote__vote_type=PaperVote.DOWNVOTE,
+            vote__vote_type=VotePaperLegacy.DOWNVOTE,
             vote__created_date__gte=start_date,
             vote__created_date__lte=end_date,
         ),

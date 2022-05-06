@@ -21,10 +21,10 @@ from paper.models import (
     AdditionalFile,
     FeaturedPaper,
     Figure,
-    Flag,
+    FlagPaperLegacy,
     Paper,
     PaperSubmission,
-    Vote,
+    VotePaperLegacy,
 )
 from paper.tasks import (
     add_orcid_authors,
@@ -247,7 +247,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
                 try:
                     flag = paper.flags.get(created_by=user.id)
                     flag = FlagSerializer(flag).data
-                except Flag.DoesNotExist:
+                except FlagPaperLegacy.DoesNotExist:
                     pass
         return flag
 
@@ -262,9 +262,9 @@ class BasePaperSerializer(serializers.ModelSerializer):
                 vote = PaperVoteSerializer(vote_created_by).data
             except AttributeError:
                 try:
-                    vote = paper.votes.get(created_by=user.id)
+                    vote = paper.votes_legacy.get(created_by=user.id)
                     vote = PaperVoteSerializer(vote).data
-                except Vote.DoesNotExist:
+                except VotePaperLegacy.DoesNotExist:
                     pass
         return vote
 
@@ -410,7 +410,9 @@ class PaperSerializer(BasePaperSerializer):
                 file = paper.file
                 self._check_pdf_title(paper, paper_title, file)
                 # NOTE: calvinhlee - This is an antipattern. Look into changing
-                Vote.objects.create(paper=paper, created_by=user, vote_type=Vote.UPVOTE)
+                VotePaperLegacy.objects.create(
+                    paper=paper, created_by=user, vote_type=VotePaperLegacy.UPVOTE
+                )
 
                 # Now add m2m values properly
                 if validated_data["paper_type"] == Paper.PRE_REGISTRATION:
@@ -847,13 +849,13 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("pap_dps_get_user_vote", {})
         if user:
             try:
-                vote = paper.votes.get(created_by=user.id)
+                vote = paper.votes_legacy.get(created_by=user.id)
                 vote = DynamicPaperVoteSerializer(
                     vote,
                     context=self.context,
                     **_context_fields,
                 ).data
-            except Vote.DoesNotExist:
+            except VotePaperLegacy.DoesNotExist:
                 pass
 
         return vote
@@ -975,7 +977,7 @@ class FlagSerializer(serializers.ModelSerializer):
             "paper",
             "reason",
         ]
-        model = Flag
+        model = FlagPaperLegacy
 
 
 class PaperVoteSerializer(serializers.ModelSerializer):
@@ -987,7 +989,7 @@ class PaperVoteSerializer(serializers.ModelSerializer):
             "vote_type",
             "paper",
         ]
-        model = Vote
+        model = VotePaperLegacy
 
 
 class DynamicPaperVoteSerializer(DynamicModelFieldSerializer):
@@ -995,13 +997,13 @@ class DynamicPaperVoteSerializer(DynamicModelFieldSerializer):
 
     class Meta:
         fields = "__all__"
-        model = Vote
+        model = VotePaperLegacy
 
-    def get_paper(self, vote):
+    def get_paper(self, vote_legacy):
         context = self.context
         _context_fields = context.get("pap_dpvs_paper", {})
         serializer = DynamicPaperSerializer(
-            vote.paper, context=context, **_context_fields
+            vote_legacy.paper, context=context, **_context_fields
         )
         return serializer.data
 

@@ -8,9 +8,9 @@ from paper.related_models.paper_model import (
     AdditionalFile,
     FeaturedPaper,
     Figure,
-    Flag,
+    FlagPaperLegacy,
     MetadataRetrievalAttempt,
     Paper,
-    Vote,
+    VotePaperLegacy,
 )
 from paper.related_models.paper_submission_model import PaperSubmission

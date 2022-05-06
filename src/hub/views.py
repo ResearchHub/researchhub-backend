@@ -19,7 +19,7 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 
 from mailing_list.models import EmailRecipient, HubSubscription
-from paper.models import Paper, Vote
+from paper.models import Paper, VotePaperLegacy
 from paper.utils import get_cache_key
 from reputation.models import Contribution
 from researchhub.settings import SERIALIZER_SWITCH
@@ -107,14 +107,14 @@ class HubViewSet(viewsets.ModelViewSet):
             num_upvotes = Count(
                 "papers__vote__vote_type",
                 filter=Q(
-                    papers__vote__vote_type=Vote.UPVOTE,
+                    papers__vote__vote_type=VotePaperLegacy.UPVOTE,
                     papers__vote__created_date__gte=two_weeks_ago,
                 ),
             )
             num_downvotes = Count(
                 "papers__vote__vote_type",
                 filter=Q(
-                    papers__vote__vote_type=Vote.DOWNVOTE,
+                    papers__vote__vote_type=VotePaperLegacy.DOWNVOTE,
                     papers__vote__created_date__gte=two_weeks_ago,
                 ),
             )

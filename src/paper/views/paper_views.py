@@ -32,10 +32,10 @@ from paper.models import (
     AdditionalFile,
     FeaturedPaper,
     Figure,
-    Flag,
+    FlagPaperLegacy,
     Paper,
     PaperSubmission,
-    Vote,
+    VotePaperLegacy,
 )
 from paper.permissions import (
     CreatePaper,
@@ -154,14 +154,14 @@ class PaperViewSet(viewsets.ModelViewSet):
             ),
             Prefetch(
                 "votes",
-                queryset=Vote.objects.filter(
+                queryset=VotePaperLegacy.objects.filter(
                     created_by=self.request.user.id,
                 ),
                 to_attr="vote_created_by",
             ),
             Prefetch(
                 "flags",
-                queryset=Flag.objects.filter(
+                queryset=FlagPaperLegacy.objects.filter(
                     created_by=self.request.user.id,
                 ),
                 to_attr="flag_created_by",
@@ -480,7 +480,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         paper = self.get_object()
         reason = request.data.get("reason")
         referrer = request.user
-        flag = Flag.objects.create(paper=paper, created_by=referrer, reason=reason)
+        flag = FlagPaperLegacy.objects.create(
+            paper=paper, created_by=referrer, reason=reason
+        )
 
         content_id = f"{type(paper).__name__}_{paper.id}"
         events_api.track_flag_content(paper.uploaded_by, content_id, referrer.id)
@@ -489,7 +491,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     @flag.mapping.delete
     def delete_flag(self, request, pk=None):
         try:
-            flag = Flag.objects.get(paper=pk, created_by=request.user.id)
+            flag = FlagPaperLegacy.objects.get(paper=pk, created_by=request.user.id)
             flag_id = flag.id
             flag.delete()
             return Response(flag_id, status=200)
@@ -550,13 +552,13 @@ class PaperViewSet(viewsets.ModelViewSet):
         hub_ids = add_default_hub(hub_ids)
         user = request.user
 
-        vote_exists = find_vote(user, paper, Vote.UPVOTE)
+        vote_exists = find_vote(user, paper, VotePaperLegacy.UPVOTE)
 
         if vote_exists:
             return Response(
                 "This vote already exists", status=status.HTTP_400_BAD_REQUEST
             )
-        response = update_or_create_vote(request, user, paper, Vote.UPVOTE)
+        response = update_or_create_vote(request, user, paper, VotePaperLegacy.UPVOTE)
 
         reset_unified_document_cache(
             hub_ids,
@@ -577,13 +579,13 @@ class PaperViewSet(viewsets.ModelViewSet):
         hub_ids = list(paper.hubs.values_list("id", flat=True))
         user = request.user
 
-        vote_exists = find_vote(user, paper, Vote.DOWNVOTE)
+        vote_exists = find_vote(user, paper, VotePaperLegacy.DOWNVOTE)
 
         if vote_exists:
             return Response(
                 "This vote already exists", status=status.HTTP_400_BAD_REQUEST
             )
-        response = update_or_create_vote(request, user, paper, Vote.DOWNVOTE)
+        response = update_or_create_vote(request, user, paper, VotePaperLegacy.DOWNVOTE)
 
         reset_unified_document_cache(
             hub_ids,
@@ -604,7 +606,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         response = {}
 
         if user.is_authenticated:
-            votes = Vote.objects.filter(paper__id__in=paper_ids, created_by=user)
+            votes = VotePaperLegacy.objects.filter(
+                paper__id__in=paper_ids, created_by=user
+            )
 
             for vote in votes.iterator():
                 paper_id = vote.paper_id
@@ -1177,7 +1181,9 @@ class FigureViewSet(viewsets.ModelViewSet):
 
 
 def find_vote(user, paper, vote_type):
-    vote = Vote.objects.filter(paper=paper, created_by=user, vote_type=vote_type)
+    vote = VotePaperLegacy.objects.filter(
+        paper=paper, created_by=user, vote_type=vote_type
+    )
     if vote:
         return True
     return False
@@ -1217,13 +1223,15 @@ def get_vote_response(vote, status_code):
 
 def retrieve_vote(user, paper):
     try:
-        return Vote.objects.get(paper=paper, created_by=user.id)
-    except Vote.DoesNotExist:
+        return VotePaperLegacy.objects.get(paper=paper, created_by=user.id)
+    except VotePaperLegacy.DoesNotExist:
         return None
 
 
 def create_vote(user, paper, vote_type):
-    vote = Vote.objects.create(created_by=user, paper=paper, vote_type=vote_type)
+    vote = VotePaperLegacy.objects.create(
+        created_by=user, paper=paper, vote_type=vote_type
+    )
     return vote
 
 
