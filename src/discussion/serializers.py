@@ -4,11 +4,12 @@ import rest_framework.serializers as serializers
 # TODO: undo
 from django.db.models import Q
 
-from discussion.models import Comment, Flag, Reply, Thread
+from discussion.models import Comment, Reply, Thread
 from discussion.reaction_serializers import (
     DynamicVoteSerializer,  # Import is needed for discussion serializer imports
 )
 from discussion.reaction_serializers import (
+    Flag,
     GenericReactionSerializerMixin,
     VoteSerializer,
 )
@@ -366,29 +367,6 @@ class DynamicCommentSerializer(
         _context_fields = context.get("dis_dcs_get_unified_document", {})
         serializer = DynamicUnifiedDocumentSerializer(
             comment.unified_document, context=context, **_context_fields
-        )
-        return serializer.data
-
-    def get_reply_count(self, obj):
-        replies = self._replies_query(obj)
-        return replies.count()
-
-    def get_thread_id(self, obj):
-        if isinstance(obj.parent, Thread):
-            return obj.parent.id
-        return None
-
-    def get_paper_id(self, obj):
-        if obj.paper:
-            return obj.paper.id
-        else:
-            return None
-
-    def get_created_by(self, thread):
-        context = self.context
-        _context_fields = context.get("dis_dcs_get_created_by", {})
-        serializer = DynamicMinimalUserSerializer(
-            thread.created_by, context=context, **_context_fields
         )
         return serializer.data
 

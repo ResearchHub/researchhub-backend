@@ -287,7 +287,7 @@ class Paper(models.Model):
     @property
     def raw_authors_indexing(self):
         authors = []
-        if isinstance(self.raw_authors, list) == False:
+        if isinstance(self.raw_authors, list) is False:
             return authors
 
         for author in self.raw_authors:

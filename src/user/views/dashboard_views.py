@@ -1,11 +1,9 @@
 import django_filters.rest_framework
 from rest_framework import viewsets
-from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
 
-from discussion.models import Flag
+from discussion.reaction_models import Flag
 from discussion.serializers import DynamicFlagSerializer
 from user.models import Action
 from user.serializers import DynamicActionSerializer

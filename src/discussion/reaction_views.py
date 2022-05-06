@@ -4,11 +4,12 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from discussion.models import Comment, Endorsement, Flag, Reply, Thread, Vote
+from discussion.models import Comment, Reply, Thread
 from discussion.permissions import CensorDiscussion as CensorDiscussionPermission
 from discussion.permissions import EditorCensorDiscussion
 from discussion.permissions import Endorse as EndorsePermission
 from discussion.permissions import Vote as VotePermission
+from discussion.reaction_models import Endorsement, Flag, Vote
 from discussion.reaction_serializers import (
     EndorsementSerializer,
     FlagSerializer,
@@ -16,7 +17,11 @@ from discussion.reaction_serializers import (
 )
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
-from researchhub_document.related_models.constants.filters import DISCUSSED, TOP, TRENDING
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    TOP,
+    TRENDING,
+)
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.siftscience import decisions_api, events_api, update_user_risk_score
@@ -118,12 +123,12 @@ class ReactionViewActionMixin:
 
                 doc = item.unified_document
                 doc_type = get_doc_type_key(doc)
-                hubs = list(doc.hubs.all().values_list('id', flat=True))
+                hubs = list(doc.hubs.all().values_list("id", flat=True))
 
                 reset_unified_document_cache(
                     hub_ids=hubs,
-                    document_type=[doc_type, 'all'],
-                    filters=[DISCUSSED, TRENDING]
+                    document_type=[doc_type, "all"],
+                    filters=[DISCUSSED, TRENDING],
                 )
         except Exception as e:
             pass
@@ -133,11 +138,8 @@ class ReactionViewActionMixin:
                 item.paper.reset_cache()
         except Exception as e:
             pass
-        
-        return Response(
-            self.get_serializer(instance=item).data,
-            status=200
-        )
+
+        return Response(self.get_serializer(instance=item).data, status=200)
 
     @action(
         detail=True,
