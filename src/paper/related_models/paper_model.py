@@ -232,6 +232,13 @@ class Paper(models.Model):
     )
     # Slug is automatically generated on a signal, so it is not needed in a form
     slug = models.SlugField(max_length=1024, blank=True)
+    unified_document = models.OneToOneField(
+        "researchhub_document.ResearchhubUnifiedDocument",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="paper",
+    )
 
     class Meta:
         indexes = (
