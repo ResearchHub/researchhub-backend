@@ -7,6 +7,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('researchhub_document', '0030_researchhubpost_doi'),
+        ('paper', '0097_paper_uni_doc')
     ]
 
     operations = [
