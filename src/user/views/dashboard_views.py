@@ -138,23 +138,6 @@ class DashboardViewSet(viewsets.GenericViewSet):
         return context
 
     def list(self, request):
-        from django.db.models import F
-        from django.db.models.expressions import OuterRef, Subquery
-
-        from paper.models import Paper
-        from researchhub_document.related_models.researchhub_unified_document_model import (
-            ResearchhubUnifiedDocument,
-        )
-
-        Paper.objects.all().update(
-            unified_document_new=Subquery(
-                ResearchhubUnifiedDocument.objects.filter(paper=OuterRef("id")).values(
-                    "id"
-                )[:1]
-            )
-        )
-        # Paper.objects.all().update(unified_document_new=F('unified_document'))
-        return Response()
         query_params = request.query_params
         get_flagged_content = query_params.get("flagged_content", False)
 

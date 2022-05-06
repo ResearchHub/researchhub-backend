@@ -10,6 +10,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunSQL(""" UPDATE "paper_paper" SET "unified_document_new_id" = (SELECT U0."id" FROM "researchhub_document_researchhubunifieddocument" U0 WHERE U0."paper_id" = ("paper_paper"."id") LIMIT 1) """)
-        # migrations.RunSQL(""" UPDATE "paper_paper" SET "unified_document_new_id" = "paper_paper"."unified_document_id" """),
+        migrations.RunSQL(""" UPDATE "paper_paper" SET "unified_document_new_id" = (SELECT U0."id" FROM "researchhub_document_researchhubunifieddocument" U0 WHERE U0."paper_id" = ("paper_paper"."id")) """)
     ]
