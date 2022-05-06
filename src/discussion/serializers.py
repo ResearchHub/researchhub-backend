@@ -4,11 +4,12 @@ import rest_framework.serializers as serializers
 # TODO: undo
 from django.db.models import Q
 
-from discussion.models import Comment, Flag, Reply, Thread
+from discussion.models import Comment, Reply, Thread
 from discussion.reaction_serializers import (
     DynamicVoteSerializer,  # Import is needed for discussion serializer imports
 )
 from discussion.reaction_serializers import (
+    Flag,
     GenericReactionSerializerMixin,
     VoteSerializer,
 )
