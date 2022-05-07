@@ -1,53 +1,50 @@
-from django.db.models import Count, Q
-
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.contenttypes.fields import (
-    GenericForeignKey,
-    GenericRelation
+from django.db.models import (
+    CASCADE,
+    CharField,
+    Count,
+    ForeignKey,
+    IntegerField,
+    PositiveIntegerField,
+    Q,
+    UniqueConstraint,
 )
-from django.db import models
+
 from utils.models import DefaultModel
 
 
-class Vote(models.Model):
+class Vote(DefaultModel):
     NEUTRAL = 0
     UPVOTE = 1
     DOWNVOTE = 2
     VOTE_TYPE_CHOICES = [
-        (NEUTRAL, 'Neutral'),
-        (UPVOTE, 'Upvote'),
-        (DOWNVOTE, 'Downvote'),
+        (NEUTRAL, "Neutral"),
+        (UPVOTE, "Upvote"),
+        (DOWNVOTE, "Downvote"),
     ]
-    content_type = models.ForeignKey(
-        ContentType,
-        on_delete=models.CASCADE
-    )
-    object_id = models.PositiveIntegerField()
-    item = GenericForeignKey('content_type', 'object_id')
+    content_type = ForeignKey(ContentType, on_delete=CASCADE)
+    object_id = PositiveIntegerField()
+    item = GenericForeignKey("content_type", "object_id")
     distributions = GenericRelation(
-        'reputation.Distribution',
-        object_id_field='proof_item_object_id',
-        content_type_field='proof_item_content_type'
+        "reputation.Distribution",
+        object_id_field="proof_item_object_id",
+        content_type_field="proof_item_content_type",
     )
-    created_by = models.ForeignKey(
-        'user.User',
-        on_delete=models.CASCADE,
-        related_name='discussion_votes'
+    created_by = ForeignKey(
+        "user.User", on_delete=CASCADE, related_name="discussion_votes"
     )
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
-    vote_type = models.IntegerField(choices=VOTE_TYPE_CHOICES)
+    vote_type = IntegerField(choices=VOTE_TYPE_CHOICES)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(
-                fields=['content_type', 'object_id', 'created_by'],
-                name='unique_vote'
+            UniqueConstraint(
+                fields=["content_type", "object_id", "created_by"], name="unique_vote"
             )
         ]
 
     def __str__(self):
-        return '{} - {}'.format(self.created_by, self.vote_type)
+        return "{} - {}".format(self.created_by, self.vote_type)
 
     @property
     def paper(self):
@@ -55,7 +52,7 @@ class Vote(models.Model):
 
     @property
     def unified_document(self):
-        from discussion.models import Thread, Comment, Reply
+        from discussion.models import Comment, Reply, Thread
         from hypothesis.models import Citation, Hypothesis
         from paper.models import Paper
         from researchhub_document.models import ResearchhubPost
@@ -70,46 +67,34 @@ class Vote(models.Model):
         elif item_type is Citation:
             # citation has 1:1 unifiedDoc edge named "source"
             return item.source
-        raise Exception('Vote source is missing unified document')
+        raise Exception("Vote source is missing unified document")
 
 
-class Flag(models.Model):
-    content_type = models.ForeignKey(
-        ContentType,
-        on_delete=models.CASCADE
-    )
-    object_id = models.PositiveIntegerField()
-    item = GenericForeignKey('content_type', 'object_id')
-    created_by = models.ForeignKey('user.User', on_delete=models.CASCADE)
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
-    reason = models.CharField(max_length=255, blank=True)
+class Flag(DefaultModel):
+    content_type = ForeignKey(ContentType, on_delete=CASCADE)
+    created_by = ForeignKey("user.User", on_delete=CASCADE)
+    item = GenericForeignKey("content_type", "object_id")
+    object_id = PositiveIntegerField()
+    reason = CharField(max_length=255, blank=True)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(
-                fields=['content_type', 'object_id', 'created_by'],
-                name='unique_flag'
+            UniqueConstraint(
+                fields=["content_type", "object_id", "created_by"], name="unique_flag"
             )
         ]
 
 
-class Endorsement(models.Model):
-    content_type = models.ForeignKey(
-        ContentType,
-        on_delete=models.CASCADE
-    )
-    object_id = models.PositiveIntegerField()
-    item = GenericForeignKey('content_type', 'object_id')
-    created_by = models.ForeignKey('user.User', on_delete=models.CASCADE)
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
+class Endorsement(DefaultModel):
+    content_type = ForeignKey(ContentType, on_delete=CASCADE)
+    created_by = ForeignKey("user.User", on_delete=CASCADE)
+    item = GenericForeignKey("content_type", "object_id")
+    object_id = PositiveIntegerField()
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(
-                fields=['content_type', 'object_id'],
-                name='unique_endorsement'
+            UniqueConstraint(
+                fields=["content_type", "object_id"], name="unique_endorsement"
             )
         ]
 
@@ -129,16 +114,12 @@ class AbstractGenericReactionModel(DefaultModel):
 
     def calculate_score(self):
         qs = self.votes.filter(
-            created_by__is_suspended=False,
-            created_by__probable_spammer=False
+            created_by__is_suspended=False, created_by__probable_spammer=False
         )
         score = qs.aggregate(
-            score=Count(
-                'id', filter=Q(vote_type=Vote.UPVOTE)
-            ) - Count(
-                'id', filter=Q(vote_type=Vote.DOWNVOTE)
-            )
-        ).get('score', 0)
+            score=Count("id", filter=Q(vote_type=Vote.UPVOTE))
+            - Count("id", filter=Q(vote_type=Vote.DOWNVOTE))
+        ).get("score", 0)
         return score
 
     class Meta:
