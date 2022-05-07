@@ -369,29 +369,6 @@ class DynamicCommentSerializer(
         )
         return serializer.data
 
-    def get_reply_count(self, obj):
-        replies = self._replies_query(obj)
-        return replies.count()
-
-    def get_thread_id(self, obj):
-        if isinstance(obj.parent, Thread):
-            return obj.parent.id
-        return None
-
-    def get_paper_id(self, obj):
-        if obj.paper:
-            return obj.paper.id
-        else:
-            return None
-
-    def get_created_by(self, thread):
-        context = self.context
-        _context_fields = context.get("dis_dcs_get_created_by", {})
-        serializer = DynamicMinimalUserSerializer(
-            thread.created_by, context=context, **_context_fields
-        )
-        return serializer.data
-
     def get_score(self, obj):
         return obj.calculate_score()
 
@@ -743,6 +720,8 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
 
 class DynamicFlagSerializer(DynamicModelFieldSerializer):
     item = serializers.SerializerMethodField()
+    created_by = serializers.SerializerMethodField()
+    content_type = serializers.SerializerMethodField()
 
     class Meta:
         model = Flag
@@ -791,3 +770,6 @@ class DynamicFlagSerializer(DynamicModelFieldSerializer):
             flag.created_by, context=context, **_context_fields
         )
         return serializer.data
+
+    def get_content_type(self, action):
+        return action.content_type.model

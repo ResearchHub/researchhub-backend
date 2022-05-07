@@ -198,7 +198,7 @@ router.register(
     r"organization", user.views.OrganizationViewSet, basename="organization"
 )
 
-router.register(r"dashboard", user.views.DashboardViewSet, basename="dashboard")
+router.register(r"audit", user.views.AuditViewSet, basename="audit")
 
 router.register(
     r"email_recipient",

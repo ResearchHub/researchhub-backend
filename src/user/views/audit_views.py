@@ -1,4 +1,8 @@
+import functools
+import operator
+
 import django_filters.rest_framework
+from django.db.models import Q
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
@@ -17,7 +21,7 @@ class CursorSetPagination(CursorPagination):
     ordering = "-created_date"
 
 
-class DashboardViewSet(viewsets.GenericViewSet):
+class AuditViewSet(viewsets.GenericViewSet):
     # TODO: Permissions
     queryset = Action.objects.all()
     permission_classes = [AllowAny]
@@ -37,18 +41,37 @@ class DashboardViewSet(viewsets.GenericViewSet):
         return self.filter_queryset(self.get_queryset())
 
     def _get_flagged_content(self):
-        flagged_contributions = Flag.objects.all().values_list("object_id")
-        actions = self.get_filtered_queryset().filter(id__in=flagged_contributions)
-        return actions
+        flagged_contributions = Flag.objects.all().select_related("content_type")
+        return flagged_contributions
 
     def _get_latest_actions(self):
         actions = (
-            self.get_filtered_queryset()
+            self.get_queryset()
             .filter(user__isnull=False, content_type__model__in=self.models)
+            .exclude(
+                functools.reduce(
+                    operator.or_,
+                    (
+                        Q(content_type_id=content_type_id, object_id=object_id)
+                        for content_type_id, object_id in self._get_flagged_content().values_list(
+                            "content_type_id", "object_id"
+                        )
+                    ),
+                )
+            )
             .select_related("user")
             .prefetch_related("item", "user__author_profile")
         )
         return actions
+
+        # actions = (
+        #     self.get_filtered_queryset()
+        #     .filter(user__isnull=False, content_type__model__in=self.models)
+        #     .exclude(content_type_id=Subquery(Flag.objects.filter(content_type_id=OuterRef("content_type_id")).values("content_type_id")[:1]))#, object_id=Subquery(Flag.objects.filter(object_id=OuterRef("object_id")).values("object_id")[:1]))
+        #     .select_related("user")
+        #     .prefetch_related("item", "user__author_profile")
+        # )
+        # return actions
 
     def _get_latest_actions_context(self):
         context = {
@@ -137,19 +160,31 @@ class DashboardViewSet(viewsets.GenericViewSet):
         context["dis_dfs_get_created_by"] = context["usr_das_get_created_by"]
         return context
 
-    def list(self, request):
-        query_params = request.query_params
-        get_flagged_content = query_params.get("flagged_content", False)
-
-        if get_flagged_content:
-            actions = self._get_flagged_content()
-            serializer = DynamicFlagSerializer
-        else:
-            actions = self._get_latest_actions()
-            serializer = DynamicActionSerializer
-
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    def flagged(self, request):
+        actions = self._get_flagged_content()
         page = self.paginate_queryset(actions)
-        data = serializer(
+        serializer = DynamicFlagSerializer(
+            page,
+            many=True,
+            context=self._get_latest_actions_context(),
+            _include_fields=[
+                "id",
+                "content_type",
+                "created_by",
+                "created_date",
+                "item",
+                "reason",
+            ],
+        )
+        data = serializer.data
+        return self.get_paginated_response(data)
+
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    def contributions(self, request):
+        actions = self._get_latest_actions()
+        page = self.paginate_queryset(actions)
+        serializer = DynamicActionSerializer(
             page,
             many=True,
             context=self._get_latest_actions_context(),
@@ -160,6 +195,6 @@ class DashboardViewSet(viewsets.GenericViewSet):
                 "item",
                 "created_date",
             ],
-        ).data
-
+        )
+        data = serializer.data
         return self.get_paginated_response(data)
