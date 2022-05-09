@@ -768,7 +768,7 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_content_type(self, action):
-        return action.content_type.model
+        return action.content_type.name
 
     def get_hubs(self, action):
         context = self.context

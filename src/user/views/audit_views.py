@@ -135,7 +135,6 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "created_by",
                     "uploaded_by",
                     "unified_document",
-                    "content_type",
                     "source",
                     "amount",
                     "plain_text",
