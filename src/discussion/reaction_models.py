@@ -6,6 +6,7 @@ from django.db.models import (
     Count,
     ForeignKey,
     IntegerField,
+    ManyToManyField,
     PositiveIntegerField,
     Q,
     UniqueConstraint,
@@ -76,6 +77,7 @@ class Flag(DefaultModel):
     item = GenericForeignKey("content_type", "object_id")
     object_id = PositiveIntegerField()
     reason = CharField(max_length=255, blank=True)
+    hubs = ManyToManyField("hub.Hub", related_name="flags")
 
     class Meta:
         constraints = [

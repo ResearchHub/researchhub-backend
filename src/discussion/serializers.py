@@ -13,6 +13,7 @@ from discussion.reaction_serializers import (
     GenericReactionSerializerMixin,
     VoteSerializer,
 )
+from hub.serializers import DynamicHubSerializer
 from hypothesis.models import Hypothesis
 from paper.models import Paper
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -768,5 +769,13 @@ class DynamicFlagSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
-    def get_content_type(self, action):
-        return action.content_type.model
+    def get_content_type(self, flag):
+        return flag.content_type.model
+
+    def get_hubs(self, flag):
+        context = self.context
+        _context_fields = context.get("dis_dfs_get_hubs", {})
+        serializer = DynamicHubSerializer(
+            flag.hubs, many=True, context=context, **_context_fields
+        )
+        return serializer.data

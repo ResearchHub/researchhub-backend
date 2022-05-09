@@ -65,6 +65,7 @@ class ReactionViewActionMixin:
     def flag(self, request, pk=None):
         item = self.get_object()
         user = request.user
+        # TODO: Sanitize reason
         reason = request.data.get("reason")
 
         try:
@@ -283,6 +284,7 @@ def create_endorsement(user, item):
 def create_flag(user, item, reason):
     flag = Flag(created_by=user, item=item, reason=reason)
     flag.save()
+    flag.hubs.add(item.hubs)
     return flag
 
 

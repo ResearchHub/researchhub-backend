@@ -91,10 +91,6 @@ class BaseComment(AbstractGenericReactionModel):
         return BaseComment.objects.none()
 
     @property
-    def score_indexing(self):
-        return self.calculate_score()
-
-    @property
     def is_created_by_editor(self):
         uni_doc = self.unified_document
         if uni_doc is not None:
@@ -105,23 +101,6 @@ class BaseComment(AbstractGenericReactionModel):
                 object_id__in=uni_doc.hubs.values_list("id", flat=True),
             ).exists()
         return False
-
-    def calculate_score(self, ignore_self_vote=False):
-        if hasattr(self, "score"):
-            return self.score
-        else:
-            qs = self.votes.filter(
-                created_by__is_suspended=False, created_by__probable_spammer=False
-            )
-
-            if ignore_self_vote:
-                qs = qs.exclude(created_by=F("discussion__created_by"))
-
-            score = qs.aggregate(
-                score=Count("id", filter=Q(vote_type=Vote.UPVOTE))
-                - Count("id", filter=Q(vote_type=Vote.DOWNVOTE))
-            ).get("score", 0)
-            return score
 
     def update_discussion_count(self):
         paper = self.paper
