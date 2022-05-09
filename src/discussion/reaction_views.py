@@ -213,28 +213,13 @@ class ReactionViewActionMixin:
         except Exception as e:
             return Response(f"Failed to delete vote: {e}", status=400)
 
-    def get_ordering(self):
-        default_ordering = ["-score", "created_date"]
-
-        ordering = self.request.query_params.get("ordering", default_ordering)
-        if isinstance(ordering, str):
-            if ordering and "created_date" not in ordering:
-                ordering = [ordering, "created_date"]
-            elif "created_date" not in ordering:
-                ordering = ["created_date"]
-            else:
-                ordering = [ordering]
-        return ordering
-
     def get_action_context(self):
-
-        ordering = self.get_ordering()
-        needs_score = False
-        if "score" in ordering or "-score" in ordering:
-            needs_score = True
         return {
-            "ordering": ordering,
-            "needs_score": needs_score,
+            "ordering": [
+                "created_date",
+                "-score",
+            ],
+            "needs_score": True,
         }
 
     def get_self_upvote_response(self, request, response, model):

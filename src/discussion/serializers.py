@@ -14,6 +14,7 @@ from discussion.reaction_serializers import (
     VoteSerializer,
 )
 from hub.serializers import DynamicHubSerializer
+from discussion.utils import ORDERING_SCORE_ANNOTATION
 from hypothesis.models import Hypothesis
 from paper.models import Paper
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -71,7 +72,7 @@ class DynamicThreadSerializer(
     review = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
+    score = serializers.ReadOnlyField()  # @property
     user_vote = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     discussion_type = serializers.SerializerMethodField()
@@ -98,8 +99,8 @@ class DynamicThreadSerializer(
         else:
             comments = obj.children
 
-        return self.get_children_annotated(comments).order_by(
-            *self.context.get("ordering", ["created_date"])
+        return comments.annotate(ORDERING_SCORE_ANNOTATION).order_by(
+            "-ordering_score", "created_date"
         )
 
     def get_comments(self, obj):
@@ -220,7 +221,7 @@ class DynamicReplySerializer(
     discussion_type = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
+    score = serializers.ReadOnlyField()  # @property
     created_by = serializers.SerializerMethodField()
     parent = serializers.PrimaryKeyRelatedField(
         queryset=Comment.objects.all(), many=False, read_only=False
@@ -265,9 +266,6 @@ class DynamicReplySerializer(
             return False
         return False
 
-    def get_score(self, obj):
-        return obj.calculate_score()
-
 
 class DynamicCommentSerializer(
     DynamicModelFieldSerializer,
@@ -280,7 +278,7 @@ class DynamicCommentSerializer(
     promoted = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
+    score = serializers.ReadOnlyField()  # @property
     thread_id = serializers.SerializerMethodField()
     is_created_by_editor = serializers.BooleanField(
         required=False,
@@ -307,8 +305,8 @@ class DynamicCommentSerializer(
         else:
             replies = obj.children
 
-        return self.get_children_annotated(replies).order_by(
-            *self.context.get("ordering", ["-created_date"])
+        return replies.annotate(ordering_score=ORDERING_SCORE_ANNOTATION).order_by(
+            "-ordering_score", "created_date"
         )
 
     def get_replies(self, obj):
@@ -367,9 +365,6 @@ class DynamicCommentSerializer(
         )
         return serializer.data
 
-    def get_score(self, obj):
-        return obj.calculate_score()
-
 
 class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
     created_by = MinimalUserSerializer(
@@ -381,7 +376,7 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
     promoted = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
+    score = serializers.ReadOnlyField()  # @property
     thread_id = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -427,10 +422,10 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
         model = Comment
 
     def _replies_query(self, obj):
-        children = obj.children.filter(is_removed=False)
-
-        return self.get_children_annotated(children).order_by(
-            *self.context.get("ordering", ["-created_date"])
+        return (
+            obj.children.filter(is_removed=False)
+            .annotate(ordering_score=ORDERING_SCORE_ANNOTATION)
+            .order_by("-ordering_score", "created_date")
         )
 
     def get_replies(self, obj):
@@ -477,9 +472,9 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
     post_slug = serializers.SerializerMethodField()
     hypothesis_slug = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
+    score = serializers.ReadOnlyField()  # @property
     peer_review = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
@@ -532,9 +527,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
         ]
         model = Thread
 
-    def get_score(self, obj):
-        return obj.calculate_score()
-
     def get_user_vote(self, obj):
         user = get_user_from_request(self.context)
         if user and not user.is_anonymous:
@@ -545,10 +537,10 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
         return False
 
     def _comments_query(self, obj):
-        children = obj.children.filter(is_removed=False)
-
-        return self.get_children_annotated(children).order_by(
-            *self.context.get("ordering", ["id"])
+        return (
+            obj.children.filter(is_removed=False)
+            .annotate(ordering_score=ORDERING_SCORE_ANNOTATION)
+            .order_by("-ordering_score", "created_date")
         )
 
     def get_comments(self, obj):
@@ -632,7 +624,6 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
     promoted = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
     thread_id = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -690,9 +681,10 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
         return None
 
     def _replies_query(self, obj):
-        children = obj.children.filter(is_removed=False)
-        return self.get_children_annotated(children).order_by(
-            *self.context.get("ordering", ["-created_date"])
+        return (
+            obj.children.filter(is_removed=False)
+            .annotate(ordering_score=ORDERING_SCORE_ANNOTATION)
+            .order_by("-ordering_score", "created_date")
         )
 
     def get_replies(self, obj):

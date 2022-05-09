@@ -114,16 +114,6 @@ class GenericReactionSerializerMixin:
             log_error(e)
             return None
 
-    def get_children_annotated(self, children):
-        if self.context.get("needs_score", False):
-            upvotes = Count("votes__vote_type", filter=Q(votes__vote_type=Vote.UPVOTE))
-            downvotes = Count(
-                "votes__vote_type", filter=Q(votes__vote_type=Vote.DOWNVOTE)
-            )
-            return children.annotate(score=upvotes - downvotes)
-        else:
-            return children
-
     def get_user_vote(self, obj):
         vote = None
         user = get_user_from_request(self.context)
