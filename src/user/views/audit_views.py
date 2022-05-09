@@ -97,12 +97,12 @@ class AuditViewSet(viewsets.GenericViewSet):
                 ct=Subquery(
                     Flag.objects.filter(
                         content_type_id=OuterRef("content_type_id")
-                    ).values("content_type_id")
+                    ).values("content_type_id")[:1]
                 ),
                 ob=Subquery(
                     Flag.objects.filter(object_id=OuterRef("object_id")).values(
                         "object_id"
-                    )
+                    )[:1]
                 ),
             )
             .exclude(ct__isnull=False, ob__isnull=False)
