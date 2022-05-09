@@ -2,13 +2,16 @@ import functools
 import operator
 
 import django_filters.rest_framework
-from django.db.models import Q
+from django.db.models import Prefetch, Q
+from django.db.models.expressions import OuterRef, Subquery
 from rest_framework import viewsets
+from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import AllowAny
 
 from discussion.reaction_models import Flag
 from discussion.serializers import DynamicFlagSerializer
+from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import Action
 from user.serializers import DynamicActionSerializer
 
@@ -42,34 +45,74 @@ class AuditViewSet(viewsets.GenericViewSet):
         flagged_contributions = Flag.objects.all().select_related("content_type")
         return flagged_contributions
 
-    def _get_latest_actions(self):
-        actions = (
-            self.get_queryset()
-            .filter(user__isnull=False, content_type__model__in=self.models)
-            .exclude(
-                functools.reduce(
-                    operator.or_,
-                    (
-                        Q(content_type_id=content_type_id, object_id=object_id)
-                        for content_type_id, object_id in self._get_flagged_content().values_list(
-                            "content_type_id", "object_id"
-                        )
-                    ),
-                )
-            )
-            .select_related("user")
-            .prefetch_related("item", "user__author_profile")
-        )
-        return actions
+    def _get_flagged_actions(self):
+        flagged_contributions = self._get_flagged_content()
+        return flagged_contributions
 
+        # actions = self.get_filtered_queryset()
+        # actions = Action.objects.all().annotate(
+        #     reason=Subquery(Flag.objects.all().filter(content_type_id=OuterRef('content_type_id'), object_id=OuterRef("object_id")).values('reason'))
+        # ).filter(reason__isnull=False)
+        # return actions
+
+        # actions = self.get_queryset().filter(
+        #     functools.reduce(
+        #         operator.or_,
+        #         (
+        #             Q(content_type_id=content_type_id, object_id=object_id)
+        #             for content_type_id, object_id in flagged_contributions.values_list(
+        #                 "content_type_id", "object_id"
+        #             )
+        #         ),
+        #     )
+        # ).annotate(
+        #     reason=Subquery(flagged_contributions.values('reason'))
+        # ).select_related("user").prefetch_related("item", "user__author_profile")
+        # return actions
+
+    def _get_latest_actions(self):
         # actions = (
         #     self.get_filtered_queryset()
         #     .filter(user__isnull=False, content_type__model__in=self.models)
-        #     .exclude(content_type_id=Subquery(Flag.objects.filter(content_type_id=OuterRef("content_type_id")).values("content_type_id")[:1]))#, object_id=Subquery(Flag.objects.filter(object_id=OuterRef("object_id")).values("object_id")[:1]))
+        #     .exclude(
+        #         functools.reduce(
+        #             operator.or_,
+        #             (
+        #                 Q(content_type_id=content_type_id, object_id=object_id)
+        #                 for content_type_id, object_id in self._get_flagged_content().values_list(
+        #                     "content_type_id", "object_id"
+        #                 )
+        #             ),
+        #         )
+        #     )
         #     .select_related("user")
         #     .prefetch_related("item", "user__author_profile")
         # )
         # return actions
+
+        actions = (
+            self.get_filtered_queryset()
+            .filter(user__isnull=False, content_type__model__in=self.models)
+            .annotate(
+                ct=Subquery(
+                    Flag.objects.filter(
+                        content_type_id=OuterRef("content_type_id")
+                    ).values("content_type_id")
+                ),
+                ob=Subquery(
+                    Flag.objects.filter(object_id=OuterRef("object_id")).values(
+                        "object_id"
+                    )
+                ),
+            )
+            .exclude(ct__isnull=False, ob__isnull=False)
+            .select_related("user")
+            .prefetch_related(
+                "item",
+                "user__author_profile",
+            )
+        )
+        return actions
 
     def _get_latest_actions_context(self):
         context = {
@@ -89,14 +132,21 @@ class AuditViewSet(viewsets.GenericViewSet):
             },
             "usr_das_get_item": {
                 "_include_fields": [
+                    "created_by",
+                    "uploaded_by",
                     "unified_document",
                     "content_type",
                     "source",
-                    "user",
                     "amount",
                     "plain_text",
                     "title",
                     "slug",
+                ]
+            },
+            "usr_das_get_hubs": {
+                "_include_fields": [
+                    "id",
+                    "name",
                 ]
             },
             "pap_dps_get_unified_document": {
@@ -104,6 +154,9 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "id",
                     "document_type",
                 ]
+            },
+            "pap_dps_get_uploaded_by": {
+                "_include_fields": ["author_profile", "first_name", "last_name"]
             },
             "dis_dts_get_unified_document": {
                 "_include_fields": [
@@ -113,6 +166,9 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "slug",
                 ]
             },
+            "dis_dts_get_created_by": {
+                "_include_fields": ["author_profile", "first_name", "last_name"]
+            },
             "dis_dcs_get_unified_document": {
                 "_include_fields": [
                     "id",
@@ -120,6 +176,9 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "documents",
                     "slug",
                 ]
+            },
+            "dis_dcs_get_created_by": {
+                "_include_fields": ["author_profile", "first_name", "last_name"]
             },
             "dis_drs_get_unified_document": {
                 "_include_fields": [
@@ -129,11 +188,25 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "slug",
                 ]
             },
+            "dis_drs_get_created_by": {
+                "_include_fields": ["author_profile", "first_name", "last_name"]
+            },
             "doc_dps_get_unified_document": {
                 "_include_fields": [
                     "id",
                     "document_type",
                     "documents",
+                    "slug",
+                ]
+            },
+            "doc_dps_get_created_by": {
+                "_include_fields": ["author_profile", "first_name", "last_name"]
+            },
+            "doc_duds_get_documents": {
+                "_include_fields": [
+                    "id",
+                    "title",
+                    "post_title",
                     "slug",
                 ]
             },
@@ -145,13 +218,8 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "slug",
                 ]
             },
-            "doc_duds_get_documents": {
-                "_include_fields": [
-                    "id",
-                    "title",
-                    "post_title",
-                    "slug",
-                ]
+            "hyp_dhs_get_created_by": {
+                "_include_fields": ["author_profile", "first_name", "last_name"]
             },
         }
         context["dis_dfs_get_item"] = context["usr_das_get_item"]
@@ -160,6 +228,24 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def flagged(self, request):
+        # actions = self._get_flagged_actions()
+        # page = self.paginate_queryset(actions)
+        # serializer = DynamicActionSerializer(
+        #     page,
+        #     many=True,
+        #     context=self._get_latest_actions_context(),
+        #     _include_fields=[
+        #         "id",
+        #         "content_type",
+        #         "created_by",
+        #         "item",
+        #         "created_date",
+        #         "reason",
+        #     ],
+        # )
+        # data = serializer.data
+        # return self.get_paginated_response(data)
+
         actions = self._get_flagged_content()
         page = self.paginate_queryset(actions)
         serializer = DynamicFlagSerializer(
@@ -169,10 +255,11 @@ class AuditViewSet(viewsets.GenericViewSet):
             _include_fields=[
                 "id",
                 "content_type",
-                "created_by",
+                "flagged_by",
                 "created_date",
                 "item",
                 "reason",
+                "hubs",
             ],
         )
         data = serializer.data
@@ -189,9 +276,10 @@ class AuditViewSet(viewsets.GenericViewSet):
             _include_fields=[
                 "id",
                 "content_type",
-                "created_by",
+                # "created_by",
                 "item",
                 "created_date",
+                "hubs",
             ],
         )
         data = serializer.data

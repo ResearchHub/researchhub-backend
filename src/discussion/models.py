@@ -5,6 +5,7 @@ from django.contrib.postgres.fields import JSONField
 from django.core.cache import cache
 from django.db import models
 from django.db.models import Count, F, Q
+from django.utils.functional import cached_property
 
 from hub.models import Hub
 from paper.utils import get_cache_key
@@ -12,7 +13,6 @@ from purchase.models import Purchase
 from researchhub.lib import CREATED_LOCATIONS
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.models import Permission
-from review.models import Review
 
 from .reaction_models import AbstractGenericReactionModel, Vote
 
@@ -283,11 +283,11 @@ class Thread(BaseComment):
     def __str__(self):
         return "%s: %s" % (self.created_by, self.title)
 
-    @property
+    @cached_property
     def parent(self):
         return self.paper
 
-    @property
+    @cached_property
     def unified_document(self):
         paper = self.paper
         if paper:
@@ -393,33 +393,33 @@ class Reply(BaseComment):
         related_query_name="replies",
     )
 
-    @property
+    @cached_property
     def paper(self):
         comment = self.get_comment_of_reply()
         paper = comment.paper
         return paper
 
-    @property
+    @cached_property
     def post(self):
         comment = self.get_comment_of_reply()
         if comment:
             post = comment.post
             return post
 
-    @property
+    @cached_property
     def hypothesis(self):
         comment = self.get_comment_of_reply()
         if comment:
             hypothesis = comment.hypothesis
             return hypothesis
 
-    @property
+    @cached_property
     def thread(self):
         comment = self.get_comment_of_reply()
         thread = comment.parent
         return thread
 
-    @property
+    @cached_property
     def unified_document(self):
         thread = self.thread
         paper = thread.paper
@@ -515,28 +515,28 @@ class Comment(BaseComment):
     def __str__(self):
         return "{} - {}".format(self.created_by, self.plain_text)
 
-    @property
+    @cached_property
     def paper(self):
         thread = self.parent
         if thread:
             paper = thread.paper
             return paper
 
-    @property
+    @cached_property
     def post(self):
         thread = self.parent
         if thread:
             post = thread.post
             return post
 
-    @property
+    @cached_property
     def hypothesis(self):
         thread = self.parent
         if thread:
             hypothesis = thread.hypothesis
             return hypothesis
 
-    @property
+    @cached_property
     def unified_document(self):
         thread = self.thread
         paper = thread.paper
@@ -553,7 +553,7 @@ class Comment(BaseComment):
 
         return None
 
-    @property
+    @cached_property
     def thread(self):
         thread = self.parent
         return thread

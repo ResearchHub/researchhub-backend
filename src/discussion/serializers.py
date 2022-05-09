@@ -22,11 +22,7 @@ from review.serializers.review_serializer import (
     DynamicReviewSerializer,
     ReviewSerializer,
 )
-from user.serializers import (
-    DynamicMinimalUserSerializer,
-    DynamicUserSerializer,
-    MinimalUserSerializer,
-)
+from user.serializers import DynamicUserSerializer, MinimalUserSerializer
 from utils.http import get_user_from_request
 
 
@@ -246,11 +242,11 @@ class DynamicReplySerializer(
         )
         return serializer.data
 
-    def get_created_by(self, thread):
+    def get_created_by(self, reply):
         context = self.context
         _context_fields = context.get("dis_drs_get_created_by", {})
-        serializer = DynamicMinimalUserSerializer(
-            thread.created_by, context=context, **_context_fields
+        serializer = DynamicUserSerializer(
+            reply.created_by, context=context, **_context_fields
         )
         return serializer.data
 
@@ -341,7 +337,7 @@ class DynamicCommentSerializer(
     def get_created_by(self, comment):
         context = self.context
         _context_fields = context.get("dis_dcs_get_created_by", {})
-        serializer = DynamicMinimalUserSerializer(
+        serializer = DynamicUserSerializer(
             comment.created_by, context=context, **_context_fields
         )
         return serializer.data
@@ -721,7 +717,7 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
 
 class DynamicFlagSerializer(DynamicModelFieldSerializer):
     item = serializers.SerializerMethodField()
-    created_by = serializers.SerializerMethodField()
+    flagged_by = serializers.SerializerMethodField()
     content_type = serializers.SerializerMethodField()
 
     class Meta:
@@ -764,7 +760,7 @@ class DynamicFlagSerializer(DynamicModelFieldSerializer):
 
         return data
 
-    def get_created_by(self, flag):
+    def get_flagged_by(self, flag):
         context = self.context
         _context_fields = context.get("dis_dfs_get_created_by", {})
         serializer = DynamicUserSerializer(

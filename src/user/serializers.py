@@ -16,7 +16,7 @@ from discussion.lib import check_is_discussion_item
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as DiscussionVote
 from hub.models import Hub
-from hub.serializers import HubSerializer, SimpleHubSerializer
+from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerializer
 from hypothesis.models import Hypothesis
 from paper.models import Paper, PaperSubmission
 from paper.models import Vote as PaperVote
@@ -372,21 +372,6 @@ class MinimalUserSerializer(ModelSerializer):
         return serializer.data
 
 
-class DynamicMinimalUserSerializer(DynamicModelFieldSerializer):
-    author_profile = SerializerMethodField()
-
-    class Meta:
-        model = User
-        fields = "__all__"
-
-    def get_author_profile(self, obj):
-        _context_fields = self.context.get("usr_dmus_get_author_profile", {})
-        serializer = DynamicAuthorSerializer(
-            obj.author_profile, context=self.context, **_context_fields
-        )
-        return serializer.data
-
-
 class UserEditableSerializer(ModelSerializer):
     author_profile = AuthorSerializer()
     balance = SerializerMethodField()
@@ -712,6 +697,8 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
     item = SerializerMethodField()
     content_type = SerializerMethodField()
     created_by = SerializerMethodField()
+    hubs = SerializerMethodField()
+    reason = SerializerMethodField()
 
     class Meta:
         model = Action
@@ -782,6 +769,17 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
 
     def get_content_type(self, action):
         return action.content_type.model
+
+    def get_hubs(self, action):
+        context = self.context
+        _context_fields = context.get("usr_das_get_hubs", {})
+        serializer = DynamicHubSerializer(
+            action.hubs, many=True, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_reason(self, action):
+        return getattr(action, "reason", None)
 
 
 class OrganizationSerializer(ModelSerializer):
