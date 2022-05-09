@@ -224,6 +224,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         }
         context["dis_dfs_get_item"] = context["usr_das_get_item"]
         context["dis_dfs_get_created_by"] = context["usr_das_get_created_by"]
+        context["dis_dfs_get_hubs"] = context["usr_das_get_hubs"]
         return context
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])

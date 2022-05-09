@@ -13,8 +13,8 @@ from discussion.reaction_serializers import (
     GenericReactionSerializerMixin,
     VoteSerializer,
 )
-from hub.serializers import DynamicHubSerializer
 from discussion.utils import ORDERING_SCORE_ANNOTATION
+from hub.serializers import DynamicHubSerializer
 from hypothesis.models import Hypothesis
 from paper.models import Paper
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -712,6 +712,7 @@ class DynamicFlagSerializer(DynamicModelFieldSerializer):
     item = serializers.SerializerMethodField()
     flagged_by = serializers.SerializerMethodField()
     content_type = serializers.SerializerMethodField()
+    hubs = serializers.SerializerMethodField()
 
     class Meta:
         model = Flag
