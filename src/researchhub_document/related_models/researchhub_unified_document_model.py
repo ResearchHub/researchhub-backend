@@ -59,9 +59,8 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         # This property needs to return a queryset
         # which is why we are filtering by authors
 
-        paper = self.paper
-        if paper:
-            return paper.authors.all()
+        if hasattr(self, "paper"):
+            return self.paper.authors.all()
 
         if hasattr(self, "hypothesis"):
             author = Author.objects.filter(user=self.hypothesis.created_by)

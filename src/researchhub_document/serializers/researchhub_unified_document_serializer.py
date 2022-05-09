@@ -8,6 +8,7 @@ from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     ELN,
     HYPOTHESIS,
+    PAPER,
 )
 from researchhub_document.serializers import (
     DynamicPostSerializer,
@@ -104,10 +105,12 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
             return DynamicHypothesisSerializer(
                 unified_doc.hypothesis, context=context, **_context_fields
             ).data
-        else:
+        elif doc_type == PAPER:
             return DynamicPaperSerializer(
                 unified_doc.paper, context=context, **_context_fields
             ).data
+        else:
+            return None
 
     def get_created_by(self, unified_doc):
         context = self.context
