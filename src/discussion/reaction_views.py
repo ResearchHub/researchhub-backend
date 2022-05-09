@@ -269,7 +269,7 @@ def create_endorsement(user, item):
 def create_flag(user, item, reason):
     flag = Flag(created_by=user, item=item, reason=reason)
     flag.save()
-    flag.hubs.add(item.hubs)
+    flag.hubs.add(*item.unified_document.hubs.all())
     return flag
 
 
