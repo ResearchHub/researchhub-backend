@@ -227,8 +227,10 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 serialized = WithdrawalSerializer(withdrawal)
                 return Response(serialized.data, status=201)
             except Exception as e:
+                sentry.log_error(e)
                 return Response(str(e), status=400)
         else:
+            sentry.log_info(message)
             return Response(message, status=400)
 
     def list(self, request):
