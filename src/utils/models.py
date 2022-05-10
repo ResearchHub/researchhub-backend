@@ -1,11 +1,12 @@
 from django.db import models
 from django.utils import timezone
+
 from utils.managers import SoftDeletableManager
 
 
 class DefaultModel(models.Model):
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
+    created_date = models.DateTimeField(auto_now_add=True, null=True)
+    updated_date = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         abstract = True
@@ -34,16 +35,16 @@ class SoftDeletableModel(models.Model):
         if soft:
             self.is_removed = True
             self.is_removed_date = timezone.now()
-            self.save(update_fields=['is_removed', 'is_removed_date'])
+            self.save(update_fields=["is_removed", "is_removed_date"])
         else:
             return super().delete(*args, **kwargs)
 
 
 class PaidStatusModelMixin(models.Model):
-    FAILED = 'FAILED'
-    INITIATED = 'INITIATED'
-    PAID = 'PAID'
-    PENDING = 'PENDING'
+    FAILED = "FAILED"
+    INITIATED = "INITIATED"
+    PAID = "PAID"
+    PENDING = "PENDING"
     PAID_STATUS_CHOICES = [
         (FAILED, FAILED),
         (PAID, PAID),
@@ -55,10 +56,7 @@ class PaidStatusModelMixin(models.Model):
 
     paid_date = models.DateTimeField(default=None, null=True)
     paid_status = models.CharField(
-        max_length=255,
-        choices=PAID_STATUS_CHOICES,
-        default=INITIATED,
-        null=True
+        max_length=255, choices=PAID_STATUS_CHOICES, default=INITIATED, null=True
     )
 
     def set_paid_failed(self):

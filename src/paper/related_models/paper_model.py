@@ -16,6 +16,7 @@ from manubot.cite.unpaywall import Unpaywall
 
 import utils.sentry as sentry
 from discussion.models import Thread
+from discussion.reaction_models import AbstractGenericReactionModel
 from hub.models import Hub
 from hub.serializers import HubSerializer
 from paper.lib import journal_hosts
@@ -57,7 +58,7 @@ HELP_TEXT_IS_PUBLIC = "Hides the paper from the public."
 HELP_TEXT_IS_REMOVED = "Hides the paper because it is not allowed."
 
 
-class Paper(models.Model):
+class Paper(AbstractGenericReactionModel):
     REGULAR = "REGULAR"
     PRE_REGISTRATION = "PRE_REGISTRATION"
     COMPLETE = "COMPLETE"
@@ -1011,7 +1012,10 @@ class Vote(models.Model):
         (DOWNVOTE, "Downvote"),
     ]
     paper = models.ForeignKey(
-        Paper, on_delete=models.CASCADE, related_name="votes", related_query_name="vote"
+        Paper,
+        on_delete=models.CASCADE,
+        related_name="votes_legacy",
+        related_query_name="vote",
     )
     created_by = models.ForeignKey(
         "user.User",
@@ -1037,7 +1041,10 @@ class Vote(models.Model):
 
 class Flag(models.Model):
     paper = models.ForeignKey(
-        Paper, on_delete=models.CASCADE, related_name="flags", related_query_name="flag"
+        Paper,
+        on_delete=models.CASCADE,
+        related_name="flags_legacy",
+        related_query_name="flag",
     )
     created_by = models.ForeignKey(
         "user.User",
