@@ -35,6 +35,7 @@ def add_unified_doc(created, instance, **kwargs):
                 unified_doc = ResearchhubUnifiedDocument.objects.create(
                     document_type=PAPER,
                 )
+                unified_doc.hubs.add(*instance.hubs.all())
                 instance.unified_document = unified_doc
                 instance.save()
             except Exception as e:

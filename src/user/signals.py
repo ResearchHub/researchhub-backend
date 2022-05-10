@@ -207,10 +207,6 @@ def create_action(sender, instance, created, **kwargs):
         action = Action.objects.create(item=instance, user=user, display=display)
 
         hubs = get_related_hubs(instance)
-        if sender == Paper:
-            hubs = instance.hubs.all()
-        elif sender != BulletPointVote and sender != SummaryVote:
-            hubs = get_related_hubs(instance)
         if hubs:
             action.hubs.add(*hubs)
         create_notification(sender, instance, created, action, **kwargs)

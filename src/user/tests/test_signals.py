@@ -9,12 +9,11 @@ from user.tests.helpers import create_random_default_user
 
 
 class UserSignalsTests(TestCase):
-
     def setUp(self):
         pass
 
     def test_create_discussion_item_creates_action(self):
-        user = create_random_default_user('rando')
+        user = create_random_default_user("rando")
         create_comment(created_by=user)
 
         user.refresh_from_db()
@@ -22,9 +21,9 @@ class UserSignalsTests(TestCase):
         self.assertEqual(len(actions), 1)
 
     def test_create_summary_creates_action(self):
-        user = create_random_default_user('summary_proposer')
+        user = create_random_default_user("summary_proposer")
         paper = create_paper()
-        create_summary('proposed_summary', user, paper.id)
+        create_summary("proposed_summary", user, paper.id)
 
         user.refresh_from_db()
         actions = user.actions.all()
@@ -34,10 +33,10 @@ class UserSignalsTests(TestCase):
         self.assertTrue(isinstance(action_item, Summary))
 
     def test_create_thread_creates_action_with_paper_hubs(self):
-        user = create_random_default_user('nacho')
-        hub = create_hub(name='Nacho Libre')
+        user = create_random_default_user("nacho")
+        hub = create_hub(name="Nacho Libre")
         paper = create_paper()
-        paper.hubs.add(hub)
+        paper.unified_document.hubs.add(hub)
         create_thread(paper=paper, created_by=user)
 
         action = user.actions.all()[0]
