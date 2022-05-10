@@ -316,17 +316,15 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         user_two_weeks_delta = now - user.created_date
 
-        # if user_two_weeks_delta < timedelta(days=14):
-        #     message = (
-        #         "You're account is new, please wait 2 weeks before withdrawing."
-        #     )
-        #     return (False, message)
+        if user_two_weeks_delta < timedelta(days=14):
+            message = "You're account is new, please wait 2 weeks before withdrawing."
+            return (False, message)
 
-        # if address_timedelta < timedelta(days=14) or user_timedelta < timedelta(days=14):
-        #     message = (
-        #         "You're limited to 1 withdrawal every 2 weeks."
-        #     )
-        #     return (False, message)
+        if address_timedelta < timedelta(days=14) or user_timedelta < timedelta(
+            days=14
+        ):
+            message = "You're limited to 1 withdrawal every 2 weeks."
+            return (False, message)
 
         return (True, None)
 
@@ -411,7 +409,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                     ),
                 )
 
-        return (valid, None)
+        return (True, None)
 
     def _check_withdrawal_amount(self, amount, transaction_fee, user):
         if transaction_fee < 0:
