@@ -20,7 +20,7 @@ from paper.models import Paper
 from paper.models import Vote as PaperVote
 from paper.serializers import PaperVoteSerializer
 from paper.utils import get_cache_key
-from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
+from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument, FeedExclusion
 from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
@@ -262,9 +262,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         time_scope,
     ):
 
+        excluded_docs = FeedExclusion.objects.filter(hub_id=hub_id).values_list("unified_document")
         date_ranges = get_date_ranges_by_time_scope(time_scope)
         start_date = date_ranges[0]
         end_date = date_ranges[1]
+
 
         papers = Paper.objects.filter(uploaded_by__isnull=False).values_list(
             "unified_document"
@@ -276,8 +278,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "unified_document"
         )
         filtered_ids = papers.union(posts, hypothesis)
+        
         qs = self.queryset.filter(id__in=filtered_ids, is_removed=False)
-
         if document_type == PAPER.lower():
             qs = qs.filter(document_type=PAPER)
         elif document_type == POSTS.lower():
@@ -286,6 +288,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             qs = qs.filter(document_type=HYPOTHESIS)
         else:
             qs = qs.all()
+
+        qs = qs.exclude(id__in=excluded_docs)
 
         hub_id = int(hub_id)
         if hub_id != 0:
@@ -633,6 +637,18 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "results": all_documents,
             }
             return Response(res, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
+    def exclude_from_feed(self, request):
+        unified_document_id = request.data['unified_document_id']
+
+        if ['exclude_from_homepage'] == True:
+            FeedExclusion.objects.get_or_create(
+                unified_document_id=unified_document_id,
+                hub_id=0
+            )
+
+        return Response(status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def check_user_vote(self, request):
