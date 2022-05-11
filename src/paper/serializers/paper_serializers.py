@@ -262,9 +262,6 @@ class BasePaperSerializer(serializers.ModelSerializer):
                 vote = PaperVoteSerializer(vote_created_by).data
             except AttributeError:
                 try:
-                    import pdb
-
-                    pdb.set_trace()
                     vote = paper.votes_legacy.get(created_by=user.id)
                     vote = PaperVoteSerializer(vote).data
                 except Vote.DoesNotExist:
@@ -851,9 +848,6 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
 
         if user:
             try:
-                import pdb
-
-                pdb.set_trace()
                 vote = paper.votes_legacy.get(created_by=user.id)
                 vote = DynamicPaperVoteSerializer(
                     vote,
