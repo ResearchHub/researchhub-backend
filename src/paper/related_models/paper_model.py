@@ -75,8 +75,6 @@ class Paper(AbstractGenericReactionModel):
     CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS["PROGRESS"]
     CREATED_LOCATION_CHOICES = [(CREATED_LOCATION_PROGRESS, "Progress")]
 
-    created_date = models.DateTimeField(auto_now_add=True, db_index=True)
-    updated_date = models.DateTimeField(auto_now=True)
     twitter_score_updated_date = models.DateTimeField(null=True, blank=True)
     is_public = models.BooleanField(default=True, help_text=HELP_TEXT_IS_PUBLIC)
 
@@ -88,7 +86,11 @@ class Paper(AbstractGenericReactionModel):
     )
     bullet_low_quality = models.BooleanField(default=False)
     summary_low_quality = models.BooleanField(default=False)
-    score = models.IntegerField(default=0, db_index=True)
+    paper_score = models.IntegerField(
+        default=0,
+        db_index=True,
+        # help_text="Legacy. Need to migrate to use AbstractGenericRelation",
+    )
     discussion_count = models.IntegerField(default=0, db_index=True)
     hot_score = models.IntegerField(
         default=0, db_index=True, help_text="Legacy. Refer to UnifiedDocument"
@@ -326,8 +328,9 @@ class Paper(AbstractGenericReactionModel):
 
     @property
     def score_indexing(self):
+        # legacy needs to be deprecated & use AbstractGenericReactionModel
         """Score for Elasticsearch indexing."""
-        return self.calculate_score()
+        return self.calculate_paper_score()
 
     @property
     def hot_score_indexing(self):
@@ -349,7 +352,7 @@ class Paper(AbstractGenericReactionModel):
 
     @property
     def votes_indexing(self):
-        all_votes = self.votes.all()
+        all_votes = self.votes_legacy.all()
         if len(all_votes) > 0:
             return [self.get_vote_for_index(vote) for vote in all_votes]
         return {}
@@ -369,27 +372,27 @@ class Paper(AbstractGenericReactionModel):
 
         return raw_author_count + registered_author_count
 
-    def calculate_hot_score(self):
+    def calculate_hot_score(paper):
         ALGO_START_UNIX = 1546329600
         TWITTER_BOOST = 100
         TIME_DIV = 3600000
         HOUR_SECONDS = 86400
         DATE_BOOST = 10
 
-        boosts = self.purchases.filter(
+        boosts = paper.purchases.filter(
             paid_status=Purchase.PAID,
             amount__gt=0,
             user__moderator=True,
             boost_time__gte=0,
         )
         today = datetime.datetime.now(tz=pytz.utc).replace(hour=0, minute=0, second=0)
-        score = self.score
-        unified_doc = self.unified_document
+        score = paper.paper_score
+        unified_doc = paper.unified_document
 
         if score >= 0:
             original_uploaded_date = self.created_date
             uploaded_date = original_uploaded_date
-            twitter_score = self.twitter_score
+            twitter_score = paper.twitter_score
             day_delta = datetime.timedelta(days=2)
             timeframe = today - day_delta
 
@@ -400,10 +403,10 @@ class Paper(AbstractGenericReactionModel):
                     second=original_uploaded_date.second,
                 )
 
-            votes = self.votes
+            votes = paper.votes_legacy
             if votes.exists():
                 vote_avg_epoch = (
-                    self.votes.aggregate(
+                    paper.votes_legacy.aggregate(
                         avg=Avg(
                             Extract("created_date", "epoch"),
                             output_field=models.IntegerField(),
@@ -428,7 +431,7 @@ class Paper(AbstractGenericReactionModel):
             base_score = paper_piecewise_log(score + 1)
             uploaded_date_score = uploaded_date.timestamp() / TIME_DIV
             vote_score = paper_piecewise_log(num_votes + 1)
-            discussion_score = paper_piecewise_log(self.discussion_count + 1)
+            discussion_score = paper_piecewise_log(paper.discussion_count + 1)
 
             # Why we log delta days
             # Ex: If paper 1 was uploaded 3 days ago with a low score and paper
@@ -471,23 +474,23 @@ class Paper(AbstractGenericReactionModel):
                 + boost_score
             ) * 1000
 
-            completeness = self.completeness
-            if completeness == self.COMPLETE:
+            completeness = paper.completeness
+            if completeness == paper.COMPLETE:
                 hot_score *= 1
-            elif completeness == self.PARTIAL:
+            elif completeness == paper.PARTIAL:
                 hot_score *= 0.95
             else:
                 hot_score *= 0.90
 
-            self.hot_score = hot_score
+            paper.hot_score = hot_score
             unified_doc.hot_score = hot_score
         else:
-            self.hot_score = 0
+            paper.hot_score = 0
             unified_doc.hot_score = 0
 
         if unified_doc:
             unified_doc.save()
-        self.save()
+        paper.save()
 
     def calculate_twitter_score(self):
         result_ids = set()
@@ -660,8 +663,8 @@ class Paper(AbstractGenericReactionModel):
         else:
             celery_extract_twitter_comments(self.id)
 
-    def calculate_score(self, ignore_self_vote=False, ignore_twitter_score=False):
-        qs = self.votes.filter(
+    def calculate_paper_score(self, ignore_self_vote=False, ignore_twitter_score=False):
+        qs = self.votes_legacy.filter(
             created_by__is_suspended=False, created_by__probable_spammer=False
         )
 
@@ -832,12 +835,12 @@ class Paper(AbstractGenericReactionModel):
             else:
                 print("No new paper")
 
-    def get_promoted_score(self):
-        purchases = self.purchases.filter(
+    def get_promoted_score(paper):
+        purchases = paper.purchases.filter(
             paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
         )
         if purchases.exists():
-            base_score = self.score
+            base_score = paper.paper_score
             boost_amount = (
                 purchases.annotate(amount_as_int=Cast("amount", IntegerField()))
                 .aggregate(sum=Sum("amount_as_int"))
@@ -1015,7 +1018,7 @@ class Vote(models.Model):
         Paper,
         on_delete=models.CASCADE,
         related_name="votes_legacy",
-        related_query_name="vote",
+        related_query_name="vote_legacy",
     )
     created_by = models.ForeignKey(
         "user.User",
@@ -1044,7 +1047,7 @@ class Flag(models.Model):
         Paper,
         on_delete=models.CASCADE,
         related_name="flags_legacy",
-        related_query_name="flag",
+        related_query_name="flag_legacy",
     )
     created_by = models.ForeignKey(
         "user.User",

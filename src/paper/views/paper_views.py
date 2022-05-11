@@ -573,6 +573,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         permission_classes=[DownvotePaper & CreateOrUpdateIfAllowed],
     )
     def downvote(self, request, pk=None):
+        import pdb
+
+        pdb.set_trace()
         paper = self.get_object()
         hub_ids = list(paper.hubs.values_list("id", flat=True))
         user = request.user

@@ -90,7 +90,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
         abstract = True
         exclude = ["references"]
         read_only_fields = [
-            "score",
+            "paper_score",
             "user_vote",
             "user_flag",
             "users_who_bookmarked",
@@ -262,6 +262,9 @@ class BasePaperSerializer(serializers.ModelSerializer):
                 vote = PaperVoteSerializer(vote_created_by).data
             except AttributeError:
                 try:
+                    import pdb
+
+                    pdb.set_trace()
                     vote = paper.votes_legacy.get(created_by=user.id)
                     vote = PaperVoteSerializer(vote).data
                 except Vote.DoesNotExist:
@@ -341,7 +344,7 @@ class PaperSerializer(BasePaperSerializer):
             "publication_type",
             "raw_author_scores",
             "retrieved_from_external_source",
-            "score",
+            "paper_score",
             "slug",
             "tagline",
             "twitter_mentions",
@@ -750,7 +753,7 @@ class PaperSerializer(BasePaperSerializer):
                                 "last_name": author.get("last_name"),
                             }
                         ]
-                    ).aggregate(Sum("score"))["score__sum"]
+                    ).aggregate(Sum("paper_score"))["paper_score__sum"]
 
                     scores.append(score)
         return scores
@@ -845,8 +848,12 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
         user = get_user_from_request(self.context)
         context = self.context
         _context_fields = context.get("pap_dps_get_user_vote", {})
+
         if user:
             try:
+                import pdb
+
+                pdb.set_trace()
                 vote = paper.votes_legacy.get(created_by=user.id)
                 vote = DynamicPaperVoteSerializer(
                     vote,

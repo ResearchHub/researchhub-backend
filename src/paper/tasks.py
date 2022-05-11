@@ -121,8 +121,8 @@ def censored_paper_cleanup(paper_id):
         paper.save()
 
     if paper:
-        paper.votes.update(is_removed=True)
-        for vote in paper.votes.all():
+        paper.votes_legacy.update(is_removed=True)
+        for vote in paper.votes_legacy.all():
             if vote.vote_type == 1:
                 user = vote.created_by
                 user.set_probable_spammer()
@@ -618,8 +618,8 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
     #     priority=7 - next_iteration,
     #     countdown=86400 * next_iteration
     # )
-    score = paper.calculate_score()
-    paper.score = score
+    score = paper.calculate_paper_score()
+    paper.paper_score = score
     paper.save()
 
     if score > 0:
