@@ -5,8 +5,12 @@ from utils.managers import SoftDeletableManager
 
 
 class DefaultModel(models.Model):
-    created_date = models.DateTimeField(auto_now_add=True, null=True)
-    updated_date = models.DateTimeField(auto_now=True, null=True)
+    created_date = models.DateTimeField(
+        auto_now_add=True,
+        blank=False,
+        null=True,
+    )
+    updated_date = models.DateTimeField(auto_now=True, blank=False)
 
     class Meta:
         abstract = True
