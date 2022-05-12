@@ -121,7 +121,7 @@ class HubViewSet(viewsets.ModelViewSet):
             paper_count = Count(
                 "papers",
                 filter=Q(
-                    papers__uploaded_date__gte=two_weeks_ago,
+                    papers__created_date__gte=two_weeks_ago,
                     papers__uploaded_by__isnull=False,
                 ),
             )

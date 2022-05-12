@@ -74,7 +74,7 @@ class Paper(models.Model):
     CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS["PROGRESS"]
     CREATED_LOCATION_CHOICES = [(CREATED_LOCATION_PROGRESS, "Progress")]
 
-    uploaded_date = models.DateTimeField(auto_now_add=True, db_index=True)
+    created_date = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_date = models.DateTimeField(auto_now=True)
     twitter_score_updated_date = models.DateTimeField(null=True, blank=True)
     is_public = models.BooleanField(default=True, help_text=HELP_TEXT_IS_PUBLIC)
@@ -257,6 +257,10 @@ class Paper(models.Model):
             return "titleless paper"
 
     @property
+    def uploaded_date(self):
+        return self.created_date
+
+    @property
     def is_hidden(self):
         return (not self.is_public) or self.is_removed or self.is_removed_by_user
 
@@ -382,7 +386,7 @@ class Paper(models.Model):
         unified_doc = self.unified_document
 
         if score >= 0:
-            original_uploaded_date = self.uploaded_date
+            original_uploaded_date = self.created_date
             uploaded_date = original_uploaded_date
             twitter_score = self.twitter_score
             day_delta = datetime.timedelta(days=2)

@@ -600,8 +600,8 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
         if code != RATE_LIMIT_CODE:
             return False, str(e)
 
-        uploaded_date = paper.uploaded_date
-        if uploaded_date >= today:
+        created_date = paper.created_date
+        if created_date >= today:
             priority = 4
         else:
             priority = 7
@@ -633,7 +633,7 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
 @app.task(queue=QUEUE_PAPER_MISC)
 def handle_duplicate_doi(new_paper, doi):
     Paper = apps.get_model("paper.Paper")
-    original_paper = Paper.objects.filter(doi=doi).order_by("uploaded_date")[0]
+    original_paper = Paper.objects.filter(doi=doi).order_by("created_date")[0]
     merge_paper_votes(original_paper, new_paper)
     merge_paper_threads(original_paper, new_paper)
     merge_paper_bulletpoints(original_paper, new_paper)
@@ -644,7 +644,7 @@ def handle_duplicate_doi(new_paper, doi):
 def celery_update_hot_scores():
     Paper = apps.get_model("paper.Paper")
     start_date = datetime.now() - timedelta(days=4)
-    papers = Paper.objects.filter(uploaded_date__gte=start_date, is_removed=False)
+    papers = Paper.objects.filter(created_date__gte=start_date, is_removed=False)
     for paper in papers.iterator():
         paper.calculate_hot_score()
 
@@ -679,7 +679,7 @@ def preload_trending_papers(hub_id, ordering, time_difference, context):
         query_string_ordering = "top_rated"
     elif ordering == "-discussed":
         query_string_ordering = "most_discussed"
-    elif ordering == "-uploaded_date":
+    elif ordering == "-created_date":
         query_string_ordering = "newest"
     elif ordering == "-hot_score":
         query_string_ordering = "hot"
@@ -753,8 +753,8 @@ def log_daily_uploads():
     start_date = today.replace(hour=0, minute=0, second=0)
     end_date = today.replace(hour=23, minute=59, second=59)
     papers = Paper.objects.filter(
-        uploaded_date__gte=start_date,
-        uploaded_date__lte=end_date,
+        created_date__gte=start_date,
+        created_date__lte=end_date,
         uploaded_by__isnull=True,
     )
     paper_count = papers.count()
