@@ -317,6 +317,7 @@ class ContributionPaperSerializer(BasePaperSerializer):
 class PaperSerializer(BasePaperSerializer):
     raw_author_scores = serializers.SerializerMethodField()
     authors = serializers.SerializerMethodField()
+    uploaded_date = serializers.ReadOnlyField()  # @property
 
     class Meta:
         exclude = ["references"]
@@ -346,7 +347,6 @@ class PaperSerializer(BasePaperSerializer):
             "twitter_mentions",
             "twitter_score",
             "unified_document_id",
-            "uploaded_date",
             "user_flag",
             "users_who_bookmarked",
             "user_vote",

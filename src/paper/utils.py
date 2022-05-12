@@ -625,7 +625,7 @@ def invalidate_newest_cache(hub_ids, with_default=True):
         hub_ids = add_default_hub(hub_ids)
 
     for hub_id in hub_ids:
-        cache_key = get_cache_key("hub", f"{hub_id}_-uploaded_date_today")
+        cache_key = get_cache_key("hub", f"{hub_id}_-created_date_today")
         cache.delete(cache_key)
 
 
