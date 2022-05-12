@@ -600,7 +600,7 @@ def celery_calculate_paper_twitter_score(paper_id, iteration=0):
         if code != RATE_LIMIT_CODE:
             return False, str(e)
 
-        uploaded_date = paper.uploaded_date
+        uploaded_date = paper.created_date
         if uploaded_date >= today:
             priority = 4
         else:
