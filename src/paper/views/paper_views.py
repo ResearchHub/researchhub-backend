@@ -98,7 +98,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     search_fields = ("title", "doi", "paper_title")
     filter_class = PaperFilter
     throttle_classes = THROTTLE_CLASSES
-    ordering = "-uploaded_date"
+    ordering = "-created_date"
 
     permission_classes = [
         (IsAuthenticatedOrReadOnly | HasAPIKey)
@@ -742,7 +742,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
             order_papers = (
                 papers.filter(
-                    uploaded_date__range=[start_date, end_date],
+                    created_date__range=[start_date, end_date],
                 )
                 .annotate(total_score=boost_amount + F("score"))
                 .order_by("-total_score")
@@ -765,12 +765,12 @@ class PaperViewSet(viewsets.ModelViewSet):
                 .order_by(ordering, ordering + "_secondary")
             )
         elif "removed" in ordering:
-            order_papers = papers.order_by("-uploaded_date")
+            order_papers = papers.order_by("-created_date")
         elif "twitter_score" in ordering:
             order_papers = papers.order_by("-twitter_score")
         elif "user-uploaded" in ordering:
-            order_papers = papers.filter(uploaded_date__gte=start_date).order_by(
-                "-uploaded_date"
+            order_papers = papers.filter(created_date__gte=start_date).order_by(
+                "-created_date"
             )
         else:
             order_papers = papers.order_by(ordering)
@@ -971,7 +971,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         elif ordering == "most_discussed":
             ordering = "-discussed"
         elif ordering == "newest":
-            ordering = "-uploaded_date"
+            ordering = "-created_date"
         elif ordering == "hot":
             ordering = "-hot_score"
         elif ordering == "user-uploaded":
