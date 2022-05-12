@@ -36,6 +36,7 @@ from user.models import (
     University,
     User,
     UserApiToken,
+    Verdict,
     Verification,
 )
 from user.related_models.gatekeeper_model import Gatekeeper
@@ -768,7 +769,8 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_content_type(self, action):
-        return action.content_type.name
+        content_type = action.content_type
+        return {"id": content_type.id, "name": content_type.name}
 
     def get_hubs(self, action):
         context = self.context
@@ -854,3 +856,9 @@ class DynamicOrganizationSerializer(DynamicModelFieldSerializer):
             permission, context=context, **_context_fields
         )
         return serializer.data
+
+
+class VerdictSerializer(ModelSerializer):
+    class Meta:
+        model = Verdict
+        fields = "__all__"

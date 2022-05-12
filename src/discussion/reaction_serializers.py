@@ -1,4 +1,5 @@
 import rest_framework.serializers as serializers
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Q
 
 from discussion.reaction_models import Endorsement, Flag, Vote
@@ -28,10 +29,19 @@ class FlagSerializer(serializers.ModelSerializer):
             "content_type",
             "created_by",
             "created_date",
+            "id",
             "item",
             "reason",
+            "object_id",
         ]
         model = Flag
+
+    # def to_internal_value(self, data):
+    #     content_type = data.get("content_type", None)
+    #     if content_type:
+    #         content_type_id = ContentType.objects.get(model=content_type).id
+    #         data["content_type"] = content_type_id
+    #     return super().to_internal_value(data)
 
 
 class VoteSerializer(serializers.ModelSerializer):
