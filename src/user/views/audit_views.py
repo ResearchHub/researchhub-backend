@@ -7,13 +7,16 @@ from django.db.models.expressions import OuterRef, Subquery
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
 
+from discussion.models import BaseComment
 from discussion.reaction_models import Flag
+from discussion.reaction_serializers import FlagSerializer
 from discussion.serializers import DynamicFlagSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import Action
-from user.serializers import DynamicActionSerializer
+from user.serializers import DynamicActionSerializer, VerdictSerializer
 
 
 class CursorSetPagination(CursorPagination):
@@ -284,3 +287,54 @@ class AuditViewSet(viewsets.GenericViewSet):
         )
         data = serializer.data
         return self.get_paginated_response(data)
+
+    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
+    def flag(self, request):
+        moderator = request.user
+        data = request.data
+        flag_data = data.get("flag", [])
+        for f in flag_data:
+            f["created_by"] = moderator.id
+
+        flag_serializer = FlagSerializer(data=flag_data, many=True)
+        flag_serializer.is_valid(raise_exception=True)
+        flag_serializer.save()
+
+        return Response({"flag": flag_serializer.data}, status=200)
+
+    # TODO: Permissions
+    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
+    def flag_and_remove(self, request):
+        moderator = request.user
+        data = request.data
+        flag_data = data.get("flag", [])
+        verdict_data = data.get("verdict", {})
+        for f in flag_data:
+            f["created_by"] = moderator.id
+        verdict_data["created_by"] = moderator.id
+
+        flag_serializer = FlagSerializer(data=flag_data, many=True)
+        flag_serializer.is_valid(raise_exception=True)
+        flags = flag_serializer.save()
+
+        for flag in flags:
+            verdict_data["flag"] = flag.id
+            verdict_serializer = VerdictSerializer(data=verdict_data)
+            verdict_serializer.is_valid(raise_exception=True)
+            verdict = verdict_serializer.save()
+
+            is_content_removed = verdict.is_content_removed
+            if is_content_removed:
+                item = flag.item
+                if isinstance(item, BaseComment):
+                    item.is_removed = is_content_removed
+                    item.save()
+                else:
+                    unified_document = item.unified_document
+                    unified_document.is_removed = is_content_removed
+                    unified_document.save()
+
+        return Response(
+            {"flag": flag_serializer.data, "verdict": verdict_serializer.data},
+            status=200,
+        )
