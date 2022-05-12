@@ -318,7 +318,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         flags = flag_serializer.save()
 
         for flag in flags:
-            verdict_data["flag"] = f.id
+            verdict_data["flag"] = flag.id
             verdict_serializer = VerdictSerializer(data=verdict_data)
             verdict_serializer.is_valid(raise_exception=True)
             verdict = verdict_serializer.save()
