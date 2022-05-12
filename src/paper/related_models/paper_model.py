@@ -390,7 +390,7 @@ class Paper(AbstractGenericReactionModel):
         unified_doc = paper.unified_document
 
         if score >= 0:
-            original_uploaded_date = self.created_date
+            original_uploaded_date = paper.created_date
             uploaded_date = original_uploaded_date
             twitter_score = paper.twitter_score
             day_delta = datetime.timedelta(days=2)
