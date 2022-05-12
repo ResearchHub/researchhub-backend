@@ -70,6 +70,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         doc.is_removed = True
         doc.save()
 
+        inner_doc = doc.get_document()
+        if (isinstance(inner_doc, Paper)):
+            inner_doc.is_removed = True
+            inner_doc.save()
+            inner_doc.reset_cache(use_celery=False)
+
         doc_type = get_doc_type_key(doc)
         hub_ids = doc.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
@@ -78,7 +84,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             filters=[NEWEST, TOP, TRENDING, DISCUSSED],
             with_default_hub=True,
         )
-
+        print('self.get_serializer(instance=doc)', self.get_serializer(instance=doc))
         return Response(self.get_serializer(instance=doc).data, status=200)
 
     @action(
@@ -90,6 +96,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         doc = self.get_object()
         doc.is_removed = False
         doc.save()
+
+        inner_doc = doc.get_document()
+        if (isinstance(inner_doc, Paper)):
+            inner_doc.is_removed = False
+            inner_doc.save()
+            inner_doc.reset_cache(use_celery=False)
 
         doc_type = get_doc_type_key(doc)
         hub_ids = doc.hubs.values_list("id", flat=True)
@@ -638,18 +650,67 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             }
             return Response(res, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
-    def exclude_from_feed(self, request):
-        unified_document_id = request.data['unified_document_id']
+    @action(detail=True, methods=["post"], permission_classes=[AllowAny])
+    def exclude_from_feed(self, request, pk=None):
+        unified_document = self.queryset.get(id=pk)
+        doc_type = get_doc_type_key(unified_document)
+        hub_ids = list(
+            unified_document.hubs.values_list(
+                'id',
+                flat=True
+            )
+        )
 
-        if ['exclude_from_homepage'] == True:
+        if request.data['exclude_from_homepage'] == True:
             FeedExclusion.objects.get_or_create(
-                unified_document_id=unified_document_id,
+                unified_document=unified_document,
                 hub_id=0
             )
 
+        if request.data['exclude_from_hubs'] == True:
+            for hub_id in hub_ids:
+                FeedExclusion.objects.get_or_create(
+                    unified_document=unified_document,
+                    hub_id=hub_id
+                )
+
+        hub_ids.append(0)
+        reset_unified_document_cache(
+            hub_ids,
+            document_type=['all', doc_type],
+            filters=[TRENDING],
+            with_default_hub=True,
+        )
+
         return Response(status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=["post"], permission_classes=[AllowAny])
+    def include_in_feed(self, request, pk=None):
+        unified_document = self.queryset.get(id=pk)
+        doc_type = get_doc_type_key(unified_document)
+        hub_ids = list(
+            unified_document.hubs.values_list(
+                'id',
+                flat=True
+            )
+        )
+        hub_ids.append(0)
+
+        for hub_id in hub_ids:
+            FeedExclusion.objects.filter(
+                unified_document=unified_document,
+                hub_id=hub_id
+            ).delete()
+
+        reset_unified_document_cache(
+            hub_ids,
+            document_type=['all', doc_type],
+            filters=[TRENDING],
+            with_default_hub=True,
+        )
+
+        return Response(status=status.HTTP_200_OK)
+        
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def check_user_vote(self, request):
         paper_ids = request.query_params.get("paper_ids", "")

@@ -3,6 +3,7 @@ from paper.models import Paper
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     HYPOTHESIS,
+    PAPER,
 )
 from researchhub_document.models import (
     ResearchhubPost
@@ -18,6 +19,7 @@ class HasDocumentCensorPermission(AuthorizationBasedPermission):
     def is_authorized(self, request, view, obj):
         if request.user.is_authenticated is False:
             return False
+
 
         doc = None
         if (isinstance(obj, ResearchhubUnifiedDocument)):
@@ -76,5 +78,7 @@ def get_uni_doc_related_model(unified_document):
         return ResearchhubPost
     elif doc_type == HYPOTHESIS:
         return Hypothesis
+    elif doc_type == PAPER:
+        return Paper
     else:
         return None

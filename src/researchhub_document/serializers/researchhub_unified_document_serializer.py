@@ -61,12 +61,18 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
         return UserSerializer(instance.created_by, read_only=True).data
 
     def get_documents(self, instance):
+        from hypothesis.serializers.hypothesis_serializer import HypothesisSerializer
+        
         context = self.context
         doc_type = instance.document_type
         if doc_type in [DISCUSSION, ELN]:
             return ResearchhubPostSerializer(
                 instance.posts, many=True, context=context
             ).data
+        elif doc_type in [HYPOTHESIS]:
+            return HypothesisSerializer(
+                instance.hypothesis, context=context
+            ).data                        
         else:
             return PaperSerializer(instance.paper, context=context).data
 
