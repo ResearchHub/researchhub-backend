@@ -135,6 +135,7 @@ class AuditViewSet(viewsets.GenericViewSet):
             },
             "usr_das_get_item": {
                 "_include_fields": [
+                    "id",
                     "created_by",
                     "uploaded_by",
                     "unified_document",
