@@ -12,6 +12,7 @@ from django.db.models import (
     UniqueConstraint,
 )
 
+from discussion.constants.flag_reasons import FLAG_REASON_CHOICES
 from utils.models import DefaultModel
 
 
@@ -77,6 +78,11 @@ class Flag(DefaultModel):
     item = GenericForeignKey("content_type", "object_id")
     object_id = PositiveIntegerField()
     reason = CharField(max_length=255, blank=True)
+    reason_choice = CharField(
+        blank=True,
+        choices=FLAG_REASON_CHOICES,
+        max_length=255,
+    )
     hubs = ManyToManyField("hub.Hub", related_name="flags")
 
     class Meta:

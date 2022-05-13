@@ -7,13 +7,19 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('paper', '0098_auto_20220506_0954'),
+        ("paper", "0098_auto_20220506_0954"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='paper',
-            name='unified_document',
-            field=models.OneToOneField(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='paper', to='researchhub_document.ResearchhubUnifiedDocument'),
+            model_name="paper",
+            name="unified_document",
+            field=models.OneToOneField(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="paper",
+                to="researchhub_document.ResearchhubUnifiedDocument",
+            ),
         ),
     ]

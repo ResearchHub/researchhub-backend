@@ -45,9 +45,9 @@ def add_unified_doc(created, instance, **kwargs):
 @receiver(post_save, sender=Vote, dispatch_uid="recalculate_paper_votes")
 def recalc_paper_votes(sender, instance, created, update_fields, **kwargs):
     paper = instance.paper
-    new_score = paper.calculate_score()
+    new_score = paper.calculate_paper_score()
     paper.calculate_hot_score()
-    paper.score = new_score
+    paper.paper_score = new_score
     for author in paper.authors.all():
         score = author.calculate_score()
         author.author_score = score

@@ -11,6 +11,7 @@ from django.core.validators import URLValidator
 from django.db import IntegrityError
 from django.db.models import Count, F, IntegerField, Prefetch, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce
+from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
@@ -106,6 +107,30 @@ class PaperViewSet(viewsets.ModelViewSet):
         & UpdatePaper
         & CreateOrUpdateIfAllowed
     ]
+
+    # NOTE: calvinhle - manually overriding default get_object
+    # self.get_queryset() was causing error, presumabily from GenericRelation problem
+    # need to get back to this after full migrations
+    def get_object(self):
+        queryset = self.filter_queryset(self.queryset)
+
+        # Perform the lookup filtering.
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+
+        assert lookup_url_kwarg in self.kwargs, (
+            "Expected view %s to be called with a URL keyword argument "
+            'named "%s". Fix your URL conf, or set the `.lookup_field` '
+            "attribute on the view correctly."
+            % (self.__class__.__name__, lookup_url_kwarg)
+        )
+
+        filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
+        obj = get_object_or_404(queryset, **filter_kwargs)
+
+        # May raise a permission denied
+        self.check_object_permissions(self.request, obj)
+
+        return obj
 
     def prefetch_lookups(self):
         return (

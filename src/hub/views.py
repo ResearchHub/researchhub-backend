@@ -101,21 +101,22 @@ class HubViewSet(viewsets.ModelViewSet):
         print("ordering", ordering)
         return self.get_ordered_queryset(ordering)
 
+    # TODO: re consider approach
     def get_ordered_queryset(self, ordering):
         if "score" in ordering:
             two_weeks_ago = timezone.now().date() - timedelta(days=14)
             num_upvotes = Count(
-                "papers__vote__vote_type",
+                "papers__vote_legacy__vote_type",
                 filter=Q(
-                    papers__vote__vote_type=Vote.UPVOTE,
-                    papers__vote__created_date__gte=two_weeks_ago,
+                    papers__vote_legacy__vote_type=Vote.UPVOTE,
+                    papers__vote_legacy__created_date__gte=two_weeks_ago,
                 ),
             )
             num_downvotes = Count(
-                "papers__vote__vote_type",
+                "papers__vote_legacy__vote_type",
                 filter=Q(
-                    papers__vote__vote_type=Vote.DOWNVOTE,
-                    papers__vote__created_date__gte=two_weeks_ago,
+                    papers__vote_legacy__vote_type=Vote.DOWNVOTE,
+                    papers__vote_legacy__created_date__gte=two_weeks_ago,
                 ),
             )
             paper_count = Count(
