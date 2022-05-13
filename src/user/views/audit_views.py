@@ -258,7 +258,6 @@ class AuditViewSet(viewsets.GenericViewSet):
             many=True,
             context=self._get_latest_actions_context(),
             _include_fields=[
-                "id",
                 "content_type",
                 "flagged_by",
                 "created_date",
@@ -279,7 +278,6 @@ class AuditViewSet(viewsets.GenericViewSet):
             many=True,
             context=self._get_latest_actions_context(),
             _include_fields=[
-                "id",
                 "content_type",
                 # "created_by",
                 "item",
