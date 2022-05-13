@@ -770,7 +770,7 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
 
     def get_content_type(self, action):
         content_type = action.content_type
-        return {"id": content_type.id, "name": content_type.name}
+        return {"id": content_type.id, "name": content_type.model}
 
     def get_hubs(self, action):
         context = self.context

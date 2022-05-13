@@ -143,6 +143,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "plain_text",
                     "title",
                     "slug",
+                    "renderable_text",
                 ]
             },
             "usr_das_get_hubs": {

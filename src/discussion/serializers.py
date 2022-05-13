@@ -764,7 +764,7 @@ class DynamicFlagSerializer(DynamicModelFieldSerializer):
 
     def get_content_type(self, flag):
         content_type = flag.content_type
-        return {"id": content_type.id, "name": content_type.name}
+        return {"id": content_type.id, "name": content_type.model}
 
     def get_hubs(self, flag):
         context = self.context
