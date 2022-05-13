@@ -26,6 +26,8 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 from rest_framework.utils.urls import replace_query_param
 
+from discussion.reaction_serializers import FlagSerializer
+from discussion.reaction_views import create_flag
 from google_analytics.signals import get_event_hit_response
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
@@ -41,7 +43,6 @@ from paper.models import (
 from paper.permissions import (
     CreatePaper,
     DownvotePaper,
-    FlagPaper,
     IsAuthor,
     IsModeratorOrVerifiedAuthor,
     UpdateOrDeleteAdditionalFile,
@@ -54,7 +55,6 @@ from paper.serializers import (
     DynamicPaperSerializer,
     FeaturedPaperSerializer,
     FigureSerializer,
-    FlagSerializer,
     HubPaperSerializer,
     PaperReferenceSerializer,
     PaperSerializer,
@@ -498,18 +498,27 @@ class PaperViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=["post"],
         permission_classes=[
-            FlagPaper & CreateOrUpdateIfAllowed
+            CreateOrUpdateIfAllowed
         ],  # Also applies to delete_flag below
     )
     def flag(self, request, pk=None):
+        # TODO: calvinhlee - clean this up after full  migration
         paper = self.get_object()
+        user = request.user
         reason = request.data.get("reason")
-        referrer = request.user
-        flag = Flag.objects.create(paper=paper, created_by=referrer, reason=reason)
+        reason_choice = request.data.get("reason_choice")
 
-        content_id = f"{type(paper).__name__}_{paper.id}"
-        events_api.track_flag_content(paper.uploaded_by, content_id, referrer.id)
-        return Response(FlagSerializer(flag).data, status=201)
+        try:
+            flag = create_flag(user, paper, reason, reason_choice)
+            serialized = FlagSerializer(flag)
+
+            content_id = f"{type(paper).__name__}_{paper.id}"
+            events_api.track_flag_content(paper.uploaded_by, content_id, user.id)
+            return Response(serialized.data, status=201)
+        except Exception as e:
+            return Response(
+                f"Failed to create flag: {e}", status=status.HTTP_400_BAD_REQUEST
+            )
 
     @flag.mapping.delete
     def delete_flag(self, request, pk=None):

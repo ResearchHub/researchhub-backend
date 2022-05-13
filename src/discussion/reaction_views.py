@@ -272,9 +272,6 @@ def create_endorsement(user, item):
 
 
 def create_flag(user, item, reason, reason_choice):
-    import pdb
-
-    pdb.set_trace()
     flag = Flag(
         created_by=user,
         item=item,
