@@ -1,13 +1,11 @@
-import json
 import math
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import Client, TestCase
+from django.test import TestCase
 
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as DiscussionVote
 from paper.models import Vote as PaperVote
-from purchase.models import Balance
 from reputation.distributions import (
     calculate_rsc_per_upvote,
     create_upvote_distribution,
@@ -16,8 +14,8 @@ from reputation.models import AuthorRSC, Distribution
 from researchhub_case.constants.case_constants import APPROVED
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.tasks import after_approval_flow
-from user.models import Author, University, User
-from utils.test_helpers import IntegrationTestHelper, TestHelper, get_user_from_response
+from user.models import Author
+from utils.test_helpers import TestHelper
 
 
 class BaseTests(TestCase, TestHelper):
@@ -320,7 +318,7 @@ class BaseTests(TestCase, TestHelper):
             target_paper=self.original_paper, requestor=author.user, status=APPROVED
         )
 
-        after_approval_flow.apply((case.id,), priority=2, countdown=5)
+        after_approval_flow.apply((case.id,), priority=2, countdown=1)
 
         self.assertEquals(Distribution.objects.count(), 2)
         self.assertEquals(
