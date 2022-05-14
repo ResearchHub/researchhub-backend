@@ -43,6 +43,7 @@ from paper.models import (
 from paper.permissions import (
     CreatePaper,
     DownvotePaper,
+    FlagPaper,
     IsAuthor,
     IsModeratorOrVerifiedAuthor,
     UpdateOrDeleteAdditionalFile,
@@ -498,7 +499,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=["post"],
         permission_classes=[
-            CreateOrUpdateIfAllowed
+            FlagPaper & CreateOrUpdateIfAllowed
         ],  # Also applies to delete_flag below
     )
     def flag(self, request, pk=None):

@@ -41,7 +41,11 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     def get_queryset(self):
         if self.action == "flagged":
-            return Flag.objects.all().select_related("content_type")
+            return (
+                Flag.objects.all()
+                .select_related("content_type")
+                .prefetch_related("verdict__created_by")
+            )
         return super().get_queryset()
 
     def get_filtered_queryset(self):
@@ -178,7 +182,9 @@ class AuditViewSet(viewsets.GenericViewSet):
             "dis_drs_get_created_by": {
                 "_include_fields": ["author_profile", "first_name", "last_name"]
             },
-            "dis_dfs_get_verdict": {"_include_fields": ["reason", "created_by"]},
+            "dis_dfs_get_verdict": {
+                "_include_fields": ["verdict_choice", "created_by"]
+            },
             "doc_dps_get_unified_document": {
                 "_include_fields": [
                     "id",
