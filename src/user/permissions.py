@@ -56,3 +56,14 @@ class CreateOrViewOrRevokeUserApiToken(BasePermission):
             return True
 
         return False
+
+
+class UserIsEditor(BasePermission):
+    message = "Need to be a hub editor to delete discussions"
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if user.is_anonymous:
+            return False
+
+        return user.is_hub_editor()

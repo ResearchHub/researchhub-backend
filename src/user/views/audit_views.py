@@ -14,9 +14,9 @@ from discussion.models import BaseComment
 from discussion.reaction_models import Flag
 from discussion.reaction_serializers import FlagSerializer
 from discussion.serializers import DynamicFlagSerializer
-from researchhub_document.models import ResearchhubUnifiedDocument
 from user.filters import AuditDashboardFilterBackend
 from user.models import Action
+from user.permissions import UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 
 
@@ -29,7 +29,7 @@ class CursorSetPagination(CursorPagination):
 class AuditViewSet(viewsets.GenericViewSet):
     # TODO: Permissions
     queryset = Action.objects.all()
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, UserIsEditor]
     pagination_class = CursorSetPagination
     filter_backends = (AuditDashboardFilterBackend,)
     models = (
@@ -218,7 +218,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         context["dis_dfs_get_hubs"] = context["usr_das_get_hubs"]
         return context
 
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["get"])
     def flagged(self, request):
         query_params = request.query_params
         verdict = query_params.get("verdict", None)
@@ -244,7 +244,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         data = serializer.data
         return self.get_paginated_response(data)
 
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["get"])
     def contributions(self, request):
         actions = self._get_latest_actions()
         page = self.paginate_queryset(actions)
@@ -262,7 +262,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         data = serializer.data
         return self.get_paginated_response(data)
 
-    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["post"])
     def flag(self, request):
         moderator = request.user
         data = request.data
@@ -277,7 +277,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         return Response({"flag": flag_serializer.data}, status=200)
 
     # TODO: Permissions
-    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["post"])
     def flag_and_remove(self, request):
         moderator = request.user
         data = request.data
