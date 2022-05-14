@@ -862,3 +862,32 @@ class VerdictSerializer(ModelSerializer):
     class Meta:
         model = Verdict
         fields = "__all__"
+
+
+class DynamicVerdictSerializer(DynamicModelFieldSerializer):
+    created_by = SerializerMethodField()
+    flag = SerializerMethodField()
+
+    class Meta:
+        model = Verdict
+        fields = "__all__"
+
+    def get_created_by(self, verdict):
+        context = self.context
+        _context_fields = context.get("usr_dvs_get_created_by", {})
+
+        serializer = DynamicUserSerializer(
+            verdict.created_by, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_flag(self, verdict):
+        from discussion.serializers import DynamicFlagSerializer
+
+        context = self.context
+        _context_fields = context.get("usr_dvs_get_flag", {})
+
+        serializer = DynamicFlagSerializer(
+            verdict.flag, context=context, **_context_fields
+        )
+        return serializer.data

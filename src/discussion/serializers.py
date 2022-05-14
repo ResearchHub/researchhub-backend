@@ -24,7 +24,11 @@ from review.serializers.review_serializer import (
     DynamicReviewSerializer,
     ReviewSerializer,
 )
-from user.serializers import DynamicUserSerializer, MinimalUserSerializer
+from user.serializers import (
+    DynamicUserSerializer,
+    DynamicVerdictSerializer,
+    MinimalUserSerializer,
+)
 from utils.http import get_user_from_request
 
 
@@ -713,6 +717,7 @@ class DynamicFlagSerializer(DynamicModelFieldSerializer):
     flagged_by = serializers.SerializerMethodField()
     content_type = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
+    verdict = serializers.SerializerMethodField()
 
     class Meta:
         model = Flag
@@ -771,5 +776,18 @@ class DynamicFlagSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("dis_dfs_get_hubs", {})
         serializer = DynamicHubSerializer(
             flag.hubs, many=True, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_verdict(self, flag):
+        context = self.context
+        verdict = getattr(flag, "verdict", None)
+
+        if not verdict:
+            return None
+
+        _context_fields = context.get("dis_dfs_get_verdict", {})
+        serializer = DynamicVerdictSerializer(
+            verdict, context=context, **_context_fields
         )
         return serializer.data

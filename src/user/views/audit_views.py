@@ -15,6 +15,7 @@ from discussion.reaction_models import Flag
 from discussion.reaction_serializers import FlagSerializer
 from discussion.serializers import DynamicFlagSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
+from user.filters import AuditDashboardFilterBackend
 from user.models import Action
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 
@@ -30,48 +31,30 @@ class AuditViewSet(viewsets.GenericViewSet):
     queryset = Action.objects.all()
     permission_classes = [AllowAny]
     pagination_class = CursorSetPagination
-    filter_backends = [django_filters.rest_framework.DjangoFilterBackend]
-    filterset_fields = ["hubs"]
-    models = [
+    filter_backends = (AuditDashboardFilterBackend,)
+    models = (
         "thread",
         "comment",
         "reply",
         "researchhubpost",
         "paper",
         "hypothesis",
-    ]
+    )
+
+    def get_queryset(self):
+        if self.action == "flagged":
+            return Flag.objects.all().select_related("content_type")
+        return super().get_queryset()
 
     def get_filtered_queryset(self):
-        return self.filter_queryset(self.get_queryset())
+        qs = self.get_queryset()
+        # import pdb; pdb.set_trace()
+        return self.filter_queryset(qs)
 
+    # TODO: Delete
     def _get_flagged_content(self):
         flagged_contributions = Flag.objects.all().select_related("content_type")
         return flagged_contributions
-
-    def _get_flagged_actions(self):
-        flagged_contributions = self._get_flagged_content()
-        return flagged_contributions
-
-        # actions = self.get_filtered_queryset()
-        # actions = Action.objects.all().annotate(
-        #     reason=Subquery(Flag.objects.all().filter(content_type_id=OuterRef('content_type_id'), object_id=OuterRef("object_id")).values('reason'))
-        # ).filter(reason__isnull=False)
-        # return actions
-
-        # actions = self.get_queryset().filter(
-        #     functools.reduce(
-        #         operator.or_,
-        #         (
-        #             Q(content_type_id=content_type_id, object_id=object_id)
-        #             for content_type_id, object_id in flagged_contributions.values_list(
-        #                 "content_type_id", "object_id"
-        #             )
-        #         ),
-        #     )
-        # ).annotate(
-        #     reason=Subquery(flagged_contributions.values('reason'))
-        # ).select_related("user").prefetch_related("item", "user__author_profile")
-        # return actions
 
     def _get_latest_actions(self):
         # actions = (
@@ -153,6 +136,9 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "name",
                 ]
             },
+            "usr_dvs_get_created_by": {
+                "_include_fields": ["author_profile", "first_name", "last_name"]
+            },
             "pap_dps_get_unified_document": {
                 "_include_fields": [
                     "id",
@@ -195,6 +181,7 @@ class AuditViewSet(viewsets.GenericViewSet):
             "dis_drs_get_created_by": {
                 "_include_fields": ["author_profile", "first_name", "last_name"]
             },
+            "dis_dfs_get_verdict": {"_include_fields": ["reason", "created_by"]},
             "doc_dps_get_unified_document": {
                 "_include_fields": [
                     "id",
@@ -233,38 +220,26 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def flagged(self, request):
-        # actions = self._get_flagged_actions()
-        # page = self.paginate_queryset(actions)
-        # serializer = DynamicActionSerializer(
-        #     page,
-        #     many=True,
-        #     context=self._get_latest_actions_context(),
-        #     _include_fields=[
-        #         "id",
-        #         "content_type",
-        #         "created_by",
-        #         "item",
-        #         "created_date",
-        #         "reason",
-        #     ],
-        # )
-        # data = serializer.data
-        # return self.get_paginated_response(data)
-
-        actions = self._get_flagged_content()
+        query_params = request.query_params
+        verdict = query_params.get("verdict", None)
+        actions = self.get_filtered_queryset()
         page = self.paginate_queryset(actions)
+        _include_fields = [
+            "content_type",
+            "flagged_by",
+            "created_date",
+            "item",
+            "reason",
+            "hubs",
+        ]
+        if verdict is not None:
+            _include_fields.append("verdict")
+
         serializer = DynamicFlagSerializer(
             page,
             many=True,
             context=self._get_latest_actions_context(),
-            _include_fields=[
-                "content_type",
-                "flagged_by",
-                "created_date",
-                "item",
-                "reason",
-                "hubs",
-            ],
+            _include_fields=_include_fields,
         )
         data = serializer.data
         return self.get_paginated_response(data)
@@ -279,7 +254,6 @@ class AuditViewSet(viewsets.GenericViewSet):
             context=self._get_latest_actions_context(),
             _include_fields=[
                 "content_type",
-                # "created_by",
                 "item",
                 "created_date",
                 "hubs",
