@@ -62,14 +62,19 @@ class ReactionViewActionMixin:
         except Exception as e:
             return Response(f"Failed to delete endorsement: {e}", status=400)
 
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[VotePermission & CreateOrUpdateIfAllowed],
+    )
     def flag(self, request, pk=None):
         item = self.get_object()
         user = request.user
-        # TODO: Sanitize reason
         reason = request.data.get("reason")
+        reason_choice = request.data.get("reason_choice")
 
         try:
-            flag = create_flag(user, item, reason)
+            flag = create_flag(user, item, reason, reason_choice)
             serialized = FlagSerializer(flag)
 
             content_id = f"{type(item).__name__}_{item.id}"
@@ -266,8 +271,13 @@ def create_endorsement(user, item):
     return endorsement
 
 
-def create_flag(user, item, reason):
-    flag = Flag(created_by=user, item=item, reason=reason)
+def create_flag(user, item, reason, reason_choice):
+    flag = Flag(
+        created_by=user,
+        item=item,
+        reason=reason or reason_choice,
+        reason_choice=reason_choice,
+    )
     flag.save()
     flag.hubs.add(*item.unified_document.hubs.all())
     return flag
