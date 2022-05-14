@@ -1,13 +1,12 @@
 import functools
 import operator
 
-import django_filters.rest_framework
 from django.db.models import Prefetch, Q
 from django.db.models.expressions import OuterRef, Subquery
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from discussion.models import BaseComment
@@ -27,7 +26,6 @@ class CursorSetPagination(CursorPagination):
 
 
 class AuditViewSet(viewsets.GenericViewSet):
-    # TODO: Permissions
     queryset = Action.objects.all()
     permission_classes = [IsAuthenticated, UserIsEditor]
     pagination_class = CursorSetPagination
@@ -48,7 +46,6 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     def get_filtered_queryset(self):
         qs = self.get_queryset()
-        # import pdb; pdb.set_trace()
         return self.filter_queryset(qs)
 
     # TODO: Delete
@@ -276,7 +273,6 @@ class AuditViewSet(viewsets.GenericViewSet):
 
         return Response({"flag": flag_serializer.data}, status=200)
 
-    # TODO: Permissions
     @action(detail=False, methods=["post"])
     def flag_and_remove(self, request):
         moderator = request.user
