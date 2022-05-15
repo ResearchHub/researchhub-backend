@@ -389,7 +389,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                         last_withdrawal_tx.created_date < time_ago
                     )
 
-                if valid and last_withdrawal_tx:
+                if valid and last_withdrawal_tx_valid:
                     return (True, None)
 
                 time_since_withdrawal = last_withdrawal.created_date - time_ago
