@@ -28,8 +28,8 @@ class CursorSetPagination(CursorPagination):
 
 class AuditViewSet(viewsets.GenericViewSet):
     queryset = Action.objects.all()
-    permission_classes = [IsAuthenticated, UserIsEditor]
-    # permission_classes = [AllowAny]
+    # permission_classes = [IsAuthenticated, UserIsEditor]
+    permission_classes = [AllowAny]
     pagination_class = CursorSetPagination
     filter_backends = (AuditDashboardFilterBackend,)
     models = (
@@ -322,21 +322,54 @@ class AuditViewSet(viewsets.GenericViewSet):
         )
 
     @action(detail=False, methods=["post"])
-    def dismiss_flag(self, request):
+    def dismiss_flagged_content(self, request):
         moderator = request.user
         data = request.data
 
         verdict_data = {}
-        verdict_data["flag"] = data.get("flag_id", None)
         verdict_data["created_by"] = moderator.id
         verdict_data["is_content_removed"] = False
         verdict_data["verdict_choice"] = data.get("verdict_choice", None)
 
-        verdict_serializer = VerdictSerializer(data=verdict_data)
-        is_valid = verdict_serializer.is_valid(raise_exception=True)
-        verdict_serializer.save()
+        flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
+        for flag in flags:
+            verdict_data["flag"] = flag.id
+            verdict_serializer = VerdictSerializer(data=verdict_data)
+            verdict_serializer.is_valid(raise_exception=True)
+            verdict = verdict_serializer.save()
 
         return Response(
-            {"verdict": verdict_serializer.data},
+            {},
+            status=200,
+        )
+
+    @action(detail=False, methods=["post"])
+    def remove_flagged_content(self, request):
+        moderator = request.user
+        data = request.data
+
+        verdict_data = {}
+        verdict_data["created_by"] = moderator.id
+        verdict_data["is_content_removed"] = True
+        verdict_data["verdict_choice"] = data.get("verdict_choice", None)
+
+        flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
+        for flag in flags:
+            verdict_data["flag"] = flag.id
+            verdict_serializer = VerdictSerializer(data=verdict_data)
+            verdict_serializer.is_valid(raise_exception=True)
+            verdict = verdict_serializer.save()
+
+            item = flag.item
+            if isinstance(item, BaseComment):
+                item.is_removed = True
+                item.save()
+            else:
+                unified_document = item.unified_document
+                unified_document.is_removed = True
+                unified_document.save()
+
+        return Response(
+            {},
             status=200,
         )
