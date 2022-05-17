@@ -7,6 +7,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from discussion.models import BaseComment
@@ -28,6 +29,7 @@ class CursorSetPagination(CursorPagination):
 class AuditViewSet(viewsets.GenericViewSet):
     queryset = Action.objects.all()
     permission_classes = [IsAuthenticated, UserIsEditor]
+    # permission_classes = [AllowAny]
     pagination_class = CursorSetPagination
     filter_backends = (AuditDashboardFilterBackend,)
     models = (
@@ -208,6 +210,8 @@ class AuditViewSet(viewsets.GenericViewSet):
                 "_include_fields": [
                     "id",
                     "renderable_text",
+                    "document_type",
+                    "documents",
                     "title",
                     "slug",
                 ]
@@ -233,7 +237,9 @@ class AuditViewSet(viewsets.GenericViewSet):
             "created_date",
             "item",
             "reason",
+            "reason_choice",
             "hubs",
+            "id",
         ]
         if verdict is not None:
             _include_fields.append("verdict")
@@ -312,5 +318,25 @@ class AuditViewSet(viewsets.GenericViewSet):
 
         return Response(
             {"flag": flag_serializer.data, "verdict": verdict_serializer.data},
+            status=200,
+        )
+
+    @action(detail=False, methods=["post"])
+    def dismiss_flag(self, request):
+        moderator = request.user
+        data = request.data
+
+        verdict_data = {}
+        verdict_data["flag"] = data.get("flag_id", None)
+        verdict_data["created_by"] = moderator.id
+        verdict_data["is_content_removed"] = False
+        verdict_data["verdict_choice"] = data.get("verdict_choice", None)
+
+        verdict_serializer = VerdictSerializer(data=verdict_data)
+        is_valid = verdict_serializer.is_valid(raise_exception=True)
+        verdict_serializer.save()
+
+        return Response(
+            {"verdict": verdict_serializer.data},
             status=200,
         )
