@@ -1,4 +1,5 @@
 from django.contrib.admin.options import get_content_type_for_model
+from django.db import IntegrityError
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -80,10 +81,14 @@ class ReactionViewActionMixin:
             content_id = f"{type(item).__name__}_{item.id}"
             events_api.track_flag_content(item.created_by, content_id, user.id)
             return Response(serialized.data, status=201)
+        except IntegrityError as e:
+            return Response({
+                "msg": "Already flagged", 
+            }, status=status.HTTP_409_CONFLICT)
         except Exception as e:
-            return Response(
-                f"Failed to create flag: {e}", status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({
+                "msg": "Unexpected error", 
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def delete_flag(self, request, pk=None):
         item = self.get_object()

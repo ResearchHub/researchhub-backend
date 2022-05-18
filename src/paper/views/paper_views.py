@@ -516,10 +516,14 @@ class PaperViewSet(viewsets.ModelViewSet):
             content_id = f"{type(paper).__name__}_{paper.id}"
             events_api.track_flag_content(paper.uploaded_by, content_id, user.id)
             return Response(serialized.data, status=201)
+        except IntegrityError as e:
+            return Response({
+                "msg": "Already flagged", 
+            }, status=status.HTTP_409_CONFLICT)
         except Exception as e:
-            return Response(
-                f"Failed to create flag: {e}", status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({
+                "msg": "Unexpected error", 
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @flag.mapping.delete
     def delete_flag(self, request, pk=None):
