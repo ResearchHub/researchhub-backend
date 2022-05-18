@@ -329,10 +329,10 @@ class AuditViewSet(viewsets.GenericViewSet):
         verdict_data = {}
         verdict_data["created_by"] = moderator.id
         verdict_data["is_content_removed"] = False
-        verdict_data["verdict_choice"] = data.get("verdict_choice", None)
 
         flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
         for flag in flags:
+            verdict_data["verdict_choice"] = data.get("verdict_choice", f'NOT_{flag.reason_choice}')
             verdict_data["flag"] = flag.id
             verdict_serializer = VerdictSerializer(data=verdict_data)
             verdict_serializer.is_valid(raise_exception=True)
@@ -351,10 +351,10 @@ class AuditViewSet(viewsets.GenericViewSet):
         verdict_data = {}
         verdict_data["created_by"] = moderator.id
         verdict_data["is_content_removed"] = True
-        verdict_data["verdict_choice"] = data.get("verdict_choice", None)
 
         flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
         for flag in flags:
+            verdict_data["verdict_choice"] = data.get("verdict_choice", flag.reason_choice)
             verdict_data["flag"] = flag.id
             verdict_serializer = VerdictSerializer(data=verdict_data)
             verdict_serializer.is_valid(raise_exception=True)
