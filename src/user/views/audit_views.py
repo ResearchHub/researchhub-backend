@@ -188,7 +188,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                 "_include_fields": ["author_profile", "first_name", "last_name"]
             },
             "dis_dfs_get_verdict": {
-                "_include_fields": ["verdict_choice", "created_by"]
+                "_include_fields": ["verdict_choice", "created_by", "created_date"]
             },
             "doc_dps_get_unified_document": {
                 "_include_fields": [
