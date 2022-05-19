@@ -1,24 +1,27 @@
 import functools
+from http.client import INTERNAL_SERVER_ERROR
 import operator
 
 from django.db.models import Prefetch, Q
 from django.db.models.expressions import OuterRef, Subquery
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from discussion.constants.flag_reasons import NOT_SPECIFIED
 
 from discussion.models import BaseComment
 from discussion.reaction_models import Flag
 from discussion.reaction_serializers import FlagSerializer
 from discussion.serializers import DynamicFlagSerializer
+from paper.related_models.paper_model import Paper
 from user.filters import AuditDashboardFilterBackend
 from user.models import Action
 from user.permissions import UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
-
+from utils import sentry
 
 class CursorSetPagination(CursorPagination):
     page_size = 10
@@ -130,13 +133,13 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "plain_text",
                     "title",
                     "slug",
-                    "renderable_text",
                 ]
             },
             "usr_das_get_hubs": {
                 "_include_fields": [
                     "id",
                     "name",
+                    "slug",
                 ]
             },
             "usr_dvs_get_created_by": {
@@ -209,7 +212,6 @@ class AuditViewSet(viewsets.GenericViewSet):
             "hyp_dhs_get_unified_document": {
                 "_include_fields": [
                     "id",
-                    "renderable_text",
                     "document_type",
                     "documents",
                     "title",
@@ -299,22 +301,26 @@ class AuditViewSet(viewsets.GenericViewSet):
         flag_serializer.is_valid(raise_exception=True)
         flags = flag_serializer.save()
 
-        for flag in flags:
-            verdict_data["flag"] = flag.id
-            verdict_serializer = VerdictSerializer(data=verdict_data)
-            verdict_serializer.is_valid(raise_exception=True)
-            verdict = verdict_serializer.save()
+        verdict_serializer = None
+        try: 
+            for flag in flags:
+                verdict_data["flag"] = flag.id
+                verdict_serializer = VerdictSerializer(data=verdict_data)
+                verdict_serializer.is_valid(raise_exception=True)
+                verdict = verdict_serializer.save()
 
-            is_content_removed = verdict.is_content_removed
-            if is_content_removed:
-                item = flag.item
-                if isinstance(item, BaseComment):
-                    item.is_removed = is_content_removed
-                    item.save()
-                else:
-                    unified_document = item.unified_document
-                    unified_document.is_removed = is_content_removed
-                    unified_document.save()
+                is_content_removed = verdict.is_content_removed
+                if is_content_removed:
+                    self._remove_flagged_content(flag)
+
+        except Exception as e:
+            print('e', e)
+            sentry.log_error(e)
+
+            return Response(
+                {},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,  
+            )
 
         return Response(
             {"flag": flag_serializer.data, "verdict": verdict_serializer.data},
@@ -330,13 +336,28 @@ class AuditViewSet(viewsets.GenericViewSet):
         verdict_data["created_by"] = moderator.id
         verdict_data["is_content_removed"] = False
 
-        flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
-        for flag in flags:
-            verdict_data["verdict_choice"] = data.get("verdict_choice", f'NOT_{flag.reason_choice}')
-            verdict_data["flag"] = flag.id
-            verdict_serializer = VerdictSerializer(data=verdict_data)
-            verdict_serializer.is_valid(raise_exception=True)
-            verdict = verdict_serializer.save()
+        try:
+            flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
+            for flag in flags:
+                default_value = None
+                if flag.reason_choice:
+                    default_value = f'NOT_{flag.reason_choice}'
+                else:
+                    default_value = NOT_SPECIFIED
+
+                verdict_data["verdict_choice"] = data.get("verdict_choice", default_value)
+                verdict_data["flag"] = flag.id
+                verdict_serializer = VerdictSerializer(data=verdict_data)
+                verdict_serializer.is_valid(raise_exception=True)
+                verdict = verdict_serializer.save()
+        except Exception as e:
+            print('e', e)
+            sentry.log_error(e)
+           
+            return Response(
+                {},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,  
+            )
 
         return Response(
             {},
@@ -352,24 +373,43 @@ class AuditViewSet(viewsets.GenericViewSet):
         verdict_data["created_by"] = moderator.id
         verdict_data["is_content_removed"] = True
 
-        flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
-        for flag in flags:
-            verdict_data["verdict_choice"] = data.get("verdict_choice", flag.reason_choice)
-            verdict_data["flag"] = flag.id
-            verdict_serializer = VerdictSerializer(data=verdict_data)
-            verdict_serializer.is_valid(raise_exception=True)
-            verdict = verdict_serializer.save()
+        try:
+            flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
+            for flag in flags:
+                verdict_data["verdict_choice"] = data.get("verdict_choice", flag.reason_choice)
+                verdict_data["flag"] = flag.id
+                verdict_serializer = VerdictSerializer(data=verdict_data)
+                verdict_serializer.is_valid(raise_exception=True)
+                verdict = verdict_serializer.save()
 
-            item = flag.item
-            if isinstance(item, BaseComment):
-                item.is_removed = True
-                item.save()
-            else:
-                unified_document = item.unified_document
-                unified_document.is_removed = True
-                unified_document.save()
+                self._remove_flagged_content(flag)
+
+        except Exception as e:
+            print('e', e)
+            sentry.log_error(e)   
+
+            return Response(
+                {},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,  
+            )
 
         return Response(
             {},
             status=200,
         )
+
+    def _remove_flagged_content(self, flag):
+        item = flag.item
+        if isinstance(item, BaseComment):
+            item.is_removed = True
+            item.save()
+        else:
+            unified_document = item.unified_document
+            unified_document.is_removed = True
+            unified_document.save()
+
+            inner_doc = unified_document.get_document()
+            if isinstance(inner_doc, Paper):
+                inner_doc.is_removed = True
+                inner_doc.reset_cache()
+                inner_doc.save()
