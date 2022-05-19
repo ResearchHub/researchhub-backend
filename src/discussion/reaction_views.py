@@ -66,7 +66,7 @@ class ReactionViewActionMixin:
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[VotePermission & CreateOrUpdateIfAllowed],
+        permission_classes=[IsAuthenticated],
     )
     def flag(self, request, pk=None):
         item = self.get_object()

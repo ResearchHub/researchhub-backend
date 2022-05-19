@@ -26,7 +26,7 @@ class FlagPaper(RuleBasedPermission):
     def satisfies_rule(self, request):
         if request.method == RequestMethods.DELETE:
             return True
-        return request.user.reputation >= 50
+        return request.user.reputation >= 1
 
 
 class UpvotePaper(RuleBasedPermission):

@@ -376,6 +376,12 @@ class AuditViewSet(viewsets.GenericViewSet):
         try:
             flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
             for flag in flags:
+                default_value = None
+                if flag.reason_choice:
+                    default_value = flag.reason_choice
+                else:
+                    default_value = NOT_SPECIFIED
+
                 verdict_data["verdict_choice"] = data.get("verdict_choice", flag.reason_choice)
                 verdict_data["flag"] = flag.id
                 verdict_serializer = VerdictSerializer(data=verdict_data)

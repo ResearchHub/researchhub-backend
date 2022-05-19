@@ -498,9 +498,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[
-            FlagPaper & CreateOrUpdateIfAllowed
-        ],  # Also applies to delete_flag below
+        permission_classes=[IsAuthenticated]
     )
     def flag(self, request, pk=None):
         # TODO: calvinhlee - clean this up after full  migration
