@@ -1,17 +1,16 @@
 import functools
-from http.client import INTERNAL_SERVER_ERROR
 import operator
+from http.client import INTERNAL_SERVER_ERROR
 
 from django.db.models import Prefetch, Q
 from django.db.models.expressions import OuterRef, Subquery
-from rest_framework import viewsets, status
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from discussion.constants.flag_reasons import NOT_SPECIFIED
 
+from discussion.constants.flag_reasons import NOT_SPECIFIED
 from discussion.models import BaseComment
 from discussion.reaction_models import Flag
 from discussion.reaction_serializers import FlagSerializer
@@ -22,6 +21,7 @@ from user.models import Action
 from user.permissions import UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 from utils import sentry
+
 
 class CursorSetPagination(CursorPagination):
     page_size = 10
@@ -312,7 +312,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         flags = flag_serializer.save()
 
         verdict_serializer = None
-        try: 
+        try:
             for flag in flags:
                 verdict_data["flag"] = flag.id
                 verdict_serializer = VerdictSerializer(data=verdict_data)
@@ -324,12 +324,12 @@ class AuditViewSet(viewsets.GenericViewSet):
                     self._remove_flagged_content(flag)
 
         except Exception as e:
-            print('e', e)
+            print("e", e)
             sentry.log_error(e)
 
             return Response(
                 {},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,  
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         return Response(
@@ -351,22 +351,24 @@ class AuditViewSet(viewsets.GenericViewSet):
             for flag in flags:
                 default_value = None
                 if flag.reason_choice:
-                    default_value = f'NOT_{flag.reason_choice}'
+                    default_value = f"NOT_{flag.reason_choice}"
                 else:
                     default_value = NOT_SPECIFIED
 
-                verdict_data["verdict_choice"] = data.get("verdict_choice", default_value)
+                verdict_data["verdict_choice"] = data.get(
+                    "verdict_choice", default_value
+                )
                 verdict_data["flag"] = flag.id
                 verdict_serializer = VerdictSerializer(data=verdict_data)
                 verdict_serializer.is_valid(raise_exception=True)
                 verdict = verdict_serializer.save()
         except Exception as e:
-            print('e', e)
+            print("e", e)
             sentry.log_error(e)
-           
+
             return Response(
                 {},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,  
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         return Response(
@@ -392,7 +394,9 @@ class AuditViewSet(viewsets.GenericViewSet):
                 else:
                     default_value = NOT_SPECIFIED
 
-                verdict_data["verdict_choice"] = data.get("verdict_choice", flag.reason_choice)
+                verdict_data["verdict_choice"] = data.get(
+                    "verdict_choice", flag.reason_choice
+                )
                 verdict_data["flag"] = flag.id
                 verdict_serializer = VerdictSerializer(data=verdict_data)
                 verdict_serializer.is_valid(raise_exception=True)
@@ -401,12 +405,12 @@ class AuditViewSet(viewsets.GenericViewSet):
                 self._remove_flagged_content(flag)
 
         except Exception as e:
-            print('e', e)
-            sentry.log_error(e)   
+            print("e", e)
+            sentry.log_error(e)
 
             return Response(
                 {},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,  
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         return Response(

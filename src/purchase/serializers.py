@@ -1,41 +1,34 @@
 import datetime
+
 import pandas as pd
-
 import rest_framework.serializers as serializers
-
-from django.db.models import (
-    Sum,
-    Value,
-    F,
-    Func,
-    CharField,
-    Count,
-    IntegerField
-)
+from django.db.models import CharField, Count, F, Func, IntegerField, Sum, Value
 from django.db.models.functions import Cast
-from utils import sentry
 
-from purchase.models import Purchase, AggregatePurchase, Wallet, Support, Balance
-from reputation.models import Distribution, Withdrawal
-from reputation.serializers import DistributionSerializer, WithdrawalSerializer
+from analytics.models import INTERACTIONS, PaperEvent
 from analytics.serializers import PaperEventSerializer
-from paper.serializers import BasePaperSerializer, DynamicPaperSerializer
-from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub_document.serializers import ResearchhubPostSerializer
-from summary.serializers import SummarySerializer
 from bullet_point.serializers import BulletPointSerializer
 from discussion.serializers import (
-    ThreadSerializer,
     CommentSerializer,
-    ReplySerializer,
-    DynamicThreadSerializer,
     DynamicCommentSerializer,
-    DynamicReplySerializer
+    DynamicReplySerializer,
+    DynamicThreadSerializer,
+    ReplySerializer,
+    ThreadSerializer,
 )
-from analytics.models import PaperEvent, INTERACTIONS
+from paper.serializers import BasePaperSerializer, DynamicPaperSerializer
+from purchase.models import AggregatePurchase, Balance, Purchase, Support, Wallet
+from reputation.models import Distribution, Withdrawal
+from reputation.serializers import DistributionSerializer, WithdrawalSerializer
+from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub_document.serializers import ResearchhubPostSerializer
+from researchhub_document.serializers.researchhub_post_serializer import (
+    DynamicPostSerializer,
+)
+from summary.serializers import SummarySerializer
 from user.serializers import DynamicUserSerializer
-from researchhub_document.serializers.researchhub_post_serializer \
- import DynamicPostSerializer
+from utils import sentry
+
 
 class BalanceSourceRelatedField(serializers.RelatedField):
     """
@@ -47,13 +40,13 @@ class BalanceSourceRelatedField(serializers.RelatedField):
         Serialize tagged objects to a simple textual representation.
         """
         if isinstance(value, Distribution):
-            return DistributionSerializer(value, context={'exclude_stats': True}).data
+            return DistributionSerializer(value, context={"exclude_stats": True}).data
         elif isinstance(value, Purchase):
-            return PurchaseSerializer(value, context={'exclude_stats': True}).data
+            return PurchaseSerializer(value, context={"exclude_stats": True}).data
         elif isinstance(value, Withdrawal):
-            return WithdrawalSerializer(value, context={'exclude_stats': True}).data
+            return WithdrawalSerializer(value, context={"exclude_stats": True}).data
 
-        sentry.log_info('No representation for ' + value)
+        sentry.log_info("No representation for " + value)
         return None
 
 
@@ -62,18 +55,19 @@ class BalanceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Balance
-        fields = '__all__'
+        fields = "__all__"
+
 
 class WalletSerializer(serializers.ModelSerializer):
     class Meta:
         model = Wallet
-        fields = '__all__'
+        fields = "__all__"
 
 
 class SupportSerializer(serializers.ModelSerializer):
     class Meta:
         model = Support
-        fields = '__all__'
+        fields = "__all__"
 
 
 class PurchaseSerializer(serializers.ModelSerializer):
@@ -84,40 +78,37 @@ class PurchaseSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Purchase
-        fields = '__all__'
+        fields = "__all__"
 
     def get_source(self, purchase):
         model_name = purchase.content_type.name
-        if self.context.get('exclude_source', False):
+        if self.context.get("exclude_source", False):
             return None
 
         serializer = None
         object_id = purchase.object_id
         model_class = purchase.content_type.model_class()
-        if model_name == 'paper':
+        if model_name == "paper":
             paper = model_class.objects.get(id=object_id)
             serializer = BasePaperSerializer(paper, context=self.context)
-        elif model_name == 'researchhub post':
+        elif model_name == "researchhub post":
             post = model_class.objects.get(id=object_id)
             serializer = ResearchhubPostSerializer(post, context=self.context)
-        elif model_name == 'thread':
+        elif model_name == "thread":
             thread = model_class.objects.get(id=object_id)
             serializer = ThreadSerializer(thread, context=self.context)
-        elif model_name == 'comment':
+        elif model_name == "comment":
             comment = model_class.objects.get(id=object_id)
             serializer = CommentSerializer(comment, context=self.context)
-        elif model_name == 'reply':
+        elif model_name == "reply":
             reply = model_class.objects.get(id=object_id)
             serializer = ReplySerializer(reply, context=self.context)
-        elif model_name == 'summary':
+        elif model_name == "summary":
             summary = model_class.objects.get(id=object_id)
             serializer = SummarySerializer(summary, context=self.context)
-        elif model_name == 'bullet_point':
+        elif model_name == "bullet_point":
             bulletpoint = model_class.objects.get(id=object_id)
-            serializer = BulletPointSerializer(
-                bulletpoint,
-                context=self.context
-            )
+            serializer = BulletPointSerializer(bulletpoint, context=self.context)
 
         if serializer is not None:
             return serializer.data
@@ -137,7 +128,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
         return end_date.isoformat()
 
     def get_stats(self, purchase):
-        if self.context.get('exclude_stats', False):
+        if self.context.get("exclude_stats", False):
             return None
 
         views = []
@@ -146,51 +137,49 @@ class PurchaseSerializer(serializers.ModelSerializer):
         total_clicks = 0
         Paper = purchase.content_type.model_class()
         paper = Paper.objects.get(id=purchase.object_id)
-        events = paper.events.filter(
-            user=purchase.user
-        ).order_by(
-            '-created_date'
-        )
+        events = paper.events.filter(user=purchase.user).order_by("-created_date")
 
         serializer = PaperEventSerializer(events, many=True)
         data = serializer.data
 
         if data:
             event_df = pd.DataFrame(data)
-            event_df['created_date'] = pd.to_datetime(event_df['created_date'])
+            event_df["created_date"] = pd.to_datetime(event_df["created_date"])
 
-            grouped_data = event_df.groupby(
-                pd.Grouper(key='created_date', freq='D')
-            ).apply(
-                self._aggregate_stats,
-            ).reset_index()
+            grouped_data = (
+                event_df.groupby(pd.Grouper(key="created_date", freq="D"))
+                .apply(
+                    self._aggregate_stats,
+                )
+                .reset_index()
+            )
 
-            trunc_date = grouped_data['created_date'].dt.strftime('%Y-%m-%d')
-            grouped_data['created_date'] = trunc_date
-            views_index = ['created_date', 'views']
-            clicks_index = ['created_date', 'clicks']
-            views = grouped_data[views_index].to_dict('records')
-            clicks = grouped_data[clicks_index].to_dict('records')
+            trunc_date = grouped_data["created_date"].dt.strftime("%Y-%m-%d")
+            grouped_data["created_date"] = trunc_date
+            views_index = ["created_date", "views"]
+            clicks_index = ["created_date", "clicks"]
+            views = grouped_data[views_index].to_dict("records")
+            clicks = grouped_data[clicks_index].to_dict("records")
             total_views = grouped_data.views.sum()
             total_clicks = grouped_data.clicks.sum()
 
         stats = {
-            'views': views,
-            'clicks': clicks,
-            'total_views': total_views,
-            'total_clicks': total_clicks
+            "views": views,
+            "clicks": clicks,
+            "total_views": total_views,
+            "total_clicks": total_clicks,
         }
         return stats
 
     def _aggregate_stats(self, row):
-        index = ('views', 'clicks')
-        views = len(row[row['interaction'] == 'VIEW'])
-        clicks = len(row[row['interaction'] == 'CLICK'])
+        index = ("views", "clicks")
+        views = len(row[row["interaction"] == "VIEW"])
+        clicks = len(row[row["interaction"] == "CLICK"])
         return pd.Series((views, clicks), index=index)
 
     def get_content_type(self, purchase):
         content = purchase.content_type
-        return {'app_label': content.app_label, 'model': content.model}
+        return {"app_label": content.app_label, "model": content.model}
 
 
 class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
@@ -200,56 +189,50 @@ class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
 
     class Meta:
         model = Purchase
-        fields = '__all__'
+        fields = "__all__"
 
     def get_source(self, purchase):
         context = self.context
-        _context_fields = context.get('pch_dps_get_source', {})
+        _context_fields = context.get("pch_dps_get_source", {})
         model_name = purchase.content_type.name
 
         serializer = None
         item = None
         object_id = purchase.object_id
         model_class = purchase.content_type.model_class()
-        if model_name == 'paper':
+        if model_name == "paper":
             item = model_class.objects.get(id=object_id)
             serializer = DynamicPaperSerializer
-        elif model_name == 'researchhub post':
+        elif model_name == "researchhub post":
             item = model_class.objects.get(id=object_id)
             serializer = DynamicPostSerializer
-        elif model_name == 'thread':
+        elif model_name == "thread":
             item = model_class.objects.get(id=object_id)
             serializer = DynamicThreadSerializer
-        elif model_name == 'comment':
+        elif model_name == "comment":
             item = model_class.objects.get(id=object_id)
             serializer = DynamicCommentSerializer
-        elif model_name == 'reply':
+        elif model_name == "reply":
             item = model_class.objects.get(id=object_id)
             serializer = DynamicReplySerializer
-        elif model_name == 'summary':
+        elif model_name == "summary":
             item = model_class.objects.get(id=object_id)
             serializer = None
-        elif model_name == 'bullet_point':
+        elif model_name == "bullet_point":
             item = model_class.objects.get(id=object_id)
             serializer = None
 
         if serializer is not None:
-            data = serializer(
-                item,
-                context=context,
-                **_context_fields
-            ).data
+            data = serializer(item, context=context, **_context_fields).data
             return data
 
         return None
 
     def get_user(self, purchase):
         context = self.context
-        _context_fields = context.get('pch_dps_get_user', {})
+        _context_fields = context.get("pch_dps_get_user", {})
         serializer = DynamicUserSerializer(
-            purchase.user,
-            context=context,
-            **_context_fields
+            purchase.user, context=context, **_context_fields
         )
         return serializer.data
 
@@ -267,7 +250,7 @@ class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
 
     def get_content_type(self, purchase):
         content = purchase.content_type
-        return {'app_label': content.app_label, 'model': content.model}
+        return {"app_label": content.app_label, "model": content.model}
 
 
 class AggregatePurchaseSerializer(serializers.ModelSerializer):
@@ -277,17 +260,17 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AggregatePurchase
-        fields = '__all__'
+        fields = "__all__"
 
     def get_source(self, purchase):
         model_name = purchase.content_type.name
-        if model_name == 'paper':
+        if model_name == "paper":
             Paper = purchase.content_type.model_class()
             paper = Paper.objects.get(id=purchase.object_id)
             serializer = BasePaperSerializer(paper, context=self.context)
             data = serializer.data
             return data
-        elif model_name == 'researchhub post':
+        elif model_name == "researchhub post":
             Post = purchase.content_type.model_class()
             post = Post.objects.get(id=purchase.object_id)
             serializer = ResearchhubPostSerializer(post, context=self.context)
@@ -297,79 +280,74 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
 
     def get_purchases(self, purchase):
         purchases = purchase.purchases
-        self.context['exclude_source'] = True
-        self.context['exclude_stats'] = True
-        serializer = PurchaseSerializer(
-            purchases,
-            context=self.context,
-            many=True
-        )
+        self.context["exclude_source"] = True
+        self.context["exclude_stats"] = True
+        serializer = PurchaseSerializer(purchases, context=self.context, many=True)
         data = serializer.data
         return data
 
     def get_stats(self, purchase):
         distinct_views = purchase.purchases.filter(
-            paper__event__interaction=INTERACTIONS['VIEW'],
-            paper__event__paper_is_boosted=True
+            paper__event__interaction=INTERACTIONS["VIEW"],
+            paper__event__paper_is_boosted=True,
         ).distinct()
         distinct_clicks = purchase.purchases.filter(
-            paper__event__interaction=INTERACTIONS['CLICK'],
-            paper__event__paper_is_boosted=True
+            paper__event__interaction=INTERACTIONS["CLICK"],
+            paper__event__paper_is_boosted=True,
         ).distinct()
 
-        total_views = distinct_views.values('paper__event').count()
-        total_clicks = distinct_clicks.values('paper__event').count()
+        total_views = distinct_views.values("paper__event").count()
+        total_clicks = distinct_clicks.values("paper__event").count()
         total_amount = sum(
-            map(float, purchase.purchases.values_list('amount', flat=True))
+            map(float, purchase.purchases.values_list("amount", flat=True))
         )
 
-        distinct_views_ids = distinct_views.values_list(
-            'paper__event',
-            flat=True
-        )
-        views = PaperEvent.objects.filter(id__in=distinct_views_ids).values(
-            date=Func(
-                F('created_date'),
-                Value('YYYY-MM-DD'),
-                function='to_char',
-                output_field=CharField()
+        distinct_views_ids = distinct_views.values_list("paper__event", flat=True)
+        views = (
+            PaperEvent.objects.filter(id__in=distinct_views_ids)
+            .values(
+                date=Func(
+                    F("created_date"),
+                    Value("YYYY-MM-DD"),
+                    function="to_char",
+                    output_field=CharField(),
+                )
             )
-        ).annotate(
-            views=Count('date')
+            .annotate(views=Count("date"))
         )
 
-        distinct_clicks_ids = distinct_clicks.values_list(
-            'paper__event',
-            flat=True
-        )
-        clicks = PaperEvent.objects.filter(id__in=distinct_clicks_ids).values(
-            date=Func(
-                F('created_date'),
-                Value('YYYY-MM-DD'),
-                function='to_char',
-                output_field=CharField()
+        distinct_clicks_ids = distinct_clicks.values_list("paper__event", flat=True)
+        clicks = (
+            PaperEvent.objects.filter(id__in=distinct_clicks_ids)
+            .values(
+                date=Func(
+                    F("created_date"),
+                    Value("YYYY-MM-DD"),
+                    function="to_char",
+                    output_field=CharField(),
+                )
             )
-        ).annotate(
-            clicks=Count('date')
+            .annotate(clicks=Count("date"))
         )
 
         created_date = purchase.created_date
 
-        max_boost = purchase.purchases.annotate(
-            amount_as_int=Cast('amount', IntegerField())
-        ).aggregate(
-            sum=Sum('amount_as_int')
-        ).get('sum', 0) or 0
+        max_boost = (
+            purchase.purchases.annotate(amount_as_int=Cast("amount", IntegerField()))
+            .aggregate(sum=Sum("amount_as_int"))
+            .get("sum", 0)
+            or 0
+        )
 
         timedelta = datetime.timedelta(days=int(max_boost))
         end_date = (created_date + timedelta).isoformat()
 
         stats = {
-            'views': views,
-            'clicks': clicks,
-            'total_views': total_views,
-            'total_clicks': total_clicks,
-            'total_amount': total_amount,
-            'end_date': end_date
+            "views": views,
+            "clicks": clicks,
+            "total_views": total_views,
+            "total_clicks": total_clicks,
+            "total_amount": total_amount,
+            "end_date": end_date,
         }
         return stats

@@ -103,7 +103,7 @@ class DynamicThreadSerializer(
         else:
             comments = obj.children
 
-        return comments.annotate(ORDERING_SCORE_ANNOTATION).order_by(
+        return comments.annotate(ordering_score=ORDERING_SCORE_ANNOTATION).order_by(
             "-ordering_score", "created_date"
         )
 
