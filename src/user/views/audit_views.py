@@ -126,6 +126,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                 "_include_fields": [
                     "id",
                     "created_by",
+                    "created_date",
                     "uploaded_by",
                     "unified_document",
                     "source",
@@ -232,6 +233,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         query_params = request.query_params
         verdict = query_params.get("verdict", None)
         actions = self.get_filtered_queryset()
+        print('actions', actions.count())
         page = self.paginate_queryset(actions)
         _include_fields = [
             "content_type",
@@ -254,6 +256,14 @@ class AuditViewSet(viewsets.GenericViewSet):
         )
         data = serializer.data
         return self.get_paginated_response(data)
+
+    @action(detail=False, methods=["get"])
+    def flagged_count(self, request):
+        count = Flag.objects.filter(verdict__isnull=True).count()
+        return Response(
+            {'count': count},
+            status=status.HTTP_200_OK,
+        )        
 
     @action(detail=False, methods=["get"])
     def contributions(self, request):
