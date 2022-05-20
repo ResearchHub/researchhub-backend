@@ -916,8 +916,11 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
     def get_unified_document(self, paper):
         from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 
+        # NOTE: calvinhlee - dynamic handling is very confusing. This has to be better.
         context = self.context
-        _context_fields = context.get("pap_dps_get_unified_document", {})
+        _context_fields = context.get(
+            "pap_dps_get_unified_document", {"_exclude_fields": ["documents"]}
+        )
 
         serializer = DynamicUnifiedDocumentSerializer(
             paper.unified_document,
