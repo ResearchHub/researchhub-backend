@@ -185,6 +185,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             )
         threads = (
             threads.filter(is_removed=is_removed)
+            .filter(created_by__isnull=False)
             .annotate(ordering_score=ORDERING_SCORE_ANNOTATION)
             .order_by("-ordering_score", "created_date")
         )
@@ -244,6 +245,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         comments = (
             Comment.objects.filter(parent=thread_id, is_removed=is_removed)
+            .filter(created_by__isnull=False)
             .annotate(ordering_score=ORDERING_SCORE_ANNOTATION)
             .order_by("-ordering_score", "created_date")
         )
@@ -347,6 +349,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 object_id=comment_id,
                 is_removed=is_removed,
             )
+            .filter(created_by__isnull=False)
             .annotate(ordering_score=ORDERING_SCORE_ANNOTATION)
             .order_by("-ordering_score", "created_date")
         )
