@@ -1,13 +1,9 @@
-import functools
-import operator
 from http.client import INTERNAL_SERVER_ERROR
 
-from django.db.models import Prefetch, Q
 from django.db.models.expressions import OuterRef, Subquery
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.pagination import CursorPagination
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
@@ -16,24 +12,20 @@ from discussion.reaction_models import Flag
 from discussion.reaction_serializers import FlagSerializer
 from discussion.serializers import DynamicFlagSerializer
 from paper.related_models.paper_model import Paper
+from rest_framework.pagination import PageNumberPagination
 from user.filters import AuditDashboardFilterBackend
 from user.models import Action
 from user.permissions import UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 from utils import sentry
 
-
-class CursorSetPagination(CursorPagination):
+class AuditPagination(PageNumberPagination):       
     page_size = 10
-    cursor_query_param = "page"
-    ordering = "-created_date"
-
 
 class AuditViewSet(viewsets.GenericViewSet):
     queryset = Action.objects.all()
-    # permission_classes = [IsAuthenticated, UserIsEditor]
-    permission_classes = [AllowAny]
-    pagination_class = CursorSetPagination
+    permission_classes = [IsAuthenticated, UserIsEditor]
+    pagination_class=AuditPagination
     filter_backends = (AuditDashboardFilterBackend,)
     models = (
         "thread",
@@ -233,7 +225,12 @@ class AuditViewSet(viewsets.GenericViewSet):
         query_params = request.query_params
         verdict = query_params.get("verdict", None)
         actions = self.get_filtered_queryset()
-        print('actions', actions.count())
+
+        if verdict == "OPEN":
+            actions = actions.order_by("-created_date")
+        else:
+            actions = actions.order_by("-verdict__created_date")
+
         page = self.paginate_queryset(actions)
         _include_fields = [
             "content_type",
