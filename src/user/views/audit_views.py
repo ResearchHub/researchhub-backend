@@ -10,7 +10,7 @@ from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from discussion.constants.flag_reasons import NOT_SPECIFIED
+from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
 from discussion.models import BaseComment
 from discussion.reaction_models import Flag
 from discussion.reaction_serializers import FlagSerializer
@@ -349,15 +349,14 @@ class AuditViewSet(viewsets.GenericViewSet):
         try:
             flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
             for flag in flags:
-                default_value = None
-                if flag.reason_choice:
-                    default_value = f"NOT_{flag.reason_choice}"
-                else:
-                    default_value = NOT_SPECIFIED
+                available_reasons = list(map(lambda r:r[0], FLAG_REASON_CHOICES))
+                verdict_choice = NOT_SPECIFIED
+                if data.get("verdict_choice") in available_reasons:
+                    verdict_choice = f'NOT_{data.get("verdict_choice")}'
+                elif flag.reason_choice in available_reasons:
+                    verdict_choice = f'NOT_{flag.reason_choice}'
 
-                verdict_data["verdict_choice"] = data.get(
-                    "verdict_choice", default_value
-                )
+                verdict_data["verdict_choice"] = verdict_choice
                 verdict_data["flag"] = flag.id
                 verdict_serializer = VerdictSerializer(data=verdict_data)
                 verdict_serializer.is_valid(raise_exception=True)
@@ -388,15 +387,14 @@ class AuditViewSet(viewsets.GenericViewSet):
         try:
             flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
             for flag in flags:
-                default_value = None
-                if flag.reason_choice:
-                    default_value = flag.reason_choice
-                else:
-                    default_value = NOT_SPECIFIED
+                available_reasons = list(map(lambda r:r[0], FLAG_REASON_CHOICES))
+                verdict_choice = NOT_SPECIFIED
+                if data.get("verdict_choice") in available_reasons:
+                    verdict_choice = data.get("verdict_choice")
+                elif flag.reason_choice in available_reasons:
+                    verdict_choice = flag.reason_choice
 
-                verdict_data["verdict_choice"] = data.get(
-                    "verdict_choice", flag.reason_choice
-                )
+                verdict_data["verdict_choice"] = verdict_choice
                 verdict_data["flag"] = flag.id
                 verdict_serializer = VerdictSerializer(data=verdict_data)
                 verdict_serializer.is_valid(raise_exception=True)
