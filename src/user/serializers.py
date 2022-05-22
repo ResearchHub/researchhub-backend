@@ -16,7 +16,7 @@ from discussion.lib import check_is_discussion_item
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as DiscussionVote
 from hub.models import Hub
-from hub.serializers import HubSerializer, SimpleHubSerializer
+from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerializer
 from hypothesis.models import Hypothesis
 from paper.models import Paper, PaperSubmission
 from paper.models import Vote as PaperVote
@@ -36,6 +36,7 @@ from user.models import (
     University,
     User,
     UserApiToken,
+    Verdict,
     Verification,
 )
 from user.related_models.gatekeeper_model import Gatekeeper
@@ -372,21 +373,6 @@ class MinimalUserSerializer(ModelSerializer):
         return serializer.data
 
 
-class DynamicMinimalUserSerializer(DynamicModelFieldSerializer):
-    author_profile = SerializerMethodField()
-
-    class Meta:
-        model = User
-        fields = "__all__"
-
-    def get_author_profile(self, obj):
-        _context_fields = self.context.get("usr_dmus_get_author_profile", {})
-        serializer = DynamicAuthorSerializer(
-            obj.author_profile, context=self.context, **_context_fields
-        )
-        return serializer.data
-
-
 class UserEditableSerializer(ModelSerializer):
     author_profile = AuthorSerializer()
     balance = SerializerMethodField()
@@ -712,6 +698,8 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
     item = SerializerMethodField()
     content_type = SerializerMethodField()
     created_by = SerializerMethodField()
+    hubs = SerializerMethodField()
+    reason = SerializerMethodField()
 
     class Meta:
         model = Action
@@ -721,8 +709,8 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
         context = self.context
         _context_fields = context.get("usr_das_get_item", {})
         item = action.item
-        ignored_items = [BulletPoint, BulletVote, Summary, SummaryVote]
-        if type(item) in ignored_items:
+        ignored_items = (BulletPoint, BulletVote, Summary, SummaryVote)
+        if isinstance(item, ignored_items):
             return None
 
         if isinstance(item, Withdrawal):
@@ -781,7 +769,19 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_content_type(self, action):
-        return action.content_type.model
+        content_type = action.content_type
+        return {"id": content_type.id, "name": content_type.model}
+
+    def get_hubs(self, action):
+        context = self.context
+        _context_fields = context.get("usr_das_get_hubs", {})
+        serializer = DynamicHubSerializer(
+            action.hubs, many=True, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_reason(self, action):
+        return getattr(action, "reason", None)
 
 
 class OrganizationSerializer(ModelSerializer):
@@ -854,5 +854,40 @@ class DynamicOrganizationSerializer(DynamicModelFieldSerializer):
 
         serializer = DynamicPermissionSerializer(
             permission, context=context, **_context_fields
+        )
+        return serializer.data
+
+
+class VerdictSerializer(ModelSerializer):
+    class Meta:
+        model = Verdict
+        fields = "__all__"
+
+
+class DynamicVerdictSerializer(DynamicModelFieldSerializer):
+    created_by = SerializerMethodField()
+    flag = SerializerMethodField()
+
+    class Meta:
+        model = Verdict
+        fields = "__all__"
+
+    def get_created_by(self, verdict):
+        context = self.context
+        _context_fields = context.get("usr_dvs_get_created_by", {})
+
+        serializer = DynamicUserSerializer(
+            verdict.created_by, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_flag(self, verdict):
+        from discussion.serializers import DynamicFlagSerializer
+
+        context = self.context
+        _context_fields = context.get("usr_dvs_get_flag", {})
+
+        serializer = DynamicFlagSerializer(
+            verdict.flag, context=context, **_context_fields
         )
         return serializer.data

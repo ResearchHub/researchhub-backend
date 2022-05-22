@@ -1,58 +1,57 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
-from hub.serializers import SimpleHubSerializer, DynamicHubSerializer
-from paper.serializers import PaperSerializer, DynamicPaperSerializer
+from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
+from paper.serializers import DynamicPaperSerializer, PaperSerializer
+from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     ELN,
-    HYPOTHESIS
+    HYPOTHESIS,
+    PAPER,
 )
-from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.serializers import (
+    DynamicPostSerializer,
     ResearchhubPostSerializer,
-    DynamicPostSerializer
 )
-from user.serializers import UserSerializer, DynamicUserSerializer
+from user.serializers import DynamicUserSerializer, UserSerializer
 
 
 class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
     class Meta(object):
         model = ResearchhubUnifiedDocument
         fields = [
-            'access_group',
-            'created_by',
-            'document_type',
-            'documents',
-            'hot_score',
-            'hubs',
-            'is_removed',
-            'score',
+            "access_group",
+            "created_by",
+            "document_type",
+            "documents",
+            "hot_score",
+            "hubs",
+            "is_removed",
+            "score",
         ]
         read_only_fields = [
-            'access_group',
-            'created_by',
-            'document_type',
-            'documents',
-            'hot_score',
-            'hubs',
-            'hypothesis',
-            'id',
-            'is_removed',
-            'is_public',
-            'published_date',
-            'paper',
-            'posts',
-            'score',
+            "access_group",
+            "created_by",
+            "document_type",
+            "documents",
+            "hot_score",
+            "hubs",
+            "hypothesis",
+            "id",
+            "is_removed",
+            "is_public",
+            "published_date",
+            "paper",
+            "posts",
+            "score",
         ]
 
-    access_group = SerializerMethodField(method_name='get_access_group')
-    created_by = SerializerMethodField(method_name='get_created_by')
-    documents = SerializerMethodField(method_name='get_documents')
+    access_group = SerializerMethodField(method_name="get_access_group")
+    created_by = SerializerMethodField(method_name="get_created_by")
+    documents = SerializerMethodField(method_name="get_documents")
     hubs = SimpleHubSerializer(
-        many=True,
-        required=False,
-        context={'no_subscriber_info': True}
+        many=True, required=False, context={"no_subscriber_info": True}
     ).data
 
     def get_access_group(self, instance):
@@ -65,19 +64,15 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
     def get_documents(self, instance):
         context = self.context
         doc_type = instance.document_type
-        if (doc_type in [DISCUSSION, ELN]):
+        if doc_type in [DISCUSSION, ELN]:
             return ResearchhubPostSerializer(
-                instance.posts,
-                many=True,
-                context=context
+                instance.posts, many=True, context=context
             ).data
         else:
             return PaperSerializer(instance.paper, context=context).data
 
 
-class ContributionUnifiedDocumentSerializer(
-    ResearchhubUnifiedDocumentSerializer
-):
+class ContributionUnifiedDocumentSerializer(ResearchhubUnifiedDocumentSerializer):
     access_group = None
     hubs = None
 
@@ -94,40 +89,34 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
 
     class Meta:
         model = ResearchhubUnifiedDocument
-        fields = '__all__'
+        fields = "__all__"
 
     def get_documents(self, unified_doc):
         context = self.context
-        _context_fields = context.get('doc_duds_get_documents', {})
+        _context_fields = context.get("doc_duds_get_documents", {})
         doc_type = unified_doc.document_type
-        if (doc_type in [DISCUSSION, ELN]):
+        if doc_type in [DISCUSSION, ELN]:
             return DynamicPostSerializer(
-                unified_doc.posts,
-                many=True,
-                context=context,
-                **_context_fields
+                unified_doc.posts, many=True, context=context, **_context_fields
             ).data
         elif doc_type == HYPOTHESIS:
             from hypothesis.serializers import DynamicHypothesisSerializer
+
             return DynamicHypothesisSerializer(
-                unified_doc.hypothesis,
-                context=context,
-                **_context_fields
+                unified_doc.hypothesis, context=context, **_context_fields
+            ).data
+        elif doc_type == PAPER:
+            return DynamicPaperSerializer(
+                unified_doc.paper, context=context, **_context_fields
             ).data
         else:
-            return DynamicPaperSerializer(
-                unified_doc.paper,
-                context=context,
-                **_context_fields
-            ).data
+            return None
 
     def get_created_by(self, unified_doc):
         context = self.context
-        _context_fields = context.get('doc_duds_get_created_by', {})
+        _context_fields = context.get("doc_duds_get_created_by", {})
         serializer = DynamicUserSerializer(
-            unified_doc.created_by,
-            context=context,
-            **_context_fields
+            unified_doc.created_by, context=context, **_context_fields
         )
         return serializer.data
 
@@ -137,14 +126,16 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
 
     def get_hubs(self, unified_doc):
         context = self.context
-        _context_fields = context.get('doc_duds_get_hubs', {})
+        _context_fields = context.get("doc_duds_get_hubs", {})
         serializer = DynamicHubSerializer(
-            unified_doc.hubs,
-            many=True,
-            context=context,
-            **_context_fields
+            unified_doc.hubs, many=True, context=context, **_context_fields
         )
         return serializer.data
 
     def get_reviews(self, obj):
         return obj.get_review_details()
+        # context = self.context
+        # get_reviews = context.get("doc_duds_get_reviews", None)
+        # if get_reviews:
+        #     return obj.get_review_details()
+        # return None

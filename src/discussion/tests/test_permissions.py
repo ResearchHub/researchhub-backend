@@ -1,4 +1,5 @@
 import random
+from unittest import skip
 
 from discussion.permissions import Vote as VotePermission
 from discussion.tests.helpers import (
@@ -9,36 +10,33 @@ from discussion.tests.helpers import (
     build_thread_form,
     create_comment,
     create_reply,
-    create_thread
+    create_thread,
 )
 from discussion.tests.tests import (
-    BaseIntegrationTestCase as DiscussionIntegrationTestCase
+    BaseIntegrationTestCase as DiscussionIntegrationTestCase,
 )
 from paper.tests.helpers import create_paper
 from user.models import Author
 from user.tests.helpers import create_random_authenticated_user
 from utils.test_helpers import (
     get_authenticated_get_response,
-    get_authenticated_post_response
+    get_authenticated_post_response,
 )
-from unittest import skip
 
-class DiscussionThreadPermissionsIntegrationTests(
-    DiscussionIntegrationTestCase
-):
 
+class DiscussionThreadPermissionsIntegrationTests(DiscussionIntegrationTestCase):
     def setUp(self):
-        SEED = 'discussion'
+        SEED = "discussion"
         self.random_generator = random.Random(SEED)
-        self.base_url = '/api/'
-        self.user = create_random_authenticated_user('discussion_permissions')
+        self.base_url = "/api/"
+        self.user = create_random_authenticated_user("discussion_permissions")
         self.paper = create_paper(uploaded_by=self.user)
         self.thread = create_thread(paper=self.paper, created_by=self.user)
         self.comment = create_comment(thread=self.thread, created_by=self.user)
         self.reply = create_reply(parent=self.comment, created_by=self.user)
-        self.trouble_maker = create_random_authenticated_user('trouble_maker')
-        self.author = create_random_authenticated_user('author')
-        self.moderator = create_random_authenticated_user('moderator')
+        self.trouble_maker = create_random_authenticated_user("trouble_maker")
+        self.author = create_random_authenticated_user("author")
+        self.moderator = create_random_authenticated_user("moderator")
 
         self.add_paper_author(Author.objects.get(user=self.author))
         self.add_paper_moderator(self.moderator)
@@ -81,98 +79,50 @@ class DiscussionThreadPermissionsIntegrationTests(
 
     @skip
     def test_author_can_endorse_thread(self):
-        thread = create_thread(title='A', paper=self.paper)
-        response = self.get_thread_endorsement_post_response(
-            self.author,
-            thread
-        )
-        self.assertContains(
-            response,
-            thread.id,
-            status_code=201
-        )
+        thread = create_thread(title="A", paper=self.paper)
+        response = self.get_thread_endorsement_post_response(self.author, thread)
+        self.assertContains(response, thread.id, status_code=201)
 
     @skip
     def test_moderator_can_endorse_thread(self):
-        thread = create_thread(title='M', paper=self.paper)
-        response = self.get_thread_endorsement_post_response(
-            self.moderator,
-            thread
-        )
-        self.assertContains(
-            response,
-            thread.id,
-            status_code=201
-        )
+        thread = create_thread(title="M", paper=self.paper)
+        response = self.get_thread_endorsement_post_response(self.moderator, thread)
+        self.assertContains(response, thread.id, status_code=201)
 
     @skip
     def test_can_NOT_endorse_thread_if_not_author_or_moderator(self):
-        thread = create_thread(title='N', paper=self.paper)
+        thread = create_thread(title="N", paper=self.paper)
         response = self.get_thread_endorsement_post_response(self.user, thread)
         self.assertEqual(response.status_code, 403)
 
     def test_author_can_endorse_comment(self):
-        comment = create_comment(text='A', thread=self.thread)
-        response = self.get_comment_endorsement_post_response(
-            self.author,
-            comment
-        )
-        self.assertContains(
-            response,
-            comment.id,
-            status_code=201
-        )
+        comment = create_comment(text="A", thread=self.thread)
+        response = self.get_comment_endorsement_post_response(self.author, comment)
+        self.assertContains(response, comment.id, status_code=201)
 
     def test_moderator_can_endorse_comment(self):
-        comment = create_comment(text='M', thread=self.thread)
-        response = self.get_comment_endorsement_post_response(
-            self.moderator,
-            comment
-        )
-        self.assertContains(
-            response,
-            comment.id,
-            status_code=201
-        )
+        comment = create_comment(text="M", thread=self.thread)
+        response = self.get_comment_endorsement_post_response(self.moderator, comment)
+        self.assertContains(response, comment.id, status_code=201)
 
     def test_can_NOT_endorse_comment_if_not_author_or_moderator(self):
-        comment = create_comment(text='N', thread=self.thread)
-        response = self.get_comment_endorsement_post_response(
-            self.user,
-            comment
-        )
+        comment = create_comment(text="N", thread=self.thread)
+        response = self.get_comment_endorsement_post_response(self.user, comment)
         self.assertEqual(response.status_code, 403)
 
     def test_author_can_endorse_reply(self):
-        reply = create_reply(text='A', parent=self.comment)
-        response = self.get_reply_endorsement_post_response(
-            self.author,
-            reply
-        )
-        self.assertContains(
-            response,
-            reply.id,
-            status_code=201
-        )
+        reply = create_reply(text="A", parent=self.comment)
+        response = self.get_reply_endorsement_post_response(self.author, reply)
+        self.assertContains(response, reply.id, status_code=201)
 
     def test_moderator_can_endorse_reply(self):
-        reply = create_reply(text='M', parent=self.comment)
-        response = self.get_reply_endorsement_post_response(
-            self.moderator,
-            reply
-        )
-        self.assertContains(
-            response,
-            reply.id,
-            status_code=201
-        )
+        reply = create_reply(text="M", parent=self.comment)
+        response = self.get_reply_endorsement_post_response(self.moderator, reply)
+        self.assertContains(response, reply.id, status_code=201)
 
     def test_can_NOT_endorse_reply_if_not_author_or_moderator(self):
-        reply = create_reply(text='N', parent=self.comment)
-        response = self.get_reply_endorsement_post_response(
-            self.user,
-            reply
-        )
+        reply = create_reply(text="N", parent=self.comment)
+        response = self.get_reply_endorsement_post_response(self.user, reply)
         self.assertEqual(response.status_code, 403)
 
     @skip
@@ -306,26 +256,19 @@ class DiscussionThreadPermissionsIntegrationTests(
         return user
 
     def get_discussion_response(self, user):
-        url = build_discussion_default_url(self, 'thread')
+        url = build_discussion_default_url(self, "thread")
         response = get_authenticated_get_response(
-            user,
-            url,
-            content_type='application/json'
+            user, url, content_type="application/json"
         )
         return response
 
     def get_thread_post_response(self, user):
-        url = build_discussion_default_url(self, 'thread')
+        url = build_discussion_default_url(self, "thread")
         form_data = build_thread_form(
-            self.paper.id,
-            'Permission Thread',
-            'test permissions thread'
+            self.paper.id, "Permission Thread", "test permissions thread"
         )
         response = get_authenticated_post_response(
-            user,
-            url,
-            form_data,
-            content_type='multipart/form-data'
+            user, url, form_data, content_type="multipart/form-data"
         )
         return response
 
@@ -335,32 +278,29 @@ class DiscussionThreadPermissionsIntegrationTests(
         return response
 
     def get_thread_endorsement_url(self, thread):
-        return self.base_url + f'paper/{self.paper.id}/discussion/{thread.id}/'
+        return self.base_url + f"paper/{self.paper.id}/discussion/{thread.id}/"
 
     def get_thread_flag_post_response(self, user):
-        url = build_discussion_detail_url(self, 'thread')
-        reason = 'This thread is inappropriate'
+        url = build_discussion_detail_url(self, "thread")
+        reason = "This thread is inappropriate"
         response = self.get_flag_response(user, url, reason)
         return response
 
     def get_thread_upvote_post_response(self, user):
-        url = build_discussion_detail_url(self, 'thread')
+        url = build_discussion_detail_url(self, "thread")
         response = self.get_upvote_response(user, url)
         return response
 
     def get_thread_downvote_post_response(self, user):
-        url = build_discussion_detail_url(self, 'thread')
+        url = build_discussion_detail_url(self, "thread")
         response = self.get_downvote_response(user, url)
         return response
 
     def get_comment_post_response(self, user):
-        url = build_discussion_default_url(self, 'comment')
-        data = build_comment_data(self.thread.id, 'test permissions comment')
+        url = build_discussion_default_url(self, "comment")
+        data = build_comment_data(self.thread.id, "test permissions comment")
         response = get_authenticated_post_response(
-            user,
-            url,
-            data,
-            content_type='application/json'
+            user, url, data, content_type="application/json"
         )
         return response
 
@@ -371,34 +311,31 @@ class DiscussionThreadPermissionsIntegrationTests(
 
     def get_comment_endorsement_url(self, comment):
         return self.base_url + (
-            f'paper/{self.paper.id}/discussion/{self.thread.id}/'
-            + f'comment/{comment.id}/'
+            f"paper/{self.paper.id}/discussion/{self.thread.id}/"
+            + f"comment/{comment.id}/"
         )
 
     def get_comment_flag_post_response(self, user):
-        url = build_discussion_detail_url(self, 'comment')
-        reason = 'This comment is inappropriate'
+        url = build_discussion_detail_url(self, "comment")
+        reason = "This comment is inappropriate"
         response = self.get_flag_response(user, url, reason)
         return response
 
     def get_comment_upvote_post_response(self, user):
-        url = build_discussion_detail_url(self, 'comment')
+        url = build_discussion_detail_url(self, "comment")
         response = self.get_upvote_response(user, url)
         return response
 
     def get_comment_downvote_post_response(self, user):
-        url = build_discussion_detail_url(self, 'comment')
+        url = build_discussion_detail_url(self, "comment")
         response = self.get_downvote_response(user, url)
         return response
 
     def get_reply_post_response(self, user):
-        url = build_discussion_default_url(self, 'reply')
-        data = build_reply_data(self.comment.id, 'test permissions reply')
+        url = build_discussion_default_url(self, "reply")
+        data = build_reply_data(self.comment.id, "test permissions reply")
         response = get_authenticated_post_response(
-            user,
-            url,
-            data,
-            content_type='application/json'
+            user, url, data, content_type="application/json"
         )
         return response
 
@@ -409,68 +346,54 @@ class DiscussionThreadPermissionsIntegrationTests(
 
     def get_reply_endorsement_url(self, reply):
         return self.base_url + (
-            f'paper/{self.paper.id}/discussion/{self.thread.id}/'
-            + f'comment/{self.comment.id}/reply/{reply.id}/'
+            f"paper/{self.paper.id}/discussion/{self.thread.id}/"
+            + f"comment/{self.comment.id}/reply/{reply.id}/"
         )
 
     def get_reply_flag_post_response(self, user):
-        url = build_discussion_detail_url(self, 'reply')
-        reason = 'This reply is inappropriate'
+        url = build_discussion_detail_url(self, "reply")
+        reason = "This reply is inappropriate"
         response = self.get_flag_response(user, url, reason)
         return response
 
     def get_reply_upvote_post_response(self, user):
-        url = build_discussion_detail_url(self, 'reply')
+        url = build_discussion_detail_url(self, "reply")
         response = self.get_upvote_response(user, url)
         return response
 
     def get_reply_downvote_post_response(self, user):
-        url = build_discussion_detail_url(self, 'reply')
+        url = build_discussion_detail_url(self, "reply")
         response = self.get_downvote_response(user, url)
         return response
 
     def get_endorsement_response(self, user, url):
-        url += 'endorse/'
+        url += "endorse/"
         data = None
         response = get_authenticated_post_response(
-            user,
-            url,
-            data,
-            content_type='application/json'
+            user, url, data, content_type="application/json"
         )
         return response
 
     def get_flag_response(self, user, url, reason):
-        url += 'flag/'
-        data = {
-            'reason': reason
-        }
+        url += "flag/"
+        data = {"reason": reason, "reason_choice": "SPAM"}
         response = get_authenticated_post_response(
-            user,
-            url,
-            data,
-            content_type='application/json'
+            user, url, data, content_type="application/json"
         )
         return response
 
     def get_upvote_response(self, user, url):
-        url += 'upvote/'
+        url += "upvote/"
         data = {}
         response = get_authenticated_post_response(
-            user,
-            url,
-            data,
-            content_type='application/json'
+            user, url, data, content_type="application/json"
         )
         return response
 
     def get_downvote_response(self, user, url):
-        url += 'downvote/'
+        url += "downvote/"
         data = {}
         response = get_authenticated_post_response(
-            user,
-            url,
-            data,
-            content_type='application/json'
+            user, url, data, content_type="application/json"
         )
         return response

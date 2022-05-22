@@ -1,7 +1,8 @@
-from django.db.models import Count, Q
 import rest_framework.serializers as serializers
+from django.contrib.contenttypes.models import ContentType
+from django.db.models import Count, Q
 
-from discussion.models import Endorsement, Flag, Vote
+from discussion.reaction_models import Endorsement, Flag, Vote
 from researchhub.serializers import DynamicModelFieldSerializer
 from utils.http import get_user_from_request
 from utils.sentry import log_error
@@ -12,10 +13,10 @@ class EndorsementSerializer(serializers.ModelSerializer):
 
     class Meta:
         fields = [
-            'content_type',
-            'created_by',
-            'created_date',
-            'item',
+            "content_type",
+            "created_by",
+            "created_date",
+            "item",
         ]
         model = Endorsement
 
@@ -25,13 +26,22 @@ class FlagSerializer(serializers.ModelSerializer):
 
     class Meta:
         fields = [
-            'content_type',
-            'created_by',
-            'created_date',
-            'item',
-            'reason',
+            "content_type",
+            "created_by",
+            "created_date",
+            "id",
+            "item",
+            "reason",
+            "object_id",
         ]
         model = Flag
+
+    # def to_internal_value(self, data):
+    #     content_type = data.get("content_type", None)
+    #     if content_type:
+    #         content_type_id = ContentType.objects.get(model=content_type).id
+    #         data["content_type"] = content_type_id
+    #     return super().to_internal_value(data)
 
 
 class VoteSerializer(serializers.ModelSerializer):
@@ -39,63 +49,59 @@ class VoteSerializer(serializers.ModelSerializer):
 
     class Meta:
         fields = [
-            'id',
-            'content_type',
-            'created_by',
-            'created_date',
-            'vote_type',
-            'item',
+            "id",
+            "content_type",
+            "created_by",
+            "created_date",
+            "vote_type",
+            "item",
         ]
         model = Vote
 
 
 class DynamicVoteSerializer(DynamicModelFieldSerializer):
     class Meta:
-        fields = '__all__'
+        fields = "__all__"
         model = Vote
 
 
 class GenericReactionSerializerMixin:
     EXPOSABLE_FIELDS = [
-      'promoted',
-      'score',
-      'user_endorsement',
-      'user_flag',
-      'user_vote',
+        "promoted",
+        "score",
+        "user_endorsement",
+        "user_flag",
+        "user_vote",
     ]
     READ_ONLY_FIELDS = [
-      'promoted',
-      'score',
-      'user_endorsement',
-      'user_flag',
-      'user_vote',
+        "promoted",
+        "score",
+        "user_endorsement",
+        "user_flag",
+        "user_vote",
     ]
 
     def get_document_meta(self, obj):
         paper = obj.paper
         if paper:
             data = {
-                'id': paper.id,
-                'title': paper.paper_title,
-                'slug': paper.slug,
+                "id": paper.id,
+                "title": paper.paper_title,
+                "slug": paper.slug,
             }
             return data
 
         post = obj.post
         if post:
-            data = {
-                'id': post.id,
-                'title': post.title,
-                'slug': post.slug
-            }
+            data = {"id": post.id, "title": post.title, "slug": post.slug}
             return data
 
         hypothesis = obj.hypothesis
         if hypothesis:
             data = {
-                'id': hypothesis.id,
-                'title': hypothesis.title,
-                'slug': hypothesis.slug
+                "id": hypothesis.id,
+                "title": hypothesis.title,
+                "slug": hypothesis.slug,
             }
             return data
 
@@ -117,22 +123,6 @@ class GenericReactionSerializerMixin:
         except Exception as e:
             log_error(e)
             return None
-
-    def get_children_annotated(self, children):
-        if self.context.get('needs_score', False):
-            upvotes = Count(
-                'votes__vote_type',
-                filter=Q(votes__vote_type=Vote.UPVOTE)
-            )
-            downvotes = Count(
-                'votes__vote_type',
-                filter=Q(votes__vote_type=Vote.DOWNVOTE)
-            )
-            return children.annotate(
-                score=upvotes - downvotes
-            )
-        else:
-            return children
 
     def get_user_vote(self, obj):
         vote = None
@@ -163,7 +153,7 @@ class GenericReactionSerializerMixin:
         return flag
 
     def get_promoted(self, obj):
-        if self.context.get('exclude_promoted_score', False):
+        if self.context.get("exclude_promoted_score", False):
             return None
         try:
             return obj.get_promoted_score()

@@ -206,11 +206,7 @@ def create_action(sender, instance, created, **kwargs):
 
         action = Action.objects.create(item=instance, user=user, display=display)
 
-        hubs = []
-        if sender == Paper:
-            hubs = instance.hubs.all()
-        elif sender != BulletPointVote and sender != SummaryVote:
-            hubs = get_related_hubs(instance)
+        hubs = get_related_hubs(instance)
         if hubs:
             action.hubs.add(*hubs)
         create_notification(sender, instance, created, action, **kwargs)
@@ -271,13 +267,17 @@ def create_notification(sender, instance, created, action, **kwargs):
 
 def get_related_hubs(instance):
     try:
-        paper = getattr(instance, "paper")
-        if paper is not None:
-            return paper.hubs.all()
-        elif isinstance(instance, ResearchhubPost):
+        if isinstance(
+            instance, (Paper, ResearchhubPost, Hypothesis, Thread, Comment, Reply)
+        ):
             return instance.unified_document.hubs.all()
-        elif isinstance(instance, Hypothesis):
-            return instance.unified_document.hubs.all()
+        elif isinstance(instance, PaperSubmission):
+            paper = instance.paper
+            if paper:
+                return instance.paper.hubs.all()
+        elif hasattr(instance, "hubs"):
+            return instance.hubs.all()
+        return []
     except AttributeError:
         return []
 

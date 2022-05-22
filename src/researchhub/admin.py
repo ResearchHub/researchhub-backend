@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.core.paginator import Paginator
-from django.db import connection, transaction, OperationalError
+from django.db import OperationalError, connection, transaction
 from django.utils.functional import cached_property
 
 
@@ -10,14 +10,14 @@ class TimeoutPaginator(Paginator):
     def count(self):
         try:
             with transaction.atomic(), connection.cursor() as cursor:
-                cursor.execute('SET LOCAL statement_timeout TO 200;')
+                cursor.execute("SET LOCAL statement_timeout TO 200;")
                 return super().count
         except OperationalError:
             return 1300000
 
 
 class InputFilter(admin.SimpleListFilter):
-    template = 'admin_panel_input_filter.html'
+    template = "admin_panel_input_filter.html"
 
     def lookups(self, request, model_admin):
         # Dummy, required to show the filter.
@@ -26,7 +26,7 @@ class InputFilter(admin.SimpleListFilter):
     def choices(self, changelist):
         # Grab only the "all" option.
         all_choice = next(super().choices(changelist))
-        all_choice['query_parts'] = (
+        all_choice["query_parts"] = (
             (k, v)
             for k, v in changelist.get_filters_params().items()
             if k != self.parameter_name
@@ -35,8 +35,8 @@ class InputFilter(admin.SimpleListFilter):
 
 
 class IdFilter(InputFilter):
-    parameter_name = 'ID'
-    title = ('ID')
+    parameter_name = "ID"
+    title = "ID"
 
     def queryset(self, request, queryset):
         item_id = self.value()
@@ -46,8 +46,8 @@ class IdFilter(InputFilter):
 
 
 class UserIdFilter(InputFilter):
-    parameter_name = 'UserID'
-    title = ('User ID')
+    parameter_name = "UserID"
+    title = "User ID"
 
     def queryset(self, request, queryset):
         uid = self.value()
@@ -57,8 +57,8 @@ class UserIdFilter(InputFilter):
 
 
 class CreatedDateFilter(InputFilter):
-    parameter_name = 'CreatedDate'
-    title = ('Created Date')
+    parameter_name = "CreatedDate"
+    title = "Created Date"
 
     def queryset(self, request, queryset):
         date = self.value()
@@ -68,11 +68,11 @@ class CreatedDateFilter(InputFilter):
 
 
 class UploadedDateFilter(InputFilter):
-    parameter_name = 'UploadedDate'
-    title = ('Uploaded Date')
+    parameter_name = "UploadedDate"
+    title = "Uploaded Date"
 
     def queryset(self, request, queryset):
         date = self.value()
         if date:
-            return queryset.filter(uploaded_date__icontains=date)
+            return queryset.filter(created_date__icontains=date)
         return queryset

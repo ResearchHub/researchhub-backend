@@ -90,7 +90,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
         abstract = True
         exclude = ["references"]
         read_only_fields = [
-            "score",
+            "paper_score",
             "user_vote",
             "user_flag",
             "users_who_bookmarked",
@@ -245,7 +245,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
                 flag = FlagSerializer(flag_created_by).data
             except AttributeError:
                 try:
-                    flag = paper.flags.get(created_by=user.id)
+                    flag = paper.flags_legacy.get(created_by=user.id)
                     flag = FlagSerializer(flag).data
                 except Flag.DoesNotExist:
                     pass
@@ -262,7 +262,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
                 vote = PaperVoteSerializer(vote_created_by).data
             except AttributeError:
                 try:
-                    vote = paper.votes.get(created_by=user.id)
+                    vote = paper.votes_legacy.get(created_by=user.id)
                     vote = PaperVoteSerializer(vote).data
                 except Vote.DoesNotExist:
                     pass
@@ -317,6 +317,7 @@ class ContributionPaperSerializer(BasePaperSerializer):
 class PaperSerializer(BasePaperSerializer):
     raw_author_scores = serializers.SerializerMethodField()
     authors = serializers.SerializerMethodField()
+    uploaded_date = serializers.ReadOnlyField()  # @property
 
     class Meta:
         exclude = ["references"]
@@ -340,13 +341,12 @@ class PaperSerializer(BasePaperSerializer):
             "publication_type",
             "raw_author_scores",
             "retrieved_from_external_source",
-            "score",
+            "paper_score",
             "slug",
             "tagline",
             "twitter_mentions",
             "twitter_score",
             "unified_document_id",
-            "uploaded_date",
             "user_flag",
             "users_who_bookmarked",
             "user_vote",
@@ -750,7 +750,7 @@ class PaperSerializer(BasePaperSerializer):
                                 "last_name": author.get("last_name"),
                             }
                         ]
-                    ).aggregate(Sum("score"))["score__sum"]
+                    ).aggregate(Sum("paper_score"))["paper_score__sum"]
 
                     scores.append(score)
         return scores
@@ -845,9 +845,10 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
         user = get_user_from_request(self.context)
         context = self.context
         _context_fields = context.get("pap_dps_get_user_vote", {})
+
         if user:
             try:
-                vote = paper.votes.get(created_by=user.id)
+                vote = paper.votes_legacy.get(created_by=user.id)
                 vote = DynamicPaperVoteSerializer(
                     vote,
                     context=self.context,
@@ -915,11 +916,16 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
     def get_unified_document(self, paper):
         from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 
+        # NOTE: calvinhlee - dynamic handling is very confusing. This has to be better.
+        context = self.context
+        _context_fields = context.get(
+            "pap_dps_get_unified_document", {"_exclude_fields": ["documents"]}
+        )
+
         serializer = DynamicUnifiedDocumentSerializer(
             paper.unified_document,
-            _include_fields=["id", "reviews"],
-            context={},
             many=False,
+            **_context_fields,
         )
 
         return serializer.data

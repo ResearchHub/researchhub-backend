@@ -164,7 +164,7 @@ class UserViewSet(viewsets.ModelViewSet):
         time_filter = {}
         if leaderboard_type == "papers":
             if created_by_options == "created_date":
-                keyword = "uploaded_date__gte"
+                keyword = "created_date__gte"
             else:
                 keyword = "paper_publish_date__gte"
         elif leaderboard_type == "users":
@@ -180,7 +180,7 @@ class UserViewSet(viewsets.ModelViewSet):
             time_filter = {keyword: timezone.now().date() - timedelta(days=30)}
         elif timeframe == "past_year":
             if leaderboard_type == "papers":
-                keyword = "uploaded_date__year__gte"
+                keyword = "created_date__year__gte"
             else:
                 keyword = "created_date__year__gte"
             time_filter = {keyword: timezone.now().year}

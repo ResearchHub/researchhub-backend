@@ -192,7 +192,7 @@ def send_hub_digest(frequency):
         users_papers = Paper.objects.filter(hubs__in=user.subscribed_hubs.all())
         most_voted_and_uploaded_in_interval = (
             users_papers.filter(
-                uploaded_date__gte=start_date, uploaded_date__lte=end_date
+                created_date__gte=start_date, created_date__lte=end_date
             )
             .filter(score__gt=0)
             .order_by("-score")[:3]
