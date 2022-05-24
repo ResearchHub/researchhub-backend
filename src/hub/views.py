@@ -415,6 +415,7 @@ class HubViewSet(viewsets.ModelViewSet):
                     "id",
                     "document_type",
                     "slug",
+                    "documents",
                 ]
             },
             "dis_dts_get_unified_document": {
