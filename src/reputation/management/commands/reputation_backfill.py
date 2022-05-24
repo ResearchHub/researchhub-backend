@@ -13,8 +13,11 @@ class Command(BaseCommand):
         total_changed_records = 0
         for i, user in enumerate(users):
             print("{} / {}".format(i, users.count()))
-            rep = user.reputation_records.exclude(distribution_type="REFERRAL").exclude(
-                distribution_type="PURCHASE"
+            rep = (
+                user.reputation_records.exclude(distribution_type="REFERRAL")
+                .exclude(distribution_type="PURCHASE")
+                .exclude(distribution_type="REWARD")
+                .exclude(distribution_type="EDITOR_COMPENSATION")
             )
             for j, record in enumerate(rep):
                 print("REP: {} / {}".format(j, rep.count()))
