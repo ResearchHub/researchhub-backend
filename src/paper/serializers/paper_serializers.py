@@ -69,22 +69,23 @@ from utils.siftscience import events_api, update_user_risk_score
 
 class BasePaperSerializer(serializers.ModelSerializer):
     authors = serializers.SerializerMethodField()
+    boost_amount = serializers.SerializerMethodField()
     bullet_points = serializers.SerializerMethodField()
     csl_item = serializers.SerializerMethodField()
     discussion = serializers.SerializerMethodField()
+    discussion_users = serializers.SerializerMethodField()
+    file = serializers.SerializerMethodField()
     first_figure = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
     hubs = SimpleHubSerializer(many=True, required=False)
-    summary = serializers.SerializerMethodField()
-    uploaded_by = UserSerializer(read_only=True)
-    user_vote = serializers.SerializerMethodField()
-    user_flag = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
-    boost_amount = serializers.SerializerMethodField()
-    file = serializers.SerializerMethodField()
-    discussion_users = serializers.SerializerMethodField()
-    unified_document_id = serializers.SerializerMethodField()
+    score = serializers.ReadOnlyField()  # @property
+    summary = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
+    unified_document_id = serializers.SerializerMethodField()
+    uploaded_by = UserSerializer(read_only=True)
+    user_flag = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
 
     class Meta:
         abstract = True
@@ -830,8 +831,9 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
     authors = serializers.SerializerMethodField()
     boost_amount = serializers.SerializerMethodField()
     discussion_users = serializers.SerializerMethodField()
-    hubs = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
+    hubs = serializers.SerializerMethodField()
+    score = serializers.ReadOnlyField()  # @property
     unified_document = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
