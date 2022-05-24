@@ -4,6 +4,7 @@ from django.db.models import (
     CASCADE,
     CharField,
     Count,
+    DateTimeField,
     ForeignKey,
     IntegerField,
     ManyToManyField,
@@ -73,6 +74,7 @@ class Vote(DefaultModel):
 
 
 class Flag(DefaultModel):
+    verdict_created_date = DateTimeField(null=True)
     content_type = ForeignKey(ContentType, on_delete=CASCADE)
     created_by = ForeignKey("user.User", on_delete=CASCADE)
     item = GenericForeignKey("content_type", "object_id")

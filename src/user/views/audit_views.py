@@ -28,7 +28,7 @@ class AuditViewSet(viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated, UserIsEditor]
     pagination_class = CursorSetPagination
     filter_backends = (AuditDashboardFilterBackend,)
-    order_fields = ("created_date", "verdict__created_date")
+    order_fields = ("created_date", "verdict_created_date")
     models = (
         "thread",
         "comment",
@@ -380,6 +380,8 @@ class AuditViewSet(viewsets.GenericViewSet):
                 verdict_serializer = VerdictSerializer(data=verdict_data)
                 verdict_serializer.is_valid(raise_exception=True)
                 verdict = verdict_serializer.save()
+                flag.verdict_created_date = verdict.created_date
+                flag.save()
 
                 self._remove_flagged_content(flag)
 
