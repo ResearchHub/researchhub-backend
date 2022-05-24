@@ -3,6 +3,16 @@
 from django.db import migrations, models
 
 
+def add_post_slugs(apps, schema_editor):
+    Flag = apps.get_model('discussion', 'flag')
+
+    for flag in Flag.objects.all().iterator():
+        if hasattr(flag, 'verdict'):
+            veridct = flag.verdict
+            flag.verdict_created_date = veridct.created_date
+            flag.save()
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -20,4 +30,5 @@ class Migration(migrations.Migration):
             name='reason_choice',
             field=models.CharField(blank=True, choices=[('ABUSIVE_OR_RUDE', 'ABUSIVE_OR_RUDE'), ('COPYRIGHT', 'COPYRIGHT'), ('LOW_QUALITY', 'LOW_QUALITY'), ('NOT_CONSTRUCTIVE', 'NOT_CONSTRUCTIVE'), ('PLAGIARISM', 'PLAGIARISM'), ('SPAM', 'SPAM'), ('NOT_SPECIFIED', 'NOT_SPECIFIED')], max_length=255),
         ),
+        migrations.RunPython(add_post_slugs),
     ]
