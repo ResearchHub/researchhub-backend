@@ -14,7 +14,8 @@ class Command(BaseCommand):
         for i, user in enumerate(users):
             print("{} / {}".format(i, users.count()))
             rep = user.reputation_records.exclude(distribution_type="REFERRAL")
-            for record in rep:
+            for j, record in enumerate(rep):
+                print("REP: {} / {}".format(j, rep.count()))
                 if record.giver and record.giver.reputation < 110:
                     total_changed_records += 1
                     print(record)
@@ -24,7 +25,6 @@ class Command(BaseCommand):
             rep_sum = user.reputation_records.exclude(
                 distribution_type="REFERRAL"
             ).aggregate(rep=Sum("amount"))
-            print(rep_sum)
             rep = rep_sum.get("rep") or 0
             user.reputation = rep + 100
             try:
@@ -32,4 +32,4 @@ class Command(BaseCommand):
             except Exception as e:
                 print(e)
 
-            print(total_changed_records)
+            print("TOTAL CHANGED RECORDS: {}".format(total_changed_records))
