@@ -179,7 +179,6 @@ def create_action(sender, instance, created, **kwargs):
                     user,
                     user.invited_by,
                     timestamp,
-                    None,
                 )
                 referred.distribute()
 
@@ -188,7 +187,6 @@ def create_action(sender, instance, created, **kwargs):
                     user.invited_by,
                     user.invited_by,
                     timestamp,
-                    None,
                 )
                 referrer.distribute()
 
