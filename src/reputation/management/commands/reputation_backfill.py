@@ -27,9 +27,8 @@ class Command(BaseCommand):
                     record.amount = 0
                     record.save()
 
-            rep_sum = user.reputation_records.exclude(
-                distribution_type="REFERRAL"
-            ).aggregate(rep=Sum("amount"))
+            rep_sum = rep.aggregate(rep=Sum("amount"))
+
             rep = rep_sum.get("rep") or 0
             user.reputation = rep + 100
             try:
