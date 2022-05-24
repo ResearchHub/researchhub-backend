@@ -10,6 +10,7 @@ from django.utils import timezone
 from hub.models import Hub
 from mailing_list.models import EmailRecipient
 from reputation.models import PaidStatusModelMixin, Withdrawal
+from researchhub.settings import NO_ELASTIC
 from researchhub_access_group.constants import EDITOR
 from user.tasks import handle_spam_user_task, update_elastic_registry
 from utils.message import send_email_message
@@ -93,10 +94,11 @@ class User(AbstractUser):
                 EmailRecipient.objects.create(user=self, email=self.email)
 
         # Update the Elastic Search index
-        try:
-            update_elastic_registry.apply_async([self.id])
-        except Exception as e:
-            pass
+        if not NO_ELASTIC:
+            try:
+                update_elastic_registry.apply_async([self.id])
+            except Exception as e:
+                pass
 
         return user_to_save
 

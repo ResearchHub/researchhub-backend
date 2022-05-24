@@ -173,7 +173,7 @@ NeutralVote = Distribution("NEUTRAL_VOTE", 0)
 
 
 def create_purchase_distribution(amount):
-    return Distribution("PURCHASE", amount)
+    return Distribution("PURCHASE", amount, False)
 
 
 DISTRIBUTION_TYPE_CHOICES = [
