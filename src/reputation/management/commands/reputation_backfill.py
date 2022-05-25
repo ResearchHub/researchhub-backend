@@ -30,6 +30,7 @@ class Command(BaseCommand):
                 if record.giver and record.giver.reputation < 110:
                     total_changed_records += 1
                     record.amount = 0
+                    record.reputation_amount = 0
                 else:
                     gives_rep = {
                         "PAPER_UPVOTED": 1,
@@ -50,7 +51,8 @@ class Command(BaseCommand):
                     record.reputation_amount = gives_rep.get(
                         record.distribution_type, 0
                     ) + removes_rep.get(record.distribution_type, 0)
-                    record.save()
+
+                record.save()
 
             rep_sum = rep.aggregate(rep=Sum("reputation_amount"))
             rep = rep_sum.get("rep") or 0
