@@ -20,6 +20,11 @@ class Command(BaseCommand):
                 .exclude(distribution_type="EDITOR_COMPENSATION")
                 .exclude(distribution_type="EDITOR_PAYOUT")
                 .exclude(distribution_type="MOD_PAYOUT")
+                .exclude(distribution_type="CREATE_BULLET_POINT")
+                .exclude(distribution_type="CREATE_SUMMARY")
+                .exclude(distribution_type="SUMMARY_UPVOTED")
+                .exclude(distribution_type="BULLET_POINT_UPVOTED")
+                .exclude(distribution_type="CREATE_FIRST_SUMMARY")
             )
             for j, record in enumerate(rep):
                 if record.giver and record.giver.reputation < 110:
