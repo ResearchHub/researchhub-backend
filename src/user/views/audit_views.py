@@ -30,14 +30,24 @@ class AuditViewSet(viewsets.GenericViewSet):
     pagination_class = CursorSetPagination
     filter_backends = (AuditDashboardFilterBackend,)
     order_fields = ("created_date", "verdict_created_date")
-    models = (
-        ContentType.objects.get(model="thread"),
-        ContentType.objects.get(model="comment"),
-        ContentType.objects.get(model="reply"),
-        ContentType.objects.get(model="researchhubpost"),
-        ContentType.objects.get(model="paper"),
-        ContentType.objects.get(model="hypothesis"),
-    )
+    # models = (
+    #     ContentType.objects.get(model="thread"),
+    #     ContentType.objects.get(model="comment"),
+    #     ContentType.objects.get(model="reply"),
+    #     ContentType.objects.get(model="researchhubpost"),
+    #     ContentType.objects.get(model="paper"),
+    #     ContentType.objects.get(model="hypothesis"),
+    # )
+
+    def _get_allowed_models(self):
+        return (
+            ContentType.objects.get(model="thread"),
+            ContentType.objects.get(model="comment"),
+            ContentType.objects.get(model="reply"),
+            ContentType.objects.get(model="researchhubpost"),
+            ContentType.objects.get(model="paper"),
+            ContentType.objects.get(model="hypothesis"),
+        )
 
     def get_queryset(self):
         if self.action == "flagged":
@@ -79,7 +89,7 @@ class AuditViewSet(viewsets.GenericViewSet):
 
         actions = (
             self.get_filtered_queryset()
-            .filter(user__isnull=False, content_type__in=self.models)
+            .filter(user__isnull=False, content_type__in=self._get_allowed_models())
             .select_related("user")
             .prefetch_related(
                 "item",
