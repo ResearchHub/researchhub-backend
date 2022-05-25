@@ -71,6 +71,8 @@ class ActionDashboardFilter(filters.FilterSet):
 
 
 class AuditDashboardFilterBackend(filters.DjangoFilterBackend):
+    ordering_param = "ordering"
+
     def get_filterset_class(self, view, queryset=None):
         """
         Taken from django-filters source code
@@ -92,7 +94,6 @@ class AuditDashboardFilterBackend(filters.DjangoFilterBackend):
             )
             filterset_class = getattr(view, "filter_class", None)
 
-        # TODO: remove assertion in 2.1
         if filterset_fields is None and hasattr(view, "filter_fields"):
             utils.deprecate(
                 "`%s.filter_fields` attribute should be renamed `filterset_fields`."
@@ -125,3 +126,19 @@ class AuditDashboardFilterBackend(filters.DjangoFilterBackend):
             return AutoFilterSet
 
         return None
+
+    def get_ordering(self, request, queryset, view):
+        params = request.query_params.get(self.ordering_param)
+        if params:
+            valid_fields = []
+            fields = [param.strip() for param in params.split(",")]
+            for field in fields:
+                order_param = field
+                if order_param.startswith("-"):
+                    order_param = order_param[1:]
+                if order_param in view.order_fields:
+                    valid_fields.append(field)
+
+            if valid_fields:
+                return valid_fields
+        return ("-created_date",)

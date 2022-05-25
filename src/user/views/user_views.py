@@ -698,7 +698,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             .prefetch_related(
                 *prefetch_lookups,
             )
-            .order_by("-score")
+            .order_by("-paper_score")
         )
         context = self._get_authored_papers_context()
         page = self.paginate_queryset(authored_papers)

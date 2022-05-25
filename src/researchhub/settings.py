@@ -38,7 +38,7 @@ TESTING = ("test" in APP_ENV) or ("test" in sys.argv)
 PYTHONPATH = "/var/app/current:$PYTHONPATH"
 DJANGO_SETTINGS_MODULE = "researchhub.settings"
 ELASTIC_BEANSTALK = APP_ENV in ["production", "staging", "development"]
-NO_SILK = os.environ.get("NO_SILK", False)
+USE_SILK = os.environ.get("USE_SILK", False)
 CONFIG = os.environ.get("CONFIG")
 
 if CLOUD or CONFIG:
@@ -244,7 +244,7 @@ MIDDLEWARE = [
 # if not TESTING:
 #     MIDDLEWARE.append('profiler.middleware.profiler.ProfileMiddleware')
 
-if not CLOUD and not NO_SILK == "True":
+if USE_SILK:
     INSTALLED_APPS += ["silk", "dbbackup"]
 
     MIDDLEWARE += [
@@ -253,6 +253,10 @@ if not CLOUD and not NO_SILK == "True":
 
     DBBACKUP_STORAGE = "django.core.files.storage.FileSystemStorage"
     DBBACKUP_STORAGE_OPTIONS = {"location": "backups"}
+    SILKY_META = True
+    SILKY_ANALYZE_QUERIES = True
+    SILKY_EXPLAIN_FLAGS = {"format": "JSON", "costs": True}
+    SILKY_PYTHON_PROFILER = True
 
 ROOT_URLCONF = "researchhub.urls"
 

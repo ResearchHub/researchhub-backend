@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.indexes import BrinIndex
 from django.db import models
 from django.utils import timezone
 
@@ -28,7 +29,19 @@ class Action(DefaultModel):
     )
 
     class Meta:
-        ordering = ['-created_date']
+        ordering = ["-created_date"]
+        indexes = (
+            models.Index(
+                fields=("user",),
+                condition=models.Q(user=None),
+                name="user_action_user_null_ix",
+            ),
+            BrinIndex(
+                fields=("created_date",),
+                pages_per_range=2,
+                name="user_action_createdate_brin_ix",
+            ),
+        )
 
     def __str__(self):
         return "Action: {}-{}-{}, ".format(

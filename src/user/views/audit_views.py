@@ -1,8 +1,7 @@
-from http.client import INTERNAL_SERVER_ERROR
-
-from django.db.models.expressions import OuterRef, Subquery
+from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -12,29 +11,34 @@ from discussion.reaction_models import Flag
 from discussion.reaction_serializers import FlagSerializer
 from discussion.serializers import DynamicFlagSerializer
 from paper.related_models.paper_model import Paper
-from rest_framework.pagination import PageNumberPagination
 from user.filters import AuditDashboardFilterBackend
 from user.models import Action
 from user.permissions import UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 from utils import sentry
 
-class AuditPagination(PageNumberPagination):       
+
+class CursorSetPagination(CursorPagination):
     page_size = 10
+    cursor_query_param = "page"
+
 
 class AuditViewSet(viewsets.GenericViewSet):
     queryset = Action.objects.all()
     permission_classes = [IsAuthenticated, UserIsEditor]
-    pagination_class=AuditPagination
+    pagination_class = CursorSetPagination
     filter_backends = (AuditDashboardFilterBackend,)
-    models = (
-        "thread",
-        "comment",
-        "reply",
-        "researchhubpost",
-        "paper",
-        "hypothesis",
-    )
+    order_fields = ("created_date", "verdict_created_date")
+
+    def _get_allowed_models(self):
+        return (
+            ContentType.objects.get(model="thread"),
+            ContentType.objects.get(model="comment"),
+            ContentType.objects.get(model="reply"),
+            ContentType.objects.get(model="researchhubpost"),
+            ContentType.objects.get(model="paper"),
+            ContentType.objects.get(model="hypothesis"),
+        )
 
     def get_queryset(self):
         if self.action == "flagged":
@@ -55,41 +59,9 @@ class AuditViewSet(viewsets.GenericViewSet):
         return flagged_contributions
 
     def _get_latest_actions(self):
-        # actions = (
-        #     self.get_filtered_queryset()
-        #     .filter(user__isnull=False, content_type__model__in=self.models)
-        #     .exclude(
-        #         functools.reduce(
-        #             operator.or_,
-        #             (
-        #                 Q(content_type_id=content_type_id, object_id=object_id)
-        #                 for content_type_id, object_id in self._get_flagged_content().values_list(
-        #                     "content_type_id", "object_id"
-        #                 )
-        #             ),
-        #         )
-        #     )
-        #     .select_related("user")
-        #     .prefetch_related("item", "user__author_profile")
-        # )
-        # return actions
-
         actions = (
             self.get_filtered_queryset()
-            .filter(user__isnull=False, content_type__model__in=self.models)
-            .annotate(
-                ct=Subquery(
-                    Flag.objects.filter(
-                        content_type_id=OuterRef("content_type_id")
-                    ).values("content_type_id")[:1]
-                ),
-                ob=Subquery(
-                    Flag.objects.filter(object_id=OuterRef("object_id")).values(
-                        "object_id"
-                    )[:1]
-                ),
-            )
-            .exclude(ct__isnull=False, ob__isnull=False)
+            .filter(user__isnull=False, content_type__in=self._get_allowed_models())
             .select_related("user")
             .prefetch_related(
                 "item",
@@ -226,11 +198,6 @@ class AuditViewSet(viewsets.GenericViewSet):
         verdict = query_params.get("verdict", None)
         actions = self.get_filtered_queryset()
 
-        if verdict == "OPEN":
-            actions = actions.order_by("-created_date")
-        else:
-            actions = actions.order_by("-verdict__created_date")
-
         page = self.paginate_queryset(actions)
         _include_fields = [
             "content_type",
@@ -258,9 +225,9 @@ class AuditViewSet(viewsets.GenericViewSet):
     def flagged_count(self, request):
         count = Flag.objects.filter(verdict__isnull=True).count()
         return Response(
-            {'count': count},
+            {"count": count},
             status=status.HTTP_200_OK,
-        )        
+        )
 
     @action(detail=False, methods=["get"])
     def contributions(self, request):
@@ -346,12 +313,12 @@ class AuditViewSet(viewsets.GenericViewSet):
         try:
             flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
             for flag in flags:
-                available_reasons = list(map(lambda r:r[0], FLAG_REASON_CHOICES))
+                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
                 verdict_choice = NOT_SPECIFIED
                 if data.get("verdict_choice") in available_reasons:
                     verdict_choice = f'NOT_{data.get("verdict_choice")}'
                 elif flag.reason_choice in available_reasons:
-                    verdict_choice = f'NOT_{flag.reason_choice}'
+                    verdict_choice = f"NOT_{flag.reason_choice}"
 
                 verdict_data["verdict_choice"] = verdict_choice
                 verdict_data["flag"] = flag.id
@@ -384,7 +351,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         try:
             flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
             for flag in flags:
-                available_reasons = list(map(lambda r:r[0], FLAG_REASON_CHOICES))
+                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
                 verdict_choice = NOT_SPECIFIED
                 if data.get("verdict_choice") in available_reasons:
                     verdict_choice = data.get("verdict_choice")
@@ -396,6 +363,8 @@ class AuditViewSet(viewsets.GenericViewSet):
                 verdict_serializer = VerdictSerializer(data=verdict_data)
                 verdict_serializer.is_valid(raise_exception=True)
                 verdict = verdict_serializer.save()
+                flag.verdict_created_date = verdict.created_date
+                flag.save()
 
                 self._remove_flagged_content(flag)
 
