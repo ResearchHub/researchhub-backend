@@ -22,7 +22,6 @@ class Command(BaseCommand):
                 .exclude(distribution_type="MOD_PAYOUT")
             )
             for j, record in enumerate(rep):
-                print("REP: {} / {}".format(j, rep.count()))
                 if record.giver and record.giver.reputation < 110:
                     total_changed_records += 1
                     record.amount = 0
@@ -44,8 +43,8 @@ class Command(BaseCommand):
                     "THREAD_CENSORED": -2,
                 }
                 record.reputation_amount = gives_rep.get(
-                    distribution_type, 0
-                ) + removes_rep.get(distribution_type, 0)
+                    record.distribution_type, 0
+                ) + removes_rep.get(record.distribution_type, 0)
                 record.save()
 
             rep_sum = rep.aggregate(rep=Sum("reputation_amount"))
