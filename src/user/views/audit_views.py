@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from django.db.models.expressions import OuterRef, Subquery
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -30,12 +31,12 @@ class AuditViewSet(viewsets.GenericViewSet):
     filter_backends = (AuditDashboardFilterBackend,)
     order_fields = ("created_date", "verdict_created_date")
     models = (
-        "thread",
-        "comment",
-        "reply",
-        "researchhubpost",
-        "paper",
-        "hypothesis",
+        ContentType.objects.get(model="thread"),
+        ContentType.objects.get(model="comment"),
+        ContentType.objects.get(model="reply"),
+        ContentType.objects.get(model="researchhubpost"),
+        ContentType.objects.get(model="paper"),
+        ContentType.objects.get(model="hypothesis"),
     )
 
     def get_queryset(self):
@@ -78,7 +79,7 @@ class AuditViewSet(viewsets.GenericViewSet):
 
         actions = (
             self.get_filtered_queryset()
-            .filter(user__isnull=False, content_type__model__in=self.models)
+            .filter(user__isnull=False, content_type__in=self.models)
             .select_related("user")
             .prefetch_related(
                 "item",
