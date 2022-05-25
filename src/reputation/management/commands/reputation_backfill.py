@@ -19,6 +19,7 @@ class Command(BaseCommand):
                 .exclude(distribution_type="REWARD")
                 .exclude(distribution_type="EDITOR_COMPENSATION")
                 .exclude(distribution_type="EDITOR_PAYOUT")
+                .exclude(distribution_type="MOD_PAYOUT")
             )
             for j, record in enumerate(rep):
                 print("REP: {} / {}".format(j, rep.count()))
