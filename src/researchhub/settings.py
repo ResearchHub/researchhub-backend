@@ -253,6 +253,10 @@ if USE_SILK:
 
     DBBACKUP_STORAGE = "django.core.files.storage.FileSystemStorage"
     DBBACKUP_STORAGE_OPTIONS = {"location": "backups"}
+    SILKY_META = True
+    SILKY_ANALYZE_QUERIES = True
+    SILKY_EXPLAIN_FLAGS = {"format": "JSON", "costs": True}
+    SILKY_PYTHON_PROFILER = True
 
 ROOT_URLCONF = "researchhub.urls"
 
