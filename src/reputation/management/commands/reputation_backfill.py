@@ -25,12 +25,30 @@ class Command(BaseCommand):
                 print("REP: {} / {}".format(j, rep.count()))
                 if record.giver and record.giver.reputation < 110:
                     total_changed_records += 1
-                    print(record)
                     record.amount = 0
-                    record.save()
 
-            rep_sum = rep.aggregate(rep=Sum("amount"))
+                gives_rep = {
+                    "PAPER_UPVOTED": 1,
+                    "THREAD_UPVOTED": 1,
+                    "RESEARCHHUB_POST_UPVOTED": 1,
+                    "REPLY_UPVOTED": 1,
+                    "COMMENT_UPVOTED": 1,
+                }
 
+                removes_rep = {
+                    "REPLY_DOWNVOTED": -1,
+                    "COMMENT_DOWNVOTED": -1,
+                    "THREAD_DOWNVOTED": -1,
+                    "REPLY_CENSORED": -2,
+                    "COMMENT_CENSORED": -2,
+                    "THREAD_CENSORED": -2,
+                }
+                record.reputation_amount = gives_rep.get(
+                    distribution_type, 0
+                ) + removes_rep.get(distribution_type, 0)
+                record.save()
+
+            rep_sum = rep.aggregate(rep=Sum("reputation_amount"))
             rep = rep_sum.get("rep") or 0
             user.reputation = rep + 100
             try:

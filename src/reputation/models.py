@@ -91,7 +91,8 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
         Hub,
         related_name="reputation_records",
     )
-    amount = models.BigIntegerField(default=0)
+    amount = models.BigIntegerField(default=0)  # RSC Amount
+    reputation_amount = models.IntegerField(default=0)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     distribution_type = models.CharField(

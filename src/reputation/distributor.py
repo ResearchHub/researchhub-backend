@@ -87,6 +87,7 @@ class Distributor:
             recipient=self.recipient,
             giver=self.giver,
             amount=self.distribution.amount,
+            reputation_amount=self.distribution.reputation,
             distribution_type=self.distribution.name,
             proof=self.proof,
             proof_item_content_type=get_content_type_for_model(self.proof_item)
