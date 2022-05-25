@@ -1,5 +1,4 @@
 from django.contrib.contenttypes.models import ContentType
-from django.db.models.expressions import OuterRef, Subquery
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
@@ -30,14 +29,6 @@ class AuditViewSet(viewsets.GenericViewSet):
     pagination_class = CursorSetPagination
     filter_backends = (AuditDashboardFilterBackend,)
     order_fields = ("created_date", "verdict_created_date")
-    # models = (
-    #     ContentType.objects.get(model="thread"),
-    #     ContentType.objects.get(model="comment"),
-    #     ContentType.objects.get(model="reply"),
-    #     ContentType.objects.get(model="researchhubpost"),
-    #     ContentType.objects.get(model="paper"),
-    #     ContentType.objects.get(model="hypothesis"),
-    # )
 
     def _get_allowed_models(self):
         return (
@@ -68,25 +59,6 @@ class AuditViewSet(viewsets.GenericViewSet):
         return flagged_contributions
 
     def _get_latest_actions(self):
-        # actions = (
-        #     self.get_filtered_queryset()
-        #     .filter(user__isnull=False, content_type__model__in=self.models)
-        #     .exclude(
-        #         functools.reduce(
-        #             operator.or_,
-        #             (
-        #                 Q(content_type_id=content_type_id, object_id=object_id)
-        #                 for content_type_id, object_id in self._get_flagged_content().values_list(
-        #                     "content_type_id", "object_id"
-        #                 )
-        #             ),
-        #         )
-        #     )
-        #     .select_related("user")
-        #     .prefetch_related("item", "user__author_profile")
-        # )
-        # return actions
-
         actions = (
             self.get_filtered_queryset()
             .filter(user__isnull=False, content_type__in=self._get_allowed_models())
