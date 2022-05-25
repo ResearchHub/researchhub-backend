@@ -9,7 +9,7 @@ from user.models import User
 
 class Command(BaseCommand):
     def handle(self, *args, **options):
-        users = User.objects.all()
+        users = User.objects.filter(reputation__gt=100)
         total_changed_records = 0
         for i, user in enumerate(users):
             print("{} / {}".format(i, users.count()))
