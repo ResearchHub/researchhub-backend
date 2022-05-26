@@ -10,7 +10,8 @@ from utils.models import DefaultModel
 class FeedExclusion(DefaultModel):
     # Not a foreign key because hub_id=0 is homepage
     hub_id = models.IntegerField(
-        default=False,
+        null=False,
+        blank=False,
         db_index=True,
     )
 
