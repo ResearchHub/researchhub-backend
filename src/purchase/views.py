@@ -172,10 +172,6 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             item = purchase.item
             context = {"purchase_minimal_serialization": True, "exclude_stats": True}
 
-            print("-----------")
-            print(content_type_str)
-            print("-----------")
-
             #  transfer_rsc is set each time just in case we want
             #  to disable rsc transfer for a specific item
             if content_type_str == "paper":
