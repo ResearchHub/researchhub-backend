@@ -274,8 +274,31 @@ class BasePaperSerializer(serializers.ModelSerializer):
 
         serializer = DynamicUnifiedDocumentSerializer(
             obj.unified_document,
-            _include_fields=["id", "reviews"],
-            context={},
+            _include_fields=["id", "reviews", "title", "documents", "paper_title", "slug", "is_removed", "document_type", "created_by"],
+            context={
+                "doc_duds_get_created_by": {
+                    "_include_fields": [
+                        "id",
+                        "author_profile",
+                    ]
+                },
+                "usr_dus_get_author_profile": {
+                    "_include_fields": [
+                        "id",
+                        "first_name",
+                        "last_name",
+                        "profile_image",
+                    ]
+                },
+                "doc_duds_get_documents": {
+                    "_include_fields": [
+                        "id",
+                        "title",
+                        "slug",
+                        "paper_title",
+                    ]
+                }
+            },
             many=False,
         )
 
