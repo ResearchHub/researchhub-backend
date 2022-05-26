@@ -199,6 +199,10 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 'exclude_stats': True
             }
 
+            print('-----------')
+            print(content_type_str)
+            print('-----------')
+
             #  transfer_rsc is set each time just in case we want
             #  to disable rsc transfer for a specific item
             if content_type_str == 'paper':
@@ -400,11 +404,15 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             return
 
         # TODO: Add email support for posts
-        paper = unified_doc.paper
-        if not paper:
-            return
-        else:
-            paper_id = paper.id
+        paper_id = None
+        try:
+            paper = unified_doc.paper
+            if not paper:
+                return
+            else:
+                paper_id = paper.id
+        except Exception as e:
+            print(e)
 
         sender_balance_date = datetime.datetime.now().strftime(
             '%m/%d/%Y'

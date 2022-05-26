@@ -1,14 +1,16 @@
 from django.contrib.admin.options import get_content_type_for_model
+from django.db import IntegrityError
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from discussion.models import Comment, Endorsement, Flag, Reply, Thread, Vote
+from discussion.models import Comment, Reply, Thread
 from discussion.permissions import CensorDiscussion as CensorDiscussionPermission
 from discussion.permissions import EditorCensorDiscussion
 from discussion.permissions import Endorse as EndorsePermission
 from discussion.permissions import Vote as VotePermission
+from discussion.reaction_models import Endorsement, Flag, Vote
 from discussion.reaction_serializers import (
     EndorsementSerializer,
     FlagSerializer,
@@ -16,7 +18,11 @@ from discussion.reaction_serializers import (
 )
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
-from researchhub_document.related_models.constants.filters import DISCUSSED, TOP, TRENDING
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    TOP,
+    TRENDING,
+)
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.siftscience import decisions_api, events_api, update_user_risk_score
@@ -57,22 +63,32 @@ class ReactionViewActionMixin:
         except Exception as e:
             return Response(f"Failed to delete endorsement: {e}", status=400)
 
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated],
+    )
     def flag(self, request, pk=None):
         item = self.get_object()
         user = request.user
         reason = request.data.get("reason")
+        reason_choice = request.data.get("reason_choice")
 
         try:
-            flag = create_flag(user, item, reason)
+            flag = create_flag(user, item, reason, reason_choice)
             serialized = FlagSerializer(flag)
 
             content_id = f"{type(item).__name__}_{item.id}"
             events_api.track_flag_content(item.created_by, content_id, user.id)
             return Response(serialized.data, status=201)
+        except IntegrityError as e:
+            return Response({
+                "msg": "Already flagged", 
+            }, status=status.HTTP_409_CONFLICT)
         except Exception as e:
-            return Response(
-                f"Failed to create flag: {e}", status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({
+                "msg": "Unexpected error", 
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def delete_flag(self, request, pk=None):
         item = self.get_object()
@@ -118,12 +134,12 @@ class ReactionViewActionMixin:
 
                 doc = item.unified_document
                 doc_type = get_doc_type_key(doc)
-                hubs = list(doc.hubs.all().values_list('id', flat=True))
+                hubs = list(doc.hubs.all().values_list("id", flat=True))
 
                 reset_unified_document_cache(
                     hub_ids=hubs,
-                    document_type=[doc_type, 'all'],
-                    filters=[DISCUSSED, TRENDING]
+                    document_type=[doc_type, "all"],
+                    filters=[DISCUSSED, TRENDING],
                 )
         except Exception as e:
             pass
@@ -133,11 +149,8 @@ class ReactionViewActionMixin:
                 item.paper.reset_cache()
         except Exception as e:
             pass
-        
-        return Response(
-            self.get_serializer(instance=item).data,
-            status=200
-        )
+
+        return Response(self.get_serializer(instance=item).data, status=200)
 
     @action(
         detail=True,
@@ -210,28 +223,13 @@ class ReactionViewActionMixin:
         except Exception as e:
             return Response(f"Failed to delete vote: {e}", status=400)
 
-    def get_ordering(self):
-        default_ordering = ["-score", "created_date"]
-
-        ordering = self.request.query_params.get("ordering", default_ordering)
-        if isinstance(ordering, str):
-            if ordering and "created_date" not in ordering:
-                ordering = [ordering, "created_date"]
-            elif "created_date" not in ordering:
-                ordering = ["created_date"]
-            else:
-                ordering = [ordering]
-        return ordering
-
     def get_action_context(self):
-
-        ordering = self.get_ordering()
-        needs_score = False
-        if "score" in ordering or "-score" in ordering:
-            needs_score = True
         return {
-            "ordering": ordering,
-            "needs_score": needs_score,
+            "ordering": [
+                "created_date",
+                "-score",
+            ],
+            "needs_score": True,
         }
 
     def get_self_upvote_response(self, request, response, model):
@@ -278,9 +276,15 @@ def create_endorsement(user, item):
     return endorsement
 
 
-def create_flag(user, item, reason):
-    flag = Flag(created_by=user, item=item, reason=reason)
+def create_flag(user, item, reason, reason_choice):
+    flag = Flag(
+        created_by=user,
+        item=item,
+        reason=reason or reason_choice,
+        reason_choice=reason_choice,
+    )
     flag.save()
+    flag.hubs.add(*item.unified_document.hubs.all())
     return flag
 
 

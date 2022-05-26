@@ -227,8 +227,10 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 serialized = WithdrawalSerializer(withdrawal)
                 return Response(serialized.data, status=201)
             except Exception as e:
+                sentry.log_error(e)
                 return Response(str(e), status=400)
         else:
+            sentry.log_info(message)
             return Response(message, status=400)
 
     def list(self, request):
@@ -314,17 +316,15 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         user_two_weeks_delta = now - user.created_date
 
-        # if user_two_weeks_delta < timedelta(days=14):
-        #     message = (
-        #         "You're account is new, please wait 2 weeks before withdrawing."
-        #     )
-        #     return (False, message)
+        if user_two_weeks_delta < timedelta(days=14):
+            message = "You're account is new, please wait 2 weeks before withdrawing."
+            return (False, message)
 
-        # if address_timedelta < timedelta(days=14) or user_timedelta < timedelta(days=14):
-        #     message = (
-        #         "You're limited to 1 withdrawal every 2 weeks."
-        #     )
-        #     return (False, message)
+        if address_timedelta < timedelta(days=14) or user_timedelta < timedelta(
+            days=14
+        ):
+            message = "You're limited to 1 withdrawal every 2 weeks."
+            return (False, message)
 
         return (True, None)
 
@@ -389,7 +389,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                         last_withdrawal_tx.created_date < time_ago
                     )
 
-                if valid and last_withdrawal_tx:
+                if valid and last_withdrawal_tx_valid:
                     return (True, None)
 
                 time_since_withdrawal = last_withdrawal.created_date - time_ago
@@ -409,7 +409,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                     ),
                 )
 
-        return (valid, None)
+        return (True, None)
 
     def _check_withdrawal_amount(self, amount, transaction_fee, user):
         if transaction_fee < 0:

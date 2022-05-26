@@ -4,14 +4,17 @@ import rest_framework.serializers as serializers
 # TODO: undo
 from django.db.models import Q
 
-from discussion.models import Comment, Flag, Reply, Thread
+from discussion.models import Comment, Reply, Thread
 from discussion.reaction_serializers import (
     DynamicVoteSerializer,  # Import is needed for discussion serializer imports
 )
 from discussion.reaction_serializers import (
+    Flag,
     GenericReactionSerializerMixin,
     VoteSerializer,
 )
+from discussion.utils import ORDERING_SCORE_ANNOTATION
+from hub.serializers import DynamicHubSerializer
 from hypothesis.models import Hypothesis
 from paper.models import Paper
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -22,8 +25,8 @@ from review.serializers.review_serializer import (
     ReviewSerializer,
 )
 from user.serializers import (
-    DynamicMinimalUserSerializer,
     DynamicUserSerializer,
+    DynamicVerdictSerializer,
     MinimalUserSerializer,
 )
 from utils.http import get_user_from_request
@@ -73,7 +76,7 @@ class DynamicThreadSerializer(
     review = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
+    score = serializers.ReadOnlyField()  # @property
     user_vote = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     discussion_type = serializers.SerializerMethodField()
@@ -100,8 +103,8 @@ class DynamicThreadSerializer(
         else:
             comments = obj.children
 
-        return self.get_children_annotated(comments).order_by(
-            *self.context.get("ordering", ["created_date"])
+        return comments.annotate(ordering_score=ORDERING_SCORE_ANNOTATION).order_by(
+            "-ordering_score", "created_date"
         )
 
     def get_comments(self, obj):
@@ -222,7 +225,7 @@ class DynamicReplySerializer(
     discussion_type = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
+    score = serializers.ReadOnlyField()  # @property
     created_by = serializers.SerializerMethodField()
     parent = serializers.PrimaryKeyRelatedField(
         queryset=Comment.objects.all(), many=False, read_only=False
@@ -245,11 +248,11 @@ class DynamicReplySerializer(
         )
         return serializer.data
 
-    def get_created_by(self, thread):
+    def get_created_by(self, reply):
         context = self.context
         _context_fields = context.get("dis_drs_get_created_by", {})
-        serializer = DynamicMinimalUserSerializer(
-            thread.created_by, context=context, **_context_fields
+        serializer = DynamicUserSerializer(
+            reply.created_by, context=context, **_context_fields
         )
         return serializer.data
 
@@ -267,9 +270,6 @@ class DynamicReplySerializer(
             return False
         return False
 
-    def get_score(self, obj):
-        return obj.calculate_score()
-
 
 class DynamicCommentSerializer(
     DynamicModelFieldSerializer,
@@ -282,7 +282,7 @@ class DynamicCommentSerializer(
     promoted = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
+    score = serializers.ReadOnlyField()  # @property
     thread_id = serializers.SerializerMethodField()
     is_created_by_editor = serializers.BooleanField(
         required=False,
@@ -309,8 +309,8 @@ class DynamicCommentSerializer(
         else:
             replies = obj.children
 
-        return self.get_children_annotated(replies).order_by(
-            *self.context.get("ordering", ["-created_date"])
+        return replies.annotate(ordering_score=ORDERING_SCORE_ANNOTATION).order_by(
+            "-ordering_score", "created_date"
         )
 
     def get_replies(self, obj):
@@ -340,7 +340,7 @@ class DynamicCommentSerializer(
     def get_created_by(self, comment):
         context = self.context
         _context_fields = context.get("dis_dcs_get_created_by", {})
-        serializer = DynamicMinimalUserSerializer(
+        serializer = DynamicUserSerializer(
             comment.created_by, context=context, **_context_fields
         )
         return serializer.data
@@ -369,32 +369,6 @@ class DynamicCommentSerializer(
         )
         return serializer.data
 
-    def get_reply_count(self, obj):
-        replies = self._replies_query(obj)
-        return replies.count()
-
-    def get_thread_id(self, obj):
-        if isinstance(obj.parent, Thread):
-            return obj.parent.id
-        return None
-
-    def get_paper_id(self, obj):
-        if obj.paper:
-            return obj.paper.id
-        else:
-            return None
-
-    def get_created_by(self, thread):
-        context = self.context
-        _context_fields = context.get("dis_dcs_get_created_by", {})
-        serializer = DynamicMinimalUserSerializer(
-            thread.created_by, context=context, **_context_fields
-        )
-        return serializer.data
-
-    def get_score(self, obj):
-        return obj.calculate_score()
-
 
 class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
     created_by = MinimalUserSerializer(
@@ -406,7 +380,7 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
     promoted = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
+    score = serializers.ReadOnlyField()  # @property
     thread_id = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -452,10 +426,10 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
         model = Comment
 
     def _replies_query(self, obj):
-        children = obj.children.filter(is_removed=False)
-
-        return self.get_children_annotated(children).order_by(
-            *self.context.get("ordering", ["-created_date"])
+        return (
+            obj.children.filter(is_removed=False)
+            .annotate(ordering_score=ORDERING_SCORE_ANNOTATION)
+            .order_by("-ordering_score", "created_date")
         )
 
     def get_replies(self, obj):
@@ -502,9 +476,9 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
     post_slug = serializers.SerializerMethodField()
     hypothesis_slug = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
+    score = serializers.ReadOnlyField()  # @property
     peer_review = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
@@ -557,9 +531,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
         ]
         model = Thread
 
-    def get_score(self, obj):
-        return obj.calculate_score()
-
     def get_user_vote(self, obj):
         user = get_user_from_request(self.context)
         if user and not user.is_anonymous:
@@ -570,10 +541,10 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
         return False
 
     def _comments_query(self, obj):
-        children = obj.children.filter(is_removed=False)
-
-        return self.get_children_annotated(children).order_by(
-            *self.context.get("ordering", ["id"])
+        return (
+            obj.children.filter(is_removed=False)
+            .annotate(ordering_score=ORDERING_SCORE_ANNOTATION)
+            .order_by("-ordering_score", "created_date")
         )
 
     def get_comments(self, obj):
@@ -657,7 +628,6 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
     promoted = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
     thread_id = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -715,9 +685,10 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
         return None
 
     def _replies_query(self, obj):
-        children = obj.children.filter(is_removed=False)
-        return self.get_children_annotated(children).order_by(
-            *self.context.get("ordering", ["-created_date"])
+        return (
+            obj.children.filter(is_removed=False)
+            .annotate(ordering_score=ORDERING_SCORE_ANNOTATION)
+            .order_by("-ordering_score", "created_date")
         )
 
     def get_replies(self, obj):
@@ -743,6 +714,10 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
 
 class DynamicFlagSerializer(DynamicModelFieldSerializer):
     item = serializers.SerializerMethodField()
+    flagged_by = serializers.SerializerMethodField()
+    content_type = serializers.SerializerMethodField()
+    hubs = serializers.SerializerMethodField()
+    verdict = serializers.SerializerMethodField()
 
     class Meta:
         model = Flag
@@ -784,10 +759,35 @@ class DynamicFlagSerializer(DynamicModelFieldSerializer):
 
         return data
 
-    def get_created_by(self, flag):
+    def get_flagged_by(self, flag):
         context = self.context
         _context_fields = context.get("dis_dfs_get_created_by", {})
         serializer = DynamicUserSerializer(
             flag.created_by, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_content_type(self, flag):
+        content_type = flag.content_type
+        return {"id": content_type.id, "name": content_type.model}
+
+    def get_hubs(self, flag):
+        context = self.context
+        _context_fields = context.get("dis_dfs_get_hubs", {})
+        serializer = DynamicHubSerializer(
+            flag.hubs, many=True, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_verdict(self, flag):
+        context = self.context
+        verdict = getattr(flag, "verdict", None)
+
+        if not verdict:
+            return None
+
+        _context_fields = context.get("dis_dfs_get_verdict", {})
+        serializer = DynamicVerdictSerializer(
+            verdict, context=context, **_context_fields
         )
         return serializer.data

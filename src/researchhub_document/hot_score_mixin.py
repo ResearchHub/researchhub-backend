@@ -1,15 +1,14 @@
 import datetime
 import math
-from researchhub_document.related_models.constants.document_type import PAPER
+
 import numpy as np
-from django.db.models import (
-    Q,
-    Count
-)
+from django.db.models import Count, Q
+
 from discussion.models import Vote
+from researchhub_document.related_models.constants.document_type import PAPER
+
 
 class HotScoreMixin:
-
     def _c(self, num):
         if num > 0:
             return 1
@@ -45,8 +44,8 @@ class HotScoreMixin:
 
         # Debug
         if False:
-            print(f'Num seconds since epoch: {num_seconds_since_epoch}')
-            print(f'Value for {date} is: {time_score}')
+            print(f"Num seconds since epoch: {num_seconds_since_epoch}")
+            print(f"Value for {date} is: {time_score}")
 
         return time_score
 
@@ -80,10 +79,10 @@ class HotScoreMixin:
         doc = self.get_document()
 
         if doc is None:
-            return (0,0)
+            return (0, 0)
 
         if self.document_type == PAPER:
-            doc_vote_net_score = doc.calculate_score(ignore_twitter_score=True)
+            doc_vote_net_score = doc.calculate_paper_score(ignore_twitter_score=True)
         else:
             doc_vote_net_score = doc.calculate_score()
 
@@ -91,49 +90,45 @@ class HotScoreMixin:
         boost_score = self._calc_boost_score()
         social_media_score = self._calc_social_media_score()
         time_score = self._get_time_score(self.created_date)
-        time_score_with_magnitude = self._c(doc_vote_net_score + social_media_score) * time_score
+        time_score_with_magnitude = (
+            self._c(doc_vote_net_score + social_media_score) * time_score
+        )
         doc_vote_score = math.log(abs(doc_vote_net_score) + 1, 2)
-        discussion_vote_score = math.log(doc.discussion_count + 1, 2) + math.log(max(0, total_comment_vote_score) + 1, 3)
+        discussion_vote_score = math.log(doc.discussion_count + 1, 2) + math.log(
+            max(0, total_comment_vote_score) + 1, 3
+        )
 
         # If basic criteria needed to show in trending is not available,
         # penalize the score by subtracting time. This will result in the
         # document being sent to the back of the feed
         if doc.discussion_count == MIN_REQ_DISCUSSIONS:
-            discussion_vote_score -= 2 # Roughly one day penalty
-        elif doc.discussion_count < MIN_REQ_DISCUSSIONS and time_score_with_magnitude >= 0:
+            discussion_vote_score -= 2  # Roughly one day penalty
+        elif (
+            doc.discussion_count < MIN_REQ_DISCUSSIONS
+            and time_score_with_magnitude >= 0
+        ):
             time_score_with_magnitude *= -1
 
-        agg_score = (
-            discussion_vote_score +
-            doc_vote_score +
-            boost_score
-        )
+        agg_score = discussion_vote_score + doc_vote_score + boost_score
 
         hot_score = (agg_score + time_score_with_magnitude) * 1000
 
         debug_obj = {
-            'unified_doc_id': self.id,
-            'inner_doc_id': doc.id,
-            'document_type': self.document_type,
-            'created_date': self.created_date,
-            'discussion_votes': {
-                'total_comment_vote_score': total_comment_vote_score,
-                '=score': discussion_vote_score 
+            "unified_doc_id": self.id,
+            "inner_doc_id": doc.id,
+            "document_type": self.document_type,
+            "created_date": self.created_date,
+            "discussion_votes": {
+                "total_comment_vote_score": total_comment_vote_score,
+                "=score": discussion_vote_score,
             },
-            'votes': {
-                'doc_votes': doc_vote_net_score,
-                '=score': doc_vote_score
-            },
-            'social_media': {
-                '=score': social_media_score
-            },
-            'boost_score': {
-                '=score': boost_score
-            },
-            'agg_score': agg_score,
-            'time_score': time_score,
-            'time_score_with_magnitude': time_score_with_magnitude,
-            '=hot_score': hot_score,
+            "votes": {"doc_votes": doc_vote_net_score, "=score": doc_vote_score},
+            "social_media": {"=score": social_media_score},
+            "boost_score": {"=score": boost_score},
+            "agg_score": agg_score,
+            "time_score": time_score,
+            "time_score_with_magnitude": time_score_with_magnitude,
+            "=hot_score": hot_score,
         }
 
         if should_save:

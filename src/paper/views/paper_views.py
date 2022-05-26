@@ -11,6 +11,7 @@ from django.core.validators import URLValidator
 from django.db import IntegrityError
 from django.db.models import Count, F, IntegerField, Prefetch, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce
+from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
@@ -25,6 +26,8 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 from rest_framework.utils.urls import replace_query_param
 
+from discussion.reaction_serializers import FlagSerializer
+from discussion.reaction_views import create_flag
 from google_analytics.signals import get_event_hit_response
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
@@ -53,7 +56,6 @@ from paper.serializers import (
     DynamicPaperSerializer,
     FeaturedPaperSerializer,
     FigureSerializer,
-    FlagSerializer,
     HubPaperSerializer,
     PaperReferenceSerializer,
     PaperSerializer,
@@ -98,7 +100,7 @@ class PaperViewSet(viewsets.ModelViewSet):
     search_fields = ("title", "doi", "paper_title")
     filter_class = PaperFilter
     throttle_classes = THROTTLE_CLASSES
-    ordering = "-uploaded_date"
+    ordering = "-created_date"
 
     permission_classes = [
         (IsAuthenticatedOrReadOnly | HasAPIKey)
@@ -106,6 +108,30 @@ class PaperViewSet(viewsets.ModelViewSet):
         & UpdatePaper
         & CreateOrUpdateIfAllowed
     ]
+
+    # NOTE: calvinhle - manually overriding default get_object
+    # self.get_queryset() was causing error, presumabily from GenericRelation problem
+    # need to get back to this after full migrations
+    def get_object(self):
+        queryset = self.filter_queryset(self.queryset)
+
+        # Perform the lookup filtering.
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+
+        assert lookup_url_kwarg in self.kwargs, (
+            "Expected view %s to be called with a URL keyword argument "
+            'named "%s". Fix your URL conf, or set the `.lookup_field` '
+            "attribute on the view correctly."
+            % (self.__class__.__name__, lookup_url_kwarg)
+        )
+
+        filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
+        obj = get_object_or_404(queryset, **filter_kwargs)
+
+        # May raise a permission denied
+        self.check_object_permissions(self.request, obj)
+
+        return obj
 
     def prefetch_lookups(self):
         return (
@@ -472,19 +498,30 @@ class PaperViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[
-            FlagPaper & CreateOrUpdateIfAllowed
-        ],  # Also applies to delete_flag below
+        permission_classes=[IsAuthenticated]
     )
     def flag(self, request, pk=None):
+        # TODO: calvinhlee - clean this up after full  migration
         paper = self.get_object()
+        user = request.user
         reason = request.data.get("reason")
-        referrer = request.user
-        flag = Flag.objects.create(paper=paper, created_by=referrer, reason=reason)
+        reason_choice = request.data.get("reason_choice")
 
-        content_id = f"{type(paper).__name__}_{paper.id}"
-        events_api.track_flag_content(paper.uploaded_by, content_id, referrer.id)
-        return Response(FlagSerializer(flag).data, status=201)
+        try:
+            flag = create_flag(user, paper, reason, reason_choice)
+            serialized = FlagSerializer(flag)
+
+            content_id = f"{type(paper).__name__}_{paper.id}"
+            events_api.track_flag_content(paper.uploaded_by, content_id, user.id)
+            return Response(serialized.data, status=201)
+        except IntegrityError as e:
+            return Response({
+                "msg": "Already flagged", 
+            }, status=status.HTTP_409_CONFLICT)
+        except Exception as e:
+            return Response({
+                "msg": "Unexpected error", 
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @flag.mapping.delete
     def delete_flag(self, request, pk=None):
@@ -742,7 +779,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
             order_papers = (
                 papers.filter(
-                    uploaded_date__range=[start_date, end_date],
+                    created_date__range=[start_date, end_date],
                 )
                 .annotate(total_score=boost_amount + F("score"))
                 .order_by("-total_score")
@@ -765,12 +802,12 @@ class PaperViewSet(viewsets.ModelViewSet):
                 .order_by(ordering, ordering + "_secondary")
             )
         elif "removed" in ordering:
-            order_papers = papers.order_by("-uploaded_date")
+            order_papers = papers.order_by("-created_date")
         elif "twitter_score" in ordering:
             order_papers = papers.order_by("-twitter_score")
         elif "user-uploaded" in ordering:
-            order_papers = papers.filter(uploaded_date__gte=start_date).order_by(
-                "-uploaded_date"
+            order_papers = papers.filter(created_date__gte=start_date).order_by(
+                "-created_date"
             )
         else:
             order_papers = papers.order_by(ordering)
@@ -971,7 +1008,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         elif ordering == "most_discussed":
             ordering = "-discussed"
         elif ordering == "newest":
-            ordering = "-uploaded_date"
+            ordering = "-created_date"
         elif ordering == "hot":
             ordering = "-hot_score"
         elif ordering == "user-uploaded":
