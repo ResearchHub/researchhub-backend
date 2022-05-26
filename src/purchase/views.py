@@ -1,68 +1,56 @@
-import time
 import datetime
-import stripe
 import decimal
 import json
+import time
 
-from django.core.cache import cache
+import stripe
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.db import transaction
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.permissions import (
-    IsAuthenticated
-)
 
-from paper.models import Paper
-from researchhub_document.models import ResearchhubPost
-from paper.utils import (
-    get_cache_key,
-)
-from purchase.models import (
-    Purchase,
-    Balance,
-    AggregatePurchase,
-    Wallet,
-    Support
-)
-
-from purchase.serializers import (
-    PurchaseSerializer,
-    AggregatePurchaseSerializer,
-    WalletSerializer,
-    SupportSerializer,
-    BalanceSerializer
-)
 from notification.models import Notification
-from purchase.tasks import send_support_email
-from utils.throttles import THROTTLE_CLASSES
-from utils.http import http_request, RequestMethods
-from utils.permissions import (
-    CreateOrUpdateOrReadOnly,
-    CreateOrUpdateIfAllowed,
-    CreateOrReadOnly
-)
-from user.models import User, Author, Action
-from user.serializers import UserSerializer
-from user.permissions import IsModerator
+from paper.models import Paper
+from paper.utils import get_cache_key
+from purchase.models import AggregatePurchase, Balance, Purchase, Support, Wallet
 from purchase.permissions import CanSendRSC
-from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
+from purchase.serializers import (
+    AggregatePurchaseSerializer,
+    BalanceSerializer,
+    PurchaseSerializer,
+    SupportSerializer,
+    WalletSerializer,
+)
+from purchase.tasks import send_support_email
+from reputation.distributions import Distribution, create_purchase_distribution
+from reputation.distributor import Distributor
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
-from reputation.distributions import create_purchase_distribution, Distribution
-from reputation.distributor import Distributor
+from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
+from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
-    TRENDING,
     NEWEST,
-    TOP
+    TOP,
+    TRENDING,
 )
+from researchhub_document.utils import reset_unified_document_cache
+from user.models import Action, Author, User
+from user.permissions import IsModerator
 from user.related_models.gatekeeper_model import Gatekeeper
-from researchhub_document.utils import (
-    reset_unified_document_cache
+from user.serializers import UserSerializer
+from utils.http import RequestMethods, http_request
+from utils.permissions import (
+    CreateOrReadOnly,
+    CreateOrUpdateIfAllowed,
+    CreateOrUpdateOrReadOnly,
 )
+from utils.throttles import THROTTLE_CLASSES
+
 
 class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Balance.objects.all()
@@ -75,70 +63,58 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return self.queryset.filter(user=user).order_by('-created_date')
-    
+        return self.queryset.filter(user=user).order_by("-created_date")
+
     @action(
         detail=False,
-        methods=['POST'],
-        permission_classes=[IsAuthenticated, IsModerator, CanSendRSC]
+        methods=["POST"],
+        permission_classes=[IsAuthenticated, IsModerator, CanSendRSC],
     )
     def send_rsc(self, request):
-        recipient_id = request.data.get('recipient_id', '')
-        amount = request.data.get('amount', 0)
+        recipient_id = request.data.get("recipient_id", "")
+        amount = request.data.get("amount", 0)
         if recipient_id:
             user = request.user
             user_id = user.id
-            content_type = ContentType.objects.get(model='distribution')
-            proof_content_type = ContentType.objects.get(model='user')
+            content_type = ContentType.objects.get(model="distribution")
+            proof_content_type = ContentType.objects.get(model="user")
             proof = {
-                'table': 'user_user',
-                'record': {'id': user_id, 'email': user.email, 'name': user.first_name + ' ' + user.last_name}
+                "table": "user_user",
+                "record": {
+                    "id": user_id,
+                    "email": user.email,
+                    "name": user.first_name + " " + user.last_name,
+                },
             }
-            distribution = Distribution(
-                'MOD_PAYOUT',
-                amount,
-                give_rep=False
-            )
+            distribution = Distribution("MOD_PAYOUT", amount, give_rep=False)
             timestamp = time.time()
             user_proof = User.objects.get(id=recipient_id)
             distributor = Distributor(
-                distribution,
-                user_proof,
-                user_proof,
-                timestamp
+                distribution, user_proof, user_proof, timestamp, user
             )
 
             distributor.distribute()
-        
-        return Response({"message": 'RSC Sent!'})
+
+        return Response({"message": "RSC Sent!"})
 
 
 class PurchaseViewSet(viewsets.ModelViewSet):
     queryset = Purchase.objects.all()
     serializer_class = PurchaseSerializer
-    permission_classes = [
-        IsAuthenticated,
-        CreateOrReadOnly
-    ]
+    permission_classes = [IsAuthenticated, CreateOrReadOnly]
     pagination_class = PageNumberPagination
     throttle_classes = THROTTLE_CLASSES
-    ALLOWED_CONTENT_TYPES = [
-        'comment',
-        'reply',
-        'thread',
-        'paper',
-        'researchhubpost'
-    ]
+    ALLOWED_CONTENT_TYPES = ["comment", "reply", "thread", "paper", "researchhubpost"]
 
     def create(self, request):
         user = request.user
         data = request.data
 
-        amount = data['amount']
-        purchase_method = data['purchase_method']
-        purchase_type = data['purchase_type']
-        content_type_str = data['content_type']
-        object_id = data['object_id']
+        amount = data["amount"]
+        purchase_method = data["purchase_method"]
+        purchase_type = data["purchase_type"]
+        content_type_str = data["content_type"]
+        object_id = data["object_id"]
         transfer_rsc = False
         recipient = None
 
@@ -161,12 +137,12 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                     object_id=object_id,
                     purchase_method=purchase_method,
                     purchase_type=purchase_type,
-                    amount=amount
+                    amount=amount,
                 )
             else:
                 user_balance = user.get_balance()
                 if user_balance - decimal_amount < 0:
-                    return Response('Insufficient Funds', status=402)
+                    return Response("Insufficient Funds", status=402)
 
                 purchase = Purchase.objects.create(
                     user=user,
@@ -175,7 +151,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                     purchase_method=purchase_method,
                     purchase_type=purchase_type,
                     amount=amount,
-                    paid_status=Purchase.PAID
+                    paid_status=Purchase.PAID,
                 )
 
                 source_type = ContentType.objects.get_for_model(purchase)
@@ -183,7 +159,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                     user=user,
                     content_type=source_type,
                     object_id=purchase.id,
-                    amount=f'-{amount}',
+                    amount=f"-{amount}",
                 )
 
             purchase_hash = purchase.hash()
@@ -194,74 +170,64 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             purchase.save()
 
             item = purchase.item
-            context = {
-                'purchase_minimal_serialization': True,
-                'exclude_stats': True
-            }
-
-            print('-----------')
-            print(content_type_str)
-            print('-----------')
+            context = {"purchase_minimal_serialization": True, "exclude_stats": True}
 
             #  transfer_rsc is set each time just in case we want
             #  to disable rsc transfer for a specific item
-            if content_type_str == 'paper':
+            if content_type_str == "paper":
                 paper = Paper.objects.get(id=object_id)
                 unified_doc = paper.unified_document
                 paper.calculate_hot_score()
                 recipient = paper.uploaded_by
-                cache_key = get_cache_key('paper', object_id)
+                cache_key = get_cache_key("paper", object_id)
                 cache.delete(cache_key)
                 transfer_rsc = True
 
-                hub_ids = paper.hubs.values_list('id', flat=True)
+                hub_ids = paper.hubs.values_list("id", flat=True)
                 reset_unified_document_cache(
                     hub_ids,
-                    document_type=['all', 'paper'],
+                    document_type=["all", "paper"],
                     filters=[TRENDING],
                 )
-            elif content_type_str == 'thread':
+            elif content_type_str == "thread":
                 transfer_rsc = True
                 recipient = item.created_by
                 unified_doc = item.unified_document
-            elif content_type_str == 'comment':
+            elif content_type_str == "comment":
                 transfer_rsc = True
                 unified_doc = item.unified_document
                 recipient = item.created_by
-            elif content_type_str == 'reply':
+            elif content_type_str == "reply":
                 transfer_rsc = True
                 unified_doc = item.unified_document
                 recipient = item.created_by
-            elif content_type_str == 'summary':
+            elif content_type_str == "summary":
                 transfer_rsc = True
                 recipient = item.proposed_by
                 unified_doc = item.paper.unified_document
-            elif content_type_str == 'bulletpoint':
+            elif content_type_str == "bulletpoint":
                 transfer_rsc = True
                 recipient = item.created_by
                 unified_doc = item.paper.unified_document
-            elif content_type_str == 'researchhubpost':
+            elif content_type_str == "researchhubpost":
                 transfer_rsc = True
                 recipient = item.created_by
                 unified_doc = item.unified_document
 
-                hub_ids = unified_doc.hubs.values_list('id', flat=True)
+                hub_ids = unified_doc.hubs.values_list("id", flat=True)
                 reset_unified_document_cache(
                     hub_ids,
-                    document_type=['all', 'posts'],
+                    document_type=["all", "posts"],
                     filters=[TRENDING],
                 )
 
             if unified_doc.is_removed:
-                return Response('Content is removed', status=403)
+                return Response("Content is removed", status=403)
 
             if transfer_rsc and recipient and recipient != user:
                 distribution = create_purchase_distribution(amount)
                 distributor = Distributor(
-                    distribution,
-                    recipient,
-                    purchase,
-                    time.time()
+                    distribution, recipient, purchase, time.time(), user
                 )
                 distributor.distribute()
 
@@ -269,23 +235,19 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         serializer_data = serializer.data
 
         if recipient and user:
-            self.send_purchase_notification(
-                purchase,
-                unified_doc,
-                recipient
-            )
+            self.send_purchase_notification(purchase, unified_doc, recipient)
             self.send_purchase_email(purchase, recipient, unified_doc)
 
         create_contribution.apply_async(
             (
                 Contribution.SUPPORTER,
-                {'app_label': 'purchase', 'model': 'purchase'},
+                {"app_label": "purchase", "model": "purchase"},
                 user.id,
                 unified_doc.id,
-                purchase.id
+                purchase.id,
             ),
             priority=2,
-            countdown=10
+            countdown=10,
         )
         return Response(serializer_data, status=201)
 
@@ -300,29 +262,19 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         return response
 
     def track_paid_status(self, purchase_id, transaction_hash):
-        url = ASYNC_SERVICE_HOST + '/ethereum/track_purchase'
-        data = {
-            'purchase': purchase_id,
-            'transaction_hash': transaction_hash
-        }
+        url = ASYNC_SERVICE_HOST + "/ethereum/track_purchase"
+        data = {"purchase": purchase_id, "transaction_hash": transaction_hash}
         response = http_request(
-            RequestMethods.POST,
-            url,
-            data=json.dumps(data),
-            timeout=3
+            RequestMethods.POST, url, data=json.dumps(data), timeout=3
         )
         response.raise_for_status()
         return response
 
-    @action(
-        detail=True,
-        methods=['get'],
-        permission_classes=[IsAuthenticated]
-    )
+    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
     def aggregate_user_promotions(self, request, pk=None):
         user = User.objects.get(id=pk)
         context = self.get_serializer_context()
-        context['purchase_minimal_serialization'] = True
+        context["purchase_minimal_serialization"] = True
         paper_content_type_id = ContentType.objects.get_for_model(Paper).id
         post_content_type_id = ContentType.objects.get_for_model(ResearchhubPost).id
         groups = AggregatePurchase.objects.filter(
@@ -332,42 +284,25 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
         page = self.paginate_queryset(groups)
         if page is not None:
-            serializer = AggregatePurchaseSerializer(
-                page,
-                many=True,
-                context=context
-            )
+            serializer = AggregatePurchaseSerializer(page, many=True, context=context)
             return self.get_paginated_response(serializer.data)
 
-        serializer = AggregatePurchaseSerializer(
-            groups,
-            context=context,
-            many=True
-        )
+        serializer = AggregatePurchaseSerializer(groups, context=context, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @action(
-        detail=True,
-        methods=['get'],
-        permission_classes=[IsAuthenticated]
-    )
+    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
     def user_promotions(self, request, pk=None):
         context = self.get_serializer_context()
-        context['purchase_minimal_serialization'] = True
+        context["purchase_minimal_serialization"] = True
 
         user = User.objects.get(id=pk)
         queryset = Purchase.objects.filter(user=user).order_by(
-            '-created_date',
-            'object_id'
+            "-created_date", "object_id"
         )
 
         page = self.paginate_queryset(queryset)
         if page is not None:
-            serializer = self.serializer_class(
-                page,
-                many=True,
-                context=context
-            )
+            serializer = self.serializer_class(page, many=True, context=context)
             return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(queryset, many=True)
@@ -414,47 +349,45 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         except Exception as e:
             print(e)
 
-        sender_balance_date = datetime.datetime.now().strftime(
-            '%m/%d/%Y'
-        )
+        sender_balance_date = datetime.datetime.now().strftime("%m/%d/%Y")
         amount = purchase.amount
         payment_type = purchase.purchase_method
         content_type_str = purchase.content_type.model
         object_id = purchase.object_id
         send_support_email.apply_async(
             (
-                f'{BASE_FRONTEND_URL}/user/{sender.author_profile.id}/overview',
+                f"{BASE_FRONTEND_URL}/user/{sender.author_profile.id}/overview",
                 sender.full_name(),
                 recipient.full_name(),
                 recipient.email,
                 amount,
                 sender_balance_date,
                 payment_type,
-                'recipient',
+                "recipient",
                 content_type_str,
                 object_id,
-                paper_id
+                paper_id,
             ),
             priority=6,
-            countdown=2
+            countdown=2,
         )
 
         send_support_email.apply_async(
             (
-                f'{BASE_FRONTEND_URL}/user/{recipient.author_profile.id}/overview',
+                f"{BASE_FRONTEND_URL}/user/{recipient.author_profile.id}/overview",
                 sender.full_name(),
                 recipient.full_name(),
                 sender.email,
                 amount,
                 sender_balance_date,
                 payment_type,
-                'sender',
+                "sender",
                 content_type_str,
                 object_id,
-                paper_id
+                paper_id,
             ),
             priority=6,
-            countdown=2
+            countdown=2,
         )
 
 
@@ -464,56 +397,50 @@ class SupportViewSet(viewsets.ModelViewSet):
     permission_classes = [
         IsAuthenticated,
         CreateOrUpdateOrReadOnly,
-        CreateOrUpdateIfAllowed
+        CreateOrUpdateIfAllowed,
     ]
     throttle_classes = THROTTLE_CLASSES
 
     @action(
-        detail=False,
-        methods=['get'],
-        permission_classes=[CreateOrUpdateOrReadOnly]
+        detail=False, methods=["get"], permission_classes=[CreateOrUpdateOrReadOnly]
     )
     def get_supported(self, request):
-        paper_id = request.query_params.get('paper_id')
-        author_id = request.query_params.get('author_id')
+        paper_id = request.query_params.get("paper_id")
+        author_id = request.query_params.get("author_id")
 
         if paper_id:
-            paper_type = ContentType.objects.get(model='paper')
-            supports = self.queryset.filter(
-                content_type=paper_type,
-                object_id=paper_id
-            )
+            paper_type = ContentType.objects.get(model="paper")
+            supports = self.queryset.filter(content_type=paper_type, object_id=paper_id)
         elif author_id:
-            author_type = ContentType.objects.get(model='author')
+            author_type = ContentType.objects.get(model="author")
             supports = self.queryset.filter(
-                content_type=author_type,
-                object_id=author_id
+                content_type=author_type, object_id=author_id
             )
         else:
-            return Response({'message': 'No query param included'}, status=400)
+            return Response({"message": "No query param included"}, status=400)
 
-        user_ids = supports.values_list('sender', flat=True)
+        user_ids = supports.values_list("sender", flat=True)
         users = User.objects.filter(id__in=user_ids, is_suspended=False)
         page = self.paginate_queryset(users)
         if page is not None:
             serializer = UserSerializer(page, many=True)
             return self.get_paginated_response(serializer.data)
 
-        return Response({'message': 'Error'}, status=400)
+        return Response({"message": "Error"}, status=400)
 
     def create(self, request):
         sender = request.user
         data = request.data
-        payment_option = data['payment_option']
-        payment_type = data['payment_type']
-        sender_id = data['user_id']
-        recipient_id = data['recipient_id']
+        payment_option = data["payment_option"]
+        payment_type = data["payment_type"]
+        sender_id = data["user_id"]
+        recipient_id = data["recipient_id"]
         recipient = Author.objects.get(id=recipient_id)
         recipient_user = recipient.user
-        amount = data['amount']
-        content_type_str = data['content_type']
+        amount = data["amount"]
+        content_type_str = data["content_type"]
         content_type = ContentType.objects.get(model=content_type_str)
-        object_id = data['object_id']
+        object_id = data["object_id"]
 
         # User check
         if sender.id != sender_id:
@@ -524,7 +451,7 @@ class SupportViewSet(viewsets.ModelViewSet):
             sender_balance = sender.get_balance()
             decimal_amount = decimal.Decimal(amount)
             if sender_balance - decimal_amount < 0:
-                return Response('Insufficient Funds', status=402)
+                return Response("Insufficient Funds", status=402)
 
         with transaction.atomic():
             support = Support.objects.create(
@@ -534,7 +461,7 @@ class SupportViewSet(viewsets.ModelViewSet):
                 content_type=content_type,
                 object_id=object_id,
                 sender=sender,
-                recipient=recipient_user
+                recipient=recipient_user,
             )
             source_type = ContentType.objects.get_for_model(support)
 
@@ -544,7 +471,7 @@ class SupportViewSet(viewsets.ModelViewSet):
                     user=sender,
                     content_type=source_type,
                     object_id=support.id,
-                    amount=f'-{amount}',
+                    amount=f"-{amount}",
                 )
 
                 # Adding balance to recipient
@@ -555,74 +482,63 @@ class SupportViewSet(viewsets.ModelViewSet):
                     amount=amount,
                 )
 
-                sender_balance_date = sender_bal.created_date.strftime(
-                    '%m/%d/%Y'
-                )
-                recipient_balance_date = recipient_bal.created_date.strftime(
-                    '%m/%d/%Y'
-                )
+                sender_balance_date = sender_bal.created_date.strftime("%m/%d/%Y")
+                recipient_balance_date = recipient_bal.created_date.strftime("%m/%d/%Y")
             elif payment_type == Support.STRIPE:
                 recipient_stripe_acc = recipient.wallet.stripe_acc
                 if not recipient_stripe_acc:
                     return Response(
-                        'Author has not created a Stripe Account',
-                        status=403
+                        "Author has not created a Stripe Account", status=403
                     )
 
                 payment_intent = stripe.PaymentIntent.create(
-                    payment_method_types=['card'],
+                    payment_method_types=["card"],
                     amount=amount * 100,  # The amount in cents
-                    currency='usd',
+                    currency="usd",
                     application_fee_amount=0,
-                    transfer_data={
-                        'destination': recipient_stripe_acc
-                    }
+                    transfer_data={"destination": recipient_stripe_acc},
                 )
                 support.proof = payment_intent
                 support.save()
-                data['client_secret'] = payment_intent['client_secret']
-                sender_balance_date = datetime.datetime.now().strftime(
-                    '%m/%d/%Y'
-                )
-                recipient_balance_date = datetime.datetime.now().strftime(
-                    '%m/%d/%Y'
-                )
+                data["client_secret"] = payment_intent["client_secret"]
+                sender_balance_date = datetime.datetime.now().strftime("%m/%d/%Y")
+                recipient_balance_date = datetime.datetime.now().strftime("%m/%d/%Y")
 
         send_support_email.apply_async(
             (
-                f'{BASE_FRONTEND_URL}/user/{recipient.id}/overview',
+                f"{BASE_FRONTEND_URL}/user/{recipient.id}/overview",
                 sender.full_name(),
                 recipient_user.full_name(),
                 sender.email,
                 amount,
                 sender_balance_date,
                 payment_type,
-                'sender',
+                "sender",
                 content_type_str,
-                object_id
+                object_id,
             ),
             priority=6,
-            countdown=2
+            countdown=2,
         )
 
         send_support_email.apply_async(
             (
-                f'{BASE_FRONTEND_URL}/user/{sender.author_profile.id}/overview',
+                f"{BASE_FRONTEND_URL}/user/{sender.author_profile.id}/overview",
                 sender.full_name(),
                 recipient_user.full_name(),
                 recipient_user.email,
                 amount,
                 recipient_balance_date,
                 payment_type,
-                'recipient',
+                "recipient",
                 content_type_str,
-                object_id
+                object_id,
             ),
             priority=6,
             countdown=2,
         )
         sender_data = UserSerializer(sender).data
-        response_data = {'user': sender_data, **data}
+        response_data = {"user": sender_data, **data}
         return Response(response_data, status=200)
 
 
@@ -632,104 +548,93 @@ class StripeViewSet(viewsets.ModelViewSet):
     permission_classes = []
     throttle_classes = []
 
-    @action(
-        detail=False,
-        methods=['post'],
-        permission_classes=[IsAuthenticated]
-    )
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
     def onboard_stripe_account(self, request):
         user = request.user
         wallet = user.author_profile.wallet
 
         if not wallet.stripe_acc or not wallet.stripe_verified:
             acc = stripe.Account.create(
-                type='express',
-                country='US',  # This is where our business resides
+                type="express",
+                country="US",  # This is where our business resides
                 email=user.email,
                 capabilities={
-                    'card_payments': {'requested': True},
-                    'transfers': {'requested': True},
+                    "card_payments": {"requested": True},
+                    "transfers": {"requested": True},
                 },
             )
 
-            wallet.stripe_acc = acc['id']
+            wallet.stripe_acc = acc["id"]
             wallet.save()
         elif wallet:
             account_links = stripe.Account.create_login_link(wallet.stripe_acc)
             return Response(account_links, status=200)
 
-        refresh_url = request.data['refresh_url']
-        return_url = request.data['return_url']
+        refresh_url = request.data["refresh_url"]
+        return_url = request.data["return_url"]
 
         try:
             account_links = stripe.AccountLink.create(
                 account=wallet.stripe_acc,
                 refresh_url=refresh_url,
                 return_url=return_url,
-                type='account_onboarding'
+                type="account_onboarding",
             )
         except Exception as e:
             return Response(e, status=400)
         return Response(account_links, status=200)
 
-    @action(
-        detail=True,
-        methods=['get']
-    )
+    @action(detail=True, methods=["get"])
     def verify_stripe_account(self, request, pk=None):
         author = Author.objects.get(id=pk)
         wallet = author.wallet
         stripe_id = wallet.stripe_acc
         acc = stripe.Account.retrieve(stripe_id)
 
-        redirect = f'{BASE_FRONTEND_URL}/user/{pk}/stripe?verify_stripe=true'
+        redirect = f"{BASE_FRONTEND_URL}/user/{pk}/stripe?verify_stripe=true"
         account_links = stripe.Account.create_login_link(
-            stripe_id,
-            redirect_url=redirect
+            stripe_id, redirect_url=redirect
         )
 
-        if acc['charges_enabled']:
+        if acc["charges_enabled"]:
             wallet.stripe_verified = True
             wallet.save()
             return Response({**account_links}, status=200)
 
         return Response(
             {
-                'reason': 'Please complete verification via Stripe Dashboard',
-                **account_links
+                "reason": "Please complete verification via Stripe Dashboard",
+                **account_links,
             },
-            status=200
+            status=200,
         )
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=["post"])
     def stripe_capability_updated(self, request):
         data = request.data
-        acc_id = data['account']
-        acc_obj = data['data']['object']
-        status = acc_obj['status']
-        capability_type = acc_obj['id']
-        requirements = acc_obj['requirements']
-        currently_due = requirements['currently_due']
+        acc_id = data["account"]
+        acc_obj = data["data"]["object"]
+        status = acc_obj["status"]
+        capability_type = acc_obj["id"]
+        requirements = acc_obj["requirements"]
+        currently_due = requirements["currently_due"]
 
-        id_due = 'individual.id_number' in currently_due
-        id_verf_due = 'individual.verification.document' in currently_due
+        id_due = "individual.id_number" in currently_due
+        id_verf_due = "individual.verification.document" in currently_due
 
-        if capability_type != 'transfers' or status == 'pending':
+        if capability_type != "transfers" or status == "pending":
             return Response(status=200)
 
         wallet = self.queryset.get(stripe_acc=acc_id)
         user = wallet.author.user
-        if status == 'active' and not wallet.stripe_verified:
+        if status == "active" and not wallet.stripe_verified:
             account_links = stripe.Account.create_login_link(acc_id)
             wallet.stripe_verified = True
             wallet.save()
             self._send_stripe_notification(
-                user,
-                status,
-                'Your Stripe account has been verified',
-                **account_links
+                user, status, "Your Stripe account has been verified", **account_links
             )
-        elif status == 'active' and wallet.stripe_verified:
+        elif status == "active" and wallet.stripe_verified:
             return Response(status=200)
 
         if not id_due and not id_verf_due and not len(currently_due) <= 2:
@@ -740,7 +645,7 @@ class StripeViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response(e, status=200)
 
-        message = ''
+        message = ""
         if id_due:
             message = """
                 Social Security Number or other
@@ -752,17 +657,12 @@ class StripeViewSet(viewsets.ModelViewSet):
                 identification
             """
 
-        self._send_stripe_notification(
-            user,
-            status,
-            message,
-            **account_links
-        )
+        self._send_stripe_notification(user, status, message, **account_links)
         return Response(status=200)
 
     def _send_stripe_notification(self, user, status, message, **kwargs):
         user_id = user.id
-        user_type = ContentType.objects.get(model='user')
+        user_type = ContentType.objects.get(model="user")
         action = Action.objects.create(
             user=user,
             content_type=user_type,

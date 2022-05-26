@@ -60,6 +60,7 @@ def distribute_for_paper_upvoted(sender, instance, created, update_fields, **kwa
             recipient,
             instance,
             timestamp,
+            instance.created_by,
             instance.paper.hubs.all(),
         )
         record = distributor.distribute()
@@ -81,6 +82,7 @@ def distribute_for_censor_paper(sender, instance, using, **kwargs):
                 recipient,
                 instance,
                 timestamp,
+                instance.created_by,
                 instance.hubs.all(),
             )
             record = distributor.distribute()
@@ -108,6 +110,7 @@ def distribute_for_create_summary(sender, instance, created, update_fields, **kw
             recipient,
             instance,
             timestamp,
+            instance.proposed_by,
             instance.paper.hubs.all(),
         )
         record = distributor.distribute()
@@ -124,7 +127,12 @@ def distribute_for_summary_vote(sender, instance, created, update_fields, **kwar
         distribution = get_summary_vote_item_distribution(instance)
 
         distributor = Distributor(
-            distribution, recipient, instance, timestamp, hubs.all()
+            distribution,
+            recipient,
+            instance,
+            timestamp,
+            instance.created_by,
+            hubs.all(),
         )
 
         record = distributor.distribute()
@@ -195,7 +203,12 @@ def distribute_for_create_bullet_point(sender, instance, created, **kwargs):
             return
 
         distributor = Distributor(
-            distribution, recipient, instance, timestamp, hubs.all()
+            distribution,
+            recipient,
+            instance,
+            timestamp,
+            instance.created_by,
+            hubs.all(),
         )
         record = distributor.distribute()
 
@@ -213,7 +226,12 @@ def distribute_for_bullet_point_vote(
         distribution = get_bulletpoint_vote_item_distribution(instance)
 
         distributor = Distributor(
-            distribution, recipient, instance, timestamp, hubs.all()
+            distribution,
+            recipient,
+            instance,
+            timestamp,
+            instance.created_by,
+            hubs.all(),
         )
 
         record = distributor.distribute()
@@ -290,7 +308,12 @@ def distribute_for_censor(sender, instance, created, update_fields, **kwargs):
 
             if is_eligible_user(recipient):
                 distributor = Distributor(
-                    distribution, recipient, instance, timestamp, all_hubs
+                    distribution,
+                    recipient,
+                    instance,
+                    timestamp,
+                    instance.created_by,
+                    all_hubs,
                 )
 
         except TypeError as e:
@@ -397,7 +420,12 @@ def distribute_for_discussion_vote(sender, instance, created, update_fields, **k
                 # NOTE: Only comment seems to be supporting distribution
                 distribution = get_discussion_vote_item_distribution(instance)
                 distributor = Distributor(
-                    distribution, recipient, instance, timestamp, hubs.all()
+                    distribution,
+                    recipient,
+                    instance,
+                    timestamp,
+                    instance.created_by,
+                    hubs.all(),
                 )
             except TypeError as e:
                 error = ReputationSignalError(

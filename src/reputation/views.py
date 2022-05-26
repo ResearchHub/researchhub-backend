@@ -69,7 +69,7 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
         amt = deposit.amount
         user = deposit.user
         distribution = Dist("DEPOSIT", amt, give_rep=False)
-        distributor = Distributor(distribution, user, user, time.time())
+        distributor = Distributor(distribution, user, user, time.time(), user)
         distributor.distribute()
         return Response({"message": "Deposit successful"})
 
@@ -434,7 +434,7 @@ def distribute_rsc(request):
 
     user = User.objects.get(id=recipient_id)
     distribution = Dist("REWARD", amount, give_rep=False)
-    distributor = Distributor(distribution, user, user, time.time())
+    distributor = Distributor(distribution, user, user, time.time(), user)
     distributor.distribute()
 
     response = Response({"data": f"Gave {amount} RSC to {user.email}"}, status=200)

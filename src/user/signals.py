@@ -25,7 +25,7 @@ from paper.models import Vote as PaperVote
 from purchase.models import Wallet
 from reputation import distributions
 from reputation.distributor import Distributor
-from researchhub.settings import TESTING
+from researchhub.settings import NO_ELASTIC, TESTING
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -59,7 +59,7 @@ def add_organization_slug(sender, instance, update_fields, **kwargs):
 @receiver(post_save, sender=User, dispatch_uid="handle_spam_user")
 def handle_spam_user(sender, instance, created, update_fields, **kwargs):
     # TODO: move this to overriding the save method of the model instead of post_save here
-    if instance.probable_spammer:
+    if instance.probable_spammer and not NO_ELASTIC:
         handle_spam_user_task.apply_async((instance.id,), priority=3)
 
 
@@ -179,7 +179,6 @@ def create_action(sender, instance, created, **kwargs):
                     user,
                     user.invited_by,
                     timestamp,
-                    None,
                 )
                 referred.distribute()
 
@@ -188,7 +187,6 @@ def create_action(sender, instance, created, **kwargs):
                     user.invited_by,
                     user.invited_by,
                     timestamp,
-                    None,
                 )
                 referrer.distribute()
 
