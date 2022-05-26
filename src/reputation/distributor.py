@@ -37,7 +37,9 @@ class Distributor:
 
     """
 
-    def __init__(self, distribution, recipient, db_record, timestamp, giver, hubs=None):
+    def __init__(
+        self, distribution, recipient, db_record, timestamp, giver=None, hubs=None
+    ):
         self.distribution = distribution
         self.recipient = recipient
         self.proof = self.generate_proof(db_record, timestamp)
