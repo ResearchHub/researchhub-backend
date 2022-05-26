@@ -52,6 +52,7 @@ from researchhub_document.views.custom.unified_document_pagination import (
     UNIFIED_DOC_PAGE_SIZE,
     UnifiedDocPagination,
 )
+from user.permissions import IsModerator
 from user.utils import reset_latest_acitvity_cache
 
 
@@ -88,7 +89,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             filters=[NEWEST, TOP, TRENDING, DISCUSSED],
             with_default_hub=True,
         )
-        print("self.get_serializer(instance=doc)", self.get_serializer(instance=doc))
         return Response(self.get_serializer(instance=doc).data, status=200)
 
     @action(
@@ -655,9 +655,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             }
             return Response(res, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["post"], permission_classes=[AllowAny])
+    @action(detail=True, methods=["post"], permission_classes=[IsModerator])
     def exclude_from_feed(self, request, pk=None):
-        unified_document = self.queryset.get(id=pk)
+        unified_document = self.get_object()
         doc_type = get_doc_type_key(unified_document)
         hub_ids = list(unified_document.hubs.values_list("id", flat=True))
 
@@ -682,7 +682,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         return Response(status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["post"], permission_classes=[AllowAny])
+    @action(detail=True, methods=["post"], permission_classes=[IsModerator])
     def include_in_feed(self, request, pk=None):
         unified_document = self.queryset.get(id=pk)
         doc_type = get_doc_type_key(unified_document)
