@@ -63,7 +63,7 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
 
     def get_documents(self, instance):
         from hypothesis.serializers.hypothesis_serializer import HypothesisSerializer
-        
+
         context = self.context
         doc_type = instance.document_type
         if doc_type in [DISCUSSION, ELN]:
@@ -71,9 +71,7 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
                 instance.posts, many=True, context=context
             ).data
         elif doc_type in [HYPOTHESIS]:
-            return HypothesisSerializer(
-                instance.hypothesis, context=context
-            ).data                        
+            return HypothesisSerializer(instance.hypothesis, context=context).data
         else:
             return PaperSerializer(instance.paper, context=context).data
 

@@ -20,7 +20,11 @@ from paper.models import Paper
 from paper.models import Vote as PaperVote
 from paper.serializers import PaperVoteSerializer
 from paper.utils import get_cache_key
-from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument, FeedExclusion
+from researchhub_document.models import (
+    FeedExclusion,
+    ResearchhubPost,
+    ResearchhubUnifiedDocument,
+)
 from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
@@ -71,7 +75,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         doc.save()
 
         inner_doc = doc.get_document()
-        if (isinstance(inner_doc, Paper)):
+        if isinstance(inner_doc, Paper):
             inner_doc.is_removed = True
             inner_doc.save()
             inner_doc.reset_cache(use_celery=False)
@@ -84,7 +88,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             filters=[NEWEST, TOP, TRENDING, DISCUSSED],
             with_default_hub=True,
         )
-        print('self.get_serializer(instance=doc)', self.get_serializer(instance=doc))
+        print("self.get_serializer(instance=doc)", self.get_serializer(instance=doc))
         return Response(self.get_serializer(instance=doc).data, status=200)
 
     @action(
@@ -98,7 +102,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         doc.save()
 
         inner_doc = doc.get_document()
-        if (isinstance(inner_doc, Paper)):
+        if isinstance(inner_doc, Paper):
             inner_doc.is_removed = False
             inner_doc.save()
             inner_doc.reset_cache(use_celery=False)
@@ -274,11 +278,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         time_scope,
     ):
 
-        excluded_docs = FeedExclusion.objects.filter(hub_id=hub_id).values_list("unified_document")
+        excluded_docs = FeedExclusion.objects.filter(hub_id=hub_id).values_list(
+            "unified_document"
+        )
         date_ranges = get_date_ranges_by_time_scope(time_scope)
         start_date = date_ranges[0]
         end_date = date_ranges[1]
-
 
         papers = Paper.objects.filter(uploaded_by__isnull=False).values_list(
             "unified_document"
@@ -290,7 +295,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "unified_document"
         )
         filtered_ids = papers.union(posts, hypothesis)
-        
+
         qs = self.queryset.filter(id__in=filtered_ids, is_removed=False)
         if document_type == PAPER.lower():
             qs = qs.filter(document_type=PAPER)
@@ -654,30 +659,23 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def exclude_from_feed(self, request, pk=None):
         unified_document = self.queryset.get(id=pk)
         doc_type = get_doc_type_key(unified_document)
-        hub_ids = list(
-            unified_document.hubs.values_list(
-                'id',
-                flat=True
-            )
-        )
+        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
 
-        if request.data['exclude_from_homepage'] == True:
+        if request.data["exclude_from_homepage"] == True:
             FeedExclusion.objects.get_or_create(
-                unified_document=unified_document,
-                hub_id=0
+                unified_document=unified_document, hub_id=0
             )
 
-        if request.data['exclude_from_hubs'] == True:
+        if request.data["exclude_from_hubs"] == True:
             for hub_id in hub_ids:
                 FeedExclusion.objects.get_or_create(
-                    unified_document=unified_document,
-                    hub_id=hub_id
+                    unified_document=unified_document, hub_id=hub_id
                 )
 
         hub_ids.append(0)
         reset_unified_document_cache(
             hub_ids,
-            document_type=['all', doc_type],
+            document_type=["all", doc_type],
             filters=[TRENDING],
             with_default_hub=True,
         )
@@ -688,29 +686,23 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def include_in_feed(self, request, pk=None):
         unified_document = self.queryset.get(id=pk)
         doc_type = get_doc_type_key(unified_document)
-        hub_ids = list(
-            unified_document.hubs.values_list(
-                'id',
-                flat=True
-            )
-        )
+        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
         hub_ids.append(0)
 
         for hub_id in hub_ids:
             FeedExclusion.objects.filter(
-                unified_document=unified_document,
-                hub_id=hub_id
+                unified_document=unified_document, hub_id=hub_id
             ).delete()
 
         reset_unified_document_cache(
             hub_ids,
-            document_type=['all', doc_type],
+            document_type=["all", doc_type],
             filters=[TRENDING],
             with_default_hub=True,
         )
 
         return Response(status=status.HTTP_200_OK)
-        
+
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def check_user_vote(self, request):
         paper_ids = request.query_params.get("paper_ids", "")

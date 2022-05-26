@@ -468,11 +468,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             print(e)
             return Response(f"Failed to remove {paper.id} from bookmarks", status=400)
 
-    @action(
-        detail=True,
-        methods=["post"],
-        permission_classes=[IsAuthenticated]
-    )
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     def flag(self, request, pk=None):
         # TODO: calvinhlee - clean this up after full  migration
         paper = self.get_object()
@@ -488,13 +484,19 @@ class PaperViewSet(viewsets.ModelViewSet):
             events_api.track_flag_content(paper.uploaded_by, content_id, user.id)
             return Response(serialized.data, status=201)
         except IntegrityError as e:
-            return Response({
-                "msg": "Already flagged", 
-            }, status=status.HTTP_409_CONFLICT)
+            return Response(
+                {
+                    "msg": "Already flagged",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         except Exception as e:
-            return Response({
-                "msg": "Unexpected error", 
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {
+                    "msg": "Unexpected error",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @flag.mapping.delete
     def delete_flag(self, request, pk=None):

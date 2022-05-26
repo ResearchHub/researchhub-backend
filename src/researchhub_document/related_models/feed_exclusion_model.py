@@ -1,7 +1,11 @@
-from typing_extensions import Required
 from django.db import models
-from researchhub_document.related_models.researchhub_unified_document_model import ResearchhubUnifiedDocument
+from typing_extensions import Required
+
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from utils.models import DefaultModel
+
 
 class FeedExclusion(DefaultModel):
     # Not a foreign key because hub_id=0 is homepage
@@ -16,5 +20,5 @@ class FeedExclusion(DefaultModel):
         blank=False,
         null=False,
         on_delete=models.CASCADE,
-        related_name='excluded_from_feeds',
+        related_name="excluded_from_feeds",
     )
