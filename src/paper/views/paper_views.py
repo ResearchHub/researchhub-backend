@@ -370,32 +370,6 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         return Response("Paper was deleted.", status=200)
 
-    # @action(
-    #     detail=True,
-    #     methods=["put", "patch", "delete"],
-    #     permission_classes=[HasDocumentCensorPermission],
-    # )
-    # def censor_paper(self, request, pk=None):
-    #     paper = None
-    #     try:
-    #         paper = self.get_object()
-    #     except Exception:
-    #         paper = Paper.objects.get(id=request.data["id"])
-    #         pass
-
-    #     paper.is_removed = True
-    #     paper.save()
-    #     paper.reset_cache(use_celery=False)
-
-    #     hub_ids = paper.hubs.values_list("id", flat=True)
-    #     reset_unified_document_cache(
-    #         hub_ids,
-    #         filters=[TRENDING, TOP, DISCUSSED, NEWEST],
-    #         document_type=["all", "paper"],
-    #         with_default_hub=True,
-    #     )
-    #     return Response(self.get_serializer(instance=paper).data, status=200)
-
     @action(
         detail=True,
         methods=["put", "patch", "delete"],
@@ -418,7 +392,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             filters=[TRENDING, TOP, DISCUSSED, NEWEST],
             document_type=["all", "paper"],
         )
-        return Response(self.get_serializer(instance=paper).data, status=200)
         return Response(self.get_serializer(instance=paper).data, status=200)
 
     @action(
