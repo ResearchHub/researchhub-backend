@@ -87,7 +87,7 @@ class Distributor:
             recipient=self.recipient,
             giver=self.giver,
             amount=self.distribution.amount,
-            reputation_amount=self.distribution.reputation,
+            reputation_amount=self.reputation(),
             distribution_type=self.distribution.name,
             proof=self.proof,
             proof_item_content_type=get_content_type_for_model(self.proof_item)
@@ -107,9 +107,10 @@ class Distributor:
         )
 
         with transaction.atomic():
-            if self.distribution.gives_rep:
+            rep = self.reputation()
+            if self.distribution.gives_rep and rep:
                 # updates at the SQL level and does not call save() or emit signals
-                users.update(reputation=models.F("reputation") + self.reputation())
+                users.update(reputation=models.F("reputation") + rep)
             self._record_balance(record)
 
     def _record_balance(self, distribution):
