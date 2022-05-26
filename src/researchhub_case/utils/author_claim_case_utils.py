@@ -1,15 +1,15 @@
 import time
 import uuid
 
-from utils import sentry
+from django.db.models import Sum
 
+from mailing_list.lib import base_email_context
 from reputation.distributions import Distribution as dist
 from reputation.distributor import Distributor
 from reputation.models import AuthorRSC
-from utils.message import send_email_message
-from mailing_list.lib import base_email_context
 from researchhub.settings import BASE_FRONTEND_URL
-from django.db.models import Sum
+from utils import sentry
+from utils.message import send_email_message
 
 
 def get_formatted_token():
@@ -18,97 +18,88 @@ def get_formatted_token():
 
 def get_new_validation_token():
     [generated_time, token] = get_formatted_token()
-    return [
-        generated_time,
-        token
-    ]
+    return [generated_time, token]
 
 
 def get_client_validation_url(validation_token):
-    return (
-        BASE_FRONTEND_URL
-        + f'/author-claim-validation/?token={validation_token}'
-    )
+    return BASE_FRONTEND_URL + f"/author-claim-validation/?token={validation_token}"
+
 
 def get_client_profile_url(author):
-    return (
-        BASE_FRONTEND_URL
-        + f'/user/{author.id}/overview'
-    )
+    return BASE_FRONTEND_URL + f"/user/{author.id}/overview"
+
 
 def get_authored_papers_url(author):
-    return (
-        BASE_FRONTEND_URL
-        + f'/user/{author.id}/authored-papers'
-    )
+    return BASE_FRONTEND_URL + f"/user/{author.id}/authored-papers"
+
 
 def get_paper_url(paper):
-    return (
-        BASE_FRONTEND_URL
-        + f'/paper/{paper.id}/{paper.slug}'
-    )
+    return BASE_FRONTEND_URL + f"/paper/{paper.id}/{paper.slug}"
+
 
 def send_validation_email(case):
     validation_token = case.validation_token
     requestor = case.requestor
-    requestor_name = f'{requestor.first_name} {requestor.last_name}'
+    requestor_name = f"{requestor.first_name} {requestor.last_name}"
     email_context = {
         **base_email_context,
-        'requestor_name': requestor_name,
-        'paper_title': case.target_paper.title,
-        'paper_url': get_paper_url(case.target_paper),
-        'target_author_name': case.target_author_name,
-        'validation_url': get_client_validation_url(validation_token),
+        "requestor_name": requestor_name,
+        "paper_title": case.target_paper.title,
+        "paper_url": get_paper_url(case.target_paper),
+        "target_author_name": case.target_author_name,
+        "validation_url": get_client_validation_url(validation_token),
     }
     send_email_message(
         [case.provided_email],
-        'author_claim_validation_email.txt',
-        'Please Verify Your Paper Claim',
+        "author_claim_validation_email.txt",
+        "Please Verify Your Paper Claim",
         email_context,
-        'author_claim_validation_email.html',
-        'ResearchHub <noreply@researchhub.com>'
+        "author_claim_validation_email.html",
+        "ResearchHub <noreply@researchhub.com>",
     )
+
 
 def send_approval_email(case):
     requestor = case.requestor
     requestor_author = requestor.author_profile
-    requestor_name = f'{requestor.first_name} {requestor.last_name}'
+    requestor_name = f"{requestor.first_name} {requestor.last_name}"
     vote_reward = requestor_author.calculate_score()
     email_context = {
         **base_email_context,
-        'paper_title': case.target_paper.title,
-        'paper_url': get_paper_url(case.target_paper),
-        'profile_url': get_client_profile_url(requestor_author),
-        'authored_papers_url': get_authored_papers_url(requestor_author),
-        'target_author_name': case.target_author_name,
-        'requestor_name': requestor_name,
-        'vote_reward': vote_reward,
+        "paper_title": case.target_paper.title,
+        "paper_url": get_paper_url(case.target_paper),
+        "profile_url": get_client_profile_url(requestor_author),
+        "authored_papers_url": get_authored_papers_url(requestor_author),
+        "target_author_name": case.target_author_name,
+        "requestor_name": requestor_name,
+        "vote_reward": vote_reward,
     }
     send_email_message(
         [case.provided_email],
-        'author_approval_email.txt',
-        'Your paper claim request has been approved',
+        "author_approval_email.txt",
+        "Your paper claim request has been approved",
         email_context,
-        'author_approval_email.html',
-        'ResearchHub <noreply@researchhub.com>'
+        "author_approval_email.html",
+        "ResearchHub <noreply@researchhub.com>",
     )
+
 
 def send_rejection_email(case):
     requestor = case.requestor
-    requestor_name = f'{requestor.first_name} {requestor.last_name}'
+    requestor_name = f"{requestor.first_name} {requestor.last_name}"
     email_context = {
         **base_email_context,
-        'paper_title': case.target_paper.title,
-        'paper_url': get_paper_url(case.target_paper),
-        'requestor_name': requestor_name,
+        "paper_title": case.target_paper.title,
+        "paper_url": get_paper_url(case.target_paper),
+        "requestor_name": requestor_name,
     }
     send_email_message(
         [case.provided_email],
-        'author_rejection_email.txt',
-        'Your paper claim request has been denied',
+        "author_rejection_email.txt",
+        "Your paper claim request has been denied",
         email_context,
-        'author_rejection_email.html',
-        'ResearchHub <noreply@researchhub.com>'
+        "author_rejection_email.html",
+        "ResearchHub <noreply@researchhub.com>",
     )
 
 
@@ -119,16 +110,16 @@ def reward_author_claim_case(requestor_author, paper, claim_case):
         paper=paper,
     )
 
-    author_pot_amount = author_pot_query.aggregate(
-        Sum('amount')
-    ).get('amount__sum', 0) or 0
+    author_pot_amount = (
+        author_pot_query.aggregate(Sum("amount")).get("amount__sum", 0) or 0
+    )
 
     author_count = paper.true_author_count()
     author_pot_amount /= author_count
 
     if author_pot_amount:
         distributor = Distributor(
-            dist('UPVOTE_RSC_POT', author_pot_amount),
+            dist("UPVOTE_RSC_POT", author_pot_amount, False),
             requestor_author.user,
             requestor_author,
             time.time(),
@@ -138,10 +129,10 @@ def reward_author_claim_case(requestor_author, paper, claim_case):
 
     try:
         distributor = Distributor(
-            dist('REWARD', vote_reward, False),
+            dist("REWARD", vote_reward, False),
             requestor_author.user,
             requestor_author,
-            time.time()
+            time.time(),
         )
         distribution = distributor.distribute()
         return distribution

@@ -110,7 +110,7 @@ def distribute_for_create_summary(sender, instance, created, update_fields, **kw
             recipient,
             instance,
             timestamp,
-            instance.created_by,
+            instance.proposed_by,
             instance.paper.hubs.all(),
         )
         record = distributor.distribute()
