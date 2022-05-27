@@ -20,6 +20,9 @@ class HasDocumentCensorPermission(AuthorizationBasedPermission):
             return False
 
         doc = None
+        is_author = False
+        requestor = request.user
+
         if isinstance(obj, ResearchhubUnifiedDocument):
             uni_doc_model = get_uni_doc_related_model(obj)
             doc = (
@@ -35,15 +38,19 @@ class HasDocumentCensorPermission(AuthorizationBasedPermission):
         if doc is None:
             return False
 
+        if isinstance(doc, Paper):
+            is_author = doc.uploaded_by_id == requestor.id
+        else:
+            is_author = doc.created_by_id == requestor.id
+
         doc_hubs = doc.unified_document.hubs.all()
-        requestor = request.user
         is_requestor_appropriate_editor = requestor.is_hub_editor_of(
             doc_hubs,
         )
         if (
             requestor.moderator
             or is_requestor_appropriate_editor  # moderators serve as site admin
-            or doc.created_by_id == requestor.id
+            or is_author
         ):
             return True
 
