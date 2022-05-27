@@ -1,3 +1,4 @@
+from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -10,6 +11,7 @@ from discussion.models import BaseComment
 from discussion.reaction_models import Flag
 from discussion.reaction_serializers import FlagSerializer
 from discussion.serializers import DynamicFlagSerializer
+from notification.models import Notification
 from paper.related_models.paper_model import Paper
 from user.filters import AuditDashboardFilterBackend
 from user.models import Action
@@ -249,11 +251,11 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["post"])
     def flag(self, request):
-        moderator = request.user
+        hub_editor = request.user
         data = request.data
         flag_data = data.get("flag", [])
         for f in flag_data:
-            f["created_by"] = moderator.id
+            f["created_by"] = hub_editor.id
 
         flag_serializer = FlagSerializer(data=flag_data, many=True)
         flag_serializer.is_valid(raise_exception=True)
@@ -263,13 +265,13 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["post"])
     def flag_and_remove(self, request):
-        moderator = request.user
+        hub_editor = request.user
         data = request.data
         flag_data = data.get("flag", [])
         verdict_data = data.get("verdict", {})
         for f in flag_data:
-            f["created_by"] = moderator.id
-        verdict_data["created_by"] = moderator.id
+            f["created_by"] = hub_editor.id
+        verdict_data["created_by"] = hub_editor.id
 
         flag_serializer = FlagSerializer(data=flag_data, many=True)
         flag_serializer.is_valid(raise_exception=True)
@@ -286,6 +288,9 @@ class AuditViewSet(viewsets.GenericViewSet):
                 is_content_removed = verdict.is_content_removed
                 if is_content_removed:
                     self._remove_flagged_content(flag)
+                    self._send_notification_to_content_creator(
+                        remover=hub_editor, verdict=verdict
+                    )
 
         except Exception as e:
             print("e", e)
@@ -303,11 +308,11 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["post"])
     def dismiss_flagged_content(self, request):
-        moderator = request.user
+        hub_editor = request.user
         data = request.data
 
         verdict_data = {}
-        verdict_data["created_by"] = moderator.id
+        verdict_data["created_by"] = hub_editor.id
         verdict_data["is_content_removed"] = False
 
         try:
@@ -324,7 +329,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                 verdict_data["flag"] = flag.id
                 verdict_serializer = VerdictSerializer(data=verdict_data)
                 verdict_serializer.is_valid(raise_exception=True)
-                verdict = verdict_serializer.save()
+                verdict_serializer.save()
         except Exception as e:
             print("e", e)
             sentry.log_error(e)
@@ -341,11 +346,11 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["post"])
     def remove_flagged_content(self, request):
-        moderator = request.user
+        hub_editor = request.user
         data = request.data
 
         verdict_data = {}
-        verdict_data["created_by"] = moderator.id
+        verdict_data["created_by"] = hub_editor.id
         verdict_data["is_content_removed"] = True
 
         try:
@@ -367,6 +372,9 @@ class AuditViewSet(viewsets.GenericViewSet):
                 flag.save()
 
                 self._remove_flagged_content(flag)
+                self._send_notification_to_content_creator(
+                    remover=hub_editor, verdict=verdict
+                )
 
         except Exception as e:
             print("e", e)
@@ -397,3 +405,21 @@ class AuditViewSet(viewsets.GenericViewSet):
                 inner_doc.is_removed = True
                 inner_doc.reset_cache()
                 inner_doc.save()
+
+    def _send_notification_to_content_creator(self, verdict, remover):
+        flag = verdict.flag
+        flagged_content = flag.content_type.model_class().objects.get(id=flag.object_id)
+        if flag.content_type.name == "paper":
+            content_creator = flagged_content.uploaded_by
+        else:
+            content_creator = flagged_content.created_by
+        action = Action.objects.create(
+            item=verdict, user=remover, content_type=get_content_type_for_model(verdict)
+        )
+        notification = Notification.objects.create(
+            action_user=remover,
+            action=action,
+            recipient=content_creator,
+            unified_document=flagged_content.unified_document,
+        )
+        notification.send_notification()

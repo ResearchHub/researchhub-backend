@@ -144,11 +144,14 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 "_include_fields": [
                     "amount",
                     "content_type",
+                    "flagged_content_name",
                     "id",
-                    "plain_text",
+                    "is_content_removed",
                     "paper_status",
                     "paper",
-                ]
+                    "plain_text",
+                    "verdict_choice",
+                ],
             },
             "usr_dus_get_author_profile": {
                 "_include_fields": [

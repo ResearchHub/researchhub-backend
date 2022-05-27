@@ -753,6 +753,8 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
             from paper.serializers import DynamicPaperSubmissionSerializer
 
             serializer = DynamicPaperSubmissionSerializer
+        elif isinstance(item, Verdict):
+            serializer = DynamicVerdictSerializer
         else:
             return None
 
@@ -867,6 +869,7 @@ class VerdictSerializer(ModelSerializer):
 class DynamicVerdictSerializer(DynamicModelFieldSerializer):
     created_by = SerializerMethodField()
     flag = SerializerMethodField()
+    flagged_content_name = SerializerMethodField()
 
     class Meta:
         model = Verdict
@@ -891,3 +894,6 @@ class DynamicVerdictSerializer(DynamicModelFieldSerializer):
             verdict.flag, context=context, **_context_fields
         )
         return serializer.data
+
+    def get_flagged_content_name(self, verdict):
+        return verdict.flag.content_type.name
