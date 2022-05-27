@@ -251,11 +251,11 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["post"])
     def flag(self, request):
-        hub_editor = request.user
+        flagger = request.user
         data = request.data
         flag_data = data.get("flag", [])
         for f in flag_data:
-            f["created_by"] = hub_editor.id
+            f["created_by"] = flagger.id
 
         flag_serializer = FlagSerializer(data=flag_data, many=True)
         flag_serializer.is_valid(raise_exception=True)
@@ -265,13 +265,13 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["post"])
     def flag_and_remove(self, request):
-        hub_editor = request.user
+        flagger = request.user
         data = request.data
         flag_data = data.get("flag", [])
         verdict_data = data.get("verdict", {})
         for f in flag_data:
-            f["created_by"] = hub_editor.id
-        verdict_data["created_by"] = hub_editor.id
+            f["created_by"] = flagger.id
+        verdict_data["created_by"] = flagger.id
 
         flag_serializer = FlagSerializer(data=flag_data, many=True)
         flag_serializer.is_valid(raise_exception=True)
@@ -308,11 +308,11 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["post"])
     def dismiss_flagged_content(self, request):
-        hub_editor = request.user
+        flagger = request.user
         data = request.data
 
         verdict_data = {}
-        verdict_data["created_by"] = hub_editor.id
+        verdict_data["created_by"] = flagger.id
         verdict_data["is_content_removed"] = False
 
         try:
@@ -346,11 +346,11 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["post"])
     def remove_flagged_content(self, request):
-        hub_editor = request.user
+        flagger = request.user
         data = request.data
 
         verdict_data = {}
-        verdict_data["created_by"] = hub_editor.id
+        verdict_data["created_by"] = flagger.id
         verdict_data["is_content_removed"] = True
 
         try:
