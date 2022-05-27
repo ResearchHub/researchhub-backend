@@ -289,7 +289,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                 if is_content_removed:
                     self._remove_flagged_content(flag)
                     self._send_notification_to_content_creator(
-                        remover=hub_editor, verdict=verdict
+                        remover=flagger, verdict=verdict
                     )
 
         except Exception as e:
@@ -373,7 +373,7 @@ class AuditViewSet(viewsets.GenericViewSet):
 
                 self._remove_flagged_content(flag)
                 self._send_notification_to_content_creator(
-                    remover=hub_editor, verdict=verdict
+                    remover=flagger, verdict=verdict
                 )
 
         except Exception as e:
