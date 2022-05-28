@@ -11,6 +11,7 @@ from discussion.models import BaseComment
 from discussion.reaction_models import Flag
 from discussion.reaction_serializers import FlagSerializer
 from discussion.serializers import DynamicFlagSerializer
+from mailing_list.lib import base_email_context
 from notification.models import Notification
 from paper.related_models.paper_model import Paper
 from user.filters import AuditDashboardFilterBackend
@@ -18,6 +19,7 @@ from user.models import Action
 from user.permissions import UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 from utils import sentry
+from utils.message import send_email_message
 
 
 class CursorSetPagination(CursorPagination):
@@ -423,3 +425,28 @@ class AuditViewSet(viewsets.GenericViewSet):
             unified_document=flagged_content.unified_document,
         )
         notification.send_notification()
+        self._send_email_notification_to_content_creator(flag, notification, verdict)
+
+    def _send_email_notification_to_content_creator(self, flag, notification, verdict):
+        receiver = notification.recipient
+        action = Action.objects.get(
+            content_type=flag.content_type, object_id=flag.object_id
+        )
+        name = f"{receiver.first_name} {receiver.last_name}"
+        email_context = {
+            **base_email_context,
+            "user_name": name,
+            "verdict_choice": verdict.verdict_choice.replace("_", " "),
+            "actions": (action.email_context(),),
+        }
+
+        recipient = [receiver.email]
+        subject = "ResearchHub | Notice of Flagged and Removed Content"
+        send_email_message(
+            recipient,
+            "flagged_and_removed_content.txt",
+            subject,
+            email_context,
+            "flagged_and_removed_content.html",
+            "ResearchHub Digest <digest@researchhub.com>",
+        )

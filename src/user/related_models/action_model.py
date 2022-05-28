@@ -123,13 +123,7 @@ class Action(DefaultModel):
     def title(self):
         title = ""
         try:
-            doc_type = self.item.unified_document.document_type
-            if doc_type == "DISCUSSION":
-                title = self.item.title
-            elif doc_type == "HYPOTHESIS":
-                title = self.item.title
-            elif doc_type == "PAPER":
-                title = self.item.title
+            title = self.item.unified_document.get_document().title
         except Exception as e:
             title = ""
 
@@ -156,18 +150,24 @@ class Action(DefaultModel):
         SUMMARY_MAX_LEN = 256
         summary = ""
         try:
-            doc_type = self.item.unified_document.document_type
-            if doc_type == "DISCUSSION":
-                summary = self.item.renderable_text
-            elif doc_type == "HYPOTHESIS":
-                summary = self.item.renderable_text
-            elif doc_type == "PAPER":
-                summary = self.item.abstract
+            item = self.item
+            if isinstance(item, (Thread, Comment, Reply)):
+                summary = item.plain_text
+            else:
+                doc_type = item.unified_document.document_type
+                if doc_type == "DISCUSSION":
+                    summary = self.item.renderable_text
+                elif doc_type == "HYPOTHESIS":
+                    summary = self.item.renderable_text
+                elif doc_type == "PAPER":
+                    summary = self.item.abstract
         except Exception as e:
             return ""
 
-        if len(summary) > SUMMARY_MAX_LEN:
+        if summary and len(summary) > SUMMARY_MAX_LEN:
             summary = f"{summary[:SUMMARY_MAX_LEN]} ..."
+        else:
+            summary = ""
         return summary
 
     @property
