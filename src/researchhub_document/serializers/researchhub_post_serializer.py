@@ -1,71 +1,66 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
+from discussion.reaction_models import Vote
+from discussion.reaction_serializers import (
+    DynamicVoteSerializer,  # Import is needed for discussion serializer imports
+)
 from discussion.reaction_serializers import GenericReactionSerializerMixin
-from hub.serializers import SimpleHubSerializer, DynamicHubSerializer
-from researchhub_document.related_models.constants.document_type \
-    import DISCUSSION
-from researchhub_document.models import ResearchhubPost
+from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub_document.models import ResearchhubPost
+from researchhub_document.related_models.constants.document_type import DISCUSSION
 from user.serializers import (
+    AuthorSerializer,
     DynamicAuthorSerializer,
     DynamicUserSerializer,
-    AuthorSerializer,
     UserSerializer,
 )
-
-from discussion.reaction_serializers import (
-    DynamicVoteSerializer  # Import is needed for discussion serializer imports
-)
 from utils.http import get_user_from_request
-from discussion.reaction_models import Vote
 
 
-class ResearchhubPostSerializer(
-    ModelSerializer, GenericReactionSerializerMixin
-):
+class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin):
     class Meta(object):
         model = ResearchhubPost
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
-            'authors',
-            'id',
-            'created_by',
-            'created_date',
-            'discussion_count',
-            'document_type',
-            'doi',
-            'editor_type',
-            'full_markdown',
-            'hubs',
-            'is_latest_version',
-            'is_root_version',
-            'note',
-            'post_src',
-            'preview_img',
-            'renderable_text',
-            'title',
-            'slug',
-            'unified_document_id',
-            'unified_document',
-            'version_number',
-            'boost_amount',
-            'is_removed',
+            "authors",
+            "id",
+            "created_by",
+            "created_date",
+            "discussion_count",
+            "document_type",
+            "doi",
+            "editor_type",
+            "full_markdown",
+            "hubs",
+            "is_latest_version",
+            "is_root_version",
+            "note",
+            "post_src",
+            "preview_img",
+            "renderable_text",
+            "title",
+            "slug",
+            "unified_document_id",
+            "unified_document",
+            "version_number",
+            "boost_amount",
+            "is_removed",
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
-            'authors',
-            'id',
-            'created_by',
-            'created_date',
-            'discussion_count',
-            'is_latest_version',
-            'is_root_version',
-            'note'
-            'post_src',
-            'unified_document_id',
-            'version_number',
-            'boost_amount',
-            'is_removed',
+            "authors",
+            "id",
+            "created_by",
+            "created_date",
+            "discussion_count",
+            "is_latest_version",
+            "is_root_version",
+            "note" "post_src",
+            "unified_document_id",
+            "version_number",
+            "boost_amount",
+            "is_removed",
         ]
 
     # GenericReactionSerializerMixin
@@ -77,21 +72,35 @@ class ResearchhubPostSerializer(
     user_vote = SerializerMethodField()
 
     # local
-    authors = AuthorSerializer(many=True)
-    created_by = SerializerMethodField(method_name='get_created_by')
-    full_markdown = SerializerMethodField(method_name='get_full_markdown')
+    authors = SerializerMethodField()
+    created_by = SerializerMethodField(method_name="get_created_by")
+    full_markdown = SerializerMethodField(method_name="get_full_markdown")
     hubs = SerializerMethodField(method_name="get_hubs")
     note = SerializerMethodField()
-    post_src = SerializerMethodField(method_name='get_post_src')
+    post_src = SerializerMethodField(method_name="get_post_src")
     is_removed = SerializerMethodField()
-    unified_document_id = SerializerMethodField(
-        method_name='get_unified_document_id'
-    )
+    unified_document_id = SerializerMethodField(method_name="get_unified_document_id")
     unified_document = SerializerMethodField()
+
+    def get_authors(self, post):
+
+        # Probably legacy scenario, before ELN release
+        authors = list(post.authors.all())
+        if len(authors) == 0:
+            authors.append(post.created_by.author_profile)
+        else:
+            authors = post.authors
+
+        serializer = AuthorSerializer(
+            authors,
+            context=self.context,
+            many=True,
+        )
+        return serializer.data
 
     def get_post_src(self, instance):
         try:
-            if (instance.document_type == DISCUSSION):
+            if instance.document_type == DISCUSSION:
                 return instance.discussion_src.url
             else:
                 return instance.eln_src.url
@@ -115,8 +124,7 @@ class ResearchhubPostSerializer(
 
     def get_unified_document_id(self, instance):
         unified_document = instance.unified_document
-        return instance.unified_document.id \
-            if unified_document is not None else None
+        return instance.unified_document.id if unified_document is not None else None
 
     def get_unified_document(self, obj):
         from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
@@ -124,30 +132,57 @@ class ResearchhubPostSerializer(
         serializer = DynamicUnifiedDocumentSerializer(
             obj.unified_document,
             _include_fields=[
-                'id',
-                'reviews'
+                "id",
+                "reviews",
+                "title",
+                "documents",
+                "slug",
+                "is_removed",
+                "document_type",
+                "created_by",
             ],
-            context={},
-            many=False
+            context={
+                "doc_duds_get_created_by": {
+                    "_include_fields": [
+                        "id",
+                        "author_profile",
+                    ]
+                },
+                "usr_dus_get_author_profile": {
+                    "_include_fields": [
+                        "id",
+                        "first_name",
+                        "last_name",
+                        "profile_image",
+                    ]
+                },
+                "doc_duds_get_documents": {
+                    "_include_fields": [
+                        "id",
+                        "title",
+                        "slug",
+                        "paper_title",
+                    ]
+                },
+            },
+            many=False,
         )
 
         return serializer.data
 
     def get_full_markdown(self, instance):
         try:
-            if (instance.document_type == DISCUSSION):
+            if instance.document_type == DISCUSSION:
                 byte_string = instance.discussion_src.read()
             else:
                 byte_string = instance.eln_src.read()
-            full_markdown = byte_string.decode('utf-8')
+            full_markdown = byte_string.decode("utf-8")
             return full_markdown
         except Exception:
             return None
 
     def get_hubs(self, instance):
-        return SimpleHubSerializer(
-            instance.unified_document.hubs, many=True
-        ).data
+        return SimpleHubSerializer(instance.unified_document.hubs, many=True).data
 
     def get_promoted_score(self, instance):
         return instance.get_promoted_score()
@@ -168,34 +203,30 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
 
     class Meta:
         model = ResearchhubPost
-        fields = '__all__'
+        fields = "__all__"
 
     def get_authors(self, post):
         context = self.context
-        _context_fields = context.get('doc_dps_get_authors', {})
+        _context_fields = context.get("doc_dps_get_authors", {})
         serializer = DynamicAuthorSerializer(
-            post.authors,
-            context=context,
-            many=True,
-            **_context_fields
+            post.authors, context=context, many=True, **_context_fields
         )
         return serializer.data
 
     def get_note(self, post):
         from note.serializers import DynamicNoteSerializer
+
         context = self.context
-        _context_fields = context.get('doc_dps_get_note', {})
+        _context_fields = context.get("doc_dps_get_note", {})
         serializer = DynamicNoteSerializer(
-            post.note,
-            context=context,
-            **_context_fields
+            post.note, context=context, **_context_fields
         )
         return serializer.data
 
     def get_user_vote(self, post):
         vote = None
         user = get_user_from_request(self.context)
-        _context_fields = self.context.get('doc_dps_get_user_vote', {})
+        _context_fields = self.context.get("doc_dps_get_user_vote", {})
         try:
             if user and not user.is_anonymous:
                 vote = post.votes.get(created_by=user)
@@ -209,36 +240,28 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
             return None
 
     def get_unified_document(self, post):
-        from researchhub_document.serializers import (
-          DynamicUnifiedDocumentSerializer
-        )
+        from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
+
         context = self.context
-        _context_fields = context.get('doc_dps_get_unified_document', {})
+        _context_fields = context.get("doc_dps_get_unified_document", {})
         serializer = DynamicUnifiedDocumentSerializer(
-            post.unified_document,
-            context=context,
-            **_context_fields
+            post.unified_document, context=context, **_context_fields
         )
         return serializer.data
 
     def get_hubs(self, post):
         context = self.context
-        _context_fields = context.get('doc_dps_get_hubs', {})
+        _context_fields = context.get("doc_dps_get_hubs", {})
         serializer = DynamicHubSerializer(
-            post.hubs,
-            many=True,
-            context=context,
-            **_context_fields
+            post.hubs, many=True, context=context, **_context_fields
         )
         return serializer.data
 
     def get_created_by(self, post):
         context = self.context
-        _context_fields = context.get('doc_dps_get_created_by', {})
+        _context_fields = context.get("doc_dps_get_created_by", {})
         serializer = DynamicUserSerializer(
-            post.created_by,
-            context=context,
-            **_context_fields
+            post.created_by, context=context, **_context_fields
         )
         return serializer.data
 
