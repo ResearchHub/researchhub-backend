@@ -1,0 +1,130 @@
+{% load inlinecss %} {% load l10n %} {% load humanize %}
+<html>
+  <link rel="stylesheet" href="../stylesheets/flagged_and_removed_content.css" />
+  <head>
+    <meta charset="UTF-8" />
+    <title></title>
+    <link
+      href="https://fonts.googleapis.com/css?family=Roboto&display=swap"
+      rel="stylesheet"
+    />
+    <style type="text/css">
+      @media only screen and (max-width: 633px) {
+        body {
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .email {
+          box-sizing: border-box;
+        }
+
+        .email-body {
+          box-sizing: border-box;
+        }
+
+        .footer {
+          box-sizing: border-box;
+        }
+
+        .banner-img-container {
+          display: none !important;
+        }
+      }
+    </style>
+  </head>
+  {% inlinecss "flagged_and_removed_content.css" %}
+  <body>
+    <div class="email">
+      <div class="email-body">
+        <div class="banner-img-container">
+          <img
+            class="img-banner"
+            src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/user_verification.png"
+          />
+        </div>
+        <div class="email-info">
+          <div class="email-header">
+            <img
+              class="img-logo"
+              src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png"
+            />
+            <div class="header">
+              Flagged and Removed Content
+              <p class="header-message">
+                Dear {{ user_name }},
+                <br /><br />
+                Content that you have recently uploaded has been flagged and removed by a hub editor.
+                <br /><br />
+                The follow item has been removed for: {{ verdict_choice }}
+                <br />
+                {% for action in actions %}
+                  <div class="content">
+                    <div class="meta">
+                      <div class="avatar-wrapper">
+                        {% if action.user.author_profile.profile_image %}
+                          <img
+                            class="author-avatar"
+                            src="{{ action.user.author_profile.profile_image|default:"https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg" }}"
+                            alt="{{ action.user.author_profile.profile_image }}"
+                          />
+                        {% else %}
+                          <div class="initials">
+                            {{ action.initials }}
+                          </div>
+                        {% endif %}
+                      </div>
+                      <div class="notification-wrapper">
+                        <div class="notification-title">
+                          <span class="first-line">
+                            <b>
+                              {{ action.user.author_profile.first_name }}
+                               {{ action.user.author_profile.last_name }}
+                            </b> {{ action.label }}:
+                          </span>
+                          <div class="paper">
+                            {{ action.title }}
+                          </div>
+                          <div class="timestamp">
+                            <!-- <span class="timestamp-icon">•</span> -->
+                            {{ action.created_date|localize }}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="body">
+                      {{ action.doc_summary }}
+                    </div>
+<!--                     <div class="hubtags-list">
+                      <a class="button-label" href="{{ action.frontend_view_link }}">
+                        View {{ action.content_type_name }}
+                      </a>
+                    </div> -->
+                  </div>
+                {% endfor %}
+
+                <br /><br />
+                Please review our
+                <a href="https://researchhub.notion.site/researchhub/ResearchHub-Help-7291ea62355a43e29112c91d11c21740">
+                  help page
+                </a>
+                 for a list of our community guidelines.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footer">
+        <a class="footer-link" href="{{ opt_out }}"
+          >Unsubscribe from this list</a
+        >
+        <a class="footer-link" href="{{ update_subscription }}"
+          >Update subscription preferences</a
+        >
+      </div>
+    </div>
+    <div style="display: none">{% now "U" %}</div>
+  </body>
+</html>
+
+{% endinlinecss %}
