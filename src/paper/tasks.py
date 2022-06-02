@@ -1420,7 +1420,6 @@ def celery_crossref(self, celery_data):
 
         paper_data["dois"] = dois
         return celery_data
-        # raise CrossrefSearchError(f"Could not find Crossref data for: {dois}")
     except DOINotFoundError as e:
         raise e
     except DuplicatePaperError as e:
@@ -1451,8 +1450,6 @@ def celery_openalex(self, celery_data):
                 paper_submission.save()
                 break
             except DOINotFoundError:
-                # TODO: DELETE
-                print("No works found for openalex")
                 pass
 
         if result:
