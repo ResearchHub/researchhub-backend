@@ -1,5 +1,5 @@
 import hmac
-from datetime import timedelta
+from datetime import datetime, timedelta
 from hashlib import sha1
 
 from django.contrib.contenttypes.models import ContentType
@@ -184,6 +184,8 @@ class UserViewSet(viewsets.ModelViewSet):
             else:
                 keyword = "created_date__year__gte"
             time_filter = {keyword: timezone.now().year}
+        elif timeframe == "all_time":
+            time_filter = {keyword: datetime(year=2019, month=1, day=1)}
 
         items = []
         serializerClass = None
@@ -239,7 +241,16 @@ class UserViewSet(viewsets.ModelViewSet):
                                 & ~Q(
                                     reputation_records__distribution_type__in=[
                                         "REFERRAL",
+                                        "PURCHASE",
                                         "REWARD",
+                                        "EDITOR_COMPENSATION",
+                                        "EDITOR_PAYOUT",
+                                        "MOD_PAYOUT",
+                                        "CREATE_BULLET_POINT",
+                                        "CREATE_SUMMARY",
+                                        "SUMMARY_UPVOTED",
+                                        "BULLET_POINT_UPVOTED",
+                                        "CREATE_FIRST_SUMMARY",
                                         "REFERRAL_APPROVED",
                                     ]
                                 ),
@@ -264,7 +275,16 @@ class UserViewSet(viewsets.ModelViewSet):
                                 & ~Q(
                                     reputation_records__distribution_type__in=[
                                         "REFERRAL",
+                                        "PURCHASE",
                                         "REWARD",
+                                        "EDITOR_COMPENSATION",
+                                        "EDITOR_PAYOUT",
+                                        "MOD_PAYOUT",
+                                        "CREATE_BULLET_POINT",
+                                        "CREATE_SUMMARY",
+                                        "SUMMARY_UPVOTED",
+                                        "BULLET_POINT_UPVOTED",
+                                        "CREATE_FIRST_SUMMARY",
                                         "REFERRAL_APPROVED",
                                     ]
                                 ),
@@ -272,7 +292,7 @@ class UserViewSet(viewsets.ModelViewSet):
                             0,
                         )
                     )
-                    .order_by("-reputation")
+                    .order_by("-hub_rep")
                 )
         elif leaderboard_type == "authors":
             serializerClass = AuthorSerializer
