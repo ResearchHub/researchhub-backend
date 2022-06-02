@@ -1040,7 +1040,6 @@ class PaperSubmissionSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id",
             "created_date",
-            "doi",
             "paper_status",
             "updated_date",
         ]
