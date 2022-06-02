@@ -146,6 +146,7 @@ class Paper(AbstractGenericReactionModel):
         blank=True,
     )
     retrieved_from_external_source = models.BooleanField(default=False)
+    is_open_access = models.BooleanField(default=None, null=True, blank=True)
     external_source = models.CharField(
         max_length=255, default=None, null=True, blank=True
     )

@@ -195,13 +195,13 @@ class UserViewSet(viewsets.ModelViewSet):
                         is_public=False,
                     )
                     .filter(**time_filter, hubs__in=[hub_id], is_removed=False)
-                    .order_by("-score")
+                    .order_by("-paper_score")
                 )
             else:
                 items = (
                     Paper.objects.exclude(is_public=False)
                     .filter(**time_filter, is_removed=False)
-                    .order_by("-score")
+                    .order_by("-paper_score")
                 )
             serializer_kwargs = {
                 "_include_fields": [
