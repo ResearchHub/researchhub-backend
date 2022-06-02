@@ -13,7 +13,10 @@ class OpenAlex:
         }
         self.timeout = timeout
 
-    def _get_works(self, filters, headers={}):
+    def _get_works(self, filters, headers=None):
+        if not headers:
+            headers = {}
+
         filters = {**filters, **self.base_params}
         headers = {**headers, **self.base_headers}
         url = f"{self.base_url}/works"
