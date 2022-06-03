@@ -3,6 +3,7 @@ from django.dispatch import receiver
 from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
+from discussion.reaction_models import Vote as GrmVote
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import PAPER
 
@@ -53,6 +54,20 @@ def recalc_paper_votes(sender, instance, created, update_fields, **kwargs):
         author.author_score = score
         author.save()
     paper.save()
+
+
+# TODO: calvinhlee - this is a temp signal to prevent furthur backfill
+@receiver(post_save, sender=Vote, dispatch_uid="temp_grm_vote_signal")
+def temp_grm_vote_signal(sender, vote_legacy, created, update_fields, **kwargs):
+    paper = vote_legacy.paper
+    grm_vote = GrmVote(
+        created_by=vote_legacy.created_by,
+        created_date=vote_legacy.created_date,
+        item=paper,
+        updated_date=vote_legacy.created_date,
+        vote_type=vote_legacy.vote_type,
+    )
+    grm_vote.save()
 
 
 def check_file_updated(update_fields, file):
