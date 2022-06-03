@@ -6,6 +6,7 @@ from django.utils.text import slugify
 from discussion.reaction_models import Vote as GrmVote
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import PAPER
+from utils.sentry import log_error
 
 from .models import Paper, Vote
 
@@ -59,15 +60,18 @@ def recalc_paper_votes(sender, instance, created, update_fields, **kwargs):
 # TODO: calvinhlee - this is a temp signal to prevent furthur backfill
 @receiver(post_save, sender=Vote, dispatch_uid="temp_grm_vote_signal")
 def temp_grm_vote_signal(sender, instance, created, update_fields, **kwargs):
-    paper = instance.paper
-    grm_vote = GrmVote(
-        created_by=instance.created_by,
-        created_date=instance.created_date,
-        item=paper,
-        updated_date=instance.created_date,
-        vote_type=instance.vote_type,
-    )
-    grm_vote.save()
+    try:
+        paper = instance.paper
+        grm_vote = GrmVote(
+            created_by=instance.created_by,
+            created_date=instance.created_date,
+            item=paper,
+            updated_date=instance.created_date,
+            vote_type=instance.vote_type,
+        )
+        grm_vote.save()
+    except Exception as exception:
+        log_error("temp_grm_vote_signal: ", exception)
 
 
 def check_file_updated(update_fields, file):
