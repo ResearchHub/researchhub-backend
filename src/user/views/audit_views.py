@@ -29,7 +29,7 @@ class CursorSetPagination(CursorPagination):
 
 class AuditViewSet(viewsets.GenericViewSet):
     queryset = Action.objects.all()
-    permission_classes = [IsAuthenticated, UserIsEditor]
+    permission_classes = [UserIsEditor]
     pagination_class = CursorSetPagination
     filter_backends = (AuditDashboardFilterBackend,)
     order_fields = ("created_date", "verdict_created_date")
@@ -291,7 +291,9 @@ class AuditViewSet(viewsets.GenericViewSet):
                 if is_content_removed:
                     self._remove_flagged_content(flag)
                     self._send_notification_to_content_creator(
-                        remover=flagger, verdict=verdict
+                        remover=flagger,
+                        send_email=data.get("send_email", True),
+                        verdict=verdict,
                     )
 
         except Exception as e:
@@ -375,7 +377,9 @@ class AuditViewSet(viewsets.GenericViewSet):
 
                 self._remove_flagged_content(flag)
                 self._send_notification_to_content_creator(
-                    remover=flagger, verdict=verdict
+                    remover=flagger,
+                    send_email=data.get("send_email", True),
+                    verdict=verdict,
                 )
 
         except Exception as e:
@@ -408,7 +412,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                 inner_doc.reset_cache()
                 inner_doc.save()
 
-    def _send_notification_to_content_creator(self, verdict, remover):
+    def _send_notification_to_content_creator(self, verdict, remover, send_email=True):
         flag = verdict.flag
         flagged_content = flag.content_type.model_class().objects.get(id=flag.object_id)
         if flag.content_type.name == "paper":
@@ -425,7 +429,10 @@ class AuditViewSet(viewsets.GenericViewSet):
             unified_document=flagged_content.unified_document,
         )
         notification.send_notification()
-        self._send_email_notification_to_content_creator(flag, notification, verdict)
+        if send_email:
+            self._send_email_notification_to_content_creator(
+                flag, notification, verdict
+            )
 
     def _send_email_notification_to_content_creator(self, flag, notification, verdict):
         receiver = notification.recipient
