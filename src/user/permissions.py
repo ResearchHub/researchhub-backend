@@ -67,3 +67,10 @@ class UserIsEditor(BasePermission):
             return False
 
         return user.is_hub_editor()
+
+    def has_permission(self, request, view):
+        user = request.user
+        if user.is_anonymous:
+            return False
+
+        return user.is_hub_editor()
