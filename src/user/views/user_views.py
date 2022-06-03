@@ -233,7 +233,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     .annotate(
                         hub_rep=Coalesce(
                             Sum(
-                                "reputation_records__amount",
+                                "reputation_records__reputation_amount",
                                 filter=Q(
                                     **time_filter,
                                     reputation_records__hubs__in=[hub_id],
@@ -270,7 +270,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     .annotate(
                         hub_rep=Coalesce(
                             Sum(
-                                "reputation_records__amount",
+                                "reputation_records__reputation_amount",
                                 filter=Q(**time_filter)
                                 & ~Q(
                                     reputation_records__distribution_type__in=[
@@ -292,7 +292,7 @@ class UserViewSet(viewsets.ModelViewSet):
                             0,
                         )
                     )
-                    .order_by("-hub_rep")
+                    .order_by(F("hub_rep").desc(nulls_last=True), "-reputation")
                 )
         elif leaderboard_type == "authors":
             serializerClass = AuthorSerializer
