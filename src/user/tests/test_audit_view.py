@@ -105,7 +105,7 @@ class AuditViewTests(APITestCase):
                 "send_email": False,
             },
         )
-        self.assertContains(http_response, "status_code", status_code=403)
+        self.assertEquals(http_response.status_code, status_code=403)
 
     def test_editor_can_dismiss_flag(self):
         self.client.force_authenticate(self.test_editor)
