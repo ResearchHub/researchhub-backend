@@ -1461,6 +1461,7 @@ def celery_openalex(self, celery_data):
                 duplicate_ids = doi_paper_check.values_list("id", flat=True)
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
 
+            host_venue = result.get("host_venue", {})
             oa = result.get("open_access", {})
             title = normalize("NFKD", result.get("title", ""))
             raw_authors = result.get("authorships", [])
@@ -1471,6 +1472,11 @@ def celery_openalex(self, celery_data):
                 "paper_publish_date", result.get("publication_date", None)
             )
             paper_data.setdefault("is_open_access", oa.get("is_oa", None))
+            paper_data.setdefault("pdf_license", host_venue.get("license", None))
+            paper_data.setdefault("pdf_license_url", host_venue.get("url", None))
+            paper_data.setdefault(
+                "external_source", host_venue.get("display_name", None)
+            )
 
         return celery_data
     except DOINotFoundError as e:
