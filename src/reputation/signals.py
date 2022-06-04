@@ -369,8 +369,7 @@ def distribute_for_discussion_vote(sender, instance, created, update_fields, **k
     distributor = None
     try:
         instance_item = instance.item
-        instance_item_type = type(instance_item)
-        if instance_item_type is Paper:
+        if isinstance(instance_item, Paper):
             recipient = instance.item.uploaded_by
         else:
             recipient = instance.item.created_by
