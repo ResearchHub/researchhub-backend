@@ -63,10 +63,8 @@ class Vote(DefaultModel):
         item = self.item
         item_type = type(item)
 
-        if item_type in [ResearchhubPost, Hypothesis, Thread, Comment, Reply]:
+        if item_type in [Paper, ResearchhubPost, Hypothesis, Thread, Comment, Reply]:
             return item.unified_document
-        elif item_type is Paper:
-            return item.paper.unified_document
         elif item_type is Citation:
             # citation has 1:1 unifiedDoc edge named "source"
             return item.source
