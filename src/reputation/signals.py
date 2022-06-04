@@ -368,7 +368,12 @@ def distribute_for_discussion_vote(sender, instance, created, update_fields, **k
     timestamp = time()
     distributor = None
     try:
-        recipient = instance.item.created_by
+        instance_item = instance.item
+        instance_item_type = type(instance_item)
+        if instance_item_type is Paper:
+            recipient = instance.item.uploaded_by
+        else:
+            recipient = instance.item.created_by
     except Exception as e:
         error = ReputationSignalError(e, "Invalid recipient")
         sentry.log_error(e)
