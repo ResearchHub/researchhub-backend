@@ -2,8 +2,7 @@
 Creates a wallet for users
 """
 
-from datetime import datetime, timedelta
-
+from dateutil import parser
 from django.core.management.base import BaseCommand
 
 from paper.models import Paper
@@ -12,8 +11,11 @@ from utils.sentry import log_info
 
 
 class Command(BaseCommand):
+    def add_arguments(self, parser):
+        parser.add_argument("--start_date", help="Perform for date starting")
+
     def handle(self, *args, **options):
-        start_date = datetime.now() - timedelta(days=180)
+        start_date = parser.parse(options["start_date"])
         papers = Paper.objects.filter(
             created_date__gte=start_date, doi__icontains="10."
         )
