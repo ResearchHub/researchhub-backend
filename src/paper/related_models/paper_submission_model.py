@@ -17,6 +17,7 @@ class PaperSubmission(DefaultModel):
     PROCESSING_CROSSREF = "PROCESSING_CROSSREF"
     PROCESSING_MANUBOT = "PROCESSING_MANUBOT"
     PROCESSING_DOI = "PROCESSING_DOI"
+    PROCESSING_OPENALEX = "PROCESSING_OPENALEX"
 
     PAPER_STATUS_CHOICES = [
         (COMPLETE, COMPLETE),
@@ -28,6 +29,7 @@ class PaperSubmission(DefaultModel):
         (PROCESSING, PROCESSING),
         (PROCESSING_CROSSREF, PROCESSING_CROSSREF),
         (PROCESSING_MANUBOT, PROCESSING_MANUBOT),
+        (PROCESSING_OPENALEX, PROCESSING_OPENALEX),
         (PROCESSING_DOI, PROCESSING_DOI),
     ]
     doi = models.CharField(
@@ -77,6 +79,9 @@ class PaperSubmission(DefaultModel):
 
     def set_crossref_status(self, save=True):
         self.set_status(self.PROCESSING_CROSSREF, save)
+
+    def set_openalex_status(self, save=True):
+        self.set_status(self.PROCESSING_OPENALEX, save)
 
     def set_processing_doi_status(self, save=True):
         self.set_status(self.PROCESSING_DOI, save)

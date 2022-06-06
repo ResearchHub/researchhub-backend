@@ -710,6 +710,23 @@ def format_raw_authors(raw_authors):
 
             author["first_name"] = first_name
             author["last_name"] = last_name
+        elif "author" in author:
+            # OpenAlex Cleaning
+            author.pop("author_position", None)
+            author.pop("institutions", None)
+            author.pop("raw_affiliation_string", None)
+
+            author_data = author.pop("author")
+            name = author_data.pop("display_name")
+            open_alex_id = author_data.pop("id")
+            names = name.split(" ")
+            first_name = names[0]
+            last_name = names[-1]
+
+            author_data["open_alex_id"] = open_alex_id
+            author_data["first_name"] = first_name
+            author_data["last_name"] = last_name
+            author.update(author_data)
 
     return raw_authors
 

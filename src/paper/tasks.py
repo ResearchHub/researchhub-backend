@@ -91,6 +91,7 @@ from utils.arxiv.categories import (
 )
 from utils.crossref import get_crossref_issued_date
 from utils.http import check_url_contains_pdf
+from utils.openalex import OpenAlex
 from utils.twitter import RATE_LIMIT_CODE, get_twitter_results, get_twitter_url_results
 
 logger = get_task_logger(__name__)
@@ -1206,14 +1207,14 @@ def celery_process_paper(self, submission_id):
             ]
         )
 
-    # Specific Crossref bypass for Manubot (Arxiv links)
-    parsed_url = urlparse(url)
-    if parsed_url.netloc == "arxiv.org":
-        tasks.extend([celery_manubot.s().set(countdown=1)])
-    else:
-        tasks.extend([celery_crossref.s().set(countdown=1)])
-
-    tasks.extend([celery_create_paper.s().set(countdown=1)])
+    tasks.extend(
+        [
+            celery_openalex.s().set(countdown=1),
+            celery_crossref.s().set(countdown=1),
+            celery_manubot.s().set(countdown=1),
+            celery_create_paper.s().set(countdown=1),
+        ]
+    )
 
     chain(*tasks).apply_async(
         (args,),
@@ -1295,7 +1296,11 @@ def celery_manubot(self, celery_data):
         paper_submission.set_manubot_status()
         paper_submission.notify_status()
 
-        paper_data.pop("dois")
+        dois = paper_data.pop("dois", None)
+        if not dois:
+            paper_data["dois"] = dois
+            return celery_data
+
         url = paper_data["url"]
         csl_item = get_csl_item(url)
         doi = csl_item.get("DOI", None)
@@ -1340,24 +1345,22 @@ def celery_manubot(self, celery_data):
         publish_date = csl_item.get_date("issued", fill=True)
         raw_authors = csl_item.get("author", [])
         raw_authors = format_raw_authors(raw_authors)
-        paper_data = {
-            **paper_data,
-            "abstract": cleaned_abstract,
-            "csl_item": csl_item,
-            "doi": doi,
-            "paper_publish_date": publish_date,
-            "raw_authors": raw_authors,
-            "title": cleaned_title,
-        }
+
+        paper_data.setdefault("abstract", cleaned_abstract)
+        paper_data.setdefault("csl_item", csl_item)
+        paper_data.setdefault("doi", doi)
+        paper_data.setdefault("paper_publish_date", publish_date)
+        paper_data.setdefault("raw_authors", raw_authors)
+        paper_data.setdefault("title", cleaned_title)
 
         if oa_pdf_location:
             if oa_pdf_url:
-                paper_data["pdf_url"] = oa_pdf_url
+                paper_data.setdefault("pdf_url", oa_pdf_url)
 
             license = oa_pdf_location.get("license", None)
-            paper_data["pdf_license"] = license
+            paper_data.setdefault("pdf_license", license)
 
-        return (paper_data, submission_id)
+        return celery_data
     except DuplicatePaperError as e:
         raise e
     except ManubotProcessingError as e:
@@ -1379,9 +1382,6 @@ def celery_crossref(self, celery_data):
 
         dois = paper_data.pop("dois", [])
 
-        if not dois:
-            raise DOINotFoundError("No DOIs were found")
-
         cr = Crossref()
         results = None
         for doi in dois:
@@ -1391,7 +1391,7 @@ def celery_crossref(self, celery_data):
                     "ids": [doi],
                 }
                 results = cr.works(**params).get("message")
-                paper_data["doi"] = doi
+                paper_data.setdefault("doi", doi)
                 paper_submission.doi = doi
                 paper_submission.save()
                 break
@@ -1410,14 +1410,75 @@ def celery_crossref(self, celery_data):
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
 
             abstract = clean_abstract(results.get("abstract", ""))
-            paper_data["abstract"] = abstract
             raw_authors = results.get("author", [])
-            paper_data["raw_authors"] = format_raw_authors(raw_authors)
             title = normalize("NFKD", results.get("title", [])[0])
-            paper_data["title"] = title
-            paper_data["paper_title"] = title
+            paper_data.setdefault("abstract", abstract)
+            paper_data.setdefault("raw_authors", format_raw_authors(raw_authors))
+            paper_data.setdefault("title", title)
+            paper_data.setdefault("paper_title", title)
             return celery_data
-        raise CrossrefSearchError(f"Could not find Crossref data for: {dois}")
+
+        paper_data["dois"] = dois
+        return celery_data
+    except DOINotFoundError as e:
+        raise e
+    except DuplicatePaperError as e:
+        raise e
+    except Exception as e:
+        raise e
+
+
+@app.task(bind=True, queue=QUEUE_PAPER_METADATA)
+def celery_openalex(self, celery_data):
+    paper_data, submission_id = celery_data
+    Paper = apps.get_model("paper.Paper")
+    PaperSubmission = apps.get_model("paper.PaperSubmission")
+
+    try:
+        paper_submission = PaperSubmission.objects.get(id=submission_id)
+        paper_submission.set_openalex_status()
+        paper_submission.notify_status()
+
+        dois = paper_data.get("dois", [])
+        open_alex = OpenAlex()
+        result = None
+        for doi in dois:
+            try:
+                result = open_alex.get_data_from_doi(doi)
+                paper_data.setdefault("doi", doi)
+                paper_submission.doi = doi
+                paper_submission.save()
+                break
+            except DOINotFoundError:
+                pass
+
+        if result:
+            # Duplicate DOI check
+            doi = paper_data["doi"]
+            doi_paper_check = Paper.objects.filter(doi=doi)
+            if doi_paper_check.exists():
+                paper_submission.set_duplicate_status()
+                duplicate_ids = doi_paper_check.values_list("id", flat=True)
+                raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
+
+            host_venue = result.get("host_venue", {})
+            oa = result.get("open_access", {})
+            title = normalize("NFKD", result.get("title", ""))
+            raw_authors = result.get("authorships", [])
+            paper_data.setdefault("raw_authors", format_raw_authors(raw_authors))
+            paper_data.setdefault("title", title)
+            paper_data.setdefault("paper_title", title)
+            paper_data.setdefault(
+                "paper_publish_date", result.get("publication_date", None)
+            )
+            paper_data.setdefault("is_open_access", oa.get("is_oa", None))
+            paper_data.setdefault("pdf_license", host_venue.get("license", None))
+            paper_data.setdefault("pdf_license_url", host_venue.get("url", None))
+            paper_data.setdefault(
+                "external_source", host_venue.get("display_name", None)
+            )
+
+        return celery_data
     except DOINotFoundError as e:
         raise e
     except DuplicatePaperError as e:
@@ -1438,6 +1499,12 @@ def celery_create_paper(self, celery_data):
 
     try:
         paper_submission = PaperSubmission.objects.get(id=submission_id)
+        dois = paper_data.pop("dois", None)
+        if dois is not None:
+            raise DOINotFoundError(
+                f"Unable to find article for: {dois}, {paper_submission.url}"
+            )
+
         async_paper_updator = getattr(paper_submission, "async_updator", None)
         paper = Paper(**paper_data)
 
