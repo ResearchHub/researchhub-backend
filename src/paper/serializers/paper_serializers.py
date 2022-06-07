@@ -73,7 +73,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     bullet_points = serializers.SerializerMethodField()
     csl_item = serializers.SerializerMethodField()
     discussion = serializers.SerializerMethodField()
-    discussion_users = serializers.SerializerMethodField()
+    # discussion_users = serializers.SerializerMethodField()
     file = serializers.SerializerMethodField()
     first_figure = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
@@ -274,7 +274,17 @@ class BasePaperSerializer(serializers.ModelSerializer):
 
         serializer = DynamicUnifiedDocumentSerializer(
             obj.unified_document,
-            _include_fields=["id", "reviews", "title", "documents", "paper_title", "slug", "is_removed", "document_type", "created_by"],
+            _include_fields=[
+                "id",
+                "reviews",
+                "title",
+                "documents",
+                "paper_title",
+                "slug",
+                "is_removed",
+                "document_type",
+                "created_by",
+            ],
             context={
                 "doc_duds_get_created_by": {
                     "_include_fields": [
@@ -297,7 +307,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
                         "slug",
                         "paper_title",
                     ]
-                }
+                },
             },
             many=False,
         )
