@@ -557,7 +557,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             # TODO: Refactor below
             if paper_ids:
                 paper_votes = get_user_votes(
-                    user, post_ids, ContentType.objects.get_for_model(Paper)
+                    user, paper_ids, ContentType.objects.get_for_model(Paper)
                 )
                 for vote in paper_votes.iterator():
                     paper_id = vote.object_id

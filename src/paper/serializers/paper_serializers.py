@@ -251,7 +251,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             try:
                 vote = paper.votes.get(created_by=user.id)
                 vote = DynamicGrmVoteSerializer(vote).data
-                print("VOTEEEEE: ", vote)
             except GrmVote.DoesNotExist:
                 pass
         return vote
@@ -810,7 +809,6 @@ class DynamicPaperSerializer(
                     context=self.context,
                     **_context_fields,
                 ).data
-                print("VOTEEEEE: ", vote)
 
             except GrmVote.DoesNotExist:
                 pass
