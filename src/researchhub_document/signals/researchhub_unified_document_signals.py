@@ -4,11 +4,13 @@ from django.dispatch import receiver
 
 from discussion.models import Comment, Reply, Thread
 from discussion.reaction_models import Vote as GrmVote
+from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PaperDocType,
 )
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.tasks import recalc_hot_score_task
 from utils import sentry
 
@@ -58,7 +60,8 @@ def sync_is_removed_from_paper(instance, **kwargs):
     dispatch_uid="rh_unified_doc_sync_scores_vote",
 )
 def rh_unified_doc_sync_scores_on_related_docs(instance, sender, **kwargs):
-    if type(instance) in (Thread, Comment, Reply):
+
+    if type(instance) not in [Paper, Hypothesis, ResearchhubPost]:
         return
 
     unified_document = instance.unified_document
