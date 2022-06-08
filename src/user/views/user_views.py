@@ -740,6 +740,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "url",
                 "paper_publish_date",
                 "slug",
+                "created_date",
             ],
             many=True,
             context=context,
