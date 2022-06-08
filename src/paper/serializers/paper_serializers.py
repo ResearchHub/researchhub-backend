@@ -251,6 +251,7 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             try:
                 vote = paper.votes.get(created_by=user.id)
                 vote = DynamicGrmVoteSerializer(vote).data
+                print("VOTEEEEE: ", vote)
             except GrmVote.DoesNotExist:
                 pass
         return vote
@@ -744,7 +745,9 @@ class PaperSerializer(BasePaperSerializer):
         return None
 
 
-class PaperReferenceSerializer(serializers.ModelSerializer):
+class PaperReferenceSerializer(
+    serializers.ModelSerializer, GenericReactionSerializerMixin
+):
     hubs = SimpleHubSerializer(
         many=True, required=False, context={"no_subscriber_info": True}
     )
@@ -777,7 +780,9 @@ class PaperReferenceSerializer(serializers.ModelSerializer):
         return None
 
 
-class DynamicPaperSerializer(DynamicModelFieldSerializer):
+class DynamicPaperSerializer(
+    DynamicModelFieldSerializer, GenericReactionSerializerMixin
+):
     authors = serializers.SerializerMethodField()
     boost_amount = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
@@ -805,6 +810,8 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
                     context=self.context,
                     **_context_fields,
                 ).data
+                print("VOTEEEEE: ", vote)
+
             except GrmVote.DoesNotExist:
                 pass
 

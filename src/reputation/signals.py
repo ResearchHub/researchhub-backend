@@ -48,10 +48,16 @@ def update_distribution_for_hub_changes(
 @receiver(post_save, sender=ReactionVote, dispatch_uid="paper_upvoted")
 def distribute_for_paper_upvoted(sender, instance, created, update_fields, **kwargs):
     """Distributes reputation to the uploader."""
-    timestamp = time()
-    recipient = instance.paper.uploaded_by
+    recipient = None
+    try:
+        timestamp = time()
+        recipient = instance.paper.uploaded_by
+    except Exception as e:
+        pass
 
-    if is_eligible_for_paper_upvoted(created, instance.created_by, recipient):
+    if recipient is not None and is_eligible_for_paper_upvoted(
+        created, instance.created_by, recipient
+    ):
         distributor = Distributor(
             distributions.create_upvote_distribution(
                 distributions.PaperUpvoted.name, instance.paper, instance

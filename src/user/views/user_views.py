@@ -843,7 +843,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "created_by",
                     "created_date",
                     "vote_type",
-                    "paper",
                 ]
             },
             "pap_dps_get_hubs": {

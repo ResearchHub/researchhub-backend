@@ -463,15 +463,6 @@ class UserActions:
         assert (data is not None) or (user is not None), f"Arguments data"
         f" and user_id can not both be None"
 
-        if not hasattr(UserActions, "flag_serializer"):
-            from discussion.reaction_serializers import FlagSerializer
-
-            UserActions.flag_serializer = FlagSerializer
-
-            from paper.serializers import FlagSerializer as PaperFlagSerializer
-
-            UserActions.paper_flag_serializer = PaperFlagSerializer
-
         self.user = None
         if user and user.is_authenticated:
             self.user = user
