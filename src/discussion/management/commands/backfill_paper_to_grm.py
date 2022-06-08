@@ -6,6 +6,7 @@ from discussion.reaction_models import Vote as GrmVote
 from paper.models import Vote as PaperVote
 
 
+# TODO: calvinhlee - DEPRECATE this script when migration confirmed to be good.
 class Command(BaseCommand):
     def handle(self, *args, **options):
         today = datetime.datetime.now()

@@ -261,11 +261,6 @@ class Paper(AbstractGenericReactionModel):
             return "titleless paper"
 
     @property
-    def score(self):
-        # TODO: calvinhlee - remove this to use GRM after vote migration
-        return self.paper_score
-
-    @property
     def uploaded_date(self):
         return self.created_date
 
@@ -358,7 +353,7 @@ class Paper(AbstractGenericReactionModel):
 
     @property
     def votes_indexing(self):
-        all_votes = self.votes_legacy.all()
+        all_votes = self.votes.all()
         if len(all_votes) > 0:
             return [self.get_vote_for_index(vote) for vote in all_votes]
         return {}
@@ -409,10 +404,10 @@ class Paper(AbstractGenericReactionModel):
                     second=original_uploaded_date.second,
                 )
 
-            votes = paper.votes_legacy
+            votes = paper.votes
             if votes.exists():
                 vote_avg_epoch = (
-                    paper.votes_legacy.aggregate(
+                    paper.votes.aggregate(
                         avg=Avg(
                             Extract("created_date", "epoch"),
                             output_field=models.IntegerField(),
@@ -670,7 +665,7 @@ class Paper(AbstractGenericReactionModel):
             celery_extract_twitter_comments(self.id)
 
     def calculate_paper_score(self, ignore_self_vote=False, ignore_twitter_score=False):
-        qs = self.votes_legacy.filter(
+        qs = self.votes.filter(
             created_by__is_suspended=False, created_by__probable_spammer=False
         )
 
@@ -1013,6 +1008,7 @@ class Figure(models.Model):
     )
 
 
+# TODO: calvinhlee - remove this model once migration is confirmed to be good.
 class Vote(models.Model):
     UPVOTE = 1
     DOWNVOTE = 2
@@ -1048,6 +1044,7 @@ class Vote(models.Model):
         return "{} - {}".format(self.created_by, self.vote_type)
 
 
+# TODO: calvinhlee - remove this model once migration is confirmed to be good.
 class Flag(models.Model):
     paper = models.ForeignKey(
         Paper,

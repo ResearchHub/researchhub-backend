@@ -89,7 +89,7 @@ def distribute_round_robin(paper_id):
     items = [
         paper.uploaded_by,
         *paper.authors.all(),
-        *paper.votes_legacy.all(),
+        *paper.votes.all(),
         *paper.threads.all(),
     ]
     item = reward_dis.get_random_item(items)

@@ -555,11 +555,11 @@ def get_crossref_results(query, index=10):
 
 
 def merge_paper_votes(original_paper, new_paper):
-    old_votes = original_paper.votes_legacy.all()
+    old_votes = original_paper.votes.all()
     old_votes_user = old_votes.values_list("created_by_id", flat=True)
-    conflicting_votes = new_paper.votes_legacy.filter(created_by__in=old_votes_user)
+    conflicting_votes = new_paper.votes.filter(created_by__in=old_votes_user)
     conflicting_votes_user = conflicting_votes.values_list("created_by_id", flat=True)
-    new_votes = new_paper.votes_legacy.exclude(created_by_id__in=conflicting_votes_user)
+    new_votes = new_paper.votes.exclude(created_by_id__in=conflicting_votes_user)
 
     # Delete conflicting votes from the new paper
     conflicting_votes.delete()

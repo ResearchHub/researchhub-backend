@@ -239,7 +239,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
                 flag = FlagSerializer(flag_created_by).data
             except AttributeError:
                 try:
-                    flag = paper.flags_legacy.get(created_by=user.id)
+                    flag = paper.flags.get(created_by=user.id)
                     flag = FlagSerializer(flag).data
                 except Flag.DoesNotExist:
                     pass
@@ -256,7 +256,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
                 vote = PaperVoteSerializer(vote_created_by).data
             except AttributeError:
                 try:
-                    vote = paper.votes_legacy.get(created_by=user.id)
+                    vote = paper.votes.get(created_by=user.id)
                     vote = PaperVoteSerializer(vote).data
                 except Vote.DoesNotExist:
                     pass
@@ -801,7 +801,7 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
 
         if user:
             try:
-                vote = paper.votes_legacy.get(created_by=user.id)
+                vote = paper.votes.get(created_by=user.id)
                 vote = DynamicPaperVoteSerializer(
                     vote,
                     context=self.context,

@@ -122,8 +122,8 @@ def censored_paper_cleanup(paper_id):
         paper.save()
 
     if paper:
-        paper.votes_legacy.update(is_removed=True)
-        for vote in paper.votes_legacy.all():
+        paper.votes.update(is_removed=True)
+        for vote in paper.votes.all():
             if vote.vote_type == 1:
                 user = vote.created_by
                 user.set_probable_spammer()

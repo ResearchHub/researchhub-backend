@@ -57,23 +57,6 @@ def recalc_paper_votes(sender, instance, created, update_fields, **kwargs):
     paper.save()
 
 
-# TODO: calvinhlee - this is a temp signal to prevent furthur backfill
-@receiver(post_save, sender=Vote, dispatch_uid="temp_grm_vote_signal")
-def temp_grm_vote_signal(sender, instance, created, update_fields, **kwargs):
-    try:
-        paper = instance.paper
-        grm_vote = GrmVote(
-            created_by=instance.created_by,
-            created_date=instance.created_date,
-            item=paper,
-            updated_date=instance.created_date,
-            vote_type=instance.vote_type,
-        )
-        grm_vote.save()
-    except Exception as exception:
-        log_error("temp_grm_vote_signal: ", exception)
-
-
 def check_file_updated(update_fields, file):
     if update_fields is not None and file:
         return "file" in update_fields
