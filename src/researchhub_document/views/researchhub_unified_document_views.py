@@ -446,12 +446,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         doc_type = get_doc_type_key(unified_document)
         hub_ids = list(unified_document.hubs.values_list("id", flat=True))
 
-        if request.data["exclude_from_homepage"] == True:
+        if request.data["exclude_from_homepage"] is True:
             FeedExclusion.objects.get_or_create(
                 unified_document=unified_document, hub_id=0
             )
 
-        if request.data["exclude_from_hubs"] == True:
+        if request.data["exclude_from_hubs"] is True:
             for hub_id in hub_ids:
                 FeedExclusion.objects.get_or_create(
                     unified_document=unified_document, hub_id=hub_id
@@ -560,7 +560,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     user, post_ids, ContentType.objects.get_for_model(Paper)
                 )
                 for vote in paper_votes.iterator():
-                    paper_id = vote.paper_id
+                    paper_id = vote.object_id
                     response["papers"][paper_id] = GrmVoteSerializer(instance=vote).data
             if post_ids:
                 post_votes = get_user_votes(

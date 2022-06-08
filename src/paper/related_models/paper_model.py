@@ -15,7 +15,6 @@ from manubot.cite.doi import get_doi_csl_item
 from manubot.cite.unpaywall import Unpaywall
 
 import utils.sentry as sentry
-from discussion.models import Thread
 from discussion.reaction_models import AbstractGenericReactionModel
 from hub.models import Hub
 from hub.serializers import HubSerializer
@@ -263,6 +262,10 @@ class Paper(AbstractGenericReactionModel):
     @property
     def uploaded_date(self):
         return self.created_date
+
+    @property
+    def created_by(self):
+        return self.uploaded_by
 
     @property
     def is_hidden(self):
@@ -533,6 +536,8 @@ class Paper(AbstractGenericReactionModel):
         return self.twitter_score
 
     def get_discussion_count(self):
+        from discussion.models import Thread
+
         sources = [Thread.RESEARCHHUB, Thread.INLINE_ABSTRACT, Thread.INLINE_PAPER_BODY]
 
         thread_count = self.threads.aggregate(

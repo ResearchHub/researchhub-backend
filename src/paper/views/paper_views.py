@@ -28,19 +28,17 @@ from rest_framework.response import Response
 from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import FlagSerializer
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
-from discussion.reaction_views import create_flag
+from discussion.reaction_views import ReactionViewActionMixin, create_flag
 from google_analytics.signals import get_event_hit_response
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import AdditionalFile, Figure, Flag, Paper, PaperSubmission
 from paper.permissions import (
     CreatePaper,
-    DownvotePaper,
     IsAuthor,
     IsModeratorOrVerifiedAuthor,
     UpdateOrDeleteAdditionalFile,
     UpdatePaper,
-    UpvotePaper,
 )
 from paper.serializers import (
     AdditionalFileSerializer,
@@ -78,7 +76,7 @@ from utils.siftscience import decisions_api, events_api
 from utils.throttles import THROTTLE_CLASSES
 
 
-class PaperViewSet(viewsets.ModelViewSet):
+class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     queryset = Paper.objects.filter()
     serializer_class = PaperSerializer
     dynamic_serializer_class = DynamicPaperSerializer
@@ -598,7 +596,7 @@ class PaperViewSet(viewsets.ModelViewSet):
             )
 
             for vote in votes.iterator():
-                paper_id = vote.paper_id
+                paper_id = vote.object_id
                 data = GrmVoteSerializer(instance=vote).data
                 response[paper_id] = data
 

@@ -13,6 +13,7 @@ from discussion.models import Reply, Thread
 from discussion.models import Vote as GrmVote
 from paper.models import Paper
 from reputation.models import Distribution
+from utils import sentry
 
 
 class Command(BaseCommand):

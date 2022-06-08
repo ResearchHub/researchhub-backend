@@ -565,7 +565,7 @@ def merge_paper_votes(original_paper, new_paper):
     conflicting_votes.delete()
 
     # Transfer new votes to original paper
-    new_votes.update(paper=original_paper)
+    new_votes.update(object_id=original_paper.id)
 
 
 def merge_paper_threads(original_paper, new_paper):

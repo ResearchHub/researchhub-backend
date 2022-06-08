@@ -51,7 +51,10 @@ class Vote(DefaultModel):
 
     @property
     def paper(self):
-        return self.item.paper
+        from paper.related_models.paper_model import Paper
+
+        if type(self.item) is Paper:
+            return self.item
 
     @property
     def unified_document(self):

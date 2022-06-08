@@ -50,12 +50,6 @@ class PaperViewsTests(TestCase):
     def test_delete_flag_responds_400_if_request_user_has_no_flag(self):
         pass
 
-    def test_can_delete_vote(self):
-        user = create_random_authenticated_user("deleting vote")
-        vote = upvote_paper(self.paper, user)
-        response = self.get_vote_delete_response(user)
-        self.assertContains(response, vote.id, status_code=200)
-
     def test_check_url_is_true_if_url_has_pdf(self):
         url = self.base_url + "check_url/"
         data = {"url": "https://bitcoin.org/bitcoin.pdf"}
@@ -226,14 +220,6 @@ class PaperViewsTests(TestCase):
     def get_flag_delete_response(self, user):
         url = self.base_url + f"{self.paper.id}/flag/"
         data = None
-        response = get_authenticated_delete_response(
-            user, url, data, content_type="application/json"
-        )
-        return response
-
-    def get_vote_delete_response(self, user):
-        url = self.base_url + f"{self.paper.id}/user_vote/"
-        data = {}
         response = get_authenticated_delete_response(
             user, url, data, content_type="application/json"
         )

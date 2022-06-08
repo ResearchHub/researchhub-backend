@@ -8,7 +8,11 @@ from django.db import IntegrityError, transaction
 from django.http import QueryDict
 
 import utils.sentry as sentry
+from bullet_point.serializers import BulletPointTextOnlySerializer
+from discussion.models import Flag as GrmFlag
 from discussion.models import Vote as GrmVote
+from discussion.reaction_serializers import GenericReactionSerializerMixin
+from discussion.serializers import DynamicFlagSerializer
 from discussion.serializers import DynamicVoteSerializer as DynamicGrmVoteSerializer
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
@@ -21,7 +25,6 @@ from paper.models import (
     DOI_IDENTIFIER,
     AdditionalFile,
     Figure,
-    Flag,
     Paper,
     PaperSubmission,
 )
@@ -66,7 +69,7 @@ from utils.http import check_url_contains_pdf, get_user_from_request
 from utils.siftscience import events_api, update_user_risk_score
 
 
-class BasePaperSerializer(serializers.ModelSerializer):
+class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
     authors = serializers.SerializerMethodField()
     boost_amount = serializers.SerializerMethodField()
     bullet_points = serializers.SerializerMethodField()
@@ -235,16 +238,10 @@ class BasePaperSerializer(serializers.ModelSerializer):
         user = get_user_from_request(self.context)
         if user:
             try:
-                flag_created_by = paper.flag_created_by
-                if len(flag_created_by) == 0:
-                    return None
-                flag = FlagSerializer(flag_created_by).data
-            except AttributeError:
-                try:
-                    flag = paper.flags.get(created_by=user.id)
-                    flag = FlagSerializer(flag).data
-                except Flag.DoesNotExist:
-                    pass
+                flag = paper.flags.get(created_by=user.id)
+                flag = DynamicFlagSerializer(flag).data
+            except GrmFlag.DoesNotExist:
+                pass
         return flag
 
     def get_user_vote(self, paper):
@@ -908,17 +905,6 @@ class AdditionalFileSerializer(serializers.ModelSerializer):
 class BookmarkSerializer(serializers.Serializer):
     user = serializers.IntegerField()
     bookmarks = PaperSerializer(many=True)
-
-
-class FlagSerializer(serializers.ModelSerializer):
-    class Meta:
-        fields = [
-            "created_by",
-            "created_date",
-            "paper",
-            "reason",
-        ]
-        model = Flag
 
 
 class FigureSerializer(serializers.ModelSerializer):
