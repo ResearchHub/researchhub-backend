@@ -13,10 +13,10 @@ from web3 import Web3
 
 from bullet_point.models import BulletPoint
 from discussion.models import Comment, Reply, Thread
+from discussion.models import Vote as GrmVote
 from ethereum.lib import RSC_CONTRACT_ADDRESS, execute_erc20_transfer
 from mailing_list.lib import base_email_context
 from paper.models import Figure, Paper
-from paper.models import Vote as PaperVote
 from reputation.distributor import RewardDistributor
 from reputation.models import Contribution, DistributionAmount
 from researchhub.celery import QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
@@ -200,13 +200,14 @@ def distribute_rewards(starting_date=None, end_date=None, distribute=True):
         papers_uploaded, uploaded_paper_count, all_users, ["uploaded_by", "email"]
     )
 
-    paper_votes = PaperVote.objects.filter(
-        paper__is_removed=False,
+    paper_votes = GrmVote.objects.filter(
+        item__is_removed=False,
         created_by__probable_spammer=False,
         created_by__is_suspended=False,
         created_date__gt=starting_date,
         created_date__lte=end_date,
     ).exclude(Q(created_by__email__in=IGNORE_USERS), paper__uploaded_by=F("created_by"))
+
     paper_votes_count = {}
     set_or_increment(paper_votes, paper_votes_count, all_users, ["created_by", "email"])
 

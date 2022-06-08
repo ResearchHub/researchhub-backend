@@ -13,7 +13,6 @@ from hypothesis.models import Hypothesis
 from mailing_list.lib import base_email_context
 from mailing_list.models import EmailTaskLog, NotificationFrequencies
 from paper.models import Paper
-from paper.models import Vote as PaperVote
 from researchhub.celery import QUEUE_NOTIFICATION, app
 from researchhub_document.models import ResearchhubPost
 from user.models import Action, User
@@ -133,23 +132,23 @@ def send_hub_digest(frequency):
     end_date = timezone.now()
     start_date = calculate_hub_digest_start_date(end_date, frequency)
 
-    upvotes = Count(
-        "vote",
-        filter=Q(
-            vote__vote_type=PaperVote.UPVOTE,
-            vote__updated_date__gte=start_date,
-            vote__updated_date__lte=end_date,
-        ),
-    )
+    # upvotes = Count(
+    #     "vote",
+    #     filter=Q(
+    #         vote__vote_type=PaperVote.UPVOTE,
+    #         vote__updated_date__gte=start_date,
+    #         vote__updated_date__lte=end_date,
+    #     ),
+    # )
 
-    downvotes = Count(
-        "vote",
-        filter=Q(
-            vote__vote_type=PaperVote.DOWNVOTE,
-            vote__created_date__gte=start_date,
-            vote__created_date__lte=end_date,
-        ),
-    )
+    # downvotes = Count(
+    #     "vote",
+    #     filter=Q(
+    #         vote__vote_type=PaperVote.DOWNVOTE,
+    #         vote__created_date__gte=start_date,
+    #         vote__created_date__lte=end_date,
+    #     ),
+    # )
 
     # TODO don't include censored threads?
     thread_counts = Count(

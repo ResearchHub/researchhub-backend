@@ -3,10 +3,13 @@ import re
 
 import requests
 import rest_framework.serializers as serializers
+from django.contrib.admin.options import get_content_type_for_model
 from django.db import IntegrityError, transaction
 from django.http import QueryDict
 
 import utils.sentry as sentry
+from discussion.models import Vote as GrmVote
+from discussion.serializers import DynamicVoteSerializer as DynamicGrmVoteSerializer
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
@@ -21,7 +24,6 @@ from paper.models import (
     Flag,
     Paper,
     PaperSubmission,
-    Vote,
 )
 from paper.tasks import (
     add_orcid_authors,
@@ -250,16 +252,10 @@ class BasePaperSerializer(serializers.ModelSerializer):
         user = get_user_from_request(self.context)
         if user:
             try:
-                vote_created_by = paper.vote_created_by
-                if len(vote_created_by) == 0:
-                    return None
-                vote = PaperVoteSerializer(vote_created_by).data
-            except AttributeError:
-                try:
-                    vote = paper.votes.get(created_by=user.id)
-                    vote = PaperVoteSerializer(vote).data
-                except Vote.DoesNotExist:
-                    pass
+                vote = paper.votes.get(created_by=user.id)
+                vote = DynamicGrmVoteSerializer(vote).data
+            except GrmVote.DoesNotExist:
+                pass
         return vote
 
     def get_unified_document(self, obj):
@@ -426,7 +422,12 @@ class PaperSerializer(BasePaperSerializer):
                 file = paper.file
                 self._check_pdf_title(paper, paper_title, file)
                 # NOTE: calvinhlee - This is an antipattern. Look into changing
-                Vote.objects.create(paper=paper, created_by=user, vote_type=Vote.UPVOTE)
+                GrmVote.objects.create(
+                    content_type=get_content_type_for_model(paper),
+                    created_by=user,
+                    object_id=paper.id,
+                    vote_type=GrmVote.UPVOTE,
+                )
 
                 # Now add m2m values properly
                 if validated_data["paper_type"] == Paper.PRE_REGISTRATION:
@@ -802,12 +803,12 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
         if user:
             try:
                 vote = paper.votes.get(created_by=user.id)
-                vote = DynamicPaperVoteSerializer(
+                vote = DynamicGrmVoteSerializer(
                     vote,
                     context=self.context,
                     **_context_fields,
                 ).data
-            except Vote.DoesNotExist:
+            except GrmVote.DoesNotExist:
                 pass
 
         return vote
@@ -918,34 +919,6 @@ class FlagSerializer(serializers.ModelSerializer):
             "reason",
         ]
         model = Flag
-
-
-class PaperVoteSerializer(serializers.ModelSerializer):
-    class Meta:
-        fields = [
-            "id",
-            "created_by",
-            "created_date",
-            "vote_type",
-            "paper",
-        ]
-        model = Vote
-
-
-class DynamicPaperVoteSerializer(DynamicModelFieldSerializer):
-    paper = serializers.SerializerMethodField()
-
-    class Meta:
-        fields = "__all__"
-        model = Vote
-
-    def get_paper(self, vote):
-        context = self.context
-        _context_fields = context.get("pap_dpvs_paper", {})
-        serializer = DynamicPaperSerializer(
-            vote.paper, context=context, **_context_fields
-        )
-        return serializer.data
 
 
 class FigureSerializer(serializers.ModelSerializer):

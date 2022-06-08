@@ -15,7 +15,6 @@ from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as ReactionVote
 from hypothesis.models import Citation, Hypothesis
 from paper.models import Paper
-from paper.models import Vote as PaperVote
 from purchase.models import Purchase
 from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError
@@ -46,7 +45,7 @@ def update_distribution_for_hub_changes(
             distribution.hubs.add(*instance.hubs.all())
 
 
-@receiver(post_save, sender=PaperVote, dispatch_uid="paper_upvoted")
+@receiver(post_save, sender=ReactionVote, dispatch_uid="paper_upvoted")
 def distribute_for_paper_upvoted(sender, instance, created, update_fields, **kwargs):
     """Distributes reputation to the uploader."""
     timestamp = time()
