@@ -365,6 +365,7 @@ class PaperSerializer(BasePaperSerializer):
             "edited_file_extract",
             "external_source",
             "file_created_location",
+            "is_open_access",
             "hot_score",
             "id",
             "is_removed",
