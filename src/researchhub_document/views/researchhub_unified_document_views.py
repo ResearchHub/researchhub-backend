@@ -21,6 +21,7 @@ from paper.models import Vote as PaperVote
 from paper.serializers import PaperVoteSerializer
 from paper.utils import get_cache_key
 from researchhub_document.models import (
+    FeaturedContent,
     FeedExclusion,
     ResearchhubPost,
     ResearchhubUnifiedDocument,
@@ -475,8 +476,21 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             )
         elif filtering == "-created_date":
             qs = qs.order_by(filtering)
-        elif filtering == "-hot_score":
-            qs = qs.order_by("-hot_score_v2")
+        elif filtering == "-hot_score" or not filtering:
+            featured_doc_ids = FeaturedContent.objects.filter(hub_id=hub_id).values(
+                "unified_document"
+            )
+
+            if featured_doc_ids.count() > 0:
+                featured_docs = ResearchhubUnifiedDocument.objects.filter(
+                    id__in=featured_doc_ids
+                )
+                qs = qs.exclude(id__in=featured_docs.values_list("id", flat=True))
+                qs = qs.order_by("-hot_score_v2")
+                qs = list(featured_docs) + list(qs)
+            else:
+                qs = qs.order_by("-hot_score_v2")
+
         elif filtering == "user_uploaded":
             qs = qs.filter(
                 (
@@ -673,6 +687,54 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 )
 
         hub_ids.append(0)
+        reset_unified_document_cache(
+            hub_ids,
+            document_type=["all", doc_type],
+            filters=[TRENDING],
+            with_default_hub=True,
+        )
+
+        return Response(status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsModerator])
+    def feature_document(self, request, pk=None):
+        unified_document = self.get_object()
+        doc_type = get_doc_type_key(unified_document)
+        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
+
+        if request.data["feature_in_homepage"] == True:
+            FeaturedContent.objects.get_or_create(
+                unified_document=unified_document, hub_id=0
+            )
+
+        if request.data["feature_in_hubs"] == True:
+            for hub_id in hub_ids:
+                FeaturedContent.objects.get_or_create(
+                    unified_document=unified_document, hub_id=hub_id
+                )
+
+        hub_ids.append(0)
+        reset_unified_document_cache(
+            hub_ids,
+            document_type=["all", doc_type],
+            filters=[TRENDING],
+            with_default_hub=True,
+        )
+
+        return Response(status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsModerator])
+    def remove_from_featured(self, request, pk=None):
+        unified_document = self.queryset.get(id=pk)
+        doc_type = get_doc_type_key(unified_document)
+        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
+        hub_ids.append(0)
+
+        for hub_id in hub_ids:
+            FeaturedContent.objects.filter(
+                unified_document=unified_document, hub_id=hub_id
+            ).delete()
+
         reset_unified_document_cache(
             hub_ids,
             document_type=["all", doc_type],
