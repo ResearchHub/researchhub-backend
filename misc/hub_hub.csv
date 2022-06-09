@@ -1,374 +1,138 @@
 "id","name","is_locked","created_date","updated_date","acronym","slug","slug_index","description","hub_image","category_id","discussion_count","paper_count","subscriber_count","is_removed"
-4,"medicine",FALSE,"2020-03-30 10:59:07.929548-07","2020-03-30 10:59:07.929571-07","","medicine",,"",,1,0,0,0,FALSE
-5,"economics",FALSE,"2020-03-30 10:59:16.002599-07","2020-03-30 10:59:16.002621-07","","economics",,"",,1,0,0,0,FALSE
-6,"geography",FALSE,"2020-03-30 10:59:26.603091-07","2020-03-30 10:59:26.60311-07","","geography",,"",,1,0,0,0,FALSE
-7,"sociology",FALSE,"2020-03-30 10:59:42.279131-07","2020-03-30 10:59:42.279154-07","","sociology",,"",,1,0,0,0,FALSE
-8,"psychology",FALSE,"2020-04-02 17:49:50.351556-07","2020-04-02 17:49:50.351583-07","","psychology",,"",,1,0,0,0,FALSE
-9,"animal-behavior-and-cognition",FALSE,"2020-05-05 18:23:35.040682-07","2020-05-05 18:23:35.040702-07","","animal-behavior-and-cognition",,"",,1,0,0,0,FALSE
-10,"biochemistry",FALSE,"2020-05-05 18:23:35.050424-07","2020-05-05 18:23:35.050441-07","","biochemistry",,"",,1,0,0,0,FALSE
-11,"bioengineering",FALSE,"2020-05-05 18:23:35.053297-07","2020-05-05 18:23:35.053312-07","","bioengineering",,"",,1,0,0,0,FALSE
-12,"bioinformatics",FALSE,"2020-05-05 18:23:35.056326-07","2020-05-05 18:23:35.056343-07","","bioinformatics",,"",,1,0,0,0,FALSE
-13,"biophysics",FALSE,"2020-05-05 18:23:35.059312-07","2020-05-05 18:23:35.059328-07","","biophysics",,"",,1,0,0,0,FALSE
-14,"cancer-biology",FALSE,"2020-05-05 18:23:35.06236-07","2020-05-05 18:23:35.062376-07","","cancer-biology",,"",,1,0,0,0,FALSE
-15,"cell-biology",FALSE,"2020-05-05 18:23:35.064862-07","2020-05-05 18:23:35.064874-07","","cell-biology",,"",,1,0,0,0,FALSE
-16,"clinical-trials",FALSE,"2020-05-05 18:23:35.067359-07","2020-05-05 18:23:35.067371-07","","clinical-trials",,"",,1,0,0,0,FALSE
-17,"developmental-biology",FALSE,"2020-05-05 18:23:35.069765-07","2020-05-05 18:23:35.069777-07","","developmental-biology",,"",,1,0,0,0,FALSE
-18,"ecology",FALSE,"2020-05-05 18:23:35.072167-07","2020-05-05 18:23:35.072179-07","","ecology",,"",,1,0,0,0,FALSE
-19,"epidemiology",FALSE,"2020-05-05 18:23:35.074512-07","2020-05-05 18:23:35.074524-07","","epidemiology",,"",,1,0,0,0,FALSE
-20,"evolutionary-biology",FALSE,"2020-05-05 18:23:35.076875-07","2020-05-05 18:23:35.076887-07","","evolutionary-biology",,"",,1,0,0,0,FALSE
-21,"genetics",FALSE,"2020-05-05 18:23:35.079237-07","2020-05-05 18:23:35.079248-07","","genetics",,"",,1,0,0,0,FALSE
-22,"genomics",FALSE,"2020-05-05 18:23:35.081633-07","2020-05-05 18:23:35.081645-07","","genomics",,"",,1,0,0,0,FALSE
-23,"immunology",FALSE,"2020-05-05 18:23:35.083967-07","2020-05-05 18:23:35.083979-07","","immunology",,"",,1,0,0,0,FALSE
-24,"microbiology",FALSE,"2020-05-05 18:23:35.086297-07","2020-05-05 18:23:35.086309-07","","microbiology",,"",,1,0,0,0,FALSE
-25,"molecular-biology",FALSE,"2020-05-05 18:23:35.088605-07","2020-05-05 18:23:35.088616-07","","molecular-biology",,"",,1,0,0,0,FALSE
-26,"neuroscience",FALSE,"2020-05-05 18:23:35.090992-07","2020-05-05 18:23:35.091004-07","","neuroscience",,"",,1,0,0,0,FALSE
-27,"paleontology",FALSE,"2020-05-05 18:23:35.09335-07","2020-05-05 18:23:35.093362-07","","paleontology",,"",,1,0,0,0,FALSE
-28,"pathology",FALSE,"2020-05-05 18:23:35.095735-07","2020-05-05 18:23:35.095747-07","","pathology",,"",,1,0,0,0,FALSE
-29,"pharmacology-and-toxicology",FALSE,"2020-05-05 18:23:35.098083-07","2020-05-05 18:23:35.098095-07","","pharmacology-and-toxicology",,"",,1,0,0,0,FALSE
-30,"physiology",FALSE,"2020-05-05 18:23:35.100349-07","2020-05-05 18:23:35.10036-07","","physiology",,"",,1,0,0,0,FALSE
-31,"plant-biology",FALSE,"2020-05-05 18:23:35.102647-07","2020-05-05 18:23:35.102658-07","","plant-biology",,"",,1,0,0,0,FALSE
-32,"scientific-communication-and-education",FALSE,"2020-05-05 18:23:35.104948-07","2020-05-05 18:23:35.104959-07","","scientific-communication-and-education",,"",,1,0,0,0,FALSE
-33,"synthetic-biology",FALSE,"2020-05-05 18:23:35.107291-07","2020-05-05 18:23:35.107303-07","","synthetic-biology",,"",,1,0,0,0,FALSE
-34,"systems-biology",FALSE,"2020-05-05 18:23:35.109895-07","2020-05-05 18:23:35.109907-07","","systems-biology",,"",,1,0,0,0,FALSE
-35,"zoology",FALSE,"2020-05-05 18:23:35.112469-07","2020-05-05 18:23:35.112481-07","","zoology",,"",,1,0,0,0,FALSE
-36,"other",FALSE,"2020-05-06 12:24:48.900353-07","2020-05-06 12:24:48.900375-07","","other",,"",,1,0,0,0,FALSE
-38,"public affairs, public policy and public administration",FALSE,"2020-05-14 16:34:33.992582-07","2020-05-14 16:34:33.992602-07","","public-affairs-public-policy-and-public-administration",,"",,1,0,0,0,FALSE
-39,"defense and security studies",FALSE,"2020-05-14 16:34:33.996431-07","2020-05-14 16:34:33.99645-07","","defense-and-security-studies",,"",,1,0,0,0,FALSE
-40,"physical sciences and mathematics",FALSE,"2020-05-14 16:34:34.452179-07","2020-05-14 16:34:34.4522-07","","physical-sciences-and-mathematics",,"",,1,0,0,0,FALSE
-41,"computer sciences",FALSE,"2020-05-14 16:34:34.46304-07","2020-05-14 16:34:34.463062-07","","computer-sciences",,"",,1,0,0,0,FALSE
-42,"software engineering",FALSE,"2020-05-14 16:34:34.466611-07","2020-05-14 16:34:34.466631-07","","software-engineering",,"",,1,0,0,0,FALSE
-43,"life sciences",FALSE,"2020-05-14 16:39:55.883938-07","2020-05-14 16:39:55.883957-07","","life-sciences",,"",,1,0,0,0,FALSE
-44,"education",FALSE,"2020-05-14 16:39:56.288435-07","2020-05-14 16:39:56.288456-07","","education",,"",,1,0,0,0,FALSE
-45,"science and mathematics education",FALSE,"2020-05-14 16:39:56.292516-07","2020-05-14 16:39:56.292542-07","","science-and-mathematics-education",,"",,1,0,0,0,FALSE
-46,"engineering",FALSE,"2020-05-14 16:39:56.845395-07","2020-05-14 16:39:56.845417-07","","engineering",,"",,1,0,0,0,FALSE
-47,"mechanical engineering",FALSE,"2020-05-14 16:39:56.848676-07","2020-05-14 16:39:56.848697-07","","mechanical-engineering",,"",,1,0,0,0,FALSE
-48,"energy systems",FALSE,"2020-05-14 16:39:56.852316-07","2020-05-14 16:39:56.852337-07","","energy-systems",,"",,1,0,0,0,FALSE
-49,"political science",FALSE,"2020-05-14 16:39:57.35846-07","2020-05-14 16:39:57.358483-07","","political-science",,"",,1,0,0,0,FALSE
-50,"comparative politics",FALSE,"2020-05-14 16:39:57.367326-07","2020-05-14 16:39:57.367348-07","","comparative-politics",,"",,1,0,0,0,FALSE
-52,"cognitive psychology",FALSE,"2020-05-14 16:39:58.487397-07","2020-05-14 16:39:58.487419-07","","cognitive-psychology",,"",,1,0,0,0,FALSE
-53,"concepts and categories",FALSE,"2020-05-14 16:39:58.492256-07","2020-05-14 16:39:58.49228-07","","concepts-and-categories",,"",,1,0,0,0,FALSE
-54,"psychology, other",FALSE,"2020-05-14 16:39:59.499997-07","2020-05-14 16:39:59.500016-07","","psychology-other",,"",,1,0,0,0,FALSE
-55,"other education",FALSE,"2020-05-14 16:40:02.346254-07","2020-05-14 16:40:02.346278-07","","other-education",,"",,1,0,0,0,FALSE
-56,"cognition and perception",FALSE,"2020-05-14 16:40:04.118617-07","2020-05-14 16:40:04.118636-07","","cognition-and-perception",,"",,1,0,0,0,FALSE
-57,"quantitative methods",FALSE,"2020-05-14 16:40:07.712334-07","2020-05-14 16:40:07.712356-07","","quantitative-methods",,"",,1,0,0,0,FALSE
-58,"computational modeling",FALSE,"2020-05-14 16:40:07.716746-07","2020-05-14 16:40:07.71677-07","","computational-modeling",,"",,1,0,0,0,FALSE
-59,"business",FALSE,"2020-05-14 16:40:08.920144-07","2020-05-14 16:40:08.920167-07","","business",,"",,1,0,0,0,FALSE
-60,"educational administration and supervision",FALSE,"2020-05-14 16:40:09.748801-07","2020-05-14 16:40:09.748823-07","","educational-administration-and-supervision",,"",,1,0,0,0,FALSE
-61,"other educational administration and supervision",FALSE,"2020-05-14 16:40:09.752245-07","2020-05-14 16:40:09.752265-07","","other-educational-administration-and-supervision",,"",,1,0,0,0,FALSE
-62,"linguistics",FALSE,"2020-05-14 16:40:10.676665-07","2020-05-14 16:40:10.676695-07","","linguistics",,"",,1,0,0,0,FALSE
-63,"health psychology",FALSE,"2020-05-14 16:40:12.986634-07","2020-05-14 16:40:12.986657-07","","health-psychology",,"",,1,0,0,0,FALSE
-64,"mental health",FALSE,"2020-05-14 16:40:12.990956-07","2020-05-14 16:40:12.990979-07","","mental-health",,"",,1,0,0,0,FALSE
-65,"mathematics",FALSE,"2020-05-14 16:40:13.546037-07","2020-05-14 16:40:13.54606-07","","mathematics",,"",,1,0,0,0,FALSE
-66,"other mathematics",FALSE,"2020-05-14 16:40:13.550303-07","2020-05-14 16:40:13.550326-07","","other-mathematics",,"",,1,0,0,0,FALSE
-67,"developmental psychology",FALSE,"2020-05-14 16:40:14.362369-07","2020-05-14 16:40:14.362393-07","","developmental-psychology",,"",,1,0,0,0,FALSE
-1,"test",FALSE,"2020-03-04 11:49:32.946352-08","2020-03-04 11:49:32.946369-08","t1","test",,"",,1,0,0,0,FALSE
-2,"computer science",FALSE,"2020-03-30 10:59:04.311679-07","2020-03-30 10:59:04.311701-07","","computer-science",,"",,1,0,0,0,FALSE
-37,"social and behavioral sciences",FALSE,"2020-05-14 16:34:33.987529-07","2020-05-14 16:34:33.987548-07","","social-and-behavioral-sciences",,"",,1,0,0,0,FALSE
-68,"social development",FALSE,"2020-05-14 16:40:14.366404-07","2020-05-14 16:40:14.366426-07","","social-development",,"",,1,0,0,0,FALSE
-69,"medicine and health sciences",FALSE,"2020-05-14 16:40:14.878462-07","2020-05-14 16:40:14.878485-07","","medicine-and-health-sciences",,"",,1,0,0,0,FALSE
-70,"nursing",FALSE,"2020-05-14 16:40:14.881701-07","2020-05-14 16:40:14.88172-07","","nursing",,"",,1,0,0,0,FALSE
-71,"public health and community nursing",FALSE,"2020-05-14 16:40:14.884845-07","2020-05-14 16:40:14.884864-07","","public-health-and-community-nursing",,"",,1,0,0,0,FALSE
-72,"perception",FALSE,"2020-05-14 16:40:15.487784-07","2020-05-14 16:40:15.487814-07","","perception",,"",,1,0,0,0,FALSE
-73,"diseases",FALSE,"2020-05-14 16:40:16.618698-07","2020-05-14 16:40:16.618719-07","","diseases",,"",,1,0,0,0,FALSE
-74,"respiratory tract diseases",FALSE,"2020-05-14 16:40:16.622179-07","2020-05-14 16:40:16.622199-07","","respiratory-tract-diseases",,"",,1,0,0,0,FALSE
-75,"engineering psychology",FALSE,"2020-05-14 16:40:17.1893-07","2020-05-14 16:40:17.189332-07","","engineering-psychology",,"",,1,0,0,0,FALSE
-76,"pathogenic microbiology",FALSE,"2020-05-14 16:40:17.740059-07","2020-05-14 16:40:17.740081-07","","pathogenic-microbiology",,"",,1,0,0,0,FALSE
-77,"nursing administration",FALSE,"2020-05-14 16:40:19.771516-07","2020-05-14 16:40:19.771538-07","","nursing-administration",,"",,1,0,0,0,FALSE
-78,"public policy",FALSE,"2020-05-14 16:40:21.120512-07","2020-05-14 16:40:21.120535-07","","public-policy",,"",,1,0,0,0,FALSE
-79,"mental and social health",FALSE,"2020-05-14 16:40:21.523786-07","2020-05-14 16:40:21.523805-07","","mental-and-social-health",,"",,1,0,0,0,FALSE
-80,"clinical and medical social work",FALSE,"2020-05-14 16:40:21.527675-07","2020-05-14 16:40:21.5277-07","","clinical-and-medical-social-work",,"",,1,0,0,0,FALSE
-81,"virus diseases",FALSE,"2020-05-14 16:40:22.990915-07","2020-05-14 16:40:22.990936-07","","virus-diseases",,"",,1,0,0,0,FALSE
-82,"other engineering",FALSE,"2020-05-14 16:40:26.383894-07","2020-05-14 16:40:26.383913-07","","other-engineering",,"",,1,0,0,0,FALSE
-83,"materials science and engineering",FALSE,"2020-05-14 16:40:27.874819-07","2020-05-14 16:40:27.87484-07","","materials-science-and-engineering",,"",,1,0,0,0,FALSE
-84,"other materials science and engineering",FALSE,"2020-05-14 16:40:27.87876-07","2020-05-14 16:40:27.878785-07","","other-materials-science-and-engineering",,"",,1,0,0,0,FALSE
-85,"judgment and decision making",FALSE,"2020-05-14 16:40:32.906114-07","2020-05-14 16:40:32.906137-07","","judgment-and-decision-making",,"",,1,0,0,0,FALSE
-86,"computer engineering",FALSE,"2020-05-14 16:40:38.777419-07","2020-05-14 16:40:38.777439-07","","computer-engineering",,"",,1,0,0,0,FALSE
-87,"computer and systems architecture",FALSE,"2020-05-14 16:40:38.787828-07","2020-05-14 16:40:38.787859-07","","computer-and-systems-architecture",,"",,1,0,0,0,FALSE
-88,"mathematical psychology",FALSE,"2020-05-14 16:40:39.34839-07","2020-05-14 16:40:39.348413-07","","mathematical-psychology",,"",,1,0,0,0,FALSE
-89,"other physical sciences and mathematics",FALSE,"2020-05-14 16:40:40.198222-07","2020-05-14 16:40:40.198244-07","","other-physical-sciences-and-mathematics",,"",,1,0,0,0,FALSE
-90,"language",FALSE,"2020-05-14 16:40:41.783123-07","2020-05-14 16:40:41.783145-07","","language",,"",,1,0,0,0,FALSE
-91,"industrial and organizational psychology",FALSE,"2020-05-14 16:40:42.626829-07","2020-05-14 16:40:42.62685-07","","industrial-and-organizational-psychology",,"",,1,0,0,0,FALSE
-92,"leadership",FALSE,"2020-05-14 16:40:42.630608-07","2020-05-14 16:40:42.630672-07","","leadership",,"",,1,0,0,0,FALSE
-93,"robotics",FALSE,"2020-05-14 16:40:46.501976-07","2020-05-14 16:40:46.502-07","","robotics",,"",,1,0,0,0,FALSE
-94,"medical sciences",FALSE,"2020-05-14 16:40:46.930047-07","2020-05-14 16:40:46.930068-07","","medical-sciences",,"",,1,0,0,0,FALSE
-95,"medical toxicology",FALSE,"2020-05-14 16:40:46.934097-07","2020-05-14 16:40:46.934119-07","","medical-toxicology",,"",,1,0,0,0,FALSE
-96,"cell and developmental biology",FALSE,"2020-05-14 16:40:48.429599-07","2020-05-14 16:40:48.429623-07","","cell-and-developmental-biology",,"",,1,0,0,0,FALSE
-97,"arts and humanities",FALSE,"2020-05-14 16:40:48.973229-07","2020-05-14 16:40:48.973262-07","","arts-and-humanities",,"",,1,0,0,0,FALSE
-98,"special education and teaching",FALSE,"2020-05-14 16:40:49.622155-07","2020-05-14 16:40:49.622178-07","","special-education-and-teaching",,"",,1,0,0,0,FALSE
-99,"social work",FALSE,"2020-05-14 16:40:50.088021-07","2020-05-14 16:40:50.088043-07","","social-work",,"",,1,0,0,0,FALSE
-100,"medical specialties",FALSE,"2020-05-14 16:40:52.602561-07","2020-05-14 16:40:52.602597-07","","medical-specialties",,"",,1,0,0,0,FALSE
-101,"tropical medicine",FALSE,"2020-05-14 16:40:52.608344-07","2020-05-14 16:40:52.608369-07","","tropical-medicine",,"",,1,0,0,0,FALSE
-102,"education economics",FALSE,"2020-05-14 16:40:53.686749-07","2020-05-14 16:40:53.686786-07","","education-economics",,"",,1,0,0,0,FALSE
-103,"emergency medicine",FALSE,"2020-05-14 16:40:54.194085-07","2020-05-14 16:40:54.194109-07","","emergency-medicine",,"",,1,0,0,0,FALSE
-104,"physics",FALSE,"2020-05-14 16:40:54.608423-07","2020-05-14 16:40:54.608445-07","","physics",,"",,1,0,0,0,FALSE
-105,"quantum physics",FALSE,"2020-05-14 16:40:54.612855-07","2020-05-14 16:40:54.612879-07","","quantum-physics",,"",,1,0,0,0,FALSE
-106,"social and personality psychology",FALSE,"2020-05-14 16:40:55.088361-07","2020-05-14 16:40:55.08838-07","","social-and-personality-psychology",,"",,1,0,0,0,FALSE
-107,"social cognition",FALSE,"2020-05-14 16:40:55.091377-07","2020-05-14 16:40:55.091395-07","","social-cognition",,"",,1,0,0,0,FALSE
-108,"graphics and human computer interfaces",FALSE,"2020-05-14 16:42:56.718696-07","2020-05-14 16:42:56.718716-07","","graphics-and-human-computer-interfaces",,"",,1,0,0,0,FALSE
-109,"income distribution",FALSE,"2020-05-14 16:42:57.896067-07","2020-05-14 16:42:57.89609-07","","income-distribution",,"",,1,0,0,0,FALSE
-110,"theory and philosophy of science",FALSE,"2020-05-14 16:42:58.410792-07","2020-05-14 16:42:58.410815-07","","theory-and-philosophy-of-science",,"",,1,0,0,0,FALSE
-111,"emotion",FALSE,"2020-05-14 16:42:59.456687-07","2020-05-14 16:42:59.456711-07","","emotion",,"",,1,0,0,0,FALSE
-112,"memory",FALSE,"2020-05-14 16:43:00.14238-07","2020-05-14 16:43:00.142404-07","","memory",,"",,1,0,0,0,FALSE
-113,"ecology and evolutionary biology",FALSE,"2020-05-14 16:43:00.672172-07","2020-05-14 16:43:00.672194-07","","ecology-and-evolutionary-biology",,"",,1,0,0,0,FALSE
-114,"terrestrial and aquatic ecology",FALSE,"2020-05-14 16:43:00.676954-07","2020-05-14 16:43:00.676977-07","","terrestrial-and-aquatic-ecology",,"",,1,0,0,0,FALSE
-115,"plant sciences",FALSE,"2020-05-14 16:43:01.197747-07","2020-05-14 16:43:01.197768-07","","plant-sciences",,"",,1,0,0,0,FALSE
-117,"oceanography and atmospheric sciences and meteorology",FALSE,"2020-05-14 16:43:04.145338-07","2020-05-14 16:43:04.14536-07","","oceanography-and-atmospheric-sciences-and-meteorology",,"",,1,0,0,0,FALSE
-118,"climate",FALSE,"2020-05-14 16:43:04.149103-07","2020-05-14 16:43:04.149124-07","","climate",,"",,1,0,0,0,FALSE
-119,"clinical psychology",FALSE,"2020-05-14 16:43:05.030525-07","2020-05-14 16:43:05.030546-07","","clinical-psychology",,"",,1,0,0,0,FALSE
-120,"developmental neuroscience",FALSE,"2020-05-14 16:43:05.568389-07","2020-05-14 16:43:05.568411-07","","developmental-neuroscience",,"",,1,0,0,0,FALSE
-121,"labor economics",FALSE,"2020-05-14 16:43:08.038867-07","2020-05-14 16:43:08.038889-07","","labor-economics",,"",,1,0,0,0,FALSE
-122,"infectious disease",FALSE,"2020-05-14 16:43:09.923707-07","2020-05-14 16:43:09.923729-07","","infectious-disease",,"",,1,0,0,0,FALSE
-123,"cultural psychology",FALSE,"2020-05-14 16:43:11.140343-07","2020-05-14 16:43:11.140365-07","","cultural-psychology",,"",,1,0,0,0,FALSE
-124,"cross-cultural psychology",FALSE,"2020-05-14 16:43:11.144127-07","2020-05-14 16:43:11.144151-07","","cross-cultural-psychology",,"",,1,0,0,0,FALSE
-126,"modern languages",FALSE,"2020-05-14 16:43:13.290047-07","2020-05-14 16:43:13.290069-07","","modern-languages",,"",,1,0,0,0,FALSE
-127,"social health",FALSE,"2020-05-14 16:43:13.87504-07","2020-05-14 16:43:13.875061-07","","social-health",,"",,1,0,0,0,FALSE
-128,"meta-science",FALSE,"2020-05-14 16:43:21.610499-07","2020-05-14 16:43:21.610521-07","","meta-science",,"",,1,0,0,0,FALSE
-129,"social statistics",FALSE,"2020-05-14 16:43:27.390445-07","2020-05-14 16:43:27.390467-07","","social-statistics",,"",,1,0,0,0,FALSE
-116,"interpersonal relationships",FALSE,"2020-05-14 16:43:03.617425-07","2020-05-14 16:43:03.617446-07","","interpersonal-relationships",,"",,1,0,0,0,FALSE
-130,"environmental sciences",FALSE,"2020-05-14 16:43:28.520398-07","2020-05-14 16:43:28.52042-07","","environmental-sciences",,"",,1,0,0,0,FALSE
-131,"environmental monitoring",FALSE,"2020-05-14 16:43:28.524374-07","2020-05-14 16:43:28.524396-07","","environmental-monitoring",,"",,1,0,0,0,FALSE
-132,"psychiatry",FALSE,"2020-05-14 16:43:29.438524-07","2020-05-14 16:43:29.438547-07","","psychiatry",,"",,1,0,0,0,FALSE
-133,"educational psychology",FALSE,"2020-05-14 16:43:29.880874-07","2020-05-14 16:43:29.880895-07","","educational-psychology",,"",,1,0,0,0,FALSE
-134,"water resource management",FALSE,"2020-05-14 16:43:31.482359-07","2020-05-14 16:43:31.482381-07","","water-resource-management",,"",,1,0,0,0,FALSE
-135,"pharmacy and pharmaceutical sciences",FALSE,"2020-05-14 16:43:34.276859-07","2020-05-14 16:43:34.276882-07","","pharmacy-and-pharmaceutical-sciences",,"",,1,0,0,0,FALSE
-136,"other pharmacy and pharmaceutical sciences",FALSE,"2020-05-14 16:43:34.280408-07","2020-05-14 16:43:34.280428-07","","other-pharmacy-and-pharmaceutical-sciences",,"",,1,0,0,0,FALSE
-137,"architecture",FALSE,"2020-05-14 16:43:35.144951-07","2020-05-14 16:43:35.144973-07","","architecture",,"",,1,0,0,0,FALSE
-138,"urban, community and regional planning",FALSE,"2020-05-14 16:43:35.148564-07","2020-05-14 16:43:35.148584-07","","urban-community-and-regional-planning",,"",,1,0,0,0,FALSE
-139,"psychiatry and psychology",FALSE,"2020-05-14 16:43:35.950648-07","2020-05-14 16:43:35.950668-07","","psychiatry-and-psychology",,"",,1,0,0,0,FALSE
-141,"philosophy",FALSE,"2020-05-14 16:43:40.268405-07","2020-05-14 16:43:40.268426-07","","philosophy",,"",,1,0,0,0,FALSE
-142,"philosophy of science",FALSE,"2020-05-14 16:43:40.272335-07","2020-05-14 16:43:40.272358-07","","philosophy-of-science",,"",,1,0,0,0,FALSE
-143,"other medicine and health sciences",FALSE,"2020-05-14 16:43:41.933013-07","2020-05-14 16:43:41.933034-07","","other-medicine-and-health-sciences",,"",,1,0,0,0,FALSE
-144,"prevention",FALSE,"2020-05-14 16:43:42.348483-07","2020-05-14 16:43:42.348504-07","","prevention",,"",,1,0,0,0,FALSE
-145,"teacher education and professional development",FALSE,"2020-05-14 16:43:42.751795-07","2020-05-14 16:43:42.751816-07","","teacher-education-and-professional-development",,"",,1,0,0,0,FALSE
-147,"other computer sciences",FALSE,"2020-05-14 16:43:44.205006-07","2020-05-14 16:43:44.205028-07","","other-computer-sciences",,"",,1,0,0,0,FALSE
-148,"elementary education",FALSE,"2020-05-14 16:43:48.770382-07","2020-05-14 16:43:48.770405-07","","elementary-education",,"",,1,0,0,0,FALSE
-149,"american politics",FALSE,"2020-05-14 16:43:50.044894-07","2020-05-14 16:43:50.044917-07","","american-politics",,"",,1,0,0,0,FALSE
-150,"racial and ethnic minorities",FALSE,"2020-05-14 16:43:51.024145-07","2020-05-14 16:43:51.024167-07","","racial-and-ethnic-minorities",,"",,1,0,0,0,FALSE
-151,"perceptual organization",FALSE,"2020-05-14 16:43:54.444912-07","2020-05-14 16:43:54.444935-07","","perceptual-organization",,"",,1,0,0,0,FALSE
-152,"attention",FALSE,"2020-05-14 16:43:54.889037-07","2020-05-14 16:43:54.889059-07","","attention",,"",,1,0,0,0,FALSE
-153,"film and media studies",FALSE,"2020-05-14 16:43:55.341258-07","2020-05-14 16:43:55.34128-07","","film-and-media-studies",,"",,1,0,0,0,FALSE
-154,"law",FALSE,"2020-05-14 16:43:56.270622-07","2020-05-14 16:43:56.270644-07","","law",,"",,1,0,0,0,FALSE
-155,"law enforcement and corrections",FALSE,"2020-05-14 16:43:56.274334-07","2020-05-14 16:43:56.274355-07","","law-enforcement-and-corrections",,"",,1,0,0,0,FALSE
-156,"social psychology",FALSE,"2020-05-14 16:43:56.781003-07","2020-05-14 16:43:56.781026-07","","social-psychology",,"",,1,0,0,0,FALSE
-157,"statistics and probability",FALSE,"2020-05-14 16:43:57.706316-07","2020-05-14 16:43:57.706338-07","","statistics-and-probability",,"",,1,0,0,0,FALSE
-158,"biostatistics",FALSE,"2020-05-14 16:43:57.710319-07","2020-05-14 16:43:57.710343-07","","biostatistics",,"",,1,0,0,0,FALSE
-159,"public health",FALSE,"2020-05-14 16:44:02.211787-07","2020-05-14 16:44:02.211808-07","","public-health-1",1,"",,1,0,0,0,FALSE
-160,"other public health",FALSE,"2020-05-14 16:44:02.215377-07","2020-05-14 16:44:02.215398-07","","other-public-health",,"",,1,0,0,0,FALSE
-161,"clinical child psychology",FALSE,"2020-05-14 16:44:02.718326-07","2020-05-14 16:44:02.718349-07","","clinical-child-psychology",,"",,1,0,0,0,FALSE
-162,"culture",FALSE,"2020-05-14 16:44:03.232646-07","2020-05-14 16:44:03.232669-07","","culture",,"",,1,0,0,0,FALSE
-163,"personality processes",FALSE,"2020-05-14 16:44:04.36065-07","2020-05-14 16:44:04.360673-07","","personality-processes",,"",,1,0,0,0,FALSE
-164,"food studies",FALSE,"2020-05-14 16:44:07.843335-07","2020-05-14 16:44:07.843357-07","","food-studies",,"",,1,0,0,0,FALSE
-165,"computational engineering",FALSE,"2020-05-14 16:44:08.263328-07","2020-05-14 16:44:08.263349-07","","computational-engineering",,"",,1,0,0,0,FALSE
-166,"european law",FALSE,"2020-05-14 16:44:09.845109-07","2020-05-14 16:44:09.845133-07","","european-law",,"",,1,0,0,0,FALSE
-168,"biomedical engineering and bioengineering",FALSE,"2020-05-14 16:44:12.5998-07","2020-05-14 16:44:12.599822-07","","biomedical-engineering-and-bioengineering",,"",,1,0,0,0,FALSE
-169,"bioimaging and biomedical optics",FALSE,"2020-05-14 16:44:12.603333-07","2020-05-14 16:44:12.603353-07","","bioimaging-and-biomedical-optics",,"",,1,0,0,0,FALSE
-170,"spatial science",FALSE,"2020-05-14 16:44:13.269425-07","2020-05-14 16:44:13.269446-07","","spatial-science",,"",,1,0,0,0,FALSE
-171,"earth sciences",FALSE,"2020-05-14 16:44:14.292979-07","2020-05-14 16:44:14.293001-07","","earth-sciences",,"",,1,0,0,0,FALSE
-172,"hydrology",FALSE,"2020-05-14 16:44:14.296551-07","2020-05-14 16:44:14.296572-07","","hydrology",,"",,1,0,0,0,FALSE
-173,"geographic information sciences",FALSE,"2020-05-14 16:44:20.468911-07","2020-05-14 16:44:20.468933-07","","geographic-information-sciences",,"",,1,0,0,0,FALSE
-174,"library and information science",FALSE,"2020-05-14 16:44:21.048054-07","2020-05-14 16:44:21.048077-07","","library-and-information-science",,"",,1,0,0,0,FALSE
-175,"information literacy",FALSE,"2020-05-14 16:44:21.051737-07","2020-05-14 16:44:21.051757-07","","information-literacy",,"",,1,0,0,0,FALSE
-176,"tourism and travel",FALSE,"2020-05-14 16:44:21.474841-07","2020-05-14 16:44:21.474873-07","","tourism-and-travel",,"",,1,0,0,0,FALSE
-177,"health economics",FALSE,"2020-05-14 16:44:22.24999-07","2020-05-14 16:44:22.250011-07","","health-economics",,"",,1,0,0,0,FALSE
-178,"other earth sciences",FALSE,"2020-05-14 16:44:23.306034-07","2020-05-14 16:44:23.306056-07","","other-earth-sciences",,"",,1,0,0,0,FALSE
-179,"astrophysics and astronomy",FALSE,"2020-05-14 16:44:23.722917-07","2020-05-14 16:44:23.722938-07","","astrophysics-and-astronomy",,"",,1,0,0,0,FALSE
-180,"cosmology, relativity, and gravity",FALSE,"2020-05-14 16:44:23.727089-07","2020-05-14 16:44:23.727112-07","","cosmology-relativity-and-gravity",,"",,1,0,0,0,FALSE
-181,"psychiatric and mental health",FALSE,"2020-05-14 16:44:28.558884-07","2020-05-14 16:44:28.558905-07","","psychiatric-and-mental-health",,"",,1,0,0,0,FALSE
-182,"marketing",FALSE,"2020-05-14 16:44:29.258454-07","2020-05-14 16:44:29.258475-07","","marketing",,"",,1,0,0,0,FALSE
-183,"art direction",FALSE,"2020-05-14 16:44:29.262248-07","2020-05-14 16:44:29.262272-07","","art-direction",,"",,1,0,0,0,FALSE
-186,"self-regulation",FALSE,"2020-05-14 16:44:32.345402-07","2020-05-14 16:44:32.34543-07","","self-regulation",,"",,1,0,0,0,FALSE
-187,"microbial physiology",FALSE,"2020-05-14 16:44:33.441396-07","2020-05-14 16:44:33.441417-07","","microbial-physiology",,"",,1,0,0,0,FALSE
-188,"statistical methods",FALSE,"2020-05-14 16:44:34.29092-07","2020-05-14 16:44:34.290943-07","","statistical-methods",,"",,1,0,0,0,FALSE
-189,"prejudice and discrimination",FALSE,"2020-05-14 16:44:34.743428-07","2020-05-14 16:44:34.743448-07","","prejudice-and-discrimination",,"",,1,0,0,0,FALSE
-190,"higher education",FALSE,"2020-05-14 16:44:38.399294-07","2020-05-14 16:44:38.399318-07","","higher-education",,"",,1,0,0,0,FALSE
-191,"scholarship of teaching and learning",FALSE,"2020-05-14 16:44:38.403562-07","2020-05-14 16:44:38.403584-07","","scholarship-of-teaching-and-learning",,"",,1,0,0,0,FALSE
-192,"chemistry",FALSE,"2020-05-14 16:44:40.215956-07","2020-05-14 16:44:40.21598-07","","chemistry",,"",,1,0,0,0,FALSE
-193,"medicinal-pharmaceutical chemistry",FALSE,"2020-05-14 16:44:40.220088-07","2020-05-14 16:44:40.22011-07","","medicinal-pharmaceutical-chemistry",,"",,1,0,0,0,FALSE
-185,"counselor education",FALSE,"2020-05-14 16:44:30.064494-07","2020-05-14 16:44:30.064513-07","","counselor-education",,"",,1,0,0,0,FALSE
-184,"counseling",FALSE,"2020-05-14 16:44:30.060462-07","2020-05-14 16:44:30.06048-07","","counseling",,"",,1,0,0,0,FALSE
-194,"geophysics and seismology",FALSE,"2020-05-14 16:44:42.330962-07","2020-05-14 16:44:42.330984-07","","geophysics-and-seismology",,"",,1,0,0,0,FALSE
-195,"family practice nursing",FALSE,"2020-05-14 16:44:44.142383-07","2020-05-14 16:44:44.142405-07","","family-practice-nursing",,"",,1,0,0,0,FALSE
-197,"philosophy of mind",FALSE,"2020-05-14 16:44:46.862783-07","2020-05-14 16:44:46.862805-07","","philosophy-of-mind",,"",,1,0,0,0,FALSE
-198,"immunology and infectious disease",FALSE,"2020-05-14 16:44:50.663131-07","2020-05-14 16:44:50.663153-07","","immunology-and-infectious-disease",,"",,1,0,0,0,FALSE
-199,"immunity",FALSE,"2020-05-14 16:44:50.666993-07","2020-05-14 16:44:50.667014-07","","immunity",,"",,1,0,0,0,FALSE
-200,"operations research, systems engineering and industrial engineering",FALSE,"2020-05-14 16:44:51.260298-07","2020-05-14 16:44:51.260319-07","","operations-research-systems-engineering-and-industrial-engineering",,"",,1,0,0,0,FALSE
-201,"operational research",FALSE,"2020-05-14 16:44:51.263961-07","2020-05-14 16:44:51.263981-07","","operational-research",,"",,1,0,0,0,FALSE
-202,"electrical and computer engineering",FALSE,"2020-05-14 16:44:56.017139-07","2020-05-14 16:44:56.017162-07","","electrical-and-computer-engineering",,"",,1,0,0,0,FALSE
-203,"electromagnetics and photonics",FALSE,"2020-05-14 16:44:56.021807-07","2020-05-14 16:44:56.021831-07","","electromagnetics-and-photonics",,"",,1,0,0,0,FALSE
-204,"communication",FALSE,"2020-05-14 16:44:57.300095-07","2020-05-14 16:44:57.300117-07","","communication",,"",,1,0,0,0,FALSE
-205,"community and urban sociology",FALSE,"2020-05-14 16:45:00.104973-07","2020-05-14 16:45:00.104996-07","","community-and-urban-sociology",,"",,1,0,0,0,FALSE
-206,"atmospheric sciences",FALSE,"2020-05-14 16:45:01.963755-07","2020-05-14 16:45:01.963777-07","","atmospheric-sciences",,"",,1,0,0,0,FALSE
-207,"sport psychology",FALSE,"2020-05-14 16:45:04.084244-07","2020-05-14 16:45:04.084265-07","","sport-psychology",,"",,1,0,0,0,FALSE
-208,"intergroup processes",FALSE,"2020-05-14 16:45:06.220311-07","2020-05-14 16:45:06.220332-07","","intergroup-processes",,"",,1,0,0,0,FALSE
-209,"other ecology and evolutionary biology",FALSE,"2020-05-14 16:45:08.483643-07","2020-05-14 16:45:08.483665-07","","other-ecology-and-evolutionary-biology",,"",,1,0,0,0,FALSE
-210,"medieval studies",FALSE,"2020-05-14 16:45:08.898007-07","2020-05-14 16:45:08.89803-07","","medieval-studies",,"",,1,0,0,0,FALSE
-211,"society and culture",FALSE,"2020-05-14 16:45:08.901993-07","2020-05-14 16:45:08.902015-07","","society-and-culture",,"",,1,0,0,0,FALSE
-212,"human geography",FALSE,"2020-05-14 16:45:09.837236-07","2020-05-14 16:45:09.837257-07","","human-geography",,"",,1,0,0,0,FALSE
-213,"personality and social contexts",FALSE,"2020-05-14 16:45:10.739167-07","2020-05-14 16:45:10.73919-07","","personality-and-social-contexts",,"",,1,0,0,0,FALSE
-214,"sustainability",FALSE,"2020-05-14 16:45:11.989477-07","2020-05-14 16:45:11.989498-07","","sustainability",,"",,1,0,0,0,FALSE
-215,"early childhood education",FALSE,"2020-05-14 16:45:12.670088-07","2020-05-14 16:45:12.670106-07","","early-childhood-education",,"",,1,0,0,0,FALSE
-216,"mental disorders",FALSE,"2020-05-14 16:45:15.709209-07","2020-05-14 16:45:15.709237-07","","mental-disorders",,"",,1,0,0,0,FALSE
-217,"civil and environmental engineering",FALSE,"2020-05-14 16:45:19.732316-07","2020-05-14 16:45:19.73234-07","","civil-and-environmental-engineering",,"",,1,0,0,0,FALSE
-218,"transportation engineering",FALSE,"2020-05-14 16:45:19.737051-07","2020-05-14 16:45:19.737074-07","","transportation-engineering",,"",,1,0,0,0,FALSE
-219,"applied statistics",FALSE,"2020-05-14 16:45:22.351714-07","2020-05-14 16:45:22.351746-07","","applied-statistics",,"",,1,0,0,0,FALSE
-221,"sport and exercise science",FALSE,"2020-05-14 16:45:23.818559-07","2020-05-14 16:45:23.818583-07","","sport-and-exercise-science",,"",,1,0,0,0,FALSE
-222,"physical activity",FALSE,"2020-05-14 16:45:23.822318-07","2020-05-14 16:45:23.822339-07","","physical-activity",,"",,1,0,0,0,FALSE
-223,"psychotherapy",FALSE,"2020-05-14 16:45:25.666766-07","2020-05-14 16:45:25.666789-07","","psychotherapy",,"",,1,0,0,0,FALSE
-224,"science and technology studies",FALSE,"2020-05-14 16:45:28.524556-07","2020-05-14 16:45:28.524578-07","","science-and-technology-studies",,"",,1,0,0,0,FALSE
-225,"health and physical education",FALSE,"2020-05-14 16:45:29.449461-07","2020-05-14 16:45:29.449484-07","","health-and-physical-education",,"",,1,0,0,0,FALSE
-226,"problem solving",FALSE,"2020-05-14 16:45:31.301585-07","2020-05-14 16:45:31.301607-07","","problem-solving",,"",,1,0,0,0,FALSE
-227,"attitudes and persuasion",FALSE,"2020-05-14 16:45:33.756116-07","2020-05-14 16:45:33.756141-07","","attitudes-and-persuasion",,"",,1,0,0,0,FALSE
-228,"economic sociology",FALSE,"2020-05-14 16:45:35.128885-07","2020-05-14 16:45:35.128906-07","","economic-sociology",,"",,1,0,0,0,FALSE
-229,"inequality, poverty, and mobility",FALSE,"2020-05-14 16:45:36.363491-07","2020-05-14 16:45:36.363513-07","","inequality-poverty-and-mobility",,"",,1,0,0,0,FALSE
-230,"other computer engineering",FALSE,"2020-05-14 16:45:36.780737-07","2020-05-14 16:45:36.780759-07","","other-computer-engineering",,"",,1,0,0,0,FALSE
-231,"metaphysics",FALSE,"2020-05-14 16:45:37.217769-07","2020-05-14 16:45:37.217791-07","","metaphysics",,"",,1,0,0,0,FALSE
-232,"environmental sociology",FALSE,"2020-05-14 16:45:43.907179-07","2020-05-14 16:45:43.90721-07","","environmental-sociology",,"",,1,0,0,0,FALSE
-233,"electrochemical engineering",FALSE,"2020-05-14 16:45:50.524347-07","2020-05-14 16:45:50.52437-07","","electrochemical-engineering",,"",,1,0,0,0,FALSE
-234,"systems analysis",FALSE,"2020-05-14 16:45:50.530121-07","2020-05-14 16:45:50.530152-07","","systems-analysis",,"",,1,0,0,0,FALSE
-235,"industrial engineering",FALSE,"2020-05-14 16:45:52.559414-07","2020-05-14 16:45:52.559437-07","","industrial-engineering",,"",,1,0,0,0,FALSE
-236,"disability and equity in education",FALSE,"2020-05-14 16:45:59.944339-07","2020-05-14 16:45:59.944358-07","","disability-and-equity-in-education",,"",,1,0,0,0,FALSE
-237,"engineering education",FALSE,"2020-05-14 16:46:00.762159-07","2020-05-14 16:46:00.762181-07","","engineering-education",,"",,1,0,0,0,FALSE
-238,"other public affairs, public policy and public administration",FALSE,"2020-05-14 16:46:05.597926-07","2020-05-14 16:46:05.597947-07","","other-public-affairs-public-policy-and-public-administration",,"",,1,0,0,0,FALSE
-239,"curriculum and social inquiry",FALSE,"2020-05-14 16:46:05.995704-07","2020-05-14 16:46:05.995724-07","","curriculum-and-social-inquiry",,"",,1,0,0,0,FALSE
-240,"applied mathematics",FALSE,"2020-05-14 16:46:06.395798-07","2020-05-14 16:46:06.395819-07","","applied-mathematics",,"",,1,0,0,0,FALSE
-241,"dynamic systems",FALSE,"2020-05-14 16:46:06.400083-07","2020-05-14 16:46:06.400106-07","","dynamic-systems",,"",,1,0,0,0,FALSE
-242,"consumer psychology",FALSE,"2020-05-14 16:46:07.039471-07","2020-05-14 16:46:07.039492-07","","consumer-psychology",,"",,1,0,0,0,FALSE
-243,"consumer decision making",FALSE,"2020-05-14 16:46:07.043532-07","2020-05-14 16:46:07.043553-07","","consumer-decision-making",,"",,1,0,0,0,FALSE
-244,"health information technology",FALSE,"2020-05-14 16:46:07.514356-07","2020-05-14 16:46:07.514378-07","","health-information-technology",,"",,1,0,0,0,FALSE
-245,"animal learning and behavior",FALSE,"2020-05-14 16:46:10.131728-07","2020-05-14 16:46:10.131749-07","","animal-learning-and-behavior",,"",,1,0,0,0,FALSE
-247,"individual differences",FALSE,"2020-05-14 16:46:12.159694-07","2020-05-14 16:46:12.159716-07","","individual-differences",,"",,1,0,0,0,FALSE
-248,"biodiversity",FALSE,"2020-05-14 16:46:14.292739-07","2020-05-14 16:46:14.292762-07","","biodiversity",,"",,1,0,0,0,FALSE
-249,"educational methods",FALSE,"2020-05-14 16:46:17.259818-07","2020-05-14 16:46:17.259839-07","","educational-methods",,"",,1,0,0,0,FALSE
-250,"history",FALSE,"2020-05-14 16:46:24.750477-07","2020-05-14 16:46:24.750499-07","","history",,"",,1,0,0,0,FALSE
-251,"history of science, technology, and medicine",FALSE,"2020-05-14 16:46:24.75415-07","2020-05-14 16:46:24.754169-07","","history-of-science-technology-and-medicine",,"",,1,0,0,0,FALSE
-252,"personality and situations",FALSE,"2020-05-14 16:46:27.926491-07","2020-05-14 16:46:27.926513-07","","personality-and-situations",,"",,1,0,0,0,FALSE
-253,"vision",FALSE,"2020-05-14 16:46:28.439695-07","2020-05-14 16:46:28.439717-07","","vision",,"",,1,0,0,0,FALSE
-246,"algebra",FALSE,"2020-05-14 16:46:11.146734-07","2020-05-14 16:46:11.146756-07","","algebra",,"",,1,0,7,0,FALSE
-254,"international and area studies",FALSE,"2020-05-14 16:46:29.055051-07","2020-05-14 16:46:29.055071-07","","international-and-area-studies",,"",,1,0,0,0,FALSE
-256,"sports sciences",FALSE,"2020-05-14 16:46:30.526452-07","2020-05-14 16:46:30.526485-07","","sports-sciences",,"",,1,0,0,0,FALSE
-257,"online and distance education",FALSE,"2020-05-14 16:46:34.405912-07","2020-05-14 16:46:34.405931-07","","online-and-distance-education",,"",,1,0,0,0,FALSE
-258,"internet law",FALSE,"2020-05-14 16:46:39.563454-07","2020-05-14 16:46:39.563476-07","","internet-law",,"",,1,0,0,0,FALSE
-259,"other social and behavioral sciences",FALSE,"2020-05-14 16:46:41.856932-07","2020-05-14 16:46:41.856953-07","","other-social-and-behavioral-sciences",,"",,1,0,0,0,FALSE
-260,"public relations and advertising",FALSE,"2020-05-14 16:46:56.59489-07","2020-05-14 16:46:56.594912-07","","public-relations-and-advertising",,"",,1,0,0,0,FALSE
-261,"logic and foundations of mathematics",FALSE,"2020-05-14 16:47:05.496855-07","2020-05-14 16:47:05.496875-07","","logic-and-foundations-of-mathematics",,"",,1,0,0,0,FALSE
-262,"higher education administration",FALSE,"2020-05-14 16:47:07.987147-07","2020-05-14 16:47:07.987169-07","","higher-education-administration",,"",,1,0,0,0,FALSE
-264,"special education administration",FALSE,"2020-05-14 16:47:09.195125-07","2020-05-14 16:47:09.195147-07","","special-education-administration",,"",,1,0,0,0,FALSE
-265,"anthropology",FALSE,"2020-05-14 16:47:15.64897-07","2020-05-14 16:47:15.648992-07","","anthropology",,"",,1,0,0,0,FALSE
-266,"curriculum and instruction",FALSE,"2020-05-14 16:47:16.879372-07","2020-05-14 16:47:16.879395-07","","curriculum-and-instruction",,"",,1,0,0,0,FALSE
-267,"middle & late childhood",FALSE,"2020-05-14 16:47:17.389894-07","2020-05-14 16:47:17.389916-07","","middle-late-childhood",,"",,1,0,0,0,FALSE
-268,"structural materials",FALSE,"2020-05-14 16:47:20.66587-07","2020-05-14 16:47:20.665894-07","","structural-materials",,"",,1,0,0,0,FALSE
-269,"statistical methodology",FALSE,"2020-05-14 16:47:21.179132-07","2020-05-14 16:47:21.179155-07","","statistical-methodology",,"",,1,0,0,0,FALSE
-270,"optics",FALSE,"2020-05-14 16:47:22.385108-07","2020-05-14 16:47:22.385131-07","","optics",,"",,1,0,0,0,FALSE
-271,"early childhood",FALSE,"2020-05-14 16:47:24.355968-07","2020-05-14 16:47:24.355989-07","","early-childhood-1",1,"",,1,0,0,0,FALSE
-272,"cell biology",FALSE,"2020-05-14 16:47:28.145256-07","2020-05-14 16:47:28.145279-07","","cell-biology-1",1,"",,1,0,0,0,FALSE
-274,"community health and preventive medicine",FALSE,"2020-05-14 16:47:29.46962-07","2020-05-14 16:47:29.469644-07","","community-health-and-preventive-medicine",,"",,1,0,0,0,FALSE
-275,"comparative and evolutionary physiology",FALSE,"2020-05-14 16:47:30.601455-07","2020-05-14 16:47:30.601477-07","","comparative-and-evolutionary-physiology",,"",,1,0,0,0,FALSE
-276,"evolution",FALSE,"2020-05-14 16:47:31.478907-07","2020-05-14 16:47:31.478929-07","","evolution-1",1,"",,1,0,0,0,FALSE
-278,"alternative and complementary medicine",FALSE,"2020-05-14 16:47:34.389532-07","2020-05-14 16:47:34.389554-07","","alternative-and-complementary-medicine",,"",,1,0,0,0,FALSE
-279,"prosocial behavior",FALSE,"2020-05-14 16:47:34.795452-07","2020-05-14 16:47:34.795474-07","","prosocial-behavior",,"",,1,0,0,0,FALSE
-280,"learning process",FALSE,"2020-05-14 16:47:35.203094-07","2020-05-14 16:47:35.203117-07","","learning-process",,"",,1,0,0,0,FALSE
-281,"anxiety disorders",FALSE,"2020-05-14 16:52:49.388746-07","2020-05-14 16:52:49.388807-07","","anxiety-disorders",,"",,1,0,0,0,FALSE
-282,"international relations",FALSE,"2020-05-14 16:52:50.260503-07","2020-05-14 16:52:50.260559-07","","international-relations",,"",,1,0,0,0,FALSE
-283,"psychometrics",FALSE,"2020-05-14 16:52:53.993787-07","2020-05-14 16:52:53.99381-07","","psychometrics",,"",,1,0,0,0,FALSE
-284,"international law",FALSE,"2020-05-14 16:52:56.447954-07","2020-05-14 16:52:56.447977-07","","international-law",,"",,1,0,0,0,FALSE
-285,"virology",FALSE,"2020-05-14 16:53:01.043376-07","2020-05-14 16:53:01.043397-07","","virology",,"",,1,0,0,0,FALSE
-286,"health-related behavior",FALSE,"2020-05-14 16:53:02.590922-07","2020-05-14 16:53:02.590943-07","","health-related-behavior",,"",,1,0,0,0,FALSE
-287,"health communication",FALSE,"2020-05-14 16:53:06.075648-07","2020-05-14 16:53:06.075669-07","","health-communication",,"",,1,0,0,0,FALSE
-288,"learner",FALSE,"2020-05-14 16:53:09.252175-07","2020-05-14 16:53:09.252199-07","","learner",,"",,1,0,0,0,FALSE
-289,"political economy",FALSE,"2020-05-14 16:54:07.924607-07","2020-05-14 16:54:07.924628-07","","political-economy",,"",,1,0,0,0,FALSE
-290,"neuroscience and neurobiology",FALSE,"2020-05-14 16:54:13.763699-07","2020-05-14 16:54:13.763722-07","","neuroscience-and-neurobiology",,"",,1,0,0,0,FALSE
-291,"biochemistry, biophysics, and structural biology",FALSE,"2020-05-14 16:54:15.158166-07","2020-05-14 16:54:15.158187-07","","biochemistry-biophysics-and-structural-biology",,"",,1,0,0,0,FALSE
-292,"epistemology",FALSE,"2020-05-14 16:54:20.01263-07","2020-05-14 16:54:20.012652-07","","epistemology",,"",,1,0,0,0,FALSE
-293,"student counseling and personnel services",FALSE,"2020-05-14 16:54:21.617031-07","2020-05-14 16:54:21.617053-07","","student-counseling-and-personnel-services",,"",,1,0,0,0,FALSE
-294,"medical education",FALSE,"2020-05-14 16:54:27.68983-07","2020-05-14 16:54:27.689853-07","","medical-education",,"",,1,0,0,0,FALSE
-295,"other economics",FALSE,"2020-05-14 16:54:30.601127-07","2020-05-14 16:54:30.601148-07","","other-economics",,"",,1,0,0,0,FALSE
-296,"occupational health",FALSE,"2020-05-14 16:54:35.50912-07","2020-05-14 16:54:35.50914-07","","occupational-health",,"",,1,0,0,0,FALSE
-297,"stress",FALSE,"2020-05-14 16:54:44.791745-07","2020-05-14 16:54:44.791764-07","","stress",,"",,1,0,0,0,FALSE
-298,"religion",FALSE,"2020-05-14 16:54:53.074467-07","2020-05-14 16:54:53.074485-07","","religion",,"",,1,0,0,0,FALSE
-299,"biblical studies",FALSE,"2020-05-14 16:54:53.078033-07","2020-05-14 16:54:53.078049-07","","biblical-studies",,"",,1,0,0,0,FALSE
-300,"immunology of infectious disease",FALSE,"2020-05-14 16:54:56.946004-07","2020-05-14 16:54:56.946022-07","","immunology-of-infectious-disease",,"",,1,0,0,0,FALSE
-301,"other business",FALSE,"2020-05-14 16:55:00.102965-07","2020-05-14 16:55:00.102989-07","","other-business",,"",,1,0,0,0,FALSE
-302,"other electrical and computer engineering",FALSE,"2020-05-14 16:55:00.603183-07","2020-05-14 16:55:00.603209-07","","other-electrical-and-computer-engineering",,"",,1,0,0,0,FALSE
-303,"systems engineering",FALSE,"2020-05-14 16:55:04.252182-07","2020-05-14 16:55:04.252204-07","","systems-engineering",,"",,1,0,0,0,FALSE
-304,"nutritional and metabolic diseases",FALSE,"2020-05-14 16:55:09.158996-07","2020-05-14 16:55:09.159015-07","","nutritional-and-metabolic-diseases",,"",,1,0,0,0,FALSE
-305,"scholarly publishing",FALSE,"2020-05-14 16:55:10.601738-07","2020-05-14 16:55:10.60176-07","","scholarly-publishing",,"",,1,0,0,0,FALSE
-306,"intervention research",FALSE,"2020-05-14 16:55:11.621706-07","2020-05-14 16:55:11.621728-07","","intervention-research",,"",,1,0,0,0,FALSE
-307,"health policy",FALSE,"2020-05-14 16:55:13.258708-07","2020-05-14 16:55:13.258735-07","","health-policy",,"",,1,0,0,0,FALSE
-308,"biomedical devices and instrumentation",FALSE,"2020-05-14 16:55:15.7202-07","2020-05-14 16:55:15.720222-07","","biomedical-devices-and-instrumentation",,"",,1,0,0,0,FALSE
-309,"management information systems",FALSE,"2020-05-14 16:55:16.177543-07","2020-05-14 16:55:16.177565-07","","management-information-systems",,"",,1,0,0,0,FALSE
-310,"other political science",FALSE,"2020-05-14 16:55:16.740065-07","2020-05-14 16:55:16.740088-07","","other-political-science",,"",,1,0,0,0,FALSE
-311,"geology",FALSE,"2020-05-14 16:55:17.356475-07","2020-05-14 16:55:17.356497-07","","geology",,"",,1,0,0,0,FALSE
-313,"dietetics and clinical nutrition",FALSE,"2020-05-14 16:55:19.606296-07","2020-05-14 16:55:19.606318-07","","dietetics-and-clinical-nutrition",,"",,1,0,0,0,FALSE
-314,"sex and gender",FALSE,"2020-05-14 16:55:22.477681-07","2020-05-14 16:55:22.477704-07","","sex-and-gender",,"",,1,0,0,0,FALSE
-315,"psychotic disorders",FALSE,"2020-05-14 16:55:24.313725-07","2020-05-14 16:55:24.313756-07","","psychotic-disorders",,"",,1,0,0,0,FALSE
-316,"structural biology",FALSE,"2020-05-14 16:55:24.755861-07","2020-05-14 16:55:24.755883-07","","structural-biology",,"",,1,0,0,0,FALSE
-277,"applied mechanics",FALSE,"2020-05-14 16:47:33.946114-07","2020-05-14 16:47:33.946135-07","","applied-mechanics",,"",,1,0,2,0,FALSE
-273,"family",FALSE,"2020-05-14 16:47:28.613419-07","2020-05-14 16:47:28.613444-07","","family-1",1,"",,1,0,0,0,FALSE
-317,"neurosciences",FALSE,"2020-05-14 16:55:26.264338-07","2020-05-14 16:55:26.264362-07","","neurosciences",,"",,1,0,0,0,FALSE
-318,"sociology of education",FALSE,"2020-05-14 16:55:26.679147-07","2020-05-14 16:55:26.679169-07","","sociology-of-education",,"",,1,0,0,0,FALSE
-319,"business and corporate communications",FALSE,"2020-05-14 16:55:28.516759-07","2020-05-14 16:55:28.516783-07","","business-and-corporate-communications",,"",,1,0,0,0,FALSE
-320,"careers",FALSE,"2020-05-14 16:55:31.901996-07","2020-05-14 16:55:31.902021-07","","careers",,"",,1,0,0,0,FALSE
-321,"computer law",FALSE,"2020-05-14 16:55:34.832826-07","2020-05-14 16:55:34.832848-07","","computer-law",,"",,1,0,0,0,FALSE
-322,"organization development",FALSE,"2020-05-14 16:55:36.14508-07","2020-05-14 16:55:36.145103-07","","organization-development",,"",,1,0,0,0,FALSE
-323,"analytical, diagnostic and therapeutic techniques and equipment",FALSE,"2020-05-14 16:55:37.01561-07","2020-05-14 16:55:37.015632-07","","analytical-diagnostic-and-therapeutic-techniques-and-equipment",,"",,1,0,0,0,FALSE
-324,"therapeutics",FALSE,"2020-05-14 16:55:37.019893-07","2020-05-14 16:55:37.019915-07","","therapeutics",,"",,1,0,0,0,FALSE
-325,"biases, framing, and heuristics",FALSE,"2020-05-14 16:55:43.469741-07","2020-05-14 16:55:43.469763-07","","biases-framing-and-heuristics",,"",,1,0,0,0,FALSE
-326,"social psychology and interaction",FALSE,"2020-05-14 16:55:49.751255-07","2020-05-14 16:55:49.751277-07","","social-psychology-and-interaction",,"",,1,0,0,0,FALSE
-327,"educational assessment, evaluation, and research",FALSE,"2020-05-14 16:55:54.52323-07","2020-05-14 16:55:54.523248-07","","educational-assessment-evaluation-and-research",,"",,1,0,0,0,FALSE
-328,"elementary particles and fields and string theory",FALSE,"2020-05-14 16:55:54.920574-07","2020-05-14 16:55:54.920592-07","","elementary-particles-and-fields-and-string-theory",,"",,1,0,0,0,FALSE
-329,"international business",FALSE,"2020-05-14 16:55:59.272035-07","2020-05-14 16:55:59.272057-07","","international-business",,"",,1,0,0,0,FALSE
-330,"multicultural psychology",FALSE,"2020-05-14 16:55:59.661421-07","2020-05-14 16:55:59.661444-07","","multicultural-psychology",,"",,1,0,0,0,FALSE
-331,"motivational behavior",FALSE,"2020-05-14 16:56:01.726907-07","2020-05-14 16:56:01.72693-07","","motivational-behavior",,"",,1,0,0,0,FALSE
-332,"computational neuroscience",FALSE,"2020-05-14 16:56:02.309725-07","2020-05-14 16:56:02.309747-07","","computational-neuroscience",,"",,1,0,0,0,FALSE
-333,"environmental policy",FALSE,"2020-05-14 16:56:05.54074-07","2020-05-14 16:56:05.540759-07","","environmental-policy",,"",,1,0,0,0,FALSE
-334,"civil law",FALSE,"2020-05-14 16:56:06.512394-07","2020-05-14 16:56:06.512418-07","","civil-law",,"",,1,0,0,0,FALSE
-335,"cognitive development",FALSE,"2020-05-14 16:56:13.372771-07","2020-05-14 16:56:13.372794-07","","cognitive-development",,"",,1,0,0,0,FALSE
-336,"sport and exercise biomechanics",FALSE,"2020-05-14 16:56:18.847676-07","2020-05-14 16:56:18.847699-07","","sport-and-exercise-biomechanics",,"",,1,0,0,0,FALSE
-337,"learning",FALSE,"2020-05-14 16:56:19.354984-07","2020-05-14 16:56:19.355003-07","","learning-1",1,"",,1,0,0,0,FALSE
-338,"environmental studies",FALSE,"2020-05-14 16:56:20.98554-07","2020-05-14 16:56:20.985574-07","","environmental-studies",,"",,1,0,0,0,FALSE
-339,"energy and utilities law",FALSE,"2020-05-14 16:56:22.183281-07","2020-05-14 16:56:22.183302-07","","energy-and-utilities-law",,"",,1,0,0,0,FALSE
-340,"sport and exercise studies",FALSE,"2020-05-14 16:56:25.37711-07","2020-05-14 16:56:25.377133-07","","sport-and-exercise-studies",,"",,1,0,0,0,FALSE
-341,"population biology",FALSE,"2020-05-14 16:56:33.340018-07","2020-05-14 16:56:33.340042-07","","population-biology",,"",,1,0,0,0,FALSE
-342,"growth and development",FALSE,"2020-05-14 16:56:33.736399-07","2020-05-14 16:56:33.73642-07","","growth-and-development",,"",,1,0,0,0,FALSE
-343,"business administration, management, and operations",FALSE,"2020-05-14 16:56:34.643777-07","2020-05-14 16:56:34.6438-07","","business-administration-management-and-operations",,"",,1,0,0,0,FALSE
-344,"economic theory",FALSE,"2020-05-14 16:56:38.303062-07","2020-05-14 16:56:38.303083-07","","economic-theory",,"",,1,0,0,0,FALSE
-345,"geochemistry",FALSE,"2020-05-14 16:56:39.156394-07","2020-05-14 16:56:39.156418-07","","geochemistry",,"",,1,0,0,0,FALSE
-346,"public administration",FALSE,"2020-05-14 16:56:39.561813-07","2020-05-14 16:56:39.561834-07","","public-administration",,"",,1,0,0,0,FALSE
-347,"strength and conditioning",FALSE,"2020-05-14 16:56:40.47423-07","2020-05-14 16:56:40.474253-07","","strength-and-conditioning",,"",,1,0,0,0,FALSE
-348,"asian history",FALSE,"2020-05-14 16:56:42.970829-07","2020-05-14 16:56:42.970863-07","","asian-history",,"",,1,0,0,0,FALSE
-349,"international economics",FALSE,"2020-05-14 16:56:43.359737-07","2020-05-14 16:56:43.359762-07","","international-economics",,"",,1,0,0,0,FALSE
-350,"testing and assessment",FALSE,"2020-05-14 16:56:45.294713-07","2020-05-14 16:56:45.294737-07","","testing-and-assessment",,"",,1,0,0,0,FALSE
-351,"other communication",FALSE,"2020-05-14 16:56:45.834057-07","2020-05-14 16:56:45.834079-07","","other-communication",,"",,1,0,0,0,FALSE
-352,"obstetrics and gynecology",FALSE,"2020-05-14 16:56:52.062876-07","2020-05-14 16:56:52.062898-07","","obstetrics-and-gynecology",,"",,1,0,0,0,FALSE
-353,"social media",FALSE,"2020-05-14 16:56:56.588282-07","2020-05-14 16:56:56.588303-07","","social-media",,"",,1,0,0,0,FALSE
-354,"social and cultural anthropology",FALSE,"2020-05-14 16:58:50.352918-07","2020-05-14 16:58:50.352941-07","","social-and-cultural-anthropology",,"",,1,0,0,0,FALSE
-355,"other psychology",FALSE,"2020-05-14 16:59:02.137294-07","2020-05-14 16:59:02.137317-07","","other-psychology",,"",,1,0,0,0,FALSE
-356,"crime, law, and deviance",FALSE,"2020-05-14 17:12:42.303252-07","2020-05-14 17:12:42.303274-07","","crime-law-and-deviance",,"",,1,0,0,0,FALSE
-357,"moral behavior",FALSE,"2020-05-14 17:19:53.327791-07","2020-05-14 17:19:53.32781-07","","moral-behavior",,"",,1,0,0,0,FALSE
-358,"other psychiatry and psychology",FALSE,"2020-05-14 17:19:53.878772-07","2020-05-14 17:19:53.878792-07","","other-psychiatry-and-psychology",,"",,1,0,0,0,FALSE
-359,"rehabilitation and therapy",FALSE,"2020-05-14 17:19:54.382595-07","2020-05-14 17:19:54.382619-07","","rehabilitation-and-therapy",,"",,1,0,0,0,FALSE
-360,"physiotherapy",FALSE,"2020-05-14 17:19:54.386398-07","2020-05-14 17:19:54.386421-07","","physiotherapy",,"",,1,0,0,0,FALSE
-361,"materials chemistry",FALSE,"2020-05-14 17:19:57.581664-07","2020-05-14 17:19:57.581687-07","","materials-chemistry",,"",,1,0,0,0,FALSE
-362,"genetics and genomics",FALSE,"2020-05-15 11:09:32.3243-07","2020-05-15 11:09:32.324323-07","","genetics-and-genomics",,"",,1,0,0,0,FALSE
-363,"consumer protection law",FALSE,"2020-05-15 11:09:32.746942-07","2020-05-15 11:09:32.746964-07","","consumer-protection-law",,"",,1,0,0,0,FALSE
-364,"depressive disorders",FALSE,"2020-05-15 11:09:33.271923-07","2020-05-15 11:09:33.271946-07","","depressive-disorders",,"",,1,0,0,0,FALSE
-365,"environmental psychology",FALSE,"2020-05-15 11:09:33.782476-07","2020-05-15 11:09:33.782498-07","","environmental-psychology",,"",,1,0,0,0,FALSE
-366,"critical care nursing",FALSE,"2020-05-15 11:09:40.433152-07","2020-05-15 11:09:40.433174-07","","critical-care-nursing",,"",,1,0,0,0,FALSE
-367,"international public health",FALSE,"2020-05-15 11:09:40.850619-07","2020-05-15 11:09:40.850641-07","","international-public-health",,"",,1,0,0,0,FALSE
-368,"machine learning",FALSE,"2020-08-12 15:20:23.086835-07","2020-08-12 15:20:23.086856-07","","machine-learning",,"",,1,0,0,0,FALSE
-369,"materials science",FALSE,"2020-08-12 15:21:44.08651-07","2020-08-12 15:21:44.086528-07","","materials-science-1",1,"",,1,0,0,0,FALSE
-370,"general relativity and quantum cosmology",FALSE,"2020-09-18 11:15:02.799553-07","2020-09-18 11:15:02.799578-07","","general-relativity-and-quantum-cosmology",,"","",1,0,0,0,FALSE
-371,"high energy physics - theory",FALSE,"2020-09-18 12:04:01.9559-07","2020-09-18 12:04:01.955927-07","","high-energy-physics-theory",,"","",1,0,0,0,FALSE
-372,"computer vision and pattern recognition",FALSE,"2020-10-22 18:33:33.294332-07","2020-10-22 18:33:33.294351-07","","computer-vision-and-pattern-recognition",,"","",1,0,0,0,FALSE
-196,"agronomy and crop sciences life sciences",FALSE,"2020-05-14 16:44:46.448738-07","2020-10-07 12:15:09.137733-07","","agronomy-and-crop-sciences-life-sciences",,"","",1,0,4,0,FALSE
-146,"adult and continuing education and teaching",FALSE,"2020-05-14 16:43:42.756313-07","2020-11-12 13:09:21.972895-08","","adult-and-continuing-education-and-teaching",,"","",1,51,22,0,FALSE
-312,"artificial intelligence and robotics",FALSE,"2020-05-14 16:55:18.402489-07","2020-05-14 16:55:18.402508-07","","artificial-intelligence-and-robotics",,"",,1,0,1,0,FALSE
-167,"adult and continuing education",FALSE,"2020-05-14 16:44:10.734255-07","2020-11-12 12:57:01.667489-08","","adult-and-continuing-education-1",1,"","",1,45,35,0,FALSE
-3,"biology",FALSE,"2020-03-30 10:59:07.920417-07","2020-03-30 10:59:07.920441-07","","biology",,"",,1,0,477,0,FALSE
-125,"instructional media design",FALSE,"2020-05-14 16:43:12.034165-07","2020-05-14 16:43:12.034187-07","","instructional-media-design",,"",,1,0,0,0,FALSE
-373,"environmental science",FALSE,"2020-11-16 12:36:50.010051-08","2020-11-16 12:36:50.010076-08","","environmental-science-1",1,"","",1,0,0,0,FALSE
-255,"asian studies",FALSE,"2020-05-14 16:46:29.058979-07","2020-11-12 12:55:09.113599-08","","asian-studies",,"","",1,0,1,0,FALSE
-51,"cognitive neuroscience",FALSE,"2020-05-14 16:39:57.976075-07","2020-05-14 16:39:57.976098-07","","cognitive-neuroscience",,"",,1,0,0,0,FALSE
-140,"agriculture",FALSE,"2020-05-14 16:43:38.149596-07","2020-05-14 16:43:38.149618-07","","agriculture",,"",,1,0,19,0,FALSE
-220,"affect and emotion regulation",FALSE,"2020-05-14 16:45:22.901812-07","2020-11-12 15:53:03.268753-08","","affect-and-emotion-regulation",,"","",1,2,20,0,FALSE
-263,"adult and continuing education administration",FALSE,"2020-05-14 16:47:08.385795-07","2020-11-12 12:53:56.212614-08","","adult-and-continuing-education-administration",,"","",1,27,22,0,FALSE
+250,"art",FALSE,"2020-08-12 04:32:44.721115+00","2022-01-12 00:14:00.58141+00","","art-1",1,"Practice-based, historical, and contemporary research related to visual culture and its wider implications","uploads/hub_images/2020/10/07/art.jpg",10,28,2524,1160,FALSE
+391,"marine biology",FALSE,"2020-11-21 05:31:13.912369+00","2021-09-07 17:51:27.470995+00","","marine-biology",,"The study of organisms and ecosystems in the ocean and other saltwater environments.","uploads/hub_images/2020/11/21/marine_biology.jpeg",2,9,14,43,FALSE
+424,"occupational therapy",FALSE,"2022-01-06 06:22:01.833773+00","2022-01-06 06:22:01.833798+00","","occupational-therapy",,"The study of how to develop, recover, or maintain the meaningful activities, or occupations, of individuals, groups, or communities","uploads/hub_images/2022/01/06/occupational_Therapy.jpeg",3,43,42,9,FALSE
+427,"cybersec",FALSE,"2022-02-03 00:03:04.506461+00","2022-02-03 01:46:52.265902+00","","cybersec",,"Cyber security","",4,111,111,111,TRUE
+11,"other",FALSE,"2019-12-10 03:02:36.86943+00","2021-09-07 17:51:25.21819+00","","other",,"This hub contains papers which don't fit anywhere else.","",1,74,55943,13,TRUE
+398,"dentistry",FALSE,"2021-05-20 03:09:04.050712+00","2022-03-18 18:57:35.991601+00","","dentistry",,"The study, diagnosis, prevention, and treatment of diseases, disorders, and conditions of the oral cavity and maxillofacial area.","uploads/hub_images/2021/05/20/teeth.jpeg",3,27,13,10,FALSE
+394,"veterinary medicine",FALSE,"2021-02-17 05:21:39.81372+00","2021-12-28 21:01:49.614565+00","VET","veterinary-science",,"Veterinary medicine is the branch of medicine that deals with the prevention, control, diagnosis, and treatment of disease, disorder, and injury in animals.","",3,34,1482,12,FALSE
+31,"chemistry",FALSE,"2020-04-01 17:16:37.870045+00","2021-09-07 17:51:27.318583+00","","chemistry",,"Discipline for exploring the composition, structure, and properties of matter.","uploads/hub_images/2020/10/07/chemistry.jpg",7,23,19055,118,FALSE
+241,"abstract algebra",FALSE,"2020-08-04 15:08:29.889283+00","2021-09-07 17:51:35.31123+00","","abstract-algebra",,"The study of algebraic structures, such as groups, rings, and algebras.","uploads/hub_images/2020/10/07/abstract-algebra.jpg",6,6,19,66,FALSE
+21,"environmental science",FALSE,"2020-01-21 06:27:41.053235+00","2021-09-07 17:51:39.80544+00","","environmental-science",,"A multidisciplinary field dedicated to understanding changes in the environment.","uploads/hub_images/2020/10/07/environmental-science.jpg",2,62,16081,1210,FALSE
+34,"geology",FALSE,"2020-04-01 17:18:20.259079+00","2021-09-07 17:51:27.447758+00","","geology",,"The study of history, composition and physical aspects of the Earth.","uploads/hub_images/2020/10/07/geology.jpg",2,17,6444,76,FALSE
+247,"human-computer interaction",FALSE,"2020-08-09 16:17:21.87171+00","2021-09-07 17:51:27.510262+00","","human-computer-interaction-1",1,"Field of study focusing on the design of computer technology for human use.","uploads/hub_images/2020/10/07/human-computer-interaction.jpg",4,17,484,154,FALSE
+236,"internal medicine",FALSE,"2020-08-04 06:17:16.624481+00","2021-09-07 17:51:28.661621+00","","internal-medicine",,"The branch of medicine dealing with internal, multi-system diseases.","uploads/hub_images/2020/10/07/internal-medicine.jpg",3,126,109,93,FALSE
+410,"journalism",FALSE,"2021-12-22 14:46:54.126472+00","2021-12-22 14:46:54.126497+00","","journalism",,"the production and distribution of reports on current events based on facts and supported with proof or evidence.","uploads/hub_images/2021/12/22/journalism_Hub.jpeg",9,0,1,11,FALSE
+253,"photovoltaics",FALSE,"2020-08-30 07:39:09.509633+00","2021-09-07 17:51:26.488196+00","","photovoltaics",,"The study of the conversion of light into electricity using semiconducting materials that exhibit the photovoltaic effect.","uploads/hub_images/2020/10/07/photovoltaics.jpg",8,1,8,67,FALSE
+262,"cryptography and security",FALSE,"2020-10-13 22:23:06.498732+00","2021-09-07 17:51:27.534294+00","","cryptography-and-security-1",1,"","",1,26,33,112,FALSE
+221,"nutrition",FALSE,"2020-07-27 01:13:21.453246+00","2021-09-07 17:51:31.906621+00","","nutrition",,"The study of food, nutrients and their impacts on health.","uploads/hub_images/2020/10/07/nutrition.jpg",3,219,4278,214,FALSE
+405,"criminology",FALSE,"2021-12-04 15:34:53.292331+00","2021-12-04 15:34:53.292358+00","","criminology",,"The study of crime and deviant behavior","uploads/hub_images/2021/12/04/criminology.jpeg",9,5,125,25,FALSE
+413,"linguistics",FALSE,"2021-12-23 15:35:42.831993+00","2021-12-23 15:35:42.83202+00","","linguistics",,"The scientific study of language and its structure, including the study of morphology, syntax, phonetics, and semantics.","uploads/hub_images/2021/12/23/linguistics.jpg",9,2,3,17,FALSE
+412,"quantum sensing",FALSE,"2021-12-23 14:56:21.153084+00","2021-12-23 14:56:21.153109+00","","quantum-sensing",,"The study of quantum sources and quantum measurements that are able to beat the performance of any classical strategy","uploads/hub_images/2021/12/23/QuantumSensing.jpeg",5,53,44,8,FALSE
+392,"quantum biology",FALSE,"2021-01-08 05:21:39.81372+00","2021-09-07 17:51:27.493099+00","","quantum-biology",,"the study of applications of quantum mechanics and theoretical chemistry to biological objects and problems","uploads/hub_images/2021/01/08/quantum-biology-s.png",2,5,11,51,FALSE
+426,"infosec",FALSE,"2022-02-03 00:00:07.096098+00","2022-02-03 00:00:07.096119+00","","infosec",,"Information security.","",4,85,10442,5,FALSE
+54,"robotics",FALSE,"2020-04-24 23:50:56.255994+00","2021-09-07 17:51:27.70619+00","","robotics",,"Design, construction, and operation of robots.","uploads/hub_images/2020/10/07/robotics-2.jpg",8,112,2945,168,FALSE
+397,"virology",FALSE,"2021-05-06 16:28:35.112738+00","2021-09-07 17:51:25.72398+00","","virology",,"The scientific study of the biology of viruses and viral diseases.","uploads/hub_images/2021/05/06/cdc-BbP7rqIGB3c-unsplash.jpg",2,27,62,19,FALSE
+140,"fluid dynamics",FALSE,"2020-04-24 23:50:59.358662+00","2021-09-07 17:51:26.455602+00","","fluid-dynamics",,"A subdiscipline of fluid mechanics that describes the flow of fluids—liquids and gases.","uploads/hub_images/2020/10/07/fluid-dynamics.jpg",5,2,7154,32,FALSE
+14,"astrophysics",FALSE,"2019-12-31 05:24:35.183964+00","2021-09-07 17:51:25.712786+00","","astrophysics",,"Use of physics principles to ascertain the nature of astronomical objects.","uploads/hub_images/2020/10/07/astrophysics.jpg",5,13,35424,131,FALSE
+428,"cybersec2 - altered",FALSE,"2022-02-05 22:36:17.481356+00","2022-02-05 23:05:56.654959+00","","cybersec2",,"Cyber security 2 - Authorised Security Test - ALTERED","",5,9999,8888,7777,TRUE
+402,"catastrophism",FALSE,"2021-07-29 16:12:29.654821+00","2021-09-07 17:51:31.952568+00","","catastrophism",,"A theory within geography that the Earth has largely been shaped by sudden, short-lived, violent events, possibly worldwide in scope.","uploads/hub_images/2021/07/29/Catastrophism_Hub_Pic.jpeg",5,0,6,5,FALSE
+52,"information security",FALSE,"2020-04-24 23:50:56.187828+00","2021-09-07 17:51:28.067558+00","","cryptography-and-security",,"The practice and study of secure communication and protection of computer systems and information.","uploads/hub_images/2020/10/07/cryptography-and-security.jpg",4,5,5003,132,FALSE
+57,"number theory",FALSE,"2020-04-24 23:50:56.415736+00","2021-09-07 17:51:31.764077+00","","number-theory",,"The study of properties of integers and integer functions.","uploads/hub_images/2020/10/07/number-theory-2.jpg",6,0,11586,51,FALSE
+400,"geophysics",FALSE,"2021-05-23 19:35:08.777745+00","2021-09-07 17:51:29.635076+00","","geophysics",,"The physical processes and physical properties of the Earth and its surrounding space environment","uploads/hub_images/2021/05/23/geophysics_Hub.jpeg",5,57,89,14,FALSE
+269,"photography",FALSE,"2020-11-01 14:05:33.418815+00","2021-09-07 17:51:28.468022+00","","photography",,"Digital and legacy film photography","uploads/hub_images/2020/11/01/IMG_2804.jpg",10,0,1,242,FALSE
+61,"methodology",FALSE,"2020-04-24 23:50:56.547436+00","2021-09-07 17:51:28.898569+00","","methodology",,"The systematic, theoretical analysis of the methods applied to a field of study.","uploads/hub_images/2020/10/07/methodology.jpg",9,10,9245,51,FALSE
+268,"media production",FALSE,"2020-10-30 13:12:19.40761+00","2021-09-07 17:51:28.639876+00","","media-production",,"Audio & Video Production, Game Design, and the Visual Arts.","",10,0,1,326,FALSE
+270,"analytical chemistry",FALSE,"2020-11-02 04:27:18.391685+00","2021-09-07 17:51:28.515071+00","","analytical-chemistry",,"Analytical Chemistry","",7,44,2752,51,FALSE
+15,"psychology",FALSE,"2020-01-01 04:59:18.011588+00","2021-09-07 17:51:34.704003+00","PSYCH","psychology",,"The scientific study of the human mind and its functions, especially those affecting behavior in a given context.","uploads/hub_images/2020/10/07/psychology.jpg",9,727,12890,1912,FALSE
+243,"kinesiology",FALSE,"2020-08-06 19:49:58.706605+00","2021-09-07 17:51:31.91886+00","","kinesiology",,"The study of human movement and function.","uploads/hub_images/2020/10/07/kinesiology.jpg",3,174,132,85,FALSE
+401,"remote sensing",FALSE,"2021-05-23 19:36:50.857787+00","2021-09-07 17:51:28.650301+00","","remote-sensing",,"The acquisition of information about an object or phenomenon without making physical contact with the object","uploads/hub_images/2021/05/23/remotesensing.jpeg",8,18,28,34,FALSE
+194,"oncology",FALSE,"2020-05-06 23:28:42.250983+00","2021-09-07 17:51:27.954544+00","","cancer-biology",,"Branch of medicine which deals with the prevention, diagnosis, and treatment of cancer.","uploads/hub_images/2020/10/07/cancer-biology.jpg",3,288,10510,160,FALSE
+399,"geodesy",FALSE,"2021-05-23 19:33:21.016023+00","2021-09-07 17:51:31.929066+00","","geodesy",,"The study of accurately measuring and understanding Earth's geometric shape, orientation in space and gravitational field","uploads/hub_images/2021/05/23/geodesy_hub.jpeg",5,13,15,6,FALSE
+3,"biology",FALSE,"2019-11-01 18:51:12.12785+00","2021-09-07 17:51:36.96512+00","BIO","biology",,"The study of life and living organisms.","uploads/hub_images/2020/10/07/biology-2.jpg",2,191,6921,1049,FALSE
+205,"pharmacology",FALSE,"2020-05-06 23:28:42.305987+00","2021-09-07 17:51:32.696503+00","","pharmacology-and-toxicology",,"The study of drugs.","uploads/hub_images/2020/10/07/pharmacology-and-toxicology-3.jpg",2,250,10098,268,FALSE
+265,"architecture",FALSE,"2020-10-30 06:02:30.357893+00","2021-09-07 17:51:26.476009+00","","architecture",,"Architecture is both the process and the product of planning, designing, and construction buildings or other structures.","",1,0,335,52,FALSE
+261,"distributed, parallel, and cluster computing",FALSE,"2020-10-13 22:23:05.794958+00","2021-09-07 17:51:31.942317+00","","distributed-parallel-and-cluster-computing-1",1,"","",1,1,3,40,FALSE
+101,"logic",FALSE,"2020-04-24 23:50:57.836169+00","2021-09-07 17:51:29.783569+00","","logic",,"The study of valid rules of inference.","uploads/hub_images/2020/10/07/logic.jpg",6,0,3759,99,FALSE
+266,"ophthalmology",FALSE,"2020-10-30 08:22:29.771647+00","2021-09-07 17:51:31.843041+00","","ophthalmology",,"Clinical and basic science research that relate to the sense of sight.","",3,13,47,16,FALSE
+33,"engineering",FALSE,"2020-04-01 17:17:23.111055+00","2021-09-07 17:51:26.953885+00","","engineering",,"Design and implementation of systems under practical constraints.","uploads/hub_images/2020/10/07/engineering-2.jpg",8,100,26489,195,FALSE
+277,"music",FALSE,"2020-11-03 03:44:20.806858+00","2021-09-07 17:51:28.454527+00","","music",,"Enjoy this precious life","uploads/hub_images/2020/11/03/twitter-banner.jpg",10,0,8,80,TRUE
+251,"endocrinology",FALSE,"2020-08-20 02:52:46.605769+00","2021-09-07 17:51:28.556074+00","","endocrinology",,"The study of hormone secreting glands in the body.","uploads/hub_images/2020/10/07/endocrinology.png",3,15,2456,27,FALSE
+19,"mathematics",FALSE,"2020-01-14 05:19:06.384128+00","2021-09-07 17:51:31.087162+00","MATH","mathematics",,"The abstract study of quantity, structure, space and change.","uploads/hub_images/2020/10/07/mathematics.jpg",6,33,31161,423,FALSE
+49,"chemical physics",FALSE,"2020-04-24 23:50:56.089312+00","2021-09-07 17:51:32.309504+00","","chemical-physics",,"Application of ideas and theories of physics to the analysis of chemical systems.","uploads/hub_images/2020/10/07/chemical-physics.jpg",7,5,5676,60,FALSE
+119,"statistics",FALSE,"2020-04-24 23:50:58.472561+00","2021-09-07 17:51:29.623928+00","","data-analysis-statistics-and-probability",,"Mathematical discipline concerning the collection, organization, analysis, interpretation and presentation of data.","uploads/hub_images/2020/10/07/data-analysis-statistics-and-probability-2.jpg",6,18,11908,311,FALSE
+407,"health psychology",FALSE,"2021-12-20 20:06:20.021857+00","2021-12-20 20:06:20.021883+00","","health-psychology",,"Health psychology focuses on how social, behavioral and biological factors act together to influence physical and mental health.","uploads/hub_images/2021/12/20/K6M9nZd39Q8.jpg",9,178,87,24,FALSE
+425,"researchhub",FALSE,"2022-01-07 18:24:21.057065+00","2022-01-07 18:24:21.05709+00","","researchhub",,"A meta-Hub to help organize and aggregate community feedback on all things ResearchHub","uploads/hub_images/2022/01/07/RH_logo_square.jpeg",1,19,3,62,FALSE
+37,"sociology",FALSE,"2020-04-01 17:20:46.483446+00","2021-09-07 17:51:45.161276+00","","sociology",,"The study of human social behavior, society, patterns of social relationships, social interaction, and culture that surrounds everyday life.","uploads/hub_images/2020/10/07/sociology.jpg",9,59,8801,148,FALSE
+415,"pediatrics",FALSE,"2021-12-23 15:51:05.962533+00","2021-12-23 15:51:05.962558+00","","pediatrics",,"The branch of medicine that involves the medical care of infants, children, and adolescents","uploads/hub_images/2021/12/23/pediatrics.jpeg",3,42,23,2,FALSE
+115,"biomolecules",FALSE,"2020-04-24 23:50:58.31468+00","2021-09-07 17:51:35.693931+00","","biomolecules",,"The study of biological molecules.","uploads/hub_images/2020/10/07/biomolecules.jpg",2,25,1643,283,FALSE
+198,"epidemiology",FALSE,"2020-05-06 23:28:42.270501+00","2021-09-07 17:51:32.501908+00","","epidemiology",,"The study of the distributions and determinants of health and disease in specified populations.","uploads/hub_images/2020/10/07/epidemiology.jpg",3,68,7370,166,FALSE
+260,"biological physics",FALSE,"2020-10-13 22:23:05.059104+00","2021-09-07 17:51:39.327502+00","","biological-physics",,"","",1,12,11,26,FALSE
+223,"dermatology",FALSE,"2020-07-30 19:33:29.270926+00","2021-09-07 17:51:27.48264+00","","dermatology",,"The branch of medicine dealing with diseases related to the skin.","uploads/hub_images/2020/10/07/dermatology.jpg",3,99,68,47,FALSE
+244,"cell biology",FALSE,"2020-08-07 06:14:41.151247+00","2021-09-07 17:51:26.277374+00","","cell-biology-1",1,"The study of cell structure and function.","uploads/hub_images/2020/10/07/cell-biology.jpg",2,42,7937,275,FALSE
+7,"bioinformatics",FALSE,"2019-11-27 02:50:12.611135+00","2021-09-07 17:51:49.647697+00","","bioinformatics",,"The usage of computers and statistical techniques to analyze and interpret biological data.","uploads/hub_images/2020/10/07/bioinformatics.jpg",2,64,9213,282,FALSE
+214,"anesthesiology",FALSE,"2020-05-19 11:42:46.116151+00","2021-09-07 17:51:34.211743+00","","anesthesiology",,"Medical specialty focusing on the care of patients before, during and after surgeries.","uploads/hub_images/2020/10/07/anesthesiology.jpg",3,11,1056,27,FALSE
+152,"atomic physics",FALSE,"2020-04-24 23:50:59.899449+00","2021-09-07 17:51:32.962657+00","","atomic-physics",,"The field of physics that studies atoms as an isolated system of electrons and an atomic nucleus.","uploads/hub_images/2020/10/07/atomic-physics.jpg",5,4,6852,45,FALSE
+36,"geography",FALSE,"2020-04-01 17:19:01.746975+00","2021-09-07 17:51:39.304043+00","","geography",,"The study of the lands, features, inhabitants, and phenomena of the Earth and planets.","uploads/hub_images/2020/10/07/geography-3.jpg",9,34,4722,52,FALSE
+80,"quantum mechanics",FALSE,"2020-04-24 23:50:57.186516+00","2021-09-07 17:51:34.175393+00","","quantum-physics",,"A fundamental theory in physics that provides a description of the physical properties of nature at the scale of atoms and subatomic particles.","uploads/hub_images/2020/10/07/quantum-physics.png",5,31,45019,70,FALSE
+390,"academia",FALSE,"2020-11-20 05:52:09.820116+00","2021-09-07 17:51:26.182909+00","","academia",,"Meta studies on academia","uploads/hub_images/2020/11/20/1_zqEYDhfbTpl8beM6Oex0JA.jpeg",1,49,65,65,FALSE
+220,"medicine",FALSE,"2020-07-20 15:35:50.918195+00","2021-09-07 17:51:39.153922+00","","medicine",,"The science of treatment and prevention of disease.","uploads/hub_images/2020/10/07/medicine.jpg",3,728,74857,2337,FALSE
+395,"quantum computing",FALSE,"2021-04-14 18:22:51.979112+00","2021-09-07 17:51:32.513535+00","","quantum-computing",,"The use of quantum phenomena such as superposition and entanglement to perform computation","uploads/hub_images/2021/04/14/220px-Bloch_Sphere.svg.png",4,16,23,97,FALSE
+203,"paleontology",FALSE,"2020-05-06 23:28:42.296647+00","2021-09-07 17:51:36.978001+00","","paleontology",,"Exploration of the history of life on Earth through fossils.","uploads/hub_images/2020/10/07/paleontology.jpg",2,2,116,39,FALSE
+240,"distributed computing",FALSE,"2020-08-04 13:59:40.451815+00","2021-09-07 17:51:36.621438+00","","distributed-parallel-and-cluster-computing",,"Multi-processor computations whether it be using shared memory or a network to communicate with each other.","uploads/hub_images/2020/10/07/distributed-parallel-and-cluster-computing.jpg",4,9,1386,156,FALSE
+206,"physiology",FALSE,"2020-05-06 23:28:42.310533+00","2021-09-07 17:51:26.168195+00","","physiology",,"The study of mechanisms of living things.","uploads/hub_images/2020/10/07/physiology-2.jpg",2,42,4903,661,FALSE
+414,"public health",FALSE,"2021-12-23 15:49:06.227296+00","2021-12-23 15:49:06.227322+00","","public-health",,"The science and art of preventing disease","uploads/hub_images/2021/12/23/public_health_hub.jpeg",9,125,83,23,FALSE
+267,"restoration ecology",FALSE,"2020-10-30 11:09:01.852784+00","2021-09-07 17:51:35.261901+00","","restoration-ecology",,"The study of intervention efforts to restore degraded, damaged or destroyed ecosystems.","uploads/hub_images/2020/10/30/curioso-photography-DeQ2-92hmNE-unsplash.jpg",2,1,6,36,FALSE
+258,"statistical mechanics",FALSE,"2020-10-02 08:26:47.197477+00","2021-09-07 17:51:35.251615+00","","statistical-mechanics",,"Describes how macroscopic observations are related to microscopic parameters that fluctuate around an average.","",5,0,10,32,FALSE
+388,"seismology",FALSE,"2020-11-06 04:30:27.617365+00","2021-09-07 17:51:40.254622+00","","seismology",,"Forecasting methods, observations, and analysis of large magnitude earthquakes.","uploads/hub_images/2020/11/06/Blank_Logo.jpg",5,8,17,96,FALSE
+231,"molecular biology",FALSE,"2020-08-03 02:59:46.468381+00","2021-09-07 17:51:40.24261+00","","molecular-biology-1",1,"Field of biology dealing with the composition, structure and interactions of cellular molecules.","uploads/hub_images/2020/10/07/molecular-biology.jpg",2,61,15258,293,FALSE
+82,"data structures & algorithms",FALSE,"2020-04-24 23:50:57.239563+00","2021-09-07 17:51:44.914768+00","","data-structures-and-algorithms",,"Development and analysis of how to solve problems using a computer, and method of organizing data for efficient computation.","uploads/hub_images/2020/10/07/data-structures-and-algorithms.jpg",4,4,6172,173,FALSE
+409,"mechanical engineering",FALSE,"2021-12-22 12:52:20.208684+00","2021-12-22 12:52:20.208708+00","","mechanical-engineering",,"Combination of engineering physics and mathematics principles with materials science to design, analyze, manufacture, and maintain mechanical systems.","uploads/hub_images/2021/12/22/mech_eng.png",8,105,184,134,FALSE
+32,"materials science",FALSE,"2020-04-01 17:16:39.629133+00","2021-09-07 17:51:42.050529+00","","materials-science",,"Design and discovery of new materials.","uploads/hub_images/2020/10/07/materials-science.jpg",7,93,45890,267,FALSE
+39,"political science",FALSE,"2020-04-01 19:25:14.510429+00","2021-09-07 17:51:40.297715+00","","political-science",,"The study of systems of governance, and the analysis of political activities, political thoughts, associated constitutions and political behavior.","uploads/hub_images/2020/10/07/political-science.jpg",9,37,2425,76,FALSE
+217,"biotechnology",FALSE,"2020-05-23 03:39:27.013515+00","2021-09-07 17:51:35.807735+00","","biotechnology",,"Harnessing biological processes to develop products.","uploads/hub_images/2020/10/07/biotechnology.jpg",8,147,5978,302,FALSE
+371,"education",FALSE,"2020-11-04 19:00:32.34459+00","2021-12-23 22:23:32.22323+00","","education",,"Education sciences seek to describe, understand, and prescribe education policy and practice.","uploads/hub_images/2021/12/23/education.png",1,68,5232,68,FALSE
+420,"biosensing",FALSE,"2021-12-24 14:49:45.860103+00","2021-12-24 14:49:45.860128+00","","biosensing",,"An emerging field which harnesses the interactions of biological species with metal surfaces for detection and analysis","uploads/hub_images/2021/12/24/biosensing.jpeg",2,105,72,23,FALSE
+196,"clinical trials",FALSE,"2020-05-06 23:28:42.260035+00","2021-09-07 17:51:45.410477+00","","clinical-trials",,"Research studies for evaluating medical, surgical or behavioral interventions.","uploads/hub_images/2020/10/07/clinical-trials.jpg",3,160,225,101,FALSE
+418,"pedagogy",FALSE,"2021-12-23 22:25:34.949063+00","2021-12-23 22:25:34.949089+00","","pedagogy",,"A study of how knowledge and skills are imparted in an educational context.","uploads/hub_images/2021/12/23/pedagogy.jpg",9,23,7,12,FALSE
+212,"longevity",FALSE,"2020-05-13 21:54:01.791922+00","2021-09-07 17:51:39.578617+00","","longevity",,"Attempts to and studies of extending the life of a human being.","uploads/hub_images/2020/10/07/longevity.jpg",3,394,810,769,FALSE
+232,"anthropology",FALSE,"2020-08-03 14:36:54.292765+00","2021-09-07 17:51:42.154327+00","","anthropology",,"The scientific study of humanity, concerned with human behavior, biology, and societies, including past human species.","uploads/hub_images/2020/10/07/anthropology.jpg",10,30,7036,1322,FALSE
+26,"design",FALSE,"2020-03-17 16:46:11.750842+00","2021-09-07 17:51:45.428439+00","","design",,"The creation of plans or specifications detailing the form and structure of an object or system.","uploads/hub_images/2020/10/07/design.jpg",10,22,10,666,FALSE
+23,"covid-19",FALSE,"2020-03-02 21:24:11.925309+00","2021-09-07 17:51:40.331208+00","","covid-19-coronavirus",,"Hub for all papers concerning SARS-CoV-2.","uploads/hub_images/2020/10/07/covid-19-coronavirus.jpg",3,241,521,1655,FALSE
+193,"biophysics",FALSE,"2020-05-06 23:28:42.246417+00","2021-09-07 17:51:45.395839+00","","biophysics",,"The study of physical phenomena and processes in living things.","uploads/hub_images/2020/10/07/biophysics.jpg",2,4,9062,121,FALSE
+95,"software engineering",FALSE,"2020-04-24 23:50:57.64364+00","2021-09-07 17:51:31.830334+00","","software-engineering",,"The development and study of efficient ways to deploy software.","uploads/hub_images/2020/10/07/software-engineering.jpg",4,1,2819,168,FALSE
+128,"nuclear physics",FALSE,"2020-04-24 23:50:58.802653+00","2021-09-07 17:51:43.438194+00","","nuclear-theory",,"The field of physics that studies atomic nuclei and their constituents and interactions.","uploads/hub_images/2020/10/07/nuclear-theory.jpg",5,1,23575,42,FALSE
+421,"rheumatology & autoimmunity",FALSE,"2021-12-27 22:39:44.060742+00","2021-12-30 19:05:29.005381+00","","rheumatology",,"The branch of medicine devoted to the diagnosis and therapy of rheumatic diseases","uploads/hub_images/2021/12/27/Rheumatology.jpeg",3,49,55,7,FALSE
+35,"economics",FALSE,"2020-04-01 17:18:50.48974+00","2021-09-07 17:51:43.650069+00","ECON","economics",,"The study of the production, distribution, and consumption of goods and services.","uploads/hub_images/2020/10/07/economics-3_1YhJ4xv.jpg",9,54,5287,220,FALSE
+13,"metascience",FALSE,"2019-12-18 22:39:40.287474+00","2021-09-07 17:51:39.210048+00","","metascience",,"The use of scientific methodology to study science itself with the goal of increasing the quality of scientific research while reducing waste.","uploads/hub_images/2020/10/07/metascience.jpg",9,168,1912,71,FALSE
+215,"psychiatry",FALSE,"2020-05-23 02:36:52.982033+00","2021-09-07 17:51:48.899462+00","","mental-illness",,"The medical specialty devoted to the diagnosis, prevention, and treatment of mental disorders.","uploads/hub_images/2020/10/07/mental-illness.jpg",3,208,4107,900,FALSE
+176,"literature",FALSE,"2020-04-24 23:52:39.106684+00","2021-09-07 17:51:32.999567+00","","general-literature",,"Written works, especially prose fiction, drama, and poetry.","uploads/hub_images/2020/11/02/general-literature.jpg",10,8,997,325,FALSE
+141,"emerging technologies",FALSE,"2020-04-24 23:50:59.389329+00","2021-09-07 17:51:48.750764+00","","emerging-technologies",,"Technologies whose development, practical applications, or both are still largely unrealized.","uploads/hub_images/2020/10/07/emerging-technologies.jpg",8,63,762,137,FALSE
+211,"zoology",FALSE,"2020-05-06 23:28:42.336873+00","2021-09-07 17:51:31.315475+00","","zoology",,"The science of behavior, structure and classification of animals.","uploads/hub_images/2020/10/07/zoology-3.jpg",2,23,5832,66,FALSE
+30,"physics",FALSE,"2020-04-01 17:16:30.710191+00","2021-09-07 17:51:48.709393+00","","physics",,"The science that studies matter, its motion and behavior through space and time, and the related entities of energy and force.","uploads/hub_images/2020/10/07/physics.jpg",5,50,85441,512,FALSE
+38,"history",FALSE,"2020-04-01 19:24:13.372576+00","2021-09-07 17:51:26.32146+00","","history",,"The study of the past events, particularly in human affairs.","uploads/hub_images/2020/10/07/history.jpg",10,21,2126,538,FALSE
+8,"synthetic biology",FALSE,"2019-12-05 17:25:50.924992+00","2021-09-07 17:51:27.580031+00","","synthetic-biology",,"Design and creation of biological organisms and systems.","uploads/hub_images/2020/10/07/synthetic-biology-3.jpg",2,28,832,77,FALSE
+416,"psychology of sexual orientation &gender diversity",FALSE,"2021-12-23 19:57:53.596216+00","2021-12-23 19:57:53.59624+00","","psychology-of-sexual-orientation-gender-diversity",,"This field of psychology focuses on the diversity of human sexual orientations, associated policies and research.","uploads/hub_images/2021/12/23/gender-neutral-symbol.jpg",9,108,40,13,FALSE
+191,"biochemistry",FALSE,"2020-05-06 23:28:42.236018+00","2021-09-07 17:51:25.895525+00","","biochemistry",,"The study of chemical processes related to living things.","uploads/hub_images/2020/10/07/biochemistry.jpg",2,66,12529,346,FALSE
+239,"programming languages",FALSE,"2020-08-04 13:59:38.797096+00","2021-09-07 17:51:49.328378+00","","programming-languages",,"Design, implementation and analysis of programming languages.","uploads/hub_images/2020/10/07/programming-languages.jpg",4,3,7,156,FALSE
+422,"topology",FALSE,"2021-12-29 01:25:20.523349+00","2021-12-29 01:33:40.043277+00","","topology",,"A branch of mathematics focused on the properties of space that are related with distance, shape, size, and relative position of figures","uploads/hub_images/2021/12/29/Geometry.jpeg",6,0,0,3,FALSE
+423,"complementary and alternative medicine",FALSE,"2021-12-31 18:29:06.569234+00","2021-12-31 18:29:06.569262+00","","complementary-and-alternative-medicine",,"The array of therapies that extend beyond conventional Western medical treatments","uploads/hub_images/2021/12/31/acupunture.jpeg",3,92,89,8,FALSE
+218,"chemical engineering",FALSE,"2020-07-06 12:15:58.087746+00","2021-09-07 17:51:25.977165+00","","chemical-engineering",,"Conversion of raw materials into usable products.","uploads/hub_images/2020/10/07/chemical-engineering.jpg",8,6,4807,65,FALSE
+201,"microbiology",FALSE,"2020-05-06 23:28:42.286403+00","2021-09-07 17:51:35.570626+00","","microbiology",,"The study of microscopic organisms.","uploads/hub_images/2020/10/07/microbiology.jpg",2,82,10719,80,FALSE
+263,"computational engineering, finance, and science",FALSE,"2020-10-13 22:23:07.268654+00","2021-09-07 17:51:27.546493+00","","computational-engineering-finance-and-science",,"","",1,12,51,156,FALSE
+419,"nuclear engineering",FALSE,"2021-12-24 01:15:55.613466+00","2022-01-07 21:14:52.046289+00","","nuclear-engineering",,"The branch of engineering concerned with the application of breaking down atomic nuclei or of combining atomic nuclei","uploads/hub_images/2022/01/07/nuclear-theory.jpg",8,0,2,10,FALSE
+245,"blockchain",FALSE,"2020-08-09 12:06:16.285766+00","2022-01-14 23:25:04.522229+00","","blockchain",,"An append-only data structure most notably used as a public transaction ledger for cryptocurrencies.","uploads/hub_images/2020/10/07/blockchain.jpg",4,196,206,1066,FALSE
+4,"cryptocurrency",FALSE,"2019-11-01 18:51:12.12785+00","2021-09-07 17:51:32.162389+00","","cryptocurrency",,"Decentralized digital assets designed to work as a medium of exchange.","uploads/hub_images/2020/10/07/cryptocurrency.jpg",4,311,1276,2065,FALSE
+403,"internet of things",FALSE,"2021-08-01 19:59:40.098302+00","2021-12-23 22:04:15.92799+00","","internet-of-things",,"Network of physical objects embedded with sensors, software, or other methods for exchanging data over the Internet","uploads/hub_images/2021/12/23/IOT.jpg",4,41,111,46,FALSE
+408,"cognitive science",FALSE,"2021-12-21 13:13:42.032222+00","2021-12-21 13:13:42.032245+00","","cognitive-science",,"The interdisciplinary study of the mind including psychology, neuroscience, computer science/artificial intelligence, linguistics, anthropology, etc.","uploads/hub_images/2021/12/21/CogSci.png",9,104,118,99,FALSE
+197,"developmental biology",FALSE,"2020-05-06 23:28:42.264652+00","2021-09-07 17:51:36.703076+00","","developmental-biology",,"Field of biology which investigates the processes by which living things develop.","uploads/hub_images/2020/10/07/developmental-biology.jpg",2,24,3295,76,FALSE
+204,"pathology",FALSE,"2020-05-06 23:28:42.301181+00","2021-09-07 17:51:35.295446+00","","pathology",,"Diagnosis and study of diseases or injury.","uploads/hub_images/2020/10/07/pathology.jpg",2,25,1671,84,FALSE
+222,"law",FALSE,"2020-07-28 16:22:31.275048+00","2021-09-07 17:51:36.590907+00","","legal",,"A system of rules created and enforced through social or governmental institutions to regulate behavior.","uploads/hub_images/2020/10/07/legal-2.jpg",9,128,1532,78,FALSE
+40,"philosophy",FALSE,"2020-04-02 01:27:33.940935+00","2021-09-07 17:51:26.35346+00","","philosophy",,"The study of the fundamental nature of knowledge, reality, and existence.","uploads/hub_images/2020/10/07/philosophy.jpg",10,18,1189,337,FALSE
+96,"optics",FALSE,"2020-04-24 23:50:57.682498+00","2021-09-07 17:51:29.34006+00","","optics",,"Branch of physics dealing with the behavior and properties of light.","uploads/hub_images/2020/10/07/optics.jpg",5,21,15897,45,FALSE
+417,"telecommunications",FALSE,"2021-12-23 20:54:55.110815+00","2021-12-26 18:01:25.716357+00","","electrical-engineering",,"The transmission of information by various types of technologies over wire, radio, optical, or other electromagnetic systems","uploads/hub_images/2021/12/23/electrical_engineering.jpeg",8,164,99,34,FALSE
+210,"systems biology",FALSE,"2020-05-06 23:28:42.332308+00","2021-09-07 17:51:28.624708+00","","systems-biology",,"Computational and mathematical analysis and modeling of biological systems.","uploads/hub_images/2020/10/07/systems-biology.jpg",2,11,3399,67,FALSE
+1,"machine learning",FALSE,"2019-11-01 18:51:12.12785+00","2021-09-07 17:51:49.969308+00","ML","machine-learning",,"The study of computer algorithms that improve automatically through experience.","uploads/hub_images/2020/10/07/machine-learning.jpg",4,261,17333,1050,FALSE
+41,"artificial intelligence",FALSE,"2020-04-02 05:55:08.92455+00","2021-09-07 17:51:36.549638+00","AI","artificial-intelligence",,"Construction of artificial systems that behave intelligently.","uploads/hub_images/2020/10/07/artificial-intelligence.jpg",4,257,10581,1197,FALSE
+259,"business",FALSE,"2020-10-08 09:00:51.471341+00","2021-09-07 17:51:35.238014+00","","business",,"The study of Business","uploads/hub_images/2021/02/10/adeolu-eletu-E7RLgUjjazc-unsplash-min_uorIKJ7.jpg",1,138,13055,464,FALSE
+17,"genetics",FALSE,"2020-01-10 18:19:53.047967+00","2021-09-07 17:51:28.441733+00","","genetics",,"The study of genes and their inheritance.","uploads/hub_images/2020/10/07/genetics.jpg",2,93,15480,567,FALSE
+2,"neuroscience",FALSE,"2019-11-01 18:51:12.12785+00","2021-09-07 17:51:49.314734+00","","neuroscience",,"The study of the structure, development and function of the nervous system.","uploads/hub_images/2020/10/07/neuroscience.jpg",2,567,22829,2252,FALSE
+22,"ecology",FALSE,"2020-01-26 20:48:32.102948+00","2021-09-07 17:51:40.727503+00","","ecology",,"The study of interactions and relationships between living organisms.","uploads/hub_images/2020/10/07/ecology.jpg",2,30,9227,789,FALSE
+199,"evolutionary biology",FALSE,"2020-05-06 23:28:42.275069+00","2021-09-07 17:51:39.551125+00","","evolutionary-biology",,"The study of evolutionary processes.","uploads/hub_images/2020/10/07/evolutionary-biology-2.jpg",2,10,9143,74,FALSE
+18,"computer science",FALSE,"2020-01-14 05:18:56.153793+00","2021-09-07 17:51:44.764302+00","","computer-science",,"The study of computation and information.","uploads/hub_images/2020/10/07/computer-science.jpg",4,122,50900,1411,FALSE
+411,"clinical psychology",FALSE,"2021-12-22 17:20:17.760771+00","2021-12-31 02:49:52.582296+00","","clinical-psychology",,"The branch of psychology that involves the assessment, diagnosis and treatment of mental disorders","uploads/hub_images/2021/12/22/clinical_psychology.jpeg",9,140,63,19,FALSE
+200,"immunology",FALSE,"2020-05-06 23:28:42.281875+00","2021-09-07 17:51:34.90667+00","","immunology",,"The branch of medicine dealing with the immune system of living organisms.","uploads/hub_images/2020/10/07/immunology.jpg",3,269,8167,255,FALSE
+229,"botany",FALSE,"2020-08-03 02:34:02.901428+00","2021-09-07 17:51:24.387522+00","","botany",,"The study of plants, including their physiology, structure, genetics, ecology, distribution, classification, and economic importance.","uploads/hub_images/2020/10/07/botany.jpg",2,17,11303,116,FALSE
+171,"finance",FALSE,"2020-04-24 23:52:38.172943+00","2021-09-07 17:51:32.389078+00","","general-finance",,"The management, creation, and study of money and investments.","uploads/hub_images/2020/10/07/general-finance.jpg",9,130,2988,235,FALSE
+430,"cardiology",FALSE,"2022-04-04 22:42:27.421053+00","2022-04-04 22:42:27.421079+00","","cardiology",,"The branch of medicine that deals with the diagnosis and treatment of diseases and disorders of the heart","uploads/hub_images/2022/04/04/towfiqu-barbhuiya-QsBfOwMoPNY-unsplash.jpg",3,11,8,2,FALSE
+393,"multidisciplinary science",FALSE,"2021-02-17 05:21:39.81372+00","2021-09-07 17:51:31.438405+00","MDS","multidisciplinary-science",,"Multidisciplinary science","",1,28,4665,337,FALSE

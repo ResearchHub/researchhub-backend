@@ -198,7 +198,7 @@ INSTALLED_APPS = [
     # Channels
     "channels",
     # Django Celery Results
-    "django_celery_results",
+    # "django_celery_results",
     # Custom apps
     "analytics",
     "bullet_point",
@@ -524,13 +524,14 @@ if PRODUCTION or STAGING:
 
 # Search (Elastic)
 
+ELASTICSEARCH_HOST = os.environ.get("ELASTICSEARCH_HOST", keys.ELASTICSEARCH_HOST)
+
 ELASTICSEARCH_DSL = {
     "default": {
-        "hosts": "http://localhost:9200",
+        "hosts": ELASTICSEARCH_HOST if ELASTICSEARCH_HOST else "http://localhost:9200",
     },
 }
 
-ELASTICSEARCH_HOST = os.environ.get("ELASTICSEARCH_HOST", keys.ELASTICSEARCH_HOST)
 if PRODUCTION:
     ELASTICSEARCH_DSL = {
         "default": {
@@ -603,9 +604,9 @@ CELERY_BROKER_URL = "redis://{}:{}/0".format(REDIS_HOST, REDIS_PORT)
 #     DB_NAME
 # )
 CELERY_TIMEZONE = "US/Pacific"
-CELERY_RESULT_BACKEND = "django-db"
+# CELERY_RESULT_BACKEND = "django-db"
 CELERY_TASK_TRACK_STARTED = True
-CELERY_RESULT_EXTENDED = True
+# CELERY_RESULT_EXTENDED = True
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_TASK_DEFAULT_QUEUE = "default"
