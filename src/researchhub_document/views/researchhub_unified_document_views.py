@@ -181,6 +181,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         context = {
             "doc_duds_get_documents": {
                 "_include_fields": [
+                    "featured",
                     "abstract",
                     "aggregate_citation_consensus",
                     "created_by",
@@ -556,11 +557,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         )
 
         context = self._get_serializer_context()
+        context["hub_id"] = hub_id
         page = self.paginate_queryset(documents)
 
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=[
+                "featured",
                 "documents",
                 "document_type",
                 "get_review",
