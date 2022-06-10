@@ -477,9 +477,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         elif filtering == "-created_date":
             qs = qs.order_by(filtering)
         elif filtering == "-hot_score" or not filtering:
-            featured_doc_ids = FeaturedContent.objects.filter(hub_id=hub_id).values(
-                "unified_document"
-            )
+            hub_id_to_filter = hub_id if hub_id > 0 else None
+            featured_doc_ids = FeaturedContent.objects.filter(
+                hub_id=hub_id_to_filter
+            ).values("unified_document")
 
             if featured_doc_ids.count() > 0:
                 featured_docs = ResearchhubUnifiedDocument.objects.filter(
@@ -704,7 +705,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         if request.data["feature_in_homepage"] == True:
             FeaturedContent.objects.get_or_create(
-                unified_document=unified_document, hub_id=0
+                unified_document=unified_document, hub_id=None
             )
 
         if request.data["feature_in_hubs"] == True:
@@ -730,10 +731,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         hub_ids = list(unified_document.hubs.values_list("id", flat=True))
         hub_ids.append(0)
 
-        for hub_id in hub_ids:
-            FeaturedContent.objects.filter(
-                unified_document=unified_document, hub_id=hub_id
-            ).delete()
+        FeaturedContent.objects.filter(unified_document=unified_document).delete()
 
         reset_unified_document_cache(
             hub_ids,

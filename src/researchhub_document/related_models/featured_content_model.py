@@ -1,6 +1,6 @@
 from django.db import models
-from typing_extensions import Required
 
+from hub.models import Hub
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -8,11 +8,13 @@ from utils.models import DefaultModel
 
 
 class FeaturedContent(DefaultModel):
-    # Not a foreign key because hub_id=0 is homepage
-    hub_id = models.IntegerField(
-        null=False,
-        blank=False,
-        db_index=True,
+    hub = models.ForeignKey(
+        Hub,
+        default=None,
+        blank=True,
+        null=True,
+        on_delete=models.CASCADE,
+        related_name="featured_content",
     )
 
     unified_document = models.ForeignKey(
