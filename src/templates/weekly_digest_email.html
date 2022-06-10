@@ -28,40 +28,40 @@
                     {% for paper in papers %}
                         <a class="paper-card-link" href="https://www.researchhub.com/paper/{{paper.id}}/summary">
                             <div class="paper-card">
-                                <div class="score-wrap">
-                                    <div class="score">
-                                        <span class="flex-text">
+                                <div class="score-wrap" style="align-items: center; display: flex; justify-content: center;">
+                                    <div class="score" style="color: rgb(100, 196, 143); background: rgba(240, 240, 240, 0.5) !important; border-radius: 24px; width: 48px; height: 28px; display: flex; justify-content: center; align-items: center; text-align: center;">
+                                        <span style="margin: auto;">
                                             {{paper.score}}
                                         </span>
                                     </div>
                                 </div>
-                                <div class="paper-card-right">
-                                    <div class="paper-card-right-row">
+                                <table class="paper-card-right">
+                                    <tr class="paper-card-right-row">
                                         <img
                                             class="author-avatar"
-                                            src="{{ paper.author.profile_image }}"
-                                            alt="{{ paper.author.profile_image }}"
+                                            src="https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg"
+                                            style="border-radius: 20px; height: 16; object-fit: contain; overflow: hidden; width: 16;"
                                         />
                                         <span class="paper-card-accent-font">
-                                            {{paper.author.first_name}} {{paper.author.last_name}}
+                                            {{paper.uploaded_by.full_name}}
                                         </span>
                                         <span>
                                             posted in
                                         </span>
                                         <span class="paper-card-accent-font">{{paper.get_hub_names}}</span>
-                                    </div>
-                                    <div class="paper-card-right-row">
+                                    </tr>
+                                    <tr class="paper-card-right-row">
                                         <span class="paper-card-paper-title">
                                             {{paper.display_title}}
                                         </span>
-                                    </div>
-                                    <div class="paper-card-right-row">
-                                        <img class="paper-card-icon icon-first" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-comment-icon.png" />
+                                    </tr>
+                                    <tr class="paper-card-right-row">
+                                        <img class="paper-card-icon icon-first" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-comment-icon.png" width="16px"/>
                                         {{paper.get_discussion_count}}
-                                        <img class="paper-card-icon" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-paper-icon.png" />
+                                        <img class="paper-card-icon" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-paper-icon.png" width="16px"/>
                                         paper
-                                    </div>
-                                </div>
+                                    </tr>
+                                </table>
                             </div>
                         </a>
                     {% endfor %}
