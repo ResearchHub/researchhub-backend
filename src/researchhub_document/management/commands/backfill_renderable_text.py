@@ -30,9 +30,10 @@ class Command(BaseCommand):
         needs_text = ResearchhubPost.objects.filter(renderable_text="")
         count = needs_text.count()
         for i, post in enumerate(needs_text):
-            print("{} / {}".format(i, count))
+            print("{} / {} / id: {}".format(i, count, post.id))
             md = post.get_full_markdown()
             if md:
+                print("in md: {}".format(md))
                 text = markdown_to_text(md)
                 if len(text) > 255:
                     text = text[0:255] + "..."
