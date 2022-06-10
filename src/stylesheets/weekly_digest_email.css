@@ -80,8 +80,8 @@ body {
 }
 
 .paper-card-icon {
-  height: 16;
-  width: 16;
+  height: 16px;
+  width: 16px;
   object-fit: contain;
   margin-left: 8px;
 }
@@ -108,10 +108,6 @@ body {
 }
 
 .email-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   text-align: center;
   padding: 16px;
   margin: auto;
@@ -139,10 +135,7 @@ body {
 
 .author-avatar {
   border-radius: 20px;
-  height: 16;
-  object-fit: contain;
-  overflow: hidden;
-  width: 16;
+  width: 16px;
 }
 
 .avatar-wrapper {

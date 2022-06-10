@@ -9,9 +9,6 @@
     </head>
     {% inlinecss "weekly_digest_email.css" %}
         <body>
-            <div style="display: none; max-height: 0px; overflow: hidden;">
-                {{ preview_text }}
-            </div>
             <div class="email-container">
                 <div class="email-header">
                     <div class="flex-text inline">
@@ -39,8 +36,8 @@
                                     <tr class="paper-card-right-row">
                                         <img
                                             class="author-avatar"
-                                            src="https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg"
-                                            style="border-radius: 20px; height: 16; object-fit: contain; overflow: hidden; width: 16;"
+                                            src="{{ paper.uploaded_by.author_profile.profile_image }}"
+                                            onerror="this.src='https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg'"
                                         />
                                         <span class="paper-card-accent-font">
                                             {{paper.uploaded_by.full_name}}
@@ -55,7 +52,7 @@
                                             {{paper.display_title}}
                                         </span>
                                     </tr>
-                                    <tr class="paper-card-right-row">
+                                    <tr class="paper-card-right-row" style="display: flex; align-items: center;">
                                         <img class="paper-card-icon icon-first" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-comment-icon.png" width="16px"/>
                                         {{paper.get_discussion_count}}
                                         <img class="paper-card-icon" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-paper-icon.png" width="16px"/>
