@@ -200,12 +200,13 @@ class ResearchhubPost(AbstractGenericReactionModel):
     def get_full_markdown(self):
         try:
             if self.document_type == DISCUSSION:
-                byte_string = instance.discussion_src.read()
+                byte_string = self.discussion_src.read()
             else:
                 byte_string = self.eln_src.read()
             full_markdown = byte_string.decode("utf-8")
             return full_markdown
-        except Exception:
+        except Exception as e:
+            print(e)
             return None
 
     def get_discussion_count(self):

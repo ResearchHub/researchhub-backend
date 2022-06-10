@@ -178,7 +178,8 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 byte_string = instance.eln_src.read()
             full_markdown = byte_string.decode("utf-8")
             return full_markdown
-        except Exception:
+        except Exception as e:
+            print(e)
             return None
 
     def get_hubs(self, instance):
