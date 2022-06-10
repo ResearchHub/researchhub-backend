@@ -34,6 +34,8 @@ class Command(BaseCommand):
             md = post.get_full_markdown()
             if md:
                 text = markdown_to_text(md)
+                if len(text) > 255:
+                    text = text[0:255] + "..."
                 post.renderable_text = text
                 post.save()
                 print("{} / {} markdown saved".format(i, count))
