@@ -74,6 +74,8 @@ dj-rest-auth = "^2.2.2"
 black = "^22.3.0"
 cloudscraper = "^1.2.60"
 djangorestframework-api-key = "2.2"
+Markdown = "^3.3.7"
+bs4 = "^0.0.1"
 
 [tool.poetry.dev-dependencies]
 
