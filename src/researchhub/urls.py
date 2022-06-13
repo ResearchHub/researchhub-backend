@@ -145,17 +145,10 @@ router.register(
     basename="discussion_file_upload",
 )
 
-
 router.register(
     r"paper/([0-9]+)/bullet_point",
     bullet_point.views.BulletPointViewSet,
     basename="bullet_points",
-)
-
-router.register(
-    r"paper/featured_papers",
-    paper_views.FeaturedPaperViewSet,
-    basename="featured_papers",
 )
 
 router.register(

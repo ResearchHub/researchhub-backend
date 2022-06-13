@@ -1097,12 +1097,3 @@ class AdditionalFile(models.Model):
     )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
-
-
-class FeaturedPaper(models.Model):
-    paper = models.ForeignKey(Paper, on_delete=models.CASCADE, related_name="featured")
-    user = models.ForeignKey(
-        "user.User", on_delete=models.CASCADE, related_name="featured_papers"
-    )
-    ordinal = models.IntegerField(default=0)
-    created_date = models.DateTimeField(auto_now_add=True)
