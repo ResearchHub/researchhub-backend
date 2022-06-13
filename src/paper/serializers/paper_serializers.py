@@ -786,7 +786,6 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
     hubs = serializers.SerializerMethodField()
     score = serializers.ReadOnlyField()  # @property
     unified_document = serializers.SerializerMethodField()
-    unified_document_id = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
 
@@ -868,13 +867,6 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
         )
 
         return serializer.data
-
-    def get_unified_document_id(self, paper):
-        try:
-            target_unified_doc = paper.unified_document
-            return target_unified_doc.id if (target_unified_doc is not None) else None
-        except Exception:
-            return None
 
     def get_uploaded_by(self, paper):
         context = self.context

@@ -235,8 +235,15 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         context = {
             "request": request,
+            "doc_duds_get_documents": {"_include_fields": ["id"]},
             "pap_dps_get_unified_document": {
-                "_include_fields": ["id", "reviews", "is_removed", "document_type"]
+                "_include_fields": [
+                    "id",
+                    "reviews",
+                    "is_removed",
+                    "document_type",
+                    "documents",
+                ]
             },
             "pap_dps_get_user_vote": {"_exclude_fields": ["paper"]},
             "pap_dps_get_uploaded_by": {
@@ -290,7 +297,6 @@ class PaperViewSet(viewsets.ModelViewSet):
                 "pdf_url",
                 "pdf_license",
                 "slug",
-                "unified_document_id",
                 "unified_document",
                 "uploaded_date",
                 "created_date",
