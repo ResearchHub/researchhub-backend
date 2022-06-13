@@ -16,7 +16,7 @@ from notification.models import Notification
 from paper.related_models.paper_model import Paper
 from user.filters import AuditDashboardFilterBackend
 from user.models import Action
-from user.permissions import UserIsEditor
+from user.permissions import IsModerator, UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 from utils import sentry
 from utils.message import send_email_message
@@ -29,7 +29,7 @@ class CursorSetPagination(CursorPagination):
 
 class AuditViewSet(viewsets.GenericViewSet):
     queryset = Action.objects.all()
-    permission_classes = [UserIsEditor]
+    permission_classes = [UserIsEditor | IsModerator]
     pagination_class = CursorSetPagination
     filter_backends = (AuditDashboardFilterBackend,)
     order_fields = ("created_date", "verdict_created_date")

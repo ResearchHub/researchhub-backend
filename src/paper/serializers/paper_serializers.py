@@ -4,11 +4,9 @@ import re
 import requests
 import rest_framework.serializers as serializers
 from django.db import IntegrityError, transaction
-from django.db.models import Sum
 from django.http import QueryDict
 
 import utils.sentry as sentry
-from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
@@ -19,7 +17,6 @@ from paper.models import (
     ARXIV_IDENTIFIER,
     DOI_IDENTIFIER,
     AdditionalFile,
-    FeaturedPaper,
     Figure,
     Flag,
     Paper,
@@ -41,7 +38,7 @@ from paper.utils import (
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url,
 )
-from reputation.models import AuthorRSC, Contribution
+from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -73,7 +70,6 @@ class BasePaperSerializer(serializers.ModelSerializer):
     bullet_points = serializers.SerializerMethodField()
     csl_item = serializers.SerializerMethodField()
     discussion = serializers.SerializerMethodField()
-    # discussion_users = serializers.SerializerMethodField()
     file = serializers.SerializerMethodField()
     first_figure = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
@@ -100,9 +96,6 @@ class BasePaperSerializer(serializers.ModelSerializer):
             "hypothesis_id",
         ]
         model = Paper
-
-    # def get_uploaded_by(self, obj):
-    #     return UserSerializer(obj.uploaded_by, read_only=True).data
 
     def get_unified_document_id(self, instance):
         try:
@@ -326,16 +319,6 @@ class BasePaperSerializer(serializers.ModelSerializer):
             return paper.file.url
         return None
 
-    def get_discussion_users(self, paper):
-        contributions = Contribution.objects.filter(
-            unified_document=paper.unified_document
-        )
-        contribution_users = contributions.values_list("user", flat=True).distinct()
-        users = User.objects.filter(id__in=contribution_users)
-        serializer = UserSerializer(users, many=True)
-        data = serializer.data
-        return data
-
 
 class ContributionPaperSerializer(BasePaperSerializer):
     uploaded_by = None
@@ -349,7 +332,6 @@ class ContributionPaperSerializer(BasePaperSerializer):
 
 
 class PaperSerializer(BasePaperSerializer):
-    raw_author_scores = serializers.SerializerMethodField()
     authors = serializers.SerializerMethodField()
     uploaded_date = serializers.ReadOnlyField()  # @property
 
@@ -374,7 +356,6 @@ class PaperSerializer(BasePaperSerializer):
             "pdf_file_extract",
             "pdf_license_url",
             "publication_type",
-            "raw_author_scores",
             "retrieved_from_external_source",
             "paper_score",
             "slug",
@@ -764,69 +745,6 @@ class PaperSerializer(BasePaperSerializer):
             return file.url
         return None
 
-    def get_raw_author_scores(self, paper):
-        get_scores = self.context.get("get_raw_author_scores", False)
-        scores = []
-        if get_scores:
-            raw_authors = paper.raw_authors
-            if raw_authors:
-                for author in raw_authors:
-                    if isinstance(author, str):
-                        author = json.loads(author)
-
-                    if not isinstance(author, dict):
-                        scores.append(0)
-                        continue
-
-                    score = Paper.objects.filter(
-                        raw_authors__contains=[
-                            {
-                                "first_name": author.get("first_name"),
-                                "last_name": author.get("last_name"),
-                            }
-                        ]
-                    ).aggregate(Sum("paper_score"))["paper_score__sum"]
-
-                    scores.append(score)
-        return scores
-
-
-class HubPaperSerializer(BasePaperSerializer):
-    def get_bullet_points(self, paper):
-        # bullet_points = paper.bullet_points.filter(
-        #     ordinal__isnull=False
-        # ).order_by('ordinal')[:3]
-        return BulletPointTextOnlySerializer(
-            paper.bullet_points,
-            many=True,
-            context=self.context,
-        ).data
-
-    # def get_uploaded_by(self, paper):
-    #     serializer_context = {'request': self.context.get('request'), 'no_balance': True}
-    #     data = UserSerializer(paper.uploaded_by, context=serializer_context, read_only=True).data
-    #     return data
-
-    def get_csl_item(self, paper):
-        return None
-
-    def get_discussion(self, paper):
-        return None
-
-    def get_referenced_by(self, paper):
-        return None
-
-    def get_references(self, paper):
-        return None
-
-
-class FeaturedPaperSerializer(serializers.ModelSerializer):
-    paper = PaperSerializer()
-
-    class Meta:
-        fields = "__all__"
-        model = FeaturedPaper
-
 
 class PaperReferenceSerializer(serializers.ModelSerializer):
     hubs = SimpleHubSerializer(
@@ -864,7 +782,6 @@ class PaperReferenceSerializer(serializers.ModelSerializer):
 class DynamicPaperSerializer(DynamicModelFieldSerializer):
     authors = serializers.SerializerMethodField()
     boost_amount = serializers.SerializerMethodField()
-    discussion_users = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
     score = serializers.ReadOnlyField()  # @property
@@ -907,21 +824,6 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
     def get_boost_amount(self, paper):
         return paper.get_boost_amount()
 
-    def get_discussion_users(self, paper):
-        context = self.context
-        _context_fields = context.get("pap_dps_get_discussion_users", {})
-
-        contributions = Contribution.objects.filter(
-            unified_document=paper.unified_document
-        )
-        contribution_users = contributions.values_list("user", flat=True).distinct()
-        users = User.objects.filter(id__in=contribution_users)
-
-        serializer = DynamicUserSerializer(
-            users, many=True, context=context, **_context_fields
-        )
-        return serializer.data
-
     def get_hubs(self, paper):
         context = self.context
         _context_fields = context.get("pap_dps_get_hubs", {})
@@ -960,7 +862,7 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
 
         serializer = DynamicUnifiedDocumentSerializer(
             paper.unified_document,
-            many=False,
+            context=context,
             **_context_fields,
         )
 
