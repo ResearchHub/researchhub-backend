@@ -53,7 +53,7 @@ class Vote(DefaultModel):
     def paper(self):
         from paper.related_models.paper_model import Paper
 
-        if type(self.item) is Paper:
+        if isinstance(self.item, Paper):
             return self.item
 
     @property

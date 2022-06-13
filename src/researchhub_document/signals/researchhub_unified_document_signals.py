@@ -1,16 +1,8 @@
-from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from discussion.models import Comment, Reply, Thread
 from discussion.reaction_models import Vote as GrmVote
-from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
-from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import (
-    PAPER as PaperDocType,
-)
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.tasks import recalc_hot_score_task
 from utils import sentry
 
@@ -18,22 +10,22 @@ from utils import sentry
 @receiver(post_save, sender=GrmVote, dispatch_uid="recalc_hot_score_on_vote")
 def recalc_hot_score(instance, sender, **kwargs):
     try:
-        if type(instance) is GrmVote:
-            recalc_hot_score_task.apply_async(
-                (
-                    instance.content_type_id,
-                    instance.object_id,
-                ),
-                priority=2,
-                countdown=5,
-            )
-        elif type(instance) is ResearchhubUnifiedDocument:
-            inner_doc = instance.get_document()
-            content_type_id = ContentType.objects.get_for_model(inner_doc).id
+        recalc_hot_score_task.apply_async(
+            (
+                instance.content_type_id,
+                instance.object_id,
+            ),
+            priority=2,
+            countdown=5,
+        )
+        # TODO: calvinhlee - remove this if works on staging.
+        # elif isinstance(instance, ResearchhubUnifiedDocument):
+        #     inner_doc = instance.get_document()
+        #     content_type_id = ContentType.objects.get_for_model(inner_doc).id
 
-            recalc_hot_score_task.apply_async(
-                (content_type_id, inner_doc.id), priority=2, countdown=5
-            )
+        #     recalc_hot_score_task.apply_async(
+        #         (content_type_id, inner_doc.id), priority=2, countdown=5
+        #     )
     except Exception as error:
         print("recalc_hot_score error", error)
         sentry.log_error(error)
@@ -60,24 +52,22 @@ def sync_is_removed_from_paper(instance, **kwargs):
     dispatch_uid="rh_unified_doc_sync_scores_vote",
 )
 def rh_unified_doc_sync_scores_on_related_docs(instance, sender, **kwargs):
-
-    if type(instance) not in [Paper, Hypothesis, ResearchhubPost]:
+    if not isinstance(instance, (GrmVote)):
         return
 
     unified_document = instance.unified_document
     if not unified_document:
         return
 
-    if sender is GrmVote:
-        instance = instance.item
+    document_obj = instance.item
 
-    sync_scores(unified_document, instance)
+    sync_scores(unified_document, document_obj)
 
 
-def sync_scores(unified_doc, instance):
+def sync_scores(unified_doc, document_obj):
     should_save = False
-    score = instance.calculate_score()  # refer to AbstractGenericReactionModel
-    hot_score = instance.calculate_hot_score()  # AbstractGenericReactionModel
+    score = document_obj.calculate_score()  # refer to AbstractGenericReactionModel
+    hot_score = document_obj.calculate_hot_score()  # AbstractGenericReactionModel
     if unified_doc.hot_score != hot_score:
         unified_doc.hot_score = hot_score
         should_save = True

@@ -115,411 +115,411 @@ def set_or_increment(queryset, hashes, all_users, attributes):
     return hashes
 
 
-def distribute_rewards(starting_date=None, end_date=None, distribute=True):
-    from user.models import User
+# def distribute_rewards(starting_date=None, end_date=None, distribute=True):
+#     from user.models import User
 
-    if end_date is None:
-        end_date = datetime.datetime.now(tz=pytz.utc)
+#     if end_date is None:
+#         end_date = datetime.datetime.now(tz=pytz.utc)
 
-    # static_start_date = datetime.datetime(
-    #     year=2020,
-    #     month=10,
-    #     day=29,
-    #     hour=0,
-    #     minute=0,
-    # )
-    # static_end_date = datetime.datetime(
-    #     year=2020,
-    #     month=11,
-    #     day=8,
-    #     hour=23,
-    #     minute=59,
-    # )
+#     # static_start_date = datetime.datetime(
+#     #     year=2020,
+#     #     month=10,
+#     #     day=29,
+#     #     hour=0,
+#     #     minute=0,
+#     # )
+#     # static_end_date = datetime.datetime(
+#     #     year=2020,
+#     #     month=11,
+#     #     day=8,
+#     #     hour=23,
+#     #     minute=59,
+#     # )
 
-    # Reward distribution logic
-    last_distribution = DistributionAmount.objects.filter(distributed=False)
-    if not last_distribution.exists():
-        if distribute:
-            last_distribution = DistributionAmount.objects.create()
-        else:
-            last_distribution = None
-    else:
-        last_distribution = last_distribution.last()
+#     # Reward distribution logic
+#     last_distribution = DistributionAmount.objects.filter(distributed=False)
+#     if not last_distribution.exists():
+#         if distribute:
+#             last_distribution = DistributionAmount.objects.create()
+#         else:
+#             last_distribution = None
+#     else:
+#         last_distribution = last_distribution.last()
 
-    last_distributed = DistributionAmount.objects.filter(distributed=True)
-    if last_distributed.exists() and starting_date is not None:
-        starting_date = last_distributed.last().distributed_date
-    else:
-        if last_distribution:
-            starting_date = last_distribution.created_date
-        else:
-            starting_date = timezone.now().date() - timedelta(days=7)
+#     last_distributed = DistributionAmount.objects.filter(distributed=True)
+#     if last_distributed.exists() and starting_date is not None:
+#         starting_date = last_distributed.last().distributed_date
+#     else:
+#         if last_distribution:
+#             starting_date = last_distribution.created_date
+#         else:
+#             starting_date = timezone.now().date() - timedelta(days=7)
 
-    reward_dis = RewardDistributor()
+#     reward_dis = RewardDistributor()
 
-    total_reward_amount = DEFAULT_REWARD
-    if last_distribution:
-        total_reward_amount = last_distribution.amount
+#     total_reward_amount = DEFAULT_REWARD
+#     if last_distribution:
+#         total_reward_amount = last_distribution.amount
 
-    score_reward_amount = total_reward_amount * 0.95
-    upvote_reward_amount = total_reward_amount - score_reward_amount
-    IGNORE_USERS = (
-        "pdj7@georgetown.edu",
-        "lightning.lu7@gmail.com",
-        "barmstrong@gmail.com",
-        "mcburniewill@gmail.com",
-        "younggarrett210@gmail.com",
-    )
+#     score_reward_amount = total_reward_amount * 0.95
+#     upvote_reward_amount = total_reward_amount - score_reward_amount
+#     IGNORE_USERS = (
+#         "pdj7@georgetown.edu",
+#         "lightning.lu7@gmail.com",
+#         "barmstrong@gmail.com",
+#         "mcburniewill@gmail.com",
+#         "younggarrett210@gmail.com",
+#     )
 
-    all_users = {}
-    all_papers_uploaded = {}
-    papers_uploaded = Paper.objects.filter(
-        is_removed=False,
-        uploaded_by__probable_spammer=False,
-        uploaded_by__is_suspended=False,
-        created_date__gt=starting_date,
-        created_date__lte=end_date,
-    ).exclude(Q(uploaded_by__email__in=IGNORE_USERS))
+#     all_users = {}
+#     all_papers_uploaded = {}
+#     papers_uploaded = Paper.objects.filter(
+#         is_removed=False,
+#         uploaded_by__probable_spammer=False,
+#         uploaded_by__is_suspended=False,
+#         created_date__gt=starting_date,
+#         created_date__lte=end_date,
+#     ).exclude(Q(uploaded_by__email__in=IGNORE_USERS))
 
-    count = papers_uploaded.count()
-    for i, obj in enumerate(papers_uploaded):
-        print("{} / {}".format(i, count))
-        paper = (obj.id, obj.slug)
-        if not obj.uploaded_by or obj.uploaded_by.email in IGNORE_USERS:
-            continue
-        user_key = obj.uploaded_by.email
-        if user_key in all_papers_uploaded:
-            all_papers_uploaded[user_key].append(paper)
-        else:
-            all_papers_uploaded[user_key] = [paper]
+#     count = papers_uploaded.count()
+#     for i, obj in enumerate(papers_uploaded):
+#         print("{} / {}".format(i, count))
+#         paper = (obj.id, obj.slug)
+#         if not obj.uploaded_by or obj.uploaded_by.email in IGNORE_USERS:
+#             continue
+#         user_key = obj.uploaded_by.email
+#         if user_key in all_papers_uploaded:
+#             all_papers_uploaded[user_key].append(paper)
+#         else:
+#             all_papers_uploaded[user_key] = [paper]
 
-        if user_key not in all_users:
-            all_users[user_key] = True
-    uploaded_paper_count = {}
-    set_or_increment(
-        papers_uploaded, uploaded_paper_count, all_users, ["uploaded_by", "email"]
-    )
+#         if user_key not in all_users:
+#             all_users[user_key] = True
+#     uploaded_paper_count = {}
+#     set_or_increment(
+#         papers_uploaded, uploaded_paper_count, all_users, ["uploaded_by", "email"]
+#     )
 
-    paper_votes = GrmVote.objects.filter(
-        item__is_removed=False,
-        created_by__probable_spammer=False,
-        created_by__is_suspended=False,
-        created_date__gt=starting_date,
-        created_date__lte=end_date,
-    ).exclude(Q(created_by__email__in=IGNORE_USERS), paper__uploaded_by=F("created_by"))
+#     paper_votes = GrmVote.objects.filter(
+#         item__is_removed=False,
+#         created_by__probable_spammer=False,
+#         created_by__is_suspended=False,
+#         created_date__gt=starting_date,
+#         created_date__lte=end_date,
+#     ).exclude(Q(created_by__email__in=IGNORE_USERS), paper__uploaded_by=F("created_by"))
 
-    paper_votes_count = {}
-    set_or_increment(paper_votes, paper_votes_count, all_users, ["created_by", "email"])
+#     paper_votes_count = {}
+#     set_or_increment(paper_votes, paper_votes_count, all_users, ["created_by", "email"])
 
-    paper_voted_on_count = {}
+#     paper_voted_on_count = {}
 
-    count = paper_votes.count()
-    total_score = 0
-    total_paper_scores = 0
-    for i, obj in enumerate(paper_votes):
-        print("{} / {}".format(i, count))
-        score = 1
-        if obj.vote_type == 1:
-            score = 1
-        else:
-            score = -1
+#     count = paper_votes.count()
+#     total_score = 0
+#     total_paper_scores = 0
+#     for i, obj in enumerate(paper_votes):
+#         print("{} / {}".format(i, count))
+#         score = 1
+#         if obj.vote_type == 1:
+#             score = 1
+#         else:
+#             score = -1
 
-        if not obj.paper.uploaded_by or obj.paper.uploaded_by.email in IGNORE_USERS:
-            continue
+#         if not obj.paper.uploaded_by or obj.paper.uploaded_by.email in IGNORE_USERS:
+#             continue
 
-        total_score += score
-        total_paper_scores += score
-        user_key = obj.paper.uploaded_by.email
-        vote_created_by = obj.created_by.email
+#         total_score += score
+#         total_paper_scores += score
+#         user_key = obj.paper.uploaded_by.email
+#         vote_created_by = obj.created_by.email
 
-        if user_key == vote_created_by:
-            continue
+#         if user_key == vote_created_by:
+#             continue
 
-        if user_key in paper_voted_on_count:
-            paper_voted_on_count[user_key] += score
-        else:
-            paper_voted_on_count[user_key] = score
+#         if user_key in paper_voted_on_count:
+#             paper_voted_on_count[user_key] += score
+#         else:
+#             paper_voted_on_count[user_key] = score
 
-        if user_key not in all_users:
-            all_users[user_key] = True
+#         if user_key not in all_users:
+#             all_users[user_key] = True
 
-    threads = Thread.objects.filter(
-        is_removed=False,
-        paper__is_removed=False,
-        created_by__probable_spammer=False,
-        created_by__is_suspended=False,
-        created_date__gt=starting_date,
-        created_date__lte=end_date,
-    ).exclude(Q(created_by__email__in=IGNORE_USERS))
-    discussion_count = {}
-    set_or_increment(threads, discussion_count, all_users, ["created_by", "email"])
+#     threads = Thread.objects.filter(
+#         is_removed=False,
+#         paper__is_removed=False,
+#         created_by__probable_spammer=False,
+#         created_by__is_suspended=False,
+#         created_date__gt=starting_date,
+#         created_date__lte=end_date,
+#     ).exclude(Q(created_by__email__in=IGNORE_USERS))
+#     discussion_count = {}
+#     set_or_increment(threads, discussion_count, all_users, ["created_by", "email"])
 
-    comments = Comment.objects.filter(
-        is_removed=False,
-        parent__is_removed=False,
-        parent__paper__is_removed=False,
-        created_by__probable_spammer=False,
-        created_by__is_suspended=False,
-        created_date__gt=starting_date,
-        created_date__lte=end_date,
-    ).exclude(Q(created_by__email__in=IGNORE_USERS))
-    set_or_increment(comments, discussion_count, all_users, ["created_by", "email"])
+#     comments = Comment.objects.filter(
+#         is_removed=False,
+#         parent__is_removed=False,
+#         parent__paper__is_removed=False,
+#         created_by__probable_spammer=False,
+#         created_by__is_suspended=False,
+#         created_date__gt=starting_date,
+#         created_date__lte=end_date,
+#     ).exclude(Q(created_by__email__in=IGNORE_USERS))
+#     set_or_increment(comments, discussion_count, all_users, ["created_by", "email"])
 
-    replies = Reply.objects.filter(
-        is_removed=False,
-        created_by__probable_spammer=False,
-        created_by__is_suspended=False,
-        created_date__gt=starting_date,
-        created_date__lte=end_date,
-    ).exclude(Q(created_by__email__in=IGNORE_USERS))
-    set_or_increment(replies, discussion_count, all_users, ["created_by", "email"])
+#     replies = Reply.objects.filter(
+#         is_removed=False,
+#         created_by__probable_spammer=False,
+#         created_by__is_suspended=False,
+#         created_date__gt=starting_date,
+#         created_date__lte=end_date,
+#     ).exclude(Q(created_by__email__in=IGNORE_USERS))
+#     set_or_increment(replies, discussion_count, all_users, ["created_by", "email"])
 
-    bulletpoints = BulletPoint.objects.filter(
-        created_by__probable_spammer=False,
-        created_by__is_suspended=False,
-        created_date__gt=starting_date,
-        created_date__lte=end_date,
-    )
+#     bulletpoints = BulletPoint.objects.filter(
+#         created_by__probable_spammer=False,
+#         created_by__is_suspended=False,
+#         created_date__gt=starting_date,
+#         created_date__lte=end_date,
+#     )
 
-    summaries = Summary.objects.filter(
-        proposed_by__probable_spammer=False,
-        proposed_by__is_suspended=False,
-        created_date__gt=starting_date,
-        created_date__lte=end_date,
-    )
+#     summaries = Summary.objects.filter(
+#         proposed_by__probable_spammer=False,
+#         proposed_by__is_suspended=False,
+#         created_date__gt=starting_date,
+#         created_date__lte=end_date,
+#     )
 
-    comment_votes_count = {}
-    comment_upvotes_count = {}
-    bulletpoint_votes_count = {}
-    bulletpoint_upvotes_count = {}
-    summary_votes_count = {}
-    summary_upvotes_count = {}
+#     comment_votes_count = {}
+#     comment_upvotes_count = {}
+#     bulletpoint_votes_count = {}
+#     bulletpoint_upvotes_count = {}
+#     summary_votes_count = {}
+#     summary_upvotes_count = {}
 
-    count = threads.count()
-    comment_score = 0
-    for i, obj in enumerate(threads):
-        print("{} / {}".format(i, count))
-        score = obj.calculate_score(ignore_self_vote=True)
-        comment_score += score
-        user_key = obj.created_by.email
-        if user_key in IGNORE_USERS:
-            continue
-        if user_key in comment_votes_count:
-            comment_votes_count[user_key] += score
-        else:
-            comment_votes_count[user_key] = score
+#     count = threads.count()
+#     comment_score = 0
+#     for i, obj in enumerate(threads):
+#         print("{} / {}".format(i, count))
+#         score = obj.calculate_score(ignore_self_vote=True)
+#         comment_score += score
+#         user_key = obj.created_by.email
+#         if user_key in IGNORE_USERS:
+#             continue
+#         if user_key in comment_votes_count:
+#             comment_votes_count[user_key] += score
+#         else:
+#             comment_votes_count[user_key] = score
 
-        for vote in obj.votes.exclude(created_by=obj.created_by):
-            total_score += 1
-            user_upvote_key = vote.created_by.email
-            if user_upvote_key in comment_upvotes_count:
-                comment_upvotes_count[user_upvote_key] += 1
-            else:
-                comment_upvotes_count[user_upvote_key] = 1
-        if user_key not in all_users:
-            all_users[user_key] = True
+#         for vote in obj.votes.exclude(created_by=obj.created_by):
+#             total_score += 1
+#             user_upvote_key = vote.created_by.email
+#             if user_upvote_key in comment_upvotes_count:
+#                 comment_upvotes_count[user_upvote_key] += 1
+#             else:
+#                 comment_upvotes_count[user_upvote_key] = 1
+#         if user_key not in all_users:
+#             all_users[user_key] = True
 
-    count = replies.count()
-    for i, obj in enumerate(replies):
-        print("{} / {}".format(i, count))
-        score = obj.calculate_score(ignore_self_vote=True)
-        comment_score += score
-        user_key = obj.created_by.email
-        if user_key in IGNORE_USERS:
-            continue
-        if user_key in comment_votes_count:
-            comment_votes_count[user_key] += score
-        else:
-            comment_votes_count[user_key] = score
+#     count = replies.count()
+#     for i, obj in enumerate(replies):
+#         print("{} / {}".format(i, count))
+#         score = obj.calculate_score(ignore_self_vote=True)
+#         comment_score += score
+#         user_key = obj.created_by.email
+#         if user_key in IGNORE_USERS:
+#             continue
+#         if user_key in comment_votes_count:
+#             comment_votes_count[user_key] += score
+#         else:
+#             comment_votes_count[user_key] = score
 
-        for vote in obj.votes.exclude(created_by=obj.created_by):
-            user_upvote_key = vote.created_by.email
-            total_score += 1
-            if user_upvote_key in comment_upvotes_count:
-                comment_upvotes_count[user_upvote_key] += 1
-            else:
-                comment_upvotes_count[user_upvote_key] = 1
+#         for vote in obj.votes.exclude(created_by=obj.created_by):
+#             user_upvote_key = vote.created_by.email
+#             total_score += 1
+#             if user_upvote_key in comment_upvotes_count:
+#                 comment_upvotes_count[user_upvote_key] += 1
+#             else:
+#                 comment_upvotes_count[user_upvote_key] = 1
 
-        if user_key not in all_users:
-            all_users[user_key] = True
+#         if user_key not in all_users:
+#             all_users[user_key] = True
 
-    count = comments.count()
-    for i, obj in enumerate(comments):
-        print("{} / {}".format(i, count))
-        score = obj.calculate_score(ignore_self_vote=True)
-        comment_score += score
-        user_key = obj.created_by.email
-        if user_key in IGNORE_USERS:
-            continue
-        if user_key in comment_votes_count:
-            comment_votes_count[user_key] += score
-        else:
-            comment_votes_count[user_key] = score
+#     count = comments.count()
+#     for i, obj in enumerate(comments):
+#         print("{} / {}".format(i, count))
+#         score = obj.calculate_score(ignore_self_vote=True)
+#         comment_score += score
+#         user_key = obj.created_by.email
+#         if user_key in IGNORE_USERS:
+#             continue
+#         if user_key in comment_votes_count:
+#             comment_votes_count[user_key] += score
+#         else:
+#             comment_votes_count[user_key] = score
 
-        for vote in obj.votes.exclude(created_by=obj.created_by):
-            total_score += 1
-            user_upvote_key = vote.created_by.email
-            if user_upvote_key in comment_upvotes_count:
-                comment_upvotes_count[user_upvote_key] += 1
-            else:
-                comment_upvotes_count[user_upvote_key] = 1
+#         for vote in obj.votes.exclude(created_by=obj.created_by):
+#             total_score += 1
+#             user_upvote_key = vote.created_by.email
+#             if user_upvote_key in comment_upvotes_count:
+#                 comment_upvotes_count[user_upvote_key] += 1
+#             else:
+#                 comment_upvotes_count[user_upvote_key] = 1
 
-        if user_key not in all_users:
-            all_users[user_key] = True
+#         if user_key not in all_users:
+#             all_users[user_key] = True
 
-    count = bulletpoints.count()
-    bulletpoint_score = 0
-    for i, obj in enumerate(bulletpoints):
-        print("{} / {}".format(i, count))
-        user_key = obj.created_by.email
-        score = obj.calculate_score(ignore_self_vote=True)
-        bulletpoint_score += score
-        if user_key in IGNORE_USERS:
-            continue
-        if user_key in bulletpoint_votes_count:
-            bulletpoint_votes_count[user_key] += score
-        else:
-            bulletpoint_votes_count[user_key] = score
+#     count = bulletpoints.count()
+#     bulletpoint_score = 0
+#     for i, obj in enumerate(bulletpoints):
+#         print("{} / {}".format(i, count))
+#         user_key = obj.created_by.email
+#         score = obj.calculate_score(ignore_self_vote=True)
+#         bulletpoint_score += score
+#         if user_key in IGNORE_USERS:
+#             continue
+#         if user_key in bulletpoint_votes_count:
+#             bulletpoint_votes_count[user_key] += score
+#         else:
+#             bulletpoint_votes_count[user_key] = score
 
-        for vote in obj.votes.exclude(bulletpoint__created_by=F("created_by")):
-            total_score += 1
-            user_upvote_key = vote.created_by.email
-            if user_upvote_key in bulletpoint_upvotes_count:
-                bulletpoint_upvotes_count[user_upvote_key] += 1
-            else:
-                bulletpoint_upvotes_count[user_upvote_key] = 1
+#         for vote in obj.votes.exclude(bulletpoint__created_by=F("created_by")):
+#             total_score += 1
+#             user_upvote_key = vote.created_by.email
+#             if user_upvote_key in bulletpoint_upvotes_count:
+#                 bulletpoint_upvotes_count[user_upvote_key] += 1
+#             else:
+#                 bulletpoint_upvotes_count[user_upvote_key] = 1
 
-        if user_key not in all_users:
-            all_users[user_key] = True
+#         if user_key not in all_users:
+#             all_users[user_key] = True
 
-    count = summaries.count()
-    summary_score = 0
-    for i, obj in enumerate(summaries):
-        print("{} / {}".format(i, count))
-        user_key = obj.proposed_by.email
-        score = obj.calculate_score(ignore_self_vote=True)
-        summary_score += score
-        if user_key in IGNORE_USERS:
-            continue
-        if user_key in summary_votes_count:
-            summary_votes_count[user_key] += score
-        else:
-            summary_votes_count[user_key] = score
+#     count = summaries.count()
+#     summary_score = 0
+#     for i, obj in enumerate(summaries):
+#         print("{} / {}".format(i, count))
+#         user_key = obj.proposed_by.email
+#         score = obj.calculate_score(ignore_self_vote=True)
+#         summary_score += score
+#         if user_key in IGNORE_USERS:
+#             continue
+#         if user_key in summary_votes_count:
+#             summary_votes_count[user_key] += score
+#         else:
+#             summary_votes_count[user_key] = score
 
-        for vote in obj.votes.exclude(summary__proposed_by=F("created_by")):
-            total_score += 1
-            user_upvote_key = vote.created_by.email
-            if user_upvote_key in summary_upvotes_count:
-                summary_upvotes_count[user_upvote_key] += 1
-            else:
-                summary_upvotes_count[user_upvote_key] = 1
+#         for vote in obj.votes.exclude(summary__proposed_by=F("created_by")):
+#             total_score += 1
+#             user_upvote_key = vote.created_by.email
+#             if user_upvote_key in summary_upvotes_count:
+#                 summary_upvotes_count[user_upvote_key] += 1
+#             else:
+#                 summary_upvotes_count[user_upvote_key] = 1
 
-        if user_key not in all_users:
-            all_users[user_key] = True
+#         if user_key not in all_users:
+#             all_users[user_key] = True
 
-    # headers = 'Total Upvotes: {}, Total Paper Upvotes: {}, Total Comment Upvotes: {}\n'.format(total_score, total_paper_scores, total_comment_scores,)
-    headers = "name,email,Author URL,Bonus RSC Amount,Paper Submissions,Upvotes,Upvotes on Submissions,Comments,Upvotes on Comments,Key Takeaway Upvotes,Upvotes on Key Takeaways,Upvotes on Summary,Summary Upvotes,Papers Uploaded\n"
+#     # headers = 'Total Upvotes: {}, Total Paper Upvotes: {}, Total Comment Upvotes: {}\n'.format(total_score, total_paper_scores, total_comment_scores,)
+#     headers = "name,email,Author URL,Bonus RSC Amount,Paper Submissions,Upvotes,Upvotes on Submissions,Comments,Upvotes on Comments,Key Takeaway Upvotes,Upvotes on Key Takeaways,Upvotes on Summary,Summary Upvotes,Papers Uploaded\n"
 
-    total_rewards = {}
+#     total_rewards = {}
 
-    for key in all_users:
-        with transaction.atomic():
-            upload_vote_count = paper_voted_on_count.get(key, 0)
-            comment_vote_count = comment_votes_count.get(key, 0)
-            bulletpoint_vote_count = bulletpoint_votes_count.get(key, 0)
-            summary_vote_count = summary_votes_count.get(key, 0)
+#     for key in all_users:
+#         with transaction.atomic():
+#             upload_vote_count = paper_voted_on_count.get(key, 0)
+#             comment_vote_count = comment_votes_count.get(key, 0)
+#             bulletpoint_vote_count = bulletpoint_votes_count.get(key, 0)
+#             summary_vote_count = summary_votes_count.get(key, 0)
 
-            vote_count = (
-                upload_vote_count
-                + comment_vote_count
-                + bulletpoint_vote_count
-                + summary_vote_count
-            )
+#             vote_count = (
+#                 upload_vote_count
+#                 + comment_vote_count
+#                 + bulletpoint_vote_count
+#                 + summary_vote_count
+#             )
 
-            upvotes_count = (
-                paper_votes_count.get(key, 0)
-                + comment_upvotes_count.get(key, 0)
-                + bulletpoint_upvotes_count.get(key, 0)
-                + summary_upvotes_count.get(key, 0)
-            )
-            upvoted_amount = math.floor(
-                (vote_count / (total_score)) * score_reward_amount
-            )
-            upvotes_amount = math.floor(
-                upvotes_count / total_score * upvote_reward_amount
-            )
-            reward_amount = upvoted_amount + upvotes_amount
+#             upvotes_count = (
+#                 paper_votes_count.get(key, 0)
+#                 + comment_upvotes_count.get(key, 0)
+#                 + bulletpoint_upvotes_count.get(key, 0)
+#                 + summary_upvotes_count.get(key, 0)
+#             )
+#             upvoted_amount = math.floor(
+#                 (vote_count / (total_score)) * score_reward_amount
+#             )
+#             upvotes_amount = math.floor(
+#                 upvotes_count / total_score * upvote_reward_amount
+#             )
+#             reward_amount = upvoted_amount + upvotes_amount
 
-            total_rewards[key] = reward_amount
-            if distribute:
-                item = Contribution.objects.filter(user__email=key)
-                if not item.exists():
-                    item = User.objects.get(email=key)
-                else:
-                    item = item.last()
-                reward_dis.generate_distribution(
-                    item, amount=reward_amount, distribute=distribute
-                )
-                user = User.objects.get(email=key)
-                papers = papers_uploaded.filter(uploaded_by__email=key)
-                uploaded_papers_email_data = get_uploaded_papers_email_data(papers)
-                action_links = get_action_links(user, reward_amount)
-                content_stats = {
-                    "reward_amount": reward_amount,
-                    "uploaded_paper_count": uploaded_paper_count.get(key, 0),
-                    "total_paper_votes": upvotes_count,
-                    "discussion_count": comment_vote_count,
-                    "total_comment_votes": comment_upvotes_count.get(key, 0),
-                    "total_votes_given": upload_vote_count,
-                    "uploaded_papers": uploaded_papers_email_data,
-                    "action_links": action_links,
-                }
-                send_distribution_email(user, content_stats)
+#             total_rewards[key] = reward_amount
+#             if distribute:
+#                 item = Contribution.objects.filter(user__email=key)
+#                 if not item.exists():
+#                     item = User.objects.get(email=key)
+#                 else:
+#                     item = item.last()
+#                 reward_dis.generate_distribution(
+#                     item, amount=reward_amount, distribute=distribute
+#                 )
+#                 user = User.objects.get(email=key)
+#                 papers = papers_uploaded.filter(uploaded_by__email=key)
+#                 uploaded_papers_email_data = get_uploaded_papers_email_data(papers)
+#                 action_links = get_action_links(user, reward_amount)
+#                 content_stats = {
+#                     "reward_amount": reward_amount,
+#                     "uploaded_paper_count": uploaded_paper_count.get(key, 0),
+#                     "total_paper_votes": upvotes_count,
+#                     "discussion_count": comment_vote_count,
+#                     "total_comment_votes": comment_upvotes_count.get(key, 0),
+#                     "total_votes_given": upload_vote_count,
+#                     "uploaded_papers": uploaded_papers_email_data,
+#                     "action_links": action_links,
+#                 }
+#                 send_distribution_email(user, content_stats)
 
-    if distribute:
-        last_distribution.distributed = True
-        last_distribution.save()
+#     if distribute:
+#         last_distribution.distributed = True
+#         last_distribution.save()
 
-    total_sorted = {
-        k: v
-        for k, v in sorted(
-            total_rewards.items(), key=lambda item: item[1], reverse=True
-        )
-    }
-    for key in total_sorted:
+#     total_sorted = {
+#         k: v
+#         for k, v in sorted(
+#             total_rewards.items(), key=lambda item: item[1], reverse=True
+#         )
+#     }
+#     for key in total_sorted:
 
-        base_paper_string = "https://www.researchhub.com/paper/"
-        papers_list = []
-        uploaded = all_papers_uploaded.get(key, [])
-        for paper in uploaded:
-            paper_url = base_paper_string + "{}/{}".format(paper[0], paper[1])
-            papers_list.append(paper_url)
+#         base_paper_string = "https://www.researchhub.com/paper/"
+#         papers_list = []
+#         uploaded = all_papers_uploaded.get(key, [])
+#         for paper in uploaded:
+#             paper_url = base_paper_string + "{}/{}".format(paper[0], paper[1])
+#             papers_list.append(paper_url)
 
-        user = User.objects.get(email=key)
-        author_profile = user.author_profile
-        name = author_profile.first_name + " " + author_profile.last_name
-        author_url = "https://www.researchhub.com/user/{}".format(author_profile.id)
-        line = "{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n".format(
-            name,
-            user.email,
-            author_url,
-            total_sorted[key],
-            uploaded_paper_count.get(key, 0),
-            paper_votes_count.get(key, 0),
-            paper_voted_on_count.get(key, 0),
-            discussion_count.get(key, 0),
-            comment_votes_count.get(key, 0),
-            bulletpoint_upvotes_count.get(key, 0),
-            bulletpoint_votes_count.get(key, 0),
-            summary_votes_count.get(key, 0),
-            summary_upvotes_count.get(key, 0),
-            '"' + "\n\n".join(papers_list) + '"',
-        )
-        headers += line
+#         user = User.objects.get(email=key)
+#         author_profile = user.author_profile
+#         name = author_profile.first_name + " " + author_profile.last_name
+#         author_url = "https://www.researchhub.com/user/{}".format(author_profile.id)
+#         line = "{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n".format(
+#             name,
+#             user.email,
+#             author_url,
+#             total_sorted[key],
+#             uploaded_paper_count.get(key, 0),
+#             paper_votes_count.get(key, 0),
+#             paper_voted_on_count.get(key, 0),
+#             discussion_count.get(key, 0),
+#             comment_votes_count.get(key, 0),
+#             bulletpoint_upvotes_count.get(key, 0),
+#             bulletpoint_votes_count.get(key, 0),
+#             summary_votes_count.get(key, 0),
+#             summary_upvotes_count.get(key, 0),
+#             '"' + "\n\n".join(papers_list) + '"',
+#         )
+#         headers += line
 
-    text_file = open("rsc_distribution.csv", "w")
-    text_file.write(headers)
-    text_file.close()
+#     text_file = open("rsc_distribution.csv", "w")
+#     text_file.write(headers)
+#     text_file.close()
 
 
 def get_action_links(user, reward_amount):
