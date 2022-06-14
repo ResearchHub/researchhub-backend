@@ -77,9 +77,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def retrieve(self, *args, **kwargs):
         return Response(status=403)
 
-    def update(self, *args, **kwargs):
-        return Response(status=403)
-
     def partial_update(self, *args, **kwargs):
         return Response(status=403)
 
@@ -587,6 +584,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=[
+                "id",
                 "featured",
                 "documents",
                 "document_type",

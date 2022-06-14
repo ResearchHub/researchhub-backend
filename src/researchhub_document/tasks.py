@@ -126,6 +126,7 @@ def preload_trending_documents(
     serializer = DynamicUnifiedDocumentSerializer(
         page,
         _include_fields=[
+            "id",
             "featured",
             "documents",
             "document_type",
