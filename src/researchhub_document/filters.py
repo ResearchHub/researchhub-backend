@@ -19,17 +19,19 @@ DOC_CHOICES = (
     ("hypothesis", "Hypothesis"),
 )
 UNIFIED_DOCUMENT_FILTER_CHOICES = (
-    ("removed", "removed"),
-    ("top_rated", "top_rated"),
-    ("most_discussed", "most_discussed"),
-    ("newest", "newest"),
-    ("hot", "hot"),
+    ("removed", "Removed"),
+    ("top_rated", "Top Rated"),
+    ("most_discussed", "Most Discussed"),
+    ("newest", "Newest"),
+    ("hot", "Hot"),
 )
 
 
 class FlagDashboardFilter(filters.FilterSet):
     hub_id = filters.ModelChoiceFilter(
-        field_name="hubs", queryset=Hub.objects.all(), label="Hubs"
+        field_name="hubs",
+        queryset=Hub.objects.all(),
+        label="Hubs",
     )
     type = filters.ChoiceFilter(
         field_name="document_type",
