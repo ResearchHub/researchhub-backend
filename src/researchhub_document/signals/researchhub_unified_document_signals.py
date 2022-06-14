@@ -1,6 +1,7 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+from discussion.models import Comment, Reply, Thread
 from discussion.reaction_models import Vote as GrmVote
 from paper.models import Paper
 from researchhub_document.tasks import recalc_hot_score_task
@@ -60,6 +61,9 @@ def rh_unified_doc_sync_scores_on_related_docs(instance, sender, **kwargs):
         return
 
     document_obj = instance.item
+
+    if isinstance(document_obj, (Comment, Reply, Thread)):
+        return
 
     sync_scores(unified_document, document_obj)
 
