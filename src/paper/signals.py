@@ -8,7 +8,7 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import PAPER
 from utils.sentry import log_error
 
-from .models import Paper, Vote
+from .models import Paper
 
 
 @receiver(post_save, sender=Paper, dispatch_uid="add_paper_slug")
@@ -36,6 +36,8 @@ def add_unified_doc(created, instance, **kwargs):
             try:
                 unified_doc = ResearchhubUnifiedDocument.objects.create(
                     document_type=PAPER,
+                    hot_score=instance.calculate_hot_score(),
+                    score=instance.score,
                 )
                 unified_doc.hubs.add(*instance.hubs.all())
                 instance.unified_document = unified_doc
@@ -44,12 +46,13 @@ def add_unified_doc(created, instance, **kwargs):
                 print("EXCPETION (add_unified_doc): ", e)
 
 
-@receiver(post_save, sender=Vote, dispatch_uid="recalculate_paper_votes")
+@receiver(post_save, sender=GrmVote, dispatch_uid="recalculate_paper_votes")
 def recalc_paper_votes(sender, instance, created, update_fields, **kwargs):
-    paper = instance.paper
-    new_score = paper.calculate_paper_score()
+    if not isinstance(instance, Paper):
+        return
+    paper = instance
     paper.calculate_hot_score()
-    paper.paper_score = new_score
+    paper.score = paper.calculate_score()
     for author in paper.authors.all():
         score = author.calculate_score()
         author.author_score = score

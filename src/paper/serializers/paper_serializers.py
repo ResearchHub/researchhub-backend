@@ -28,10 +28,9 @@ from paper.models import (
     Paper,
     PaperSubmission,
 )
-from paper.tasks import (
+from paper.tasks import (  # celery_calculate_paper_twitter_score,
     add_orcid_authors,
     add_references,
-    celery_calculate_paper_twitter_score,
     celery_extract_pdf_sections,
     download_pdf,
 )
@@ -53,6 +52,9 @@ from researchhub_document.related_models.constants.filters import (
     NEWEST,
     TOP,
     TRENDING,
+)
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
 )
 from researchhub_document.utils import (
     reset_unified_document_cache,
@@ -341,7 +343,6 @@ class PaperSerializer(BasePaperSerializer):
             "external_source",
             "file_created_location",
             "is_open_access",
-            "hot_score",
             "id",
             "is_removed",
             "is_removed_by_user",
@@ -469,9 +470,9 @@ class PaperSerializer(BasePaperSerializer):
                     countdown=10,
                 )
 
-                celery_calculate_paper_twitter_score.apply_async(
-                    (paper_id,), priority=5, countdown=10
-                )
+                # celery_calculate_paper_twitter_score.apply_async(
+                #     (paper_id,), priority=5, countdown=10
+                # )
 
                 hub_ids = unified_doc.hubs.values_list("id", flat=True)
                 if hub_ids.exists():
@@ -481,7 +482,14 @@ class PaperSerializer(BasePaperSerializer):
                         filters=[NEWEST],
                         with_default_hub=True,
                     )
-
+                unified_doc = ResearchhubUnifiedDocument.objects.create(
+                    document_type="paper.Paper",
+                    hot_score=paper.calculate_hot_score(),
+                    score=paper.score,
+                )
+                unified_doc.hubs.add(*hub_ids)
+                paper.unified_document = unified_doc
+                paper.save()
                 return paper
         except IntegrityError as e:
             sentry.log_error(e)

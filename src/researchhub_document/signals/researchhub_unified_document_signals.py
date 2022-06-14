@@ -57,7 +57,7 @@ def rh_unified_doc_sync_scores_on_related_docs(instance, sender, **kwargs):
         return
 
     unified_document = instance.unified_document
-    if not unified_document:
+    if unified_document is None:
         return
 
     document_obj = instance.item

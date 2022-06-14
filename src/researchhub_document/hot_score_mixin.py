@@ -81,10 +81,7 @@ class HotScoreMixin:
         if doc is None:
             return (0, 0)
 
-        if self.document_type == PAPER:
-            doc_vote_net_score = doc.calculate_paper_score(ignore_twitter_score=True)
-        else:
-            doc_vote_net_score = doc.calculate_score()
+        doc_vote_net_score = doc.calculate_score()
 
         total_comment_vote_score = self._count_doc_comment_votes(doc)
         boost_score = self._calc_boost_score()

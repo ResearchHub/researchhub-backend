@@ -213,6 +213,10 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         except IntegrityError as e:
             return self._get_integrity_error_response(e)
         except PaperSerializerError as e:
+            import pdb
+
+            pdb.set_trace()
+            print("EXCEPTION: ", e)
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
     def _get_integrity_error_response(self, error):
@@ -228,6 +232,9 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 error_message = "Invalid DOI"
         except IndexError:
             error_message = "A paper with this url or DOI already exists."
+        import pdb
+
+        pdb.set_trace()
         return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
 
     def retrieve(self, request, *args, **kwargs):
