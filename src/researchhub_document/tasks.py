@@ -120,23 +120,19 @@ def preload_trending_documents(
     req = Request(http_req)
     document_view.request = req
 
-    documents = document_view.get_filtered_queryset(
-        document_type, filtering, hub_id, time_scope
-    )
+    documents = document_view.get_filtered_queryset()
     page = document_view.paginate_queryset(documents)
     context = document_view._get_serializer_context()
     serializer = DynamicUnifiedDocumentSerializer(
         page,
         _include_fields=[
-            "created_by",
-            "created_date",
+            "featured",
             "documents",
             "document_type",
             "hot_score",
             "hot_score_v2",
             "reviews",
             "score",
-            "id",
         ],
         many=True,
         context=context,
