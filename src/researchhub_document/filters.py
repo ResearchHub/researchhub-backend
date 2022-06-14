@@ -73,6 +73,11 @@ class FlagDashboardFilter(filters.FilterSet):
             qs = qs.filter(is_removed=True)
             ordering.append("-created_date")
         elif value == "top_rated":
+            qs = qs.filter(
+                Q(paper__votes__created_date__range=(start_date, end_date))
+                | Q(hypothesis__votes__created_date__range=(start_date, end_date))
+                | Q(posts__votes__created_date__range=(start_date, end_date))
+            )
             filtering = "-score"
             ordering.append(filtering)
         elif value == "most_discussed":
