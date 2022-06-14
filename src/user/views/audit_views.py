@@ -3,7 +3,6 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
@@ -56,11 +55,6 @@ class AuditViewSet(viewsets.GenericViewSet):
     def get_filtered_queryset(self):
         qs = self.get_queryset()
         return self.filter_queryset(qs)
-
-    # TODO: Delete
-    def _get_flagged_content(self):
-        flagged_contributions = Flag.objects.all().select_related("content_type")
-        return flagged_contributions
 
     def _get_latest_actions(self):
         actions = (

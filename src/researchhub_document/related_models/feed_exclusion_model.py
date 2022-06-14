@@ -1,5 +1,4 @@
 from django.db import models
-from typing_extensions import Required
 
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,

@@ -1,11 +1,10 @@
-from collections import OrderedDict
-from datetime import datetime, timedelta
 from time import perf_counter
 
 from dateutil import parser
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db.models import Count, Q
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -20,6 +19,7 @@ from paper.models import Paper
 from paper.models import Vote as PaperVote
 from paper.serializers import PaperVoteSerializer
 from paper.utils import get_cache_key
+from researchhub_document.filters import FlagDashboardFilter
 from researchhub_document.models import (
     FeaturedContent,
     FeedExclusion,
@@ -64,7 +64,27 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     dynamic_serializer_class = DynamicUnifiedDocumentSerializer
     pagination_class = UnifiedDocPagination
     queryset = ResearchhubUnifiedDocument.objects.all()
+    filter_backends = (DjangoFilterBackend,)
+    filter_class = FlagDashboardFilter
     serializer_class = ResearchhubUnifiedDocumentSerializer
+
+    def create(self, *args, **kwargs):
+        return Response(status=403)
+
+    def list(self, *args, **kwargs):
+        return Response(status=403)
+
+    def retrieve(self, *args, **kwargs):
+        return Response(status=403)
+
+    def update(self, *args, **kwargs):
+        return Response(status=403)
+
+    def partial_update(self, *args, **kwargs):
+        return Response(status=403)
+
+    def destroy(self, *args, **kwargs):
+        return Response(status=403)
 
     @action(
         detail=True,
@@ -272,7 +292,16 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         }
         return context
 
-    def get_filtered_queryset(
+    def get_filtered_queryset(self, *args):
+        qs = (
+            self.get_queryset()
+            .filter(is_removed=False)
+            .exclude(excluded_from_feeds__isnull=False)
+        )
+        qs = self.filter_queryset(qs)
+        return qs
+
+    def old_get_filtered_queryset(
         self,
         document_type,
         filtering,
@@ -529,7 +558,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             return self._get_subscribed_unified_documents(request)
 
         document_request_type = query_params.get("type", "all")
-        hub_id = query_params.get("hub_id", 0)
+        hub_id = query_params.get("hub_id", 0) or 0
         page_number = int(query_params.get("page", 1))
 
         filtering = self._get_document_filtering(query_params)
@@ -550,13 +579,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 with_default_hub=with_default_hub,
             )
 
-        documents = self.get_filtered_queryset(
-            document_request_type,
-            filtering,
-            hub_id,
-            time_scope,
-        )
-
+        documents = self.get_filtered_queryset()
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
         page = self.paginate_queryset(documents)
@@ -567,7 +590,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "featured",
                 "documents",
                 "document_type",
-                "get_review",
                 "hot_score",
                 "hot_score_v2",
                 "reviews",
@@ -599,7 +621,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         return cache_hit
 
     def _get_subscribed_unified_documents(self, request):
-        default_hub_id = 0
         hub_ids = request.user.subscribed_hubs.values_list("id", flat=True)
         query_params = request.query_params
         document_request_type = query_params.get("type", "all")
@@ -622,13 +643,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         all_documents = list(all_documents.values())
         if len(all_documents) == 0:
-            all_documents = self.get_filtered_queryset(
-                document_request_type,
-                filtering,
-                default_hub_id,
-                time_scope,
-            )
-            all_documents = all_documents.filter(hubs__in=hub_ids).distinct()
+            all_documents = self.get_filtered_queryset()
 
             context = self._get_serializer_context()
             page = self.paginate_queryset(all_documents)
