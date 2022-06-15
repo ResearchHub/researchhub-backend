@@ -18,7 +18,7 @@ from paper.models import Paper
 from paper.models import Vote as PaperVote
 from paper.serializers import PaperVoteSerializer
 from paper.utils import get_cache_key
-from researchhub_document.filters import FlagDashboardFilter
+from researchhub_document.filters import UnifiedDocumentFilter
 from researchhub_document.models import (
     FeaturedContent,
     FeedExclusion,
@@ -54,7 +54,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     pagination_class = UnifiedDocPagination
     queryset = ResearchhubUnifiedDocument.objects.all()
     filter_backends = (DjangoFilterBackend,)
-    filter_class = FlagDashboardFilter
+    filter_class = UnifiedDocumentFilter
     serializer_class = ResearchhubUnifiedDocumentSerializer
 
     def create(self, *args, **kwargs):

@@ -27,7 +27,7 @@ UNIFIED_DOCUMENT_FILTER_CHOICES = (
 )
 
 
-class FlagDashboardFilter(filters.FilterSet):
+class UnifiedDocumentFilter(filters.FilterSet):
     hub_id = filters.ModelChoiceFilter(
         field_name="hubs",
         queryset=Hub.objects.all(),
