@@ -50,7 +50,7 @@ class FlagDashboardFilter(filters.FilterSet):
 
     class Meta:
         model = ResearchhubUnifiedDocument
-        fields = ["hub_id", "ordering", "subscribed_hubs"]
+        fields = ["hub_id", "ordering", "subscribed_hubs", "type"]
 
     def document_type_filter(self, qs, name, value):
         value = value.upper()
