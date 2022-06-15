@@ -1,6 +1,9 @@
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from paper.models import Flag, Paper, Vote
+from researchhub_document.related_models.constants.document_type import (
+    PAPER as PAPER_DOC_TYPE,
+)
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -39,7 +42,7 @@ def create_paper(
         raw_authors=raw_authors,
     )
     unified_doc = ResearchhubUnifiedDocument.objects.create(
-        document_type="paper.Paper",
+        document_type=PAPER_DOC_TYPE,
         hot_score=paper.calculate_hot_score(),
         score=paper.score,
     )

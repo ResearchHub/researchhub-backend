@@ -5,7 +5,9 @@ from django.utils.text import slugify
 
 from discussion.reaction_models import Vote as GrmVote
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import PAPER
+from researchhub_document.related_models.constants.document_type import (
+    PAPER as PAPER_DOC_TYPE,
+)
 from utils.sentry import log_error
 
 from .models import Paper
@@ -35,7 +37,7 @@ def add_unified_doc(created, instance, **kwargs):
         if unified_doc is None:
             try:
                 unified_doc = ResearchhubUnifiedDocument.objects.create(
-                    document_type=PAPER,
+                    document_type=PAPER_DOC_TYPE,
                     hot_score=instance.calculate_hot_score(),
                     score=instance.score,
                 )
@@ -43,7 +45,7 @@ def add_unified_doc(created, instance, **kwargs):
                 instance.unified_document = unified_doc
                 instance.save()
             except Exception as e:
-                print("EXCPETION (add_unified_doc): ", e)
+                log_error("EXCPETION (add_unified_doc): ", e)
 
 
 @receiver(post_save, sender=GrmVote, dispatch_uid="recalculate_paper_votes")

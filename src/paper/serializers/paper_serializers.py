@@ -8,7 +8,6 @@ from django.db import IntegrityError, transaction
 from django.http import QueryDict
 
 import utils.sentry as sentry
-from bullet_point.serializers import BulletPointTextOnlySerializer
 from discussion.models import Flag as GrmFlag
 from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import GenericReactionSerializerMixin
@@ -47,6 +46,9 @@ from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
+from researchhub_document.related_models.constants.document_type import (
+    PAPER as PAPER_DOC_TYPE,
+)
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     NEWEST,
@@ -483,7 +485,7 @@ class PaperSerializer(BasePaperSerializer):
                         with_default_hub=True,
                     )
                 unified_doc = ResearchhubUnifiedDocument.objects.create(
-                    document_type="paper.Paper",
+                    document_type=PAPER_DOC_TYPE,
                     hot_score=paper.calculate_hot_score(),
                     score=paper.score,
                 )
