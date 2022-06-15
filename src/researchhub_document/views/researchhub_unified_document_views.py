@@ -3,7 +3,6 @@ from time import perf_counter
 from dateutil import parser
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db.models import Count, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
@@ -27,13 +26,6 @@ from researchhub_document.models import (
     ResearchhubUnifiedDocument,
 )
 from researchhub_document.permissions import HasDocumentCensorPermission
-from researchhub_document.related_models.constants.document_type import (
-    DISCUSSION,
-    ELN,
-    HYPOTHESIS,
-    PAPER,
-    POSTS,
-)
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     NEWEST,
@@ -44,22 +36,19 @@ from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer,
     ResearchhubUnifiedDocumentSerializer,
 )
-from researchhub_document.utils import (
-    get_date_ranges_by_time_scope,
-    get_doc_type_key,
-    reset_unified_document_cache,
-)
+from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from researchhub_document.views.custom.unified_document_pagination import (
     UNIFIED_DOC_PAGE_SIZE,
     UnifiedDocPagination,
 )
 from user.permissions import IsModerator
 from user.utils import reset_latest_acitvity_cache
+from utils.permissions import ReadOnly
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     permission_classes = [
-        IsAuthenticated,
+        IsAuthenticated | ReadOnly,
     ]
     dynamic_serializer_class = DynamicUnifiedDocumentSerializer
     pagination_class = UnifiedDocPagination
