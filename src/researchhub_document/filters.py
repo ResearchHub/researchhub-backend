@@ -66,7 +66,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
 
     def default_filter(self, qs, name, value):
         time_scope = self.data.get("time", "today")
-        hub_id = self.data.get("hub_id", None)
+        hub_id = self.data.get("hub_id", None) or None
         start_date, end_date = get_date_ranges_by_time_scope(time_scope)
         ordering = []
 
