@@ -1,9 +1,10 @@
+from statistics import mean
+
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import Avg
 
 from hub.models import Hub
-from paper.models import Paper
 from researchhub_access_group.models import Permission
 from researchhub_document.hot_score_mixin import HotScoreMixin
 from researchhub_document.related_models.constants.document_type import (
@@ -97,16 +98,10 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
 
     def get_review_details(self):
         details = {"avg": 0, "count": 0}
-
-        review_scores = Review.objects.filter(
-            unified_document=self, is_removed=False
-        ).values("score")
-
-        details["count"] = review_scores.count()
-
-        if review_scores.count() > 0:
-            details["avg"] = round(review_scores.aggregate(avg=Avg("score"))["avg"], 1)
-
+        reviews = self.reviews.values_list("score", flat=True)
+        if reviews:
+            details["avg"] = round(mean(reviews), 1)
+            details["count"] = reviews.count()
         return details
 
     def save(self, **kwargs):

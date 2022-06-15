@@ -1,26 +1,14 @@
-from datetime import datetime, timedelta
-
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
-from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db.models.query import QuerySet
-from django.http.request import HttpRequest
+from django.http.request import HttpRequest, QueryDict
 from django_elasticsearch_dsl.registries import registry
 from rest_framework.request import Request
 
 from paper.utils import get_cache_key
 from researchhub.celery import QUEUE_CACHES, QUEUE_ELASTIC_SEARCH, QUEUE_HOT_SCORE, app
-from researchhub.settings import APP_ENV, PRODUCTION, STAGING
-from researchhub_document.related_models.constants.document_type import (
-    ALL,
-    DISCUSSION,
-    ELN,
-    HYPOTHESIS,
-    PAPER,
-    POSTS,
-)
+from researchhub.settings import PRODUCTION, STAGING
 from utils import sentry
 
 
@@ -93,7 +81,7 @@ def preload_trending_documents(
     elif filtering == "-hot_score":
         query_string_filtering = "hot"
 
-    request_path = "/api/paper/get_hub_papers/"
+    request_path = "/api/researchhub_unified_documents/get_unified_documents/"
     if STAGING:
         http_host = "staging-backend.researchhub.com"
         protocol = "https"
@@ -104,6 +92,8 @@ def preload_trending_documents(
         http_host = "localhost:8000"
         protocol = "http"
 
+    if hub_id == 0:
+        hub_id = ""
     query_string = "page=1&time={}&ordering={}&hub_id={}&".format(
         time_scope, query_string_filtering, hub_id
     )
@@ -112,31 +102,30 @@ def preload_trending_documents(
         "HTTP_HOST": http_host,
         "HTTP_X_FORWARDED_PROTO": protocol,
     }
+    query_dict = QueryDict(query_string=query_string)
 
     document_view = ResearchhubUnifiedDocumentViewSet()
     http_req = HttpRequest()
     http_req.META = http_meta
     http_req.path = request_path
+    http_req.GET = query_dict
     req = Request(http_req)
     document_view.request = req
 
-    documents = document_view.get_filtered_queryset(
-        document_type, filtering, hub_id, time_scope
-    )
+    documents = document_view.get_filtered_queryset()
     page = document_view.paginate_queryset(documents)
     context = document_view._get_serializer_context()
     serializer = DynamicUnifiedDocumentSerializer(
         page,
         _include_fields=[
-            "created_by",
-            "created_date",
+            "id",
+            "featured",
             "documents",
             "document_type",
             "hot_score",
             "hot_score_v2",
             "reviews",
             "score",
-            "id",
         ],
         many=True,
         context=context,
