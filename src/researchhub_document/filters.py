@@ -14,7 +14,7 @@ from researchhub_document.utils import get_date_ranges_by_time_scope
 
 DOC_CHOICES = (
     ("all", "All"),
-    ("papers", "Papers"),
+    ("paper", "Papers"),
     ("posts", "Posts"),
     ("hypothesis", "Hypothesis"),
 )
@@ -77,7 +77,7 @@ class FlagDashboardFilter(filters.FilterSet):
                 Q(paper__votes__created_date__range=(start_date, end_date))
                 | Q(hypothesis__votes__created_date__range=(start_date, end_date))
                 | Q(posts__votes__created_date__range=(start_date, end_date))
-            )
+            ).distinct()
             filtering = "-score"
             ordering.append(filtering)
         elif value == "most_discussed":
@@ -227,13 +227,15 @@ class FlagDashboardFilter(filters.FilterSet):
             ordering.append(filtering)
         elif value == "hot":
             filtering = "-hot_score"
-            ordering.append("featured_in_hubs")
+            qs = qs.annotate(featured_count=Count("featured_in_hubs"))
+            ordering.append("-featured_count")
             ordering.append("-hot_score_v2")
         else:
             filtering = "-score"
             ordering.append(filtering)
 
-        return qs.order_by(*ordering)
+        qs = qs.order_by(*ordering)
+        return qs
 
     def subscribed_filter(self, qs, name, value):
         if value:
