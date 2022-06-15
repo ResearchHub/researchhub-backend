@@ -91,10 +91,7 @@ def preload_trending_documents(
     else:
         http_host = "localhost:8000"
         protocol = "http"
-    """
-    b /var/app/current/researchhub_document/filters.py:229
-    ordering=hot&page=1&subscribed_hubs=false&type=all&time=today&
-    """
+
     if hub_id == 0:
         hub_id = ""
     query_string = "page=1&time={}&ordering={}&hub_id={}&".format(
