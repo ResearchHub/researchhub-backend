@@ -345,9 +345,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
         page = self.paginate_queryset(documents)
-        featured_documents = self.get_featured_documents()
 
-        if page_number == 1 and document_request_type == "all":
+        if page_number == 1 and filtering == "-hot_score":
+            featured_documents = self.get_featured_documents()
             featured_documents = ResearchhubUnifiedDocument.objects.filter(
                 id__in=featured_documents
             )
