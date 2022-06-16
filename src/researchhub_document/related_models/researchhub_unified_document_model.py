@@ -2,7 +2,6 @@ from statistics import mean
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
-from django.db.models import Avg
 
 from hub.models import Hub
 from researchhub_access_group.models import Permission
@@ -15,7 +14,6 @@ from researchhub_document.related_models.constants.document_type import (
     PAPER,
 )
 from researchhub_document.tasks import update_elastic_registry
-from review.models.review_model import Review
 from user.models import Author
 from utils.models import DefaultModel
 
@@ -45,8 +43,7 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         help_text="Feed ranking score.",
     )
     hot_score_v2 = models.IntegerField(
-        default=0,
-        help_text="Feed ranking score.",
+        default=0, help_text="Feed ranking score.", db_index=True
     )
     permissions = GenericRelation(
         Permission,

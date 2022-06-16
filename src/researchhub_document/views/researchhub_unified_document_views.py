@@ -279,13 +279,21 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         return context
 
     def get_filtered_queryset(self, *args):
+        hub_id = self.request.query_params.get("hub_id", 0) or None
+        featured_content = FeaturedContent.objects.filter(hub_id=hub_id).values_list(
+            "unified_document"
+        )
         qs = (
             self.get_queryset()
             .filter(is_removed=False)
             .exclude(excluded_from_feeds__isnull=False)
         )
         qs = self.filter_queryset(qs)
-        return qs
+        qs = qs.exclude(id__in=featured_content)
+
+        featured_qs = self.get_queryset().filter(id__in=featured_content)
+        combined_qs = list(featured_qs) + list(qs[:20])
+        return combined_qs
 
     def _get_unifed_document_cache_hit(
         self, document_type, filtering, hub_id, page_number, time_scope
