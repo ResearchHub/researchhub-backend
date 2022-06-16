@@ -24,26 +24,30 @@ from utils.message import send_email_message
 
 @app.task(queue=QUEUE_NOTIFICATION)
 def notify_immediate(action_id):
-    actions_notifications([action_id], NotificationFrequencies.IMMEDIATE)
+    pass
+    # actions_notifications([action_id], NotificationFrequencies.IMMEDIATE)
 
 
 @periodic_task(run_every=crontab(minute="30", hour="1"), priority=7)
 def notify_daily():
+    pass
     # send_editor_hub_digest(NotificationFrequencies.DAILY)
-    send_hub_digest(NotificationFrequencies.DAILY)
+    # send_hub_digest(NotificationFrequencies.DAILY)
 
 
 @periodic_task(run_every=crontab(minute="0", hour="*/3"), priority=7)
 def notify_three_hours():
+    pass
     # send_editor_hub_digest(NotificationFrequencies.THREE_HOUR)
-    send_hub_digest(NotificationFrequencies.THREE_HOUR)
+    # send_hub_digest(NotificationFrequencies.THREE_HOUR)
 
 
 # Noon PST
 @periodic_task(run_every=crontab(minute=0, hour=20, day_of_week="friday"), priority=9)
 def notify_weekly():
+    pass
     # send_editor_hub_digest(NotificationFrequencies.WEEKLY)
-    send_hub_digest(NotificationFrequencies.WEEKLY)
+    # send_hub_digest(NotificationFrequencies.WEEKLY)
 
 
 """
