@@ -498,7 +498,7 @@ class PaperSerializer(BasePaperSerializer):
         authors = validated_data.pop("authors", [None])
         hubs = validated_data.pop("hubs", [None])
         raw_authors = validated_data.pop("raw_authors", [])
-        file = validated_data.get("file", None)
+        file = validated_data.pop("file", None)
 
         try:
             with transaction.atomic():
@@ -521,8 +521,9 @@ class PaperSerializer(BasePaperSerializer):
 
                 unified_doc = paper.unified_document
                 paper_title = paper.paper_title or ""
-                file = paper.file
-                self._check_pdf_title(paper, paper_title, file)
+                if file:
+                    file = paper.file
+                    self._check_pdf_title(paper, paper_title, file)
 
                 new_hubs = []
                 remove_hubs = []
