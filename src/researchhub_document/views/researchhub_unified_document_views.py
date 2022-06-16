@@ -347,7 +347,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         page = self.paginate_queryset(documents)
         featured_documents = self.get_featured_documents()
 
-        if page_number == 1:
+        if page_number == 1 and filtering == "hot_score":
             featured_documents = ResearchhubUnifiedDocument.objects.filter(
                 id__in=featured_documents
             )
