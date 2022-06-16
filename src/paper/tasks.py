@@ -578,60 +578,6 @@ def celery_extract_pdf_sections(paper_id):
         return True, return_code
 
 
-# NOTE: Legacy
-# @app.task(queue=QUEUE_TWITTER, ignore_result=False)
-# def celery_calculate_paper_twitter_score(paper_id, iteration=0):
-#     if paper_id is None or iteration > 2:
-#         return False
-
-#     Paper = apps.get_model("paper.Paper")
-#     paper = Paper.objects.get(id=paper_id)
-#     today = datetime.now(timezone.utc).replace(hour=0, minute=0)
-
-#     title = paper.title
-#     if title:
-#         words_in_title = paper.title.split(" ")
-#         if len(words_in_title) <= 4:
-#             return False, "Probable spam paper"
-
-#     try:
-#         twitter_score = paper.calculate_twitter_score()
-#     except Exception as e:
-#         error_message = e.message[0]
-#         code = error_message["code"]
-#         if code != RATE_LIMIT_CODE:
-#             return False, str(e)
-
-#         created_date = paper.created_date
-#         if created_date >= today:
-#             priority = 4
-#         else:
-#             priority = 7
-
-#         celery_calculate_paper_twitter_score.apply_async(
-#             (paper_id, iteration), priority=priority, countdown=420
-#         )
-#         return False, str(e)
-
-#     # Temporarily stopping next day twitter score updates
-#     # next_iteration = iteration + 1
-#     # celery_calculate_paper_twitter_score.apply_async(
-#     #     (paper_id, next_iteration),
-#     #     priority=7 - next_iteration,
-#     #     countdown=86400 * next_iteration
-#     # )
-#     score = paper.calculate_paper_score()
-#     paper.paper_score = score
-#     paper.save()
-
-#     if score > 0:
-#         paper.calculate_hot_score()
-#     paper_cache_key = get_cache_key("paper", paper.id)
-#     cache.delete(paper_cache_key)
-
-#     return True, score
-
-
 @app.task(queue=QUEUE_PAPER_MISC)
 def handle_duplicate_doi(new_paper, doi):
     Paper = apps.get_model("paper.Paper")

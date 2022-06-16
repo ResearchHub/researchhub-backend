@@ -8,11 +8,14 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from discussion.models import Comment, Reply, Thread
+from discussion.reaction_models import Vote
 from hub.models import Hub
 from hypothesis.models import Hypothesis
 from mailing_list.lib import base_email_context
 from mailing_list.models import EmailTaskLog, NotificationFrequencies
 from paper.models import Paper
+from paper.models import Vote as PaperVote
+from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from researchhub.celery import QUEUE_NOTIFICATION, app
 from researchhub_document.models import ResearchhubPost
 from user.models import Action, User
@@ -26,28 +29,21 @@ def notify_immediate(action_id):
 
 @periodic_task(run_every=crontab(minute="30", hour="1"), priority=7)
 def notify_daily():
-    pass
     # send_editor_hub_digest(NotificationFrequencies.DAILY)
-
-    # TODO: Temporarily turning off notifications - Revamp
-    # send_hub_digest(NotificationFrequencies.DAILY)
+    send_hub_digest(NotificationFrequencies.DAILY)
 
 
 @periodic_task(run_every=crontab(minute="0", hour="*/3"), priority=7)
 def notify_three_hours():
-    pass
-    # send_hub_digest(NotificationFrequencies.THREE_HOUR)
     # send_editor_hub_digest(NotificationFrequencies.THREE_HOUR)
+    send_hub_digest(NotificationFrequencies.THREE_HOUR)
 
 
 # Noon PST
 @periodic_task(run_every=crontab(minute=0, hour=20, day_of_week="friday"), priority=9)
 def notify_weekly():
-    pass
     # send_editor_hub_digest(NotificationFrequencies.WEEKLY)
-
-    # TODO: Temporarily turning off notifications - Revamp
-    # send_hub_digest(NotificationFrequencies.WEEKLY)
+    send_hub_digest(NotificationFrequencies.WEEKLY)
 
 
 """
@@ -131,24 +127,23 @@ def send_hub_digest(frequency):
     etl = EmailTaskLog.objects.create(emails="", notification_frequency=frequency)
     end_date = timezone.now()
     start_date = calculate_hub_digest_start_date(end_date, frequency)
+    upvotes = Count(
+        "vote",
+        filter=Q(
+            vote__vote_type=PaperVote.UPVOTE,
+            vote__updated_date__gte=start_date,
+            vote__updated_date__lte=end_date,
+        ),
+    )
 
-    # upvotes = Count(
-    #     "vote",
-    #     filter=Q(
-    #         vote__vote_type=PaperVote.UPVOTE,
-    #         vote__updated_date__gte=start_date,
-    #         vote__updated_date__lte=end_date,
-    #     ),
-    # )
-
-    # downvotes = Count(
-    #     "vote",
-    #     filter=Q(
-    #         vote__vote_type=PaperVote.DOWNVOTE,
-    #         vote__created_date__gte=start_date,
-    #         vote__created_date__lte=end_date,
-    #     ),
-    # )
+    downvotes = Count(
+        "vote",
+        filter=Q(
+            vote__vote_type=PaperVote.DOWNVOTE,
+            vote__created_date__gte=start_date,
+            vote__created_date__lte=end_date,
+        ),
+    )
 
     # TODO don't include censored threads?
     thread_counts = Count(
@@ -185,6 +180,7 @@ def send_hub_digest(frequency):
 
     # TODO find best by hub and then in mem sort for each user? more efficient?
     emails = []
+    print("users: ", users)
     for user in User.objects.filter(id__in=users, is_suspended=False):
         if not check_can_receive_digest(user, frequency):
             continue
@@ -193,8 +189,9 @@ def send_hub_digest(frequency):
             users_papers.filter(
                 created_date__gte=start_date, created_date__lte=end_date
             )
-            .filter(score__gt=0)
-            .order_by("-score")[:3]
+            .annotate(paper_score=PAPER_SCORE_Q_ANNOTATION)
+            .filter(paper_score__gt=0)
+            .order_by("-paper_score")[:3]
         )
         most_discussed_in_interval = (
             users_papers.annotate(
@@ -203,7 +200,12 @@ def send_hub_digest(frequency):
             .filter(discussions__gt=0)
             .order_by("-discussions")[:3]
         )
-        most_voted_in_interval = users_papers.filter(score__gt=0).order_by("-score")[:2]
+
+        most_voted_in_interval = (
+            users_papers.annotate(paper_score=PAPER_SCORE_Q_ANNOTATION)
+            .filter(paper_score__gt=0)
+            .order_by("-paper_score")[:2]
+        )
         papers = (
             most_voted_and_uploaded_in_interval
             or most_discussed_in_interval
@@ -212,27 +214,23 @@ def send_hub_digest(frequency):
         if len(papers) == 0:
             continue
 
-        email_context = {
-            **base_email_context,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "papers": papers,
-            "preview_text": papers[0].tagline,
-        }
-
         recipient = [user.email]
-        # subject = 'Research Hub | Your Weekly Digest'
-        subject = papers[0].title[0:86] + "..."
         send_email_message(
             recipient,
             "weekly_digest_email.txt",
-            subject,
-            email_context,
+            build_subject(frequency),  # subject
+            {
+                # email_context
+                **base_email_context,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "papers": papers,
+                "preview_text": papers[0].tagline,
+            },
             "weekly_digest_email.html",
             "ResearchHub Digest <digest@researchhub.com>",
         )
         emails += recipient
-
     etl.emails = ",".join(emails)
     etl.save()
 

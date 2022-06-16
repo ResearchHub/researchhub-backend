@@ -84,7 +84,7 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
     first_preview = serializers.SerializerMethodField()
     hubs = SimpleHubSerializer(many=True, required=False)
     promoted = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
+    score = serializers.ReadOnlyField()  # GRM
     summary = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     unified_document_id = serializers.SerializerMethodField()
@@ -96,7 +96,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         abstract = True
         exclude = ["references"]
         read_only_fields = [
-            "paper_score",
             "user_vote",
             "user_flag",
             "users_who_bookmarked",
@@ -330,7 +329,7 @@ class ContributionPaperSerializer(BasePaperSerializer):
 
 class PaperSerializer(BasePaperSerializer):
     authors = serializers.SerializerMethodField()
-    uploaded_date = serializers.ReadOnlyField()  # @property
+    uploaded_date = serializers.ReadOnlyField()  # GRM
 
     class Meta:
         exclude = ["references"]
@@ -353,7 +352,6 @@ class PaperSerializer(BasePaperSerializer):
             "pdf_license_url",
             "publication_type",
             "retrieved_from_external_source",
-            "paper_score",
             "slug",
             "tagline",
             "twitter_mentions",
@@ -796,7 +794,7 @@ class DynamicPaperSerializer(
     boost_amount = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
+    score = serializers.ReadOnlyField()  # GRM
     unified_document = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()

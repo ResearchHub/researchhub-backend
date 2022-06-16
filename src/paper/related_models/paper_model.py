@@ -524,7 +524,7 @@ class Paper(AbstractGenericReactionModel):
             paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
         )
         if purchases.exists():
-            base_score = paper.paper_score
+            base_score = paper.score
             boost_amount = (
                 purchases.annotate(amount_as_int=Cast("amount", IntegerField()))
                 .aggregate(sum=Sum("amount_as_int"))

@@ -31,7 +31,7 @@ from discussion.serializers import (
 from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
-from paper.utils import get_cache_key
+from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
 from paper.views import PaperViewSet
 from reputation.models import Contribution, Distribution
 from reputation.serializers import DynamicContributionSerializer
@@ -196,12 +196,14 @@ class UserViewSet(viewsets.ModelViewSet):
                     Paper.objects.exclude(
                         is_public=False,
                     )
+                    .annotate(paper=PAPER_SCORE_Q_ANNOTATION)
                     .filter(**time_filter, hubs__in=[hub_id], is_removed=False)
                     .order_by("-paper_score")
                 )
             else:
                 items = (
                     Paper.objects.exclude(is_public=False)
+                    .annotate(paper=PAPER_SCORE_Q_ANNOTATION)
                     .filter(**time_filter, is_removed=False)
                     .order_by("-paper_score")
                 )
@@ -718,6 +720,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             .prefetch_related(
                 *prefetch_lookups,
             )
+            .annotate(paper=PAPER_SCORE_Q_ANNOTATION)
             .order_by("-paper_score")
         )
         context = self._get_authored_papers_context()
