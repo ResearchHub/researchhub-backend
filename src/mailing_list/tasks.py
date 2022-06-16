@@ -184,7 +184,7 @@ def send_hub_digest(frequency):
 
     # TODO find best by hub and then in mem sort for each user? more efficient?
     emails = []
-    print("users: ", users)
+
     for user in User.objects.filter(id__in=users, is_suspended=False):
         if not check_can_receive_digest(user, frequency):
             continue
