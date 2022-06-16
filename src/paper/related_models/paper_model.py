@@ -343,6 +343,12 @@ class Paper(AbstractGenericReactionModel):
         return self.unified_document.hot_score
 
     @property
+    def hot_score_v2(self):
+        if self.unified_document is None:
+            return self.score
+        return self.unified_document.hot_score_v2
+
+    @property
     def votes_indexing(self):
         all_votes = self.votes.all()
         if len(all_votes) > 0:
