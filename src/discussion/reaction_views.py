@@ -166,9 +166,7 @@ class ReactionViewActionMixin:
     def upvote(self, request, pk=None):
         item = self.get_object()
         user = request.user
-        print("HIHIHIHIHIHIHIHIHIHIHIHI")
         vote_exists = find_vote(user, item, Vote.UPVOTE)
-        print("vote_exists: ", vote_exists)
         if vote_exists:
             return Response(
                 "This vote already exists", status=status.HTTP_400_BAD_REQUEST

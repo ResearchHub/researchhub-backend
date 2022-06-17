@@ -44,7 +44,6 @@ def recalc_hot_score_task(instance_content_type_id, instance_id):
 
         uni_doc.calculate_hot_score_v2(should_save=True)
     except Exception as error:
-        print("recalc_hot_score error", error)
         sentry.log_error(error)
 
 
