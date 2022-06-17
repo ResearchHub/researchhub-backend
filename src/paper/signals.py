@@ -48,20 +48,6 @@ def add_unified_doc(created, instance, **kwargs):
                 log_error("EXCPETION (add_unified_doc): ", e)
 
 
-@receiver(post_save, sender=GrmVote, dispatch_uid="recalculate_paper_votes")
-def recalc_paper_votes(sender, instance, created, update_fields, **kwargs):
-    if not isinstance(instance, Paper):
-        return
-    paper = instance
-    paper.calculate_hot_score()
-    paper.score = paper.calculate_score()
-    for author in paper.authors.all():
-        score = author.calculate_score()
-        author.author_score = score
-        author.save()
-    paper.save()
-
-
 def check_file_updated(update_fields, file):
     if update_fields is not None and file:
         return "file" in update_fields
