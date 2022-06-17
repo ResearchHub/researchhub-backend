@@ -52,6 +52,14 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
     )
     hubs = models.ManyToManyField(Hub, related_name="related_documents", blank=True)
 
+    class Meta:
+        indexes = (
+            models.Index(
+                fields=("created_date",),
+                name="uni_doc_created_date_idx",
+            ),
+        )
+
     @property
     def authors(self):
         # This property needs to return a queryset
