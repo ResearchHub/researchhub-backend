@@ -87,7 +87,6 @@ class BasePaperSerializer(serializers.ModelSerializer):
         abstract = True
         exclude = ["references"]
         read_only_fields = [
-            "paper_score",
             "user_vote",
             "user_flag",
             "users_who_bookmarked",
@@ -357,7 +356,6 @@ class PaperSerializer(BasePaperSerializer):
             "pdf_license_url",
             "publication_type",
             "retrieved_from_external_source",
-            "paper_score",
             "slug",
             "tagline",
             "twitter_mentions",
