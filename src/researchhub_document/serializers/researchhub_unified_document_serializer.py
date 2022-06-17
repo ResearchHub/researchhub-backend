@@ -97,15 +97,11 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         fields = "__all__"
 
     def get_featured(self, unified_doc):
-        hub_id = int(self.context.get("hub_id", 0))
+        hub_id = self.context.get("hub_id", 0)
         if hub_id is not None:
             if hub_id == 0:
                 hub_id = None
-
-            has_featured = getattr(unified_doc, "featured_in_hubs", None)
-            if has_featured:
-                return has_featured.hub_id == hub_id
-            return False
+            return unified_doc.featured_in_hubs.filter(hub_id=hub_id).exists()
 
     def get_documents(self, unified_doc):
         context = self.context

@@ -17,7 +17,7 @@ class FeaturedContent(DefaultModel):
         related_name="featured_content",
     )
 
-    unified_document = models.OneToOneField(
+    unified_document = models.ForeignKey(
         ResearchhubUnifiedDocument,
         default=False,
         blank=False,

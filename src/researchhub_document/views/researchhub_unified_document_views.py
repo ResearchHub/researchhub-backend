@@ -351,7 +351,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             featured_documents = ResearchhubUnifiedDocument.objects.filter(
                 id__in=featured_documents
             )
-            page = list(featured_documents) + page
+            featured_documents = list(featured_documents)
+            page = featured_documents + page[: len(page) - len(featured_documents)]
 
         serializer = self.dynamic_serializer_class(
             page,
