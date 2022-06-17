@@ -11,12 +11,10 @@ from rest_framework.response import Response
 from rest_framework.utils.urls import replace_query_param
 from rest_framework.viewsets import ModelViewSet
 
-from discussion.models import Vote as ReactionVote
-from discussion.reaction_serializers import VoteSerializer as ReactionVoteSerializer
+from discussion.models import Vote as GrmVote
+from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from hypothesis.models import Hypothesis
 from paper.models import Paper
-from paper.models import Vote as PaperVote
-from paper.serializers import PaperVoteSerializer
 from paper.utils import get_cache_key
 from researchhub_document.filters import UnifiedDocumentFilter
 from researchhub_document.models import (
@@ -448,12 +446,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         doc_type = get_doc_type_key(unified_document)
         hub_ids = list(unified_document.hubs.values_list("id", flat=True))
 
-        if request.data["exclude_from_homepage"] == True:
+        if request.data["exclude_from_homepage"] is True:
             FeedExclusion.objects.get_or_create(
                 unified_document=unified_document, hub_id=0
             )
 
-        if request.data["exclude_from_hubs"] == True:
+        if request.data["exclude_from_hubs"] is True:
             for hub_id in hub_ids:
                 FeedExclusion.objects.get_or_create(
                     unified_document=unified_document, hub_id=hub_id
@@ -556,21 +554,20 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         }
 
         if user.is_authenticated:
+            # TODO: Refactor below
             if paper_ids:
-                paper_votes = PaperVote.objects.filter(
-                    paper__id__in=paper_ids, created_by=user
+                paper_votes = get_user_votes(
+                    user, paper_ids, ContentType.objects.get_for_model(Paper)
                 )
                 for vote in paper_votes.iterator():
-                    paper_id = vote.paper_id
-                    response["papers"][paper_id] = PaperVoteSerializer(
-                        instance=vote
-                    ).data
+                    paper_id = vote.object_id
+                    response["papers"][paper_id] = GrmVoteSerializer(instance=vote).data
             if post_ids:
                 post_votes = get_user_votes(
                     user, post_ids, ContentType.objects.get_for_model(ResearchhubPost)
                 )
                 for vote in post_votes.iterator():
-                    response["posts"][vote.object_id] = ReactionVoteSerializer(
+                    response["posts"][vote.object_id] = GrmVoteSerializer(
                         instance=vote
                     ).data
             if hypothesis_ids:
@@ -578,13 +575,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     user, hypothesis_ids, ContentType.objects.get_for_model(Hypothesis)
                 )
                 for vote in hypo_votes.iterator():
-                    response["hypothesis"][vote.object_id] = ReactionVoteSerializer(
+                    response["hypothesis"][vote.object_id] = GrmVoteSerializer(
                         instance=vote
                     ).data
         return Response(response, status=status.HTTP_200_OK)
 
 
 def get_user_votes(created_by, doc_ids, reaction_content_type):
-    return ReactionVote.objects.filter(
+    return GrmVote.objects.filter(
         content_type=reaction_content_type, object_id__in=doc_ids, created_by=created_by
     )

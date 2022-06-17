@@ -15,7 +15,6 @@ from discussion.serializers import (
 )
 from discussion.serializers import VoteSerializer as DisVoteSerializer
 from paper.models import Paper
-from paper.models import Vote as PaperVote
 from purchase.models import Purchase
 from reputation.models import Contribution, Deposit, Distribution, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -38,7 +37,8 @@ class ProofRelatedField(serializers.RelatedField):
         """
         Serialize tagged objects to a simple textual representation.
         """
-        from paper.serializers import DynamicPaperSerializer, DynamicPaperVoteSerializer
+        from discussion.serializers import DynamicVoteSerializer
+        from paper.serializers import DynamicPaperSerializer
         from purchase.serializers import PurchaseSerializer
 
         if isinstance(value, Comment):
@@ -53,16 +53,6 @@ class ProofRelatedField(serializers.RelatedField):
             paper_include_fields = ["id", "paper_title", "slug", "score"]
             return DynamicPaperSerializer(
                 value, _include_fields=paper_include_fields
-            ).data
-        elif isinstance(value, PaperVote):
-            return DynamicPaperVoteSerializer(
-                value,
-                _include_fields=["paper"],
-                context={
-                    "pap_dpvs_paper": {
-                        "_include_fields": ["id", "paper_title", "slug", "score"]
-                    }
-                },
             ).data
         elif isinstance(value, Purchase):
             return PurchaseSerializer(value, context={"exclude_stats": True}).data

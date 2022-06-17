@@ -17,11 +17,10 @@ from bullet_point.models import BulletPoint
 from bullet_point.models import Vote as BulletPointVote
 from bullet_point.serializers import BulletPointVoteSerializer
 from discussion.models import Comment, Reply, Thread
-from discussion.models import Vote as ReactionVote
+from discussion.models import Vote as GrmVote
 from hypothesis.models import Hypothesis
 from notification.models import Notification
 from paper.models import Paper, PaperSubmission
-from paper.models import Vote as PaperVote
 from purchase.models import Wallet
 from reputation import distributions
 from reputation.distributor import Distributor
@@ -102,13 +101,13 @@ def doi_updated(update_fields):
 @receiver(pre_save, sender=Reply, dispatch_uid="create_reply_handle_spam")
 @receiver(pre_save, sender=Thread, dispatch_uid="create_thread_handle_spam")
 @receiver(pre_save, sender=Paper, dispatch_uid="paper_handle_spam")
-@receiver(pre_save, sender=PaperVote, dispatch_uid="paper_vote_action")
+@receiver(pre_save, sender=GrmVote, dispatch_uid="paper_vote_action")
 def handle_spam(sender, instance, **kwargs):
     # If user is a probable spammer, mark all of their content as is_removed
 
     if sender == Paper:
         user = instance.uploaded_by
-    elif sender in (Comment, Reply, Thread, BulletPoint, PaperVote):
+    elif sender in (Comment, Reply, Thread, BulletPoint, GrmVote):
         user = instance.created_by
     elif sender in (Summary,):
         user = instance.proposed_by
@@ -123,8 +122,7 @@ def handle_spam(sender, instance, **kwargs):
 @receiver(post_save, sender=Reply, dispatch_uid="create_reply_action")
 @receiver(post_save, sender=Thread, dispatch_uid="create_thread_action")
 @receiver(post_save, sender=Paper, dispatch_uid="paper_upload_action")
-@receiver(post_save, sender=PaperVote, dispatch_uid="paper_vote_action")
-@receiver(post_save, sender=ReactionVote, dispatch_uid="discussion_vote_action")
+@receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote_action")
 @receiver(post_save, sender=BulletPointVote, dispatch_uid="summary_vote_action")
 @receiver(post_save, sender=SummaryVote, dispatch_uid="bulletpoint_vote_action")
 @receiver(post_save, sender=ResearchhubPost, dispatch_uid="researchhubpost_action")
@@ -190,13 +188,13 @@ def create_action(sender, instance, created, **kwargs):
                 )
                 referrer.distribute()
 
-        vote_types = [PaperVote, ReactionVote, BulletPointVote, SummaryVote]
+        vote_types = [GrmVote, BulletPointVote, SummaryVote]
         display = (
             False
             if (
                 sender in vote_types
                 or sender == PaperSubmission
-                or sender != ReactionVote
+                or sender != GrmVote
                 and (hasattr(instance, "is_removed") and instance.is_removed)
             )
             else True
@@ -220,7 +218,7 @@ def create_delete_action(sender, instance, using, **kwargs):
 
 
 def create_notification(sender, instance, created, action, **kwargs):
-    if sender == ReactionVote or sender == PaperVote or sender == PaperSubmission:
+    if sender == GrmVote or sender == PaperSubmission:
         return
 
     if created:

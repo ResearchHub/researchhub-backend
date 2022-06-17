@@ -122,8 +122,8 @@ def censored_paper_cleanup(paper_id):
         paper.save()
 
     if paper:
-        paper.votes_legacy.update(is_removed=True)
-        for vote in paper.votes_legacy.all():
+        paper.votes.update(is_removed=True)
+        for vote in paper.votes.all():
             if vote.vote_type == 1:
                 user = vote.created_by
                 user.set_probable_spammer()
@@ -578,59 +578,6 @@ def celery_extract_pdf_sections(paper_id):
         return True, return_code
 
 
-@app.task(queue=QUEUE_TWITTER, ignore_result=False)
-def celery_calculate_paper_twitter_score(paper_id, iteration=0):
-    if paper_id is None or iteration > 2:
-        return False
-
-    Paper = apps.get_model("paper.Paper")
-    paper = Paper.objects.get(id=paper_id)
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0)
-
-    title = paper.title
-    if title:
-        words_in_title = paper.title.split(" ")
-        if len(words_in_title) <= 4:
-            return False, "Probable spam paper"
-
-    try:
-        twitter_score = paper.calculate_twitter_score()
-    except Exception as e:
-        error_message = e.message[0]
-        code = error_message["code"]
-        if code != RATE_LIMIT_CODE:
-            return False, str(e)
-
-        created_date = paper.created_date
-        if created_date >= today:
-            priority = 4
-        else:
-            priority = 7
-
-        celery_calculate_paper_twitter_score.apply_async(
-            (paper_id, iteration), priority=priority, countdown=420
-        )
-        return False, str(e)
-
-    # Temporarily stopping next day twitter score updates
-    # next_iteration = iteration + 1
-    # celery_calculate_paper_twitter_score.apply_async(
-    #     (paper_id, next_iteration),
-    #     priority=7 - next_iteration,
-    #     countdown=86400 * next_iteration
-    # )
-    score = paper.calculate_paper_score()
-    paper.paper_score = score
-    paper.save()
-
-    if score > 0:
-        paper.calculate_hot_score()
-    paper_cache_key = get_cache_key("paper", paper.id)
-    cache.delete(paper_cache_key)
-
-    return True, score
-
-
 @app.task(queue=QUEUE_PAPER_MISC)
 def handle_duplicate_doi(new_paper, doi):
     Paper = apps.get_model("paper.Paper")
@@ -846,9 +793,9 @@ def pull_papers(start=0, force=False):
                                 (paper.id,), priority=5, countdown=7
                             )
 
-                        celery_calculate_paper_twitter_score.apply_async(
-                            (paper.id,), priority=twitter_score_priority, countdown=15
-                        )
+                        # celery_calculate_paper_twitter_score.apply_async(
+                        #     (paper.id,), priority=twitter_score_priority, countdown=15
+                        # )
 
                         add_orcid_authors.apply_async(
                             (paper.id,), priority=6, countdown=10
@@ -1063,9 +1010,9 @@ def pull_crossref_papers(start=0, force=False):
                         paper.set_paper_completeness()
                         update_unified_document_to_paper(paper)
 
-                        celery_calculate_paper_twitter_score.apply_async(
-                            (paper.id,), priority=twitter_score_priority, countdown=15
-                        )
+                        # celery_calculate_paper_twitter_score.apply_async(
+                        #     (paper.id,), priority=twitter_score_priority, countdown=15
+                        # )
                         add_orcid_authors.apply_async(
                             (paper.id,), priority=6, countdown=10
                         )

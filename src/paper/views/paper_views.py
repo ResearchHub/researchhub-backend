@@ -3,6 +3,7 @@ import json
 from urllib.parse import urlparse
 
 import requests
+from django.contrib.admin.options import get_content_type_for_model
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
@@ -24,20 +25,20 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
-from discussion.reaction_serializers import FlagSerializer
-from discussion.reaction_views import create_flag
+from discussion.models import Vote as GrmVote
+from discussion.reaction_serializers import FlagSerializer as GrmFlagSerializer
+from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
+from discussion.reaction_views import ReactionViewActionMixin, create_flag
 from google_analytics.signals import get_event_hit_response
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
-from paper.models import AdditionalFile, Figure, Flag, Paper, PaperSubmission, Vote
+from paper.models import AdditionalFile, Figure, Flag, Paper, PaperSubmission
 from paper.permissions import (
     CreatePaper,
-    DownvotePaper,
     IsAuthor,
     IsModeratorOrVerifiedAuthor,
     UpdateOrDeleteAdditionalFile,
     UpdatePaper,
-    UpvotePaper,
 )
 from paper.serializers import (
     AdditionalFileSerializer,
@@ -47,7 +48,6 @@ from paper.serializers import (
     PaperReferenceSerializer,
     PaperSerializer,
     PaperSubmissionSerializer,
-    PaperVoteSerializer,
 )
 from paper.tasks import celery_process_paper, censored_paper_cleanup
 from paper.utils import (
@@ -76,7 +76,7 @@ from utils.siftscience import decisions_api, events_api
 from utils.throttles import THROTTLE_CLASSES
 
 
-class PaperViewSet(viewsets.ModelViewSet):
+class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     queryset = Paper.objects.filter()
     serializer_class = PaperSerializer
     dynamic_serializer_class = DynamicPaperSerializer
@@ -213,6 +213,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         except IntegrityError as e:
             return self._get_integrity_error_response(e)
         except PaperSerializerError as e:
+            print("EXCEPTION: ", e)
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
     def _get_integrity_error_response(self, error):
@@ -245,7 +246,7 @@ class PaperViewSet(viewsets.ModelViewSet):
                     "documents",
                 ]
             },
-            "pap_dps_get_user_vote": {"_exclude_fields": ["paper"]},
+            "pap_dps_get_user_vote": {},
             "pap_dps_get_uploaded_by": {
                 "_include_fields": [
                     "id",
@@ -496,46 +497,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             print(e)
             return Response(f"Failed to remove {paper.id} from bookmarks", status=400)
 
-    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
-    def flag(self, request, pk=None):
-        # TODO: calvinhlee - clean this up after full  migration
-        paper = self.get_object()
-        user = request.user
-        reason = request.data.get("reason")
-        reason_choice = request.data.get("reason_choice")
-
-        try:
-            flag = create_flag(user, paper, reason, reason_choice)
-            serialized = FlagSerializer(flag)
-
-            content_id = f"{type(paper).__name__}_{paper.id}"
-            events_api.track_flag_content(paper.uploaded_by, content_id, user.id)
-            return Response(serialized.data, status=201)
-        except IntegrityError as e:
-            return Response(
-                {
-                    "msg": "Already flagged",
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
-        except Exception as e:
-            return Response(
-                {
-                    "msg": "Unexpected error",
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    @flag.mapping.delete
-    def delete_flag(self, request, pk=None):
-        try:
-            flag = Flag.objects.get(paper=pk, created_by=request.user.id)
-            flag_id = flag.id
-            flag.delete()
-            return Response(flag_id, status=200)
-        except Exception as e:
-            return Response(f"Failed to delete flag: {e}", status=400)
-
     @action(detail=True, methods=[GET])
     def referenced_by(self, request, pk=None):
         paper = self.get_object()
@@ -580,61 +541,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             return Response(f"Failed to delete vote: {e}", status=400)
 
     @action(
-        detail=True,
-        methods=["post", "put", "patch"],
-        permission_classes=[UpvotePaper & CreateOrUpdateIfAllowed],
-    )
-    def upvote(self, request, pk=None):
-        paper = self.get_object()
-        hub_ids = list(paper.hubs.values_list("id", flat=True))
-        hub_ids = add_default_hub(hub_ids)
-        user = request.user
-
-        vote_exists = find_vote(user, paper, Vote.UPVOTE)
-
-        if vote_exists:
-            return Response(
-                "This vote already exists", status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(request, user, paper, Vote.UPVOTE)
-
-        reset_unified_document_cache(
-            hub_ids,
-            filters=[TRENDING, TOP],
-            document_type=["all", "paper"],
-        )
-        paper.reset_cache()
-
-        return response
-
-    @action(
-        detail=True,
-        methods=["post", "put", "patch"],
-        permission_classes=[DownvotePaper & CreateOrUpdateIfAllowed],
-    )
-    def downvote(self, request, pk=None):
-        paper = self.get_object()
-        hub_ids = list(paper.hubs.values_list("id", flat=True))
-        user = request.user
-
-        vote_exists = find_vote(user, paper, Vote.DOWNVOTE)
-
-        if vote_exists:
-            return Response(
-                "This vote already exists", status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(request, user, paper, Vote.DOWNVOTE)
-
-        reset_unified_document_cache(
-            hub_ids,
-            filters=[TRENDING, TOP],
-            document_type=["all", "paper"],
-        )
-        paper.reset_cache()
-
-        return response
-
-    @action(
         detail=False,
         methods=["get"],
     )
@@ -644,11 +550,15 @@ class PaperViewSet(viewsets.ModelViewSet):
         response = {}
 
         if user.is_authenticated:
-            votes = Vote.objects.filter(paper__id__in=paper_ids, created_by=user)
+            votes = GrmVote.objects.filter(
+                content_type=get_content_type_for_model(Paper),
+                object_id__in=paper_ids,
+                created_by=user,
+            )
 
             for vote in votes.iterator():
-                paper_id = vote.paper_id
-                data = PaperVoteSerializer(instance=vote).data
+                paper_id = vote.object_id
+                data = GrmVoteSerializer(instance=vote).data
                 response[paper_id] = data
 
         return Response(response, status=status.HTTP_200_OK)
@@ -1019,54 +929,32 @@ class FigureViewSet(viewsets.ModelViewSet):
 
 
 def find_vote(user, paper, vote_type):
-    vote = Vote.objects.filter(paper=paper, created_by=user, vote_type=vote_type)
+    vote = GrmVote.objects.filter(
+        content_type=get_content_type_for_model(paper),
+        created_by=user,
+        object_id=paper.id,
+        vote_type=vote_type,
+    )
     if vote:
         return True
     return False
 
 
-def update_or_create_vote(request, user, paper, vote_type):
-    vote = retrieve_vote(user, paper)
-
-    if vote:
-        vote.vote_type = vote_type
-        vote.save()
-        events_api.track_content_vote(user, vote, request)
-        return get_vote_response(vote, 200)
-    vote = create_vote(user, paper, vote_type)
-
-    events_api.track_content_vote(user, vote, request)
-    unified_doc_id = paper.unified_document.id
-    create_contribution.apply_async(
-        (
-            Contribution.UPVOTER,
-            {"app_label": "paper", "model": "vote"},
-            user.id,
-            unified_doc_id,
-            vote.id,
-        ),
-        priority=3,
-        countdown=10,
-    )
-    return get_vote_response(vote, 201)
-
-
 def get_vote_response(vote, status_code):
     """Returns Response with serialized `vote` data and `status_code`."""
-    serializer = PaperVoteSerializer(vote)
+    serializer = GrmVoteSerializer(vote)
     return Response(serializer.data, status=status_code)
 
 
 def retrieve_vote(user, paper):
     try:
-        return Vote.objects.get(paper=paper, created_by=user.id)
-    except Vote.DoesNotExist:
+        return GrmVote.objects.get(
+            content_type=get_content_type_for_model(paper),
+            created_by=user,
+            object_id=paper.id,
+        )
+    except GrmVote.DoesNotExist:
         return None
-
-
-def create_vote(user, paper, vote_type):
-    vote = Vote.objects.create(created_by=user, paper=paper, vote_type=vote_type)
-    return vote
 
 
 class PaperSubmissionViewSet(viewsets.ModelViewSet):

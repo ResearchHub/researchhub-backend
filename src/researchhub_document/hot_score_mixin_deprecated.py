@@ -99,7 +99,7 @@ class HotScoreMixinDEPRECATED:
         # Doc vote score
         if self.document_type == PAPER:
             doc_vote_net_score = doc.calculate_score(ignore_twitter_score=True)
-            votes = doc.votes_legacy.all()
+            votes = doc.votes.all()
         else:
             doc_vote_net_score = doc.calculate_score()
             votes = doc.votes.all()
