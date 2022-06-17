@@ -497,63 +497,6 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             print(e)
             return Response(f"Failed to remove {paper.id} from bookmarks", status=400)
 
-    @action(
-        detail=True,
-        methods=["post", "put", "patch"],
-        permission_classes=[IsAuthenticated],
-    )
-    def upvote(self, *args, **kwargs):
-        print("WHATAHWATHAHTHAHTHAATH")
-        return super().upvote(*args, **kwargs)
-
-    @action(
-        detail=True,
-        methods=["post", "put", "patch"],
-        permission_classes=[IsAuthenticated],
-    )
-    def downvote(self, *args, **kwargs):
-        return super().downvote(*args, **kwargs)
-
-    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
-    def flag(self, request, pk=None):
-        # TODO: calvinhlee - clean this up after full  migration
-        paper = self.get_object()
-        user = request.user
-        reason = request.data.get("reason")
-        reason_choice = request.data.get("reason_choice")
-
-        try:
-            flag = create_flag(user, paper, reason, reason_choice)
-            serialized = GrmFlagSerializer(flag)
-
-            content_id = f"{type(paper).__name__}_{paper.id}"
-            events_api.track_flag_content(paper.uploaded_by, content_id, user.id)
-            return Response(serialized.data, status=201)
-        except IntegrityError as e:
-            return Response(
-                {
-                    "msg": "Already flagged",
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
-        except Exception as e:
-            return Response(
-                {
-                    "msg": "Unexpected error",
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    @flag.mapping.delete
-    def delete_flag(self, request, pk=None):
-        try:
-            flag = Flag.objects.get(paper=pk, created_by=request.user.id)
-            flag_id = flag.id
-            flag.delete()
-            return Response(flag_id, status=200)
-        except Exception as e:
-            return Response(f"Failed to delete flag: {e}", status=400)
-
     @action(detail=True, methods=[GET])
     def referenced_by(self, request, pk=None):
         paper = self.get_object()
