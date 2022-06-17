@@ -358,12 +358,6 @@ def update_or_create_vote(request, user, item, vote_type):
                 hub_ids, document_type=[doc_type, "all"], filters=cache_filters_to_reset
             )
 
-        potential_paper = vote.item
-        from paper.models import Paper
-
-        if isinstance(potential_paper, Paper):
-            potential_paper.reset_cache()
-
         # events_api.track_content_vote(user, vote, request)
         return get_vote_response(vote, 200)
 
@@ -373,6 +367,12 @@ def update_or_create_vote(request, user, item, vote_type):
         reset_unified_document_cache(
             hub_ids, document_type=[doc_type, "all"], filters=cache_filters_to_reset
         )
+
+    potential_paper = vote.item
+    from paper.models import Paper
+
+    if isinstance(potential_paper, Paper):
+        potential_paper.reset_cache()
 
     app_label = item._meta.app_label
     model = item._meta.model.__name__.lower()
