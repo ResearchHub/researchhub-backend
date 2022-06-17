@@ -82,13 +82,19 @@ class ReactionViewActionMixin:
             events_api.track_flag_content(item.created_by, content_id, user.id)
             return Response(serialized.data, status=201)
         except IntegrityError as e:
-            return Response({
-                "msg": "Already flagged", 
-            }, status=status.HTTP_409_CONFLICT)
+            return Response(
+                {
+                    "msg": "Already flagged",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         except Exception as e:
-            return Response({
-                "msg": "Unexpected error", 
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {
+                    "msg": "Unexpected error",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def delete_flag(self, request, pk=None):
         item = self.get_object()
@@ -160,8 +166,9 @@ class ReactionViewActionMixin:
     def upvote(self, request, pk=None):
         item = self.get_object()
         user = request.user
+        print("HIHIHIHIHIHIHIHIHIHIHIHI")
         vote_exists = find_vote(user, item, Vote.UPVOTE)
-
+        print("vote_exists: ", vote_exists)
         if vote_exists:
             return Response(
                 "This vote already exists", status=status.HTTP_400_BAD_REQUEST

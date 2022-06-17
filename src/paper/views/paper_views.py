@@ -26,7 +26,7 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 
 from discussion.models import Vote as GrmVote
-from discussion.reaction_serializers import FlagSerializer
+from discussion.reaction_serializers import FlagSerializer as GrmFlagSerializer
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from discussion.reaction_views import ReactionViewActionMixin, create_flag
 from google_analytics.signals import get_event_hit_response
@@ -497,6 +497,23 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             print(e)
             return Response(f"Failed to remove {paper.id} from bookmarks", status=400)
 
+    @action(
+        detail=True,
+        methods=["post", "put", "patch"],
+        permission_classes=[IsAuthenticated],
+    )
+    def upvote(self, *args, **kwargs):
+        print("WHATAHWATHAHTHAHTHAATH")
+        return super().upvote(*args, **kwargs)
+
+    @action(
+        detail=True,
+        methods=["post", "put", "patch"],
+        permission_classes=[IsAuthenticated],
+    )
+    def downvote(self, *args, **kwargs):
+        return super().downvote(*args, **kwargs)
+
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     def flag(self, request, pk=None):
         # TODO: calvinhlee - clean this up after full  migration
@@ -507,7 +524,7 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         try:
             flag = create_flag(user, paper, reason, reason_choice)
-            serialized = FlagSerializer(flag)
+            serialized = GrmFlagSerializer(flag)
 
             content_id = f"{type(paper).__name__}_{paper.id}"
             events_api.track_flag_content(paper.uploaded_by, content_id, user.id)

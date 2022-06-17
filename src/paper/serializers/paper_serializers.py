@@ -808,7 +808,8 @@ class DynamicPaperSerializer(
         user = get_user_from_request(self.context)
         context = self.context
         _context_fields = context.get("pap_dps_get_user_vote", {})
-
+        # print("###########################")
+        # print("user: ", user)
         if user:
             try:
                 vote = paper.votes.get(created_by=user.id)

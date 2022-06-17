@@ -99,7 +99,6 @@ class HubViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         ordering = self.request.query_params.get("ordering", "")
-        print("ordering", ordering)
         return self.get_ordered_queryset(ordering)
 
     # TODO: re consider approach
