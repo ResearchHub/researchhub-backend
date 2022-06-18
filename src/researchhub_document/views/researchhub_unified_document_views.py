@@ -170,8 +170,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def _get_document_filtering(self, query_params):
         filtering = query_params.get("ordering", None)
 
-        print("filtering", filtering)
-
         if filtering == "removed":
             filtering = "removed"
         elif filtering == "top_rated":

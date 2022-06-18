@@ -69,11 +69,6 @@ def preload_trending_documents(
     else:  # Today
         cache_pk = f"{document_type}_{hub_id}_{filtering}_today"
 
-    print("==========================")
-    print("==========================")
-    print("==========================")
-    print("==========================")
-    print("filtering", filtering)
     query_string_filtering = "top_rated"
     if filtering == "removed":
         query_string_filtering = "removed"
