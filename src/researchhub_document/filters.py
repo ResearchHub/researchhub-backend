@@ -24,6 +24,8 @@ UNIFIED_DOCUMENT_FILTER_CHOICES = (
     ("most_discussed", "Most Discussed"),
     ("newest", "Newest"),
     ("hot", "Hot"),
+    ("author_claimed", "Author Claimed"),
+    ("is_open_access", "Open Access"),
 )
 
 
@@ -226,6 +228,24 @@ class UnifiedDocumentFilter(filters.FilterSet):
         elif value == "newest":
             filtering = "-created_date"
             ordering.append(filtering)
+        elif value == "author_claimed":
+            qs = qs.filter(
+                Q(
+                    paper__related_claim_cases__isnull=False,
+                    paper__related_claim_cases__status="APPROVED",
+                )
+            )
+            filtering = "author_claimed"
+            ordering.append("-hot_score_v2")
+        elif value == "is_open_access":
+            qs = qs.filter(
+                Q(
+                    paper__is_open_access=True,
+                    created_date__range=(start_date, end_date),
+                )
+            )
+            filtering = "is_open_access"
+            ordering.append("-hot_score_v2")
         elif value == "hot":
             filtering = "-hot_score"
             qs = qs.annotate(

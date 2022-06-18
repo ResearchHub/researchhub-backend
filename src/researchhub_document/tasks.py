@@ -69,6 +69,11 @@ def preload_trending_documents(
     else:  # Today
         cache_pk = f"{document_type}_{hub_id}_{filtering}_today"
 
+    print("==========================")
+    print("==========================")
+    print("==========================")
+    print("==========================")
+    print("filtering", filtering)
     query_string_filtering = "top_rated"
     if filtering == "removed":
         query_string_filtering = "removed"
@@ -80,6 +85,10 @@ def preload_trending_documents(
         query_string_filtering = "newest"
     elif filtering == "-hot_score":
         query_string_filtering = "hot"
+    elif filtering == "is_open_access":
+        query_string_filtering = "is_open_access"
+    elif filtering == "author_claimed":
+        query_string_filtering = "author_claimed"
 
     request_path = "/api/researchhub_unified_documents/get_unified_documents/"
     if STAGING:

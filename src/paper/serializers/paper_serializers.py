@@ -46,6 +46,7 @@ from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     NEWEST,
+    OPEN_ACCESS,
     TOP,
     TRENDING,
 )
@@ -480,7 +481,7 @@ class PaperSerializer(BasePaperSerializer):
                     reset_unified_document_cache(
                         hub_ids,
                         document_type=["paper", "all"],
-                        filters=[NEWEST],
+                        filters=[NEWEST, OPEN_ACCESS],
                         with_default_hub=True,
                     )
 
@@ -569,7 +570,7 @@ class PaperSerializer(BasePaperSerializer):
                     reset_unified_document_cache(
                         hub_ids=updated_hub_ids,
                         document_type=["paper", "all"],
-                        filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+                        filters=[NEWEST, TOP, TRENDING, DISCUSSED, OPEN_ACCESS],
                         with_default_hub=True,
                     )
 
