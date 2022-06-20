@@ -252,11 +252,6 @@ class Paper(AbstractGenericReactionModel):
             return "titleless paper"
 
     @property
-    def score(self):
-        # TODO: calvinhlee - remove this to use GRM after vote migration
-        return self.paper_score
-
-    @property
     def display_title(self):
         return self.title or self.paper_title
 
