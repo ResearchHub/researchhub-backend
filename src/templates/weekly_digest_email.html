@@ -92,7 +92,7 @@
                 <p class="header-message-2">
                     <div class="paper-card-container">
                         {% for paper in papers %}
-                            <a class="paper-card-link" href="https://www.researchhub.com/paper/{{paper.id}}/summary">
+                            <a class="paper-card-link" href="https://www.researchhub.com/paper/{{paper.id}}/{{paper.slug}}">
                                 <div class="paper-card">
                                     <div class="score-wrap">
                                         <img class="vote-icon" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/upvote.png" height="11px" style="object-fit: contain; margin-bottom: 5px;" />
@@ -148,9 +148,9 @@
                         {% endfor %}
                     </div>
                 </p>
-                <button class="read-more-button">
+                <a href="https://www.researchhub.com" class="read-more-button">
                     View More Papers on ResearchHub
-                </button>
+                </a>
             </div>
         </div>
     </div>
