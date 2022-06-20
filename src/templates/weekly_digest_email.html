@@ -1,96 +1,184 @@
 {% load inlinecss %}
 {% load static %}
+{% load l10n %}
 
 <html>
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title></title>
-        <link href="https://fonts.googleapis.com/css?family=Roboto:400,500&display=swap" rel="stylesheet">
-        <link href="https://fonts.googleapis.com/css?family=Raleway&display=swap" rel="stylesheet">
-    </head>
-    {% inlinecss "weekly_digest_email.css" %}
-    <body>
-        <style type="text/css">
-            @media only screen and (max-width:767px) {
-                .hubs-desktop {display: none!important;}
+<link rel="stylesheet" href="../stylesheets/support_receipt.css">
 
-                .hubs-mobile {display: block!important;}
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+    <style type="text/css">
+        .verify-button {
+            padding: 8px 0 0;
+            background: #3971ff;
+            border-radius: 4px;
+            color: #fff;
+            font-weight: 500;
+            height: 28px;
+            margin-top: 24px;
+            width: 205px;
+            text-align: center;
+            margin: 0 auto;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .link {
+            text-decoration: none;
+        }
+
+        .header-container {
+            border-top: 1px solid #ddd;
+            border-bottom: 1px solid #ddd;
+            margin-top: 25px;
+            margin-bottom: 20px;
+            padding-top: 35px;
+            padding-bottom: 35px;
+            box-sizing: border-box;
+            line-height: 23px;
+            text-align: left;
+        }
+
+        .header-2 {
+            display: block;
+            font-size: 20px;
+            font-weight: 500;
+            color: #241F3A;
+        }
+
+
+        .header-message-2 {
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 20px;
+            opacity: 0.8;
+            margin: 20px 0px 0px 0px;
+            text-align: left;
+        }
+
+        .bold-name {
+            font-weight: bold;
+        }
+
+        @media only screen and (max-width: 767px) {
+            body {
+                width: 100%;
+                box-sizing: border-box;
             }
-        </style>
-        <div style="display: none; max-height: 0px; overflow: hidden;">
-            {{ preview_text }}
-        </div>
-        <div class="email-container">
-            <div class="email-header">
-                <div class="flex-text inline">
-                    <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/rh-logo.png" />
-                    <div class="first-name">
-                        {{ first_name }}'s' Digest
-                    </div>
+
+            .email-container {
+                width: 90% !important;
+                box-sizing: border-box;
+            }
+
+            .footer {
+                width: 90% !important;
+                box-sizing: border-box;
+            }
+        }
+    </style>
+</head>
+{% inlinecss "weekly_digest_email.css" %}
+<body>
+    <div class="email-container">
+        <div class="email-header">
+            <img class="img-logo" src="https://rh-email-assets.s3-us-west-2.amazonaws.com/researchlogo.png" />
+            <div class="header-container">
+                <div class="header">
+                    Your ResearchHub Digest
                 </div>
-            </div>
-            <div class="tagline">
-                Top Papers For You
-            </div>
-            {% for paper in papers %}
-              <a class="content-container" href="https://www.researchhub.com/paper/{{paper.id}}/summary">
-                  <div class="content">
-                      <div class="points">
-                          <span class="flex-text">
-                              {{ paper.calculate_score }}
-                          </span>
-                      </div>
-                      <div class="right">
-                        <div class="title">{{paper.title}}</div>
-                        <!-- <div class="body">
-                            {{paper.tagline}}
-                        </div> -->
-                        <div class="meta">
-                          <div class="author-name">
-                              {{paper.author.first_name}} {{paper.author.last_name}}
-                          </div>
-                          <div class="row">
-                              <div class="comments-row">
-                                  <img class="comments-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/comments.png" /> {{ paper.get_discussion_count }} {% if paper.get_discussion_count == 1 %} comment {% else %} comments {% endif %}
-                              </div>
-                              <div class="hubs hubs-desktop">
-                                  {% for hub in paper.hubs.all %}
-                                      <button class="hub">
-                                          {{ hub.name }}
-                                      </button>
-                                {% endfor %}
-                              </div>
-                          </div>
-                      </div>
-                      <div class="hubs-mobile">
-                          {% for hub in paper.hubs.all %}
-                              <button class="hub mobile-hub">
-                                  {{ hub.name }}
-                              </button>
+                <p class="header-message-2">
+                    <div class="paper-card-container">
+                        {% for doc in documents %}
+                            <a class="paper-card-link" href={{doc.get_url}}>
+                                <div class="paper-card">
+                                    <div class="score-wrap">
+                                        <img class="vote-icon" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/upvote.png" height="11px" style="object-fit: contain; margin-bottom: 5px;" />
+                                        <div class="score"
+                                            style="color: rgb(72, 192, 85); background: rgba(240, 240, 240, 0.5) !important; border-radius: 5px; width: 28px; height: 22px; display: flex; justify-content: center; align-items: center; text-align: center;">
+                                            <span style="margin: auto;">
+                                                {{doc.score}}
+                                            </span>
+                                        </div>
+                                        <img class="vote-icon" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/downvote.png" height="11px" style="object-fit: contain; margin-top: 5px;" />
+                                    </div>
+                                    <table class="paper-card-right">
+                                        <tr class="paper-card-right-row" >
+                                            <td class="row-inner" style="align-items: center">
+                                                <img style="margin-bottom: 7px; margin-top: 7px;" class="author-avatar middle" src="{{ doc.get_document.uploaded_by.author_profile.profile_image }}"
+                                                    onerror="this.src='https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg'" />
+                                                <span class="paper-card-accent-font middle">
+                                                    {{doc.get_document.uploaded_by.full_name}}
+                                                </span>
+                                                <span class="middle" style="color: rgb(144, 144, 144); margin-left: 4px; margin-right: 4px;">
+                                                    posted in
+                                                </span>
+                                                <span class="paper-card-accent-font middle">{{doc.get_hub_names}}</span>
+                                            </td>
+                                        </tr>
+                                        <tr class="paper-card-right-row">
+                                            <td class="row-inner">
+                                                <div class="paper-card-paper-title">
+                                                    {{doc.get_document.title}}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr class="paper-card-right-row">
+                                            <td class="row-inner">
+                                                <div class="abstract">
+                                                    {% if doc.document_type == 'PAPER' %}
+                                                        {{doc.get_document.abstract|truncatechars:255}}
+                                                    {% else %}
+                                                        {{doc.get_document.renderable_text|truncatechars:255}}
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr class="paper-card-right-row" style="display: flex; margin-top: 10px;">
+                                            <td class="row-inner middle">
+                                                <img class="paper-card-icon icon-first middle" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-comment-icon.png" width="16px" style="margin-right: 4px;" />
+                                                <span class="middle" style="color: rgba(36, 31, 58, 0.6)">{{doc.get_document.get_discussion_count}}</span>
+                                            </td>
+                                            <td class="row-inner middle">
+                                                {% if doc.document_type == 'PAPER' %}
+                                                    <img class="paper-card-icon middle" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-paper-icon.png" width="16px" />
+                                                {% elif doc.document_type == 'DISCUSSION' %}
+                                                    <img class="paper-card-icon middle" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-post-icon.png" width="16px" />
+                                                {% elif doc.document_type == 'HYPOTHESIS' %}
+                                                    <img class="paper-card-icon middle" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-hypothesis-icon.png" width="16px" />
+                                                {% endif %}
+                                                <span class="middle" style="color: rgba(36, 31, 58, 0.6)">
+                                                    {% if doc.document_type == 'PAPER' %}
+                                                        Paper
+                                                    {% elif doc.document_type == 'DISCUSSION' %}
+                                                        Post
+                                                    {% elif doc.document_type == 'HYPOTHESIS' %}
+                                                        Meta-Study
+                                                    {% endif %}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </a>
                         {% endfor %}
-                      </div>
                     </div>
-                  </div>
-              </a>
-            {% endfor %}
-            <div class="read-more-container">
+                </p>
                 <a href="https://www.researchhub.com" class="read-more-button">
-                    Read More on ResearchHub
+                    View More Papers on ResearchHub
                 </a>
             </div>
-            <div class="divider">
-                <div class="line"></div>
-              </div>
-        <div class="footer">
-            <div>
-                This email was sent by ResearchHub
-            </div>
-            <div>
-                If you would like to stop receiving emails from ResearchHub <a href={{opt_out}}>opt-out here</a>
-            </div>
         </div>
-    </body>
+    </div>
+    <div class="footer">
+        <a class="footer-link" href="{{opt_out}}">Unsubscribe from this list</a>
+        <a class="footer-link" href="{{update_subscription}}">Update subscription preferences</a>
+    </div>
+    <div style="display: none">{% now "U" %}</div>
+</body>
+
 </html>
 
 {% endinlinecss %}

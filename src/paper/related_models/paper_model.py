@@ -252,6 +252,14 @@ class Paper(AbstractGenericReactionModel):
             return "titleless paper"
 
     @property
+    def score(self):
+        # TODO: calvinhlee - remove this to use GRM after vote migration
+        return self.paper_score
+
+    @property
+    def display_title(self):
+        return self.title or self.paper_title
+
     def uploaded_date(self):
         return self.created_date
 
@@ -369,6 +377,9 @@ class Paper(AbstractGenericReactionModel):
                     raw_author_count -= 1
 
         return raw_author_count + registered_author_count
+
+    def get_hub_names(self):
+        return ",".join(self.hubs.values_list("name", flat=True))
 
     def calculate_hot_score(paper):
         ALGO_START_UNIX = 1546329600

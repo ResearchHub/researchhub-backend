@@ -5,7 +5,9 @@ from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Q
+from django.http.request import HttpRequest
 from django.utils import timezone
+from rest_framework.request import Request
 
 from discussion.models import Comment, Reply, Thread
 from discussion.reaction_models import Vote
@@ -15,9 +17,12 @@ from mailing_list.lib import base_email_context
 from mailing_list.models import EmailTaskLog, NotificationFrequencies
 from paper.models import Paper
 from paper.models import Vote as PaperVote
+from paper.utils import get_cache_key
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from researchhub.celery import QUEUE_NOTIFICATION, app
+from researchhub.settings import APP_ENV, PRODUCTION, STAGING
 from researchhub_document.models import ResearchhubPost
+from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
 from user.models import Action, User
 from utils.message import send_email_message
 
@@ -30,24 +35,22 @@ def notify_immediate(action_id):
 
 @periodic_task(run_every=crontab(minute="30", hour="1"), priority=7)
 def notify_daily():
-    pass
     # send_editor_hub_digest(NotificationFrequencies.DAILY)
-    # send_hub_digest(NotificationFrequencies.DAILY)
+    send_hub_digest(NotificationFrequencies.DAILY)
 
 
 @periodic_task(run_every=crontab(minute="0", hour="*/3"), priority=7)
 def notify_three_hours():
-    pass
     # send_editor_hub_digest(NotificationFrequencies.THREE_HOUR)
-    # send_hub_digest(NotificationFrequencies.THREE_HOUR)
+    send_hub_digest(NotificationFrequencies.THREE_HOUR)
+    pass
 
 
 # Noon PST
 @periodic_task(run_every=crontab(minute=0, hour=20, day_of_week="friday"), priority=9)
 def notify_weekly():
-    pass
     # send_editor_hub_digest(NotificationFrequencies.WEEKLY)
-    # send_hub_digest(NotificationFrequencies.WEEKLY)
+    send_hub_digest(NotificationFrequencies.WEEKLY)
 
 
 """
@@ -184,52 +187,55 @@ def send_hub_digest(frequency):
 
     # TODO find best by hub and then in mem sort for each user? more efficient?
     emails = []
+    papers = []
+
+    request_path = "/api/researchhub_unified_documents/get_unified_documents/"
+    if STAGING:
+        http_host = "staging-backend.researchhub.com"
+        protocol = "https"
+    elif PRODUCTION:
+        http_host = "backend.researchhub.com"
+        protocol = "https"
+    else:
+        http_host = "localhost:8000"
+        protocol = "http"
+
+    query_string = "ordering=hot&page=1&subscribed_hubs=false&type=all&time=today&"
+    http_meta = {
+        "QUERY_STRING": query_string,
+        "HTTP_HOST": http_host,
+        "HTTP_X_FORWARDED_PROTO": protocol,
+    }
+
+    cache_key_hub = get_cache_key("hub", cache_pk)
+    document_view = ResearchhubUnifiedDocumentViewSet()
+    http_req = HttpRequest()
+    http_req.META = http_meta
+    http_req.path = request_path
+    req = Request(http_req)
+    document_view.request = req
+    filtering = document_view._get_document_filtering({"ordering": "hot"})
+
+    documents = document_view.get_filtered_queryset("all", filtering, "0", "today")[
+        0:10
+    ]
 
     for user in User.objects.filter(id__in=users, is_suspended=False):
         if not check_can_receive_digest(user, frequency):
-            continue
-        users_papers = Paper.objects.filter(hubs__in=user.subscribed_hubs.all())
-        most_voted_and_uploaded_in_interval = (
-            users_papers.filter(
-                created_date__gte=start_date, created_date__lte=end_date
-            )
-            .annotate(paper_score=PAPER_SCORE_Q_ANNOTATION)
-            .filter(paper_score__gt=0)
-            .order_by("-paper_score")[:3]
-        )
-        most_discussed_in_interval = (
-            users_papers.annotate(
-                discussions=thread_counts + comment_counts + reply_counts
-            )
-            .filter(discussions__gt=0)
-            .order_by("-discussions")[:3]
-        )
-
-        most_voted_in_interval = (
-            users_papers.annotate(paper_score=PAPER_SCORE_Q_ANNOTATION)
-            .filter(paper_score__gt=0)
-            .order_by("-paper_score")[:2]
-        )
-        papers = (
-            most_voted_and_uploaded_in_interval
-            or most_discussed_in_interval
-            or most_voted_in_interval
-        )
-        if len(papers) == 0:
             continue
 
         recipient = [user.email]
         send_email_message(
             recipient,
             "weekly_digest_email.txt",
-            build_subject(frequency),  # subject
+            "ResearchHub | Trending Papers",  # subject
             {
                 # email_context
                 **base_email_context,
                 "first_name": user.first_name,
                 "last_name": user.last_name,
-                "papers": papers,
-                "preview_text": papers[0].tagline,
+                "documents": documents,
+                "preview_text": documents[0],
             },
             "weekly_digest_email.html",
             "ResearchHub Digest <digest@researchhub.com>",

@@ -1,11 +1,11 @@
 from time import sleep
+
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from sentry_sdk import capture_exception
 
-from researchhub.settings import EMAIL_WHITELIST
-from researchhub.settings import PRODUCTION, TESTING
 from mailing_list.models import EmailRecipient
+from researchhub.settings import EMAIL_WHITELIST, PRODUCTION, TESTING
 
 
 def is_valid_email(email):
@@ -19,15 +19,15 @@ def is_valid_email(email):
 
     # # TODO: Add regex validation
     # try:
-        # recipient, created = EmailRecipient.objects.get_or_create(
-            # email=email
-        # )
+    # recipient, created = EmailRecipient.objects.get_or_create(
+    # email=email
+    # )
     # except Exception as e:
-        # print(e)
+    # print(e)
 
     # return (email in EMAIL_WHITELIST) or (
-        # (not recipient.do_not_email)
-        # and (not recipient.is_opted_out)
+    # (not recipient.do_not_email)
+    # and (not recipient.is_opted_out)
     # )
 
 
@@ -37,7 +37,7 @@ def send_email_message(
     subject,
     email_context,
     html_template=None,
-    sender='ResearchHub <noreply@researchhub.com>'
+    sender="ResearchHub <noreply@researchhub.com>",
 ):
     """Emails `message` to `recipients` and returns a dict with results in the
     following form:
@@ -56,31 +56,29 @@ def send_email_message(
         email_context (dict) - Data to send to template
         html_template (:str:) - Optional html template name
     """
-    subject = subject.replace('\n', '')
-    subject = subject.replace('\r', '')
+    subject = subject.replace("\n", "")
+    subject = subject.replace("\r", "")
 
     if not isinstance(recipients, list):
         recipients = [recipients]
 
     if not PRODUCTION:
-        subject = '[Staging] ' + subject
+        subject = "[Staging] " + subject
 
-    result = {'success': [], 'failure': [], 'exclude': []}
+    result = {"success": [], "failure": [], "exclude": []}
 
     # Exclude invalid recipients
     for recipient in recipients:
         if not is_valid_email(recipient):
-            result['exclude'].append(recipient)
+            result["exclude"].append(recipient)
             recipients.remove(recipient)
-            print('EMAIL NOT IN WHITELIST')
-
-    print(recipients)
+            print("EMAIL NOT IN WHITELIST")
 
     for recipient in recipients:
         # Build email context
         customContext = email_context
-        if 'opt_out' in email_context.keys():
-            customContext['opt_out'] += '?email={}'.format(recipient)
+        if "opt_out" in email_context.keys():
+            customContext["opt_out"] += "?email={}".format(recipient)
 
         message = render_to_string(template, customContext)
         html_message = render_to_string(html_template, customContext)
@@ -95,10 +93,10 @@ def send_email_message(
                 html_message=html_message,
                 fail_silently=False,
             )
-            result['success'].append(recipient)
+            result["success"].append(recipient)
         except Exception as e:
             print(e)
-            result['failure'].append(recipient)
+            result["failure"].append(recipient)
             capture_exception(e)
 
         # Stagger sends based on AWS SES limit
