@@ -2,6 +2,7 @@ import io
 import math
 from datetime import datetime
 
+import cloudscraper
 import fitz
 import jellyfish
 import nltk
@@ -373,7 +374,8 @@ def download_pdf(url):
 
 
 def get_pdf_from_url(url):
-    response = http_request(methods.GET, url, timeout=3)
+    scraper = cloudscraper.create_scraper()
+    response = scraper.get(url, timeout=3)
     pdf = ContentFile(response.content)
     return pdf
 

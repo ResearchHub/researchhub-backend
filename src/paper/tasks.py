@@ -33,19 +33,16 @@ from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
 from django.db.models import Q
-from django.http.request import HttpRequest
 from django.utils.text import slugify
 from habanero import Crossref
 from PIL import Image
 from psycopg2.errors import UniqueViolation
 from pytz import timezone as pytz_tz
 from requests.exceptions import HTTPError
-from rest_framework.request import Request
 
 from discussion.models import Comment, Thread
 from hub.utils import scopus_to_rh_map
 from paper.exceptions import (
-    CrossrefSearchError,
     DOINotFoundError,
     DuplicatePaperError,
     ManubotProcessingError,
@@ -77,11 +74,10 @@ from researchhub.celery import (
     QUEUE_HOT_SCORE,
     QUEUE_PAPER_METADATA,
     QUEUE_PAPER_MISC,
-    QUEUE_PULL_PAPERS,
     QUEUE_TWITTER,
     app,
 )
-from researchhub.settings import APP_ENV, PRODUCTION, STAGING
+from researchhub.settings import APP_ENV, PRODUCTION
 from researchhub_document.utils import update_unified_document_to_paper
 from utils import sentry
 from utils.arxiv.categories import (
@@ -139,40 +135,61 @@ def download_pdf(paper_id, retry=0):
 
     Paper = apps.get_model("paper.Paper")
     paper = Paper.objects.get(id=paper_id)
+
+    paper_pdf_url = paper.pdf_url
     paper_url = paper.url
-    pdf_url = paper.pdf_url
-    pdf_url_contains_pdf = check_url_contains_pdf(pdf_url)
-    url = pdf_url or paper_url
-    url_has_pdf = check_url_contains_pdf(paper_url) or pdf_url_contains_pdf
-    oa_pdf_url = None
+    paper_url_contains_pdf = check_url_contains_pdf(paper_url)
+    pdf_url_contains_pdf = check_url_contains_pdf(paper_pdf_url)
 
-    if (paper_url or pdf_url) and not url_has_pdf:
-        csl_item = get_csl_item(url)
-        oa_result = get_pdf_location_for_csl_item(csl_item)
-        if oa_result:
-            oa_url_1 = oa_result.get("url", None)
-            oa_url_2 = oa_result.get("url_for_pdf", None)
-            oa_pdf_url = oa_url_1 or oa_url_2
-            url = oa_pdf_url
-
-    if (paper_url and url_has_pdf) or oa_pdf_url:
+    if pdf_url_contains_pdf or paper_url_contains_pdf:
+        pdf_url = paper_pdf_url or paper_url
         try:
-            pdf = get_pdf_from_url(url)
-            filename = paper.url.split("/").pop()
+            pdf = get_pdf_from_url(pdf_url)
+            filename = pdf_url.split("/").pop()
             if not filename.endswith(".pdf"):
                 filename += ".pdf"
             paper.file.save(filename, pdf)
             paper.save(update_fields=["file"])
             paper.extract_pdf_preview(use_celery=True)
+            paper.reset_cache(use_celery=False)
             paper.set_paper_completeness()
             celery_extract_pdf_sections.apply_async(
                 (paper_id,), priority=5, countdown=15
             )
+            return True
         except Exception as e:
             sentry.log_info(e)
             download_pdf.apply_async(
                 (paper.id, retry + 1), priority=7, countdown=15 * (retry + 1)
             )
+            return False
+        return
+
+    csl_item = None
+    pdf_url = None
+    if paper_url:
+        csl_item = get_csl_item(paper_url)
+    elif paper_pdf_url:
+        csl_item = get_csl_item(pdf_url)
+
+    if csl_item:
+        oa_result = get_pdf_location_for_csl_item(csl_item)
+        if oa_result:
+            oa_url_1 = oa_result.get("url", None)
+            oa_url_2 = oa_result.get("url_for_pdf", None)
+            oa_pdf_url = oa_url_1 or oa_url_2
+            pdf_url = oa_pdf_url
+            pdf_url_contains_pdf = check_url_contains_pdf(pdf_url)
+
+            if pdf_url_contains_pdf:
+                paper.pdf_url = pdf_url
+                paper.save()
+                download_pdf.apply_async(
+                    (paper.id, retry + 1), priority=7, countdown=15 * (retry + 1)
+                )
+        return
+
+    return False
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
@@ -1323,6 +1340,8 @@ def celery_openalex(self, celery_data):
 
             host_venue = result.get("host_venue", {})
             oa = result.get("open_access", {})
+            oa_pdf_url = oa.get("oa_url", None)
+            url = host_venue.get("url", None)
             title = normalize("NFKD", result.get("title", ""))
             raw_authors = result.get("authorships", [])
             paper_data.setdefault("raw_authors", format_raw_authors(raw_authors))
@@ -1333,10 +1352,13 @@ def celery_openalex(self, celery_data):
             )
             paper_data.setdefault("is_open_access", oa.get("is_oa", None))
             paper_data.setdefault("pdf_license", host_venue.get("license", None))
-            paper_data.setdefault("pdf_license_url", host_venue.get("url", None))
+            paper_data.setdefault("pdf_license_url", url)
+            paper_data.setdefault("url", url)
             paper_data.setdefault(
                 "external_source", host_venue.get("display_name", None)
             )
+            if oa_pdf_url:
+                paper_data.setdefault("pdf_url", oa_pdf_url)
 
         return celery_data
     except DOINotFoundError as e:
