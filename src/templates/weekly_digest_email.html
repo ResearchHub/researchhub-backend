@@ -91,15 +91,15 @@
                 </div>
                 <p class="header-message-2">
                     <div class="paper-card-container">
-                        {% for paper in papers %}
-                            <a class="paper-card-link" href="https://www.researchhub.com/paper/{{paper.id}}/{{paper.slug}}">
+                        {% for doc in documents %}
+                            <a class="paper-card-link" href={{doc.get_url}}>
                                 <div class="paper-card">
                                     <div class="score-wrap">
                                         <img class="vote-icon" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/upvote.png" height="11px" style="object-fit: contain; margin-bottom: 5px;" />
                                         <div class="score"
                                             style="color: rgb(72, 192, 85); background: rgba(240, 240, 240, 0.5) !important; border-radius: 5px; width: 28px; height: 22px; display: flex; justify-content: center; align-items: center; text-align: center;">
                                             <span style="margin: auto;">
-                                                {{paper.score}}
+                                                {{doc.score}}
                                             </span>
                                         </div>
                                         <img class="vote-icon" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/downvote.png" height="11px" style="object-fit: contain; margin-top: 5px;" />
@@ -107,39 +107,57 @@
                                     <table class="paper-card-right">
                                         <tr class="paper-card-right-row" >
                                             <td class="row-inner" style="align-items: center">
-                                                <img style="margin-bottom: 7px; margin-top: 7px;" class="author-avatar middle" src="{{ paper.uploaded_by.author_profile.profile_image }}"
+                                                <img style="margin-bottom: 7px; margin-top: 7px;" class="author-avatar middle" src="{{ doc.get_document.uploaded_by.author_profile.profile_image }}"
                                                     onerror="this.src='https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg'" />
                                                 <span class="paper-card-accent-font middle">
-                                                    {{paper.uploaded_by.full_name}}
+                                                    {{doc.get_document.uploaded_by.full_name}}
                                                 </span>
                                                 <span class="middle" style="color: rgb(144, 144, 144); margin-left: 4px; margin-right: 4px;">
                                                     posted in
                                                 </span>
-                                                <span class="paper-card-accent-font middle">{{paper.get_hub_names}}</span>
+                                                <span class="paper-card-accent-font middle">{{doc.get_hub_names}}</span>
                                             </td>
                                         </tr>
                                         <tr class="paper-card-right-row">
                                             <td class="row-inner">
                                                 <div class="paper-card-paper-title">
-                                                    {{paper.display_title}}
+                                                    {{doc.get_document.title}}
                                                 </div>
                                             </td>
                                         </tr>
                                         <tr class="paper-card-right-row">
                                             <td class="row-inner">
                                                 <div class="abstract">
-                                                    {{ paper.abstract|truncatechars:255 }}
+                                                    {% if doc.document_type == 'PAPER' %}
+                                                        {{doc.get_document.abstract|truncatechars:255}}
+                                                    {% else %}
+                                                        {{doc.get_document.renderable_text|truncatechars:255}}
+                                                    {% endif %}
                                                 </div>
                                             </td>
                                         </tr>
                                         <tr class="paper-card-right-row" style="display: flex; margin-top: 10px;">
                                             <td class="row-inner middle">
                                                 <img class="paper-card-icon icon-first middle" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-comment-icon.png" width="16px" style="margin-right: 4px;" />
-                                                <span class="middle" style="color: rgba(36, 31, 58, 0.6)">{{paper.get_discussion_count}}</span>
+                                                <span class="middle" style="color: rgba(36, 31, 58, 0.6)">{{doc.get_document.get_discussion_count}}</span>
                                             </td>
                                             <td class="row-inner middle">
-                                                <img class="paper-card-icon middle" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-paper-icon.png" width="16px" />
-                                                <span class="middle" style="color: rgba(36, 31, 58, 0.6)">Paper</span>
+                                                {% if doc.document_type == 'PAPER' %}
+                                                    <img class="paper-card-icon middle" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-paper-icon.png" width="16px" />
+                                                {% elif doc.document_type == 'DISCUSSION' %}
+                                                    <img class="paper-card-icon middle" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-post-icon.png" width="16px" />
+                                                {% elif doc.document_type == 'HYPOTHESIS' %}
+                                                    <img class="paper-card-icon middle" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-hypothesis-icon.png" width="16px" />
+                                                {% endif %}
+                                                <span class="middle" style="color: rgba(36, 31, 58, 0.6)">
+                                                    {% if doc.document_type == 'PAPER' %}
+                                                        Paper
+                                                    {% elif doc.document_type == 'DISCUSSION' %}
+                                                        Post
+                                                    {% elif doc.document_type == 'HYPOTHESIS' %}
+                                                        Meta-Study
+                                                    {% endif %}
+                                                </span>
                                             </td>
                                         </tr>
                                     </table>

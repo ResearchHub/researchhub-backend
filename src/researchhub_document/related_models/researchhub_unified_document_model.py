@@ -4,6 +4,7 @@ from django.db.models import Avg
 
 from hub.models import Hub
 from paper.models import Paper
+from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_access_group.models import Permission
 from researchhub_document.hot_score_mixin import HotScoreMixin
 from researchhub_document.related_models.constants.document_type import (
@@ -72,6 +73,21 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
             author = Author.objects.filter(user=post.created_by)
             return author
         return self.none()
+
+    def get_url(self):
+        if self.document_type == PAPER:
+            doc_url = "paper"
+        elif self.document_type == DISCUSSION:
+            doc_url = "post"
+        elif self.document_type == HYPOTHESIS:
+            doc_url = "hypothesis"
+
+        doc = self.get_document()
+
+        return "{}/{}/{}/{}".format(BASE_FRONTEND_URL, doc_url, doc.id, doc.slug)
+
+    def get_hub_names(self):
+        return ",".join(self.hubs.values_list("name", flat=True))
 
     def get_document(self):
         if self.document_type == PAPER:
