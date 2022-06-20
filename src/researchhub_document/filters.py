@@ -68,7 +68,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
 
     def default_filter(self, qs, name, value):
         time_scope = self.data.get("time", "today")
-        hub_id = self.data.get("hub_id", None) or None
         start_date, end_date = get_date_ranges_by_time_scope(time_scope)
         ordering = []
 
@@ -247,13 +246,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
             filtering = "is_open_access"
             ordering.append("-hot_score_v2")
         elif value == "hot":
-            filtering = "-hot_score"
-            qs = qs.annotate(
-                featured_count=Count(
-                    "featured_in_hubs", filter=Q(featured_in_hubs__hub=hub_id)
-                )
-            )
-            ordering.append("-featured_count")
             ordering.append("-hot_score_v2")
         else:
             filtering = "-score"

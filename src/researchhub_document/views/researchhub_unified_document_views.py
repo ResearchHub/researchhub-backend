@@ -283,13 +283,22 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         }
         return context
 
-    def get_filtered_queryset(self, *args):
+    def get_featured_documents(self):
+        hub_id = self.request.query_params.get("hub_id", 0) or None
+        featured_content = FeaturedContent.objects.filter(hub_id=hub_id).values_list(
+            "unified_document"
+        )
+        return featured_content
+
+    def get_filtered_queryset(self):
+        featured_content = self.get_featured_documents()
         qs = (
             self.get_queryset()
             .filter(is_removed=False)
             .exclude(excluded_from_feeds__isnull=False)
         )
         qs = self.filter_queryset(qs)
+        qs = qs.exclude(id__in=featured_content)
         return qs
 
     def _get_unifed_document_cache_hit(
@@ -341,6 +350,14 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
         page = self.paginate_queryset(documents)
+
+        if page_number == 1 and filtering == "-hot_score":
+            featured_documents = self.get_featured_documents()
+            featured_documents = ResearchhubUnifiedDocument.objects.filter(
+                id__in=featured_documents
+            )
+            featured_documents = list(featured_documents)
+            page = featured_documents + page[: len(page) - len(featured_documents)]
 
         serializer = self.dynamic_serializer_class(
             page,
