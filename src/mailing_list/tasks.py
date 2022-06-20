@@ -17,8 +17,7 @@ from mailing_list.lib import base_email_context
 from mailing_list.models import EmailTaskLog, NotificationFrequencies
 from paper.models import Paper
 from paper.models import Vote as PaperVote
-from paper.utils import get_cache_key
-from paper.utils import PAPER_SCORE_Q_ANNOTATION
+from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
 from researchhub.celery import QUEUE_NOTIFICATION, app
 from researchhub.settings import APP_ENV, PRODUCTION, STAGING
 from researchhub_document.models import ResearchhubPost
@@ -216,9 +215,7 @@ def send_hub_digest(frequency):
     document_view.request = req
     filtering = document_view._get_document_filtering({"ordering": "hot"})
 
-    documents = document_view.get_filtered_queryset("all", filtering, "0", "today")[
-        0:10
-    ]
+    documents = document_view.get_filtered_queryset("all", filtering, "0", "today")[0:5]
 
     for user in User.objects.filter(id__in=users, is_suspended=False):
         if not check_can_receive_digest(user, frequency):
