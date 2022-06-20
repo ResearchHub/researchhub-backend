@@ -14,12 +14,11 @@ from bullet_point.models import BulletPoint
 from bullet_point.models import Vote as BulletVote
 from discussion.lib import check_is_discussion_item
 from discussion.models import Comment, Reply, Thread
-from discussion.models import Vote as DiscussionVote
+from discussion.models import Vote as GrmVote
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerializer
 from hypothesis.models import Hypothesis
 from paper.models import Paper, PaperSubmission
-from paper.models import Vote as PaperVote
 from purchase.models import Purchase
 from reputation.models import Contribution, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -464,15 +463,6 @@ class UserActions:
         assert (data is not None) or (user is not None), f"Arguments data"
         f" and user_id can not both be None"
 
-        if not hasattr(UserActions, "flag_serializer"):
-            from discussion.reaction_serializers import FlagSerializer
-
-            UserActions.flag_serializer = FlagSerializer
-
-            from paper.serializers import FlagSerializer as PaperFlagSerializer
-
-            UserActions.paper_flag_serializer = PaperFlagSerializer
-
         self.user = None
         if user and user.is_authenticated:
             self.user = user
@@ -519,7 +509,7 @@ class UserActions:
                 pass
             elif isinstance(item, BulletPoint):
                 data["content_type"] = "bullet_point"
-            elif isinstance(item, DiscussionVote):
+            elif isinstance(item, GrmVote):
                 item = item.item
                 if isinstance(item, Comment):
                     data["content_type"] += "_comment"
@@ -527,8 +517,8 @@ class UserActions:
                     data["content_type"] += "_reply"
                 elif isinstance(item, Thread):
                     data["content_type"] += "_thread"
-            elif isinstance(item, PaperVote):
-                data["content_type"] += "_paper"
+                elif isinstance(item, Paper):
+                    data["content_type"] += "_paper"
             elif isinstance(item, Purchase):
                 recipient = action.user
                 data["amount"] = item.amount

@@ -18,8 +18,9 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
+from discussion.reaction_models import Vote
 from mailing_list.models import EmailRecipient, HubSubscription
-from paper.models import Paper, Vote
+from paper.models import Paper
 from paper.utils import get_cache_key
 from reputation.models import Contribution
 from researchhub.settings import SERIALIZER_SWITCH
@@ -98,7 +99,6 @@ class HubViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         ordering = self.request.query_params.get("ordering", "")
-        print("ordering", ordering)
         return self.get_ordered_queryset(ordering)
 
     # TODO: re consider approach
@@ -106,17 +106,17 @@ class HubViewSet(viewsets.ModelViewSet):
         if "score" in ordering:
             two_weeks_ago = timezone.now().date() - timedelta(days=14)
             num_upvotes = Count(
-                "papers__vote_legacy__vote_type",
+                "papers__votes__vote_type",
                 filter=Q(
-                    papers__vote_legacy__vote_type=Vote.UPVOTE,
-                    papers__vote_legacy__created_date__gte=two_weeks_ago,
+                    papers__votes__vote_type=Vote.UPVOTE,
+                    papers__votes__created_date__gte=two_weeks_ago,
                 ),
             )
             num_downvotes = Count(
-                "papers__vote_legacy__vote_type",
+                "papers__votes__vote_type",
                 filter=Q(
-                    papers__vote_legacy__vote_type=Vote.DOWNVOTE,
-                    papers__vote_legacy__created_date__gte=two_weeks_ago,
+                    papers__votes__vote_type=Vote.DOWNVOTE,
+                    papers__votes__created_date__gte=two_weeks_ago,
                 ),
             )
             paper_count = Count(

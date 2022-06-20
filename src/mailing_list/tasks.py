@@ -10,6 +10,7 @@ from django.utils import timezone
 from rest_framework.request import Request
 
 from discussion.models import Comment, Reply, Thread
+from discussion.reaction_models import Vote
 from hub.models import Hub
 from hypothesis.models import Hypothesis
 from mailing_list.lib import base_email_context
@@ -17,6 +18,7 @@ from mailing_list.models import EmailTaskLog, NotificationFrequencies
 from paper.models import Paper
 from paper.models import Vote as PaperVote
 from paper.utils import get_cache_key
+from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from researchhub.celery import QUEUE_NOTIFICATION, app
 from researchhub.settings import APP_ENV, PRODUCTION, STAGING
 from researchhub_document.models import ResearchhubPost
@@ -27,7 +29,8 @@ from utils.message import send_email_message
 
 @app.task(queue=QUEUE_NOTIFICATION)
 def notify_immediate(action_id):
-    actions_notifications([action_id], NotificationFrequencies.IMMEDIATE)
+    pass
+    # actions_notifications([action_id], NotificationFrequencies.IMMEDIATE)
 
 
 @periodic_task(run_every=crontab(minute="30", hour="1"), priority=7)
@@ -40,6 +43,7 @@ def notify_daily():
 def notify_three_hours():
     # send_editor_hub_digest(NotificationFrequencies.THREE_HOUR)
     send_hub_digest(NotificationFrequencies.THREE_HOUR)
+    pass
 
 
 # Noon PST

@@ -1,11 +1,9 @@
-from collections import OrderedDict
-from datetime import datetime, timedelta
 from time import perf_counter
 
 from dateutil import parser
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db.models import Count, Q
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -13,29 +11,24 @@ from rest_framework.response import Response
 from rest_framework.utils.urls import replace_query_param
 from rest_framework.viewsets import ModelViewSet
 
-from discussion.models import Vote as ReactionVote
-from discussion.reaction_serializers import VoteSerializer as ReactionVoteSerializer
+from discussion.models import Vote as GrmVote
+from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from hypothesis.models import Hypothesis
 from paper.models import Paper
-from paper.models import Vote as PaperVote
-from paper.serializers import PaperVoteSerializer
 from paper.utils import get_cache_key
+from researchhub_document.filters import UnifiedDocumentFilter
 from researchhub_document.models import (
+    FeaturedContent,
     FeedExclusion,
     ResearchhubPost,
     ResearchhubUnifiedDocument,
 )
 from researchhub_document.permissions import HasDocumentCensorPermission
-from researchhub_document.related_models.constants.document_type import (
-    DISCUSSION,
-    ELN,
-    HYPOTHESIS,
-    PAPER,
-    POSTS,
-)
 from researchhub_document.related_models.constants.filters import (
+    AUTHOR_CLAIMED,
     DISCUSSED,
     NEWEST,
+    OPEN_ACCESS,
     TOP,
     TRENDING,
 )
@@ -43,27 +36,41 @@ from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer,
     ResearchhubUnifiedDocumentSerializer,
 )
-from researchhub_document.utils import (
-    get_date_ranges_by_time_scope,
-    get_doc_type_key,
-    reset_unified_document_cache,
-)
+from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from researchhub_document.views.custom.unified_document_pagination import (
     UNIFIED_DOC_PAGE_SIZE,
     UnifiedDocPagination,
 )
 from user.permissions import IsModerator
 from user.utils import reset_latest_acitvity_cache
+from utils.permissions import ReadOnly
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     permission_classes = [
-        IsAuthenticated,
+        IsAuthenticated | ReadOnly,
     ]
     dynamic_serializer_class = DynamicUnifiedDocumentSerializer
     pagination_class = UnifiedDocPagination
     queryset = ResearchhubUnifiedDocument.objects.all()
+    filter_backends = (DjangoFilterBackend,)
+    filter_class = UnifiedDocumentFilter
     serializer_class = ResearchhubUnifiedDocumentSerializer
+
+    def create(self, *args, **kwargs):
+        return Response(status=403)
+
+    def list(self, *args, **kwargs):
+        return Response(status=403)
+
+    def retrieve(self, *args, **kwargs):
+        return Response(status=403)
+
+    def partial_update(self, *args, **kwargs):
+        return Response(status=403)
+
+    def destroy(self, *args, **kwargs):
+        return Response(status=403)
 
     @action(
         detail=True,
@@ -86,7 +93,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             document_type=[doc_type, "all"],
-            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+            filters=[NEWEST, TOP, TRENDING, DISCUSSED, OPEN_ACCESS, AUTHOR_CLAIMED],
             with_default_hub=True,
         )
         return Response(self.get_serializer(instance=doc).data, status=200)
@@ -112,7 +119,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             document_type=[doc_type, "all"],
-            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+            filters=[NEWEST, TOP, TRENDING, DISCUSSED, OPEN_ACCESS, AUTHOR_CLAIMED],
         )
 
         return Response(self.get_serializer(instance=doc).data, status=200)
@@ -160,6 +167,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
     def _get_document_filtering(self, query_params):
         filtering = query_params.get("ordering", None)
+
         if filtering == "removed":
             filtering = "removed"
         elif filtering == "top_rated":
@@ -172,6 +180,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             filtering = "-hot_score"
         elif filtering == "user_uploaded":
             filtering = "user_uploaded"
+        elif filtering == "author_claimed":
+            filtering = "author_claimed"
+        elif filtering == "is_open_access":
+            filtering = "is_open_access"
         else:
             filtering = "-score"
         return filtering
@@ -180,6 +192,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         context = {
             "doc_duds_get_documents": {
                 "_include_fields": [
+                    "featured",
                     "abstract",
                     "aggregate_citation_consensus",
                     "created_by",
@@ -270,223 +283,22 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         }
         return context
 
-    def get_filtered_queryset(
-        self,
-        document_type,
-        filtering,
-        hub_id,
-        time_scope,
-    ):
-
-        excluded_docs = FeedExclusion.objects.filter(hub_id=hub_id).values_list(
+    def get_featured_documents(self):
+        hub_id = self.request.query_params.get("hub_id", 0) or None
+        featured_content = FeaturedContent.objects.filter(hub_id=hub_id).values_list(
             "unified_document"
         )
-        date_ranges = get_date_ranges_by_time_scope(time_scope)
-        start_date = date_ranges[0]
-        end_date = date_ranges[1]
+        return featured_content
 
-        papers = Paper.objects.filter(uploaded_by__isnull=False).values_list(
-            "unified_document"
+    def get_filtered_queryset(self):
+        featured_content = self.get_featured_documents()
+        qs = (
+            self.get_queryset()
+            .filter(is_removed=False)
+            .exclude(excluded_from_feeds__isnull=False)
         )
-        posts = ResearchhubPost.objects.filter(created_by__isnull=False).values_list(
-            "unified_document"
-        )
-        hypothesis = Hypothesis.objects.filter(created_by__isnull=False).values_list(
-            "unified_document"
-        )
-        filtered_ids = papers.union(posts, hypothesis)
-
-        qs = self.queryset.filter(id__in=filtered_ids, is_removed=False)
-        if document_type == PAPER.lower():
-            qs = qs.filter(document_type=PAPER)
-        elif document_type == POSTS.lower():
-            qs = qs.filter(document_type__in=[DISCUSSION, ELN])
-        elif document_type == HYPOTHESIS.lower():
-            qs = qs.filter(document_type=HYPOTHESIS)
-        else:
-            qs = qs.all()
-
-        qs = qs.exclude(id__in=excluded_docs)
-
-        hub_id = int(hub_id)
-        if hub_id != 0:
-            qs = qs.filter(hubs__in=[hub_id])
-
-        if filtering == "removed":
-            qs = qs.filter(is_removed=True).order_by("-created_date")
-        elif filtering == "-score":
-            paper_votes = PaperVote.objects.filter(
-                created_date__range=(start_date, end_date)
-            ).values_list("paper__unified_document", flat=True)
-            post_votes = ResearchhubPost.objects.filter(
-                votes__created_date__range=(start_date, end_date)
-            ).values_list("unified_document", flat=True)
-            hypo_votes = Hypothesis.objects.filter(
-                votes__created_date__range=(start_date, end_date)
-            ).values_list("unified_document", flat=True)
-            unified_document_ids = paper_votes.union(post_votes, hypo_votes)
-
-            qs = qs.filter(id__in=unified_document_ids).order_by(filtering)
-        elif filtering == "-discussed":
-
-            # Papers
-            paper_threads_Q = Q(
-                paper__threads__created_date__range=[start_date, end_date],
-                paper__threads__is_removed=False,
-                paper__threads__created_by__isnull=False,
-            )
-
-            paper_comments_Q = Q(
-                paper__threads__comments__created_date__range=[start_date, end_date],
-                paper__threads__comments__is_removed=False,
-                paper__threads__comments__created_by__isnull=False,
-            )
-
-            paper_replies_Q = Q(
-                paper__threads__comments__replies__created_date__range=[
-                    start_date,
-                    end_date,
-                ],
-                paper__threads__comments__replies__is_removed=False,
-                paper__threads__comments__replies__created_by__isnull=False,
-            )
-
-            # Posts
-            post_threads_Q = Q(
-                posts__threads__created_date__range=[start_date, end_date],
-                posts__threads__is_removed=False,
-                posts__threads__created_by__isnull=False,
-            )
-
-            post_comments_Q = Q(
-                posts__threads__comments__created_date__range=[start_date, end_date],
-                posts__threads__comments__is_removed=False,
-                posts__threads__comments__created_by__isnull=False,
-            )
-
-            post_replies_Q = Q(
-                posts__threads__comments__replies__created_date__range=[
-                    start_date,
-                    end_date,
-                ],
-                posts__threads__comments__replies__is_removed=False,
-                posts__threads__comments__replies__created_by__isnull=False,
-            )
-
-            # Hypothesis
-            hypothesis_threads_Q = Q(
-                posts__threads__created_date__range=[start_date, end_date],
-                posts__threads__is_removed=False,
-                posts__threads__created_by__isnull=False,
-            )
-
-            hypothesis_comments_Q = Q(
-                posts__threads__comments__created_date__range=[start_date, end_date],
-                posts__threads__comments__is_removed=False,
-                posts__threads__comments__created_by__isnull=False,
-            )
-
-            hypothesis_replies_Q = Q(
-                posts__threads__comments__replies__created_date__range=[
-                    start_date,
-                    end_date,
-                ],
-                posts__threads__comments__replies__is_removed=False,
-                posts__threads__comments__replies__created_by__isnull=False,
-            )
-
-            paper_threads_count = Count(
-                "paper__threads", distinct=True, filter=paper_threads_Q
-            )
-            paper_comments_count = Count(
-                "paper__threads__comments", distinct=True, filter=paper_comments_Q
-            )
-            paper_replies_count = Count(
-                "paper__threads__comments__replies",
-                distinct=True,
-                filter=paper_replies_Q,
-            )
-            # Posts
-            post_threads_count = Count(
-                "posts__threads", distinct=True, filter=post_threads_Q
-            )
-            post_comments_count = Count(
-                "posts__threads__comments", distinct=True, filter=post_comments_Q
-            )
-            post_replies_count = Count(
-                "posts__threads__comments__replies",
-                distinct=True,
-                filter=post_replies_Q,
-            )
-            # Hypothesis
-            hypothesis_threads_count = Count(
-                "hypothesis__threads", distinct=True, filter=hypothesis_threads_Q
-            )
-            hypothesis_comments_count = Count(
-                "hypothesis__threads__comments",
-                distinct=True,
-                filter=hypothesis_comments_Q,
-            )
-            hypothesis_replies_count = Count(
-                "hypothesis__threads__comments__replies",
-                distinct=True,
-                filter=hypothesis_replies_Q,
-            )
-
-            qs = (
-                qs.filter(
-                    paper_threads_Q
-                    | paper_comments_Q
-                    | paper_replies_Q
-                    | post_threads_Q
-                    | post_comments_Q
-                    | post_replies_Q
-                    | hypothesis_threads_Q
-                    | hypothesis_comments_Q
-                    | hypothesis_replies_Q
-                )
-                .annotate(
-                    # Papers
-                    paper_threads_count=paper_threads_count,
-                    paper_comments_count=paper_comments_count,
-                    paper_replies_count=paper_replies_count,
-                    # Posts
-                    post_threads_count=post_threads_count,
-                    post_comments_count=post_comments_count,
-                    post_replies_count=post_replies_count,
-                    # # Hypothesis
-                    hypothesis_threads_count=hypothesis_threads_count,
-                    hypothesis_comments_count=hypothesis_comments_count,
-                    hypothesis_replies_count=hypothesis_replies_count,
-                    # # Add things up
-                    discussed=(
-                        paper_threads_count
-                        + paper_comments_count
-                        + paper_replies_count
-                        + post_threads_count
-                        + post_comments_count
-                        + post_replies_count
-                        + hypothesis_threads_count
-                        + hypothesis_comments_count
-                        + hypothesis_replies_count
-                    ),
-                )
-                .order_by("-discussed")
-            )
-        elif filtering == "-created_date":
-            qs = qs.order_by(filtering)
-        elif filtering == "-hot_score":
-            qs = qs.order_by("-hot_score_v2")
-        elif filtering == "user_uploaded":
-            qs = qs.filter(
-                (
-                    Q(paper__uploaded_by__isnull=False)
-                    | Q(posts__created_by__isnull=False)
-                )
-            ).order_by("-created_date")
-        else:
-            qs = qs.order_by("-hot_score_v2")
-
+        qs = self.filter_queryset(qs)
+        qs = qs.exclude(id__in=featured_content)
         return qs
 
     def _get_unifed_document_cache_hit(
@@ -513,7 +325,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             return self._get_subscribed_unified_documents(request)
 
         document_request_type = query_params.get("type", "all")
-        hub_id = query_params.get("hub_id", 0)
+        hub_id = query_params.get("hub_id", 0) or 0
         page_number = int(query_params.get("page", 1))
 
         filtering = self._get_document_filtering(query_params)
@@ -534,22 +346,26 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 with_default_hub=with_default_hub,
             )
 
-        documents = self.get_filtered_queryset(
-            document_request_type,
-            filtering,
-            hub_id,
-            time_scope,
-        )
-
+        documents = self.get_filtered_queryset()
         context = self._get_serializer_context()
+        context["hub_id"] = hub_id
         page = self.paginate_queryset(documents)
+
+        if page_number == 1 and filtering == "-hot_score":
+            featured_documents = self.get_featured_documents()
+            featured_documents = ResearchhubUnifiedDocument.objects.filter(
+                id__in=featured_documents
+            )
+            featured_documents = list(featured_documents)
+            page = featured_documents + page[: len(page) - len(featured_documents)]
 
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=[
+                "id",
+                "featured",
                 "documents",
                 "document_type",
-                "get_review",
                 "hot_score",
                 "hot_score_v2",
                 "reviews",
@@ -581,7 +397,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         return cache_hit
 
     def _get_subscribed_unified_documents(self, request):
-        default_hub_id = 0
         hub_ids = request.user.subscribed_hubs.values_list("id", flat=True)
         query_params = request.query_params
         document_request_type = query_params.get("type", "all")
@@ -604,13 +419,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         all_documents = list(all_documents.values())
         if len(all_documents) == 0:
-            all_documents = self.get_filtered_queryset(
-                document_request_type,
-                filtering,
-                default_hub_id,
-                time_scope,
-            )
-            all_documents = all_documents.filter(hubs__in=hub_ids).distinct()
+            all_documents = self.get_filtered_queryset()
 
             context = self._get_serializer_context()
             page = self.paginate_queryset(all_documents)
@@ -661,18 +470,63 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         doc_type = get_doc_type_key(unified_document)
         hub_ids = list(unified_document.hubs.values_list("id", flat=True))
 
-        if request.data["exclude_from_homepage"] == True:
+        if request.data["exclude_from_homepage"] is True:
             FeedExclusion.objects.get_or_create(
                 unified_document=unified_document, hub_id=0
             )
 
-        if request.data["exclude_from_hubs"] == True:
+        if request.data["exclude_from_hubs"] is True:
             for hub_id in hub_ids:
                 FeedExclusion.objects.get_or_create(
                     unified_document=unified_document, hub_id=hub_id
                 )
 
         hub_ids.append(0)
+        reset_unified_document_cache(
+            hub_ids,
+            document_type=["all", doc_type],
+            filters=[TRENDING],
+            with_default_hub=True,
+        )
+
+        return Response(status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsModerator])
+    def feature_document(self, request, pk=None):
+        unified_document = self.get_object()
+        doc_type = get_doc_type_key(unified_document)
+        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
+
+        if request.data["feature_in_homepage"] == True:
+            FeaturedContent.objects.get_or_create(
+                unified_document=unified_document, hub_id=None
+            )
+
+        if request.data["feature_in_hubs"] == True:
+            for hub_id in hub_ids:
+                FeaturedContent.objects.get_or_create(
+                    unified_document=unified_document, hub_id=hub_id
+                )
+
+        hub_ids.append(0)
+        reset_unified_document_cache(
+            hub_ids,
+            document_type=["all", doc_type],
+            filters=[TRENDING],
+            with_default_hub=True,
+        )
+
+        return Response(status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsModerator])
+    def remove_from_featured(self, request, pk=None):
+        unified_document = self.queryset.get(id=pk)
+        doc_type = get_doc_type_key(unified_document)
+        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
+        hub_ids.append(0)
+
+        FeaturedContent.objects.filter(unified_document=unified_document).delete()
+
         reset_unified_document_cache(
             hub_ids,
             document_type=["all", doc_type],
@@ -724,21 +578,20 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         }
 
         if user.is_authenticated:
+            # TODO: Refactor below
             if paper_ids:
-                paper_votes = PaperVote.objects.filter(
-                    paper__id__in=paper_ids, created_by=user
+                paper_votes = get_user_votes(
+                    user, paper_ids, ContentType.objects.get_for_model(Paper)
                 )
                 for vote in paper_votes.iterator():
-                    paper_id = vote.paper_id
-                    response["papers"][paper_id] = PaperVoteSerializer(
-                        instance=vote
-                    ).data
+                    paper_id = vote.object_id
+                    response["papers"][paper_id] = GrmVoteSerializer(instance=vote).data
             if post_ids:
                 post_votes = get_user_votes(
                     user, post_ids, ContentType.objects.get_for_model(ResearchhubPost)
                 )
                 for vote in post_votes.iterator():
-                    response["posts"][vote.object_id] = ReactionVoteSerializer(
+                    response["posts"][vote.object_id] = GrmVoteSerializer(
                         instance=vote
                     ).data
             if hypothesis_ids:
@@ -746,13 +599,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     user, hypothesis_ids, ContentType.objects.get_for_model(Hypothesis)
                 )
                 for vote in hypo_votes.iterator():
-                    response["hypothesis"][vote.object_id] = ReactionVoteSerializer(
+                    response["hypothesis"][vote.object_id] = GrmVoteSerializer(
                         instance=vote
                     ).data
         return Response(response, status=status.HTTP_200_OK)
 
 
 def get_user_votes(created_by, doc_ids, reaction_content_type):
-    return ReactionVote.objects.filter(
+    return GrmVote.objects.filter(
         content_type=reaction_content_type, object_id__in=doc_ids, created_by=created_by
     )

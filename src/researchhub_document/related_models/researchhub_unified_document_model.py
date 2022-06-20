@@ -1,6 +1,7 @@
+from statistics import mean
+
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
-from django.db.models import Avg
 
 from hub.models import Hub
 from paper.models import Paper
@@ -15,7 +16,6 @@ from researchhub_document.related_models.constants.document_type import (
     PAPER,
 )
 from researchhub_document.tasks import update_elastic_registry
-from review.models.review_model import Review
 from user.models import Author
 from utils.models import DefaultModel
 
@@ -45,8 +45,7 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         help_text="Feed ranking score.",
     )
     hot_score_v2 = models.IntegerField(
-        default=0,
-        help_text="Feed ranking score.",
+        default=0, help_text="Feed ranking score.", db_index=True
     )
     permissions = GenericRelation(
         Permission,
@@ -54,6 +53,14 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         related_query_name="uni_doc_source",
     )
     hubs = models.ManyToManyField(Hub, related_name="related_documents", blank=True)
+
+    class Meta:
+        indexes = (
+            models.Index(
+                fields=("created_date",),
+                name="uni_doc_created_date_idx",
+            ),
+        )
 
     @property
     def authors(self):
@@ -113,16 +120,10 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
 
     def get_review_details(self):
         details = {"avg": 0, "count": 0}
-
-        review_scores = Review.objects.filter(
-            unified_document=self, is_removed=False
-        ).values("score")
-
-        details["count"] = review_scores.count()
-
-        if review_scores.count() > 0:
-            details["avg"] = round(review_scores.aggregate(avg=Avg("score"))["avg"], 1)
-
+        reviews = self.reviews.values_list("score", flat=True)
+        if reviews:
+            details["avg"] = round(mean(reviews), 1)
+            details["count"] = reviews.count()
         return details
 
     def save(self, **kwargs):

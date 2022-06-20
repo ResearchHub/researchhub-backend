@@ -27,25 +27,23 @@ from celery.task.schedules import crontab
 from celery.utils.log import get_task_logger
 from cloudscraper.exceptions import CloudflareChallengeError
 from django.apps import apps
+from django.contrib.admin.options import get_content_type_for_model
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
 from django.db.models import Q
-from django.http.request import HttpRequest
 from django.utils.text import slugify
 from habanero import Crossref
 from PIL import Image
 from psycopg2.errors import UniqueViolation
 from pytz import timezone as pytz_tz
 from requests.exceptions import HTTPError
-from rest_framework.request import Request
 
 from discussion.models import Comment, Thread
 from hub.utils import scopus_to_rh_map
 from paper.exceptions import (
-    CrossrefSearchError,
     DOINotFoundError,
     DuplicatePaperError,
     ManubotProcessingError,
@@ -77,11 +75,10 @@ from researchhub.celery import (
     QUEUE_HOT_SCORE,
     QUEUE_PAPER_METADATA,
     QUEUE_PAPER_MISC,
-    QUEUE_PULL_PAPERS,
     QUEUE_TWITTER,
     app,
 )
-from researchhub.settings import APP_ENV, PRODUCTION, STAGING
+from researchhub.settings import APP_ENV, PRODUCTION
 from researchhub_document.utils import update_unified_document_to_paper
 from utils import sentry
 from utils.arxiv.categories import (
@@ -122,8 +119,8 @@ def censored_paper_cleanup(paper_id):
         paper.save()
 
     if paper:
-        paper.votes_legacy.update(is_removed=True)
-        for vote in paper.votes_legacy.all():
+        paper.votes.update(is_removed=True)
+        for vote in paper.votes.all():
             if vote.vote_type == 1:
                 user = vote.created_by
                 user.set_probable_spammer()
@@ -139,40 +136,61 @@ def download_pdf(paper_id, retry=0):
 
     Paper = apps.get_model("paper.Paper")
     paper = Paper.objects.get(id=paper_id)
+
+    paper_pdf_url = paper.pdf_url
     paper_url = paper.url
-    pdf_url = paper.pdf_url
-    pdf_url_contains_pdf = check_url_contains_pdf(pdf_url)
-    url = pdf_url or paper_url
-    url_has_pdf = check_url_contains_pdf(paper_url) or pdf_url_contains_pdf
-    oa_pdf_url = None
+    paper_url_contains_pdf = check_url_contains_pdf(paper_url)
+    pdf_url_contains_pdf = check_url_contains_pdf(paper_pdf_url)
 
-    if (paper_url or pdf_url) and not url_has_pdf:
-        csl_item = get_csl_item(url)
-        oa_result = get_pdf_location_for_csl_item(csl_item)
-        if oa_result:
-            oa_url_1 = oa_result.get("url", None)
-            oa_url_2 = oa_result.get("url_for_pdf", None)
-            oa_pdf_url = oa_url_1 or oa_url_2
-            url = oa_pdf_url
-
-    if (paper_url and url_has_pdf) or oa_pdf_url:
+    if pdf_url_contains_pdf or paper_url_contains_pdf:
+        pdf_url = paper_pdf_url or paper_url
         try:
-            pdf = get_pdf_from_url(url)
-            filename = paper.url.split("/").pop()
+            pdf = get_pdf_from_url(pdf_url)
+            filename = pdf_url.split("/").pop()
             if not filename.endswith(".pdf"):
                 filename += ".pdf"
             paper.file.save(filename, pdf)
             paper.save(update_fields=["file"])
             paper.extract_pdf_preview(use_celery=True)
+            paper.reset_cache(use_celery=False)
             paper.set_paper_completeness()
             celery_extract_pdf_sections.apply_async(
                 (paper_id,), priority=5, countdown=15
             )
+            return True
         except Exception as e:
             sentry.log_info(e)
             download_pdf.apply_async(
                 (paper.id, retry + 1), priority=7, countdown=15 * (retry + 1)
             )
+            return False
+        return
+
+    csl_item = None
+    pdf_url = None
+    if paper_url:
+        csl_item = get_csl_item(paper_url)
+    elif paper_pdf_url:
+        csl_item = get_csl_item(pdf_url)
+
+    if csl_item:
+        oa_result = get_pdf_location_for_csl_item(csl_item)
+        if oa_result:
+            oa_url_1 = oa_result.get("url", None)
+            oa_url_2 = oa_result.get("url_for_pdf", None)
+            oa_pdf_url = oa_url_1 or oa_url_2
+            pdf_url = oa_pdf_url
+            pdf_url_contains_pdf = check_url_contains_pdf(pdf_url)
+
+            if pdf_url_contains_pdf:
+                paper.pdf_url = pdf_url
+                paper.save()
+                download_pdf.apply_async(
+                    (paper.id, retry + 1), priority=7, countdown=15 * (retry + 1)
+                )
+        return
+
+    return False
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
@@ -578,59 +596,6 @@ def celery_extract_pdf_sections(paper_id):
         return True, return_code
 
 
-@app.task(queue=QUEUE_TWITTER, ignore_result=False)
-def celery_calculate_paper_twitter_score(paper_id, iteration=0):
-    if paper_id is None or iteration > 2:
-        return False
-
-    Paper = apps.get_model("paper.Paper")
-    paper = Paper.objects.get(id=paper_id)
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0)
-
-    title = paper.title
-    if title:
-        words_in_title = paper.title.split(" ")
-        if len(words_in_title) <= 4:
-            return False, "Probable spam paper"
-
-    try:
-        twitter_score = paper.calculate_twitter_score()
-    except Exception as e:
-        error_message = e.message[0]
-        code = error_message["code"]
-        if code != RATE_LIMIT_CODE:
-            return False, str(e)
-
-        created_date = paper.created_date
-        if created_date >= today:
-            priority = 4
-        else:
-            priority = 7
-
-        celery_calculate_paper_twitter_score.apply_async(
-            (paper_id, iteration), priority=priority, countdown=420
-        )
-        return False, str(e)
-
-    # Temporarily stopping next day twitter score updates
-    # next_iteration = iteration + 1
-    # celery_calculate_paper_twitter_score.apply_async(
-    #     (paper_id, next_iteration),
-    #     priority=7 - next_iteration,
-    #     countdown=86400 * next_iteration
-    # )
-    score = paper.calculate_paper_score()
-    paper.paper_score = score
-    paper.save()
-
-    if score > 0:
-        paper.calculate_hot_score()
-    paper_cache_key = get_cache_key("paper", paper.id)
-    cache.delete(paper_cache_key)
-
-    return True, score
-
-
 @app.task(queue=QUEUE_PAPER_MISC)
 def handle_duplicate_doi(new_paper, doi):
     Paper = apps.get_model("paper.Paper")
@@ -648,93 +613,6 @@ def celery_update_hot_scores():
     papers = Paper.objects.filter(created_date__gte=start_date, is_removed=False)
     for paper in papers.iterator():
         paper.calculate_hot_score()
-
-
-@app.task(queue=QUEUE_CACHES)
-def preload_trending_papers(hub_id, ordering, time_difference, context):
-    from paper.serializers import HubPaperSerializer
-    from paper.views import PaperViewSet
-
-    initial_date = datetime.now().replace(hour=7, minute=0, second=0, microsecond=0)
-    end_date = datetime.now()
-    if time_difference > 365:
-        cache_pk = f"{hub_id}_{ordering}_all_time"
-        start_date = datetime(year=2018, month=12, day=31, hour=7)
-    elif time_difference == 365:
-        cache_pk = f"{hub_id}_{ordering}_year"
-        start_date = initial_date - timedelta(days=365)
-    elif time_difference == 30 or time_difference == 31:
-        cache_pk = f"{hub_id}_{ordering}_month"
-        start_date = initial_date - timedelta(days=30)
-    elif time_difference == 7:
-        cache_pk = f"{hub_id}_{ordering}_week"
-        start_date = initial_date - timedelta(days=7)
-    else:
-        start_date = datetime.now().replace(hour=7, minute=0, second=0, microsecond=0)
-        cache_pk = f"{hub_id}_{ordering}_today"
-
-    query_string_ordering = "top_rated"
-    if ordering == "removed":
-        query_string_ordering = "removed"
-    elif ordering == "-score":
-        query_string_ordering = "top_rated"
-    elif ordering == "-discussed":
-        query_string_ordering = "most_discussed"
-    elif ordering == "-created_date":
-        query_string_ordering = "newest"
-    elif ordering == "-hot_score":
-        query_string_ordering = "hot"
-
-    request_path = "/api/paper/get_hub_papers/"
-    if STAGING:
-        http_host = "staging-backend.researchhub.com"
-        protocol = "https"
-    elif PRODUCTION:
-        http_host = "backend.researchhub.com"
-        protocol = "https"
-    else:
-        http_host = "localhost:8000"
-        protocol = "http"
-
-    start_date_timestamp = int(start_date.timestamp())
-    end_date_timestamp = int(end_date.timestamp())
-    query_string = (
-        "page=1&start_date__gte={}&end_date__lte={}&ordering={}&hub_id={}&".format(
-            start_date_timestamp, end_date_timestamp, query_string_ordering, hub_id
-        )
-    )
-    http_meta = {
-        "QUERY_STRING": query_string,
-        "HTTP_HOST": http_host,
-        "HTTP_X_FORWARDED_PROTO": protocol,
-    }
-
-    cache_key_hub = get_cache_key("hub", cache_pk)
-    paper_view = PaperViewSet()
-    http_req = HttpRequest()
-    http_req.META = http_meta
-    http_req.path = request_path
-    req = Request(http_req)
-    paper_view.request = req
-
-    papers = paper_view._get_filtered_papers(hub_id, ordering).filter(
-        uploaded_by_id__isnull=False
-    )
-    order_papers = paper_view.calculate_paper_ordering(
-        papers, ordering, start_date, end_date
-    )
-    page = paper_view.paginate_queryset(order_papers)
-    serializer = HubPaperSerializer(page, many=True, context=context)
-    serializer_data = serializer.data
-
-    paginated_response = paper_view.get_paginated_response(
-        {"data": serializer_data, "no_results": False, "feed_type": "all"}
-    )
-
-    cache_key_hub = get_cache_key("hub", cache_pk)
-    cache.set(cache_key_hub, paginated_response.data, timeout=None)
-
-    return paginated_response.data
 
 
 @periodic_task(
@@ -933,9 +811,9 @@ def pull_papers(start=0, force=False):
                                 (paper.id,), priority=5, countdown=7
                             )
 
-                        celery_calculate_paper_twitter_score.apply_async(
-                            (paper.id,), priority=twitter_score_priority, countdown=15
-                        )
+                        # celery_calculate_paper_twitter_score.apply_async(
+                        #     (paper.id,), priority=twitter_score_priority, countdown=15
+                        # )
 
                         add_orcid_authors.apply_async(
                             (paper.id,), priority=6, countdown=10
@@ -1150,9 +1028,9 @@ def pull_crossref_papers(start=0, force=False):
                         paper.set_paper_completeness()
                         update_unified_document_to_paper(paper)
 
-                        celery_calculate_paper_twitter_score.apply_async(
-                            (paper.id,), priority=twitter_score_priority, countdown=15
-                        )
+                        # celery_calculate_paper_twitter_score.apply_async(
+                        #     (paper.id,), priority=twitter_score_priority, countdown=15
+                        # )
                         add_orcid_authors.apply_async(
                             (paper.id,), priority=6, countdown=10
                         )
@@ -1463,6 +1341,8 @@ def celery_openalex(self, celery_data):
 
             host_venue = result.get("host_venue", {})
             oa = result.get("open_access", {})
+            oa_pdf_url = oa.get("oa_url", None)
+            url = host_venue.get("url", None)
             title = normalize("NFKD", result.get("title", ""))
             raw_authors = result.get("authorships", [])
             paper_data.setdefault("raw_authors", format_raw_authors(raw_authors))
@@ -1473,10 +1353,13 @@ def celery_openalex(self, celery_data):
             )
             paper_data.setdefault("is_open_access", oa.get("is_oa", None))
             paper_data.setdefault("pdf_license", host_venue.get("license", None))
-            paper_data.setdefault("pdf_license_url", host_venue.get("url", None))
+            paper_data.setdefault("pdf_license_url", url)
+            paper_data.setdefault("url", url)
             paper_data.setdefault(
                 "external_source", host_venue.get("display_name", None)
             )
+            if oa_pdf_url:
+                paper_data.setdefault("pdf_url", oa_pdf_url)
 
         return celery_data
     except DOINotFoundError as e:
@@ -1494,7 +1377,6 @@ def celery_create_paper(self, celery_data):
     paper_data, submission_id = celery_data
     Paper = apps.get_model("paper.Paper")
     PaperSubmission = apps.get_model("paper.PaperSubmission")
-    Vote = apps.get_model("paper.Vote")
     Contribution = apps.get_model("reputation.Contribution")
 
     try:
@@ -1522,7 +1404,15 @@ def celery_create_paper(self, celery_data):
         paper_submission.save()
 
         uploaded_by = paper_submission.uploaded_by
-        Vote.objects.create(paper=paper, created_by=uploaded_by, vote_type=Vote.UPVOTE)
+
+        from discussion.models import Vote as GrmVote
+
+        GrmVote.objects.create(
+            content_type=get_content_type_for_model(paper),
+            created_by=uploaded_by,
+            object_id=paper.id,
+            vote_type=GrmVote.UPVOTE,
+        )
         download_pdf.apply_async((paper_id,), priority=3, countdown=5)
         add_orcid_authors.apply_async((paper_id,), priority=5, countdown=5)
         create_contribution.apply_async(

@@ -15,7 +15,6 @@ from manubot.cite.doi import get_doi_csl_item
 from manubot.cite.unpaywall import Unpaywall
 
 import utils.sentry as sentry
-from discussion.models import Thread
 from discussion.reaction_models import AbstractGenericReactionModel
 from hub.models import Hub
 from hub.serializers import HubSerializer
@@ -86,15 +85,7 @@ class Paper(AbstractGenericReactionModel):
     )
     bullet_low_quality = models.BooleanField(default=False)
     summary_low_quality = models.BooleanField(default=False)
-    paper_score = models.IntegerField(
-        default=0,
-        db_index=True,
-        # help_text="Legacy. Need to migrate to use AbstractGenericRelation",
-    )
     discussion_count = models.IntegerField(default=0, db_index=True)
-    hot_score = models.IntegerField(
-        default=0, db_index=True, help_text="Legacy. Refer to UnifiedDocument"
-    )
     twitter_score = models.IntegerField(default=1)
 
     views = models.IntegerField(default=0)
@@ -269,9 +260,12 @@ class Paper(AbstractGenericReactionModel):
     def display_title(self):
         return self.title or self.paper_title
 
-    @property
     def uploaded_date(self):
         return self.created_date
+
+    @property
+    def created_by(self):
+        return self.uploaded_by
 
     @property
     def is_hidden(self):
@@ -337,16 +331,6 @@ class Paper(AbstractGenericReactionModel):
         return [hub.name for hub in self.hubs.all()]
 
     @property
-    def score_indexing(self):
-        # legacy needs to be deprecated & use AbstractGenericReactionModel
-        """Score for Elasticsearch indexing."""
-        return self.calculate_paper_score()
-
-    @property
-    def hot_score_indexing(self):
-        return self.hot_score
-
-    @property
     def summary_indexing(self):
         if self.summary:
             return self.summary.summary_plain_text
@@ -361,8 +345,20 @@ class Paper(AbstractGenericReactionModel):
         return self.doi or ""
 
     @property
+    def hot_score(self):
+        if self.unified_document is None:
+            return self.score
+        return self.unified_document.hot_score
+
+    @property
+    def hot_score_v2(self):
+        if self.unified_document is None:
+            return self.score
+        return self.unified_document.hot_score_v2
+
+    @property
     def votes_indexing(self):
-        all_votes = self.votes_legacy.all()
+        all_votes = self.votes.all()
         if len(all_votes) > 0:
             return [self.get_vote_for_index(vote) for vote in all_votes]
         return {}
@@ -399,111 +395,107 @@ class Paper(AbstractGenericReactionModel):
             boost_time__gte=0,
         )
         today = datetime.datetime.now(tz=pytz.utc).replace(hour=0, minute=0, second=0)
-        score = paper.paper_score
+        score = paper.score
+        if score is None:
+            return 0
+
         unified_doc = paper.unified_document
+        if unified_doc is None:
+            return score
 
-        if score >= 0:
-            original_uploaded_date = paper.created_date
-            uploaded_date = original_uploaded_date
-            twitter_score = paper.twitter_score
-            day_delta = datetime.timedelta(days=2)
-            timeframe = today - day_delta
+        original_uploaded_date = paper.created_date
+        uploaded_date = original_uploaded_date
+        twitter_score = paper.twitter_score
+        day_delta = datetime.timedelta(days=2)
+        timeframe = today - day_delta
 
-            if original_uploaded_date > timeframe:
-                uploaded_date = timeframe.replace(
-                    hour=original_uploaded_date.hour,
-                    minute=original_uploaded_date.minute,
-                    second=original_uploaded_date.second,
-                )
+        if original_uploaded_date > timeframe:
+            uploaded_date = timeframe.replace(
+                hour=original_uploaded_date.hour,
+                minute=original_uploaded_date.minute,
+                second=original_uploaded_date.second,
+            )
 
-            votes = paper.votes_legacy
-            if votes.exists():
-                vote_avg_epoch = (
-                    paper.votes_legacy.aggregate(
-                        avg=Avg(
-                            Extract("created_date", "epoch"),
-                            output_field=models.IntegerField(),
-                        )
-                    )["avg"]
-                    or 0
-                )
-                num_votes = votes.count()
-            else:
-                num_votes = 0
-                vote_avg_epoch = timeframe.timestamp()
-
-            twitter_boost_score = 0
-            if twitter_score > 0:
-                twitter_epoch = (uploaded_date.timestamp() - ALGO_START_UNIX) / TIME_DIV
-                twitter_boost_score = (
-                    paper_piecewise_log(twitter_score + 1) * TWITTER_BOOST
-                ) / twitter_epoch
-
-            vote_avg = (max(0, vote_avg_epoch - ALGO_START_UNIX)) / TIME_DIV
-
-            base_score = paper_piecewise_log(score + 1)
-            uploaded_date_score = uploaded_date.timestamp() / TIME_DIV
-            vote_score = paper_piecewise_log(num_votes + 1)
-            discussion_score = paper_piecewise_log(paper.discussion_count + 1)
-
-            # Why we log delta days
-            # Ex: If paper 1 was uploaded 3 days ago with a low score and paper
-            # 2 was uploaded 4 days ago with a very high score, paper 2 will
-            # appear higher in the feed than paper 1. If we remove the delta
-            # days log, paper 1 will appear higher just because time is linear,
-            # and it gives a it better score
-
-            if original_uploaded_date > timeframe:
-                uploaded_date_delta = original_uploaded_date - timeframe
-                delta_days = (
-                    paper_piecewise_log(
-                        uploaded_date_delta.total_seconds() / HOUR_SECONDS
+        votes = paper.votes
+        if votes.exists():
+            vote_avg_epoch = (
+                paper.votes.aggregate(
+                    avg=Avg(
+                        Extract("created_date", "epoch"),
+                        output_field=models.IntegerField(),
                     )
-                    * DATE_BOOST
-                )
-                uploaded_date_score += delta_days
-            else:
-                uploaded_date_delta = timeframe - original_uploaded_date
-                delta_days = (
-                    -paper_piecewise_log(
-                        (uploaded_date_delta.total_seconds() / HOUR_SECONDS) + 1
-                    )
-                    * DATE_BOOST
-                )
-                uploaded_date_score += delta_days
-
-            boost_score = 0
-            if boosts.exists():
-                boost_amount = sum(map(int, boosts.values_list("amount", flat=True)))
-                boost_score = paper_piecewise_log(boost_amount + 1)
-
-            hot_score = (
-                base_score
-                + uploaded_date_score
-                + vote_avg
-                + vote_score
-                + discussion_score
-                + twitter_boost_score
-                + boost_score
-            ) * 1000
-
-            completeness = paper.completeness
-            if completeness == paper.COMPLETE:
-                hot_score *= 1
-            elif completeness == paper.PARTIAL:
-                hot_score *= 0.95
-            else:
-                hot_score *= 0.90
-
-            paper.hot_score = hot_score
-            unified_doc.hot_score = hot_score
+                )["avg"]
+                or 0
+            )
+            num_votes = votes.count()
         else:
-            paper.hot_score = 0
-            unified_doc.hot_score = 0
+            num_votes = 0
+            vote_avg_epoch = timeframe.timestamp()
 
-        if unified_doc:
-            unified_doc.save()
+        twitter_boost_score = 0
+        if twitter_score > 0:
+            twitter_epoch = (uploaded_date.timestamp() - ALGO_START_UNIX) / TIME_DIV
+            twitter_boost_score = (
+                paper_piecewise_log(twitter_score + 1) * TWITTER_BOOST
+            ) / twitter_epoch
+
+        vote_avg = (max(0, vote_avg_epoch - ALGO_START_UNIX)) / TIME_DIV
+
+        base_score = paper_piecewise_log(score + 1)
+        uploaded_date_score = uploaded_date.timestamp() / TIME_DIV
+        vote_score = paper_piecewise_log(num_votes + 1)
+        discussion_score = paper_piecewise_log(paper.discussion_count + 1)
+
+        # Why we log delta days
+        # Ex: If paper 1 was uploaded 3 days ago with a low score and paper
+        # 2 was uploaded 4 days ago with a very high score, paper 2 will
+        # appear higher in the feed than paper 1. If we remove the delta
+        # days log, paper 1 will appear higher just because time is linear,
+        # and it gives a it better score
+
+        if original_uploaded_date > timeframe:
+            uploaded_date_delta = original_uploaded_date - timeframe
+            delta_days = (
+                paper_piecewise_log(uploaded_date_delta.total_seconds() / HOUR_SECONDS)
+                * DATE_BOOST
+            )
+            uploaded_date_score += delta_days
+        else:
+            uploaded_date_delta = timeframe - original_uploaded_date
+            delta_days = (
+                -paper_piecewise_log(
+                    (uploaded_date_delta.total_seconds() / HOUR_SECONDS) + 1
+                )
+                * DATE_BOOST
+            )
+            uploaded_date_score += delta_days
+
+        boost_score = 0
+        if boosts.exists():
+            boost_amount = sum(map(int, boosts.values_list("amount", flat=True)))
+            boost_score = paper_piecewise_log(boost_amount + 1)
+
+        hot_score = (
+            base_score
+            + uploaded_date_score
+            + vote_avg
+            + vote_score
+            + discussion_score
+            + twitter_boost_score
+            + boost_score
+        ) * 1000
+
+        completeness = paper.completeness
+        if completeness == paper.COMPLETE:
+            hot_score *= 1
+        elif completeness == paper.PARTIAL:
+            hot_score *= 0.95
+        else:
+            hot_score *= 0.90
+
+        unified_doc.hot_score = hot_score
         paper.save()
+        return hot_score
 
     def calculate_twitter_score(self):
         result_ids = set()
@@ -544,7 +536,23 @@ class Paper(AbstractGenericReactionModel):
         self.save()
         return self.twitter_score
 
+    def get_promoted_score(paper):
+        purchases = paper.purchases.filter(
+            paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
+        )
+        if purchases.exists():
+            base_score = paper.score
+            boost_amount = (
+                purchases.annotate(amount_as_int=Cast("amount", IntegerField()))
+                .aggregate(sum=Sum("amount_as_int"))
+                .get("sum", 0)
+            )
+            return base_score + boost_amount
+        return False
+
     def get_discussion_count(self):
+        from discussion.models import Thread
+
         sources = [Thread.RESEARCHHUB, Thread.INLINE_ABSTRACT, Thread.INLINE_PAPER_BODY]
 
         thread_count = self.threads.aggregate(
@@ -675,23 +683,6 @@ class Paper(AbstractGenericReactionModel):
             )
         else:
             celery_extract_twitter_comments(self.id)
-
-    def calculate_paper_score(self, ignore_self_vote=False, ignore_twitter_score=False):
-        qs = self.votes_legacy.filter(
-            created_by__is_suspended=False, created_by__probable_spammer=False
-        )
-
-        if ignore_self_vote:
-            qs = qs.exclude(paper__uploaded_by=F("created_by"))
-
-        score = qs.aggregate(
-            score=Count("id", filter=Q(vote_type=Vote.UPVOTE))
-            - Count("id", filter=Q(vote_type=Vote.DOWNVOTE))
-        ).get("score", 0)
-
-        if not ignore_twitter_score:
-            score += self.twitter_score
-        return score
 
     def get_vote_for_index(self, vote):
         wrapper = dict_to_obj(
@@ -847,20 +838,6 @@ class Paper(AbstractGenericReactionModel):
                     print(f"Error saving reference paper: {e}")
             else:
                 print("No new paper")
-
-    def get_promoted_score(paper):
-        purchases = paper.purchases.filter(
-            paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
-        )
-        if purchases.exists():
-            base_score = paper.paper_score
-            boost_amount = (
-                purchases.annotate(amount_as_int=Cast("amount", IntegerField()))
-                .aggregate(sum=Sum("amount_as_int"))
-                .get("sum", 0)
-            )
-            return base_score + boost_amount
-        return False
 
     def get_boost_amount(self):
         purchases = self.purchases.filter(
@@ -1020,6 +997,7 @@ class Figure(models.Model):
     )
 
 
+# TODO: calvinhlee - remove this model once migration is confirmed to be good.
 class Vote(models.Model):
     UPVOTE = 1
     DOWNVOTE = 2
@@ -1055,6 +1033,7 @@ class Vote(models.Model):
         return "{} - {}".format(self.created_by, self.vote_type)
 
 
+# TODO: calvinhlee - remove this model once migration is confirmed to be good.
 class Flag(models.Model):
     paper = models.ForeignKey(
         Paper,
@@ -1104,12 +1083,3 @@ class AdditionalFile(models.Model):
     )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
-
-
-class FeaturedPaper(models.Model):
-    paper = models.ForeignKey(Paper, on_delete=models.CASCADE, related_name="featured")
-    user = models.ForeignKey(
-        "user.User", on_delete=models.CASCADE, related_name="featured_papers"
-    )
-    ordinal = models.IntegerField(default=0)
-    created_date = models.DateTimeField(auto_now_add=True)

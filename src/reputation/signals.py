@@ -12,10 +12,9 @@ from bullet_point.models import BulletPoint
 from bullet_point.models import Vote as BulletPointVote
 from discussion.lib import check_is_discussion_item
 from discussion.models import Comment, Reply, Thread
-from discussion.models import Vote as ReactionVote
+from discussion.models import Vote as GrmVote
 from hypothesis.models import Citation, Hypothesis
 from paper.models import Paper
-from paper.models import Vote as PaperVote
 from purchase.models import Purchase
 from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError
@@ -46,20 +45,24 @@ def update_distribution_for_hub_changes(
             distribution.hubs.add(*instance.hubs.all())
 
 
-@receiver(post_save, sender=PaperVote, dispatch_uid="paper_upvoted")
+@receiver(post_save, sender=GrmVote, dispatch_uid="paper_upvoted")
 def distribute_for_paper_upvoted(sender, instance, created, update_fields, **kwargs):
     """Distributes reputation to the uploader."""
-    timestamp = time()
-    recipient = instance.paper.uploaded_by
+    target_paper = instance.item
+    if not isinstance(target_paper, Paper):
+        return
 
-    if is_eligible_for_paper_upvoted(created, instance.created_by, recipient):
+    recipient = target_paper.uploaded_by
+    if recipient is not None and is_eligible_for_paper_upvoted(
+        created, instance.created_by, recipient
+    ):
         distributor = Distributor(
             distributions.create_upvote_distribution(
                 distributions.PaperUpvoted.name, instance.paper, instance
             ),
             recipient,
             instance,
-            timestamp,
+            time(),  # timestamp
             instance.created_by,
             instance.paper.hubs.all(),
         )
@@ -362,7 +365,7 @@ def get_discussion_hubs(instance):
     return hubs
 
 
-@receiver(post_save, sender=ReactionVote, dispatch_uid="discussion_vote")
+@receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote")
 def distribute_for_discussion_vote(sender, instance, created, update_fields, **kwargs):
     """Distributes reputation to the creator of the item voted on."""
     timestamp = time()
@@ -486,7 +489,7 @@ def get_discussion_vote_item_distribution(instance):
 
     error = TypeError(f"Instance of type {item_type} is not supported")
 
-    if vote_type == ReactionVote.UPVOTE:
+    if vote_type == GrmVote.UPVOTE:
         if item_type == Comment:
             vote_type = distributions.CommentUpvoted.name
         elif item_type == Reply:
@@ -499,7 +502,7 @@ def get_discussion_vote_item_distribution(instance):
             raise error
 
         return distributions.create_upvote_distribution(vote_type, None, instance)
-    elif vote_type == ReactionVote.DOWNVOTE:
+    elif vote_type == GrmVote.DOWNVOTE:
         if item_type == Comment:
             return distributions.CommentDownvoted
         elif item_type == Reply:
@@ -510,7 +513,7 @@ def get_discussion_vote_item_distribution(instance):
             return distributions.ResearchhubPostDownvoted
         else:
             raise error
-    elif vote_type == ReactionVote.NEUTRAL:
+    elif vote_type == GrmVote.NEUTRAL:
         return distributions.NeutralVote
 
 

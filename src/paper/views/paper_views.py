@@ -1,9 +1,9 @@
 import base64
-import datetime
 import json
 from urllib.parse import urlparse
 
 import requests
+from django.contrib.admin.options import get_content_type_for_model
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
@@ -24,43 +24,30 @@ from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly,
 )
 from rest_framework.response import Response
-from rest_framework.utils.urls import replace_query_param
 
-from discussion.reaction_serializers import FlagSerializer
-from discussion.reaction_views import create_flag
+from discussion.models import Vote as GrmVote
+from discussion.reaction_serializers import FlagSerializer as GrmFlagSerializer
+from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
+from discussion.reaction_views import ReactionViewActionMixin, create_flag
 from google_analytics.signals import get_event_hit_response
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
-from paper.models import (
-    AdditionalFile,
-    FeaturedPaper,
-    Figure,
-    Flag,
-    Paper,
-    PaperSubmission,
-    Vote,
-)
+from paper.models import AdditionalFile, Figure, Flag, Paper, PaperSubmission
 from paper.permissions import (
     CreatePaper,
-    DownvotePaper,
-    FlagPaper,
     IsAuthor,
     IsModeratorOrVerifiedAuthor,
     UpdateOrDeleteAdditionalFile,
     UpdatePaper,
-    UpvotePaper,
 )
 from paper.serializers import (
     AdditionalFileSerializer,
     BookmarkSerializer,
     DynamicPaperSerializer,
-    FeaturedPaperSerializer,
     FigureSerializer,
-    HubPaperSerializer,
     PaperReferenceSerializer,
     PaperSerializer,
     PaperSubmissionSerializer,
-    PaperVoteSerializer,
 )
 from paper.tasks import celery_process_paper, censored_paper_cleanup
 from paper.utils import (
@@ -78,14 +65,11 @@ from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     NEWEST,
+    OPEN_ACCESS,
     TOP,
     TRENDING,
 )
 from researchhub_document.utils import reset_unified_document_cache
-from researchhub_document.views.custom.unified_document_pagination import (
-    UNIFIED_DOC_PAGE_SIZE,
-)
-from user.models import Author
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.permissions import CreateOnly, CreateOrUpdateIfAllowed, HasAPIKey
 from utils.sentry import log_error, log_info
@@ -93,9 +77,10 @@ from utils.siftscience import decisions_api, events_api
 from utils.throttles import THROTTLE_CLASSES
 
 
-class PaperViewSet(viewsets.ModelViewSet):
+class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     queryset = Paper.objects.filter()
     serializer_class = PaperSerializer
+    dynamic_serializer_class = DynamicPaperSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ("title", "doi", "paper_title")
     filter_class = PaperFilter
@@ -229,6 +214,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         except IntegrityError as e:
             return self._get_integrity_error_response(e)
         except PaperSerializerError as e:
+            print("EXCEPTION: ", e)
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
     def _get_integrity_error_response(self, error):
@@ -248,18 +234,76 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        context = {"request": request, "get_raw_author_scores": True}
+
+        context = {
+            "request": request,
+            "doc_duds_get_documents": {"_include_fields": ["id"]},
+            "pap_dps_get_unified_document": {
+                "_include_fields": [
+                    "id",
+                    "reviews",
+                    "is_removed",
+                    "document_type",
+                    "documents",
+                ]
+            },
+            "pap_dps_get_user_vote": {},
+            "pap_dps_get_uploaded_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                ]
+            },
+            "usr_dus_get_author_profile": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                ]
+            },
+        }
         cache_key = get_cache_key("paper", instance.id)
         cache_hit = cache.get(cache_key)
         if cache_hit is not None:
-            vote = self.serializer_class(context=context).get_user_vote(instance)
+            vote = self.dynamic_serializer_class(context=context).get_user_vote(
+                instance
+            )
             cache_hit["user_vote"] = vote
             return Response(cache_hit)
 
-        if request.query_params.get("make_public") and not instance.is_public:
-            instance.is_public = True
-            instance.save()
-        serializer = self.serializer_class(instance, context=context)
+        serializer = self.dynamic_serializer_class(
+            instance,
+            context=context,
+            _include_fields=[
+                "authors",
+                "boost_amount",
+                "id",
+                "file",
+                "first_preview",
+                "hubs",
+                "score",
+                "uploaded_by",
+                "uploaded_date",
+                "discussion_count",
+                "pdf_file_extract",
+                "is_open_access",
+                "external_source",
+                "title",
+                "doi",
+                "paper_title",
+                "paper_publish_date",
+                "raw_authors",
+                "abstract",
+                "url",
+                "pdf_url",
+                "pdf_license",
+                "slug",
+                "unified_document",
+                "uploaded_date",
+                "created_date",
+            ],
+        )
         serializer_data = serializer.data
 
         cache.set(cache_key, serializer_data, timeout=60 * 60 * 24 * 7)
@@ -349,7 +393,7 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         reset_unified_document_cache(
             hub_ids,
-            filters=[TRENDING, TOP, DISCUSSED, NEWEST],
+            filters=[TRENDING, TOP, DISCUSSED, NEWEST, OPEN_ACCESS],
             document_type=["all", "paper"],
             with_default_hub=True,
         )
@@ -375,7 +419,7 @@ class PaperViewSet(viewsets.ModelViewSet):
         hub_ids = paper.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
             hub_ids,
-            filters=[TRENDING, TOP, DISCUSSED, NEWEST],
+            filters=[TRENDING, TOP, DISCUSSED, NEWEST, OPEN_ACCESS],
             document_type=["all", "paper"],
         )
         return Response(self.get_serializer(instance=paper).data, status=200)
@@ -454,46 +498,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             print(e)
             return Response(f"Failed to remove {paper.id} from bookmarks", status=400)
 
-    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
-    def flag(self, request, pk=None):
-        # TODO: calvinhlee - clean this up after full  migration
-        paper = self.get_object()
-        user = request.user
-        reason = request.data.get("reason")
-        reason_choice = request.data.get("reason_choice")
-
-        try:
-            flag = create_flag(user, paper, reason, reason_choice)
-            serialized = FlagSerializer(flag)
-
-            content_id = f"{type(paper).__name__}_{paper.id}"
-            events_api.track_flag_content(paper.uploaded_by, content_id, user.id)
-            return Response(serialized.data, status=201)
-        except IntegrityError as e:
-            return Response(
-                {
-                    "msg": "Already flagged",
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
-        except Exception as e:
-            return Response(
-                {
-                    "msg": "Unexpected error",
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    @flag.mapping.delete
-    def delete_flag(self, request, pk=None):
-        try:
-            flag = Flag.objects.get(paper=pk, created_by=request.user.id)
-            flag_id = flag.id
-            flag.delete()
-            return Response(flag_id, status=200)
-        except Exception as e:
-            return Response(f"Failed to delete flag: {e}", status=400)
-
     @action(detail=True, methods=[GET])
     def referenced_by(self, request, pk=None):
         paper = self.get_object()
@@ -538,61 +542,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             return Response(f"Failed to delete vote: {e}", status=400)
 
     @action(
-        detail=True,
-        methods=["post", "put", "patch"],
-        permission_classes=[UpvotePaper & CreateOrUpdateIfAllowed],
-    )
-    def upvote(self, request, pk=None):
-        paper = self.get_object()
-        hub_ids = list(paper.hubs.values_list("id", flat=True))
-        hub_ids = add_default_hub(hub_ids)
-        user = request.user
-
-        vote_exists = find_vote(user, paper, Vote.UPVOTE)
-
-        if vote_exists:
-            return Response(
-                "This vote already exists", status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(request, user, paper, Vote.UPVOTE)
-
-        reset_unified_document_cache(
-            hub_ids,
-            filters=[TRENDING, TOP],
-            document_type=["all", "paper"],
-        )
-        paper.reset_cache()
-
-        return response
-
-    @action(
-        detail=True,
-        methods=["post", "put", "patch"],
-        permission_classes=[DownvotePaper & CreateOrUpdateIfAllowed],
-    )
-    def downvote(self, request, pk=None):
-        paper = self.get_object()
-        hub_ids = list(paper.hubs.values_list("id", flat=True))
-        user = request.user
-
-        vote_exists = find_vote(user, paper, Vote.DOWNVOTE)
-
-        if vote_exists:
-            return Response(
-                "This vote already exists", status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(request, user, paper, Vote.DOWNVOTE)
-
-        reset_unified_document_cache(
-            hub_ids,
-            filters=[TRENDING, TOP],
-            document_type=["all", "paper"],
-        )
-        paper.reset_cache()
-
-        return response
-
-    @action(
         detail=False,
         methods=["get"],
     )
@@ -602,11 +551,15 @@ class PaperViewSet(viewsets.ModelViewSet):
         response = {}
 
         if user.is_authenticated:
-            votes = Vote.objects.filter(paper__id__in=paper_ids, created_by=user)
+            votes = GrmVote.objects.filter(
+                content_type=get_content_type_for_model(Paper),
+                object_id__in=paper_ids,
+                created_by=user,
+            )
 
             for vote in votes.iterator():
-                paper_id = vote.paper_id
-                data = PaperVoteSerializer(instance=vote).data
+                paper_id = vote.object_id
+                data = GrmVoteSerializer(instance=vote).data
                 response[paper_id] = data
 
         return Response(response, status=status.HTTP_200_OK)
@@ -775,68 +728,6 @@ class PaperViewSet(viewsets.ModelViewSet):
 
         return order_papers
 
-    @action(detail=False, methods=["get"])
-    def get_hub_papers(self, request):
-        # TODO: Delete this
-
-        subscribed_hubs = request.GET.get("subscribed_hubs", False)
-        external_source = request.GET.get("external_source", False)
-        is_anonymous = request.user.is_anonymous
-        if subscribed_hubs and not is_anonymous:
-            return self.subscribed_hub_papers(request)
-
-        page_number = int(request.GET["page"])
-        start_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get("start_date__gte", 0)), datetime.timezone.utc
-        )
-        end_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get("end_date__lte", 0)), datetime.timezone.utc
-        )
-        ordering = self._set_hub_paper_ordering(request)
-        hub_id = request.GET.get("hub_id", 0)
-
-        cache_hit = None
-        time_difference = end_date - start_date
-        if page_number == 1 and "removed" not in ordering and not external_source:
-            cache_pk = ""
-            if time_difference.days > 365:
-                cache_pk = f"{hub_id}_{ordering}_all_time"
-            elif time_difference.days == 365:
-                cache_pk = f"{hub_id}_{ordering}_year"
-            elif time_difference.days == 30 or time_difference.days == 31:
-                cache_pk = f"{hub_id}_{ordering}_month"
-            elif time_difference.days == 7:
-                cache_pk = f"{hub_id}_{ordering}_week"
-            else:
-                cache_pk = f"{hub_id}_{ordering}_today"
-
-            cache_key_hub = get_cache_key("hub", cache_pk)
-            cache_hit = cache.get(cache_key_hub)
-
-            if cache_hit and page_number == 1:
-                return Response(cache_hit)
-
-        context = self.get_serializer_context()
-        context["user_no_balance"] = True
-        context["exclude_promoted_score"] = True
-        context["include_wallet"] = False
-
-        # if not cache_hit and page_number == 1:
-        # reset_cache([hub_id], ordering, time_difference.days)
-
-        papers = self._get_filtered_papers(hub_id, ordering)
-        order_papers = self.calculate_paper_ordering(
-            papers, ordering, start_date, end_date
-        )
-        page = self.paginate_queryset(order_papers)
-        serializer = HubPaperSerializer(page, many=True, context=context)
-        serializer_data = serializer.data
-
-        res = self.get_paginated_response(
-            {"data": serializer_data, "no_results": False, "feed_type": "all"}
-        )
-        return res
-
     @action(
         detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
     )
@@ -871,93 +762,6 @@ class PaperViewSet(viewsets.ModelViewSet):
             filename, ContentFile(json.dumps(data).encode("utf8"))
         )
         return Response(status=status.HTTP_200_OK)
-
-    def subscribed_hub_papers(self, request):
-        feed_type = "subscribed"
-        user = request.user
-        hubs = user.subscribed_hubs.all()
-        page_number = int(request.GET["page"])
-        start_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get("start_date__gte", 0)), datetime.timezone.utc
-        )
-        end_date = datetime.datetime.fromtimestamp(
-            int(request.GET.get("end_date__lte", 0)), datetime.timezone.utc
-        )
-        ordering = self._set_hub_paper_ordering(request)
-
-        if ordering == "-hot_score" and page_number == 1:
-            papers = {}
-            for hub in hubs.iterator():
-                hub_name = hub.slug
-                cache_key = get_cache_key("papers", hub_name)
-                cache_hit = cache.get(cache_key)
-                if cache_hit:
-                    for hit in cache_hit:
-                        paper_id = hit["id"]
-                        abstract = hit.get("abstract", None)
-                        if paper_id not in papers and abstract:
-                            papers[paper_id] = hit
-            papers = list(papers.values())
-
-            if len(papers) < 1:
-                qs = self.get_queryset(include_autopull=True).order_by("-hot_score")
-                papers = qs.filter(hubs__in=hubs).distinct()
-            else:
-                papers = sorted(papers, key=lambda paper: -paper["hot_score"])
-                papers = papers[:UNIFIED_DOC_PAGE_SIZE]
-                next_page = request.build_absolute_uri()
-                if len(papers) < UNIFIED_DOC_PAGE_SIZE:
-                    next_page = None
-                else:
-                    next_page = replace_query_param(next_page, "page", 2)
-                res = {
-                    "count": len(papers),
-                    "next": next_page,
-                    "results": {
-                        "data": papers,
-                        "no_results": False,
-                        "feed_type": feed_type,
-                    },
-                }
-                return Response(res, status=status.HTTP_200_OK)
-
-        else:
-            qs = self.get_queryset(include_autopull=True).order_by("-hot_score")
-            papers = qs.filter(hubs__in=hubs).distinct()
-
-        if papers.count() < 1:
-            log_info(
-                f"""
-                    No hub papers found, retrieiving trending papers.
-                    Page: {page_number}
-                """
-            )
-            trending_pk = "0_-hot_score_today"
-            cache_key_hub = get_cache_key("hub", trending_pk)
-            cache_hit = cache.get(cache_key_hub)
-
-            if cache_hit and page_number == 1:
-                return Response(cache_hit)
-
-            feed_type = "all"
-            papers = self.get_queryset().order_by("-hot_score")
-
-        context = self.get_serializer_context()
-        context["user_no_balance"] = True
-        context["exclude_promoted_score"] = True
-        context["include_wallet"] = False
-
-        order_papers = self.calculate_paper_ordering(
-            papers, ordering, start_date, end_date
-        )
-
-        page = self.paginate_queryset(order_papers)
-        serializer = HubPaperSerializer(page, many=True, context=context)
-        serializer_data = serializer.data
-
-        return self.get_paginated_response(
-            {"data": serializer_data, "no_results": False, "feed_type": feed_type}
-        )
 
     def _set_hub_paper_ordering(self, request):
         ordering = request.query_params.get("ordering", None)
@@ -1014,55 +818,6 @@ class PaperViewSet(viewsets.ModelViewSet):
                     is_removed_by_user=False,
                 )
         return qs
-
-
-class FeaturedPaperViewSet(viewsets.ModelViewSet):
-    queryset = FeaturedPaper.objects.filter(
-        paper__is_removed=False, user__is_suspended=False
-    )
-    serializer_class = FeaturedPaperSerializer
-    throttle_classes = THROTTLE_CLASSES
-    permission_classes = [IsAuthenticatedOrReadOnly]
-    filter_backends = [DjangoFilterBackend, SearchFilter]
-    search_fields = ["paper__title", "user__id"]
-    filterset_fields = ["paper__title"]
-
-    def create(self, request):
-        user = request.user
-        orderings = request.data["ordering"]
-        featured_papers = []
-
-        self.queryset.filter(user=user).delete()
-        for ordering in orderings:
-            ordinal = ordering["ordinal"]
-            paper_id = ordering["paper_id"]
-            featured_papers.append(
-                FeaturedPaper(ordinal=ordinal, paper_id=paper_id, user=user)
-            )
-        FeaturedPaper.objects.bulk_create(featured_papers)
-        serializer = self.serializer_class(featured_papers, many=True)
-        data = serializer.data
-
-        return Response(data, status=200)
-
-    def destroy(self, request, pk=None):
-        featured = self.queryset.get(id=pk)
-        res = featured.delete()
-        return Response(res, status=200)
-
-    def retrieve(self, request, pk=None):
-        user = Author.objects.get(id=pk).user
-        papers = self.queryset.filter(
-            user=user,
-            is_removed=False,
-        ).order_by("ordinal")
-
-        page = self.paginate_queryset(papers)
-        if page is not None:
-            serializer = self.serializer_class(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        return Response(status=400)
 
 
 class AdditionalFileViewSet(viewsets.ModelViewSet):
@@ -1175,54 +930,32 @@ class FigureViewSet(viewsets.ModelViewSet):
 
 
 def find_vote(user, paper, vote_type):
-    vote = Vote.objects.filter(paper=paper, created_by=user, vote_type=vote_type)
+    vote = GrmVote.objects.filter(
+        content_type=get_content_type_for_model(paper),
+        created_by=user,
+        object_id=paper.id,
+        vote_type=vote_type,
+    )
     if vote:
         return True
     return False
 
 
-def update_or_create_vote(request, user, paper, vote_type):
-    vote = retrieve_vote(user, paper)
-
-    if vote:
-        vote.vote_type = vote_type
-        vote.save()
-        events_api.track_content_vote(user, vote, request)
-        return get_vote_response(vote, 200)
-    vote = create_vote(user, paper, vote_type)
-
-    events_api.track_content_vote(user, vote, request)
-    unified_doc_id = paper.unified_document.id
-    create_contribution.apply_async(
-        (
-            Contribution.UPVOTER,
-            {"app_label": "paper", "model": "vote"},
-            user.id,
-            unified_doc_id,
-            vote.id,
-        ),
-        priority=3,
-        countdown=10,
-    )
-    return get_vote_response(vote, 201)
-
-
 def get_vote_response(vote, status_code):
     """Returns Response with serialized `vote` data and `status_code`."""
-    serializer = PaperVoteSerializer(vote)
+    serializer = GrmVoteSerializer(vote)
     return Response(serializer.data, status=status_code)
 
 
 def retrieve_vote(user, paper):
     try:
-        return Vote.objects.get(paper=paper, created_by=user.id)
-    except Vote.DoesNotExist:
+        return GrmVote.objects.get(
+            content_type=get_content_type_for_model(paper),
+            created_by=user,
+            object_id=paper.id,
+        )
+    except GrmVote.DoesNotExist:
         return None
-
-
-def create_vote(user, paper, vote_type):
-    vote = Vote.objects.create(created_by=user, paper=paper, vote_type=vote_type)
-    return vote
 
 
 class PaperSubmissionViewSet(viewsets.ModelViewSet):

@@ -1,17 +1,20 @@
 from django.db import models
 
+from hub.models import Hub
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 from utils.models import DefaultModel
 
 
-class FeedExclusion(DefaultModel):
-    # Not a foreign key because hub_id=0 is homepage
-    hub_id = models.IntegerField(
-        null=False,
-        blank=False,
-        db_index=True,
+class FeaturedContent(DefaultModel):
+    hub = models.ForeignKey(
+        Hub,
+        default=None,
+        blank=True,
+        null=True,
+        on_delete=models.CASCADE,
+        related_name="featured_content",
     )
 
     unified_document = models.ForeignKey(
@@ -20,5 +23,5 @@ class FeedExclusion(DefaultModel):
         blank=False,
         null=False,
         on_delete=models.CASCADE,
-        related_name="excluded_from_feeds",
+        related_name="featured_in_hubs",
     )

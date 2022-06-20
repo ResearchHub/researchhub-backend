@@ -95,8 +95,8 @@ class DuplicatePaperIntegrationTest(
 
         # Checking merging results
         original_results, new_results = 2, 0
-        original_paper_votes = original_paper.votes_legacy.count()
-        new_paper_votes = new_paper.votes_legacy.count()
+        original_paper_votes = original_paper.votes.count()
+        new_paper_votes = new_paper.votes.count()
         self.assertEqual(original_paper_votes, original_results)
         self.assertEqual(new_paper_votes, new_results)
 

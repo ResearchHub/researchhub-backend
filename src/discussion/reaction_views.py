@@ -82,13 +82,19 @@ class ReactionViewActionMixin:
             events_api.track_flag_content(item.created_by, content_id, user.id)
             return Response(serialized.data, status=201)
         except IntegrityError as e:
-            return Response({
-                "msg": "Already flagged", 
-            }, status=status.HTTP_409_CONFLICT)
+            return Response(
+                {
+                    "msg": "Already flagged",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         except Exception as e:
-            return Response({
-                "msg": "Unexpected error", 
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {
+                    "msg": "Unexpected error",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def delete_flag(self, request, pk=None):
         item = self.get_object()
@@ -161,7 +167,6 @@ class ReactionViewActionMixin:
         item = self.get_object()
         user = request.user
         vote_exists = find_vote(user, item, Vote.UPVOTE)
-
         if vote_exists:
             return Response(
                 "This vote already exists", status=status.HTTP_400_BAD_REQUEST
@@ -343,27 +348,35 @@ def update_or_create_vote(request, user, item, vote_type):
     if has_unified_doc:
         hub_ids += list(item.unified_document.hubs.values_list("id", flat=True))
 
+    """UPDATE VOTE"""
     vote = retrieve_vote(user, item)
-    # TODO: calvinhlee - figure out how to handle contributions
     if vote is not None:
         vote.vote_type = vote_type
         vote.save(update_fields=["updated_date", "vote_type"])
-
         if has_unified_doc:
-            doc_type = get_doc_type_key(item.unified_document)
-            reset_unified_document_cache(
-                hub_ids, document_type=[doc_type, "all"], filters=cache_filters_to_reset
+            update_relavent_doc_caches_on_vote(
+                cache_filters_to_reset=cache_filters_to_reset,
+                hub_ids=hub_ids,
+                target_vote=vote,
             )
 
         # events_api.track_content_vote(user, vote, request)
         return get_vote_response(vote, 200)
 
+    """CREATE VOTE"""
     vote = create_vote(user, item, vote_type)
     if has_unified_doc:
-        doc_type = get_doc_type_key(item.unified_document)
-        reset_unified_document_cache(
-            hub_ids, document_type=[doc_type, "all"], filters=cache_filters_to_reset
+        update_relavent_doc_caches_on_vote(
+            cache_filters_to_reset=cache_filters_to_reset,
+            hub_ids=hub_ids,
+            target_vote=vote,
         )
+
+    potential_paper = vote.item
+    from paper.models import Paper
+
+    if isinstance(potential_paper, Paper):
+        potential_paper.reset_cache()
 
     app_label = item._meta.app_label
     model = item._meta.model.__name__.lower()
@@ -380,3 +393,15 @@ def update_or_create_vote(request, user, item, vote_type):
         countdown=10,
     )
     return get_vote_response(vote, 201)
+
+
+def update_relavent_doc_caches_on_vote(cache_filters_to_reset, hub_ids, target_vote):
+    item = target_vote.item
+    doc_type = get_doc_type_key(item.unified_document)
+    reset_unified_document_cache(
+        hub_ids, document_type=[doc_type, "all"], filters=cache_filters_to_reset
+    )
+    from paper.models import Paper
+
+    if isinstance(item, Paper):
+        item.reset_cache()

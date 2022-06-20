@@ -3,7 +3,6 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
@@ -16,7 +15,7 @@ from notification.models import Notification
 from paper.related_models.paper_model import Paper
 from user.filters import AuditDashboardFilterBackend
 from user.models import Action
-from user.permissions import UserIsEditor
+from user.permissions import IsModerator, UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 from utils import sentry
 from utils.message import send_email_message
@@ -29,7 +28,7 @@ class CursorSetPagination(CursorPagination):
 
 class AuditViewSet(viewsets.GenericViewSet):
     queryset = Action.objects.all()
-    permission_classes = [UserIsEditor]
+    permission_classes = [UserIsEditor | IsModerator]
     pagination_class = CursorSetPagination
     filter_backends = (AuditDashboardFilterBackend,)
     order_fields = ("created_date", "verdict_created_date")
@@ -56,11 +55,6 @@ class AuditViewSet(viewsets.GenericViewSet):
     def get_filtered_queryset(self):
         qs = self.get_queryset()
         return self.filter_queryset(qs)
-
-    # TODO: Delete
-    def _get_flagged_content(self):
-        flagged_contributions = Flag.objects.all().select_related("content_type")
-        return flagged_contributions
 
     def _get_latest_actions(self):
         actions = (
@@ -405,7 +399,6 @@ class AuditViewSet(viewsets.GenericViewSet):
             unified_document = item.unified_document
             unified_document.is_removed = True
             unified_document.save()
-
             inner_doc = unified_document.get_document()
             if isinstance(inner_doc, Paper):
                 inner_doc.is_removed = True
