@@ -1354,7 +1354,7 @@ def celery_create_paper(self, celery_data):
     paper_data, submission_id = celery_data
     Paper = apps.get_model("paper.Paper")
     PaperSubmission = apps.get_model("paper.PaperSubmission")
-    Vote = apps.get_model("paper.Vote")
+    Vote = apps.get_model("discussion.Vote")
     Contribution = apps.get_model("reputation.Contribution")
 
     try:
