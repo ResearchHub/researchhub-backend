@@ -255,6 +255,7 @@ class Paper(AbstractGenericReactionModel):
     def display_title(self):
         return self.title or self.paper_title
 
+    @property
     def uploaded_date(self):
         return self.created_date
 
