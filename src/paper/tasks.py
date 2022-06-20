@@ -27,6 +27,7 @@ from celery.task.schedules import crontab
 from celery.utils.log import get_task_logger
 from cloudscraper.exceptions import CloudflareChallengeError
 from django.apps import apps
+from django.contrib.admin.options import get_content_type_for_model
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files import File
@@ -1376,7 +1377,6 @@ def celery_create_paper(self, celery_data):
     paper_data, submission_id = celery_data
     Paper = apps.get_model("paper.Paper")
     PaperSubmission = apps.get_model("paper.PaperSubmission")
-    Vote = apps.get_model("paper.Vote")
     Contribution = apps.get_model("reputation.Contribution")
 
     try:
@@ -1404,7 +1404,15 @@ def celery_create_paper(self, celery_data):
         paper_submission.save()
 
         uploaded_by = paper_submission.uploaded_by
-        Vote.objects.create(paper=paper, created_by=uploaded_by, vote_type=Vote.UPVOTE)
+
+        from discussion.models import Vote as GrmVote
+
+        GrmVote.objects.create(
+            content_type=get_content_type_for_model(paper),
+            created_by=uploaded_by,
+            object_id=paper.id,
+            vote_type=GrmVote.UPVOTE,
+        )
         download_pdf.apply_async((paper_id,), priority=3, countdown=5)
         add_orcid_authors.apply_async((paper_id,), priority=5, countdown=5)
         create_contribution.apply_async(
