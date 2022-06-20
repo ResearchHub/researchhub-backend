@@ -34,6 +34,7 @@ from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     NEWEST,
+    OPEN_ACCESS,
     TOP,
     TRENDING,
 )
@@ -131,7 +132,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             reset_unified_document_cache(
                 hub_ids,
                 document_type=["all", "posts"],
-                filters=[NEWEST],
+                filters=[NEWEST, OPEN_ACCESS],
                 with_default_hub=True,
             )
 
@@ -191,7 +192,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
         reset_unified_document_cache(
             hub_ids,
             document_type=["all", "posts"],
-            filters=[NEWEST, DISCUSSED, TOP, TRENDING],
+            filters=[NEWEST, DISCUSSED, TOP, TRENDING, OPEN_ACCESS],
         )
 
         if assign_doi:

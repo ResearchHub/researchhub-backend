@@ -65,6 +65,7 @@ from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     NEWEST,
+    OPEN_ACCESS,
     TOP,
     TRENDING,
 )
@@ -392,7 +393,7 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         reset_unified_document_cache(
             hub_ids,
-            filters=[TRENDING, TOP, DISCUSSED, NEWEST],
+            filters=[TRENDING, TOP, DISCUSSED, NEWEST, OPEN_ACCESS],
             document_type=["all", "paper"],
             with_default_hub=True,
         )
@@ -418,7 +419,7 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         hub_ids = paper.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
             hub_ids,
-            filters=[TRENDING, TOP, DISCUSSED, NEWEST],
+            filters=[TRENDING, TOP, DISCUSSED, NEWEST, OPEN_ACCESS],
             document_type=["all", "paper"],
         )
         return Response(self.get_serializer(instance=paper).data, status=200)

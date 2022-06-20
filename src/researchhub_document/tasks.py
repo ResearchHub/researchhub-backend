@@ -79,6 +79,10 @@ def preload_trending_documents(
         query_string_filtering = "newest"
     elif filtering == "-hot_score":
         query_string_filtering = "hot"
+    elif filtering == "is_open_access":
+        query_string_filtering = "is_open_access"
+    elif filtering == "author_claimed":
+        query_string_filtering = "author_claimed"
 
     request_path = "/api/researchhub_unified_documents/get_unified_documents/"
     if STAGING:

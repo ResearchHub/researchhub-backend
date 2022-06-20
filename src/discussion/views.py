@@ -37,8 +37,10 @@ from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.filters import (
+    AUTHOR_CLAIMED,
     DISCUSSED,
     NEWEST,
+    OPEN_ACCESS,
     TOP,
     TRENDING,
 )
@@ -123,7 +125,8 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         reset_unified_document_cache(
             hub_ids=hubs,
             document_type=[doc_type, "all"],
-            filters=[DISCUSSED, TRENDING],
+            filters=[DISCUSSED, TRENDING, OPEN_ACCESS, AUTHOR_CLAIMED],
+            with_default_hub=True,
         )
 
         return Response(
@@ -281,7 +284,10 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         doc_type = get_doc_type_key(unified_document)
         reset_unified_document_cache(
-            hub_ids=hubs, document_type=[doc_type, "all"], filters=[DISCUSSED, TRENDING]
+            hub_ids=hubs,
+            document_type=[doc_type, "all"],
+            filters=[DISCUSSED, TRENDING, OPEN_ACCESS, AUTHOR_CLAIMED],
+            with_default_hub=True,
         )
 
         return response
@@ -385,7 +391,10 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         doc_type = get_doc_type_key(unified_document)
         reset_unified_document_cache(
-            hub_ids=hubs, document_type=[doc_type, "all"], filters=[DISCUSSED, TRENDING]
+            hub_ids=hubs,
+            document_type=[doc_type, "all"],
+            filters=[DISCUSSED, TRENDING, OPEN_ACCESS, AUTHOR_CLAIMED],
+            with_default_hub=True,
         )
 
         return self.get_self_upvote_response(request, response, Reply)

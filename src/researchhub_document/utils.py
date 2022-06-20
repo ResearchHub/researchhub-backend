@@ -11,8 +11,10 @@ from researchhub_document.related_models.constants.document_type import (
     POSTS,
 )
 from researchhub_document.related_models.constants.filters import (
+    AUTHOR_CLAIMED,
     DISCUSSED,
     NEWEST,
+    OPEN_ACCESS,
     TOP,
     TRENDING,
 )
@@ -77,7 +79,7 @@ def get_date_ranges_by_time_scope(time_scope):
 def reset_unified_document_cache(
     hub_ids=[],
     document_type=[ALL.lower(), POSTS.lower(), PAPER.lower(), HYPOTHESIS.lower()],
-    filters=[DISCUSSED, TRENDING, NEWEST, TOP],
+    filters=[DISCUSSED, TRENDING, NEWEST, TOP, AUTHOR_CLAIMED, OPEN_ACCESS],
     date_ranges=CACHE_DATE_RANGES,
     with_default_hub=False,
 ):

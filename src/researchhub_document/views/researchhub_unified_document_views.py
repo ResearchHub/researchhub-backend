@@ -25,8 +25,10 @@ from researchhub_document.models import (
 )
 from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.filters import (
+    AUTHOR_CLAIMED,
     DISCUSSED,
     NEWEST,
+    OPEN_ACCESS,
     TOP,
     TRENDING,
 )
@@ -91,7 +93,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             document_type=[doc_type, "all"],
-            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+            filters=[NEWEST, TOP, TRENDING, DISCUSSED, OPEN_ACCESS, AUTHOR_CLAIMED],
             with_default_hub=True,
         )
         return Response(self.get_serializer(instance=doc).data, status=200)
@@ -117,7 +119,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             document_type=[doc_type, "all"],
-            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+            filters=[NEWEST, TOP, TRENDING, DISCUSSED, OPEN_ACCESS, AUTHOR_CLAIMED],
         )
 
         return Response(self.get_serializer(instance=doc).data, status=200)
@@ -165,6 +167,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
     def _get_document_filtering(self, query_params):
         filtering = query_params.get("ordering", None)
+
         if filtering == "removed":
             filtering = "removed"
         elif filtering == "top_rated":
@@ -177,6 +180,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             filtering = "-hot_score"
         elif filtering == "user_uploaded":
             filtering = "user_uploaded"
+        elif filtering == "author_claimed":
+            filtering = "author_claimed"
+        elif filtering == "is_open_access":
+            filtering = "is_open_access"
         else:
             filtering = "-score"
         return filtering
