@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from bullet_point.models import BulletPoint
 from discussion.models import Comment, Reply, Thread
-from discussion.models import Vote as DiscussionVote
+from discussion.models import Vote as GrmVote
 from google_analytics.signals import (
     send_bullet_point_event,
     send_discussion_event,
@@ -15,7 +15,6 @@ from google_analytics.signals import (
     send_vote_event,
 )
 from paper.models import Paper
-from paper.models import Vote as PaperVote
 from user.models import User
 
 
@@ -63,13 +62,9 @@ class Command(BaseCommand):
         for bp in bullet_points:
             response = send_bullet_point_event(BulletPoint, bp, created, [])
             print(response)
-        discussion_votes = DiscussionVote.objects.filter(**filters)
+        discussion_votes = GrmVote.objects.filter(**filters)
         for dv in discussion_votes:
-            response = send_vote_event(DiscussionVote, dv, created, [])
-            print(response)
-        paper_votes = PaperVote.objects.filter(**filters)
-        for pv in paper_votes:
-            response = send_vote_event(PaperVote, pv, created, [])
+            response = send_vote_event(GrmVote, dv, created, [])
             print(response)
         threads = Thread.objects.filter(**filters)
         for thread in threads:

@@ -52,11 +52,9 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
     serializer_class = ResearchhubPostSerializer
 
     def create(self, request, *args, **kwargs):
-        # TODO: calvinhlee - relocation below function to model/signal
         return self.upsert_researchhub_posts(request)
 
     def update(self, request, *args, **kwargs):
-        # TODO: calvinhlee - relocation below function to model/signal
         return self.upsert_researchhub_posts(request)
 
     def get_queryset(self):

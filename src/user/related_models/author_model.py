@@ -1,10 +1,12 @@
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.postgres.fields import ArrayField, JSONField
 from django.db import models
-from django.db.models import Sum
+from django.db.models import Count, Q, Sum
 from django.db.models.deletion import SET_NULL
 
+from discussion.reaction_models import Vote
 from paper.models import Paper
+from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from researchhub_case.constants.case_constants import APPROVED
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
@@ -120,9 +122,9 @@ class Author(models.Model):
             return None
 
     def calculate_score(self):
-        aggregated_score = self.authored_papers.aggregate(
-            total_score=Sum("paper_score")
-        )
+        aggregated_score = self.authored_papers.annotate(
+            paper_score=PAPER_SCORE_Q_ANNOTATION
+        ).aggregate(total_score=Sum("paper_score"))
         aggregated_discussion_count = self.authored_papers.aggregate(
             total_score=Sum("discussion_count")
         )

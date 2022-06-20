@@ -1,11 +1,11 @@
 import math
 
+from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from discussion.models import Comment, Reply, Thread
-from discussion.models import Vote as DiscussionVote
-from paper.models import Vote as PaperVote
+from discussion.models import Vote as GrmVote
 from reputation.distributions import (
     calculate_rsc_per_upvote,
     create_upvote_distribution,
@@ -29,14 +29,21 @@ class BaseTests(TestCase, TestHelper):
         original_paper.raw_authors = [{"first_name": "First", "last_name": "Last"}]
 
         for x in range(NUM_VOTES):
-            votes.append(PaperVote(vote_type=1, paper=original_paper, created_by=user))
-        PaperVote.objects.bulk_create(votes)
+            votes.append(
+                GrmVote(
+                    vote_type=1,
+                    object_id=original_paper.id,
+                    created_by=user,
+                    content_type=get_content_type_for_model(original_paper),
+                )
+            )
+        GrmVote.objects.bulk_create(votes)
 
     def test_upvote_distribution(
         self,
     ):
         distribution_amount = calculate_rsc_per_upvote()
-        create_upvote_distribution(1, self.original_paper, PaperVote.objects.first())
+        create_upvote_distribution(1, self.original_paper, GrmVote.objects.first())
         self.assertEquals(AuthorRSC.objects.count(), 1)
         self.assertEquals(
             AuthorRSC.objects.first().amount, math.floor(distribution_amount * 0.75)
@@ -70,7 +77,7 @@ class BaseTests(TestCase, TestHelper):
 
         self.original_paper.authors.add(author)
         distribution = create_upvote_distribution(
-            1, self.original_paper, PaperVote.objects.first()
+            1, self.original_paper, GrmVote.objects.first()
         )
         distribution_amount = calculate_rsc_per_upvote()
         self.assertEquals(Distribution.objects.count(), 0)
@@ -107,7 +114,7 @@ class BaseTests(TestCase, TestHelper):
             target_paper=self.original_paper, requestor=author.user, status=APPROVED
         )
         distribution = create_upvote_distribution(
-            1, self.original_paper, PaperVote.objects.first()
+            1, self.original_paper, GrmVote.objects.first()
         )
         distribution_amount = calculate_rsc_per_upvote()
         self.assertEquals(Distribution.objects.count(), 1)
@@ -138,7 +145,7 @@ class BaseTests(TestCase, TestHelper):
         thread = Thread.objects.create(created_by=new_user, paper=self.original_paper)
         thread_ct = ContentType.objects.get(model="thread")
 
-        thread_vote = DiscussionVote.objects.create(
+        thread_vote = GrmVote.objects.create(
             item=thread, content_type=thread_ct, vote_type=1, created_by=self.user
         )
 
@@ -169,7 +176,7 @@ class BaseTests(TestCase, TestHelper):
         thread = Thread.objects.create(created_by=new_user, paper=self.original_paper)
         comment_ct = ContentType.objects.get(model="comment")
         comment = Comment.objects.create(created_by=self.user, parent=thread)
-        comment_vote = DiscussionVote.objects.create(
+        comment_vote = GrmVote.objects.create(
             item=comment, content_type=comment_ct, vote_type=1, created_by=new_user
         )
 
@@ -201,7 +208,7 @@ class BaseTests(TestCase, TestHelper):
         reply_ct = ContentType.objects.get(model="reply")
         comment = Comment.objects.create(created_by=self.user, parent=thread)
         reply = Reply.objects.create(created_by=new_user, parent=comment)
-        reply_vote = DiscussionVote.objects.create(
+        reply_vote = GrmVote.objects.create(
             item=reply, content_type=reply_ct, vote_type=1, created_by=self.user
         )
 
@@ -239,7 +246,7 @@ class BaseTests(TestCase, TestHelper):
         reply_ct = ContentType.objects.get(model="reply")
         comment = Comment.objects.create(created_by=self.user, parent=thread)
         reply = Reply.objects.create(created_by=new_user, parent=comment)
-        reply_vote = DiscussionVote.objects.create(
+        reply_vote = GrmVote.objects.create(
             item=reply, content_type=reply_ct, vote_type=1, created_by=self.user
         )
 
@@ -269,7 +276,7 @@ class BaseTests(TestCase, TestHelper):
 
         distribution_amount = calculate_rsc_per_upvote()
         distribution = create_upvote_distribution(
-            1, self.original_paper, PaperVote.objects.first()
+            1, self.original_paper, GrmVote.objects.first()
         )
         self.assertEquals(distribution.amount, 1)
 
@@ -298,7 +305,7 @@ class BaseTests(TestCase, TestHelper):
         )
 
         distribution = create_upvote_distribution(
-            1, self.original_paper, PaperVote.objects.first()
+            1, self.original_paper, GrmVote.objects.first()
         )
         distribution_amount = calculate_rsc_per_upvote()
 

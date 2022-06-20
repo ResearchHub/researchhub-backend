@@ -13,9 +13,11 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.validators import URLValidator
 from django.db import models
+from django.db.models import Count, Q
 from habanero import Crossref
 from manubot.cite.csl_item import CSL_Item
 
+from discussion.reaction_models import Vote as GrmVote
 from paper.exceptions import ManubotProcessingError
 from paper.lib import (
     journal_hosts,
@@ -27,6 +29,10 @@ from paper.manubot import RHCiteKey
 from utils import sentry
 from utils.http import RequestMethods as methods
 from utils.http import check_url_contains_pdf, http_request
+
+PAPER_SCORE_Q_ANNOTATION = Count(
+    "id", filter=Q(votes__vote_type=GrmVote.UPVOTE)
+) - Count("id", filter=Q(votes__vote_type=GrmVote.DOWNVOTE))
 
 CACHE_TOP_RATED_DATES = (
     "-score_today",
@@ -555,17 +561,17 @@ def get_crossref_results(query, index=10):
 
 
 def merge_paper_votes(original_paper, new_paper):
-    old_votes = original_paper.votes_legacy.all()
+    old_votes = original_paper.votes.all()
     old_votes_user = old_votes.values_list("created_by_id", flat=True)
-    conflicting_votes = new_paper.votes_legacy.filter(created_by__in=old_votes_user)
+    conflicting_votes = new_paper.votes.filter(created_by__in=old_votes_user)
     conflicting_votes_user = conflicting_votes.values_list("created_by_id", flat=True)
-    new_votes = new_paper.votes_legacy.exclude(created_by_id__in=conflicting_votes_user)
+    new_votes = new_paper.votes.exclude(created_by_id__in=conflicting_votes_user)
 
     # Delete conflicting votes from the new paper
     conflicting_votes.delete()
 
     # Transfer new votes to original paper
-    new_votes.update(paper=original_paper)
+    new_votes.update(object_id=original_paper.id)
 
 
 def merge_paper_threads(original_paper, new_paper):

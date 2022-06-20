@@ -399,7 +399,6 @@ class AuditViewSet(viewsets.GenericViewSet):
             unified_document = item.unified_document
             unified_document.is_removed = True
             unified_document.save()
-
             inner_doc = unified_document.get_document()
             if isinstance(inner_doc, Paper):
                 inner_doc.is_removed = True

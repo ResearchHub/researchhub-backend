@@ -3,10 +3,16 @@ import re
 
 import requests
 import rest_framework.serializers as serializers
+from django.contrib.admin.options import get_content_type_for_model
 from django.db import IntegrityError, transaction
 from django.http import QueryDict
 
 import utils.sentry as sentry
+from discussion.models import Flag as GrmFlag
+from discussion.models import Vote as GrmVote
+from discussion.reaction_serializers import GenericReactionSerializerMixin
+from discussion.serializers import DynamicFlagSerializer
+from discussion.serializers import DynamicVoteSerializer as DynamicGrmVoteSerializer
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
@@ -18,15 +24,12 @@ from paper.models import (
     DOI_IDENTIFIER,
     AdditionalFile,
     Figure,
-    Flag,
     Paper,
     PaperSubmission,
-    Vote,
 )
-from paper.tasks import (
+from paper.tasks import (  # celery_calculate_paper_twitter_score,
     add_orcid_authors,
     add_references,
-    celery_calculate_paper_twitter_score,
     celery_extract_pdf_sections,
     download_pdf,
 )
@@ -43,12 +46,18 @@ from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
+from researchhub_document.related_models.constants.document_type import (
+    PAPER as PAPER_DOC_TYPE,
+)
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     NEWEST,
     OPEN_ACCESS,
     TOP,
     TRENDING,
+)
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
 )
 from researchhub_document.utils import (
     reset_unified_document_cache,
@@ -65,7 +74,7 @@ from utils.http import check_url_contains_pdf, get_user_from_request
 from utils.siftscience import events_api, update_user_risk_score
 
 
-class BasePaperSerializer(serializers.ModelSerializer):
+class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
     authors = serializers.SerializerMethodField()
     boost_amount = serializers.SerializerMethodField()
     bullet_points = serializers.SerializerMethodField()
@@ -76,7 +85,7 @@ class BasePaperSerializer(serializers.ModelSerializer):
     first_preview = serializers.SerializerMethodField()
     hubs = SimpleHubSerializer(many=True, required=False)
     promoted = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
+    score = serializers.ReadOnlyField()  # GRM
     summary = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     unified_document_id = serializers.SerializerMethodField()
@@ -88,7 +97,6 @@ class BasePaperSerializer(serializers.ModelSerializer):
         abstract = True
         exclude = ["references"]
         read_only_fields = [
-            "paper_score",
             "user_vote",
             "user_flag",
             "users_who_bookmarked",
@@ -234,16 +242,10 @@ class BasePaperSerializer(serializers.ModelSerializer):
         user = get_user_from_request(self.context)
         if user:
             try:
-                flag_created_by = paper.flag_created_by
-                if len(flag_created_by) == 0:
-                    return None
-                flag = FlagSerializer(flag_created_by).data
-            except AttributeError:
-                try:
-                    flag = paper.flags_legacy.get(created_by=user.id)
-                    flag = FlagSerializer(flag).data
-                except Flag.DoesNotExist:
-                    pass
+                flag = paper.flags.get(created_by=user.id)
+                flag = DynamicFlagSerializer(flag).data
+            except GrmFlag.DoesNotExist:
+                pass
         return flag
 
     def get_user_vote(self, paper):
@@ -251,16 +253,10 @@ class BasePaperSerializer(serializers.ModelSerializer):
         user = get_user_from_request(self.context)
         if user:
             try:
-                vote_created_by = paper.vote_created_by
-                if len(vote_created_by) == 0:
-                    return None
-                vote = PaperVoteSerializer(vote_created_by).data
-            except AttributeError:
-                try:
-                    vote = paper.votes_legacy.get(created_by=user.id)
-                    vote = PaperVoteSerializer(vote).data
-                except Vote.DoesNotExist:
-                    pass
+                vote = paper.votes.get(created_by=user.id)
+                vote = DynamicGrmVoteSerializer(vote).data
+            except GrmVote.DoesNotExist:
+                pass
         return vote
 
     def get_unified_document(self, obj):
@@ -334,7 +330,7 @@ class ContributionPaperSerializer(BasePaperSerializer):
 
 class PaperSerializer(BasePaperSerializer):
     authors = serializers.SerializerMethodField()
-    uploaded_date = serializers.ReadOnlyField()  # @property
+    uploaded_date = serializers.ReadOnlyField()  # GRM
 
     class Meta:
         exclude = ["references"]
@@ -349,7 +345,6 @@ class PaperSerializer(BasePaperSerializer):
             "external_source",
             "file_created_location",
             "is_open_access",
-            "hot_score",
             "id",
             "is_removed",
             "is_removed_by_user",
@@ -358,7 +353,6 @@ class PaperSerializer(BasePaperSerializer):
             "pdf_license_url",
             "publication_type",
             "retrieved_from_external_source",
-            "paper_score",
             "slug",
             "tagline",
             "twitter_mentions",
@@ -427,7 +421,12 @@ class PaperSerializer(BasePaperSerializer):
                 file = paper.file
                 self._check_pdf_title(paper, paper_title, file)
                 # NOTE: calvinhlee - This is an antipattern. Look into changing
-                Vote.objects.create(paper=paper, created_by=user, vote_type=Vote.UPVOTE)
+                GrmVote.objects.create(
+                    content_type=get_content_type_for_model(paper),
+                    created_by=user,
+                    object_id=paper.id,
+                    vote_type=GrmVote.UPVOTE,
+                )
 
                 # Now add m2m values properly
                 if validated_data["paper_type"] == Paper.PRE_REGISTRATION:
@@ -472,9 +471,9 @@ class PaperSerializer(BasePaperSerializer):
                     countdown=10,
                 )
 
-                celery_calculate_paper_twitter_score.apply_async(
-                    (paper_id,), priority=5, countdown=10
-                )
+                # celery_calculate_paper_twitter_score.apply_async(
+                #     (paper_id,), priority=5, countdown=10
+                # )
 
                 hub_ids = unified_doc.hubs.values_list("id", flat=True)
                 if hub_ids.exists():
@@ -484,7 +483,14 @@ class PaperSerializer(BasePaperSerializer):
                         filters=[NEWEST, OPEN_ACCESS],
                         with_default_hub=True,
                     )
-
+                unified_doc = ResearchhubUnifiedDocument.objects.create(
+                    document_type=PAPER_DOC_TYPE,
+                    hot_score=paper.calculate_hot_score(),
+                    score=paper.score,
+                )
+                unified_doc.hubs.add(*hub_ids)
+                paper.unified_document = unified_doc
+                paper.save()
                 return paper
         except IntegrityError as e:
             sentry.log_error(e)
@@ -747,7 +753,9 @@ class PaperSerializer(BasePaperSerializer):
         return None
 
 
-class PaperReferenceSerializer(serializers.ModelSerializer):
+class PaperReferenceSerializer(
+    serializers.ModelSerializer, GenericReactionSerializerMixin
+):
     hubs = SimpleHubSerializer(
         many=True, required=False, context={"no_subscriber_info": True}
     )
@@ -780,12 +788,14 @@ class PaperReferenceSerializer(serializers.ModelSerializer):
         return None
 
 
-class DynamicPaperSerializer(DynamicModelFieldSerializer):
+class DynamicPaperSerializer(
+    DynamicModelFieldSerializer, GenericReactionSerializerMixin
+):
     authors = serializers.SerializerMethodField()
     boost_amount = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
+    score = serializers.ReadOnlyField()  # GRM
     unified_document = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -799,16 +809,16 @@ class DynamicPaperSerializer(DynamicModelFieldSerializer):
         user = get_user_from_request(self.context)
         context = self.context
         _context_fields = context.get("pap_dps_get_user_vote", {})
-
         if user:
             try:
-                vote = paper.votes_legacy.get(created_by=user.id)
-                vote = DynamicPaperVoteSerializer(
+                vote = paper.votes.get(created_by=user.id)
+                vote = DynamicGrmVoteSerializer(
                     vote,
                     context=self.context,
                     **_context_fields,
                 ).data
-            except Vote.DoesNotExist:
+
+            except GrmVote.DoesNotExist:
                 pass
 
         return vote
@@ -908,45 +918,6 @@ class AdditionalFileSerializer(serializers.ModelSerializer):
 class BookmarkSerializer(serializers.Serializer):
     user = serializers.IntegerField()
     bookmarks = PaperSerializer(many=True)
-
-
-class FlagSerializer(serializers.ModelSerializer):
-    class Meta:
-        fields = [
-            "created_by",
-            "created_date",
-            "paper",
-            "reason",
-        ]
-        model = Flag
-
-
-class PaperVoteSerializer(serializers.ModelSerializer):
-    class Meta:
-        fields = [
-            "id",
-            "created_by",
-            "created_date",
-            "vote_type",
-            "paper",
-        ]
-        model = Vote
-
-
-class DynamicPaperVoteSerializer(DynamicModelFieldSerializer):
-    paper = serializers.SerializerMethodField()
-
-    class Meta:
-        fields = "__all__"
-        model = Vote
-
-    def get_paper(self, vote):
-        context = self.context
-        _context_fields = context.get("pap_dpvs_paper", {})
-        serializer = DynamicPaperSerializer(
-            vote.paper, context=context, **_context_fields
-        )
-        return serializer.data
 
 
 class FigureSerializer(serializers.ModelSerializer):

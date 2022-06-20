@@ -120,7 +120,7 @@ def update_unified_document_to_paper(paper):
     if unified_doc.exists():
         try:
             rh_unified_doc = unified_doc.first()
-            curr_score = paper.calculate_paper_score()
+            curr_score = paper.score()
             rh_unified_doc.score = curr_score
             hubs = paper.hubs.all()
             rh_unified_doc.hubs.add(*hubs)
