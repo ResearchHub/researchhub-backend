@@ -206,7 +206,6 @@ def send_hub_digest(frequency):
         "HTTP_X_FORWARDED_PROTO": protocol,
     }
 
-    cache_key_hub = get_cache_key("hub", cache_pk)
     document_view = ResearchhubUnifiedDocumentViewSet()
     http_req = HttpRequest()
     http_req.META = http_meta
