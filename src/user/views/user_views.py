@@ -23,11 +23,7 @@ from rest_framework.response import Response
 from rest_framework.utils.urls import replace_query_param
 
 from discussion.models import Comment, Reply, Thread
-from discussion.serializers import (
-    CommentSerializer,
-    DynamicThreadSerializer,
-    ReplySerializer,
-)
+from discussion.serializers import DynamicThreadSerializer
 from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
@@ -54,7 +50,7 @@ from user.serializers import (
 )
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.utils import calculate_show_referral, reset_latest_acitvity_cache
-from utils.http import DELETE, PATCH, POST, PUT, RequestMethods
+from utils.http import POST, RequestMethods
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.sentry import log_info
 from utils.throttles import THROTTLE_CLASSES
@@ -203,7 +199,7 @@ class UserViewSet(viewsets.ModelViewSet):
             else:
                 items = (
                     Paper.objects.exclude(is_public=False)
-                    .annotate(paper=PAPER_SCORE_Q_ANNOTATION)
+                    .annotate(paper_score=PAPER_SCORE_Q_ANNOTATION)
                     .filter(**time_filter, is_removed=False)
                     .order_by("-paper_score")
                 )
@@ -720,7 +716,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             .prefetch_related(
                 *prefetch_lookups,
             )
-            .annotate(paper=PAPER_SCORE_Q_ANNOTATION)
+            .annotate(paper_score=PAPER_SCORE_Q_ANNOTATION)
             .order_by("-paper_score")
         )
         context = self._get_authored_papers_context()
