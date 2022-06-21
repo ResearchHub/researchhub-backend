@@ -412,6 +412,8 @@ def distribute_for_discussion_vote(sender, instance, created, update_fields, **k
                 hubs = item.post.unified_document.hubs
             elif item.hypothesis is not None:
                 hubs = item.hypothesis.unified_document.hubs
+        elif isinstance(item, Paper):
+            hubs = item.hubs
         elif isinstance(item, ResearchhubPost):
             hubs = item.unified_document.hubs
         elif isinstance(item, Hypothesis):
