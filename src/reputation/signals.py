@@ -492,27 +492,35 @@ def get_discussion_vote_item_distribution(instance):
     error = TypeError(f"Instance of type {item_type} is not supported")
 
     if vote_type == GrmVote.UPVOTE:
-        if item_type == Comment:
+        if isinstance(item, Comment):
             vote_type = distributions.CommentUpvoted.name
-        elif item_type == Reply:
+        elif isinstance(item, Reply):
             vote_type = distributions.ReplyUpvoted.name
-        elif item_type == Thread:
+        elif isinstance(item, Thread):
             vote_type = distributions.ThreadUpvoted.name
-        elif item_type == ResearchhubPost:
+        elif isinstance(item, ResearchhubPost):
             vote_type = distributions.ResearchhubPostUpvoted.name
+        elif isinstance(item, Paper):
+            vote_type = distributions.PaperUpvoted.name
+        elif isinstance(item, Hypothesis):
+            vote_type = distributions.HypothesisUpvoted.name
         else:
             raise error
 
         return distributions.create_upvote_distribution(vote_type, None, instance)
     elif vote_type == GrmVote.DOWNVOTE:
-        if item_type == Comment:
+        if isinstance(item, Comment):
             return distributions.CommentDownvoted
-        elif item_type == Reply:
+        elif isinstance(item, Reply):
             return distributions.ReplyDownvoted
-        elif item_type == Thread:
+        elif isinstance(item, Thread):
             return distributions.ThreadDownvoted
-        elif item_type == ResearchhubPost:
+        elif isinstance(item, ResearchhubPost):
             return distributions.ResearchhubPostDownvoted
+        elif isinstance(item, Paper):
+            vote_type = distributions.PaperDownvoted
+        elif isinstance(item, Hypothesis):
+            vote_type = distributions.HypothesisDownvoted
         else:
             raise error
     elif vote_type == GrmVote.NEUTRAL:

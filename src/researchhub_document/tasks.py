@@ -97,8 +97,8 @@ def preload_trending_documents(
 
     if hub_id == 0:
         hub_id = ""
-    query_string = "page=1&time={}&ordering={}&hub_id={}&".format(
-        time_scope, query_string_filtering, hub_id
+    query_string = "page=1&time={}&ordering={}&hub_id={}&type={}".format(
+        time_scope, query_string_filtering, hub_id, document_type
     )
     http_meta = {
         "QUERY_STRING": query_string,

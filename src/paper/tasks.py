@@ -1180,6 +1180,9 @@ def celery_manubot(self, celery_data):
             return celery_data
 
         url = paper_data["url"]
+        if not url:
+            return celery_data
+
         csl_item = get_csl_item(url)
         doi = csl_item.get("DOI", None)
         identifier = csl_item.get("id", None)
