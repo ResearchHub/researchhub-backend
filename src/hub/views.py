@@ -41,6 +41,7 @@ from .permissions import (
     CensorHub,
     CreateHub,
     IsModerator,
+    IsModeratorOrSuperEditor,
     IsNotSubscribed,
     IsSubscribed,
     UpdateHub,
@@ -320,7 +321,7 @@ class HubViewSet(viewsets.ModelViewSet):
             data = UserActions(data=actions, user=request.user).serialized
         return Response(data)
 
-    @action(detail=False, methods=[POST], permission_classes=[IsModerator])
+    @action(detail=False, methods=[POST], permission_classes=[IsModeratorOrSuperEditor])
     def create_new_editor(self, request, pk=None):
         try:
             target_user = User.objects.get(email=request.data.get("editor_email"))
@@ -343,7 +344,7 @@ class HubViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response(str(e), status=500)
 
-    @action(detail=False, methods=[POST], permission_classes=[IsModerator])
+    @action(detail=False, methods=[POST], permission_classes=[IsModeratorOrSuperEditor])
     def delete_editor(self, request, pk=None):
         try:
             target_user = User.objects.get(email=request.data.get("editor_email"))
