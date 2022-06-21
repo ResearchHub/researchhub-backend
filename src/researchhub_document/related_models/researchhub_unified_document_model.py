@@ -88,6 +88,9 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
             doc_url = "post"
         elif self.document_type == HYPOTHESIS:
             doc_url = "hypothesis"
+        else:
+            doc_url = "post"
+            return None
 
         doc = self.get_document()
 
