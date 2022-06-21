@@ -5,7 +5,7 @@ from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Q
-from django.http.request import HttpRequest
+from django.http.request import HttpRequest, QueryDict
 from django.utils import timezone
 from rest_framework.request import Request
 
@@ -206,15 +206,17 @@ def send_hub_digest(frequency):
         "HTTP_X_FORWARDED_PROTO": protocol,
     }
 
+    query_dict = QueryDict(query_string=query_string)
     document_view = ResearchhubUnifiedDocumentViewSet()
     http_req = HttpRequest()
     http_req.META = http_meta
     http_req.path = request_path
     req = Request(http_req)
+    http_req.GET = query_dict
     document_view.request = req
     filtering = document_view._get_document_filtering({"ordering": "hot"})
 
-    documents = document_view.get_filtered_queryset("all", filtering, "0", "today")[0:5]
+    documents = document_view.get_filtered_queryset()[0:5]
 
     for user in User.objects.filter(id__in=users, is_suspended=False):
         if not check_can_receive_digest(user, frequency):

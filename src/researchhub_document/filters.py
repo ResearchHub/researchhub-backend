@@ -7,6 +7,7 @@ from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     ELN,
     HYPOTHESIS,
+    NOTE,
     PAPER,
     POSTS,
 )
@@ -64,6 +65,8 @@ class UnifiedDocumentFilter(filters.FilterSet):
             qs = qs.filter(document_type=HYPOTHESIS).prefetch_related(
                 "hypothesis__votes", "hypothesis__citations"
             )
+        else:
+            qs = qs.exclude(document_type=NOTE)
         return qs
 
     def default_filter(self, qs, name, value):
