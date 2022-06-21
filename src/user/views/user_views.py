@@ -196,7 +196,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     Paper.objects.exclude(
                         is_public=False,
                     )
-                    .annotate(paper=PAPER_SCORE_Q_ANNOTATION)
+                    .annotate(paper_score=PAPER_SCORE_Q_ANNOTATION)
                     .filter(**time_filter, hubs__in=[hub_id], is_removed=False)
                     .order_by("-paper_score")
                 )
