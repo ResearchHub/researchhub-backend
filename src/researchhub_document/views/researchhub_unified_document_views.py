@@ -363,6 +363,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             page,
             _include_fields=[
                 "id",
+                "created_date",
                 "featured",
                 "documents",
                 "document_type",
@@ -389,10 +390,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             doc.score = docs_to_score_map[doc["id"]]
 
             if "documents" in doc:
-                if isinstance(doc["documents"], list):
-                    doc["documents"][0]["score"] = docs_to_score_map[doc["id"]]
-                elif isinstance(doc["documents"], dict):
-                    doc["documents"]["score"] = docs_to_score_map[doc["id"]]
+                documents = doc["documents"]
+                if isinstance(documents, list) and len(documents) > 0:
+                    documents[0]["score"] = docs_to_score_map[doc["id"]]
+                elif isinstance(documents, dict):
+                    documents["score"] = docs_to_score_map[doc["id"]]
 
         return cache_hit
 
@@ -425,7 +427,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             page = self.paginate_queryset(all_documents)
             serializer = self.dynamic_serializer_class(
                 page,
-                _include_fields=["documents", "document_type", "hot_score", "score"],
+                _include_fields=[
+                    "documents",
+                    "document_type",
+                    "hot_score",
+                    "score",
+                    "created_date",
+                ],
                 many=True,
                 context=context,
             )

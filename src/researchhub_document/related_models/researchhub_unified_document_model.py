@@ -79,7 +79,7 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
             post = posts.last()
             author = Author.objects.filter(user=post.created_by)
             return author
-        return self.none()
+        return Author.objects.none()
 
     def get_url(self):
         if self.document_type == PAPER:
