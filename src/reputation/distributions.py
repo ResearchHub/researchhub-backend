@@ -133,6 +133,7 @@ def create_upvote_distribution(vote_type, paper=None, vote=None):
 
 FlagPaper = Distribution("FLAG_PAPER", 1)
 PaperUpvoted = Distribution("PAPER_UPVOTED", 1)
+PaperDownvoted = Distribution("PAPER_Downvoted", -1)
 
 CreateBulletPoint = Distribution("CREATE_BULLET_POINT", 1)
 BulletPointCensored = Distribution("BULLET_POINT_CENSORED", -2, True, -2)
@@ -154,6 +155,9 @@ ThreadCensored = Distribution("THREAD_CENSORED", -2, True, -2)
 ThreadFlagged = Distribution("THREAD_FLAGGED", -2, True, -2)
 ThreadUpvoted = Distribution("THREAD_UPVOTED", 1)
 ThreadDownvoted = Distribution("THREAD_DOWNVOTED", -1, True, -1)
+
+HypothesisUpvoted = Distribution("HYPOTHESIS_UPVOTED", 1)
+HypothesisDownvoted = Distribution("HYPOTHESIS_DOWNVOTED", -1)
 
 CreateSummary = Distribution("CREATE_SUMMARY", 1)
 CreateFirstSummary = Distribution("CREATE_FIRST_SUMMARY", 5, True, 5)
@@ -179,6 +183,7 @@ def create_purchase_distribution(amount):
 DISTRIBUTION_TYPE_CHOICES = [
     (FlagPaper.name, FlagPaper.name),
     (PaperUpvoted.name, PaperUpvoted.name),
+    (PaperDownvoted.name, PaperDownvoted.name),
     (CreateBulletPoint.name, CreateBulletPoint.name),
     (BulletPointFlagged.name, BulletPointFlagged.name),
     (BulletPointUpvoted.name, BulletPointUpvoted.name),
@@ -198,6 +203,8 @@ DISTRIBUTION_TYPE_CHOICES = [
     (CreateSummary.name, CreateSummary.name),
     (SummaryUpvoted.name, SummaryUpvoted.name),
     (SummaryDownvoted.name, SummaryDownvoted.name),
+    (HypothesisUpvoted.name, HypothesisUpvoted.name),
+    (HypothesisDownvoted.name, HypothesisDownvoted.name),
     ("UPVOTE_RSC_POT", "UPVOTE_RSC_POT"),
     ("REWARD", "REWARD"),
     ("PURCHASE", "PURCHASE"),
