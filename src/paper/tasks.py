@@ -194,16 +194,6 @@ def download_pdf(paper_id, retry=0):
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
-def add_references(paper_id):
-    if paper_id is None:
-        return
-
-    Paper = apps.get_model("paper.Paper")
-    paper = Paper.objects.get(id=paper_id)
-    paper.add_references()
-
-
-@app.task(queue=QUEUE_PAPER_MISC)
 def add_orcid_authors(paper_id):
     if paper_id is None:
         return False, "No Paper Id"

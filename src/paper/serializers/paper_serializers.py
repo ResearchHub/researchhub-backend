@@ -29,7 +29,6 @@ from paper.models import (
 )
 from paper.tasks import (  # celery_calculate_paper_twitter_score,
     add_orcid_authors,
-    add_references,
     celery_extract_pdf_sections,
     download_pdf,
 )
@@ -449,8 +448,6 @@ class PaperSerializer(BasePaperSerializer):
                     )
 
                 paper.set_paper_completeness()
-                # Fix adding references
-                # self._add_references(paper)
 
                 paper.pdf_license = paper.get_license(save=False)
 
@@ -598,15 +595,6 @@ class PaperSerializer(BasePaperSerializer):
                 add_orcid_authors.apply_async((paper.id,), priority=5, countdown=10)
             else:
                 add_orcid_authors(paper.id)
-        except Exception as e:
-            sentry.log_info(e)
-
-    def _add_references(self, paper):
-        try:
-            if not TESTING:
-                add_references.apply_async((paper.id,), priority=5, countdown=30)
-            else:
-                add_references(paper.id)
         except Exception as e:
             sentry.log_info(e)
 
