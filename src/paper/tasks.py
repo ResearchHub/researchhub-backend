@@ -1407,7 +1407,7 @@ def celery_semantic_scholar(self, celery_data):
 
     try:
         paper_submission = PaperSubmission.objects.get(id=submission_id)
-        paper_submission.set_openalex_status()
+        paper_submission.set_semantic_scholar_status()
         paper_submission.notify_status()
 
         dois = paper_data.pop("dois", [])
@@ -1467,7 +1467,7 @@ def celery_create_paper(self, celery_data):
     try:
         paper_submission = PaperSubmission.objects.get(id=submission_id)
         dois = paper_data.pop("dois", None)
-        if dois is not None:
+        if dois:
             raise DOINotFoundError(
                 f"Unable to find article for: {dois}, {paper_submission.url}"
             )

@@ -18,6 +18,7 @@ class PaperSubmission(DefaultModel):
     PROCESSING_MANUBOT = "PROCESSING_MANUBOT"
     PROCESSING_DOI = "PROCESSING_DOI"
     PROCESSING_OPENALEX = "PROCESSING_OPENALEX"
+    PROCESSING_SEMANTIC_SCHOLAR = "PROCESSING_SEMANTIC_SCHOLAR"
 
     PAPER_STATUS_CHOICES = [
         (COMPLETE, COMPLETE),
@@ -30,6 +31,7 @@ class PaperSubmission(DefaultModel):
         (PROCESSING_CROSSREF, PROCESSING_CROSSREF),
         (PROCESSING_MANUBOT, PROCESSING_MANUBOT),
         (PROCESSING_OPENALEX, PROCESSING_OPENALEX),
+        (PROCESSING_SEMANTIC_SCHOLAR, PROCESSING_SEMANTIC_SCHOLAR),
         (PROCESSING_DOI, PROCESSING_DOI),
     ]
     doi = models.CharField(
@@ -82,6 +84,9 @@ class PaperSubmission(DefaultModel):
 
     def set_openalex_status(self, save=True):
         self.set_status(self.PROCESSING_OPENALEX, save)
+
+    def set_semantic_scholar_status(self, save=True):
+        self.set_status(self.PROCESSING_SEMANTIC_SCHOLAR, save)
 
     def set_processing_doi_status(self, save=True):
         self.set_status(self.PROCESSING_DOI, save)
