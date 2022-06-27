@@ -1444,7 +1444,7 @@ def celery_semantic_scholar(self, celery_data):
                 "paper_publish_date", result.get("publicationDate", None)
             )
         else:
-            celery_data["dois"] = dois
+            paper_data["dois"] = dois
 
         return celery_data
     except DOINotFoundError as e:
