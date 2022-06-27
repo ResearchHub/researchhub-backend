@@ -19,6 +19,7 @@ class SemanticScholar:
                 "isOpenAccess",
                 "journal",
                 "tldr",
+                "publicationDate",
             )
         )
         self.timeout = timeout
@@ -41,12 +42,12 @@ class SemanticScholar:
 
         return response.json()
 
-    def get_paper_from_doi(self, doi):
+    def get_data_from_doi(self, doi):
         identifier = f"DOI:{doi}"
         response = self._get_paper(identifier)
         return response
 
-    def get_paper_from_url(self, url):
+    def get_data_from_url(self, url):
         identifier = f"URL:{url}"
         response = self._get_paper(identifier)
         return response

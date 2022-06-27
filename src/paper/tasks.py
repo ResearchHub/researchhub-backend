@@ -75,7 +75,6 @@ from researchhub.celery import (
     QUEUE_HOT_SCORE,
     QUEUE_PAPER_METADATA,
     QUEUE_PAPER_MISC,
-    QUEUE_TWITTER,
     app,
 )
 from researchhub.settings import APP_ENV, PRODUCTION
@@ -89,19 +88,79 @@ from utils.arxiv.categories import (
 from utils.crossref import get_crossref_issued_date
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
-from utils.twitter import RATE_LIMIT_CODE, get_twitter_results, get_twitter_url_results
+from utils.semantic_scholar import SemanticScholar
+from utils.twitter import get_twitter_results, get_twitter_url_results
 
 logger = get_task_logger(__name__)
 
 
 @app.task(queue=QUEUE_CACHES)
 def celery_paper_reset_cache(paper_id):
-    from paper.serializers import PaperSerializer
+    from paper.serializers import DynamicPaperSerializer
+
+    context = {
+        "doc_duds_get_documents": {"_include_fields": ["id"]},
+        "pap_dps_get_unified_document": {
+            "_include_fields": [
+                "id",
+                "reviews",
+                "is_removed",
+                "document_type",
+                "documents",
+            ]
+        },
+        "pap_dps_get_user_vote": {},
+        "pap_dps_get_uploaded_by": {
+            "_include_fields": [
+                "id",
+                "author_profile",
+            ]
+        },
+        "usr_dus_get_author_profile": {
+            "_include_fields": [
+                "id",
+                "first_name",
+                "last_name",
+                "profile_image",
+            ]
+        },
+    }
 
     Paper = apps.get_model("paper.Paper")
     paper = Paper.objects.get(id=paper_id)
 
-    serializer = PaperSerializer(paper)
+    serializer = DynamicPaperSerializer(
+        paper,
+        context=context,
+        _include_fields=[
+            "authors",
+            "boost_amount",
+            "id",
+            "file",
+            "first_preview",
+            "hubs",
+            "score",
+            "uploaded_by",
+            "uploaded_date",
+            "discussion_count",
+            "pdf_file_extract",
+            "is_open_access",
+            "external_source",
+            "title",
+            "doi",
+            "paper_title",
+            "paper_publish_date",
+            "raw_authors",
+            "abstract",
+            "url",
+            "pdf_url",
+            "pdf_license",
+            "slug",
+            "unified_document",
+            "uploaded_date",
+            "created_date",
+        ],
+    )
     data = serializer.data
 
     cache_key = get_cache_key("paper", paper_id)
@@ -171,7 +230,7 @@ def download_pdf(paper_id, retry=0):
     if paper_url:
         csl_item = get_csl_item(paper_url)
     elif paper_pdf_url:
-        csl_item = get_csl_item(pdf_url)
+        csl_item = get_csl_item(paper_pdf_url)
 
     if csl_item:
         oa_result = get_pdf_location_for_csl_item(csl_item)
@@ -1079,6 +1138,7 @@ def celery_process_paper(self, submission_id):
         [
             celery_openalex.s().set(countdown=1),
             celery_crossref.s().set(countdown=1),
+            celery_semantic_scholar.s().set(countdown=1),
             celery_manubot.s().set(countdown=1),
             celery_create_paper.s().set(countdown=1),
         ]
@@ -1354,6 +1414,62 @@ def celery_openalex(self, celery_data):
             )
             if oa_pdf_url:
                 paper_data.setdefault("pdf_url", oa_pdf_url)
+
+        return celery_data
+    except DOINotFoundError as e:
+        raise e
+    except DuplicatePaperError as e:
+        raise e
+    except Exception as e:
+        raise e
+
+
+@app.task(bind=True, queue=QUEUE_PAPER_METADATA)
+def celery_semantic_scholar(self, celery_data):
+    paper_data, submission_id = celery_data
+    Paper = apps.get_model("paper.Paper")
+    PaperSubmission = apps.get_model("paper.PaperSubmission")
+
+    try:
+        paper_submission = PaperSubmission.objects.get(id=submission_id)
+        paper_submission.set_openalex_status()
+        paper_submission.notify_status()
+
+        dois = paper_data.pop("dois", [])
+        semantic_scholar = SemanticScholar()
+        result = None
+        for doi in dois:
+            try:
+                result = semantic_scholar.get_data_from_doi(doi)
+                paper_data.setdefault("doi", doi)
+                paper_submission.doi = doi
+                paper_submission.save()
+                break
+            except DOINotFoundError:
+                pass
+
+        if result:
+            # Duplicate DOI check
+            doi = paper_data["doi"]
+            doi_paper_check = Paper.objects.filter(doi=doi)
+            if doi_paper_check.exists():
+                paper_submission.set_duplicate_status()
+                duplicate_ids = doi_paper_check.values_list("id", flat=True)
+                raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
+
+            abstract = clean_abstract(result.get("abstract", ""))
+            title = normalize("NFKD", result.get("title", ""))
+            raw_authors = result.get("authors", [])
+            paper_data.setdefault("abstract", abstract)
+            paper_data.setdefault("raw_authors", format_raw_authors(raw_authors))
+            paper_data.setdefault("title", title)
+            paper_data.setdefault("paper_title", title)
+            paper_data.setdefault("is_open_access", result.get("isOpenAccess", False))
+            paper_data.setdefault(
+                "paper_publish_date", result.get("publicationDate", None)
+            )
+        else:
+            celery_data["dois"] = dois
 
         return celery_data
     except DOINotFoundError as e:

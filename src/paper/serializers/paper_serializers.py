@@ -417,8 +417,6 @@ class PaperSerializer(BasePaperSerializer):
 
                 paper_id = paper.id
                 paper_title = paper.paper_title or ""
-                file = paper.file
-                self._check_pdf_title(paper, paper_title, file)
                 # NOTE: calvinhlee - This is an antipattern. Look into changing
                 GrmVote.objects.create(
                     content_type=get_content_type_for_model(paper),
@@ -524,11 +522,6 @@ class PaperSerializer(BasePaperSerializer):
                 paper.full_clean(exclude=["paper_type"])
 
                 unified_doc = paper.unified_document
-                paper_title = paper.paper_title or ""
-                if file:
-                    file = paper.file
-                    self._check_pdf_title(paper, paper_title, file)
-
                 new_hubs = []
                 remove_hubs = []
                 if hubs:

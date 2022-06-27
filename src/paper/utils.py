@@ -735,6 +735,15 @@ def format_raw_authors(raw_authors):
             author_data["first_name"] = first_name
             author_data["last_name"] = last_name
             author.update(author_data)
+        elif "name" in author:
+            author.pop("authorId", None)
+            name = author.pop("name", "")
+            names = name.split(" ")
+            first_name = names[0]
+            last_name = names[-1]
+
+            author["first_name"] = first_name
+            author["last_name"] = last_name
 
     return raw_authors
 
