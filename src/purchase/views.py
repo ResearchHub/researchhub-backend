@@ -168,6 +168,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             purchase.boost_time = purchase_boost_time
             purchase.group = purchase.get_aggregate_group()
             purchase.save()
+            paper = None
 
             item = purchase.item
             context = {"purchase_minimal_serialization": True, "exclude_stats": True}
@@ -225,7 +226,9 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 return Response("Content is removed", status=403)
 
             if transfer_rsc and recipient and recipient != user:
-                distribution = create_purchase_distribution(amount)
+                distribution = create_purchase_distribution(
+                    amount, paper=paper, purchaser=user
+                )
                 distributor = Distributor(
                     distribution, recipient, purchase, time.time(), user
                 )
