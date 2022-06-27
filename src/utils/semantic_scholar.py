@@ -51,10 +51,3 @@ class SemanticScholar:
         identifier = f"URL:{url}"
         response = self._get_paper(identifier)
         return response
-
-
-"""
-from utils.semantic_scholar import SemanticScholar
-ss = SemanticScholar()
-ss.get_paper_from_doi("10.2139/ssrn.3039505")
-"""
