@@ -416,7 +416,6 @@ class PaperSerializer(BasePaperSerializer):
                     self._add_citation(user, hypothesis_id, unified_doc, citation_type)
 
                 paper_id = paper.id
-                paper_title = paper.paper_title or ""
                 # NOTE: calvinhlee - This is an antipattern. Look into changing
                 GrmVote.objects.create(
                     content_type=get_content_type_for_model(paper),
@@ -439,6 +438,7 @@ class PaperSerializer(BasePaperSerializer):
                     hub.save(update_fields=["paper_count"])
 
                 try:
+                    file = paper.file
                     self._add_file(paper, file)
                 except Exception as e:
                     sentry.log_error(
@@ -478,14 +478,6 @@ class PaperSerializer(BasePaperSerializer):
                         filters=[NEWEST, OPEN_ACCESS],
                         with_default_hub=True,
                     )
-                unified_doc = ResearchhubUnifiedDocument.objects.create(
-                    document_type=PAPER_DOC_TYPE,
-                    hot_score=paper.calculate_hot_score(),
-                    score=paper.score,
-                )
-                unified_doc.hubs.add(*hub_ids)
-                paper.unified_document = unified_doc
-                paper.save()
                 return paper
         except IntegrityError as e:
             sentry.log_error(e)
