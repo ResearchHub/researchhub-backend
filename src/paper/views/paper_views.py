@@ -232,9 +232,7 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             error_message = "A paper with this url or DOI already exists."
         return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
 
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-
+    def _get_paper_context(self, request=None):
         context = {
             "request": request,
             "doc_duds_get_documents": {"_include_fields": ["id"]},
@@ -263,6 +261,12 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 ]
             },
         }
+        return context
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        context = self._get_paper_context(request)
         cache_key = get_cache_key("paper", instance.id)
         cache_hit = cache.get(cache_key)
         if cache_hit is not None:

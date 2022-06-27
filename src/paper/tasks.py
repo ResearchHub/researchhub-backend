@@ -97,34 +97,9 @@ logger = get_task_logger(__name__)
 @app.task(queue=QUEUE_CACHES)
 def celery_paper_reset_cache(paper_id):
     from paper.serializers import DynamicPaperSerializer
+    from paper.views.paper_views import PaperViewSet
 
-    context = {
-        "doc_duds_get_documents": {"_include_fields": ["id"]},
-        "pap_dps_get_unified_document": {
-            "_include_fields": [
-                "id",
-                "reviews",
-                "is_removed",
-                "document_type",
-                "documents",
-            ]
-        },
-        "pap_dps_get_user_vote": {},
-        "pap_dps_get_uploaded_by": {
-            "_include_fields": [
-                "id",
-                "author_profile",
-            ]
-        },
-        "usr_dus_get_author_profile": {
-            "_include_fields": [
-                "id",
-                "first_name",
-                "last_name",
-                "profile_image",
-            ]
-        },
-    }
+    context = PaperViewSet()._get_paper_context()
 
     Paper = apps.get_model("paper.Paper")
     paper = Paper.objects.get(id=paper_id)
