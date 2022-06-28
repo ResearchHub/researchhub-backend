@@ -29,7 +29,6 @@ from paper.models import (
 )
 from paper.tasks import (  # celery_calculate_paper_twitter_score,
     add_orcid_authors,
-    add_references,
     celery_extract_pdf_sections,
     download_pdf,
 )
@@ -417,9 +416,6 @@ class PaperSerializer(BasePaperSerializer):
                     self._add_citation(user, hypothesis_id, unified_doc, citation_type)
 
                 paper_id = paper.id
-                paper_title = paper.paper_title or ""
-                file = paper.file
-                self._check_pdf_title(paper, paper_title, file)
                 # NOTE: calvinhlee - This is an antipattern. Look into changing
                 GrmVote.objects.create(
                     content_type=get_content_type_for_model(paper),
@@ -442,6 +438,7 @@ class PaperSerializer(BasePaperSerializer):
                     hub.save(update_fields=["paper_count"])
 
                 try:
+                    file = paper.file
                     self._add_file(paper, file)
                 except Exception as e:
                     sentry.log_error(
@@ -449,8 +446,6 @@ class PaperSerializer(BasePaperSerializer):
                     )
 
                 paper.set_paper_completeness()
-                # Fix adding references
-                # self._add_references(paper)
 
                 paper.pdf_license = paper.get_license(save=False)
 
@@ -483,13 +478,6 @@ class PaperSerializer(BasePaperSerializer):
                         filters=[NEWEST, OPEN_ACCESS],
                         with_default_hub=True,
                     )
-                unified_doc = ResearchhubUnifiedDocument.objects.create(
-                    document_type=PAPER_DOC_TYPE,
-                    hot_score=paper.calculate_hot_score(),
-                    score=paper.score,
-                )
-                unified_doc.hubs.add(*hub_ids)
-                paper.unified_document = unified_doc
                 paper.save()
                 return paper
         except IntegrityError as e:
@@ -527,11 +515,6 @@ class PaperSerializer(BasePaperSerializer):
                 paper.full_clean(exclude=["paper_type"])
 
                 unified_doc = paper.unified_document
-                paper_title = paper.paper_title or ""
-                if file:
-                    file = paper.file
-                    self._check_pdf_title(paper, paper_title, file)
-
                 new_hubs = []
                 remove_hubs = []
                 if hubs:
@@ -598,15 +581,6 @@ class PaperSerializer(BasePaperSerializer):
                 add_orcid_authors.apply_async((paper.id,), priority=5, countdown=10)
             else:
                 add_orcid_authors(paper.id)
-        except Exception as e:
-            sentry.log_info(e)
-
-    def _add_references(self, paper):
-        try:
-            if not TESTING:
-                add_references.apply_async((paper.id,), priority=5, countdown=30)
-            else:
-                add_references(paper.id)
         except Exception as e:
             sentry.log_info(e)
 
