@@ -55,7 +55,7 @@ class AuthorRSC(models.Model):
         related_name="author_rsc",
         on_delete=models.CASCADE,
     )
-    amount = models.BigIntegerField(default=0)
+    amount = models.DecimalField(default=0, decimal_places=10, max_digits=19)
 
     def __str__(self):
         return "{} {} - {} RSC".format(author.first_name, author.last_name, self.amount)
