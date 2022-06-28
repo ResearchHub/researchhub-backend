@@ -1387,7 +1387,7 @@ def celery_openalex(self, celery_data):
             paper_data.setdefault(
                 "external_source", host_venue.get("display_name", None)
             )
-            if oa_pdf_url:
+            if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
                 paper_data.setdefault("pdf_url", oa_pdf_url)
 
         return celery_data
