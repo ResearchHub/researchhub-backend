@@ -478,6 +478,7 @@ class PaperSerializer(BasePaperSerializer):
                         filters=[NEWEST, OPEN_ACCESS],
                         with_default_hub=True,
                     )
+                paper.save()
                 return paper
         except IntegrityError as e:
             sentry.log_error(e)
