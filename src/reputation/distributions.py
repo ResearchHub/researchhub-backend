@@ -111,7 +111,7 @@ def create_upvote_distribution(vote_type, paper=None, vote=None):
                 timestamp = time()
                 amt = author_distribution_amount / author_count
                 distributor = Distributor(
-                    Distribution(1, amt),
+                    Distribution(vote_type, amt),
                     author.user,
                     paper,
                     timestamp,
