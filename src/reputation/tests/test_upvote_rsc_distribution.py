@@ -45,9 +45,7 @@ class BaseTests(TestCase, TestHelper):
         distribution_amount = calculate_rsc_per_upvote()
         create_upvote_distribution(1, self.original_paper, GrmVote.objects.first())
         self.assertEquals(AuthorRSC.objects.count(), 1)
-        self.assertEquals(
-            AuthorRSC.objects.first().amount, math.floor(distribution_amount * 0.75)
-        )
+        self.assertEquals(AuthorRSC.objects.first().amount, distribution_amount * 0.75)
 
     def test_no_verified_author_distribution(
         self,
