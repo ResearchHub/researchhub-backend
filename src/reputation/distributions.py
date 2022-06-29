@@ -176,8 +176,45 @@ ReferralApproved = Distribution("REFERRAL_APPROVED", 1000, False)
 NeutralVote = Distribution("NEUTRAL_VOTE", 0)
 
 
-def create_purchase_distribution(amount):
-    return Distribution("PURCHASE", amount, False)
+def create_purchase_distribution(amount, paper=None, purchaser=None):
+    distribution_amount = amount
+
+    if paper:
+        from reputation.distributor import Distributor
+        from researchhub_case.models import AuthorClaimCase
+
+        author_distribution_amount = distribution_amount * 0.75
+        distribution_amount *= 0.25  # authors get 75% of the upvote score
+        distributed_amount = 0
+        author_count = paper.true_author_count()
+
+        for author in paper.authors.all():
+            if (
+                author.user
+                and AuthorClaimCase.objects.filter(
+                    target_paper=paper, requestor=author.user, status=APPROVED
+                ).exists()
+            ):
+                timestamp = time()
+                amt = author_distribution_amount / author_count
+                distributor = Distributor(
+                    Distribution("PURCHASE", amt),
+                    author.user,
+                    paper,
+                    timestamp,
+                    purchaser,
+                    paper.hubs.all(),
+                )
+                record = distributor.distribute()
+                distributed_amount += amt
+
+        from reputation.models import AuthorRSC
+
+        AuthorRSC.objects.create(
+            paper=paper,
+            amount=author_distribution_amount - distributed_amount,
+        )
+    return Distribution("PURCHASE", distribution_amount, False)
 
 
 DISTRIBUTION_TYPE_CHOICES = [
