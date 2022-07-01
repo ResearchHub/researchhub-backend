@@ -518,9 +518,9 @@ def get_discussion_vote_item_distribution(instance):
         elif isinstance(item, ResearchhubPost):
             return distributions.ResearchhubPostDownvoted
         elif isinstance(item, Paper):
-            vote_type = distributions.PaperDownvoted
+            return distributions.PaperDownvoted
         elif isinstance(item, Hypothesis):
-            vote_type = distributions.HypothesisDownvoted
+            return distributions.HypothesisDownvoted
         else:
             raise error
     elif vote_type == GrmVote.NEUTRAL:
