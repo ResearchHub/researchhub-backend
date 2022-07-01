@@ -495,6 +495,7 @@ EMAIL_WHITELIST = [
     "thomazvu@gmail.com",
     "thomas@researchhub.com",
     "pat@researchhub.com",
+    "lightning.lu7@gmail.com",
 ]
 
 # Whitelist for distributing RSC

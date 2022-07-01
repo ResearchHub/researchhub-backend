@@ -286,6 +286,11 @@ def actions_notifications(action_ids, notif_interval=NotificationFrequencies.IMM
     for r in user_to_action:
         subject = build_subject(notif_interval)
         context = build_notification_context(user_to_action[r])
+        # Remove all opted out users
+
+        if r.emailrecipient.do_not_email or r.emailrecipient.is_opted_out:
+            return
+
         send_email_message(
             r.email,
             "notification_email.txt",

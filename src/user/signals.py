@@ -19,6 +19,7 @@ from bullet_point.serializers import BulletPointVoteSerializer
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from hypothesis.models import Hypothesis
+from mailing_list.tasks import build_notification_context
 from notification.models import Notification
 from paper.models import Paper, PaperSubmission
 from purchase.models import Wallet
@@ -39,6 +40,7 @@ from user.tasks import (
     link_paper_to_authors,
 )
 from user.utils import calculate_show_referral
+from utils.message import send_email_message
 from utils.sentry import log_error
 from utils.siftscience import decisions_api, events_api
 
@@ -259,6 +261,33 @@ def create_notification(sender, instance, created, action, **kwargs):
                 )
                 if not TESTING:
                     notification.send_notification()
+
+            email_preference = recipient.emailrecipient
+            subscription = None
+
+            if sender == Thread:
+                subscription = email_preference.thread_subscription
+                subject = "ResearchHub | Someone commented on your paper"
+            elif sender == Comment:
+                subscription = email_preference.comment_subscription
+                subject = "ResearchHub | Someone commented on your thread"
+            elif sender == Reply:
+                subscription = email_preference.reply_subscription
+                subject = "ResearchHub | Someone replied to your comment"
+
+            if (
+                email_preference.receives_notifications
+                and subscription
+                and not subscription.none
+            ):
+                context = build_notification_context([action])
+                send_email_message(
+                    recipient.email,
+                    "notification_email.txt",
+                    subject,
+                    context,
+                    html_template="notification_email.html",
+                )
 
 
 def get_related_hubs(instance):
