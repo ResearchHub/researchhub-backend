@@ -321,7 +321,6 @@ class Thread(BaseComment):
 
     @property
     def users_to_notify(self):
-
         users = []
         if self.paper is not None:
             # users = list(self.parent.moderators.all())
@@ -343,17 +342,6 @@ class Thread(BaseComment):
 
         # Remove person who made comment
         users = [u for u in users if u.id != self.created_by.id]
-
-        # Remove all opted out users
-        try:
-            users = [
-                u
-                for u in users
-                if not u.emailrecipient.is_opted_out
-                and not u.emailrecipient.do_not_email
-            ]
-        except Exception:
-            pass
 
         return users
 
@@ -461,17 +449,6 @@ class Reply(BaseComment):
         # Remove person who made comment
         users = [u for u in users if u.id != self.created_by.id]
 
-        # Remove all opted out users
-        try:
-            users = [
-                u
-                for u in users
-                if not u.emailrecipient.is_opted_out
-                and not u.emailrecipient.do_not_email
-            ]
-        except Exception:
-            pass
-
         return users
 
 
@@ -567,16 +544,5 @@ class Comment(BaseComment):
 
         # Remove person who made comment
         users = [u for u in users if u.id != self.created_by.id]
-
-        # Remove all opted out users
-        try:
-            users = [
-                u
-                for u in users
-                if not u.emailrecipient.is_opted_out
-                and not u.emailrecipient.do_not_email
-            ]
-        except Exception:
-            pass
 
         return users

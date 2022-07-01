@@ -9,7 +9,6 @@ from django.urls import include, path, re_path
 from rest_framework import routers
 
 import analytics.views
-import bullet_point.views
 import discussion.views
 import google_analytics.views
 import hub.views
@@ -146,12 +145,6 @@ router.register(
 )
 
 router.register(
-    r"paper/([0-9]+)/bullet_point",
-    bullet_point.views.BulletPointViewSet,
-    basename="bullet_points",
-)
-
-router.register(
     r"paper/([0-9]+)/additional_file",
     paper_views.AdditionalFileViewSet,
     basename="additional_files",
@@ -172,10 +165,6 @@ router.register(
 )
 
 router.register(r"author", user.views.AuthorViewSet, basename="author")
-
-router.register(
-    r"bullet_point", bullet_point.views.BulletPointViewSet, basename="bullet_point"
-)
 
 router.register(r"summary", summary.views.SummaryViewSet, basename="summary")
 
