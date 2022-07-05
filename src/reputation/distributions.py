@@ -81,6 +81,7 @@ def calculate_rsc_per_upvote():
 
 
 def create_upvote_distribution(vote_type, paper=None, vote=None):
+    from reputation.models import Escrow
     from user.utils import calculate_eligible_enhanced_upvotes
 
     eligible_enhanced_upvote = False
@@ -121,10 +122,9 @@ def create_upvote_distribution(vote_type, paper=None, vote=None):
                 record = distributor.distribute()
                 distributed_amount += amt
 
-        from reputation.models import AuthorRSC
-
-        AuthorRSC.objects.create(
-            paper=paper,
+        Escrow.objects.create(
+            created_by=vote.created_by,
+            item=paper,
             amount=author_distribution_amount - distributed_amount,
         )
 
@@ -176,11 +176,13 @@ ReferralApproved = Distribution("REFERRAL_APPROVED", 1000, False)
 NeutralVote = Distribution("NEUTRAL_VOTE", 0)
 
 
-def create_purchase_distribution(amount, paper=None, purchaser=None):
+def create_purchase_distribution(user, amount, paper=None, purchaser=None):
+
     distribution_amount = amount
 
     if paper:
         from reputation.distributor import Distributor
+        from reputation.models import Escrow
         from researchhub_case.models import AuthorClaimCase
 
         author_distribution_amount = distribution_amount * 0.75
@@ -208,10 +210,9 @@ def create_purchase_distribution(amount, paper=None, purchaser=None):
                 record = distributor.distribute()
                 distributed_amount += amt
 
-        from reputation.models import AuthorRSC
-
-        AuthorRSC.objects.create(
-            paper=paper,
+        Escrow.objects.create(
+            created_by=user,
+            item=paper,
             amount=author_distribution_amount - distributed_amount,
         )
     return Distribution("PURCHASE", distribution_amount, False)
