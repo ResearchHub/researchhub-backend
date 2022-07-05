@@ -26,6 +26,19 @@ class AuthorRSC(models.Model):
         )
 
 
+def get_current_term():
+    from reputation.related_models.term import Term
+
+    RH_PCT = 0.01
+    DAO_PCT = 0.01
+
+    term = Term.objects.last()
+    if term:
+        return term.id
+    term = Term.objects.create(rh_pct=RH_PCT, dao_pct=DAO_PCT)
+    return term.id
+
+
 class Escrow(DefaultModel):
     BOUNTY = "BOUNTY"
     AUTHOR_RSC = "AUTHOR_RSC"
@@ -47,25 +60,27 @@ class Escrow(DefaultModel):
 
     hold_type = models.CharField(choices=hold_type_choices, max_length=16)
     amount = models.DecimalField(default=0, decimal_places=10, max_digits=19)
-    recipient_content_type = models.ForeignKey(
-        ContentType, on_delete=models.CASCADE, related_name="user_escrow"
-    )
-    recipient_object_id = models.PositiveIntegerField()
-    recipient = GenericForeignKey(
-        "recipient_content_type",
-        "recipient_object_id",
+    recipient = models.ForeignKey(
+        "user.User",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="target_escrows",
     )
     created_by = models.ForeignKey(
-        "user.User", on_delete=models.CASCADE, related_name="escrows"
+        "user.User", on_delete=models.CASCADE, related_name="created_escrows"
     )
 
-    item_content_type = models.ForeignKey(
-        ContentType, on_delete=models.CASCADE, related_name="item_escrow"
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
     )
-    item_object_id = models.PositiveIntegerField()
+    object_id = models.PositiveIntegerField()
     item = GenericForeignKey(
-        "item_content_type",
-        "item_object_id",
+        "content_type",
+        "object_id",
     )
     status = models.CharField(choices=status_choices, default=PENDING, max_length=16)
-    term = models.ForeignKey("reputation.term", on_delete=models.CASCADE)
+    term = models.ForeignKey(
+        "reputation.term", on_delete=models.CASCADE, default=get_current_term
+    )

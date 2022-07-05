@@ -1,12 +1,10 @@
 from django.contrib.contenttypes.models import ContentType
-from django.db import IntegrityError
-from django.test import Client, TestCase, TransactionTestCase, tag
-from psycopg2.errors import UniqueViolation
+from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from paper.tests.helpers import create_paper
 from purchase.models import Balance
-from reputation.models import AuthorRSC
+from reputation.models import Escrow
 from user.related_models.gatekeeper_model import Gatekeeper
 from user.tests.helpers import (
     create_moderator,
@@ -76,8 +74,8 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         )
         response = self.post_support_response(user, paper.id, amount)
         self.assertContains(response, "id", status_code=201)
-        self.assertTrue(AuthorRSC.objects.count() == 1)
-        author_pot = AuthorRSC.objects.first()
+        self.assertTrue(Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).count() == 1)
+        author_pot = Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).first()
         self.assertTrue(author_pot.amount == amount * 0.75)
         self.assertTrue(Balance.objects.count() == 3)
 
