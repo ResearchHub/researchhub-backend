@@ -2,7 +2,7 @@
 
 from django.db import migrations, models
 import django.db.models.deletion
-import reputation.related_models.author_rsc
+import reputation.related_models.escrow
 
 
 class Migration(migrations.Migration):
@@ -15,6 +15,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='escrow',
             name='term',
-            field=models.ForeignKey(default=reputation.related_models.author_rsc.get_current_term, on_delete=django.db.models.deletion.CASCADE, to='reputation.Term'),
+            field=models.ForeignKey(default=reputation.related_models.escrow.get_current_term, on_delete=django.db.models.deletion.CASCADE, to='reputation.Term'),
         ),
     ]
