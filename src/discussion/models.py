@@ -226,6 +226,7 @@ class Thread(BaseComment):
     )
     entity_key = models.CharField(max_length=255, null=True, blank=True)
     title = models.CharField(max_length=255, null=True, blank=True)
+    is_solution = models.BooleanField(default=False)
     paper = models.ForeignKey(
         "paper.Paper",
         on_delete=models.SET_NULL,
