@@ -1,4 +1,4 @@
-from reputation.related_models.author_rsc import AuthorRSC, Escrow
+from reputation.related_models.author_rsc import Escrow
 from reputation.related_models.bounty import Bounty
 from reputation.related_models.contribution import Contribution
 from reputation.related_models.deposit import Deposit
