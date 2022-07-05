@@ -203,10 +203,6 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
 
         return Response(serializer.data, status=200)
 
-    def create_access_group(self, request):
-        # TODO: calvinhlee - access group is for ELN
-        return None
-
     def create_unified_doc(self, request):
         try:
             request_data = request.data
