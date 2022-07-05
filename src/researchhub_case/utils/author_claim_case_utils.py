@@ -1,12 +1,13 @@
 import time
 import uuid
 
+from django.contrib.admin.options import get_content_type_for_model
 from django.db.models import Sum
 
 from mailing_list.lib import base_email_context
 from reputation.distributions import Distribution as dist
 from reputation.distributor import Distributor
-from reputation.models import AuthorRSC
+from reputation.models import Escrow
 from researchhub.settings import BASE_FRONTEND_URL
 from utils import sentry
 from utils.message import send_email_message
@@ -106,8 +107,8 @@ def send_rejection_email(case):
 def reward_author_claim_case(requestor_author, paper, claim_case):
     vote_reward = requestor_author.calculate_score()
 
-    author_pot_query = AuthorRSC.objects.filter(
-        paper=paper,
+    author_pot_query = Escrow.objects.filter(
+        object_id=paper.id, content_type=get_content_type_for_model(paper)
     )
 
     author_pot_amount = (

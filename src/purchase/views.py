@@ -227,7 +227,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
             if transfer_rsc and recipient and recipient != user:
                 distribution = create_purchase_distribution(
-                    amount, paper=paper, purchaser=user
+                    user, amount, paper=paper, purchaser=user
                 )
                 distributor = Distributor(
                     distribution, recipient, purchase, time.time(), user
