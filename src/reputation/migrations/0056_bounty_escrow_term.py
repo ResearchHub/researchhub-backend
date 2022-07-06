@@ -3,6 +3,29 @@
 from django.conf import settings
 from django.db import migrations, models
 import django.db.models.deletion
+import reputation.related_models.escrow
+
+
+def migrate_author_rsc_to_escrow(apps, schema_editor):
+    User = apps.get_model('user', 'user')
+    AuthorRSC = apps.get_model('reputation', 'authorrsc')
+    Escrow = apps.get_model('reputation', 'escrow')
+    Paper = apps.get_model('paper', 'paper')
+    ContentType = apps.get_model('contenttypes', 'ContentType')
+
+    bank_user = User.objects.filter(email="bank@researchhub.com")
+    if bank_user.exists():
+        user = bank_user.first()
+    else:
+        user = User.objects.first()
+
+    for author_rsc in AuthorRSC.objects.all().iterator():
+        Escrow.objects.create(
+            created_by=user,
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=author_rsc.paper.id,
+            amount=author_rsc.amount
+        )
 
 
 class Migration(migrations.Migration):
@@ -41,7 +64,7 @@ class Migration(migrations.Migration):
                 ('content_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='contenttypes.ContentType')),
                 ('created_by', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='created_escrows', to=settings.AUTH_USER_MODEL)),
                 ('recipient', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='target_escrows', to=settings.AUTH_USER_MODEL)),
-                ('term', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='reputation.Term')),
+                ('term', models.ForeignKey(default=reputation.related_models.escrow.get_current_term, on_delete=django.db.models.deletion.CASCADE, to='reputation.Term')),
             ],
             options={
                 'abstract': False,
@@ -67,4 +90,5 @@ class Migration(migrations.Migration):
                 'abstract': False,
             },
         ),
+        migrations.RunPython(migrate_author_rsc_to_escrow),
     ]
