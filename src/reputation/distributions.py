@@ -126,6 +126,7 @@ def create_upvote_distribution(vote_type, paper=None, vote=None):
             created_by=vote.created_by,
             item=paper,
             amount=author_distribution_amount - distributed_amount,
+            hold_type=Escrow.AUTHOR_RSC,
         )
 
     return Distribution(vote_type, distribution_amount, 1)
@@ -214,6 +215,7 @@ def create_purchase_distribution(user, amount, paper=None, purchaser=None):
             created_by=user,
             item=paper,
             amount=author_distribution_amount - distributed_amount,
+            hold_type=Escrow.AUTHOR_RSC,
         )
     return Distribution("PURCHASE", distribution_amount, False)
 
