@@ -14,6 +14,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='authorclaimcase',
             name='claimed_rsc',
-            field=models.ManyToManyField(blank=True, null=True, related_name='claim_case', to='researchhub_case.authorclaimcase'),
+            field=models.ManyToManyField(blank=True, null=True, related_name='claim_case', to='reputation.authorrsc'),
         ),
     ]
