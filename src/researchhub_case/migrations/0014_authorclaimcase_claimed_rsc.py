@@ -3,10 +3,6 @@
 from django.db import migrations, models
 
 
-class AuthorRSC(models.Model):
-    pass
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -18,6 +14,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='authorclaimcase',
             name='claimed_rsc',
-            field=models.ManyToManyField(blank=True, null=True, related_name='claim_case', to=AuthorRSC),
+            field=models.ManyToManyField(blank=True, null=True, related_name='claim_case', to='researchhub_case.authorclaimcase'),
         ),
     ]

@@ -13,6 +13,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='authorclaimcase',
             name='claimed_rsc',
-            field=models.ManyToManyField(blank=True, related_name='claim_case', to='reputation.AuthorRSC'),
+            field=models.ManyToManyField(blank=True, related_name='claim_case', to='researchhub_case.authorclaimcase'),
         ),
     ]
