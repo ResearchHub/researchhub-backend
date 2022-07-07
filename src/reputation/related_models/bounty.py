@@ -18,8 +18,10 @@ class Bounty(DefaultModel):
     OPEN = "OPEN"
     CANCELLED = "CANCELLED"
     EXPIRED = "EXPIRED"
+    CLOSED = "CLOSED"
     status_choices = (
         (OPEN, OPEN),
+        (CLOSED, CLOSED),
         (CANCELLED, CANCELLED),
         (EXPIRED, EXPIRED),
     )
@@ -36,9 +38,13 @@ class Bounty(DefaultModel):
         "item_object_id",
     )
     solution_content_type = models.ForeignKey(
-        ContentType, on_delete=models.CASCADE, related_name="solution_bounty"
+        ContentType,
+        on_delete=models.CASCADE,
+        related_name="solution_bounty",
+        null=True,
+        blank=True,
     )
-    solution_object_id = models.PositiveIntegerField()
+    solution_object_id = models.PositiveIntegerField(null=True, blank=True)
     solution = GenericForeignKey(
         "item_content_type",
         "item_object_id",
@@ -51,3 +57,6 @@ class Bounty(DefaultModel):
         "reputation.escrow", on_delete=models.CASCADE, related_name="bounty"
     )
     status = models.CharField(choices=status_choices, default=OPEN, max_length=16)
+
+    def approve(self, amount=None):
+        pass

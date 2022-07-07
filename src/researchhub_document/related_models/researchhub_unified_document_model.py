@@ -4,7 +4,6 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
 from hub.models import Hub
-from paper.models import Paper
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_access_group.models import Permission
 from researchhub_document.hot_score_mixin import HotScoreMixin
@@ -51,6 +50,11 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         Permission,
         related_name="unified_document",
         related_query_name="uni_doc_source",
+    )
+    bounties = GenericRelation(
+        "reputation.Bounty",
+        content_type_field="item_content_type",
+        object_id_field="item_object_id",
     )
     hubs = models.ManyToManyField(Hub, related_name="related_documents", blank=True)
 
