@@ -63,3 +63,9 @@ class Escrow(DefaultModel):
     term = models.ForeignKey(
         "reputation.term", on_delete=models.CASCADE, default=get_current_term
     )
+
+    def payout(self):
+        pass
+
+    def refund(self):
+        pass

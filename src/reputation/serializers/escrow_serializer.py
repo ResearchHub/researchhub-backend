@@ -1,11 +1,11 @@
 from rest_framework import serializers
 
-from reputation.models import Bounty
+from reputation.models import Escrow
 
 
-class BountySerializer(serializers.ModelSerializer):
+class EscrowSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Bounty
+        model = Escrow
         fields = "__all__"
         read_only_fields = [
             "created_date",
@@ -13,5 +13,5 @@ class BountySerializer(serializers.ModelSerializer):
         ]
 
 
-class DynamicBountySerializer:
+class DynamicEscrowSerializer:
     pass
