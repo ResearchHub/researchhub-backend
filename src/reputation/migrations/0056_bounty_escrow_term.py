@@ -3,6 +3,7 @@
 from django.conf import settings
 from django.db import migrations, models
 import django.db.models.deletion
+import reputation.related_models.bounty
 import reputation.related_models.escrow
 
 
@@ -76,7 +77,7 @@ class Migration(migrations.Migration):
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('created_date', models.DateTimeField(auto_now_add=True)),
                 ('updated_date', models.DateTimeField(auto_now=True)),
-                ('expiration_date', models.DateTimeField(null=True)),
+                ('expiration_date', models.DateTimeField(default=reputation.related_models.bounty.get_default_expiration_date, null=True)),
                 ('item_object_id', models.PositiveIntegerField()),
                 ('solution_object_id', models.PositiveIntegerField()),
                 ('amount', models.DecimalField(decimal_places=10, default=0, max_digits=19)),

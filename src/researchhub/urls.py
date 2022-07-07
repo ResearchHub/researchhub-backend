@@ -235,6 +235,8 @@ router.register(r"withdrawal", reputation.views.WithdrawalViewSet)
 
 router.register(r"deposit", reputation.views.DepositViewSet)
 
+router.register(r"bounty", reputation.views.BountyViewSet)
+
 router.register(r"user_verification", user.views.VerificationViewSet)
 
 router.register(
