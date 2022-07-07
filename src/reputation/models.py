@@ -1,3 +1,4 @@
+# flake8: noqa
 from reputation.related_models.bounty import Bounty
 from reputation.related_models.contribution import Contribution
 from reputation.related_models.deposit import Deposit

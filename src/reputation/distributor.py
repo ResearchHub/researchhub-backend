@@ -13,8 +13,8 @@ from purchase.models import Balance
 from reputation.distributions import Distribution as dist
 from reputation.exceptions import ReputationDistributorError
 from reputation.models import Contribution, Distribution
-from reputation.serializers import get_model_serializer
 from user.models import User
+from utils.serializers import get_model_serializer
 
 
 class Distributor:

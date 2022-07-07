@@ -1,8 +1,17 @@
+from datetime import datetime, timedelta
+
+import pytz
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from utils.models import DefaultModel
+
+
+def get_default_expiration_date():
+    now = datetime.now(pytz.UTC)
+    date = now + timedelta(days=30)
+    return date
 
 
 class Bounty(DefaultModel):
@@ -15,7 +24,9 @@ class Bounty(DefaultModel):
         (EXPIRED, EXPIRED),
     )
 
-    expiration_date = models.DateTimeField(null=True)
+    expiration_date = models.DateTimeField(
+        null=True, default=get_default_expiration_date
+    )
     item_content_type = models.ForeignKey(
         ContentType, on_delete=models.CASCADE, related_name="item_bounty"
     )
