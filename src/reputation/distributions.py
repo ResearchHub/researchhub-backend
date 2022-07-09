@@ -220,6 +220,16 @@ def create_purchase_distribution(user, amount, paper=None, purchaser=None):
     return Distribution("PURCHASE", distribution_amount, False)
 
 
+def create_bounty_distriution(amount):
+    distribution = Distribution("BOUNTY_PAYOUT", amount, give_rep=False)
+    return distribution
+
+
+def create_bounty_refund_distribution(amount):
+    distribution = Distribution("BOUNTY_REFUND", amount, give_rep=False)
+    return distribution
+
+
 DISTRIBUTION_TYPE_CHOICES = [
     (FlagPaper.name, FlagPaper.name),
     (PaperUpvoted.name, PaperUpvoted.name),
