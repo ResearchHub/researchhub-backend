@@ -32,7 +32,7 @@ class BountyViewSet(viewsets.ModelViewSet):
         user_balance = user.get_balance()
         if amount <= 0 or user_balance - amount < 0:
             return Response("Insufficient Funds", status=402)
-        elif amount < 50 or amount > 1000000:
+        elif amount <= 50 or amount > 1000000:
             return Response(status=400)
 
         with transaction.atomic():
@@ -75,8 +75,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             amount = decimal.Decimal(amount)
 
         if (
-            amount
-            and amount <= 0
+            (amount and amount <= 0)
             or not recipient
             or not solution_object_id
             or not solution_content_type
@@ -121,7 +120,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 bounty.approve()
 
     # TODO: Permissions
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post", "delete"])
     def cancel_bounty(self, request, pk=None):
         with transaction.atomic():
             bounty = self.get_object()
