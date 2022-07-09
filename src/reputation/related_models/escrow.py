@@ -1,7 +1,13 @@
+import time
+
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
+from reputation.distributions import (
+    create_bounty_distriution,
+    create_bounty_refund_distribution,
+)
 from utils.models import DefaultModel
 
 
@@ -64,8 +70,93 @@ class Escrow(DefaultModel):
         "reputation.term", on_delete=models.CASCADE, default=get_current_term
     )
 
-    def payout(self):
-        pass
+    def set_status(self, status, should_save=True):
+        self.status = status
+        if should_save:
+            self.save()
 
-    def refund(self):
-        pass
+    def set_paid_status(self, should_save=True):
+        self.set_status(self.PAID, should_save=should_save)
+
+    def set_partially_paid_status(self, should_save=True):
+        self.set_status(self.PARTIALLY_PAID, should_save=should_save)
+
+    def set_cancelled_status(self, should_save=True):
+        self.set_status(self.CANCELLED, should_save=should_save)
+
+    def set_pending_status(self, should_save=True):
+        self.set_status(self.PENDING, should_save=should_save)
+
+    def _deduct_fee_from_payout(self, payout_amount):
+        term = self.term
+        rh_pct = term.rh_pct
+        dao_pct = term.dao_pct
+
+        rh_amount = payout_amount * rh_pct
+        dao_amount = payout_amount * dao_pct
+        return rh_amount + dao_amount
+
+    def _get_net_payout(self, payout_amount):
+        fee_amount = self._deduct_fee_from_payout(payout_amount)
+        net_payout = payout_amount - fee_amount
+        return net_payout
+
+    def payout(self, payout_amount=None):
+        from reputation.distributor import Distributor
+
+        recipient = self.recipient
+        escrow_amount = self.amount
+
+        if not recipient:
+            return False
+
+        status = self.PARTIALLY_PAID
+        if not payout_amount:
+            status = self.PAID
+            payout_amount = self.amount
+
+        if payout_amount > escrow_amount:
+            return False
+
+        net_payout = self._get_net_payout(payout_amount)
+        distribution = create_bounty_distriution(net_payout)
+        distributor = Distributor(
+            distribution, recipient, self, time.time(), giver=self.created_by
+        )
+        record = distributor.distribute()
+        if record.distributed_status == "FAILED":
+            return False
+
+        if status == self.PARTIALLY_PAID:
+            refund_amount = escrow_amount - net_payout
+            self.refund(refund_amount)
+        else:
+            self.set_paid_status(should_save=False)
+
+        return True
+
+    def refund(self, amount=None):
+        from reputation.distributor import Distributor
+
+        status = self.PARTIALLY_PAID
+        if amount is None:
+            amount = self.amount
+            status = self.CANCELLED
+
+        distribution = create_bounty_refund_distribution(amount)
+        distributor = Distributor(
+            distribution,
+            self.created_by,
+            self,
+            time.time(),
+        )
+        record = distributor.distribute()
+        if record.distributed_status == "FAILED":
+            return False
+
+        if status == self.PARTIALLY_PAID:
+            self.set_partially_paid_status(should_save=False)
+        else:
+            self.set_cancelled_status()
+            self.save()
+        return True

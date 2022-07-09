@@ -58,5 +58,31 @@ class Bounty(DefaultModel):
     )
     status = models.CharField(choices=status_choices, default=OPEN, max_length=16)
 
-    def approve(self, amount=None):
-        pass
+    def set_status(self, status, should_save=True):
+        self.status = status
+        if should_save:
+            self.save()
+
+    def set_cancelled_status(self, should_save=True):
+        self.set_status(self.CANCELLED, should_save=should_save)
+
+    def set_expired_status(self, should_save=True):
+        self.set_status(self.EXPIRED, should_save=should_save)
+
+    def set_closed_status(self, should_save=True):
+        self.set_status(self.CLOSED, should_save=should_save)
+
+    def approve(self, payout_amount=None):
+        if not payout_amount:
+            payout_amount = self.amount
+
+        if payout_amount > self.amount:
+            return False
+
+        escrow_paid = self.escrow.payout(payout_amount=payout_amount)
+        self.set_closed_status(should_save=False)
+        return escrow_paid
+
+    def cancel(self):
+        self.set_cancelled_status()
+        return self.escrow.refund()
