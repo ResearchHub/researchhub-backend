@@ -4,13 +4,14 @@ import hashlib
 from django.contrib.admin.options import get_content_type_for_model
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.db.models import Case, IntegerField, Value, When
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
-from discussion.models import BaseComment, Comment, Reply, Thread, Vote
+from discussion.models import BaseComment, Comment, Reply, Thread
 from discussion.permissions import (
     CreateDiscussionComment,
     CreateDiscussionReply,
@@ -33,20 +34,17 @@ from discussion.permissions import Vote as VotePermission
 from hypothesis.models import Citation, Hypothesis
 from paper.models import Paper
 from peer_review.models import PeerReview
-from reputation.models import Contribution
+from reputation.models import Bounty, Contribution
 from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.filters import (
     AUTHOR_CLAIMED,
     DISCUSSED,
-    NEWEST,
     OPEN_ACCESS,
-    TOP,
     TRENDING,
 )
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
-from review.models.review_model import Review
 from utils import sentry
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
@@ -190,8 +188,17 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         threads = (
             threads.filter(is_removed=is_removed)
             .filter(created_by__isnull=False)
-            .annotate(ordering_score=ORDERING_SCORE_ANNOTATION)
-            .order_by("-ordering_score", "created_date")
+            .annotate(
+                ordering_score=ORDERING_SCORE_ANNOTATION,
+                open_bounty=Case(
+                    When(
+                        bounties__status=Bounty.OPEN,
+                        then=Value(1, output_field=IntegerField()),
+                    ),
+                    default=Value(0, output_field=IntegerField()),
+                ),
+            )
+            .order_by("-open_bounty", "-ordering_score", "created_date")
         )
         return threads.prefetch_related("paper")
 
