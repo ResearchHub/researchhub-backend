@@ -46,8 +46,8 @@ class Bounty(DefaultModel):
     )
     solution_object_id = models.PositiveIntegerField(null=True, blank=True)
     solution = GenericForeignKey(
-        "item_content_type",
-        "item_object_id",
+        "solution_content_type",
+        "solution_object_id",
     )
     amount = models.DecimalField(default=0, decimal_places=10, max_digits=19)
     created_by = models.ForeignKey(

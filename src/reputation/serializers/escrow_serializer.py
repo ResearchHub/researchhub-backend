@@ -32,7 +32,7 @@ class DynamicEscrowSerializer(DynamicModelFieldSerializer):
         context = self.context
         _context_fields = context.get("rep_des_get_created_by", {})
         serializer = DynamicUserSerializer(
-            escrow.user, context=context, **_context_fields
+            escrow.created_by, context=context, **_context_fields
         )
         return serializer.data
 
@@ -40,7 +40,7 @@ class DynamicEscrowSerializer(DynamicModelFieldSerializer):
         context = self.context
         _context_fields = context.get("rep_des_get_recipient", {})
         serializer = DynamicUserSerializer(
-            escrow.user, context=context, **_context_fields
+            escrow.recipient, context=context, **_context_fields
         )
         return serializer.data
 
