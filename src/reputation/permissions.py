@@ -6,7 +6,7 @@ from utils.permissions import AuthorizationBasedPermission
 
 
 class UpdateOrDeleteWithdrawal(AuthorizationBasedPermission):
-    message = 'Action not permitted.'
+    message = "Action not permitted."
 
     def is_authorized(self, request, view, obj):
         method = request.method
@@ -29,3 +29,14 @@ class DistributionWhitelist(BasePermission):
         if user.email in DIST_WHITELIST:
             return True
         return False
+
+
+class UserBounty(BasePermission):
+    def has_permission(self, request, view):
+        method = request.method
+        if method == RequestMethods.POST or method == RequestMethods.DELETE:
+            return True
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        return obj.created_by == request.user

@@ -59,6 +59,7 @@ class BaseComment(AbstractGenericReactionModel):
     was_edited = models.BooleanField(default=False, help_text=HELP_TEXT_WAS_EDITED)
     is_public = models.BooleanField(default=True, help_text=HELP_TEXT_IS_PUBLIC)
     is_removed = models.BooleanField(default=False, help_text=HELP_TEXT_IS_REMOVED)
+    is_solution = models.BooleanField(default=False)
     ip_address = models.GenericIPAddressField(unpack_ipv4=True, blank=True, null=True)
     text = JSONField(blank=True, null=True)
     external_metadata = JSONField(null=True)
@@ -226,7 +227,6 @@ class Thread(BaseComment):
     )
     entity_key = models.CharField(max_length=255, null=True, blank=True)
     title = models.CharField(max_length=255, null=True, blank=True)
-    is_solution = models.BooleanField(default=False)
     paper = models.ForeignKey(
         "paper.Paper",
         on_delete=models.SET_NULL,
@@ -281,6 +281,11 @@ class Thread(BaseComment):
         null=True,
         help_text="Used to indicate that this thread is a O/P's selected answer for bounties & Questions. \
             Empty field implies that related document is irrelevant to this field",
+    )
+    bounties = GenericRelation(
+        "reputation.Bounty",
+        content_type_field="item_content_type",
+        object_id_field="item_object_id",
     )
 
     def __str__(self):
