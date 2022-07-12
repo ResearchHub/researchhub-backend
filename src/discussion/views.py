@@ -449,6 +449,9 @@ class CommentFileUpload(viewsets.ViewSet):
         "svg",
         "tiff",
         "webp",
+        "mp4",
+        "webm",
+        "ogg",
     )
 
     def create(self, request):
@@ -462,7 +465,7 @@ class CommentFileUpload(viewsets.ViewSet):
 
             # Special characters check
             if any(not c.isalnum() for c in content_type):
-                return Response(status=400)
+                return Response("Special Characters", status=400)
 
             content = data.read()
             bucket_directory = f"comment_files/{content_type}"
@@ -482,10 +485,10 @@ class CommentFileUpload(viewsets.ViewSet):
         else:
             content_type = request.data.get("content_type")
             if content_type.lower() not in self.ALLOWED_EXTENSIONS:
-                return Response(status=400)
+                return Response("Invalid extension", status=400)
 
             if any(not c.isalnum() for c in content_type):
-                return Response(status=400)
+                return Response("Special Characters", status=400)
 
             _, base64_content = request.data.get("content").split(";base64,")
             base64_content = base64_content.encode()
