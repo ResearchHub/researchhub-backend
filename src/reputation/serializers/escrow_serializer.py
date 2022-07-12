@@ -1,6 +1,11 @@
 from rest_framework import serializers
 
+from discussion.serializers import DynamicThreadSerializer
 from reputation.models import Escrow
+from reputation.serializers.term_serializer import DynamicTermSerializer
+from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
+from user.serializers import DynamicUserSerializer
 
 
 class EscrowSerializer(serializers.ModelSerializer):
@@ -13,5 +18,58 @@ class EscrowSerializer(serializers.ModelSerializer):
         ]
 
 
-class DynamicEscrowSerializer:
-    pass
+class DynamicEscrowSerializer(DynamicModelFieldSerializer):
+    created_by = serializers.SerializerMethodField()
+    recipient = serializers.SerializerMethodField()
+    item = serializers.SerializerMethodField()
+    term = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Escrow
+        fields = "__all__"
+
+    def get_created_by(self, escrow):
+        context = self.context
+        _context_fields = context.get("rep_des_get_created_by", {})
+        serializer = DynamicUserSerializer(
+            escrow.user, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_recipient(self, escrow):
+        context = self.context
+        _context_fields = context.get("rep_des_get_recipient", {})
+        serializer = DynamicUserSerializer(
+            escrow.user, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_item(self, escrow):
+        serializer = None
+        context = self.context
+        _context_fields = context.get("rep_des_get_item", {})
+        model_name = escrow.content_type.model
+        object_id = escrow.object_id
+        model_class = escrow.content_type.model_class()
+        obj = model_class.objects.get(id=object_id)
+
+        if model_name == "researchhubunifieddocument":
+            serializer = DynamicUnifiedDocumentSerializer(
+                obj, context=context, **_context_fields
+            )
+        elif model_name == "thread":
+            serializer = DynamicThreadSerializer(
+                obj, context=context, **_context_fields
+            )
+
+        if serializer is not None:
+            return serializer.data
+        return None
+
+    def get_term(self, escrow):
+        context = self.context
+        _context_fields = context.get("rep_des_get_term", {})
+        serializer = DynamicTermSerializer(
+            escrow.term, context=context, **_context_fields
+        )
+        return serializer.data

@@ -2,8 +2,6 @@ import decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Q
-from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -11,32 +9,34 @@ from rest_framework.response import Response
 
 from purchase.models import Balance
 from reputation.models import Bounty, Escrow
+from reputation.permissions import UserBounty
 from reputation.serializers import BountySerializer, EscrowSerializer
-from researchhub_document.models import ResearchhubUnifiedDocument
+from utils.permissions import CreateOnly
 
 
 class BountyViewSet(viewsets.ModelViewSet):
     queryset = Bounty.objects.all()
     serializer_class = BountySerializer
-    # TODO: Permissions
-    permission_classes = [IsAuthenticated | AllowAny]
+    permission_classes = [IsAuthenticated, CreateOnly | AllowAny]
+    ALLOWED_CONTENT_TYPES = ("thread", "researchhubunifieddocument")
 
     def create(self, request, *args, **kwargs):
         data = request.data
         user = request.user
         amount = decimal.Decimal(data.get("amount", 0))
-        content_type_id = ContentType.objects.get_for_model(
-            ResearchhubUnifiedDocument
-        ).id
+        item_content_type = data.get("item_content_type", "")
 
         user_balance = user.get_balance()
         if amount <= 0 or user_balance - amount < 0:
-            return Response("Insufficient Funds", status=402)
+            return Response({"error": "Insufficient Funds"}, status=402)
         elif amount <= 50 or amount > 1000000:
-            return Response(status=400)
+            return Response({"error": "Invalid amount"}, status=400)
+
+        if item_content_type not in self.ALLOWED_CONTENT_TYPES:
+            return Response({"error": "Invalid content type"}, status=400)
 
         with transaction.atomic():
-
+            content_type_id = ContentType.objects.get(model=item_content_type).id
             escrow_data = {
                 "created_by": user.id,
                 "hold_type": Escrow.BOUNTY,
@@ -62,8 +62,9 @@ class BountyViewSet(viewsets.ModelViewSet):
             )
             return res
 
-    # TODO: Permissions
-    @action(detail=True, methods=["post"])
+    @action(
+        detail=True, methods=["post"], permission_classes=[IsAuthenticated, UserBounty]
+    )
     def approve_bounty(self, request, pk=None):
         data = request.data
         amount = data.get("amount", None)
@@ -97,13 +98,12 @@ class BountyViewSet(viewsets.ModelViewSet):
             escrow.save()
             bounty.save()
             if bounty_paid:
-                return Response(status=200)
+                serializer = self.get_serializer(bounty)
+                return Response(serializer.data, status=200)
             else:
-                raise Exception("Error")
-                # return Response(status=400)
+                raise Exception("Bounty payout error")
 
-    # TODO: Permissions
-    @action(detail=False, methods=["post"])
+    # TODO: Delete
     def potential_approve_bounty(self, request):
         data = request.data
         content_type = data.get("content_type", "")
@@ -119,8 +119,11 @@ class BountyViewSet(viewsets.ModelViewSet):
             for bounty in bounties.iterator():
                 bounty.approve()
 
-    # TODO: Permissions
-    @action(detail=True, methods=["post", "delete"])
+    @action(
+        detail=True,
+        methods=["post", "delete"],
+        permission_classes=[IsAuthenticated, UserBounty],
+    )
     def cancel_bounty(self, request, pk=None):
         with transaction.atomic():
             bounty = self.get_object()
@@ -130,6 +133,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             bounty_cancelled = bounty.cancel()
             bounty.save()
             if bounty_cancelled:
-                return Response(status=200)
+                serializer = self.get_serializer(bounty)
+                return Response(serializer.data, status=200)
             else:
-                raise Exception("Error")
+                raise Exception("Bounty cancel error")
