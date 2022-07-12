@@ -396,6 +396,7 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
             "is_created_by_editor",
             "is_public",
             "is_removed",
+            "is_solution",
             "paper_id",
             "parent",
             "plain_text",
@@ -465,6 +466,7 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
 
 
 class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
+    bounties = serializers.SerializerMethodField()
     created_by = MinimalUserSerializer(
         read_only=False, default=serializers.CurrentUserDefault()
     )
@@ -486,6 +488,7 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
     class Meta:
         fields = [
             "block_key",
+            "bounties",
             "citation",
             "comment_count",
             "comments",
@@ -503,6 +506,7 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
             "is_created_by_editor",
             "is_public",
             "is_removed",
+            "is_solution",
             "paper_slug",
             "hypothesis_slug",
             "paper",
@@ -606,6 +610,35 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
 
         return serializer.data
 
+    def get_bounties(self, obj):
+        from reputation.serializers import DynamicBountySerializer
+
+        context = {
+            "rep_dbs_get_created_by": {"_include_fields": ("author_profile",)},
+            "rep_dbs_get_solution": {"_include_fields": ("id",)},
+            "usr_dus_get_author_profile": {
+                "_include_fields": (
+                    "id",
+                    "profile_image",
+                    "first_name",
+                    "last_name",
+                )
+            },
+        }
+        serializer = DynamicBountySerializer(
+            obj.bounties,
+            many=True,
+            context=context,
+            _include_fields=(
+                "created_by",
+                "amount",
+                "created_date",
+                "expiration_date",
+                "solution",
+            ),
+        )
+        return serializer.data
+
 
 class SimpleThreadSerializer(ThreadSerializer):
     class Meta:
@@ -641,6 +674,7 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
             "is_created_by_editor",
             "is_public",
             "is_removed",
+            "is_solution",
             "paper_id",
             "parent",
             "plain_text",
