@@ -49,7 +49,12 @@ from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
 from .reaction_views import ReactionViewActionMixin
-from .serializers import CommentSerializer, ReplySerializer, ThreadSerializer
+from .serializers import (
+    CommentSerializer,
+    DynamicThreadSerializer,
+    ReplySerializer,
+    ThreadSerializer,
+)
 from .utils import (
     ORDERING_SCORE_ANNOTATION,
     get_comment_id_from_path,
@@ -67,6 +72,7 @@ RELATED_DISCUSSION_MODELS = {
 
 class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     serializer_class = ThreadSerializer
+    dynamic_serializer_class = DynamicThreadSerializer
     throttle_classes = THROTTLE_CLASSES
 
     # Optional attributes
@@ -200,6 +206,51 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             .order_by("-open_bounty", "-ordering_score", "created_date")
         )
         return threads.prefetch_related("paper")
+
+    @action(
+        detail=False, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
+    )
+    def get_open_bounties(self, request):
+        threads = Thread.objects.filter(bounties__status=Bounty.OPEN).order_by(
+            "created_date"
+        )
+        context = {
+            "dis_dts_get_bounties": {
+                "_include_fields": (
+                    "amount",
+                    "created_by",
+                )
+            },
+            "dis_dts_get_created_by": {"_include_fields": ("author_profile",)},
+            "dis_dts_get_paper": {"_include_fields": ("id",)},
+            "dis_dts_get_post": {"_include_fields": ("id",)},
+            "dis_dts_get_hypothesis": {"_include_fields": ("id",)},
+            "dis_dts_get_unified_document": {"_include_fields": ("document_type",)},
+            "rep_dbs_get_created_by": {"_include_fields": ("author_profile",)},
+            "usr_dus_get_author_profile": {
+                "_include_fields": (
+                    "id",
+                    "profile_image",
+                    "first_name",
+                    "last_name",
+                )
+            },
+        }
+        serializer = self.dynamic_serializer_class(
+            threads,
+            many=True,
+            context=context,
+            _include_fields=(
+                "id",
+                "created_by",
+                "bounties",
+                "paper",
+                "post",
+                "hypothesis",
+                "unified_document",
+            ),
+        )
+        return Response(serializer.data, status=200)
 
     @action(
         detail=True,

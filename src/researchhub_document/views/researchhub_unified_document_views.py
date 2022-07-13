@@ -209,6 +209,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "renderable_text",
                     "score",
                     "slug",
+                    # "threads",
                     "title",
                     "uploaded_by",
                     "uploaded_date",
@@ -247,6 +248,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "author_profile",
                 ]
             },
+            "doc_dps_get_threads": {
+                "_include_fields": [
+                    "bounties",
+                ]
+            },
             "pap_dps_get_uploaded_by": {
                 "_include_fields": [
                     "author_profile",
@@ -278,6 +284,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "slug",
                     "is_removed",
                     "hub_image",
+                ]
+            },
+            "dis_dts_get_bounties": {
+                "_include_fields": [
+                    "amount",
+                    "status",
                 ]
             },
         }
