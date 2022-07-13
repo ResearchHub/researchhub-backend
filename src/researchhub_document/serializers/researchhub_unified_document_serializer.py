@@ -2,6 +2,7 @@ from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from paper.serializers import DynamicPaperSerializer, PaperSerializer
+from reputation.models import Bounty
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
@@ -92,6 +93,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     hubs = SerializerMethodField()
     reviews = SerializerMethodField()
     featured = SerializerMethodField()
+    bounties = SerializerMethodField()
 
     class Meta:
         model = ResearchhubUnifiedDocument
@@ -145,10 +147,38 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
-    def get_reviews(self, obj):
-        return obj.get_review_details()
+    def get_reviews(self, unified_doc):
+        return unified_doc.get_review_details()
         # context = self.context
         # get_reviews = context.get("doc_duds_get_reviews", None)
         # if get_reviews:
-        #     return obj.get_review_details()
+        #     return unified_doc.get_review_details()
         # return None
+
+    def get_bounties(self, unified_doc):
+        doc = unified_doc.get_document()
+        thread_ids = doc.threads.values_list("id")
+        bounties = Bounty.objects.filter(
+            item_content_type__model="thread",
+            item_object_id__in=thread_ids,
+            status=Bounty.OPEN,
+        ).values_list("amount")
+        return bounties
+
+        doc_type = unified_doc.document_type
+        if doc_type in (DISCUSSION, ELN):
+            threads = unified_doc.posts.last().threads
+            test = unified_doc.posts.filter(
+                threads__bounties__status=Bounty.OPEN
+            ).exists()
+        elif doc_type == HYPOTHESIS:
+            test = unified_doc.hypothesis.filter(
+                threads__bounties__status=Bounty.OPEN
+            ).exists()
+        elif doc_type == PAPER:
+            test = unified_doc.paper.threads.filter(
+                threads__bounties__status=Bounty.OPEN
+            ).exists()
+        else:
+            return None
+        return test
