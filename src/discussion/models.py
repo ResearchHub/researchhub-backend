@@ -194,14 +194,37 @@ class Thread(BaseComment):
     INLINE_ABSTRACT = "inline_abstract"
     INLINE_PAPER_BODY = "inline_paper_body"
     RESEARCHHUB = "researchhub"
-    THREAD_SOURCE_CHOICES = [
+
+    DISCUSSION = "DISCUSSION"
+    SUMMARY = "SUMMARY"
+    REVIEW = "REVIEW"
+    ANSWER = "ANSWER"
+    SUMMARY_REQUEST = "SUMMARY_REQUEST"
+    REVIEW_REQUEST = "REVIEW_REQUEST"
+    OTHER_REQUEST = "OTHER_REQUEST"
+
+    THREAD_SOURCE_CHOICES = (
         (CITATION_COMMENT, "Citation Comment"),
         (INLINE_ABSTRACT, "Inline Abstract"),
         (INLINE_PAPER_BODY, "Inline Paper Body"),
         (RESEARCHHUB, "researchhub"),
-    ]
+    )
+
+    THREAD_TYPE_CHOICES = (
+        (DISCUSSION, DISCUSSION),
+        (SUMMARY, SUMMARY),
+        (REVIEW, REVIEW),
+        (ANSWER, ANSWER),
+        (SUMMARY_REQUEST, SUMMARY_REQUEST),
+        (REVIEW_REQUEST, REVIEW_REQUEST),
+        (OTHER_REQUEST, OTHER_REQUEST),
+    )
+
     source = models.CharField(
         default=RESEARCHHUB, choices=THREAD_SOURCE_CHOICES, max_length=32
+    )
+    thread_type = models.CharField(
+        default=DISCUSSION, choices=THREAD_TYPE_CHOICES, max_length=16
     )
     block_key = models.CharField(max_length=255, null=True, blank=True)
     context_title = models.TextField(
