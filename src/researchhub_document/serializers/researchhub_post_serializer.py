@@ -9,6 +9,7 @@ from discussion.reaction_serializers import (
     DynamicVoteSerializer,  # Import is needed for discussion serializer imports
 )
 from discussion.reaction_serializers import GenericReactionSerializerMixin
+from discussion.serializers import DynamicThreadSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubPost
@@ -209,6 +210,7 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     hubs = SerializerMethodField()
     note = SerializerMethodField()
     score = SerializerMethodField()
+    threads = SerializerMethodField()
     unified_document = SerializerMethodField()
     user_vote = SerializerMethodField()
 
@@ -249,6 +251,14 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
             return vote
         except Vote.DoesNotExist:
             return None
+
+    def get_threads(self, post):
+        context = self.context
+        _context_fields = context.get("doc_dps_get_threads", {})
+        serializer = DynamicThreadSerializer(
+            post.threads, many=True, context=context, **_context_fields
+        )
+        return serializer.data
 
     def get_unified_document(self, post):
         from researchhub_document.serializers import DynamicUnifiedDocumentSerializer

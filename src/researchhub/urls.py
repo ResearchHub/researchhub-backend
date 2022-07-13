@@ -47,6 +47,8 @@ router.register(
 )
 
 # NOTE: calvinhlee - the way coments are handled is very inefficient. We need to refactor this
+
+router.register(r"discussion", discussion.views.ThreadViewSet, basename="discussion")
 router.register(
     r"paper/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
     discussion.views.ReplyViewSet,

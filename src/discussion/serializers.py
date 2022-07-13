@@ -65,6 +65,7 @@ class DynamicThreadSerializer(
     DynamicModelFieldSerializer,
     GenericReactionSerializerMixin,
 ):
+    bounties = serializers.SerializerMethodField()
     comment_count = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
@@ -107,6 +108,16 @@ class DynamicThreadSerializer(
         return comments.annotate(ordering_score=ORDERING_SCORE_ANNOTATION).order_by(
             "-ordering_score", "created_date"
         )
+
+    def get_bounties(self, obj):
+        from reputation.serializers import DynamicBountySerializer
+
+        context = self.context
+        _context_fields = context.get("dis_dts_get_bounties", {})
+        serializer = DynamicBountySerializer(
+            obj.bounties.all(), many=True, context=context, **_context_fields
+        )
+        return serializer.data
 
     def get_comments(self, obj):
         _context_fields = self.context.get("dis_dts_get_comments", {})
@@ -632,7 +643,7 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
             },
         }
         serializer = DynamicBountySerializer(
-            obj.bounties,
+            obj.bounties.all(),
             many=True,
             context=context,
             _include_fields=(
