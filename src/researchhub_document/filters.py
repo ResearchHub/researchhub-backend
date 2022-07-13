@@ -255,7 +255,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
             ordering.append(filtering)
 
         qs = qs.order_by(*ordering)
-        return qs
+        return qs.prefetch_related("paper", "posts", "hypothesis")
 
     def subscribed_filter(self, qs, name, value):
         if value:
