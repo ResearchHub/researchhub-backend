@@ -129,6 +129,7 @@ def preload_trending_documents(
             "hot_score_v2",
             "reviews",
             "score",
+            "bounties",
         ],
         many=True,
         context=context,
