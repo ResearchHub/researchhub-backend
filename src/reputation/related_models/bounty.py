@@ -58,6 +58,18 @@ class Bounty(DefaultModel):
     )
     status = models.CharField(choices=status_choices, default=OPEN, max_length=16)
 
+    class Meta:
+        indexes = (
+            models.Index(
+                fields=(
+                    "item_content_type",
+                    "item_object_id",
+                    "solution_content_type",
+                    "solution_object_id",
+                )
+            ),
+        )
+
     def set_status(self, status, should_save=True):
         self.status = status
         if should_save:

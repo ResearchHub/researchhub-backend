@@ -18,7 +18,7 @@ class BountyViewSet(viewsets.ModelViewSet):
     queryset = Bounty.objects.all()
     serializer_class = BountySerializer
     permission_classes = [IsAuthenticated, CreateOnly | AllowAny]
-    ALLOWED_CONTENT_TYPES = ("thread", "researchhubunifieddocument")
+    ALLOWED_CONTENT_TYPES = ("thread",)
 
     def create(self, request, *args, **kwargs):
         data = request.data
