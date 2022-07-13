@@ -163,7 +163,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
             item_content_type__model="thread",
             item_object_id__in=thread_ids,
             status=Bounty.OPEN,
-        ).values_list("amount")
+        ).values_list("amount", flat=True)
         return bounties
 
         doc_type = unified_doc.document_type
