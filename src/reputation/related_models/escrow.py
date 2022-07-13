@@ -70,6 +70,9 @@ class Escrow(DefaultModel):
         "reputation.term", on_delete=models.CASCADE, default=get_current_term
     )
 
+    class Meta:
+        indexes = (models.Index(fields=("content_type", "object_id")),)
+
     def set_status(self, status, should_save=True):
         self.status = status
         if should_save:
