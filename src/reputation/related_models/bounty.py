@@ -64,6 +64,10 @@ class Bounty(DefaultModel):
                 fields=(
                     "item_content_type",
                     "item_object_id",
+                )
+            ),
+            models.Index(
+                fields=(
                     "solution_content_type",
                     "solution_object_id",
                 )
