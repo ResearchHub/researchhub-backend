@@ -157,6 +157,9 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
 
     def get_bounties(self, unified_doc):
         doc = unified_doc.get_document()
+        if not hasattr(doc, "threads"):
+            return None
+
         thread_ids = doc.threads.values_list("id")
         bounties = Bounty.objects.filter(
             item_content_type__model="thread",
@@ -164,21 +167,3 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
             status=Bounty.OPEN,
         ).values_list("amount", flat=True)
         return bounties
-
-        doc_type = unified_doc.document_type
-        if doc_type in (DISCUSSION, ELN):
-            threads = unified_doc.posts.last().threads
-            test = unified_doc.posts.filter(
-                threads__bounties__status=Bounty.OPEN
-            ).exists()
-        elif doc_type == HYPOTHESIS:
-            test = unified_doc.hypothesis.filter(
-                threads__bounties__status=Bounty.OPEN
-            ).exists()
-        elif doc_type == PAPER:
-            test = unified_doc.paper.threads.filter(
-                threads__bounties__status=Bounty.OPEN
-            ).exists()
-        else:
-            return None
-        return test
