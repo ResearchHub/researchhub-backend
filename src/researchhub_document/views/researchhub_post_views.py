@@ -29,7 +29,10 @@ from researchhub.settings import (
 )
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
-from researchhub_document.related_models.constants.document_type import DISCUSSION
+from researchhub_document.related_models.constants.document_type import (
+    DISCUSSION,
+    QUESTION,
+)
 from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
@@ -92,7 +95,6 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             title = data.get("title", "")
             assign_doi = data.get("assign_doi", False)
             peer_review_is_requested = data.get("request_peer_review", False)
-            is_discussion = document_type == DISCUSSION
             doi = generate_doi() if assign_doi else None
 
             if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
@@ -122,7 +124,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             rh_post.authors.set(authors)
 
             if not TESTING:
-                if is_discussion:
+                if document_type in [DISCUSSION, QUESTION]:
                     rh_post.discussion_src.save(file_name, full_src_file)
                 else:
                     rh_post.eln_src.save(file_name, full_src_file)
