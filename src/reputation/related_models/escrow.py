@@ -1,3 +1,4 @@
+import math
 import time
 
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -97,12 +98,13 @@ class Escrow(DefaultModel):
 
         rh_amount = payout_amount * rh_pct
         dao_amount = payout_amount * dao_pct
-        return rh_amount + dao_amount
+        return math.ceil(rh_amount + dao_amount)
 
-    def _get_net_payout(self, payout_amount):
+    def _get_net_payout(self, payout_amount, escrow_amount):
         fee_amount = self._deduct_fee_from_payout(payout_amount)
         net_payout = payout_amount - fee_amount
-        return net_payout
+        refund_amount = escrow_amount - net_payout - fee_amount
+        return net_payout, refund_amount
 
     def payout(self, payout_amount=None):
         from reputation.distributor import Distributor
@@ -121,7 +123,7 @@ class Escrow(DefaultModel):
         if payout_amount > escrow_amount:
             return False
 
-        net_payout = self._get_net_payout(payout_amount)
+        net_payout, refund_amount = self._get_net_payout(payout_amount, escrow_amount)
         distribution = create_bounty_distriution(net_payout)
         distributor = Distributor(
             distribution, recipient, self, time.time(), giver=self.created_by
@@ -131,7 +133,6 @@ class Escrow(DefaultModel):
             return False
 
         if status == self.PARTIALLY_PAID:
-            refund_amount = escrow_amount - net_payout
             self.refund(refund_amount)
         else:
             self.set_paid_status(should_save=False)
