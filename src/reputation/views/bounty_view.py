@@ -23,8 +23,12 @@ class BountyViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         data = request.data
         user = request.user
-        amount = decimal.Decimal(data.get("amount", 0))
         item_content_type = data.get("item_content_type", "")
+
+        try:
+            amount = decimal.Decimal(str(data.get("amount", "0")))
+        except Exception as e:
+            return Response(str(e), status=400)
 
         user_balance = user.get_balance()
         if amount <= 0 or user_balance - amount < 0:
@@ -73,7 +77,10 @@ class BountyViewSet(viewsets.ModelViewSet):
         solution_content_type = data.get("solution_content_type", None)
 
         if amount:
-            amount = decimal.Decimal(amount)
+            try:
+                amount = decimal.Decimal(str(amount))
+            except Exception as e:
+                return Response(str(e), status=400)
 
         if (
             (amount and amount <= 0)
