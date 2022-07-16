@@ -11,6 +11,7 @@ from discussion.reaction_serializers import (
 from discussion.reaction_serializers import GenericReactionSerializerMixin
 from discussion.serializers import DynamicThreadSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
+from reputation.models import Bounty
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
@@ -33,6 +34,8 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
             "authors",
             "boost_amount",
+            "bounties",
+            "id",
             "created_by",
             "created_date",
             "discussion_count",
@@ -59,6 +62,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
             "authors",
+            "bounties",
             "id",
             "created_by",
             "created_date",
@@ -82,6 +86,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
 
     # local
     authors = SerializerMethodField()
+    bounties = SerializerMethodField()
     created_by = SerializerMethodField(method_name="get_created_by")
     full_markdown = SerializerMethodField(method_name="get_full_markdown")
     has_accepted_answer = ReadOnlyField()  # @property
@@ -93,7 +98,6 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     unified_document_id = SerializerMethodField(method_name="get_unified_document_id")
 
     def get_authors(self, post):
-
         # Probably legacy scenario, before ELN release
         authors = list(post.authors.all())
         if len(authors) == 0:
@@ -105,6 +109,33 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             authors,
             context=self.context,
             many=True,
+        )
+        return serializer.data
+
+    def get_bounties(self, post):
+        from reputation.serializers import DynamicBountySerializer
+
+        context = {
+            "rep_dbs_get_created_by": {"_include_fields": ("author_profile",)},
+            "usr_dus_get_author_profile": {
+                "_include_fields": (
+                    "id",
+                    "profile_image",
+                    "first_name",
+                    "last_name",
+                )
+            },
+        }
+        thread_ids = post.threads.values("id")
+        bounties = Bounty.objects.filter(
+            item_content_type__model="thread",
+            item_object_id__in=thread_ids,
+        )
+        serializer = DynamicBountySerializer(
+            bounties,
+            many=True,
+            context=context,
+            _include_fields=("amount", "created_by", "status"),
         )
         return serializer.data
 

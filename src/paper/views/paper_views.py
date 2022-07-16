@@ -282,6 +282,7 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             _include_fields=[
                 "authors",
                 "boost_amount",
+                "bounties",
                 "id",
                 "file",
                 "first_preview",

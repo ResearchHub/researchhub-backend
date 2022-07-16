@@ -2,11 +2,12 @@ import base64
 import hashlib
 
 from django.contrib.admin.options import get_content_type_for_model
+from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db.models import Case, IntegerField, Value, When
 from rest_framework import status, viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
@@ -223,9 +224,9 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 )
             },
             "dis_dts_get_created_by": {"_include_fields": ("author_profile",)},
-            "dis_dts_get_paper": {"_include_fields": ("id",)},
-            "dis_dts_get_post": {"_include_fields": ("id",)},
-            "dis_dts_get_hypothesis": {"_include_fields": ("id",)},
+            "dis_dts_get_paper": {"_include_fields": ("id", "paper_title", "title")},
+            "dis_dts_get_post": {"_include_fields": ("id", "title")},
+            "dis_dts_get_hypothesis": {"_include_fields": ("id", "title")},
             "dis_dts_get_unified_document": {"_include_fields": ("document_type",)},
             "rep_dbs_get_created_by": {"_include_fields": ("author_profile",)},
             "usr_dus_get_author_profile": {
@@ -593,3 +594,18 @@ class CommentFileUpload(viewsets.ViewSet):
 
             url = url.split("?AWSAccessKeyId")[0]
             return Response(url, status=res_status)
+
+
+# TODO: Permissions
+@api_view(http_method_names=["post"])
+@permission_classes([IsAuthenticated])
+def set_discussion_solution(request):
+    data = request.data
+    content_type = data.get("content_type")
+    object_id = data.get("object_id")
+
+    model = ContentType.objects.get(model=content_type).model_class()
+    obj = model.objects.get(id=object_id)
+    obj.is_solution = True
+    obj.save()
+    return Response(status=200)
