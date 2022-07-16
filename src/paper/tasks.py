@@ -110,6 +110,7 @@ def celery_paper_reset_cache(paper_id):
         _include_fields=[
             "authors",
             "boost_amount",
+            "bounties",
             "id",
             "file",
             "first_preview",
