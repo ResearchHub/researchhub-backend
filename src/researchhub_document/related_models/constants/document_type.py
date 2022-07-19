@@ -1,15 +1,17 @@
-DISCUSSION = 'DISCUSSION'
-HYPOTHESIS = 'HYPOTHESIS'
-NOTE = 'NOTE'
-ELN = 'ELN'
-PAPER = 'PAPER'
-POSTS = 'POSTS'  # POSTS include discussion and eln
-ALL = 'ALL'  # ALL includes paper and posts
+ALL = "ALL"  # ALL includes paper and posts
+DISCUSSION = "DISCUSSION"
+ELN = "ELN"
+HYPOTHESIS = "HYPOTHESIS"
+NOTE = "NOTE"
+PAPER = "PAPER"
+POSTS = "POSTS"  # POSTS include discussion and eln
+QUESTION = "QUESTION"
 
 DOCUMENT_TYPES = (
-    (PAPER, PAPER),
     (DISCUSSION, DISCUSSION),
     (ELN, ELN),
     (HYPOTHESIS, HYPOTHESIS),
-    (NOTE, NOTE)
+    (NOTE, NOTE),
+    (PAPER, PAPER),
+    (QUESTION, QUESTION),
 )

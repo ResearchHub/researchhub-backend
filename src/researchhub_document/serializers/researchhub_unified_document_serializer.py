@@ -9,6 +9,7 @@ from researchhub_document.related_models.constants.document_type import (
     ELN,
     HYPOTHESIS,
     PAPER,
+    QUESTION,
 )
 from researchhub_document.serializers import (
     DynamicPostSerializer,
@@ -66,7 +67,7 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
 
         context = self.context
         doc_type = instance.document_type
-        if doc_type in [DISCUSSION, ELN]:
+        if doc_type in [DISCUSSION, ELN, QUESTION]:
             return ResearchhubPostSerializer(
                 instance.posts, many=True, context=context
             ).data

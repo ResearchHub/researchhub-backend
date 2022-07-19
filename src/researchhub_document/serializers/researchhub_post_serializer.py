@@ -8,7 +8,10 @@ from discussion.reaction_serializers import GenericReactionSerializerMixin
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.related_models.constants.document_type import DISCUSSION
+from researchhub_document.related_models.constants.document_type import (
+    DISCUSSION,
+    QUESTION,
+)
 from user.serializers import (
     AuthorSerializer,
     DynamicAuthorSerializer,
@@ -100,7 +103,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
 
     def get_post_src(self, instance):
         try:
-            if instance.document_type == DISCUSSION:
+            if instance.document_type in [DISCUSSION, QUESTION]:
                 return instance.discussion_src.url
             else:
                 return instance.eln_src.url
@@ -172,7 +175,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
 
     def get_full_markdown(self, instance):
         try:
-            if instance.document_type == DISCUSSION:
+            if instance.document_type in [DISCUSSION, QUESTION]:
                 byte_string = instance.discussion_src.read()
             else:
                 byte_string = instance.eln_src.read()
