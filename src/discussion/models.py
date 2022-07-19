@@ -215,9 +215,6 @@ class Thread(BaseComment):
     SUMMARY = "SUMMARY"
     REVIEW = "REVIEW"
     ANSWER = "ANSWER"
-    SUMMARY_REQUEST = "SUMMARY_REQUEST"
-    REVIEW_REQUEST = "REVIEW_REQUEST"
-    OTHER_REQUEST = "OTHER_REQUEST"
 
     THREAD_SOURCE_CHOICES = (
         (CITATION_COMMENT, "Citation Comment"),
@@ -231,9 +228,6 @@ class Thread(BaseComment):
         (SUMMARY, SUMMARY),
         (REVIEW, REVIEW),
         (ANSWER, ANSWER),
-        (SUMMARY_REQUEST, SUMMARY_REQUEST),
-        (REVIEW_REQUEST, REVIEW_REQUEST),
-        (OTHER_REQUEST, OTHER_REQUEST),
     )
 
     source = models.CharField(

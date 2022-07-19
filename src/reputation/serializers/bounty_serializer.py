@@ -5,7 +5,7 @@ from discussion.serializers import (
     DynamicReplySerializer,
     DynamicThreadSerializer,
 )
-from reputation.models import Bounty
+from reputation.models import Bounty, BountySolution
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicUserSerializer
@@ -14,6 +14,16 @@ from user.serializers import DynamicUserSerializer
 class BountySerializer(serializers.ModelSerializer):
     class Meta:
         model = Bounty
+        fields = "__all__"
+        read_only_fields = [
+            "created_date",
+            "updated_date",
+        ]
+
+
+class BountySolutionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BountySolution
         fields = "__all__"
         read_only_fields = [
             "created_date",
@@ -92,3 +102,9 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
         if serializer is not None:
             return serializer.data
         return None
+
+
+class DynamicBountySolutionSerializer(DynamicModelFieldSerializer):
+    class Meta:
+        model = BountySolution
+        fields = "__all__"

@@ -10,7 +10,7 @@ from utils.models import DefaultModel
 
 def get_default_expiration_date():
     now = datetime.now(pytz.UTC)
-    date = now + timedelta(days=30)
+    date = now + timedelta(days=31)
     return date
 
 
@@ -37,18 +37,6 @@ class Bounty(DefaultModel):
         "item_content_type",
         "item_object_id",
     )
-    solution_content_type = models.ForeignKey(
-        ContentType,
-        on_delete=models.CASCADE,
-        related_name="solution_bounty",
-        null=True,
-        blank=True,
-    )
-    solution_object_id = models.PositiveIntegerField(null=True, blank=True)
-    solution = GenericForeignKey(
-        "solution_content_type",
-        "solution_object_id",
-    )
     amount = models.DecimalField(default=0, decimal_places=10, max_digits=19)
     created_by = models.ForeignKey(
         "user.User", on_delete=models.CASCADE, related_name="bounties"
@@ -64,12 +52,6 @@ class Bounty(DefaultModel):
                 fields=(
                     "item_content_type",
                     "item_object_id",
-                )
-            ),
-            models.Index(
-                fields=(
-                    "solution_content_type",
-                    "solution_object_id",
                 )
             ),
         )
@@ -102,3 +84,20 @@ class Bounty(DefaultModel):
     def cancel(self):
         self.set_cancelled_status()
         return self.escrow.refund()
+
+
+class BountySolution(DefaultModel):
+    bounty = models.ForeignKey(
+        Bounty, on_delete=models.CASCADE, related_name="solutions"
+    )
+    created_by = models.ForeignKey(
+        "user.User", on_delete=models.CASCADE, related_name="solutions"
+    )
+    content_type = models.ForeignKey(
+        ContentType, on_delete=models.CASCADE, related_name="bounty_solution"
+    )
+    object_id = models.PositiveIntegerField()
+    item = GenericForeignKey(
+        "content_type",
+        "object_id",
+    )

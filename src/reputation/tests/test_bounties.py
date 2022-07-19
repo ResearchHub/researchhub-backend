@@ -3,14 +3,13 @@ from datetime import datetime
 
 from rest_framework.test import APITestCase
 
+from discussion.tests.helpers import create_thread
 from hub.tests.helpers import create_hub
+from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from user.tests.helpers import (
-    create_moderator,
-    create_random_default_user,
-    create_thread,
-)
+from reputation.models import Term
+from user.tests.helpers import create_moderator, create_random_default_user
 
 
 class BountyViewTests(APITestCase):
@@ -18,8 +17,10 @@ class BountyViewTests(APITestCase):
         self.user = create_random_default_user("bounty_user")
         self.recipient = create_random_default_user("bounty_recipient")
         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
-        self.thread = create_thread()
+        self.paper = create_paper()
+        self.thread = create_thread(created_by=self.recipient)
         self.hub = create_hub()
+        self.term = Term.objects.create(rh_pct=0.07, dao_pct=0)
         self.client.force_authenticate(self.user)
 
         distribution = Dist("REWARD", 1000000000, give_rep=False)
@@ -35,8 +36,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 100,
-                "item_object_id": self.thread.id,
-                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.paper.unified_document.id,
+                "item_content_type": self.paper.unified_document._meta.model_name,
             },
         )
 
@@ -50,8 +51,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 20000,
-                "item_object_id": self.thread.id,
-                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.paper.unified_document.id,
+                "item_content_type": self.paper.unified_document._meta.model_name,
             },
         )
 
@@ -65,8 +66,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 123.456,
-                "item_object_id": self.thread.id,
-                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.paper.unified_document.id,
+                "item_content_type": self.paper.unified_document._meta.model_name,
             },
         )
 
@@ -78,9 +79,9 @@ class BountyViewTests(APITestCase):
         create_bounty_res = self.client.post(
             "/api/bounty/",
             {
-                "amount": 123.4567900001,
-                "item_object_id": self.thread.id,
-                "item_content_type": self.thread._meta.model_name,
+                "amount": 123.45679001,
+                "item_object_id": self.paper.unified_document.id,
+                "item_content_type": self.paper.unified_document._meta.model_name,
             },
         )
 
@@ -94,8 +95,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 100,
-                "item_object_id": self.thread.id,
-                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.paper.unified_document.id,
+                "item_content_type": self.paper.unified_document._meta.model_name,
                 "expiration_date": expiration_time,
             },
         )
@@ -110,24 +111,24 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": "-100",
-                "item_object_id": self.thread.id,
-                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.paper.unified_document.id,
+                "item_content_type": self.paper.unified_document._meta.model_name,
             },
         )
         create_bounty_res_2 = self.client.post(
             "/api/bounty/",
             {
                 "amount": "--100",
-                "item_object_id": self.thread.id,
-                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.paper.unified_document.id,
+                "item_content_type": self.paper.unified_document._meta.model_name,
             },
         )
         create_bounty_res_3 = self.client.post(
             "/api/bounty/",
             {
                 "amount": "0xFFA",
-                "item_object_id": self.thread.id,
-                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.paper.unified_document.id,
+                "item_content_type": self.paper.unified_document._meta.model_name,
             },
         )
         self.assertEqual(create_bounty_res_1.status_code, 402)
@@ -141,8 +142,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 49,
-                "item_object_id": self.thread.id,
-                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.paper.unified_document.id,
+                "item_content_type": self.paper.unified_document._meta.model_name,
             },
         )
 
@@ -155,8 +156,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 10000000,
-                "item_object_id": self.thread.id,
-                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.paper.unified_document.id,
+                "item_content_type": self.paper.unified_document._meta.model_name,
             },
         )
 
@@ -170,8 +171,8 @@ class BountyViewTests(APITestCase):
             f"/api/bounty/{bounty.data['id']}/approve_bounty/",
             {
                 "amount": None,
-                "solution_object_id": self.thread.id,
-                "solution_content_type": self.thread._meta.model_name,
+                "object_id": self.thread.id,
+                "content_type": self.thread._meta.model_name,
                 "recipient": self.user.id,
             },
         )
@@ -189,8 +190,8 @@ class BountyViewTests(APITestCase):
             f"/api/bounty/{bounty_1.data['id']}/approve_bounty/",
             {
                 "amount": 50,
-                "solution_object_id": self.thread.id,
-                "solution_content_type": self.thread._meta.model_name,
+                "object_id": self.thread.id,
+                "content_type": self.thread._meta.model_name,
                 "recipient": self.user.id,
             },
         )
@@ -203,8 +204,8 @@ class BountyViewTests(APITestCase):
             f"/api/bounty/{bounty_2.data['id']}/approve_bounty/",
             {
                 "amount": 500,
-                "solution_object_id": self.thread.id,
-                "solution_content_type": self.thread._meta.model_name,
+                "object_id": self.thread.id,
+                "content_type": self.thread._meta.model_name,
                 "recipient": self.recipient.id,
             },
         )

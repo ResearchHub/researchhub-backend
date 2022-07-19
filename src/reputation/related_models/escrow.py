@@ -15,7 +15,7 @@ from utils.models import DefaultModel
 def get_current_term():
     from reputation.related_models.term import Term
 
-    RH_PCT = 0.01
+    RH_PCT = 0.07
     DAO_PCT = 0.01
 
     term = Term.objects.last()
@@ -46,6 +46,7 @@ class Escrow(DefaultModel):
 
     hold_type = models.CharField(choices=hold_type_choices, max_length=16)
     amount = models.DecimalField(default=0, decimal_places=10, max_digits=19)
+    amount_paid = models.DecimalField(default=0, decimal_places=10, max_digits=19)
     recipient = models.ForeignKey(
         "user.User",
         null=True,
@@ -101,9 +102,12 @@ class Escrow(DefaultModel):
         return math.ceil(rh_amount + dao_amount)
 
     def _get_net_payout(self, payout_amount, escrow_amount):
-        fee_amount = self._deduct_fee_from_payout(payout_amount)
-        net_payout = payout_amount - fee_amount
-        refund_amount = escrow_amount - net_payout - fee_amount
+        # fee_amount = self._deduct_fee_from_payout(payout_amount)
+        # net_payout = payout_amount - fee_amount
+        # refund_amount = escrow_amount - net_payout - fee_amount
+
+        net_payout = payout_amount
+        refund_amount = escrow_amount - net_payout
         return net_payout, refund_amount
 
     def payout(self, payout_amount=None):
@@ -132,6 +136,7 @@ class Escrow(DefaultModel):
         if record.distributed_status == "FAILED":
             return False
 
+        self.amount_paid = net_payout
         if status == self.PARTIALLY_PAID:
             self.refund(refund_amount)
         else:

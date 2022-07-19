@@ -2,7 +2,9 @@
 
 from reputation.serializers.bounty_serializer import (
     BountySerializer,
+    BountySolutionSerializer,
     DynamicBountySerializer,
+    DynamicBountySolutionSerializer,
 )
 from reputation.serializers.contribution_serializer import (
     ContributionSerializer,
