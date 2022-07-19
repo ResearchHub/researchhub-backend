@@ -25,12 +25,25 @@ class BaseComment(AbstractGenericReactionModel):
     CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS["PROGRESS"]
     CREATED_LOCATION_CHOICES = [(CREATED_LOCATION_PROGRESS, "Progress")]
 
+    DISCUSSION = "DISCUSSION"
+    SUMMARY = "SUMMARY"
+    REVIEW = "REVIEW"
+    ANSWER = "ANSWER"
+
+    DISCUSSION_TYPE_CHOICES = (
+        (DISCUSSION, DISCUSSION),
+        (SUMMARY, SUMMARY),
+        (REVIEW, REVIEW),
+        (ANSWER, ANSWER),
+    )
+
     created_by = models.ForeignKey(
         "user.User",
         on_delete=models.SET_NULL,
         blank=True,
         null=True,
     )
+
     created_date = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_date = models.DateTimeField(auto_now=True)
     created_location = models.CharField(
@@ -39,6 +52,9 @@ class BaseComment(AbstractGenericReactionModel):
         default=None,
         null=True,
         blank=True,
+    )
+    discussion_type = models.CharField(
+        default=DISCUSSION, choices=DISCUSSION_TYPE_CHOICES, max_length=16
     )
     was_edited = models.BooleanField(default=False, help_text=HELP_TEXT_WAS_EDITED)
     is_public = models.BooleanField(default=True, help_text=HELP_TEXT_IS_PUBLIC)
