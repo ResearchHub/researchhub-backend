@@ -385,7 +385,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "id", "score"
         )
         docs_to_score_map = {d["id"]: d["score"] for d in docs_in_cache}
-
         for doc in cache_hit["results"]:
             doc.score = docs_to_score_map[doc["id"]]
 
@@ -395,7 +394,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     documents[0]["score"] = docs_to_score_map[doc["id"]]
                 elif isinstance(documents, dict):
                     documents["score"] = docs_to_score_map[doc["id"]]
-
         return cache_hit
 
     def _get_subscribed_unified_documents(self, request):
@@ -464,7 +462,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 next_page = None
             else:
                 next_page = replace_query_param(next_page, "page", 2)
-
             res = {
                 "count": len(all_documents),
                 "next": next_page,

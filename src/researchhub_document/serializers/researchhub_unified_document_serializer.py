@@ -108,7 +108,8 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         context = self.context
         _context_fields = context.get("doc_duds_get_documents", {})
         doc_type = unified_doc.document_type
-        if doc_type in [DISCUSSION, ELN]:
+
+        if doc_type in [DISCUSSION, ELN, QUESTION]:
             return DynamicPostSerializer(
                 unified_doc.posts, many=True, context=context, **_context_fields
             ).data
