@@ -35,6 +35,7 @@ QUEUE_PURCHASES = "purchases"
 QUEUE_CONTRIBUTIONS = "contributions"
 QUEUE_AUTHOR_CLAIM = "author_claim"
 QUEUE_PAPER_METADATA = "paper_metadata"
+QUEUE_BOUNTY_NOTIFICATIONS = "bounty_notifications"
 
 
 # Celery Debug/Test Functions

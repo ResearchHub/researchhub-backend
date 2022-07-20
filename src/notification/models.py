@@ -7,11 +7,10 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from user.models import Action, User
 
-# Create your models here.
-
 
 class Notification(models.Model):
     read = models.BooleanField(default=False)
+    message = models.TextField(blank=True, null=True)
 
     unified_document = models.ForeignKey(
         ResearchhubUnifiedDocument,

@@ -1,0 +1,37 @@
+{% load inlinecss %}
+{% load l10n %}
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title></title>
+        <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+    </head>
+    {% inlinecss "notification_email.css" %}
+    <body>
+      <div class="email-container">
+        <div class="email-header">
+          <img class="img-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png" />
+          <div class="header">
+            {{ subject }}
+          </div>
+        </div>
+          <div class="content">
+            <div class="body">
+              {{ message }}
+            </div>
+            <div class="hubtags-list">
+              <a class="button-label" href="{{ frontend_view_link }}">
+                View Your Bounty
+              </a>
+            </div>
+            <div class="divider">
+              <div class="line"></div>
+            </div>
+          </div>
+      <div class="footer">
+        <a href="{{opt_out}}">Unsubscribe or change how frequently I get updated</a>
+      </div>
+    </body>
+</html>
+
+{% endinlinecss %}
