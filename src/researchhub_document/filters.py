@@ -10,6 +10,7 @@ from researchhub_document.related_models.constants.document_type import (
     NOTE,
     PAPER,
     POSTS,
+    QUESTION,
 )
 from researchhub_document.utils import get_date_ranges_by_time_scope
 
@@ -18,6 +19,7 @@ DOC_CHOICES = (
     ("paper", "Papers"),
     ("posts", "Posts"),
     ("hypothesis", "Hypothesis"),
+    ("questions", "Questions"),
 )
 UNIFIED_DOCUMENT_FILTER_CHOICES = (
     ("removed", "Removed"),
@@ -57,10 +59,13 @@ class UnifiedDocumentFilter(filters.FilterSet):
 
     def document_type_filter(self, qs, name, value):
         value = value.upper()
+
         if value == PAPER:
             qs = qs.filter(document_type=PAPER)
         elif value == POSTS:
             qs = qs.filter(document_type__in=[DISCUSSION, ELN])
+        elif value == "QUESTIONS":
+            qs = qs.filter(document_type=QUESTION)
         elif value == HYPOTHESIS:
             qs = qs.filter(document_type=HYPOTHESIS).prefetch_related(
                 "hypothesis__votes", "hypothesis__citations"

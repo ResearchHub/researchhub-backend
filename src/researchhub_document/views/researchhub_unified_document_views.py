@@ -319,6 +319,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         is_anonymous = request.user.is_anonymous
         query_params = request.query_params
         subscribed_hubs = query_params.get("subscribed_hubs", "false")
+        special_doc_filter = query_params.get("special_doc_filter", None)
         time_scope = query_params.get("time", "today")
 
         if subscribed_hubs == "true" and not is_anonymous:
