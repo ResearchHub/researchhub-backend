@@ -578,7 +578,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         user = request.user
         response = {
             "hypothesis": {},
-            "papers": {},
+            "paper": {},
             "posts": {},
         }
 
@@ -590,7 +590,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 )
                 for vote in paper_votes.iterator():
                     paper_id = vote.object_id
-                    response["papers"][paper_id] = GrmVoteSerializer(instance=vote).data
+                    response["paper"][paper_id] = GrmVoteSerializer(instance=vote).data
             if post_ids:
                 post_votes = get_user_votes(
                     user, post_ids, ContentType.objects.get_for_model(ResearchhubPost)
