@@ -29,6 +29,10 @@ def migrate_author_rsc_to_escrow(apps, schema_editor):
         )
 
 
+def create_default_term(apps, schema_editor):
+    reputation.related_models.escrow.get_current_term()
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -92,4 +96,5 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.RunPython(migrate_author_rsc_to_escrow),
+        migrations.RunPython(create_default_term),
     ]

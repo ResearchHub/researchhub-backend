@@ -16,7 +16,7 @@ def get_current_term():
     from reputation.related_models.term import Term
 
     RH_PCT = 0.07
-    DAO_PCT = 0.01
+    DAO_PCT = 0.02
 
     term = Term.objects.last()
     if term:
