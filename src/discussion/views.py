@@ -2,11 +2,10 @@ import base64
 import hashlib
 
 from django.contrib.admin.options import get_content_type_for_model
-from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from rest_framework import status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
@@ -510,19 +509,3 @@ class CommentFileUpload(viewsets.ViewSet):
 
             url = url.split("?AWSAccessKeyId")[0]
             return Response(url, status=res_status)
-
-
-# TODO: Permissions
-@api_view(http_method_names=["post"])
-@permission_classes([IsAuthenticated])
-def set_discussion_type(request):
-    data = request.data
-    content_type = data.get("content_type")
-    object_id = data.get("object_id")
-    discussion_type = data.get("discussion_type")
-
-    model = ContentType.objects.get(model=content_type).model_class()
-    obj = model.objects.get(id=object_id)
-    obj.discussion_type = discussion_type
-    obj.save()
-    return Response(status=200)

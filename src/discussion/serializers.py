@@ -413,7 +413,6 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
             "was_edited",
         ]
         read_only_fields = [
-            "discussion_type",
             "document_meta",
             "is_created_by_editor",
             "is_public",
@@ -523,7 +522,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
             "was_edited",
         ]
         read_only_fields = [
-            "discussion_type",
             "document_meta",
             "is_created_by_editor",
             "is_public",
@@ -663,7 +661,6 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
             "updated_date",
         ]
         read_only_fields = [
-            "discussion_type",
             "document_meta",
             "is_created_by_editor",
             "is_public",
