@@ -24,19 +24,6 @@ HELP_TEXT_IS_REMOVED = "Hides the comment because it is not allowed."
 class BaseComment(AbstractGenericReactionModel):
     CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS["PROGRESS"]
     CREATED_LOCATION_CHOICES = [(CREATED_LOCATION_PROGRESS, "Progress")]
-
-    DISCUSSION = "DISCUSSION"
-    SUMMARY = "SUMMARY"
-    REVIEW = "REVIEW"
-    ANSWER = "ANSWER"
-
-    DISCUSSION_TYPE_CHOICES = (
-        (DISCUSSION, DISCUSSION),
-        (SUMMARY, SUMMARY),
-        (REVIEW, REVIEW),
-        (ANSWER, ANSWER),
-    )
-
     created_by = models.ForeignKey(
         "user.User",
         on_delete=models.SET_NULL,
@@ -53,13 +40,9 @@ class BaseComment(AbstractGenericReactionModel):
         null=True,
         blank=True,
     )
-    discussion_type = models.CharField(
-        default=DISCUSSION, choices=DISCUSSION_TYPE_CHOICES, max_length=16
-    )
     was_edited = models.BooleanField(default=False, help_text=HELP_TEXT_WAS_EDITED)
     is_public = models.BooleanField(default=True, help_text=HELP_TEXT_IS_PUBLIC)
     is_removed = models.BooleanField(default=False, help_text=HELP_TEXT_IS_REMOVED)
-    is_solution = models.BooleanField(default=False)
     ip_address = models.GenericIPAddressField(unpack_ipv4=True, blank=True, null=True)
     text = JSONField(blank=True, null=True)
     external_metadata = JSONField(null=True)
