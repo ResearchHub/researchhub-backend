@@ -530,7 +530,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
             "score",
             "source",
             "text",
-            "thread_type",
             "title",
             "unified_document",
             "user_flag",

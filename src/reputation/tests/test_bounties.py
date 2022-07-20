@@ -217,3 +217,13 @@ class BountyViewTests(APITestCase):
 
         self.assertGreater(recipient_balance, initial_recipient_balance)
         self.assertGreater(initial_user_balance, user_balance)
+
+    def test_user_can_cancel_bounty(self):
+        self.client.force_authenticate(self.user)
+
+        bounty_1 = self.test_user_can_create_bounty()
+        approve_bounty_res_1 = self.client.post(
+            f"/api/bounty/{bounty_1.data['id']}/cancel_bounty/",
+        )
+
+        self.assertEqual(approve_bounty_res_1.status_code, 200)

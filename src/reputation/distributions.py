@@ -220,6 +220,16 @@ def create_purchase_distribution(user, amount, paper=None, purchaser=None):
     return Distribution("PURCHASE", distribution_amount, False)
 
 
+def create_bounty_rh_fee_distribution(amount):
+    distribution = Distribution("BOUNTY_RH_FEE", amount, give_rep=False)
+    return distribution
+
+
+def create_bounty_dao_fee_distribution(amount):
+    distribution = Distribution("BOUNTY_DAO_FEE", amount, give_rep=False)
+    return distribution
+
+
 def create_bounty_distriution(amount):
     distribution = Distribution("BOUNTY_PAYOUT", amount, give_rep=False)
     return distribution
