@@ -1,4 +1,4 @@
-from django.db.models import Count, Q
+from django.db.models import Case, Count, IntegerField, Q, Value, When
 from django_filters import rest_framework as filters
 
 from hub.models import Hub
@@ -20,6 +20,13 @@ DOC_CHOICES = (
     ("posts", "Posts"),
     ("hypothesis", "Hypothesis"),
     ("questions", "Questions"),
+)
+BOUNTY_CHOICES = (
+    ("all", "All"),
+    ("open", "Open"),
+    ("cancelled", "Cancelled"),
+    ("expired", "Expired"),
+    ("closed", "Closed"),
 )
 UNIFIED_DOCUMENT_FILTER_CHOICES = (
     ("removed", "Removed"),
@@ -51,6 +58,11 @@ class UnifiedDocumentFilter(filters.FilterSet):
     subscribed_hubs = filters.BooleanFilter(
         method="subscribed_filter",
         label="Subscribed Hubs",
+    )
+    bounties = filters.ChoiceFilter(
+        field_name="bounties",
+        method="bounty_type_filter",
+        choices=BOUNTY_CHOICES,
     )
 
     class Meta:
@@ -267,4 +279,31 @@ class UnifiedDocumentFilter(filters.FilterSet):
             user = self.request.user
             hub_ids = user.subscribed_hubs.values_list("id", flat=True)
             qs = qs.filter(hubs__in=hub_ids)
+        return qs
+
+    def bounty_type_filter(self, qs, name, value):
+        if value == "all":
+            qs = qs.filter(bounties__isnull=False)
+        else:
+            qs = qs.filter(**{f"{name}__status": value.upper()})
+        qs = qs.annotate(
+            bounty_ordering=Case(
+                When(
+                    bounties__status="OPEN", then=Value(1, output_field=IntegerField())
+                ),
+                When(
+                    bounties__status="CANCELLED",
+                    then=Value(2, output_field=IntegerField()),
+                ),
+                When(
+                    bounties__status="EXPIRED",
+                    then=Value(3, output_field=IntegerField()),
+                ),
+                When(
+                    bounties__status="CLOSED",
+                    then=Value(4, output_field=IntegerField()),
+                ),
+            )
+        )
+        qs = qs.distinct().order_by("bounty_ordering")
         return qs
