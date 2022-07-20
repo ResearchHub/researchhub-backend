@@ -59,7 +59,6 @@ class BaseComment(AbstractGenericReactionModel):
     was_edited = models.BooleanField(default=False, help_text=HELP_TEXT_WAS_EDITED)
     is_public = models.BooleanField(default=True, help_text=HELP_TEXT_IS_PUBLIC)
     is_removed = models.BooleanField(default=False, help_text=HELP_TEXT_IS_REMOVED)
-    is_solution = models.BooleanField(default=False)
     ip_address = models.GenericIPAddressField(unpack_ipv4=True, blank=True, null=True)
     text = JSONField(blank=True, null=True)
     external_metadata = JSONField(null=True)
