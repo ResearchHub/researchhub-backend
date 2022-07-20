@@ -30,7 +30,7 @@ class BaseComment(AbstractGenericReactionModel):
     REVIEW = "REVIEW"
     ANSWER = "ANSWER"
 
-    DISCUSSION_POST_TYPE_CHOICES = (
+    DISCUSSION_TYPE_CHOICES = (
         (DISCUSSION, DISCUSSION),
         (SUMMARY, SUMMARY),
         (REVIEW, REVIEW),
@@ -53,8 +53,8 @@ class BaseComment(AbstractGenericReactionModel):
         null=True,
         blank=True,
     )
-    discussion_post_type = models.CharField(
-        default=DISCUSSION, choices=DISCUSSION_POST_TYPE_CHOICES, max_length=16
+    discussion_type = models.CharField(
+        default=DISCUSSION, choices=DISCUSSION_TYPE_CHOICES, max_length=16
     )
     was_edited = models.BooleanField(default=False, help_text=HELP_TEXT_WAS_EDITED)
     is_public = models.BooleanField(default=True, help_text=HELP_TEXT_IS_PUBLIC)
@@ -210,11 +210,6 @@ class Thread(BaseComment):
     INLINE_PAPER_BODY = "inline_paper_body"
     RESEARCHHUB = "researchhub"
 
-    DISCUSSION = "DISCUSSION"
-    SUMMARY = "SUMMARY"
-    REVIEW = "REVIEW"
-    ANSWER = "ANSWER"
-
     THREAD_SOURCE_CHOICES = (
         (CITATION_COMMENT, "Citation Comment"),
         (INLINE_ABSTRACT, "Inline Abstract"),
@@ -222,18 +217,8 @@ class Thread(BaseComment):
         (RESEARCHHUB, "researchhub"),
     )
 
-    THREAD_TYPE_CHOICES = (
-        (DISCUSSION, DISCUSSION),
-        (SUMMARY, SUMMARY),
-        (REVIEW, REVIEW),
-        (ANSWER, ANSWER),
-    )
-
     source = models.CharField(
         default=RESEARCHHUB, choices=THREAD_SOURCE_CHOICES, max_length=32
-    )
-    thread_type = models.CharField(
-        default=DISCUSSION, choices=THREAD_TYPE_CHOICES, max_length=16
     )
     block_key = models.CharField(max_length=255, null=True, blank=True)
     context_title = models.TextField(
