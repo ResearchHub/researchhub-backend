@@ -1,4 +1,5 @@
 import decimal
+import time
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -8,6 +9,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from purchase.models import Balance
+from reputation.distributions import (
+    create_bounty_dao_fee_distribution,
+    create_bounty_rh_fee_distribution,
+)
+from reputation.distributor import Distributor
 from reputation.models import Bounty, Escrow, Term
 from reputation.permissions import UserBounty
 from reputation.serializers import (
@@ -16,6 +22,7 @@ from reputation.serializers import (
     DynamicBountySerializer,
     EscrowSerializer,
 )
+from user.models import User
 from utils.permissions import CreateOnly
 
 
@@ -26,11 +33,50 @@ class BountyViewSet(viewsets.ModelViewSet):
     ALLOWED_CREATE_CONTENT_TYPES = ("researchhubunifieddocument",)
     ALLOWED_APPROVE_CONTENT_TYPES = ("thread", "comment", "reply")
 
+    def _get_rh_fee_recipient(self):
+        user = User.objects.filter(email="placeholder_1@researchhub.com")
+        if user.exists():
+            return user.first()
+
+        user = User.objects.filter(email="bank@researchhub.com")
+        if user.exists():
+            return user.first()
+        return User.objects.get(id=1)
+
+    def _get_dao_fee_recipient(self):
+        user = User.objects.filter(email="placeholder_2@researchhub.com")
+        if user.exists():
+            return user.first()
+
+        user = User.objects.filter(email="bank@researchhub.com")
+        if user.exists():
+            return user.first()
+        return User.objects.get(id=1)
+
     def _deduct_fee(self, user, gross_amount):
         current_term = Term.objects.last()
         rh_pct = current_term.rh_pct
-        fee = gross_amount * rh_pct
+        dao_pct = current_term.dao_pct
+        rh_fee = gross_amount * rh_pct
+        dao_fee = gross_amount * dao_pct
+        fee = rh_fee + dao_fee
         net_amount = gross_amount - fee
+
+        rh_recipient = self._get_rh_fee_recipient()
+        dao_recipient = self._get_dao_fee_recipient()
+        rh_fee_distribution = create_bounty_rh_fee_distribution(rh_fee)
+        dao_fee_distribution = create_bounty_dao_fee_distribution(dao_fee)
+        distributor_1 = Distributor(
+            rh_fee_distribution, rh_recipient, current_term, time.time(), giver=user
+        )
+        record_1 = distributor_1.distribute()
+        distributor_2 = Distributor(
+            dao_fee_distribution, dao_recipient, current_term, time.time(), giver=user
+        )
+        record_2 = distributor_2.distribute()
+
+        if not (record_1 and record_2):
+            raise Exception("Failed to deduct fee")
         return net_amount, fee
 
     def _get_create_context(self):
