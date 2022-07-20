@@ -30,7 +30,7 @@ class BaseComment(AbstractGenericReactionModel):
     REVIEW = "REVIEW"
     ANSWER = "ANSWER"
 
-    DISCUSSION_TYPE_CHOICES = (
+    DISCUSSION_POST_TYPE_CHOICES = (
         (DISCUSSION, DISCUSSION),
         (SUMMARY, SUMMARY),
         (REVIEW, REVIEW),
@@ -53,8 +53,8 @@ class BaseComment(AbstractGenericReactionModel):
         null=True,
         blank=True,
     )
-    discussion_type = models.CharField(
-        default=DISCUSSION, choices=DISCUSSION_TYPE_CHOICES, max_length=16
+    discussion_post_type = models.CharField(
+        default=DISCUSSION, choices=DISCUSSION_POST_TYPE_CHOICES, max_length=16
     )
     was_edited = models.BooleanField(default=False, help_text=HELP_TEXT_WAS_EDITED)
     is_public = models.BooleanField(default=True, help_text=HELP_TEXT_IS_PUBLIC)
