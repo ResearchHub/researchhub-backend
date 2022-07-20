@@ -5,6 +5,7 @@ from datetime import timedelta
 
 import boto3
 import pytz
+from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -27,7 +28,7 @@ from researchhub.celery import (
     app,
 )
 from researchhub.settings import BASE_FRONTEND_URL
-from researchhub_document.models import Post, ResearchhubUnifiedDocument
+from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from summary.models import Summary
 from utils.message import send_email_message
 from utils.sentry import log_info
@@ -72,7 +73,9 @@ def send_bounty_notifications():
         notification.send_notification()
         inner_subject = "Your Bounty is Expiring"
         frontend_view_link = BASE_FRONTEND_URL
-        if bounty.item_content_type == ContentType.objects.get_for_model(Post):
+        if bounty.item_content_type == ContentType.objects.get_for_model(
+            ResearchhubPost
+        ):
             frontend_view_link += "/post/{}/{}".format(bounty.item.id, bounty.item.slug)
         context = build_notification_context(
             notification.message, inner_subject, frontend_view_link
