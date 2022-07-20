@@ -215,6 +215,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "uploaded_date",
                 ]
             },
+            "doc_duds_get_bounties": {
+                "_include_fields": [
+                    "amount",
+                    "id",
+                    "status",
+                ]
+            },
             "doc_dps_get_hubs": {
                 "_include_fields": [
                     "id",
@@ -284,12 +291,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "slug",
                     "is_removed",
                     "hub_image",
-                ]
-            },
-            "dis_dts_get_bounties": {
-                "_include_fields": [
-                    "amount",
-                    "status",
                 ]
             },
         }

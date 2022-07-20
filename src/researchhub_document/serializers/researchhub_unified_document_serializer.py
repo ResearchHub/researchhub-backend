@@ -157,14 +157,11 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         # return None
 
     def get_bounties(self, unified_doc):
-        doc = unified_doc.get_document()
-        if not hasattr(doc, "threads"):
-            return None
+        from reputation.serializers import DynamicBountySerializer
 
-        thread_ids = doc.threads.values_list("id")
-        bounties = Bounty.objects.filter(
-            item_content_type__model="thread",
-            item_object_id__in=thread_ids,
-            status=Bounty.OPEN,
-        ).values_list("amount", flat=True)
-        return bounties
+        context = self.context
+        _context_fields = context.get("doc_duds_get_bounties", {})
+        serializer = DynamicBountySerializer(
+            unified_doc.bounties, many=True, context=context, **_context_fields
+        )
+        return serializer.data
