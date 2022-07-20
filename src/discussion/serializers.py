@@ -390,6 +390,7 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
             "created_by",
             "created_date",
             "created_location",
+            "discussion_type",
             "document_meta",
             "external_metadata",
             "id",
@@ -493,6 +494,7 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
             "created_by",
             "created_date",
             "created_location",
+            "discussion_type",
             "document_meta",
             "entity_key",
             "external_metadata",
@@ -636,6 +638,7 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
         fields = [
             "created_by",
             "created_location",
+            "discussion_type",
             "document_meta",
             "id",
             "is_created_by_editor",
