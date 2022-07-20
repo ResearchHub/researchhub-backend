@@ -9,11 +9,12 @@ from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Term
-from user.tests.helpers import create_moderator, create_random_default_user
+from user.tests.helpers import create_moderator, create_random_default_user, create_user
 
 
 class BountyViewTests(APITestCase):
     def setUp(self):
+        self.bank_user = create_user(email="bank@researchhub.com")
         self.user = create_random_default_user("bounty_user")
         self.recipient = create_random_default_user("bounty_recipient")
         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
