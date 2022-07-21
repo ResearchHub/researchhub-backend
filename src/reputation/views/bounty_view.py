@@ -139,7 +139,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             )
             Balance.objects.create(
                 user=user,
-                content_type=ContentType.objects.get_for_model(Bounty),
+                content_type=ContentType.objects.get_for_model(Term),
                 object_id=bounty.id,
                 amount=f"-{amount_str}",
             )
