@@ -2,11 +2,10 @@ import base64
 import hashlib
 
 from django.contrib.admin.options import get_content_type_for_model
-from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from rest_framework import status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
@@ -194,11 +193,13 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         threads = (
             threads.filter(is_removed=is_removed)
             .filter(created_by__isnull=False)
+            .annotate(
+                ordering_score=ORDERING_SCORE_ANNOTATION,
+            )
             .order_by("-ordering_score", "created_date")
         )
         return threads.prefetch_related("paper")
 
-    # Deprecated, delete?
     @action(
         detail=False, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
     )
