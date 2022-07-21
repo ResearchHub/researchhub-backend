@@ -123,6 +123,7 @@ class BountyViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             net_amount, fee, current_bounty_fee = self._add_fee(user, amount)
+            net_amount = net_amount.quantize(decimal.Decimal(10) ** -17)
             content_type_id = ContentType.objects.get(model=item_content_type).id
             escrow_data = {
                 "created_by": user.id,
