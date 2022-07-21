@@ -1,4 +1,8 @@
-from rest_framework.serializers import ModelSerializer, SerializerMethodField
+from rest_framework.serializers import (
+    ModelSerializer,
+    ReadOnlyField,
+    SerializerMethodField,
+)
 
 from discussion.reaction_models import Vote
 from discussion.reaction_serializers import (
@@ -27,7 +31,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
             "authors",
-            "id",
+            "boost_amount",
             "created_by",
             "created_date",
             "discussion_count",
@@ -35,20 +39,21 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "doi",
             "editor_type",
             "full_markdown",
+            "has_accepted_answer",
             "hubs",
+            "id",
             "is_latest_version",
+            "is_removed",
             "is_root_version",
             "note",
             "post_src",
             "preview_img",
             "renderable_text",
-            "title",
             "slug",
+            "title",
             "unified_document_id",
             "unified_document",
             "version_number",
-            "boost_amount",
-            "is_removed",
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
@@ -78,12 +83,13 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     authors = SerializerMethodField()
     created_by = SerializerMethodField(method_name="get_created_by")
     full_markdown = SerializerMethodField(method_name="get_full_markdown")
+    has_accepted_answer = ReadOnlyField()  # @property
     hubs = SerializerMethodField(method_name="get_hubs")
+    is_removed = SerializerMethodField()
     note = SerializerMethodField()
     post_src = SerializerMethodField(method_name="get_post_src")
-    is_removed = SerializerMethodField()
-    unified_document_id = SerializerMethodField(method_name="get_unified_document_id")
     unified_document = SerializerMethodField()
+    unified_document_id = SerializerMethodField(method_name="get_unified_document_id")
 
     def get_authors(self, post):
 
@@ -199,6 +205,7 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     authors = SerializerMethodField()
     boost_amount = SerializerMethodField()
     created_by = SerializerMethodField()
+    has_accepted_answer = ReadOnlyField()  # @property
     hubs = SerializerMethodField()
     note = SerializerMethodField()
     score = SerializerMethodField()

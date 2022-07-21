@@ -21,6 +21,7 @@ from discussion.permissions import (
     FlagDiscussionComment,
     FlagDiscussionReply,
     FlagDiscussionThread,
+    IsOriginalQuestionPoster,
     UpdateDiscussionComment,
     UpdateDiscussionReply,
     UpdateDiscussionThread,
@@ -225,6 +226,30 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     )
     def downvote(self, *args, **kwargs):
         return super().downvote(*args, **kwargs)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsOriginalQuestionPoster],
+    )
+    def mark_as_accepted_answer(self, *args, **kwargs):
+        try:
+            document_id = get_document_id_from_path(self.request)
+            target_post_question = ResearchhubPost.objects.get(id=document_id)
+
+            # logical ordering - DO NOT CHANGE THE ORDER OF OPERATIONS
+            target_thread = self.get_object()
+            target_thread.is_accepted_answer = True
+            target_thread.save()
+
+            current_accepted_answer = target_post_question.get_accepted_answer()
+            if current_accepted_answer is not None:
+                current_accepted_answer.is_accepted_answer = False
+                current_accepted_answer.save()
+
+            return Response({"thread_id": target_thread.id}, status=200)
+        except Exception as exception:
+            return Response(str(exception), status=400)
 
 
 class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):

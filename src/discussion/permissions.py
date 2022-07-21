@@ -4,6 +4,7 @@ from hypothesis.models import Citation
 from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
 from researchhub.lib import get_document_id_from_path
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.models import Author
 from utils.permissions import (
     AuthorizationBasedPermission,
@@ -152,3 +153,17 @@ class Endorse(AuthorizationBasedPermission):
         return (author in paper.authors.all()) or (
             request.user in paper.moderators.all()
         )
+
+
+class IsOriginalQuestionPoster(AuthorizationBasedPermission):
+    message = "Unable to find target Question post or mismatching OP"
+
+    def is_authorized(self, request, view, obj):
+        requestor = request.user
+        document_id = get_document_id_from_path(request)
+        try:
+            target_post_question = ResearchhubPost.objects.get(id=document_id)
+            # intentionally checking id since object references may differ
+            return target_post_question.created_by.id == requestor.id
+        except Exception as e:
+            return False
