@@ -75,6 +75,12 @@ class BaseComment(AbstractGenericReactionModel):
         content_type_field="content_type",
         related_query_name="discussion",
     )
+    bounty_solution = GenericRelation(
+        "reputation.BountySolution",
+        object_id_field="object_id",
+        content_type_field="content_type",
+        related_query_name="discussion",
+    )
 
     class Meta:
         abstract = True

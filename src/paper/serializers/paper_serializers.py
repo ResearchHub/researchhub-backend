@@ -834,7 +834,7 @@ class DynamicPaperSerializer(
             bounties,
             many=True,
             context=context,
-            _include_fields=("amount", "created_by", "status"),
+            _include_fields=("amount", "created_by", "expiration_date", "id", "status"),
         )
         return serializer.data
 

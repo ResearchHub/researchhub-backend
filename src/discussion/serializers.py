@@ -478,7 +478,8 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
 
 
 class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
-    bounties = serializers.SerializerMethodField()
+    # bounties = serializers.SerializerMethodField()
+    bounty_solution = serializers.SerializerMethodField()
     created_by = MinimalUserSerializer(
         read_only=False, default=serializers.CurrentUserDefault()
     )
@@ -500,7 +501,8 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
     class Meta:
         fields = [
             "block_key",
-            "bounties",
+            # "bounties",
+            "bounty_solution",
             "citation",
             "comment_count",
             "comments",
@@ -625,6 +627,7 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
         return serializer.data
 
     def get_bounties(self, obj):
+        # Deprecated
         from reputation.serializers import DynamicBountySerializer
 
         context = {
@@ -648,8 +651,22 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
                 "amount",
                 "created_date",
                 "expiration_date",
-                "solution",
             ),
+        )
+        return serializer.data
+
+    def get_bounty_solution(self, obj):
+        from reputation.serializers import DynamicBountySolutionSerializer
+
+        context = {
+            "rep_dbs_get_escrow": {"_include_fields": ("amount_paid",)},
+            "rep_dbss_get_bounty": {"_include_fields": ("escrow",)},
+        }
+        serializer = DynamicBountySolutionSerializer(
+            obj.bounty_solution.all(),
+            context=context,
+            _include_fields=("bounty",),
+            many=True,
         )
         return serializer.data
 

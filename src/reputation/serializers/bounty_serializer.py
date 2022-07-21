@@ -6,6 +6,7 @@ from discussion.serializers import (
     DynamicThreadSerializer,
 )
 from reputation.models import Bounty, BountySolution
+from reputation.serializers.escrow_serializer import DynamicEscrowSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicUserSerializer
@@ -48,6 +49,7 @@ class BountySolutionSerializer(serializers.ModelSerializer):
 
 class DynamicBountySerializer(DynamicModelFieldSerializer):
     created_by = serializers.SerializerMethodField()
+    escrow = serializers.SerializerMethodField()
     item = serializers.SerializerMethodField()
     solutions = serializers.SerializerMethodField()
 
@@ -85,6 +87,14 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
             return serializer.data
         return None
 
+    def get_escrow(self, bounty):
+        context = self.context
+        _context_fields = context.get("rep_dbs_get_escrow", {})
+        serializer = DynamicEscrowSerializer(
+            bounty.escrow, context=context, **_context_fields
+        )
+        return serializer.data
+
     def get_solutions(self, bounty):
         return None
         serializer = None
@@ -121,6 +131,16 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
 
 
 class DynamicBountySolutionSerializer(DynamicModelFieldSerializer):
+    bounty = serializers.SerializerMethodField()
+
     class Meta:
         model = BountySolution
         fields = "__all__"
+
+    def get_bounty(self, solution):
+        context = self.context
+        _context_fields = context.get("rep_dbss_get_bounty", {})
+        serializer = DynamicBountySerializer(
+            solution.bounty, context=context, **_context_fields
+        )
+        return serializer.data
