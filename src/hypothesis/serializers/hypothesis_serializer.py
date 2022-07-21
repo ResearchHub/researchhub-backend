@@ -100,7 +100,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
         }
         thread_ids = hypothesis.threads.values("id")
         bounties = Bounty.objects.filter(
-            item_content_type__model="thread",
+            item_content_type__model="researchhubunifieddocument",
             item_object_id__in=thread_ids,
         )
         serializer = DynamicBountySerializer(

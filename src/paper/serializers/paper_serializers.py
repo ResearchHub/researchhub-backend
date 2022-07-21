@@ -827,7 +827,7 @@ class DynamicPaperSerializer(
         }
         thread_ids = paper.threads.values_list("id", flat=True)
         bounties = Bounty.objects.filter(
-            item_content_type__model="thread",
+            item_content_type__model="researchhubunifieddocument",
             item_object_id__in=thread_ids,
         )
         serializer = DynamicBountySerializer(
