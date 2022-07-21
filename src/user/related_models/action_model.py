@@ -188,8 +188,7 @@ class Action(DefaultModel):
             or isinstance(item, Reply)
         ):
             doc_type = self.item.unified_document.document_type
-
-            if doc_type == "DISCUSSION":
+            if doc_type == "DISCUSSION" or doc_type == "QUESTION":
                 link += "/post/{}/{}#comments".format(item.post.id, item.post.slug)
             elif doc_type == "HYPOTHESIS":
                 link += "/hypothesis/{}/{}#comments".format(
