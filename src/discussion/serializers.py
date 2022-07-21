@@ -66,21 +66,22 @@ class DynamicThreadSerializer(
     GenericReactionSerializerMixin,
 ):
     comment_count = serializers.SerializerMethodField()
+    comments = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
+    discussion_type = serializers.SerializerMethodField()
+    is_accepted_answer = serializers.ReadOnlyField()
     is_created_by_editor = serializers.BooleanField(
         required=False,
     )
     paper = serializers.SerializerMethodField()
-    post = serializers.SerializerMethodField()
     peer_review = serializers.SerializerMethodField()
-    review = serializers.SerializerMethodField()
-    unified_document = serializers.SerializerMethodField()
-    comments = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
-    user_vote = serializers.SerializerMethodField()
-    user_flag = serializers.SerializerMethodField()
-    discussion_type = serializers.SerializerMethodField()
+    post = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
+    review = serializers.SerializerMethodField()
+    score = serializers.ReadOnlyField()  # @property
+    unified_document = serializers.SerializerMethodField()
+    user_flag = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
 
     class Meta:
         model = Thread
@@ -472,17 +473,17 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
     comment_count = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     document_meta = serializers.SerializerMethodField()
+    hypothesis_slug = serializers.SerializerMethodField()
     is_created_by_editor = serializers.BooleanField(required=False, read_only=True)
     paper_slug = serializers.SerializerMethodField()
-    post_slug = serializers.SerializerMethodField()
-    hypothesis_slug = serializers.SerializerMethodField()
-    promoted = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
     peer_review = serializers.SerializerMethodField()
+    post_slug = serializers.SerializerMethodField()
+    promoted = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
+    score = serializers.ReadOnlyField()  # @property
+    unified_document = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
-    unified_document = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -498,38 +499,40 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
             "document_meta",
             "entity_key",
             "external_metadata",
+            "hypothesis_slug",
             "hypothesis",
-            "peer_review",
-            "review",
             "id",
+            "is_accepted_answer",
             "is_created_by_editor",
             "is_public",
             "is_removed",
             "paper_slug",
-            "hypothesis_slug",
             "paper",
+            "peer_review",
             "plain_text",
             "post_slug",
             "post",
             "promoted",
+            "review",
             "score",
             "source",
             "text",
             "title",
+            "unified_document",
             "user_flag",
             "user_vote",
-            "unified_document",
             "was_edited",
         ]
         read_only_fields = [
             "document_meta",
+            "document_meta",
+            "is_accepted_answer",
             "is_created_by_editor",
             "is_public",
             "is_removed",
             "score",
             "user_flag",
             "user_vote",
-            "document_meta",
         ]
         model = Thread
 
