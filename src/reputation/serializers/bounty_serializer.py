@@ -1,4 +1,3 @@
-from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
 from discussion.serializers import (
@@ -8,7 +7,6 @@ from discussion.serializers import (
 )
 from reputation.models import Bounty, BountySolution
 from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicUserSerializer
 
@@ -17,9 +15,7 @@ class BountySerializer(serializers.ModelSerializer):
     bounty_slug = serializers.SerializerMethodField()
 
     def get_bounty_slug(self, bounty):
-        if bounty.item_content_type == ContentType.objects.get_for_model(
-            model=ResearchhubUnifiedDocument
-        ):
+        if bounty.item_content_type.model == "researchhubunifieddocument":
             if bounty.item.document_type == "DISCUSSION":
                 return "post"
             elif bounty.item.document_type == "HYPOTHESIS":
@@ -53,7 +49,7 @@ class BountySolutionSerializer(serializers.ModelSerializer):
 class DynamicBountySerializer(DynamicModelFieldSerializer):
     created_by = serializers.SerializerMethodField()
     item = serializers.SerializerMethodField()
-    solution = serializers.SerializerMethodField()
+    solutions = serializers.SerializerMethodField()
 
     class Meta:
         model = Bounty
@@ -89,10 +85,11 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
             return serializer.data
         return None
 
-    def get_solution(self, bounty):
+    def get_solutions(self, bounty):
+        return None
         serializer = None
         context = self.context
-        _context_fields = context.get("rep_dbs_get_solution", {})
+        _context_fields = context.get("rep_dbs_get_solutions", {})
         solution_content_type = bounty.solution_content_type
 
         if not solution_content_type:

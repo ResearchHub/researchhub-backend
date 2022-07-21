@@ -219,7 +219,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "doc_duds_get_bounties": {
                 "_include_fields": [
                     "amount",
+                    "created_by",
                     "id",
+                    "expiration_date",
                     "status",
                 ]
             },
@@ -294,6 +296,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "hub_image",
                 ]
             },
+            "rep_dbs_get_created_by": {"_include_fields": ["author_profile"]},
         }
         return context
 

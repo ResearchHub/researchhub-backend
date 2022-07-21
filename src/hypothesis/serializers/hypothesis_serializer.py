@@ -107,7 +107,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             bounties,
             many=True,
             context=context,
-            _include_fields=("amount", "created_by", "status"),
+            _include_fields=("amount", "created_by", "expiration_date", "status"),
         )
         return serializer.data
 

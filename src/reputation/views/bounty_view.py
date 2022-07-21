@@ -57,17 +57,17 @@ class BountyViewSet(viewsets.ModelViewSet):
             return user.first()
         return User.objects.get(id=1)
 
-    def _add_fee(self, user, gross_amount):
+    def _calculate_fees(self, gross_amount):
         current_bounty_fee = BountyFee.objects.last()
         rh_pct = current_bounty_fee.rh_pct
         dao_pct = current_bounty_fee.dao_pct
-        total_pct = rh_pct + dao_pct
-        award_rsc_without_fee = gross_amount / (1 + total_pct)
-        rh_fee = award_rsc_without_fee * rh_pct
-        dao_fee = award_rsc_without_fee * dao_pct
-        fee = rh_fee + dao_fee
-        net_amount = award_rsc_without_fee
 
+        rh_fee = gross_amount * rh_pct
+        dao_fee = gross_amount * dao_pct
+        fee = rh_fee + dao_fee
+        return fee, rh_fee, dao_fee, current_bounty_fee
+
+    def _deduct_fees(self, user, fee, rh_fee, dao_fee, current_bounty_fee):
         rh_recipient = self._get_rh_fee_recipient()
         dao_recipient = self._get_dao_fee_recipient()
         rh_fee_distribution = create_bounty_rh_fee_distribution(rh_fee)
@@ -91,7 +91,7 @@ class BountyViewSet(viewsets.ModelViewSet):
 
         if not (rh_inc_record and rh_dao_record):
             raise Exception("Failed to deduct fee")
-        return net_amount, fee, current_bounty_fee
+        return True
 
     def _get_create_context(self):
         context = {
@@ -113,7 +113,8 @@ class BountyViewSet(viewsets.ModelViewSet):
             return Response(str(e), status=400)
 
         user_balance = user.get_balance()
-        if amount <= 0 or user_balance - amount < 0:
+        fee_amount, rh_fee, dao_fee, current_bounty_fee = self._calculate_fees(amount)
+        if amount <= 0 or user_balance - (amount + fee_amount) < 0:
             return Response({"error": "Insufficient Funds"}, status=402)
         elif amount <= 50 or amount > 1000000:
             return Response({"error": "Invalid amount"}, status=400)
@@ -122,13 +123,12 @@ class BountyViewSet(viewsets.ModelViewSet):
             return Response({"error": "Invalid content type"}, status=400)
 
         with transaction.atomic():
-            net_amount, fee, current_bounty_fee = self._add_fee(user, amount)
-            net_amount = net_amount.quantize(decimal.Decimal(10) ** -10)
+            self._deduct_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
             content_type_id = ContentType.objects.get(model=item_content_type).id
             escrow_data = {
                 "created_by": user.id,
                 "hold_type": Escrow.BOUNTY,
-                "amount": net_amount,
+                "amount": amount,
                 "object_id": data.get("item_object_id", 0),
                 "content_type": content_type_id,
             }
@@ -137,15 +137,15 @@ class BountyViewSet(viewsets.ModelViewSet):
             escrow = escrow_serializer.save()
 
             data["created_by"] = user.id
-            data["amount"] = net_amount
+            data["amount"] = amount
             data["item_content_type"] = content_type_id
             data["escrow"] = escrow.id
             bounty_serializer = BountySerializer(data=data)
             bounty_serializer.is_valid(raise_exception=True)
             bounty = bounty_serializer.save()
 
-            amount_str = net_amount.to_eng_string()
-            fee_str = fee.to_eng_string()
+            amount_str = amount.to_eng_string()
+            fee_str = fee_amount.to_eng_string()
 
             Balance.objects.create(
                 user=user,

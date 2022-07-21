@@ -128,9 +128,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             },
         }
         bounties = Bounty.objects.filter(
-            item_content_type=ContentType.objects.get_for_model(
-                ResearchhubUnifiedDocument
-            ),
+            item_content_type__model="researchhubunifieddocument",
             item_object_id=post.unified_document.id,
             status=Bounty.OPEN,
         )
