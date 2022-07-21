@@ -5,7 +5,6 @@ from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from django.db.models import Case, IntegerField, Value, When
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.filters import OrderingFilter
@@ -195,20 +194,11 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         threads = (
             threads.filter(is_removed=is_removed)
             .filter(created_by__isnull=False)
-            .annotate(
-                ordering_score=ORDERING_SCORE_ANNOTATION,
-                open_bounty=Case(
-                    When(
-                        bounties__status=Bounty.OPEN,
-                        then=Value(1, output_field=IntegerField()),
-                    ),
-                    default=Value(0, output_field=IntegerField()),
-                ),
-            )
-            .order_by("-open_bounty", "-ordering_score", "created_date")
+            .order_by("-ordering_score", "created_date")
         )
         return threads.prefetch_related("paper")
 
+    # Deprecated, delete?
     @action(
         detail=False, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
     )
@@ -594,18 +584,3 @@ class CommentFileUpload(viewsets.ViewSet):
 
             url = url.split("?AWSAccessKeyId")[0]
             return Response(url, status=res_status)
-
-
-# TODO: Permissions
-@api_view(http_method_names=["post"])
-@permission_classes([IsAuthenticated])
-def set_discussion_solution(request):
-    data = request.data
-    content_type = data.get("content_type")
-    object_id = data.get("object_id")
-
-    model = ContentType.objects.get(model=content_type).model_class()
-    obj = model.objects.get(id=object_id)
-    obj.is_solution = True
-    obj.save()
-    return Response(status=200)

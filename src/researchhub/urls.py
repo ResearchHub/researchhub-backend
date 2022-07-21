@@ -314,9 +314,6 @@ urlpatterns = [
         editor_views.get_editors_by_contributions,
     ),
     path("api/reputation/distribute_rsc/", reputation.views.distribute_rsc),
-    path(
-        "discussion/set_discussion_solution", discussion.views.set_discussion_solution
-    ),
     path("api/permissions/", researchhub.views.permissions, name="permissions"),
     path("api/search/", include(search.urls)),
     path("api/auth/orcid/connect/", oauth.views.orcid_connect, name="orcid_login"),
