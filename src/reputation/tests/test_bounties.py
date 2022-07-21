@@ -8,8 +8,8 @@ from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import Term
 from user.tests.helpers import create_moderator, create_random_default_user, create_user
+from reputation.models import BountyFee
 
 
 class BountyViewTests(APITestCase):
@@ -21,7 +21,7 @@ class BountyViewTests(APITestCase):
         self.paper = create_paper()
         self.thread = create_thread(created_by=self.recipient)
         self.hub = create_hub()
-        self.term = Term.objects.create(rh_pct=0.07, dao_pct=0)
+        self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0)
         self.client.force_authenticate(self.user)
 
         distribution = Dist("REWARD", 1000000000, give_rep=False)

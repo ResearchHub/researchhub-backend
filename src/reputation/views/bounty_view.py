@@ -14,7 +14,7 @@ from reputation.distributions import (
     create_bounty_rh_fee_distribution,
 )
 from reputation.distributor import Distributor
-from reputation.models import Bounty, Escrow, Term
+from reputation.models import Bounty, BountyFee, Escrow
 from reputation.permissions import UserBounty
 from reputation.serializers import (
     BountySerializer,
@@ -54,9 +54,9 @@ class BountyViewSet(viewsets.ModelViewSet):
         return User.objects.get(id=1)
 
     def _deduct_fee(self, user, gross_amount):
-        current_term = Term.objects.last()
-        rh_pct = current_term.rh_pct
-        dao_pct = current_term.dao_pct
+        current_bounty_fee = BountyFee.objects.last()
+        rh_pct = current_bounty_fee.rh_pct
+        dao_pct = current_bounty_fee.dao_pct
         rh_fee = gross_amount * rh_pct
         dao_fee = gross_amount * dao_pct
         fee = rh_fee + dao_fee
@@ -67,17 +67,17 @@ class BountyViewSet(viewsets.ModelViewSet):
         rh_fee_distribution = create_bounty_rh_fee_distribution(rh_fee)
         dao_fee_distribution = create_bounty_dao_fee_distribution(dao_fee)
         distributor_1 = Distributor(
-            rh_fee_distribution, rh_recipient, current_term, time.time(), giver=user
+            rh_fee_distribution, rh_recipient, current_bounty_fee, time.time(), giver=user
         )
         record_1 = distributor_1.distribute()
         distributor_2 = Distributor(
-            dao_fee_distribution, dao_recipient, current_term, time.time(), giver=user
+            dao_fee_distribution, dao_recipient, current_bounty_fee, time.time(), giver=user
         )
         record_2 = distributor_2.distribute()
 
         if not (record_1 and record_2):
             raise Exception("Failed to deduct fee")
-        return net_amount, fee
+        return net_amount, current_bounty_fee
 
     def _get_create_context(self):
         context = {

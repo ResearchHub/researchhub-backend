@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from discussion.serializers import DynamicThreadSerializer
 from reputation.models import Escrow
-from reputation.serializers.term_serializer import DynamicTermSerializer
+from reputation.serializers.bounty_fee_serializer import DynamicBountyFeeSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicUserSerializer
@@ -22,7 +22,7 @@ class DynamicEscrowSerializer(DynamicModelFieldSerializer):
     created_by = serializers.SerializerMethodField()
     recipient = serializers.SerializerMethodField()
     item = serializers.SerializerMethodField()
-    term = serializers.SerializerMethodField()
+    bounty_fee = serializers.SerializerMethodField()
 
     class Meta:
         model = Escrow
@@ -66,10 +66,10 @@ class DynamicEscrowSerializer(DynamicModelFieldSerializer):
             return serializer.data
         return None
 
-    def get_term(self, escrow):
+    def get_bounty_fee(self, escrow):
         context = self.context
         _context_fields = context.get("rep_des_get_term", {})
-        serializer = DynamicTermSerializer(
+        serializer = DynamicBountyFeeSerializer(
             escrow.term, context=context, **_context_fields
         )
         return serializer.data

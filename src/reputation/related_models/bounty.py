@@ -56,6 +56,9 @@ class Bounty(DefaultModel):
             ),
         )
 
+    def __str__(self):
+        return "Bounty: {}".format(self.id)
+
     def set_status(self, status, should_save=True):
         self.status = status
         if should_save:
