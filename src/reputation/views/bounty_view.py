@@ -77,7 +77,7 @@ class BountyViewSet(viewsets.ModelViewSet):
 
         if not (record_1 and record_2):
             raise Exception("Failed to deduct fee")
-        return net_amount, current_bounty_fee
+        return net_amount, fee, current_bounty_fee
 
     def _get_create_context(self):
         context = {
@@ -108,7 +108,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             return Response({"error": "Invalid content type"}, status=400)
 
         with transaction.atomic():
-            net_amount, fee = self._deduct_fee(user, amount)
+            net_amount, fee, current_bounty_fee = self._deduct_fee(user, amount)
             content_type_id = ContentType.objects.get(model=item_content_type).id
             escrow_data = {
                 "created_by": user.id,
@@ -131,12 +131,14 @@ class BountyViewSet(viewsets.ModelViewSet):
 
             amount_str = net_amount.to_eng_string()
             fee_str = fee.to_eng_string()
+
             Balance.objects.create(
                 user=user,
-                content_type=ContentType.objects.get_for_model(Bounty),
-                object_id=bounty.id,
+                content_type=ContentType.objects.get_for_model(BountyFee),
+                object_id=current_bounty_fee.id,
                 amount=f"-{fee_str}",
             )
+
             Balance.objects.create(
                 user=user,
                 content_type=ContentType.objects.get_for_model(Term),
