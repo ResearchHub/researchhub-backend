@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
 from discussion.serializers import (
@@ -7,11 +8,29 @@ from discussion.serializers import (
 )
 from reputation.models import Bounty, BountySolution
 from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicUserSerializer
 
 
 class BountySerializer(serializers.ModelSerializer):
+    bounty_slug = serializers.SerializerMethodField()
+
+    def get_bounty_slug(self, bounty):
+        if bounty.item_content_type == ContentType.objects.get_for_model(
+            model=ResearchhubUnifiedDocument
+        ):
+            if bounty.item.document_type == "DISCUSSION":
+                return "post"
+            elif bounty.item.document_type == "HYPOTHESIS":
+                return "hypothesis"
+            elif bounty.item.document_type == "PAPER":
+                return "paper"
+            elif bounty.item.document_type == "QUESTION":
+                return "question"
+
+        return None
+
     class Meta:
         model = Bounty
         fields = "__all__"
