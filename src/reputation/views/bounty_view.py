@@ -42,13 +42,13 @@ class BountyViewSet(viewsets.ModelViewSet):
         if user.exists():
             return user.first()
 
-        user = User.objects.filter(email="community@researchhub.com")
+        user = User.objects.filter(email="bank@researchhub.com")
         if user.exists():
             return user.first()
         return User.objects.get(id=1)
 
     def _get_dao_fee_recipient(self):
-        user = User.objects.filter(email="placeholder_2@researchhub.com")
+        user = User.objects.filter(email="community@researchhub.com")
         if user.exists():
             return user.first()
 
