@@ -59,6 +59,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "unified_document_id",
             "unified_document",
             "version_number",
+            "updated_date",
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
@@ -75,6 +76,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "version_number",
             "boost_amount",
             "is_removed",
+            "updated_date",
         ]
 
     # GenericReactionSerializerMixin
