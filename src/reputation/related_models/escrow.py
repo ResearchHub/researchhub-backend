@@ -12,17 +12,17 @@ from reputation.distributions import (
 from utils.models import DefaultModel
 
 
-def get_current_term():
-    from reputation.related_models.term import Term
+def get_current_bounty_fee():
+    from reputation.related_models.bounty_fee import BountyFee
 
     RH_PCT = 0.07
     DAO_PCT = 0.02
 
-    term = Term.objects.last()
-    if term:
-        return term.id
-    term = Term.objects.create(rh_pct=RH_PCT, dao_pct=DAO_PCT)
-    return term.id
+    bounty_fee = BountyFee.objects.last()
+    if bounty_fee:
+        return bounty_fee.id
+    bounty_fee = BountyFee.objects.create(rh_pct=RH_PCT, dao_pct=DAO_PCT)
+    return bounty_fee.id
 
 
 class Escrow(DefaultModel):
@@ -68,8 +68,8 @@ class Escrow(DefaultModel):
         "object_id",
     )
     status = models.CharField(choices=status_choices, default=PENDING, max_length=16)
-    term = models.ForeignKey(
-        "reputation.term", on_delete=models.CASCADE, default=get_current_term
+    bounty_fee = models.ForeignKey(
+        "reputation.BountyFee", on_delete=models.CASCADE, default=get_current_bounty_fee
     )
 
     class Meta:
@@ -93,9 +93,9 @@ class Escrow(DefaultModel):
         self.set_status(self.PENDING, should_save=should_save)
 
     def _deduct_fee_from_payout(self, payout_amount):
-        term = self.term
-        rh_pct = term.rh_pct
-        dao_pct = term.dao_pct
+        bounty_fee = self.bounty_fee
+        rh_pct = bounty_fee.rh_pct
+        dao_pct = bounty_fee.dao_pct
 
         rh_amount = payout_amount * rh_pct
         dao_amount = payout_amount * dao_pct

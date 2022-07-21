@@ -1,5 +1,9 @@
 # flake8: noqa
 
+from reputation.serializers.bounty_fee_serializer import (
+    BountyFeeSerializer,
+    DynamicBountyFeeSerializer,
+)
 from reputation.serializers.bounty_serializer import (
     BountySerializer,
     BountySolutionSerializer,
@@ -16,5 +20,4 @@ from reputation.serializers.escrow_serializer import (
     DynamicEscrowSerializer,
     EscrowSerializer,
 )
-from reputation.serializers.term_serializer import DynamicTermSerializer, TermSerializer
 from reputation.serializers.withdrawal_serializer import WithdrawalSerializer

@@ -18,8 +18,12 @@ from discussion.serializers import (
 )
 from paper.serializers import BasePaperSerializer, DynamicPaperSerializer
 from purchase.models import AggregatePurchase, Balance, Purchase, Support, Wallet
-from reputation.models import Distribution, Withdrawal
-from reputation.serializers import DistributionSerializer, WithdrawalSerializer
+from reputation.models import Bounty, Distribution, Withdrawal
+from reputation.serializers import (
+    BountySerializer,
+    DistributionSerializer,
+    WithdrawalSerializer,
+)
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import ResearchhubPostSerializer
 from researchhub_document.serializers.researchhub_post_serializer import (
@@ -45,8 +49,10 @@ class BalanceSourceRelatedField(serializers.RelatedField):
             return PurchaseSerializer(value, context={"exclude_stats": True}).data
         elif isinstance(value, Withdrawal):
             return WithdrawalSerializer(value, context={"exclude_stats": True}).data
+        elif isinstance(value, Bounty):
+            return BountySerializer(value).data
 
-        sentry.log_info("No representation for " + value)
+        sentry.log_info("No representation for " + str(value))
         return None
 
 
