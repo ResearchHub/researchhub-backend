@@ -96,5 +96,4 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.RunPython(migrate_author_rsc_to_escrow),
-        migrations.RunPython(create_default_term),
     ]
