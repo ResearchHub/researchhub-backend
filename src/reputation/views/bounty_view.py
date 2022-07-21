@@ -3,6 +3,7 @@ import time
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -30,6 +31,9 @@ class BountyViewSet(viewsets.ModelViewSet):
     queryset = Bounty.objects.all()
     serializer_class = BountySerializer
     permission_classes = [IsAuthenticated, CreateOnly | AllowAny]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["item_object_id", "status"]
+
     ALLOWED_CREATE_CONTENT_TYPES = ("researchhubunifieddocument",)
     ALLOWED_APPROVE_CONTENT_TYPES = ("thread", "comment", "reply")
 
@@ -238,7 +242,7 @@ class BountyViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=["post", "delete"],
+        methods=["POST", "DELETE"],
         permission_classes=[IsAuthenticated, UserBounty],
     )
     def cancel_bounty(self, request, pk=None):
