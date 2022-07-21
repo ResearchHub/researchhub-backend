@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.serializers import (
     ModelSerializer,
     ReadOnlyField,
@@ -13,7 +14,7 @@ from discussion.serializers import DynamicThreadSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from reputation.models import Bounty
 from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub_document.models import ResearchhubPost
+from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     QUESTION,
@@ -126,16 +127,18 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 )
             },
         }
-        thread_ids = post.threads.values("id")
         bounties = Bounty.objects.filter(
-            item_content_type__model="thread",
-            item_object_id__in=thread_ids,
+            item_content_type=ContentType.objects.get_for_model(
+                ResearchhubUnifiedDocument
+            ),
+            item_object_id=post.unified_document.id,
+            status=Bounty.OPEN,
         )
         serializer = DynamicBountySerializer(
             bounties,
             many=True,
             context=context,
-            _include_fields=("amount", "created_by", "status"),
+            _include_fields=("amount", "created_by", "status", "id", "expiration_date"),
         )
         return serializer.data
 
