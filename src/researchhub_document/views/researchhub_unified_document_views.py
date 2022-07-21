@@ -192,17 +192,17 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         context = {
             "doc_duds_get_documents": {
                 "_include_fields": [
-                    "featured",
                     "abstract",
                     "aggregate_citation_consensus",
                     "created_by",
                     "created_date",
+                    "discussion_count",
+                    "featured",
                     "file",
                     "first_preview",
-                    "hot_score",
+                    "has_accepted_answer" "hot_score",
                     "hubs",
                     "id",
-                    "discussion_count",
                     "paper_title",
                     "pdf_url",
                     "preview_img",
