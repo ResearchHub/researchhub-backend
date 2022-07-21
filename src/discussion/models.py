@@ -274,6 +274,13 @@ class Thread(BaseComment):
         content_type_field="content_type",
         related_query_name="threads",
     )
+    is_accepted_answer = models.BooleanField(
+        blank=True,
+        default=None,
+        null=True,
+        help_text="Used to indicate that this thread is a O/P's selected answer for bounties & Questions. \
+            Empty field implies that related document is irrelevant to this field",
+    )
 
     def __str__(self):
         return "%s: %s" % (self.created_by, self.title)
