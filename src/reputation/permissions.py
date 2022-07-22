@@ -1,5 +1,6 @@
 from rest_framework.permissions import BasePermission
 
+from reputation.models import Bounty
 from researchhub.settings import DIST_WHITELIST
 from utils.http import RequestMethods
 from utils.permissions import AuthorizationBasedPermission
@@ -40,3 +41,15 @@ class UserBounty(BasePermission):
 
     def has_object_permission(self, request, view, obj):
         return obj.created_by == request.user
+
+
+class SingleBountyOpen(BasePermission):
+    message = "User already has open bounty on object"
+
+    def has_permission(self, request, view):
+        if view.action == "create":
+            user_has_open_bounty = view.queryset.filter(
+                created_by=request.user, status=Bounty.OPEN
+            ).exists()
+            return not user_has_open_bounty
+        return True

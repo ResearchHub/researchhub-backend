@@ -6,7 +6,7 @@ from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from purchase.models import Balance
@@ -16,7 +16,7 @@ from reputation.distributions import (
 )
 from reputation.distributor import Distributor
 from reputation.models import Bounty, BountyFee, Escrow
-from reputation.permissions import UserBounty
+from reputation.permissions import SingleBountyOpen, UserBounty
 from reputation.serializers import (
     BountySerializer,
     BountySolutionSerializer,
@@ -30,7 +30,7 @@ from utils.permissions import CreateOnly
 class BountyViewSet(viewsets.ModelViewSet):
     queryset = Bounty.objects.all()
     serializer_class = BountySerializer
-    permission_classes = [IsAuthenticated, CreateOnly | AllowAny]
+    permission_classes = [IsAuthenticated, CreateOnly, SingleBountyOpen]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["item_object_id", "status"]
 
