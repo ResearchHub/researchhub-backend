@@ -2,7 +2,7 @@ import rest_framework.serializers as serializers
 
 # TODO: Make is_public editable for creator as a delete mechanism
 # TODO: undo
-from django.db.models import Q
+from django.db.models import Q, Sum
 
 from discussion.models import Comment, Reply, Thread
 from discussion.reaction_serializers import (
@@ -479,7 +479,7 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
 
 class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
     # bounties = serializers.SerializerMethodField()
-    bounty_solution = serializers.SerializerMethodField()
+    awarded_bounty_amount = serializers.SerializerMethodField()
     created_by = MinimalUserSerializer(
         read_only=False, default=serializers.CurrentUserDefault()
     )
@@ -500,9 +500,9 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
 
     class Meta:
         fields = [
+            "awarded_bounty_amount",
             "block_key",
             # "bounties",
-            "bounty_solution",
             "citation",
             "comment_count",
             "comments",
@@ -655,20 +655,11 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
         )
         return serializer.data
 
-    def get_bounty_solution(self, obj):
-        from reputation.serializers import DynamicBountySolutionSerializer
-
-        context = {
-            "rep_dbs_get_escrow": {"_include_fields": ("amount_paid",)},
-            "rep_dbss_get_bounty": {"_include_fields": ("escrow",)},
-        }
-        serializer = DynamicBountySolutionSerializer(
-            obj.bounty_solution.all(),
-            context=context,
-            _include_fields=("bounty",),
-            many=True,
-        )
-        return serializer.data
+    def get_awarded_bounty_amount(self, obj):
+        amount_awarded = obj.bounty_solution.aggregate(
+            Sum("bounty__escrow__amount_paid")
+        ).get("bounty__escrow__amount_paid__sum", None)
+        return amount_awarded
 
 
 class SimpleThreadSerializer(ThreadSerializer):
