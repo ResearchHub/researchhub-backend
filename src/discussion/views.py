@@ -201,51 +201,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         return threads.prefetch_related("paper")
 
     @action(
-        detail=False, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
-    )
-    def get_open_bounties(self, request):
-        threads = Thread.objects.filter(bounties__status=Bounty.OPEN).order_by(
-            "created_date"
-        )
-        context = {
-            "dis_dts_get_bounties": {
-                "_include_fields": (
-                    "amount",
-                    "created_by",
-                )
-            },
-            "dis_dts_get_created_by": {"_include_fields": ("author_profile",)},
-            "dis_dts_get_paper": {"_include_fields": ("id", "paper_title", "title")},
-            "dis_dts_get_post": {"_include_fields": ("id", "title")},
-            "dis_dts_get_hypothesis": {"_include_fields": ("id", "title")},
-            "dis_dts_get_unified_document": {"_include_fields": ("document_type",)},
-            "rep_dbs_get_created_by": {"_include_fields": ("author_profile",)},
-            "usr_dus_get_author_profile": {
-                "_include_fields": (
-                    "id",
-                    "profile_image",
-                    "first_name",
-                    "last_name",
-                )
-            },
-        }
-        serializer = self.dynamic_serializer_class(
-            threads,
-            many=True,
-            context=context,
-            _include_fields=(
-                "id",
-                "created_by",
-                "bounties",
-                "paper",
-                "post",
-                "hypothesis",
-                "unified_document",
-            ),
-        )
-        return Response(serializer.data, status=200)
-
-    @action(
         detail=True,
         methods=["post"],
         permission_classes=[FlagDiscussionThread & CreateOrUpdateIfAllowed],

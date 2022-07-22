@@ -296,7 +296,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "hub_image",
                 ]
             },
-            "rep_dbs_get_created_by": {"_include_fields": ["author_profile"]},
+            "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
         }
         return context
 
