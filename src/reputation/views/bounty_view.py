@@ -62,10 +62,12 @@ class BountyViewSet(viewsets.ModelViewSet):
         rh_pct = current_bounty_fee.rh_pct
         dao_pct = current_bounty_fee.dao_pct
 
-        rh_fee = gross_amount * rh_pct
-        dao_fee = gross_amount * dao_pct
+        net_amount = gross_amount / (1 + rh_pct + dao_pct)
+        rh_fee = net_amount * rh_pct
+        dao_fee = net_amount * dao_pct
         fee = rh_fee + dao_fee
-        return fee, rh_fee, dao_fee, current_bounty_fee
+
+        return fee, rh_fee, dao_fee, current_bounty_fee, net_amount
 
     def _deduct_fees(self, user, fee, rh_fee, dao_fee, current_bounty_fee):
         rh_recipient = self._get_rh_fee_recipient()
@@ -113,7 +115,13 @@ class BountyViewSet(viewsets.ModelViewSet):
             return Response(str(e), status=400)
 
         user_balance = user.get_balance()
-        fee_amount, rh_fee, dao_fee, current_bounty_fee = self._calculate_fees(amount)
+        (
+            fee_amount,
+            rh_fee,
+            dao_fee,
+            current_bounty_fee,
+            net_amount,
+        ) = self._calculate_fees(amount)
         if amount <= 0 or user_balance - (amount + fee_amount) < 0:
             return Response({"error": "Insufficient Funds"}, status=402)
         elif amount <= 50 or amount > 1000000:
@@ -137,7 +145,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             escrow = escrow_serializer.save()
 
             data["created_by"] = user.id
-            data["amount"] = amount
+            data["amount"] = net_amount
             data["item_content_type"] = content_type_id
             data["escrow"] = escrow.id
             bounty_serializer = BountySerializer(data=data)
