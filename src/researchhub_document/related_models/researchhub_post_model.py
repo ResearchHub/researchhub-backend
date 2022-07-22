@@ -6,6 +6,7 @@ from django.db import models
 from django.db.models import Avg, Count, IntegerField, Q, Sum
 from django.db.models.functions import Cast, Extract
 
+from discussion.models import Thread
 from discussion.reaction_models import AbstractGenericReactionModel
 from hub.serializers import HubSerializer
 from paper.utils import paper_piecewise_log
@@ -116,6 +117,10 @@ class ResearchhubPost(AbstractGenericReactionModel):
     )
 
     @property
+    def has_accepted_answer(self):
+        return self.get_accepted_answer() is not None
+
+    @property
     def is_latest_version(self):
         return self.next_version is None
 
@@ -169,6 +174,11 @@ class ResearchhubPost(AbstractGenericReactionModel):
             )
 
         return authors
+
+    def get_accepted_answer(self):
+        return self.threads.filter(
+            is_accepted_answer=True, discussion_post_type="ANSWER"
+        ).first()
 
     def get_promoted_score(self):
         purchases = self.purchases.filter(
