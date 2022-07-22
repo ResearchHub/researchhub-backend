@@ -238,14 +238,15 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             target_post_question = ResearchhubPost.objects.get(id=document_id)
 
             # logical ordering - DO NOT CHANGE THE ORDER OF OPERATIONS
+            prev_accepted_answer = target_post_question.get_accepted_answer()
             target_thread = self.get_object()
+
+            if prev_accepted_answer is not None:
+                prev_accepted_answer.is_accepted_answer = False
+                prev_accepted_answer.save()
+
             target_thread.is_accepted_answer = True
             target_thread.save()
-
-            current_accepted_answer = target_post_question.get_accepted_answer()
-            if current_accepted_answer is not None:
-                current_accepted_answer.is_accepted_answer = False
-                current_accepted_answer.save()
 
             return Response({"thread_id": target_thread.id}, status=200)
         except Exception as exception:
