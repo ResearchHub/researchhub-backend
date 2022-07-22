@@ -69,7 +69,7 @@ class Migration(migrations.Migration):
                 ('content_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='contenttypes.ContentType')),
                 ('created_by', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='created_escrows', to=settings.AUTH_USER_MODEL)),
                 ('recipient', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='target_escrows', to=settings.AUTH_USER_MODEL)),
-                ('term', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='reputation.Term')),
+                ('term', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='reputation.Term')),
             ],
             options={
                 'abstract': False,
