@@ -259,6 +259,11 @@ if USE_SILK:
     SILKY_EXPLAIN_FLAGS = {"format": "JSON", "costs": True}
     SILKY_PYTHON_PROFILER = True
 
+    def silky_capture(request):
+        return "test_get_unified_documents" in request.path
+
+    SILKY_PYTHON_PROFILER_FUNC = silky_capture
+
 ROOT_URLCONF = "researchhub.urls"
 
 FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400 * 24.1  # ~655MB max data allowed

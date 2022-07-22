@@ -9,11 +9,10 @@ import pytz
 import sentry_sdk
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from web3 import Web3
@@ -25,13 +24,8 @@ from purchase.models import Balance
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.exceptions import WithdrawalError
-from reputation.lib import (
-    WITHDRAWAL_MINIMUM,
-    WITHDRAWAL_PER_TWO_WEEKS,
-    PendingWithdrawal,
-)
+from reputation.lib import WITHDRAWAL_MINIMUM, PendingWithdrawal
 from reputation.models import Deposit, PaidStatusModelMixin, Webhook, Withdrawal
-from reputation.permissions import DistributionWhitelist
 from reputation.serializers import DepositSerializer, WithdrawalSerializer
 from researchhub.settings import (
     ASYNC_SERVICE_HOST,
@@ -39,7 +33,7 @@ from researchhub.settings import (
     WEB3_RSC_ADDRESS,
     WEB3_SHARED_SECRET,
 )
-from user.models import Action, User
+from user.models import Action
 from user.serializers import UserSerializer
 from utils import sentry
 from utils.http import POST, http_request
@@ -423,19 +417,3 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             return (False, "You do not have enough RSC to make this withdrawal", None)
 
         return True, None, net_amount
-
-
-@api_view(http_method_names=[POST])
-@permission_classes([DistributionWhitelist])
-def distribute_rsc(request):
-    data = request.data
-    recipient_id = data.get("recipient_id")
-    amount = data.get("amount")
-
-    user = User.objects.get(id=recipient_id)
-    distribution = Dist("REWARD", amount, give_rep=False)
-    distributor = Distributor(distribution, user, user, time.time(), user)
-    distributor.distribute()
-
-    response = Response({"data": f"Gave {amount} RSC to {user.email}"}, status=200)
-    return response

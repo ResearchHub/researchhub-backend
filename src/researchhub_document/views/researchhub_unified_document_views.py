@@ -210,9 +210,19 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "renderable_text",
                     "score",
                     "slug",
+                    # "threads",
                     "title",
                     "uploaded_by",
                     "uploaded_date",
+                ]
+            },
+            "doc_duds_get_bounties": {
+                "_include_fields": [
+                    "amount",
+                    "created_by",
+                    "id",
+                    "expiration_date",
+                    "status",
                 ]
             },
             "doc_dps_get_hubs": {
@@ -248,6 +258,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "author_profile",
                 ]
             },
+            "doc_dps_get_threads": {
+                "_include_fields": [
+                    "bounties",
+                ]
+            },
             "pap_dps_get_uploaded_by": {
                 "_include_fields": [
                     "author_profile",
@@ -281,6 +296,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "hub_image",
                 ]
             },
+            "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
         }
         return context
 
@@ -314,6 +330,51 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         if cache_hit:
             return cache_hit
         return None
+
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    def test_get_unified_documents(self, request):
+        query_params = request.query_params
+        hub_id = query_params.get("hub_id", 0) or 0
+        page_number = int(query_params.get("page", 1))
+        have_bounties = query_params.get("have_bounties", False)
+
+        filtering = self._get_document_filtering(query_params)
+
+        documents = self.get_filtered_queryset()
+        context = self._get_serializer_context()
+        context["hub_id"] = hub_id
+        page = self.paginate_queryset(documents)
+
+        if page_number == 1 and filtering == "-hot_score":
+            featured_documents = self.get_featured_documents()
+            featured_documents = ResearchhubUnifiedDocument.objects.filter(
+                id__in=featured_documents
+            )
+            featured_documents = list(featured_documents)
+            page = featured_documents + page[: len(page) - len(featured_documents)]
+
+        _include_fields = [
+            "id",
+            "created_date",
+            "featured",
+            "documents",
+            "document_type",
+            "hot_score",
+            "hot_score_v2",
+            "reviews",
+            "score",
+        ]
+        if have_bounties:
+            _include_fields.append("bounties")
+        serializer = self.dynamic_serializer_class(
+            page,
+            _include_fields=_include_fields,
+            many=True,
+            context=context,
+        )
+        serializer_data = serializer.data
+
+        return self.get_paginated_response(serializer_data)
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def get_unified_documents(self, request):
@@ -373,6 +434,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "hot_score_v2",
                 "reviews",
                 "score",
+                "bounties",
             ],
             many=True,
             context=context,

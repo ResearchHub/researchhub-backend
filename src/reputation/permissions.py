@@ -1,12 +1,13 @@
 from rest_framework.permissions import BasePermission
 
+from reputation.models import Bounty
 from researchhub.settings import DIST_WHITELIST
 from utils.http import RequestMethods
 from utils.permissions import AuthorizationBasedPermission
 
 
 class UpdateOrDeleteWithdrawal(AuthorizationBasedPermission):
-    message = 'Action not permitted.'
+    message = "Action not permitted."
 
     def is_authorized(self, request, view, obj):
         method = request.method
@@ -29,3 +30,28 @@ class DistributionWhitelist(BasePermission):
         if user.email in DIST_WHITELIST:
             return True
         return False
+
+
+class UserBounty(BasePermission):
+    def has_permission(self, request, view):
+        method = request.method
+        if method == RequestMethods.POST or method == RequestMethods.DELETE:
+            return True
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        return obj.created_by == request.user
+
+
+class SingleBountyOpen(BasePermission):
+    message = "User already has open bounty on object"
+
+    def has_permission(self, request, view):
+        if view.action == "create":
+            data = request.data
+            object_id = data.get("item_object_id", None)
+            user_has_open_bounty = view.queryset.filter(
+                created_by=request.user, status=Bounty.OPEN, item_object_id=object_id
+            ).exists()
+            return not user_has_open_bounty
+        return True

@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.serializers import (
     ModelSerializer,
     ReadOnlyField,
@@ -9,9 +10,11 @@ from discussion.reaction_serializers import (
     DynamicVoteSerializer,  # Import is needed for discussion serializer imports
 )
 from discussion.reaction_serializers import GenericReactionSerializerMixin
+from discussion.serializers import DynamicThreadSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
+from reputation.models import Bounty
 from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub_document.models import ResearchhubPost
+from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     QUESTION,
@@ -32,6 +35,8 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
             "authors",
             "boost_amount",
+            "bounties",
+            "id",
             "created_by",
             "created_date",
             "discussion_count",
@@ -54,10 +59,12 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "unified_document_id",
             "unified_document",
             "version_number",
+            "updated_date",
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
             "authors",
+            "bounties",
             "id",
             "created_by",
             "created_date",
@@ -69,6 +76,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "version_number",
             "boost_amount",
             "is_removed",
+            "updated_date",
         ]
 
     # GenericReactionSerializerMixin
@@ -81,6 +89,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
 
     # local
     authors = SerializerMethodField()
+    bounties = SerializerMethodField()
     created_by = SerializerMethodField(method_name="get_created_by")
     full_markdown = SerializerMethodField(method_name="get_full_markdown")
     has_accepted_answer = ReadOnlyField()  # @property
@@ -92,7 +101,6 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     unified_document_id = SerializerMethodField(method_name="get_unified_document_id")
 
     def get_authors(self, post):
-
         # Probably legacy scenario, before ELN release
         authors = list(post.authors.all())
         if len(authors) == 0:
@@ -104,6 +112,33 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             authors,
             context=self.context,
             many=True,
+        )
+        return serializer.data
+
+    def get_bounties(self, post):
+        from reputation.serializers import DynamicBountySerializer
+
+        context = {
+            "rep_dbs_get_created_by": {"_include_fields": ("author_profile", "id")},
+            "usr_dus_get_author_profile": {
+                "_include_fields": (
+                    "id",
+                    "profile_image",
+                    "first_name",
+                    "last_name",
+                )
+            },
+        }
+        bounties = Bounty.objects.filter(
+            item_content_type__model="researchhubunifieddocument",
+            item_object_id=post.unified_document.id,
+            status=Bounty.OPEN,
+        )
+        serializer = DynamicBountySerializer(
+            bounties,
+            many=True,
+            context=context,
+            _include_fields=("amount", "created_by", "status", "id", "expiration_date"),
         )
         return serializer.data
 
@@ -209,6 +244,7 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     hubs = SerializerMethodField()
     note = SerializerMethodField()
     score = SerializerMethodField()
+    threads = SerializerMethodField()
     unified_document = SerializerMethodField()
     user_vote = SerializerMethodField()
 
@@ -249,6 +285,14 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
             return vote
         except Vote.DoesNotExist:
             return None
+
+    def get_threads(self, post):
+        context = self.context
+        _context_fields = context.get("doc_dps_get_threads", {})
+        serializer = DynamicThreadSerializer(
+            post.threads, many=True, context=context, **_context_fields
+        )
+        return serializer.data
 
     def get_unified_document(self, post):
         from researchhub_document.serializers import DynamicUnifiedDocumentSerializer

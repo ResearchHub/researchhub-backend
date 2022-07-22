@@ -2,6 +2,7 @@ import datetime
 
 import pandas as pd
 import rest_framework.serializers as serializers
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import CharField, Count, F, Func, IntegerField, Sum, Value
 from django.db.models.functions import Cast
 
@@ -18,8 +19,12 @@ from discussion.serializers import (
 )
 from paper.serializers import BasePaperSerializer, DynamicPaperSerializer
 from purchase.models import AggregatePurchase, Balance, Purchase, Support, Wallet
-from reputation.models import Distribution, Withdrawal
-from reputation.serializers import DistributionSerializer, WithdrawalSerializer
+from reputation.models import Bounty, Distribution, Withdrawal
+from reputation.serializers import (
+    BountySerializer,
+    DistributionSerializer,
+    WithdrawalSerializer,
+)
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import ResearchhubPostSerializer
 from researchhub_document.serializers.researchhub_post_serializer import (
@@ -45,13 +50,37 @@ class BalanceSourceRelatedField(serializers.RelatedField):
             return PurchaseSerializer(value, context={"exclude_stats": True}).data
         elif isinstance(value, Withdrawal):
             return WithdrawalSerializer(value, context={"exclude_stats": True}).data
+        elif isinstance(value, Bounty):
+            return BountySerializer(value).data
 
-        sentry.log_info("No representation for " + value)
+        sentry.log_info("No representation for " + str(value))
         return None
 
 
 class BalanceSerializer(serializers.ModelSerializer):
     source = BalanceSourceRelatedField(read_only=True)
+    readable_content_type = serializers.SerializerMethodField()
+    content_title = serializers.SerializerMethodField()
+    content_id = serializers.SerializerMethodField()
+    content_slug = serializers.SerializerMethodField()
+
+    def get_content_title(self, balance):
+        if balance.content_type == ContentType.objects.get_for_model(Bounty):
+            if balance.source.item.posts.exists():
+                return balance.source.item.posts.first().title
+
+    def get_content_id(self, balance):
+        if balance.content_type == ContentType.objects.get_for_model(Bounty):
+            if balance.source.item.posts.exists():
+                return balance.source.item.posts.first().id
+
+    def get_content_slug(self, balance):
+        if balance.content_type == ContentType.objects.get_for_model(Bounty):
+            if balance.source.item.posts.exists():
+                return balance.source.item.posts.first().slug
+
+    def get_readable_content_type(self, balance):
+        return balance.content_type.model
 
     class Meta:
         model = Balance

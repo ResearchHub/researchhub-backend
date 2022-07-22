@@ -1,9 +1,6 @@
 from rest_framework import serializers
 
-import ethereum.lib
 from bullet_point.serializers import BulletPointSerializer, BulletPointVoteSerializer
-from discussion.models import Comment, Reply, Thread
-from discussion.reaction_models import Vote as DisVote
 from discussion.serializers import (
     CommentSerializer,
     DynamicCommentSerializer,
@@ -14,9 +11,7 @@ from discussion.serializers import (
     ThreadSerializer,
 )
 from discussion.serializers import VoteSerializer as DisVoteSerializer
-from paper.models import Paper
-from purchase.models import Purchase
-from reputation.models import Contribution, Deposit, Distribution, Withdrawal
+from reputation.models import Contribution
 from researchhub.serializers import DynamicModelFieldSerializer
 from summary.serializers import SummarySerializer, SummaryVoteSerializer
 from user.models import Author
@@ -25,84 +20,6 @@ from user.serializers import (
     DynamicUserSerializer,
     UserSerializer,
 )
-from utils import sentry
-
-
-class ProofRelatedField(serializers.RelatedField):
-    """
-    A custom field to use for the `source` generic relationship.
-    """
-
-    def to_representation(self, value):
-        """
-        Serialize tagged objects to a simple textual representation.
-        """
-        from discussion.serializers import DynamicVoteSerializer
-        from paper.serializers import DynamicPaperSerializer
-        from purchase.serializers import PurchaseSerializer
-
-        if isinstance(value, Comment):
-            return CommentSerializer(value).data
-        elif isinstance(value, Thread):
-            return ThreadSerializer(value).data
-        elif isinstance(value, Reply):
-            return ReplySerializer(value).data
-        elif isinstance(value, DisVote):
-            return DisVoteSerializer(value).data
-        elif isinstance(value, Paper):
-            paper_include_fields = ["id", "paper_title", "slug", "score"]
-            return DynamicPaperSerializer(
-                value, _include_fields=paper_include_fields
-            ).data
-        elif isinstance(value, Purchase):
-            return PurchaseSerializer(value, context={"exclude_stats": True}).data
-
-        sentry.log_info(
-            "No representation for {} / id: {}".format(str(value), value.id)
-        )
-        return None
-
-
-class DistributionSerializer(serializers.ModelSerializer):
-    proof_item = ProofRelatedField(read_only=True)
-
-    class Meta:
-        model = Distribution
-        fields = "__all__"
-
-
-class DepositSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Deposit
-        fields = "__all__"
-
-
-class WithdrawalSerializer(serializers.ModelSerializer):
-    user = UserSerializer(default=serializers.CurrentUserDefault())
-    token_address = serializers.CharField(default=ethereum.lib.RSC_CONTRACT_ADDRESS)
-
-    class Meta:
-        model = Withdrawal
-        fields = "__all__"
-        read_only_fields = [
-            "amount",
-            "token_address",
-            "from_address",
-            "transaction_hash",
-            "paid_date",
-            "paid_status",
-            "is_removed",
-            "is_removed_date",
-        ]
-
-
-def get_model_serializer(model_arg):
-    class GenericSerializer(serializers.ModelSerializer):
-        class Meta:
-            model = model_arg
-            fields = "__all__"
-
-    return GenericSerializer
 
 
 class ContributionSerializer(serializers.ModelSerializer):

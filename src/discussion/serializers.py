@@ -2,7 +2,7 @@ import rest_framework.serializers as serializers
 
 # TODO: Make is_public editable for creator as a delete mechanism
 # TODO: undo
-from django.db.models import Q
+from django.db.models import Q, Sum
 
 from discussion.models import Comment, Reply, Thread
 from discussion.reaction_serializers import (
@@ -65,6 +65,7 @@ class DynamicThreadSerializer(
     DynamicModelFieldSerializer,
     GenericReactionSerializerMixin,
 ):
+    bounties = serializers.SerializerMethodField()
     comment_count = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
@@ -107,6 +108,16 @@ class DynamicThreadSerializer(
         return comments.annotate(ordering_score=ORDERING_SCORE_ANNOTATION).order_by(
             "-ordering_score", "created_date"
         )
+
+    def get_bounties(self, obj):
+        from reputation.serializers import DynamicBountySerializer
+
+        context = self.context
+        _context_fields = context.get("dis_dts_get_bounties", {})
+        serializer = DynamicBountySerializer(
+            obj.bounties.all(), many=True, context=context, **_context_fields
+        )
+        return serializer.data
 
     def get_comments(self, obj):
         _context_fields = self.context.get("dis_dts_get_comments", {})
@@ -467,6 +478,8 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
 
 
 class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
+    # bounties = serializers.SerializerMethodField()
+    awarded_bounty_amount = serializers.SerializerMethodField()
     created_by = MinimalUserSerializer(
         read_only=False, default=serializers.CurrentUserDefault()
     )
@@ -487,7 +500,9 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
 
     class Meta:
         fields = [
+            "awarded_bounty_amount",
             "block_key",
+            # "bounties",
             "citation",
             "comment_count",
             "comments",
@@ -610,6 +625,41 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
         )
 
         return serializer.data
+
+    def get_bounties(self, obj):
+        # Deprecated
+        from reputation.serializers import DynamicBountySerializer
+
+        context = {
+            "rep_dbs_get_created_by": {"_include_fields": ("author_profile",)},
+            "rep_dbs_get_solution": {"_include_fields": ("id",)},
+            "usr_dus_get_author_profile": {
+                "_include_fields": (
+                    "id",
+                    "profile_image",
+                    "first_name",
+                    "last_name",
+                )
+            },
+        }
+        serializer = DynamicBountySerializer(
+            obj.bounties.all(),
+            many=True,
+            context=context,
+            _include_fields=(
+                "created_by",
+                "amount",
+                "created_date",
+                "expiration_date",
+            ),
+        )
+        return serializer.data
+
+    def get_awarded_bounty_amount(self, obj):
+        amount_awarded = obj.bounty_solution.aggregate(
+            Sum("bounty__escrow__amount_paid")
+        ).get("bounty__escrow__amount_paid__sum", None)
+        return amount_awarded
 
 
 class SimpleThreadSerializer(ThreadSerializer):

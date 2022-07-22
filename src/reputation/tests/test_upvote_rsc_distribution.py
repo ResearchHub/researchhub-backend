@@ -10,7 +10,7 @@ from reputation.distributions import (
     calculate_rsc_per_upvote,
     create_upvote_distribution,
 )
-from reputation.models import AuthorRSC, Distribution
+from reputation.models import Distribution, Escrow
 from researchhub_case.constants.case_constants import APPROVED
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.tasks import after_approval_flow
@@ -44,8 +44,11 @@ class BaseTests(TestCase, TestHelper):
     ):
         distribution_amount = calculate_rsc_per_upvote()
         create_upvote_distribution(1, self.original_paper, GrmVote.objects.first())
-        self.assertEquals(AuthorRSC.objects.count(), 1)
-        self.assertEquals(AuthorRSC.objects.first().amount, distribution_amount * 0.75)
+        self.assertEquals(Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).count(), 1)
+        self.assertEquals(
+            Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).first().amount,
+            distribution_amount * 0.75,
+        )
 
     def test_no_verified_author_distribution(
         self,
@@ -125,8 +128,8 @@ class BaseTests(TestCase, TestHelper):
         if Distribution.objects.count() > 0:
             Distribution.objects.all().delete()
 
-        if AuthorRSC.objects.count() > 0:
-            AuthorRSC.objects.all().delete()
+        if Escrow.objects.count() > 0:
+            Escrow.objects.all().delete()
 
         if Author.objects.count() > 0:
             Author.objects.all().delete()
@@ -156,8 +159,8 @@ class BaseTests(TestCase, TestHelper):
         if Distribution.objects.count() > 0:
             Distribution.objects.all().delete()
 
-        if AuthorRSC.objects.count() > 0:
-            AuthorRSC.objects.all().delete()
+        if Escrow.objects.count() > 0:
+            Escrow.objects.all().delete()
 
         if Author.objects.count() > 0:
             Author.objects.all().delete()
@@ -187,8 +190,8 @@ class BaseTests(TestCase, TestHelper):
         if Distribution.objects.count() > 0:
             Distribution.objects.all().delete()
 
-        if AuthorRSC.objects.count() > 0:
-            AuthorRSC.objects.all().delete()
+        if Escrow.objects.count() > 0:
+            Escrow.objects.all().delete()
 
         if Author.objects.count() > 0:
             Author.objects.all().delete()
@@ -225,8 +228,8 @@ class BaseTests(TestCase, TestHelper):
         if Distribution.objects.count() > 0:
             Distribution.objects.all().delete()
 
-        if AuthorRSC.objects.count() > 0:
-            AuthorRSC.objects.all().delete()
+        if Escrow.objects.count() > 0:
+            Escrow.objects.all().delete()
 
         if Author.objects.count() > 0:
             Author.objects.all().delete()
@@ -257,8 +260,8 @@ class BaseTests(TestCase, TestHelper):
         if Distribution.objects.count() > 0:
             Distribution.objects.all().delete()
 
-        if AuthorRSC.objects.count() > 0:
-            AuthorRSC.objects.all().delete()
+        if Escrow.objects.count() > 0:
+            Escrow.objects.all().delete()
 
         if Author.objects.count() > 0:
             Author.objects.all().delete()
@@ -284,8 +287,8 @@ class BaseTests(TestCase, TestHelper):
         if Distribution.objects.count() > 0:
             Distribution.objects.all().delete()
 
-        if AuthorRSC.objects.count() > 0:
-            AuthorRSC.objects.all().delete()
+        if Escrow.objects.count() > 0:
+            Escrow.objects.all().delete()
 
         self.original_paper.raw_authors = [
             {"first_name": "First", "last_name": "Last"},

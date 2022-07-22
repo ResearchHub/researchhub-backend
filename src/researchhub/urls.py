@@ -47,6 +47,8 @@ router.register(
 )
 
 # NOTE: calvinhlee - the way coments are handled is very inefficient. We need to refactor this
+
+router.register(r"discussion", discussion.views.ThreadViewSet, basename="discussion")
 router.register(
     r"paper/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
     discussion.views.ReplyViewSet,
@@ -234,6 +236,8 @@ router.register(r"user", user.views.UserViewSet)
 router.register(r"withdrawal", reputation.views.WithdrawalViewSet)
 
 router.register(r"deposit", reputation.views.DepositViewSet)
+
+router.register(r"bounty", reputation.views.BountyViewSet)
 
 router.register(r"user_verification", user.views.VerificationViewSet)
 

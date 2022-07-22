@@ -4,7 +4,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.core.cache import cache
 from django.db import models
-from django.db.models import Count, F, Q
 from django.utils.functional import cached_property
 
 from hub.models import Hub
@@ -72,6 +71,12 @@ class BaseComment(AbstractGenericReactionModel):
     )
     contributions = GenericRelation(
         "reputation.Contribution",
+        object_id_field="object_id",
+        content_type_field="content_type",
+        related_query_name="discussion",
+    )
+    bounty_solution = GenericRelation(
+        "reputation.BountySolution",
         object_id_field="object_id",
         content_type_field="content_type",
         related_query_name="discussion",
@@ -209,12 +214,14 @@ class Thread(BaseComment):
     INLINE_ABSTRACT = "inline_abstract"
     INLINE_PAPER_BODY = "inline_paper_body"
     RESEARCHHUB = "researchhub"
-    THREAD_SOURCE_CHOICES = [
+
+    THREAD_SOURCE_CHOICES = (
         (CITATION_COMMENT, "Citation Comment"),
         (INLINE_ABSTRACT, "Inline Abstract"),
         (INLINE_PAPER_BODY, "Inline Paper Body"),
         (RESEARCHHUB, "researchhub"),
-    ]
+    )
+
     source = models.CharField(
         default=RESEARCHHUB, choices=THREAD_SOURCE_CHOICES, max_length=32
     )
@@ -280,6 +287,11 @@ class Thread(BaseComment):
         null=True,
         help_text="Used to indicate that this thread is a O/P's selected answer for bounties & Questions. \
             Empty field implies that related document is irrelevant to this field",
+    )
+    bounties = GenericRelation(
+        "reputation.Bounty",
+        content_type_field="item_content_type",
+        object_id_field="item_object_id",
     )
 
     def __str__(self):
