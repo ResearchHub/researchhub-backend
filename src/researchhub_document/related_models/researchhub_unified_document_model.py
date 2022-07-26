@@ -13,6 +13,7 @@ from researchhub_document.related_models.constants.document_type import (
     HYPOTHESIS,
     NOTE,
     PAPER,
+    QUESTION,
 )
 from researchhub_document.tasks import update_elastic_registry
 from user.models import Author
@@ -112,6 +113,8 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
             return self.hypothesis
         elif self.document_type == NOTE:
             return self.note
+        elif self.document_type == QUESTION:
+            return self.posts.first()
         else:
             raise Exception(f"Unrecognized document_type: {self.document_type}")
 

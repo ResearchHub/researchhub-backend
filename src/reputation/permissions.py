@@ -1,3 +1,6 @@
+from datetime import datetime
+
+import pytz
 from rest_framework.permissions import BasePermission
 
 from reputation.models import Bounty
@@ -32,7 +35,7 @@ class DistributionWhitelist(BasePermission):
         return False
 
 
-class UserBounty(BasePermission):
+class UserCanApproveBounty(BasePermission):
     def has_permission(self, request, view):
         method = request.method
         if method == RequestMethods.POST or method == RequestMethods.DELETE:
@@ -40,6 +43,31 @@ class UserBounty(BasePermission):
         return False
 
     def has_object_permission(self, request, view, obj):
+        self.message = "Invalid Bounty user"
+
+        if obj.status != Bounty.OPEN:
+            self.message = "Bounty is closed."
+            return False
+        elif obj.expiration_date <= datetime.now(pytz.UTC):
+            self.message = "Bounty is expired"
+            return False
+
+        return obj.created_by == request.user
+
+
+class UserCanCancelBounty(BasePermission):
+    def has_permission(self, request, view):
+        method = request.method
+        if method == RequestMethods.POST or method == RequestMethods.DELETE:
+            return True
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        self.message = "Invalid Bounty user"
+
+        if obj.status != Bounty.OPEN:
+            self.message = "Bounty is closed."
+            return False
         return obj.created_by == request.user
 
 

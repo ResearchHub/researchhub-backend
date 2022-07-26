@@ -313,7 +313,12 @@ def build_subject(notification_frequency):
 
 
 def build_notification_context(actions):
-    return {**base_email_context, "actions": [act.email_context() for act in actions]}
+    context = {**base_email_context}
+    if isinstance(actions, (list, tuple)):
+        context["actions"] = [act.email_context() for act in actions]
+    else:
+        context["action"] = actions.email_context()
+    return context
 
 
 def check_can_receive_digest(user, frequency):

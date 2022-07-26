@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 import pytz
-from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
@@ -45,6 +45,7 @@ class Bounty(DefaultModel):
         "reputation.escrow", on_delete=models.CASCADE, related_name="bounty"
     )
     status = models.CharField(choices=status_choices, default=OPEN, max_length=16)
+    actions = GenericRelation("user.Action")
 
     class Meta:
         indexes = (
@@ -57,7 +58,7 @@ class Bounty(DefaultModel):
         )
 
     def __str__(self):
-        return "Bounty: {}".format(self.id)
+        return f"Bounty: {self.id}"
 
     def set_status(self, status, should_save=True):
         self.status = status
@@ -84,9 +85,12 @@ class Bounty(DefaultModel):
         self.set_closed_status(should_save=False)
         return escrow_paid
 
+    def refund(self):
+        return self.escrow.refund()
+
     def cancel(self):
         self.set_cancelled_status()
-        return self.escrow.refund()
+        return self.refund()
 
 
 class BountySolution(DefaultModel):
