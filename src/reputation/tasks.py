@@ -116,6 +116,5 @@ def check_open_bounties():
         bounty.set_expired_status()
         refund_status = bounty.refund()
         if refund_status is False:
-            log_info(
-                f"Failed to refund bounties: {expired_bounties.values_list('id', flat=True)}"
-            )
+            ids = expired_bounties.values_list("id", flat=True)
+            log_info(f"Failed to refund bounties: {ids}")

@@ -102,7 +102,9 @@ class Action(DefaultModel):
             act.label += " summary"
 
         if isinstance(act.item, Bounty):
-            act.message = "Your bounty is expiring in one day! If you have a suitable answer, make sure to pay out your bounty in order to keep your reputation on ResearchHub high."
+            act.message = "Your bounty is expiring in one day! \
+            If you have a suitable answer, make sure to pay out \
+            your bounty in order to keep your reputation on ResearchHub high."
 
         return act
 
