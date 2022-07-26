@@ -227,22 +227,6 @@ class BountyViewSet(viewsets.ModelViewSet):
             else:
                 raise Exception("Bounty payout error")
 
-    # TODO: Delete
-    def potential_approve_bounty(self, request):
-        data = request.data
-        content_type = data.get("content_type", "")
-        object_id = data.get("object_id", 0)
-
-        if not (content_type and object_id):
-            return Response(status=400)
-
-        with transaction.atomic():
-            model_class = ContentType.objects.get(model=content_type).model_class()
-            obj = model_class.objects.get(id=object_id)
-            bounties = obj.bounties.all().order_by("-created_date")
-            for bounty in bounties.iterator():
-                bounty.approve()
-
     @action(
         detail=True,
         methods=["post", "delete"],
