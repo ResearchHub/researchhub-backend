@@ -960,6 +960,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "user_vote",
                 ]
             },
+            "doc_duds_get_bounties": {"_include_fields": ["id"]},
             "rep_dcs_get_author": {
                 "_include_fields": [
                     "id",
