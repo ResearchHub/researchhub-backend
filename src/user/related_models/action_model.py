@@ -166,6 +166,8 @@ class Action(DefaultModel):
                     summary = self.item.renderable_text
                 elif doc_type == "PAPER":
                     summary = self.item.abstract
+                elif doc_type == "QUESTION":
+                    summary = self.item.renderable_text
         except Exception as e:
             return ""
 
