@@ -93,10 +93,16 @@ def check_open_bounties():
         # Sends a notification if no notification exists for current bounty
         if not Notification.objects.filter(action=bounty_action).exists():
             bounty_creator = bounty.created_by
+            bounty_item = bounty.item
+            if isinstance(bounty_item, ResearchhubUnifiedDocument):
+                unified_doc = bounty_item
+            else:
+                unified_doc = bounty_item.unified_document
             notification = Notification.objects.create(
                 action=bounty_action,
                 action_user=bounty_creator,
                 recipient=bounty_creator,
+                unified_document=unified_doc,
             )
             notification.send_notification()
 
