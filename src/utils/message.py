@@ -60,7 +60,7 @@ def send_email_message(
     subject = subject.replace("\r", "")
 
     if not isinstance(recipients, list):
-        recipients = list(recipients)
+        recipients = [recipients]
 
     if not PRODUCTION:
         subject = "[Staging] " + subject
