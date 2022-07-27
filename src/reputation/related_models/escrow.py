@@ -1,4 +1,3 @@
-import math
 import time
 
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -92,20 +91,7 @@ class Escrow(DefaultModel):
     def set_pending_status(self, should_save=True):
         self.set_status(self.PENDING, should_save=should_save)
 
-    def _deduct_fee_from_payout(self, payout_amount):
-        bounty_fee = self.bounty_fee
-        rh_pct = bounty_fee.rh_pct
-        dao_pct = bounty_fee.dao_pct
-
-        rh_amount = payout_amount * rh_pct
-        dao_amount = payout_amount * dao_pct
-        return math.ceil(rh_amount + dao_amount)
-
     def _get_net_payout(self, payout_amount, escrow_amount):
-        # fee_amount = self._deduct_fee_from_payout(payout_amount)
-        # net_payout = payout_amount - fee_amount
-        # refund_amount = escrow_amount - net_payout - fee_amount
-
         net_payout = payout_amount
         refund_amount = escrow_amount - net_payout
         return net_payout, refund_amount

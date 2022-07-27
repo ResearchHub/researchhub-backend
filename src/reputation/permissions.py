@@ -51,7 +51,6 @@ class UserCanApproveBounty(BasePermission):
         elif obj.expiration_date <= datetime.now(pytz.UTC):
             self.message = "Bounty is expired"
             return False
-
         return obj.created_by == request.user
 
 
