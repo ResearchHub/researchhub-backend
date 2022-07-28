@@ -25,6 +25,7 @@ from paper.models import Paper, PaperSubmission
 from purchase.models import Wallet
 from reputation import distributions
 from reputation.distributor import Distributor
+from reputation.models import Bounty
 from researchhub.settings import NO_ELASTIC, TESTING
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
@@ -130,6 +131,7 @@ def handle_spam(sender, instance, **kwargs):
 @receiver(post_save, sender=ResearchhubPost, dispatch_uid="researchhubpost_action")
 @receiver(post_save, sender=Hypothesis, dispatch_uid="create_hypothesis_action")
 @receiver(post_save, sender=PaperSubmission, dispatch_uid="create_submission_action")
+@receiver(post_save, sender=Bounty, dispatch_uid="create_bounty_action")
 def create_action(sender, instance, created, **kwargs):
     if created:
         if sender == Summary:
@@ -220,7 +222,7 @@ def create_delete_action(sender, instance, using, **kwargs):
 
 
 def create_notification(sender, instance, created, action, **kwargs):
-    if sender == GrmVote or sender == PaperSubmission:
+    if sender == GrmVote or sender == PaperSubmission or sender == Bounty:
         return
 
     if created:

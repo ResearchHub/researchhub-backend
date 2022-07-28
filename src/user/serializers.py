@@ -20,7 +20,7 @@ from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerial
 from hypothesis.models import Hypothesis
 from paper.models import Paper, PaperSubmission
 from purchase.models import Purchase
-from reputation.models import Contribution, Withdrawal
+from reputation.models import Bounty, Contribution, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.serializers import DynamicPermissionSerializer
@@ -745,6 +745,10 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
             serializer = DynamicPaperSubmissionSerializer
         elif isinstance(item, Verdict):
             serializer = DynamicVerdictSerializer
+        elif isinstance(item, Bounty):
+            from reputation.serializers import DynamicBountySerializer
+
+            serializer = DynamicBountySerializer
         else:
             return None
 

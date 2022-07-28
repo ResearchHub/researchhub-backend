@@ -16,7 +16,11 @@ from reputation.distributions import (
 )
 from reputation.distributor import Distributor
 from reputation.models import Bounty, BountyFee, Escrow
-from reputation.permissions import SingleBountyOpen, UserBounty
+from reputation.permissions import (
+    SingleBountyOpen,
+    UserCanApproveBounty,
+    UserCanCancelBounty,
+)
 from reputation.serializers import (
     BountySerializer,
     BountySolutionSerializer,
@@ -177,7 +181,9 @@ class BountyViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=201)
 
     @action(
-        detail=True, methods=["post"], permission_classes=[IsAuthenticated, UserBounty]
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, UserCanApproveBounty],
     )
     def approve_bounty(self, request, pk=None):
         data = request.data
@@ -200,10 +206,6 @@ class BountyViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             bounty = self.get_object()
-
-            if bounty.status != Bounty.OPEN:
-                return Response({"error": "Bounty is closed."}, status=400)
-
             content_type = ContentType.objects.get(model=content_type)
             model_class = content_type.model_class()
             solution = model_class.objects.get(id=object_id)
@@ -225,26 +227,10 @@ class BountyViewSet(viewsets.ModelViewSet):
             else:
                 raise Exception("Bounty payout error")
 
-    # TODO: Delete
-    def potential_approve_bounty(self, request):
-        data = request.data
-        content_type = data.get("content_type", "")
-        object_id = data.get("object_id", 0)
-
-        if not (content_type and object_id):
-            return Response(status=400)
-
-        with transaction.atomic():
-            model_class = ContentType.objects.get(model=content_type).model_class()
-            obj = model_class.objects.get(id=object_id)
-            bounties = obj.bounties.all().order_by("-created_date")
-            for bounty in bounties.iterator():
-                bounty.approve()
-
     @action(
         detail=True,
-        methods=["POST", "DELETE"],
-        permission_classes=[IsAuthenticated, UserBounty],
+        methods=["post", "delete"],
+        permission_classes=[IsAuthenticated, UserCanCancelBounty],
     )
     def cancel_bounty(self, request, pk=None):
         with transaction.atomic():

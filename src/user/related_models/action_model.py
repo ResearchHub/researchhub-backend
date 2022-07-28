@@ -7,7 +7,7 @@ from django.utils import timezone
 from discussion.models import Comment, Reply, Thread
 from hub.models import Hub
 from paper.models import Paper, PaperSubmission
-from reputation.models import Withdrawal
+from reputation.models import Bounty, Withdrawal
 from researchhub.settings import BASE_FRONTEND_URL, TESTING
 from summary.models import Summary
 from user.related_models.user_model import User
@@ -101,6 +101,11 @@ class Action(DefaultModel):
         if act.content_type_name == "summary":
             act.label += " summary"
 
+        if isinstance(act.item, Bounty):
+            act.message = "Your bounty is expiring in one day! \
+            If you have a suitable answer, make sure to pay out \
+            your bounty in order to keep your reputation on ResearchHub high."
+
         return act
 
     @property
@@ -161,6 +166,8 @@ class Action(DefaultModel):
                     summary = self.item.renderable_text
                 elif doc_type == "PAPER":
                     summary = self.item.abstract
+                elif doc_type == "QUESTION":
+                    summary = self.item.renderable_text
         except Exception as e:
             return ""
 
@@ -177,6 +184,9 @@ class Action(DefaultModel):
 
         link = BASE_FRONTEND_URL
         item = self.item
+
+        if isinstance(item, Bounty):
+            item = item.item.get_document()
 
         if isinstance(item, Summary):
             link += "/paper/{}/".format(item.paper.id)

@@ -144,6 +144,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 "_include_fields": [
                     "amount",
                     "content_type",
+                    "expiration_date",
                     "flagged_content_name",
                     "id",
                     "is_content_removed",
