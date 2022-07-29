@@ -42,7 +42,7 @@ class BountyViewSet(viewsets.ModelViewSet):
     ALLOWED_APPROVE_CONTENT_TYPES = ("thread", "comment", "reply")
 
     def _get_rh_fee_recipient(self):
-        user = User.objects.filter(email="revenue@researchub.com")
+        user = User.objects.filter(email="revenue@researchhub.com")
         if user.exists():
             return user.first()
 

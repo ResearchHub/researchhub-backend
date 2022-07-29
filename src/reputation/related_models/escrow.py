@@ -96,7 +96,7 @@ class Escrow(DefaultModel):
         refund_amount = escrow_amount - net_payout
         return net_payout, refund_amount
 
-    def payout(self, payout_amount=None):
+    def payout(self, payout_amount):
         from reputation.distributor import Distributor
 
         recipient = self.recipient
@@ -106,9 +106,8 @@ class Escrow(DefaultModel):
             return False
 
         status = self.PARTIALLY_PAID
-        if not payout_amount:
+        if payout_amount == self.amount:
             status = self.PAID
-            payout_amount = self.amount
 
         if payout_amount > escrow_amount:
             return False
