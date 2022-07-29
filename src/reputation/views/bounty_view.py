@@ -38,7 +38,7 @@ class BountyViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["item_object_id", "status"]
 
-    ALLOWED_CREATE_CONTENT_TYPES = ("researchhubunifieddocument",)
+    ALLOWED_CREATE_CONTENT_TYPES = ("researchhubunifieddocument", "thread")
     ALLOWED_APPROVE_CONTENT_TYPES = ("thread", "comment", "reply")
 
     def _get_rh_fee_recipient(self):
