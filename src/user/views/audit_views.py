@@ -14,7 +14,7 @@ from mailing_list.lib import base_email_context
 from notification.models import Notification
 from paper.related_models.paper_model import Paper
 from user.filters import AuditDashboardFilterBackend
-from user.models import Action
+from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 from utils import sentry
@@ -415,8 +415,10 @@ class AuditViewSet(viewsets.GenericViewSet):
         action = Action.objects.create(
             item=verdict, user=remover, content_type=get_content_type_for_model(verdict)
         )
+
+        anon_remover = self._get_anonymous_remover()
         notification = Notification.objects.create(
-            action_user=remover,
+            action_user=anon_remover,
             action=action,
             recipient=content_creator,
             unified_document=flagged_content.unified_document,
@@ -450,3 +452,15 @@ class AuditViewSet(viewsets.GenericViewSet):
             "flagged_and_removed_content.html",
             "ResearchHub Digest <digest@researchhub.com>",
         )
+
+    def _get_anonymous_remover(self):
+        user = User.objects.filter(email="community@researchhub.com")
+        if user.exists():
+            return user.first()
+
+        user = User.objects.filter(email="bank@researchhub.com")
+        if user.exists():
+            return user.first()
+
+        # For some reason last is returning the first user
+        return User.objects.last()
