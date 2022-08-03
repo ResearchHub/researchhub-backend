@@ -45,6 +45,21 @@ class BountyViewTests(APITestCase):
         self.assertEqual(create_bounty_res.status_code, 201)
         return create_bounty_res
 
+    def test_user_can_create_thread_bounty(self):
+        self.client.force_authenticate(self.user)
+
+        create_bounty_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_object_id": self.self.thread.id,
+                "item_content_type": self.thread._meta.model_name,
+            },
+        )
+
+        self.assertEqual(create_bounty_res.status_code, 201)
+        return create_bounty_res
+
     def test_user_can_create_larger_bounty(self):
         self.client.force_authenticate(self.user)
 
