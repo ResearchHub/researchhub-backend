@@ -16,6 +16,7 @@ class BountyViewTests(APITestCase):
     def setUp(self):
         self.bank_user = create_user(email="bank@researchhub.com")
         self.user = create_random_default_user("bounty_user")
+        self.user_2 = create_random_default_user("bounty_user_2")
         self.recipient = create_random_default_user("bounty_recipient")
         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
         self.paper = create_paper()
@@ -27,6 +28,10 @@ class BountyViewTests(APITestCase):
         distribution = Dist("REWARD", 1000000000, give_rep=False)
         distributor = Distributor(
             distribution, self.user, self.user, time.time(), self.user
+        )
+        distributor.distribute()
+        distributor = Distributor(
+            distribution, self.user_2, self.user, time.time(), self.user
         )
         distributor.distribute()
 
@@ -52,13 +57,39 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 100,
-                "item_object_id": self.self.thread.id,
+                "item_object_id": self.thread.id,
                 "item_content_type": self.thread._meta.model_name,
             },
         )
 
         self.assertEqual(create_bounty_res.status_code, 201)
         return create_bounty_res
+
+    def test_addiontal_user_can_create_bounty(self):
+        self.client.force_authenticate(self.user)
+
+        create_bounty_res_1 = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_object_id": self.paper.unified_document.id,
+                "item_content_type": self.paper.unified_document._meta.model_name,
+            },
+        )
+
+        self.assertEqual(create_bounty_res_1.status_code, 201)
+
+        self.client.force_authenticate(self.user_2)
+        create_bounty_res_2 = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 200,
+                "item_object_id": self.paper.unified_document.id,
+                "item_content_type": self.paper.unified_document._meta.model_name,
+            },
+        )
+
+        self.assertEqual(create_bounty_res_2.status_code, 201)
 
     def test_user_can_create_larger_bounty(self):
         self.client.force_authenticate(self.user)
@@ -234,12 +265,80 @@ class BountyViewTests(APITestCase):
         self.assertGreater(recipient_balance, initial_recipient_balance)
         self.assertGreater(initial_user_balance, user_balance)
 
+    def test_user_cant_approve_approved_bounty(self):
+        self.client.force_authenticate(self.user)
+
+        bounty = self.test_user_can_create_bounty()
+        approve_bounty_res = self.client.post(
+            f"/api/bounty/{bounty.data['id']}/approve_bounty/",
+            {
+                "amount": None,
+                "object_id": self.thread.id,
+                "content_type": self.thread._meta.model_name,
+                "recipient": self.user.id,
+            },
+        )
+
+        self.assertEqual(approve_bounty_res.status_code, 200)
+        self.assertEqual(approve_bounty_res.data["amount"], bounty.data["amount"])
+
+        approve_bounty_res_2 = self.client.post(
+            f"/api/bounty/{bounty.data['id']}/approve_bounty/",
+            {
+                "amount": None,
+                "object_id": self.thread.id,
+                "content_type": self.thread._meta.model_name,
+                "recipient": self.user.id,
+            },
+        )
+        self.assertEqual(approve_bounty_res_2.status_code, 403)
+
+    def test_random_user_cant_approve_bounty(self):
+        self.client.force_authenticate(self.user)
+
+        bounty = self.test_user_can_create_bounty()
+        self.client.force_authenticate(self.user_2)
+        approve_bounty_res = self.client.post(
+            f"/api/bounty/{bounty.data['id']}/approve_bounty/",
+            {
+                "amount": None,
+                "object_id": self.thread.id,
+                "content_type": self.thread._meta.model_name,
+                "recipient": self.user.id,
+            },
+        )
+
+        self.assertEqual(approve_bounty_res.status_code, 403)
+
     def test_user_can_cancel_bounty(self):
         self.client.force_authenticate(self.user)
 
         bounty_1 = self.test_user_can_create_bounty()
-        approve_bounty_res_1 = self.client.post(
+        cancel_bounty_res_1 = self.client.post(
             f"/api/bounty/{bounty_1.data['id']}/cancel_bounty/",
         )
 
-        self.assertEqual(approve_bounty_res_1.status_code, 200)
+        self.assertEqual(cancel_bounty_res_1.status_code, 200)
+
+    def test_random_user_cant_cancel_bounty(self):
+        self.client.force_authenticate(self.user)
+
+        bounty_1 = self.test_user_can_create_bounty()
+        self.client.force_authenticate(self.user_2)
+        cancel_bounty_res_1 = self.client.post(
+            f"/api/bounty/{bounty_1.data['id']}/cancel_bounty/",
+        )
+
+        self.assertEqual(cancel_bounty_res_1.status_code, 403)
+
+    def test_user_cant_cancel_cancelled_bounty(self):
+        self.client.force_authenticate(self.user)
+
+        bounty_1 = self.test_user_can_create_bounty()
+        self.client.post(
+            f"/api/bounty/{bounty_1.data['id']}/cancel_bounty/",
+        )
+        cancel_bounty_res_2 = self.client.post(
+            f"/api/bounty/{bounty_1.data['id']}/cancel_bounty/",
+        )
+        self.assertEqual(cancel_bounty_res_2.status_code, 403)
