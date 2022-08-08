@@ -121,6 +121,7 @@ def celery_paper_reset_cache(paper_id):
             "discussion_count",
             "pdf_file_extract",
             "is_open_access",
+            "oa_status",
             "external_source",
             "title",
             "doi",
@@ -1382,6 +1383,7 @@ def celery_openalex(self, celery_data):
                 "paper_publish_date", result.get("publication_date", None)
             )
             paper_data.setdefault("is_open_access", oa.get("is_oa", None))
+            paper_data.setdefault("oa_status", oa.get("oa_status", None))
             paper_data.setdefault("pdf_license", host_venue.get("license", None))
             paper_data.setdefault("pdf_license_url", url)
             paper_data.setdefault("url", url)

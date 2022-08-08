@@ -504,6 +504,8 @@ def get_discussion_vote_item_distribution(instance):
             vote_type = distributions.PaperUpvoted.name
         elif isinstance(item, Hypothesis):
             vote_type = distributions.HypothesisUpvoted.name
+        elif isinstance(item, Citation):
+            vote_type = distributions.CitationUpvoted.name
         else:
             raise error
 
@@ -521,6 +523,8 @@ def get_discussion_vote_item_distribution(instance):
             return distributions.PaperDownvoted
         elif isinstance(item, Hypothesis):
             return distributions.HypothesisDownvoted
+        elif isinstance(item, Citation):
+            return distributions.CitationDownvoted
         else:
             raise error
     elif vote_type == GrmVote.NEUTRAL:

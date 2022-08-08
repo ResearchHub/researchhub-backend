@@ -159,6 +159,8 @@ ThreadDownvoted = Distribution("THREAD_DOWNVOTED", -1, True, -1)
 
 HypothesisUpvoted = Distribution("HYPOTHESIS_UPVOTED", 1)
 HypothesisDownvoted = Distribution("HYPOTHESIS_DOWNVOTED", -1)
+CitationUpvoted = Distribution("CITATION_UPVOTED", 1)
+CitationDownvoted = Distribution("CITATION_DOWNVOTED", -1)
 
 CreateSummary = Distribution("CREATE_SUMMARY", 1)
 CreateFirstSummary = Distribution("CREATE_FIRST_SUMMARY", 5, True, 5)
