@@ -44,7 +44,7 @@ class AuditViewTests(APITestCase):
 
         self.client.force_authenticate(self.reg_user)
         http_response = self.client.post(
-            f"/api/researchhub_posts/{target_post.id}/flag/", {"reason_choice": SPAM}
+            f"/api/researchhub_post/{target_post.id}/flag/", {"reason_choice": SPAM}
         )
         self.assertContains(http_response, "id", status_code=201)
 
