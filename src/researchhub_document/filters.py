@@ -19,7 +19,7 @@ DOC_CHOICES = (
     ("paper", "Papers"),
     ("posts", "Posts"),
     ("hypothesis", "Hypothesis"),
-    ("questions", "Questions"),
+    ("question", "Questions"),
 )
 BOUNTY_CHOICES = (
     ("all", "All"),

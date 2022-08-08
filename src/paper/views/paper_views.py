@@ -293,6 +293,7 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 "discussion_count",
                 "pdf_file_extract",
                 "is_open_access",
+                "oa_status",
                 "external_source",
                 "title",
                 "doi",
