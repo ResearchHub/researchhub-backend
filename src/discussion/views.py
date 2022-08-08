@@ -62,11 +62,11 @@ from .utils import (
 )
 
 RELATED_DISCUSSION_MODELS = {
-    "peer_review": PeerReview,
     "citation": Citation,
     "hypothesis": Hypothesis,
     "paper": Paper,
-    "post": ResearchhubPost,
+    "peer_review": PeerReview,
+    "researchhub_post": ResearchhubPost,
 }
 
 
