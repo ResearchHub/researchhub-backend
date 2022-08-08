@@ -30,8 +30,7 @@ from researchhub.settings import (
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
-    DISCUSSION,
-    QUESTION,
+    RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
 from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.related_models.constants.filters import (
@@ -124,7 +123,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             rh_post.authors.set(authors)
 
             if not TESTING:
-                if document_type in [DISCUSSION, QUESTION]:
+                if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
                     rh_post.discussion_src.save(file_name, full_src_file)
                 else:
                     rh_post.eln_src.save(file_name, full_src_file)

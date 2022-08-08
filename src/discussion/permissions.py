@@ -28,7 +28,7 @@ class CensorDiscussion(AuthorizationBasedPermission):
     message = "Need to be a moderator to delete discussions."
 
     def is_authorized(self, request, view, obj):
-        return obj.created_by == request.user or request.user.moderator
+        return obj.created_by.id == request.user.id or request.user.moderator
 
 
 class CreateDiscussionComment(RuleBasedPermission):

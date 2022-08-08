@@ -188,7 +188,7 @@ def send_hub_digest(frequency):
     emails = []
     papers = []
 
-    request_path = "/api/researchhub_unified_documents/get_unified_documents/"
+    request_path = "/api/researchhub_unified_document/get_unified_documents/"
     if STAGING:
         http_host = "staging-backend.researchhub.com"
         protocol = "https"

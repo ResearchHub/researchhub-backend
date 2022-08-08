@@ -19,14 +19,6 @@ def recalc_hot_score(instance, sender, **kwargs):
             priority=2,
             countdown=5,
         )
-        # TODO: calvinhlee - remove this if works on staging.
-        # elif isinstance(instance, ResearchhubUnifiedDocument):
-        #     inner_doc = instance.get_document()
-        #     content_type_id = ContentType.objects.get_for_model(inner_doc).id
-
-        #     recalc_hot_score_task.apply_async(
-        #         (content_type_id, inner_doc.id), priority=2, countdown=5
-        #     )
     except Exception as error:
         print("recalc_hot_score error", error)
         sentry.log_error(error)

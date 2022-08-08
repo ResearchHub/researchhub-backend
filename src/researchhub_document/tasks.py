@@ -84,7 +84,7 @@ def preload_trending_documents(
     elif filtering == "author_claimed":
         query_string_filtering = "author_claimed"
 
-    request_path = "/api/researchhub_unified_documents/get_unified_documents/"
+    request_path = "/api/researchhub_unified_document/get_unified_documents/"
     if STAGING:
         http_host = "staging-backend.researchhub.com"
         protocol = "https"

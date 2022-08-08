@@ -77,7 +77,7 @@ class HotScoreMixinDEPRECATED:
     # of various interactions on it (i.e. votes). Each of which, depends
     # on how recent these interactions were. The more recent the interaction
     # is, the greater its value.
-    # NOTE: use endpoint /api/researchhub_unified_documents/{doc_id}/hot_score/?debug
+    # NOTE: use endpoint /api/researchhub_unified_document/{doc_id}/hot_score/?debug
     # to see a breakdown of how the hot score is calculated for a given document
     def calculate_hot_score_v2(self, should_save=False):
         DOCUMENT_VOTE_WEIGHT = 1

@@ -14,7 +14,7 @@ class ReviewViewTests(APITestCase):
     def test_create_review(self):
         self.client.force_authenticate(self.user)
         response = self.client.post(
-            f"/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/",
+            f"/api/researchhub_unified_document/{self.paper.unified_document.id}/review/",
             {
                 "score": 7,
             },
@@ -26,7 +26,7 @@ class ReviewViewTests(APITestCase):
         self.client.force_authenticate(self.user)
 
         create_response = self.client.post(
-            f"/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/",
+            f"/api/researchhub_unified_document/{self.paper.unified_document.id}/review/",
             {
                 "score": 7,
             },
@@ -34,7 +34,7 @@ class ReviewViewTests(APITestCase):
 
         id = create_response.data["id"]
         response = self.client.put(
-            f"/api/researchhub_unified_documents/{self.paper.unified_document.id}/review/{id}/",
+            f"/api/researchhub_unified_document/{self.paper.unified_document.id}/review/{id}/",
             {
                 "score": 4,
             },

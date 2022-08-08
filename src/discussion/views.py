@@ -62,11 +62,11 @@ from .utils import (
 )
 
 RELATED_DISCUSSION_MODELS = {
-    "peer_review": PeerReview,
     "citation": Citation,
     "hypothesis": Hypothesis,
     "paper": Paper,
-    "post": ResearchhubPost,
+    "peer_review": PeerReview,
+    "researchhub_post": ResearchhubPost,
 }
 
 
@@ -175,7 +175,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 threads = Thread.objects.filter(paper=paper_id, source=source)
             else:
                 threads = Thread.objects.filter(paper=paper_id)
-        elif document_type == "post":
+        elif document_type == "researchhub_post":
             post_id = get_document_id_from_path(self.request)
             threads = Thread.objects.filter(
                 post=post_id,

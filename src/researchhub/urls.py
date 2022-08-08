@@ -68,19 +68,19 @@ router.register(
 )
 
 router.register(
-    r"post/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
+    r"researchhub_post/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
     discussion.views.ReplyViewSet,
     basename="post_discussion_thread_comment_replies",
 )
 
 router.register(
-    r"post/([0-9]+)/discussion/([0-9]+)/comment",
+    r"researchhub_post/([0-9]+)/discussion/([0-9]+)/comment",
     discussion.views.CommentViewSet,
     basename="post_discussion_thread_comments",
 )
 
 router.register(
-    r"post/([0-9]+)/discussion",
+    r"researchhub_post/([0-9]+)/discussion",
     discussion.views.ThreadViewSet,
     basename="post_discussion_threads",
 )
@@ -248,15 +248,15 @@ router.register(
 )
 
 router.register(
-    r"researchhub_posts",
+    r"researchhub_post",
     researchhub_document_views.ResearchhubPostViewSet,
-    basename="researchhub_posts",
+    basename="researchhub_post",
 )
 
 router.register(
-    r"researchhub_unified_documents",
+    r"researchhub_unified_document",
     researchhub_document_views.ResearchhubUnifiedDocumentViewSet,
-    basename="researchhub_unified_documents",
+    basename="researchhub_unified_document",
 )
 
 router.register(
@@ -300,7 +300,7 @@ router.register(
 )
 
 router.register(
-    r"researchhub_unified_documents/([0-9]+)/review", ReviewViewSet, basename="review"
+    r"researchhub_unified_document/([0-9]+)/review", ReviewViewSet, basename="review"
 )
 
 urlpatterns = [

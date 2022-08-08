@@ -6,11 +6,9 @@ from reputation.models import Bounty
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
-    DISCUSSION,
-    ELN,
     HYPOTHESIS,
     PAPER,
-    QUESTION,
+    RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
 from researchhub_document.serializers import (
     DynamicPostSerializer,
@@ -68,7 +66,7 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
 
         context = self.context
         doc_type = instance.document_type
-        if doc_type in [DISCUSSION, ELN, QUESTION]:
+        if doc_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
             return ResearchhubPostSerializer(
                 instance.posts, many=True, context=context
             ).data
@@ -111,7 +109,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("doc_duds_get_documents", {})
         doc_type = unified_doc.document_type
 
-        if doc_type in [DISCUSSION, ELN, QUESTION]:
+        if doc_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
             return DynamicPostSerializer(
                 unified_doc.posts, many=True, context=context, **_context_fields
             ).data
