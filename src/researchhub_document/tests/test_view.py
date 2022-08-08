@@ -35,7 +35,7 @@ class ViewTests(APITestCase):
         )
 
         response = self.client.delete(
-            f"/api/researchhub_unified_documents/{doc_response.data['unified_document_id']}/censor/"
+            f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
         doc = ResearchhubUnifiedDocument.objects.get(
             id=doc_response.data["unified_document_id"]
@@ -62,10 +62,10 @@ class ViewTests(APITestCase):
         )
 
         delete_response = self.client.delete(
-            f"/api/researchhub_unified_documents/{doc_response.data['unified_document_id']}/censor/"
+            f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
         restore_response = self.client.patch(
-            f"/api/researchhub_unified_documents/{doc_response.data['unified_document_id']}/restore/"
+            f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/restore/"
         )
         self.assertEqual(restore_response.data["is_removed"], False)
 
@@ -90,12 +90,12 @@ class ViewTests(APITestCase):
         )
 
         delete_response = self.client.delete(
-            f"/api/researchhub_unified_documents/{doc_response.data['unified_document_id']}/censor/"
+            f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
 
         self.client.force_authenticate(mod)
         restore_response = self.client.patch(
-            f"/api/researchhub_unified_documents/{doc_response.data['unified_document_id']}/restore/"
+            f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/restore/"
         )
         self.assertEqual(restore_response.data["is_removed"], False)
 
@@ -122,7 +122,7 @@ class ViewTests(APITestCase):
         self.client.force_authenticate(non_author)
 
         response = self.client.delete(
-            f"/api/researchhub_unified_documents/{doc_response.data['unified_document_id']}/censor/"
+            f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
         doc = ResearchhubUnifiedDocument.objects.get(
             id=doc_response.data["unified_document_id"]
@@ -152,7 +152,7 @@ class ViewTests(APITestCase):
         self.client.force_authenticate(moderator)
 
         response = self.client.delete(
-            f"/api/researchhub_unified_documents/{doc_response.data['unified_document_id']}/censor/"
+            f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
         doc = ResearchhubUnifiedDocument.objects.get(
             id=doc_response.data["unified_document_id"]
