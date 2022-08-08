@@ -68,19 +68,19 @@ router.register(
 )
 
 router.register(
-    r"post/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
+    r"researchhub_post/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
     discussion.views.ReplyViewSet,
     basename="post_discussion_thread_comment_replies",
 )
 
 router.register(
-    r"post/([0-9]+)/discussion/([0-9]+)/comment",
+    r"researchhub_post/([0-9]+)/discussion/([0-9]+)/comment",
     discussion.views.CommentViewSet,
     basename="post_discussion_thread_comments",
 )
 
 router.register(
-    r"post/([0-9]+)/discussion",
+    r"researchhub_post/([0-9]+)/discussion",
     discussion.views.ThreadViewSet,
     basename="post_discussion_threads",
 )

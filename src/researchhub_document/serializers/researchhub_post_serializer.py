@@ -16,8 +16,7 @@ from reputation.models import Bounty
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
-    DISCUSSION,
-    QUESTION,
+    RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
 from user.serializers import (
     AuthorSerializer,
@@ -144,7 +143,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
 
     def get_post_src(self, instance):
         try:
-            if instance.document_type in [DISCUSSION, QUESTION]:
+            if instance.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
                 return instance.discussion_src.url
             else:
                 return instance.eln_src.url
@@ -216,7 +215,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
 
     def get_full_markdown(self, instance):
         try:
-            if instance.document_type in [DISCUSSION, QUESTION]:
+            if instance.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
                 byte_string = instance.discussion_src.read()
             else:
                 byte_string = instance.eln_src.read()

@@ -1,22 +1,16 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from django.utils.text import slugify
 from django.utils.crypto import get_random_string
+from django.utils.text import slugify
 
+from discussion.reaction_models import Vote
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub_document.models import ResearchhubPost
-from discussion.reaction_models import Vote
 
 
-@receiver(post_save, sender=ResearchhubPost, dispatch_uid='add_paper_slug')
-def add_paper_slug(
-    sender,
-    instance,
-    created,
-    update_fields,
-    **kwargs
-):
+@receiver(post_save, sender=ResearchhubPost, dispatch_uid="add_paper_slug")
+def add_paper_slug(sender, instance, created, update_fields, **kwargs):
     if created:
         suffix = get_random_string(length=32)
         slug = slugify(instance.title)
@@ -29,20 +23,14 @@ def add_paper_slug(
 @receiver(
     post_save,
     sender=ResearchhubPost,
-    dispatch_uid='rh_post_add_upvote_by_creator_on_create',
+    dispatch_uid="rh_post_add_upvote_by_creator_on_create",
 )
 def rh_post_add_upvote_by_creator_on_create(
-    created,
-    instance,
-    sender,
-    update_fields,
-    **kwargs
+    created, instance, sender, update_fields, **kwargs
 ):
-    if (created):
+    if created:
         vote = Vote.objects.create(
-          item=instance,
-          created_by=instance.created_by,
-          vote_type=Vote.UPVOTE
+            item=instance, created_by=instance.created_by, vote_type=Vote.UPVOTE
         )
         vote.save()
 
@@ -50,29 +38,20 @@ def rh_post_add_upvote_by_creator_on_create(
 @receiver(
     post_save,
     sender=ResearchhubPost,
-    dispatch_uid='rh_post_create_contribution',
+    dispatch_uid="rh_post_create_contribution",
 )
-def rh_post_create_contribution(
-    created,
-    instance,
-    sender,
-    update_fields,
-    **kwargs
-):
+def rh_post_create_contribution(created, instance, sender, update_fields, **kwargs):
     if created:
         created_by = instance.created_by
         unified_doc_id = instance.unified_document.id
         create_contribution.apply_async(
             (
                 Contribution.SUBMITTER,
-                {
-                    'app_label': 'researchhub_document',
-                    'model': 'researchhubpost'
-                },
+                {"app_label": "researchhub_document", "model": "researchhubpost"},
                 created_by.id,
                 unified_doc_id,
-                instance.id
+                instance.id,
             ),
             priority=3,
-            countdown=5
+            countdown=5,
         )
