@@ -248,15 +248,15 @@ router.register(
 )
 
 router.register(
-    r"researchhub_posts",
+    r"researchhub_post",
     researchhub_document_views.ResearchhubPostViewSet,
-    basename="researchhub_posts",
+    basename="researchhub_post",
 )
 
 router.register(
-    r"researchhub_unified_documents",
+    r"researchhub_unified_document",
     researchhub_document_views.ResearchhubUnifiedDocumentViewSet,
-    basename="researchhub_unified_documents",
+    basename="researchhub_unified_document",
 )
 
 router.register(
@@ -300,7 +300,7 @@ router.register(
 )
 
 router.register(
-    r"researchhub_unified_documents/([0-9]+)/review", ReviewViewSet, basename="review"
+    r"researchhub_unified_document/([0-9]+)/review", ReviewViewSet, basename="review"
 )
 
 urlpatterns = [
