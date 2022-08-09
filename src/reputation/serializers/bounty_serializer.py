@@ -49,6 +49,7 @@ class BountySolutionSerializer(serializers.ModelSerializer):
 
 class DynamicBountySerializer(DynamicModelFieldSerializer):
     created_by = serializers.SerializerMethodField()
+    content_type = serializers.SerializerMethodField()
     escrow = serializers.SerializerMethodField()
     item = serializers.SerializerMethodField()
     solutions = serializers.SerializerMethodField()
@@ -64,6 +65,10 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
             bounty.created_by, context=context, **_context_fields
         )
         return serializer.data
+
+    def get_content_type(self, bounty):
+        content_type = bounty.item_content_type
+        return {"id": content_type.id, "name": content_type.model}
 
     def get_item(self, bounty):
         serializer = None
