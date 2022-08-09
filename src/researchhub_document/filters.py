@@ -76,7 +76,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
             qs = qs.filter(document_type=PAPER)
         elif value == POSTS:
             qs = qs.filter(document_type__in=[DISCUSSION, ELN])
-        elif value == "QUESTIONS":
+        elif value == QUESTION:
             qs = qs.filter(document_type=QUESTION)
         elif value == HYPOTHESIS:
             qs = qs.filter(document_type=HYPOTHESIS).prefetch_related(
