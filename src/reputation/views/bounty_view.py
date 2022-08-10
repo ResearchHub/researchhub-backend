@@ -113,6 +113,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 "created_by",
                 "documents",
                 "document_type",
+                "id",
                 "plain_text",
                 "unified_document",
             )
@@ -126,7 +127,9 @@ class BountyViewSet(viewsets.ModelViewSet):
             )
         }
         context["dis_dts_get_created_by"] = {"_include_fields": ("author_profile",)}
-        context["dis_dts_get_unified_document"] = {"_include_fields": ("documents",)}
+        context["dis_dts_get_unified_document"] = {
+            "_include_fields": ("documents", "document_type")
+        }
         return context
 
     def create(self, request, *args, **kwargs):
@@ -282,6 +285,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             qs,
             many=True,
             _include_fields=(
+                "amount",
                 "created_by",
                 "content_type",
                 "id",
