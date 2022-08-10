@@ -238,24 +238,24 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         permission_classes=[IsOriginalQuestionPoster],
     )
     def mark_as_accepted_answer(self, *args, **kwargs):
-        try:
-            document_id = get_document_id_from_path(self.request)
-            target_post_question = ResearchhubPost.objects.get(id=document_id)
+        # try:
+        document_id = get_document_id_from_path(self.request)
+        target_post_question = ResearchhubPost.objects.get(id=document_id)
 
-            # logical ordering - DO NOT CHANGE THE ORDER OF OPERATIONS
-            prev_accepted_answer = target_post_question.get_accepted_answer()
-            target_thread = self.get_object()
+        # logical ordering - DO NOT CHANGE THE ORDER OF OPERATIONS
+        prev_accepted_answer = target_post_question.get_accepted_answer()
+        target_thread = self.get_object()
 
-            if prev_accepted_answer is not None:
-                prev_accepted_answer.is_accepted_answer = False
-                prev_accepted_answer.save()
+        if prev_accepted_answer is not None:
+            prev_accepted_answer.is_accepted_answer = False
+            prev_accepted_answer.save()
 
-            target_thread.is_accepted_answer = True
-            target_thread.save()
+        target_thread.is_accepted_answer = True
+        target_thread.save()
 
-            return Response({"thread_id": target_thread.id}, status=200)
-        except Exception as exception:
-            return Response(str(exception), status=400)
+        return Response({"thread_id": target_thread.id}, status=200)
+        # except Exception as exception:
+        #     return Response(str(exception), status=400)
 
 
 class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
@@ -327,6 +327,29 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         response = super().update(request, *args, **kwargs)
         self.sift_track_update_content_comment(request, response, Comment)
         return response
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[UpdateDiscussionThread],
+    )
+    def mark_as_accepted_answer(self, *args, **kwargs):
+        comment = self.get_object()
+        thread = comment.parent
+
+        # logical ordering - DO NOT CHANGE THE ORDER OF OPERATIONS
+        prev_accepted_answer = thread.get_accepted_answer()
+
+        if prev_accepted_answer is not None:
+            prev_accepted_answer.is_accepted_answer = False
+            prev_accepted_answer.save()
+
+        comment.is_accepted_answer = True
+        comment.save()
+
+        return Response({"comment_id": comment.id}, status=200)
+        # except Exception as exception:
+        #     return Response(str(exception), status=400)
 
     @action(
         detail=True,
