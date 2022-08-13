@@ -9,6 +9,7 @@ from django.db.models.functions import Cast
 from analytics.models import INTERACTIONS, PaperEvent
 from analytics.serializers import PaperEventSerializer
 from bullet_point.serializers import BulletPointSerializer
+from discussion.models import Thread
 from discussion.serializers import (
     CommentSerializer,
     DynamicCommentSerializer,
@@ -26,6 +27,7 @@ from reputation.serializers import (
     WithdrawalSerializer,
 )
 from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.serializers import ResearchhubPostSerializer
 from researchhub_document.serializers.researchhub_post_serializer import (
     DynamicPostSerializer,
@@ -66,18 +68,30 @@ class BalanceSerializer(serializers.ModelSerializer):
 
     def get_content_title(self, balance):
         if balance.content_type == ContentType.objects.get_for_model(Bounty):
-            if balance.source.item.posts.exists():
-                return balance.source.item.posts.first().title
+            source_item = balance.source.item
+            if isinstance(source_item, ResearchhubUnifiedDocument):
+                return source_item.get_document().title
+            elif isinstance(source_item, Thread):
+                return source_item.unified_document.get_document().title
+            return None
 
     def get_content_id(self, balance):
         if balance.content_type == ContentType.objects.get_for_model(Bounty):
-            if balance.source.item.posts.exists():
-                return balance.source.item.posts.first().id
+            source_item = balance.source.item
+            if isinstance(source_item, ResearchhubUnifiedDocument):
+                return source_item.get_document().id
+            elif isinstance(source_item, Thread):
+                return source_item.unified_document.get_document().id
+            return None
 
     def get_content_slug(self, balance):
         if balance.content_type == ContentType.objects.get_for_model(Bounty):
-            if balance.source.item.posts.exists():
-                return balance.source.item.posts.first().slug
+            source_item = balance.source.item
+            if isinstance(source_item, ResearchhubUnifiedDocument):
+                return source_item.get_document().slug
+            elif isinstance(source_item, Thread):
+                return source_item.unified_document.get_document().slug
+            return None
 
     def get_readable_content_type(self, balance):
         return balance.content_type.model
