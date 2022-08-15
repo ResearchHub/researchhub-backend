@@ -156,6 +156,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         is_removed = self.request.query_params.get("is_removed", False)
         document_type = self.request.path.split("/")[2]
 
+        order = ["-ordering_score", "created_date"]
         if document_type == "paper":
             paper_id = get_document_id_from_path(self.request)
             if source and source == "twitter":
@@ -180,6 +181,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             threads = Thread.objects.filter(
                 post=post_id,
             )
+            order.insert(0, "-is_accepted_answer")
         elif document_type == "hypothesis":
             hypothesis_id = get_document_id_from_path(self.request)
             threads = Thread.objects.filter(
@@ -196,7 +198,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             .annotate(
                 ordering_score=ORDERING_SCORE_ANNOTATION,
             )
-            .order_by("-ordering_score", "created_date")
+            .order_by(*order)
         )
         return threads.prefetch_related("paper")
 
