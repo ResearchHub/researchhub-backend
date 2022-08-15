@@ -279,7 +279,7 @@ class BountyViewSet(viewsets.ModelViewSet):
         # permission_classes=[IsAuthenticated]
     )
     def get_bounties(self, request):
-        qs = self.filter_queryset(self.get_queryset()).order_by("expiration_date")
+        qs = self.get_queryset().order_by("expiration_date")[:7]
         context = self._get_retrieve_context()
         serializer = DynamicBountySerializer(
             qs,
