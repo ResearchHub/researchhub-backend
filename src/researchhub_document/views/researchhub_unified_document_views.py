@@ -220,7 +220,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "_include_fields": [
                     "amount",
                     "created_by",
+                    "content_type",
                     "id",
+                    "item_object_id",
                     "expiration_date",
                     "status",
                 ]
