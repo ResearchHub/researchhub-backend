@@ -45,6 +45,11 @@ class Bounty(DefaultModel):
         "reputation.escrow", on_delete=models.CASCADE, related_name="bounty"
     )
     status = models.CharField(choices=status_choices, default=OPEN, max_length=16)
+    unified_document = models.ForeignKey(
+        "researchhub_document.ResearchhubUnifiedDocument",
+        on_delete=models.CASCADE,
+        related_name="related_bounties",
+    )
     actions = GenericRelation("user.Action")
 
     class Meta:

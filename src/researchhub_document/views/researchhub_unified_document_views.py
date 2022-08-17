@@ -220,10 +220,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "_include_fields": [
                     "amount",
                     "created_by",
+                    "content_type",
                     "id",
+                    "item_object_id",
                     "expiration_date",
                     "status",
-                ]
+                ],
+                "_filter_fields": {"status": "OPEN"},
             },
             "doc_dps_get_hubs": {
                 "_include_fields": [

@@ -85,17 +85,31 @@ class ContributionUnifiedDocumentSerializer(ResearchhubUnifiedDocumentSerializer
 
 
 class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
+    bounties = SerializerMethodField()
     documents = SerializerMethodField()
     created_by = SerializerMethodField()
     access_group = SerializerMethodField()
     hubs = SerializerMethodField()
     reviews = SerializerMethodField()
     featured = SerializerMethodField()
-    bounties = SerializerMethodField()
 
     class Meta:
         model = ResearchhubUnifiedDocument
         fields = "__all__"
+
+    def get_bounties(self, unified_doc):
+        from reputation.serializers import DynamicBountySerializer
+
+        context = self.context
+        _context_fields = context.get("doc_duds_get_bounties", {})
+        _filter_fields = _context_fields.get("_filter_fields", {})
+        serializer = DynamicBountySerializer(
+            unified_doc.related_bounties.filter(**_filter_fields),
+            many=True,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
 
     def get_featured(self, unified_doc):
         hub_id = self.context.get("hub_id", 0)
@@ -153,13 +167,3 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         # if get_reviews:
         #     return unified_doc.get_review_details()
         # return None
-
-    def get_bounties(self, unified_doc):
-        from reputation.serializers import DynamicBountySerializer
-
-        context = self.context
-        _context_fields = context.get("doc_duds_get_bounties", {})
-        serializer = DynamicBountySerializer(
-            unified_doc.bounties, many=True, context=context, **_context_fields
-        )
-        return serializer.data
