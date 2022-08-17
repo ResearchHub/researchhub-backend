@@ -136,6 +136,7 @@ class BountyViewSet(viewsets.ModelViewSet):
         data = request.data
         user = request.user
         item_content_type = data.get("item_content_type", "")
+        item_object_id = data.get("item_object_id", 0)
 
         try:
             amount = decimal.Decimal(str(data.get("amount", "0")))
@@ -154,12 +155,20 @@ class BountyViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             self._deduct_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
-            content_type_id = ContentType.objects.get(model=item_content_type).id
+            content_type = ContentType.objects.get(model=item_content_type).id
+            content_type_id = content_type.id
+
+            if item_content_type == "researchhubunifieddocument":
+                unified_document_id = item_object_id
+            else:
+                obj = content_type.model_class().get(id=item_object_id)
+                unified_document_id = obj.unified_document.id
+
             escrow_data = {
                 "created_by": user.id,
                 "hold_type": Escrow.BOUNTY,
                 "amount": amount,
-                "object_id": data.get("item_object_id", 0),
+                "object_id": item_object_id,
                 "content_type": content_type_id,
             }
             escrow_serializer = EscrowSerializer(data=escrow_data)
@@ -170,6 +179,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             data["amount"] = amount
             data["item_content_type"] = content_type_id
             data["escrow"] = escrow.id
+            data["unified_document"] = unified_document_id
             bounty_serializer = BountySerializer(data=data)
             bounty_serializer.is_valid(raise_exception=True)
             bounty = bounty_serializer.save()
