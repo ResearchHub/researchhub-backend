@@ -155,7 +155,7 @@ class BountyViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             self._deduct_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
-            content_type = ContentType.objects.get(model=item_content_type).id
+            content_type = ContentType.objects.get(model=item_content_type)
             content_type_id = content_type.id
 
             if item_content_type == "researchhubunifieddocument":
