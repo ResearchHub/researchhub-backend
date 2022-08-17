@@ -161,7 +161,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             if item_content_type == "researchhubunifieddocument":
                 unified_document_id = item_object_id
             else:
-                obj = content_type.model_class().get(id=item_object_id)
+                obj = content_type.model_class().objects.get(id=item_object_id)
                 unified_document_id = obj.unified_document.id
 
             escrow_data = {
