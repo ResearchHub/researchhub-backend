@@ -6,7 +6,7 @@ from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from purchase.models import Balance
@@ -103,6 +103,32 @@ class BountyViewSet(viewsets.ModelViewSet):
             "usr_dus_get_author_profile": {
                 "_include_fields": ("id", "first_name", "last_name")
             },
+        }
+        return context
+
+    def _get_retrieve_context(self):
+        context = self._get_create_context()
+        context["rep_dbs_get_item"] = {
+            "_include_fields": (
+                "created_by",
+                "documents",
+                "document_type",
+                "id",
+                "plain_text",
+                "unified_document",
+            )
+        }
+        context["doc_duds_get_created_by"] = {"_include_fields": ("author_profile",)}
+        context["doc_duds_get_documents"] = {
+            "_include_fields": (
+                "id",
+                "slug",
+                "title",
+            )
+        }
+        context["dis_dts_get_created_by"] = {"_include_fields": ("author_profile",)}
+        context["dis_dts_get_unified_document"] = {
+            "_include_fields": ("documents", "document_type")
         }
         return context
 
@@ -245,3 +271,28 @@ class BountyViewSet(viewsets.ModelViewSet):
                 return Response(serializer.data, status=200)
             else:
                 raise Exception("Bounty cancel error")
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[AllowAny],
+        # permission_classes=[IsAuthenticated]
+    )
+    def get_bounties(self, request):
+        qs = self.get_queryset().order_by("expiration_date")[:7]
+        context = self._get_retrieve_context()
+        serializer = DynamicBountySerializer(
+            qs,
+            many=True,
+            _include_fields=(
+                "amount",
+                "created_by",
+                "content_type",
+                "id",
+                "item",
+                "expiration_date",
+                "status",
+            ),
+            context=context,
+        )
+        return Response(serializer.data, status=200)
