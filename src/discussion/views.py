@@ -181,7 +181,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             threads = Thread.objects.filter(
                 post=post_id,
             )
-            order.insert(0, "-is_accepted_answer")
+            order.insert(0, "is_accepted_answer")
         elif document_type == "hypothesis":
             hypothesis_id = get_document_id_from_path(self.request)
             threads = Thread.objects.filter(
