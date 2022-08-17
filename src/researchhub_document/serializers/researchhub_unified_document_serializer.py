@@ -102,8 +102,12 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
 
         context = self.context
         _context_fields = context.get("doc_duds_get_bounties", {})
+        _filter_fields = _context_fields.get("_filter_fields", {})
         serializer = DynamicBountySerializer(
-            unified_doc.related_bounties, many=True, context=context, **_context_fields
+            unified_doc.related_bounties.filter(**_filter_fields),
+            many=True,
+            context=context,
+            **_context_fields
         )
         return serializer.data
 

@@ -225,7 +225,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "item_object_id",
                     "expiration_date",
                     "status",
-                ]
+                ],
+                "_filter_fields": {"status": "OPEN"},
             },
             "doc_dps_get_hubs": {
                 "_include_fields": [

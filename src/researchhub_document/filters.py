@@ -287,4 +287,4 @@ class UnifiedDocumentFilter(filters.FilterSet):
             qs = qs.filter(related_bounties__isnull=False)
         else:
             qs = qs.filter(related_bounties__isnull=True)
-        return qs
+        return qs.distinct()
