@@ -38,16 +38,6 @@ CACHE_DOCUMENT_TYPES = [
 ]
 
 
-def get_cache_key(obj_type, pk):
-    return f"{obj_type}_{pk}"
-
-
-def add_default_hub(hub_ids):
-    if 0 not in hub_ids:
-        return [0] + list(hub_ids)
-    return hub_ids
-
-
 def get_doc_type_key(document):
     doc_type = document.document_type.lower()
     if doc_type == "discussion":
@@ -88,6 +78,7 @@ def reset_unified_document_cache(
     ],
     filters=[DISCUSSED, TRENDING, NEWEST, TOP, AUTHOR_CLAIMED, OPEN_ACCESS],
     date_ranges=CACHE_DATE_RANGES,
+    bounty_query="",
     with_default_hub=False,
 ):
     if isinstance(hub_ids, QuerySet):
@@ -113,6 +104,7 @@ def reset_unified_document_cache(
                             doc_type,
                             hub_id,
                             f,
+                            bounty_query,
                             time_scope,
                         ),
                         priority=priority,

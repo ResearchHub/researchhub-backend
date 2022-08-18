@@ -27,6 +27,9 @@ from reputation.serializers import (
     DynamicBountySerializer,
     EscrowSerializer,
 )
+from researchhub_document.related_models.constants.document_type import ALL
+from researchhub_document.related_models.constants.filters import TRENDING
+from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
 from utils.permissions import CreateOnly
 
@@ -214,6 +217,14 @@ class BountyViewSet(viewsets.ModelViewSet):
                     "status",
                 ),
             )
+            hubs = list(bounty.unified_document.hubs.all().values_list("id", flat=True))
+            reset_unified_document_cache(
+                hub_ids=hubs,
+                document_type=[ALL.lower()],
+                filters=[TRENDING],
+                bounty_query="all",
+                with_default_hub=True,
+            )
             return Response(serializer.data, status=201)
 
     @action(
@@ -257,6 +268,15 @@ class BountyViewSet(viewsets.ModelViewSet):
             solution_serializer = BountySolutionSerializer(data=data)
             solution_serializer.is_valid(raise_exception=True)
             solution_serializer.save()
+
+            hubs = list(bounty.unified_document.hubs.all().values_list("id", flat=True))
+            reset_unified_document_cache(
+                hub_ids=hubs,
+                document_type=[ALL.lower()],
+                filters=[TRENDING],
+                bounty_query="all",
+                with_default_hub=True,
+            )
             if bounty_paid:
                 serializer = self.get_serializer(bounty)
                 return Response(serializer.data, status=200)
@@ -276,6 +296,14 @@ class BountyViewSet(viewsets.ModelViewSet):
 
             bounty_cancelled = bounty.cancel()
             bounty.save()
+            hubs = list(bounty.unified_document.hubs.all().values_list("id", flat=True))
+            reset_unified_document_cache(
+                hub_ids=hubs,
+                document_type=[ALL.lower()],
+                filters=[TRENDING],
+                bounty_query="all",
+                with_default_hub=True,
+            )
             if bounty_cancelled:
                 serializer = self.get_serializer(bounty)
                 return Response(serializer.data, status=200)

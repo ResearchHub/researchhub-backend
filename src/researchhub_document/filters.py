@@ -287,4 +287,5 @@ class UnifiedDocumentFilter(filters.FilterSet):
             qs = qs.filter(related_bounties__status="OPEN")
         else:
             qs = qs.filter(related_bounties__isnull=True)
+        # Using distinct() is not ideal
         return qs.distinct()
