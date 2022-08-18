@@ -55,6 +55,14 @@ class ActionableViewSet:
         raise NotImplementedError
 
 
+def get_document_type_from_path(request):
+    DOCUMENT_INDEX = 2
+    document_id = None
+    path_parts = request.path.split("/")
+
+    return path_parts[DOCUMENT_INDEX]
+
+
 def get_document_id_from_path(request):
     DOCUMENT_INDEX = 2
     document_id = None

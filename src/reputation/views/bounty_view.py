@@ -6,7 +6,7 @@ from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from purchase.models import Balance
@@ -27,6 +27,9 @@ from reputation.serializers import (
     DynamicBountySerializer,
     EscrowSerializer,
 )
+from researchhub_document.related_models.constants.document_type import ALL
+from researchhub_document.related_models.constants.filters import TRENDING
+from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
 from utils.permissions import CreateOnly
 
@@ -38,7 +41,7 @@ class BountyViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["item_object_id", "status"]
 
-    ALLOWED_CREATE_CONTENT_TYPES = ("researchhubunifieddocument",)
+    ALLOWED_CREATE_CONTENT_TYPES = ("researchhubunifieddocument", "thread")
     ALLOWED_APPROVE_CONTENT_TYPES = ("thread", "comment", "reply")
 
     def _get_rh_fee_recipient(self):
@@ -106,10 +109,37 @@ class BountyViewSet(viewsets.ModelViewSet):
         }
         return context
 
+    def _get_retrieve_context(self):
+        context = self._get_create_context()
+        context["rep_dbs_get_item"] = {
+            "_include_fields": (
+                "created_by",
+                "documents",
+                "document_type",
+                "id",
+                "plain_text",
+                "unified_document",
+            )
+        }
+        context["doc_duds_get_created_by"] = {"_include_fields": ("author_profile",)}
+        context["doc_duds_get_documents"] = {
+            "_include_fields": (
+                "id",
+                "slug",
+                "title",
+            )
+        }
+        context["dis_dts_get_created_by"] = {"_include_fields": ("author_profile",)}
+        context["dis_dts_get_unified_document"] = {
+            "_include_fields": ("documents", "document_type")
+        }
+        return context
+
     def create(self, request, *args, **kwargs):
         data = request.data
         user = request.user
         item_content_type = data.get("item_content_type", "")
+        item_object_id = data.get("item_object_id", 0)
 
         try:
             amount = decimal.Decimal(str(data.get("amount", "0")))
@@ -128,12 +158,20 @@ class BountyViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             self._deduct_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
-            content_type_id = ContentType.objects.get(model=item_content_type).id
+            content_type = ContentType.objects.get(model=item_content_type)
+            content_type_id = content_type.id
+
+            if item_content_type == "researchhubunifieddocument":
+                unified_document_id = item_object_id
+            else:
+                obj = content_type.model_class().objects.get(id=item_object_id)
+                unified_document_id = obj.unified_document.id
+
             escrow_data = {
                 "created_by": user.id,
                 "hold_type": Escrow.BOUNTY,
                 "amount": amount,
-                "object_id": data.get("item_object_id", 0),
+                "object_id": item_object_id,
                 "content_type": content_type_id,
             }
             escrow_serializer = EscrowSerializer(data=escrow_data)
@@ -144,6 +182,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             data["amount"] = amount
             data["item_content_type"] = content_type_id
             data["escrow"] = escrow.id
+            data["unified_document"] = unified_document_id
             bounty_serializer = BountySerializer(data=data)
             bounty_serializer.is_valid(raise_exception=True)
             bounty = bounty_serializer.save()
@@ -177,6 +216,14 @@ class BountyViewSet(viewsets.ModelViewSet):
                     "id",
                     "status",
                 ),
+            )
+            hubs = list(bounty.unified_document.hubs.all().values_list("id", flat=True))
+            reset_unified_document_cache(
+                hub_ids=hubs,
+                document_type=[ALL.lower()],
+                filters=[TRENDING],
+                bounty_query="all",
+                with_default_hub=True,
             )
             return Response(serializer.data, status=201)
 
@@ -221,6 +268,15 @@ class BountyViewSet(viewsets.ModelViewSet):
             solution_serializer = BountySolutionSerializer(data=data)
             solution_serializer.is_valid(raise_exception=True)
             solution_serializer.save()
+
+            hubs = list(bounty.unified_document.hubs.all().values_list("id", flat=True))
+            reset_unified_document_cache(
+                hub_ids=hubs,
+                document_type=[ALL.lower()],
+                filters=[TRENDING],
+                bounty_query="all",
+                with_default_hub=True,
+            )
             if bounty_paid:
                 serializer = self.get_serializer(bounty)
                 return Response(serializer.data, status=200)
@@ -240,8 +296,41 @@ class BountyViewSet(viewsets.ModelViewSet):
 
             bounty_cancelled = bounty.cancel()
             bounty.save()
+            hubs = list(bounty.unified_document.hubs.all().values_list("id", flat=True))
+            reset_unified_document_cache(
+                hub_ids=hubs,
+                document_type=[ALL.lower()],
+                filters=[TRENDING],
+                bounty_query="all",
+                with_default_hub=True,
+            )
             if bounty_cancelled:
                 serializer = self.get_serializer(bounty)
                 return Response(serializer.data, status=200)
             else:
                 raise Exception("Bounty cancel error")
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[AllowAny],
+        # permission_classes=[IsAuthenticated]
+    )
+    def get_bounties(self, request):
+        qs = self.get_queryset().order_by("expiration_date")[:7]
+        context = self._get_retrieve_context()
+        serializer = DynamicBountySerializer(
+            qs,
+            many=True,
+            _include_fields=(
+                "amount",
+                "created_by",
+                "content_type",
+                "id",
+                "item",
+                "expiration_date",
+                "status",
+            ),
+            context=context,
+        )
+        return Response(serializer.data, status=200)

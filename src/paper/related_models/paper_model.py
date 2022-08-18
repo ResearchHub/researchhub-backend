@@ -378,6 +378,11 @@ class Paper(AbstractGenericReactionModel):
     def get_hub_names(self):
         return ",".join(self.hubs.values_list("name", flat=True))
 
+    def get_accepted_answer(self):
+        return self.threads.filter(
+            is_accepted_answer=True, discussion_post_type="ANSWER"
+        ).first()
+
     def calculate_hot_score(paper):
         ALGO_START_UNIX = 1546329600
         TWITTER_BOOST = 100

@@ -297,6 +297,9 @@ class Thread(BaseComment):
     def __str__(self):
         return "%s: %s" % (self.created_by, self.title)
 
+    def get_accepted_answer(self):
+        return self.comments.filter(is_accepted_answer=True).first()
+
     @cached_property
     def parent(self):
         return self.paper
@@ -501,6 +504,13 @@ class Comment(BaseComment):
         object_id_field="object_id",
         content_type_field="content_type",
         related_query_name="comments",
+    )
+    is_accepted_answer = models.BooleanField(
+        blank=True,
+        default=None,
+        null=True,
+        help_text="Used to indicate that this thread is a O/P's selected answer for bounties & Questions. \
+            Empty field implies that related document is irrelevant to this field",
     )
 
     def __str__(self):

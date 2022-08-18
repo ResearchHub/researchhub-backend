@@ -1,4 +1,4 @@
-from django.db.models import Case, Count, IntegerField, Q, Value, When
+from django.db.models import Count, Q
 from django_filters import rest_framework as filters
 
 from hub.models import Hub
@@ -23,10 +23,11 @@ DOC_CHOICES = (
 )
 BOUNTY_CHOICES = (
     ("all", "All"),
-    ("open", "Open"),
-    ("cancelled", "Cancelled"),
-    ("expired", "Expired"),
-    ("closed", "Closed"),
+    ("none", "None")
+    # ("open", "Open"),
+    # ("cancelled", "Cancelled"),
+    # ("expired", "Expired"),
+    # ("closed", "Closed"),
 )
 UNIFIED_DOCUMENT_FILTER_CHOICES = (
     ("removed", "Removed"),
@@ -283,27 +284,8 @@ class UnifiedDocumentFilter(filters.FilterSet):
 
     def bounty_type_filter(self, qs, name, value):
         if value == "all":
-            qs = qs.filter(bounties__isnull=False)
+            qs = qs.filter(related_bounties__status="OPEN")
         else:
-            qs = qs.filter(**{f"{name}__status": value.upper()})
-        qs = qs.annotate(
-            bounty_ordering=Case(
-                When(
-                    bounties__status="OPEN", then=Value(1, output_field=IntegerField())
-                ),
-                When(
-                    bounties__status="CANCELLED",
-                    then=Value(2, output_field=IntegerField()),
-                ),
-                When(
-                    bounties__status="EXPIRED",
-                    then=Value(3, output_field=IntegerField()),
-                ),
-                When(
-                    bounties__status="CLOSED",
-                    then=Value(4, output_field=IntegerField()),
-                ),
-            )
-        )
-        qs = qs.distinct().order_by("bounty_ordering")
-        return qs
+            qs = qs.filter(related_bounties__isnull=True)
+        # Using distinct() is not ideal
+        return qs.distinct()

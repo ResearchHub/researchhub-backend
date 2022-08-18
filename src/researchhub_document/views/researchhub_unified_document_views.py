@@ -220,10 +220,14 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "_include_fields": [
                     "amount",
                     "created_by",
+                    "content_type",
                     "id",
+                    "item",
+                    "item_object_id",
                     "expiration_date",
                     "status",
-                ]
+                ],
+                "_filter_fields": {"status": "OPEN"},
             },
             "doc_dps_get_hubs": {
                 "_include_fields": [
@@ -297,6 +301,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 ]
             },
             "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
+            "rep_dbs_get_item": {
+                "_include_fields": [
+                    "plain_text",
+                ]
+            },
         }
         return context
 
@@ -319,11 +328,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         return qs
 
     def _get_unifed_document_cache_hit(
-        self, document_type, filtering, hub_id, page_number, time_scope
+        self, document_type, filtering, hub_id, page_number, bounty_query, time_scope
     ):
         cache_hit = None
         if page_number == 1 and "removed" not in filtering:
-            cache_pk = f"{document_type}_{hub_id}_{filtering}_{time_scope}"
+            cache_pk = f"{document_type}_{hub_id}_{filtering}_bounty_{bounty_query}_{time_scope}"
             cache_key_hub = get_cache_key("hub", cache_pk)
             cache_hit = cache.get(cache_key_hub)
 
@@ -381,7 +390,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         is_anonymous = request.user.is_anonymous
         query_params = request.query_params
         subscribed_hubs = query_params.get("subscribed_hubs", "false")
-        special_doc_filter = query_params.get("special_doc_filter", None)
+        bounty_query = query_params.get("bounties", "")
         time_scope = query_params.get("time", "today")
 
         if subscribed_hubs == "true" and not is_anonymous:
@@ -393,7 +402,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         filtering = self._get_document_filtering(query_params)
         cache_hit = self._get_unifed_document_cache_hit(
-            document_request_type, filtering, hub_id, page_number, time_scope
+            document_request_type,
+            filtering,
+            hub_id,
+            page_number,
+            bounty_query,
+            time_scope,
         )
 
         if cache_hit and page_number == 1:
@@ -406,6 +420,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 document_type=[document_request_type],
                 filters=[filtering],
                 date_ranges=[time_scope],
+                bounty_query=bounty_query,
                 with_default_hub=with_default_hub,
             )
 

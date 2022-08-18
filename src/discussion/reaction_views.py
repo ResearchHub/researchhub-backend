@@ -1,5 +1,5 @@
 from django.contrib.admin.options import get_content_type_for_model
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -117,46 +117,53 @@ class ReactionViewActionMixin:
     )
     def censor(self, request, pk=None):
         item = self.get_object()
-        item.remove_nested()
-        item.update_discussion_count()
 
-        content_id = f"{type(item).__name__}_{item.id}"
-        user = request.user
-        content_creator = item.created_by
-        events_api.track_flag_content(content_creator, content_id, user.id)
-        decisions_api.apply_bad_content_decision(
-            content_creator, content_id, "MANUAL_REVIEW", user
-        )
+        with transaction.atomic():
+            item.remove_nested()
+            item.update_discussion_count()
 
-        content_type = get_content_type_for_model(item)
-        Contribution.objects.filter(
-            content_type=content_type, object_id=item.id
-        ).delete()
+            content_id = f"{type(item).__name__}_{item.id}"
+            user = request.user
+            content_creator = item.created_by
+            events_api.track_flag_content(content_creator, content_id, user.id)
+            decisions_api.apply_bad_content_decision(
+                content_creator, content_id, "MANUAL_REVIEW", user
+            )
 
-        try:
-            if item.review:
-                item.review.is_removed = True
-                item.review.save()
+            content_type = get_content_type_for_model(item)
+            Contribution.objects.filter(
+                content_type=content_type, object_id=item.id
+            ).delete()
 
-                doc = item.unified_document
-                doc_type = get_doc_type_key(doc)
-                hubs = list(doc.hubs.all().values_list("id", flat=True))
+            try:
+                if item.review:
+                    item.review.is_removed = True
+                    item.review.save()
 
-                reset_unified_document_cache(
-                    hub_ids=hubs,
-                    document_type=[doc_type, "all"],
-                    filters=[DISCUSSED, TRENDING],
-                )
-        except Exception as e:
-            pass
+                    doc = item.unified_document
+                    if doc.bounties.exists():
+                        for bounty in doc.bounties.iterator():
+                            bounty.cancel()
+                            bounty.save()
 
-        try:
-            if item.paper:
-                item.paper.reset_cache()
-        except Exception as e:
-            pass
+                    doc_type = get_doc_type_key(doc)
+                    hubs = list(doc.hubs.all().values_list("id", flat=True))
 
-        return Response(self.get_serializer(instance=item).data, status=200)
+                    reset_unified_document_cache(
+                        hub_ids=hubs,
+                        document_type=[doc_type, "all"],
+                        filters=[DISCUSSED, TRENDING],
+                    )
+            except Exception as e:
+                pass
+
+            try:
+                if item.paper:
+                    item.paper.reset_cache()
+            except Exception as e:
+                pass
+
+            return Response(self.get_serializer(instance=item).data, status=200)
 
     @action(
         detail=True,

@@ -54,21 +54,24 @@ def preload_trending_documents(
     document_type,
     hub_id,
     filtering,
+    bounty_query,
     time_scope,
 ):
     from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
     from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
 
     if time_scope == "all_time":
-        cache_pk = f"{document_type}_{hub_id}_{filtering}_all_time"
+        cache_pk = (
+            f"{document_type}_{hub_id}_{filtering}_bounty_{bounty_query}_all_time"
+        )
     elif time_scope == "year":
-        cache_pk = f"{document_type}_{hub_id}_{filtering}_year"
+        cache_pk = f"{document_type}_{hub_id}_{filtering}_bounty_{bounty_query}_year"
     elif time_scope == "month":
-        cache_pk = f"{document_type}_{hub_id}_{filtering}_month"
+        cache_pk = f"{document_type}_{hub_id}_{filtering}_bounty_{bounty_query}_month"
     elif time_scope == "week":
-        cache_pk = f"{document_type}_{hub_id}_{filtering}_week"
+        cache_pk = f"{document_type}_{hub_id}_{filtering}_bounty_{bounty_query}_week"
     else:  # Today
-        cache_pk = f"{document_type}_{hub_id}_{filtering}_today"
+        cache_pk = f"{document_type}_{hub_id}_{filtering}_bounty_{bounty_query}_today"
 
     query_string_filtering = "top_rated"
     if filtering == "removed":
@@ -99,8 +102,8 @@ def preload_trending_documents(
 
     if hub_id == 0:
         hub_id = ""
-    query_string = "page=1&time={}&ordering={}&hub_id={}&type={}".format(
-        time_scope, query_string_filtering, hub_id, document_type
+    query_string = "page=1&time={}&ordering={}&hub_id={}&type={}&bounties={}".format(
+        time_scope, query_string_filtering, hub_id, document_type, bounty_query
     )
     http_meta = {
         "QUERY_STRING": query_string,
@@ -123,6 +126,7 @@ def preload_trending_documents(
     serializer = DynamicUnifiedDocumentSerializer(
         page,
         _include_fields=[
+            "created_date",
             "id",
             "featured",
             "documents",
