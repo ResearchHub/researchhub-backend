@@ -480,6 +480,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         hub_ids = request.user.subscribed_hubs.values_list("id", flat=True)
         query_params = request.query_params
         document_request_type = query_params.get("type", "all")
+        bounty_query = query_params.get("bounties", "")
         time_scope = query_params.get("time", "today")
         bounty_query = query_params.get("bounties", "")
 
