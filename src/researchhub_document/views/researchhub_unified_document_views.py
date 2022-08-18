@@ -222,6 +222,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "created_by",
                     "content_type",
                     "id",
+                    "item",
                     "item_object_id",
                     "expiration_date",
                     "status",
@@ -300,6 +301,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 ]
             },
             "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
+            "rep_dbs_get_item": {
+                "_include_fields": [
+                    "plain_text",
+                ]
+            },
         }
         return context
 
