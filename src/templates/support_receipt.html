@@ -1,7 +1,7 @@
 {% load inlinecss %}
 {% load l10n %}
 <html>
-  <link rel="stylesheet" href="../stylesheets/support_receipt.css">  
+  <link rel="stylesheet" href="../stylesheets/support_receipt.css">
   <head>
       <meta charset="UTF-8">
       <title></title>
@@ -80,15 +80,15 @@
           {% else %}
             <h4 class="column-values"> {{ recipient_name }} </h4>
           {% endif %}
-          <h4 class="column-values"> 
+          <h4 class="column-values">
             {% if method == "RSC" %}
               <img class="coin-logo" src="https://www.researchhub.com/static/icons/coin-filled.png" />
               {{amount}} {{method}}
             {% elif method == "USD" or method == "Paypal" %}
-              ${{amount}} 
+              ${{amount}}
             {% else %}
               {{amount}} {{method}}
-            {% endif %} 
+            {% endif %}
           </h4>
           <h4 class="column-values">{{date}}</h4>
           <h4 class="column-values">{{method}}</h4>
@@ -108,10 +108,6 @@
             <div class="paper-comments">
               <img class="comments-logo" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/comments.png" />
               {{ paper.discussion_count }} Comment{{ paper.discussion_count|pluralize }}
-            </div>
-            <div class="paper-status">
-              <img class="wip-logo" src="https://www.researchhub.com/static/icons/wip.png" />
-              {{ paper.paper_type }}
             </div>
           </div>
       </a>
