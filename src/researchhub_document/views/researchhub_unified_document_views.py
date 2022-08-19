@@ -204,6 +204,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "hot_score",
                     "hubs",
                     "id",
+                    "boost_amount",
                     "paper_title",
                     "pdf_url",
                     "preview_img",
