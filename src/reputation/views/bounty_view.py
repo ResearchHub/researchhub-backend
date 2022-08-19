@@ -317,10 +317,15 @@ class BountyViewSet(viewsets.ModelViewSet):
         # permission_classes=[IsAuthenticated]
     )
     def get_bounties(self, request):
-        qs = self.get_queryset().order_by("expiration_date")[:7]
+        status = self.request.GET.get("status")
+        qs = self.get_queryset().filter(status=status).order_by("expiration_date")[:10]
+        not_removed_posts = []
+        for bounty in qs:
+            if not bounty.item.is_removed:
+                not_removed_posts.append(bounty)
         context = self._get_retrieve_context()
         serializer = DynamicBountySerializer(
-            qs,
+            not_removed_posts,
             many=True,
             _include_fields=(
                 "amount",
