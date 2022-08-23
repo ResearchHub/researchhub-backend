@@ -78,7 +78,7 @@ def reset_unified_document_cache(
     ],
     filters=[DISCUSSED, TRENDING, NEWEST, TOP, AUTHOR_CLAIMED, OPEN_ACCESS],
     date_ranges=CACHE_DATE_RANGES,
-    bounty_query="",
+    bounty_queries=[""],
     with_default_hub=False,
 ):
     if isinstance(hub_ids, QuerySet):
@@ -93,23 +93,24 @@ def reset_unified_document_cache(
         for hub_id in hub_ids:
             for f in filters:
                 for time_scope in date_ranges:
-                    # Only homepage gets top priority
-                    if hub_id == 0:
-                        priority = 1
-                    else:
-                        priority = 3
+                    for bounty_query in bounty_queries:
+                        # Only homepage gets top priority
+                        if hub_id == 0:
+                            priority = 1
+                        else:
+                            priority = 3
 
-                    preload_trending_documents.apply_async(
-                        (
-                            doc_type,
-                            hub_id,
-                            f,
-                            bounty_query,
-                            time_scope,
-                        ),
-                        priority=priority,
-                        countdown=1,
-                    )
+                        preload_trending_documents.apply_async(
+                            (
+                                doc_type,
+                                hub_id,
+                                f,
+                                bounty_query,
+                                time_scope,
+                            ),
+                            priority=priority,
+                            countdown=1,
+                        )
 
 
 def update_unified_document_to_paper(paper):
