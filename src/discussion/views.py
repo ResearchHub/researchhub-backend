@@ -10,6 +10,7 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
+from analytics.amplitude import track_event
 from discussion.models import BaseComment, Comment, Reply, Thread
 from discussion.permissions import (
     CreateDiscussionComment,
@@ -85,6 +86,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     filter_backends = (OrderingFilter,)
     order_fields = "__all__"
 
+    @track_event
     def create(self, request, *args, **kwargs):
         model = request.path.split("/")[2]
         model_id = get_document_id_from_path(request)
@@ -287,6 +289,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         )
         return comments
 
+    @track_event
     def create(self, request, *args, **kwargs):
         document_type = request.path.split("/")[2]
         document_id = get_document_id_from_path(request)
@@ -418,6 +421,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         return replies
 
+    @track_event
     def create(self, request, *args, **kwargs):
         document_type = request.path.split("/")[2]
         document_id = get_document_id_from_path(request)

@@ -11,6 +11,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from analytics.amplitude import track_event
 from discussion.reaction_views import ReactionViewActionMixin
 from hub.models import Hub
 from note.models import Note, NoteContent
@@ -53,6 +54,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
     permission_classes = [AllowAny, HasDocumentEditingPermission]
     serializer_class = ResearchhubPostSerializer
 
+    @track_event
     def create(self, request, *args, **kwargs):
         return self.upsert_researchhub_posts(request)
 

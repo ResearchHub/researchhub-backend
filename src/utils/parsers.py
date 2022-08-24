@@ -1,15 +1,18 @@
+import decimal
+from datetime import date, datetime
+
 from django.utils import timezone
 from rest_framework.parsers import BaseParser
 
-
-ISO_DATE_FORMAT = '%Y-%m-%dT%H:%M:%S.%fZ'
+ISO_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 class PlainTextParser(BaseParser):
     """
     Plain text parser.
     """
-    media_type = 'text/plain'
+
+    media_type = "text/plain"
 
     def parse(self, stream, media_type=None, parser_context=None):
         """
@@ -25,7 +28,7 @@ def dict_to_tuple(obj):
 def get_class_attributes(cls):
     attributes = {}
     for attribute in cls.__dict__.keys():
-        if attribute[:2] != '__':
+        if attribute[:2] != "__":
             value = getattr(cls, attribute)
             if not callable(value):
                 attributes[attribute] = value
@@ -46,3 +49,13 @@ def iso_string_to_datetime(string, naive=False):
     if naive is True:
         return dt
     return timezone.make_aware(dt)
+
+
+def json_serial(obj):
+    """JSON serializer for objects not serializable by default json code"""
+
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    if isinstance(obj, decimal.Decimal):
+        return str(obj)
+    raise TypeError("Type %s not serializable" % type(obj))

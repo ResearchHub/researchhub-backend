@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from analytics.amplitude import track_event
 from discussion.models import Comment, Reply, Thread
 from discussion.permissions import CensorDiscussion as CensorDiscussionPermission
 from discussion.permissions import EditorCensorDiscussion
@@ -165,6 +166,7 @@ class ReactionViewActionMixin:
 
             return Response(self.get_serializer(instance=item).data, status=200)
 
+    @track_event
     @action(
         detail=True,
         methods=["post"],
@@ -198,6 +200,7 @@ class ReactionViewActionMixin:
         response = update_or_create_vote(request, user, item, Vote.NEUTRAL)
         return response
 
+    @track_event
     @action(
         detail=True,
         methods=["post"],
