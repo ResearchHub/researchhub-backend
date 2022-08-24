@@ -12,6 +12,7 @@ from rest_framework.response import Response
 
 from discussion.models import BaseComment, Comment, Reply, Thread
 from discussion.permissions import (
+    CanGiveCommentBounty,
     CreateDiscussionComment,
     CreateDiscussionReply,
     CreateDiscussionThread,
@@ -333,7 +334,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[UpdateDiscussionThread],
+        permission_classes=[CanGiveCommentBounty],
     )
     def mark_as_accepted_answer(self, *args, **kwargs):
         comment = self.get_object()

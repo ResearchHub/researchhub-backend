@@ -66,6 +66,13 @@ class UpdateDiscussionReply(AuthorizationBasedPermission):
         return obj.created_by == request.user and obj.is_removed is False
 
 
+class CanGiveCommentBounty(AuthorizationBasedPermission):
+    message = "Giving Bounty not permitted."
+
+    def is_authorized(self, request, view, obj):
+        return obj.parent.created_by == request.user and obj.is_removed is False
+
+
 class UpdateDiscussionThread(AuthorizationBasedPermission):
     message = "Action not permitted."
 
