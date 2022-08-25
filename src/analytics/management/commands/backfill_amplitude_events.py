@@ -165,6 +165,29 @@ class Command(BaseCommand):
                 events.append(hit)
         self.forward_amp_event(events)
 
+    def handle_new_flow_papers(self, papers):
+        print("Papers")
+        count = papers.count()
+        events = []
+        for i, paper in enumerate(papers.iterator()):
+            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
+                self.forward_amp_event(events)
+                events = []
+            else:
+                print(f"{i}/{count}")
+                user = paper.uploaded_by
+                user_id, user_properties = self.get_user_props(user)
+                event_type = "paper_submission_create"
+                hit = {
+                    "user_id": user_id,
+                    "event_type": event_type,
+                    "time": int(paper.created_date.timestamp()),
+                    "user_properties": user_properties,
+                    "insert_id": f"{event_type}_{paper.submission.id}",
+                }
+                events.append(hit)
+        self.forward_amp_event(events)
+
     def handle_hypotheses(self, hypotheses):
         print("Hypotheses")
         count = hypotheses.count()
@@ -388,7 +411,12 @@ class Command(BaseCommand):
         self.forward_amp_event(events)
 
     def handle(self, *args, **options):
-        papers = Paper.objects.filter(uploaded_by__isnull=False)
+        papers = Paper.objects.filter(
+            uploaded_by__isnull=False, submission__isnull=True
+        )
+        new_flow_papers = Paper.objects.filter(
+            uploaded_by__isnull=False, submission__isnull=False
+        )
         hypotheses = Hypothesis.objects.filter(created_by__isnull=False)
         posts = ResearchhubPost.objects.filter(created_by__isnull=False)
         purchases = Purchase.objects.filter(user__isnull=False)
@@ -406,6 +434,7 @@ class Command(BaseCommand):
         self.handle_comments(comments)
         self.handle_replies(replies)
         self.handle_papers(papers)
+        self.handle_new_flow_papers(new_flow_papers)
         self.handle_hypotheses(hypotheses)
         self.handle_posts(posts)
         self.handle_votes(votes)

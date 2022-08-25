@@ -970,6 +970,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
     throttle_classes = THROTTLE_CLASSES
     permission_classes = [IsAuthenticated | HasAPIKey, CreateOnly]
 
+    @track_event
     def create(self, *args, **kwargs):
         data = self.request.data
         url = data.get("url", "")
@@ -1003,6 +1004,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
             )
         return response
 
+    @track_event
     @action(detail=False, methods=["post"])
     def create_from_doi(self, request):
         data = request.data
