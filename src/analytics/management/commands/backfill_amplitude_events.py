@@ -246,54 +246,58 @@ class Command(BaseCommand):
                 print(f"{i}/{count}")
                 vote_content_type = vote.content_type
                 vote_type = "upvote" if vote.vote_type == 1 else "downvote"
-                if vote_content_type.model == "paper":
-                    event_type = f"paper_{vote_type}"
-                elif vote_content_type.model == "hypothesis":
-                    event_type = f"hypothesis_{vote_type}"
-                elif vote_content_type.model == "researchhubpost":
-                    event_type = f"researchhub_post_{vote_type}"
-                elif vote_content_type.model == "thread":
-                    vote_item = vote.item
-                    if not vote.item:
-                        continue
-                    else:
-                        parent_doc_type = vote_item.unified_document.document_type
-                        if parent_doc_type == "PAPER":
-                            parent_class = "paper"
-                        elif parent_doc_type == "HYPOTHESIS":
-                            parent_class = "hypothesis"
+                try:
+                    if vote_content_type.model == "paper":
+                        event_type = f"paper_{vote_type}"
+                    elif vote_content_type.model == "hypothesis":
+                        event_type = f"hypothesis_{vote_type}"
+                    elif vote_content_type.model == "researchhubpost":
+                        event_type = f"researchhub_post_{vote_type}"
+                    elif vote_content_type.model == "thread":
+                        vote_item = vote.item
+                        if not vote.item:
+                            continue
                         else:
-                            parent_class = "researchhubpost"
-                        event_type = f"{parent_class}_threads_{vote_type}"
-                elif vote_content_type.model == "comment":
-                    vote_item = vote.item
-                    if not vote.item:
-                        continue
-                    else:
-                        parent_doc_type = vote_item.unified_document.document_type
-                        if parent_doc_type == "PAPER":
-                            parent_class = "paper"
-                        elif parent_doc_type == "HYPOTHESIS":
-                            parent_class = "hypothesis"
+                            parent_doc_type = vote_item.unified_document.document_type
+                            if parent_doc_type == "PAPER":
+                                parent_class = "paper"
+                            elif parent_doc_type == "HYPOTHESIS":
+                                parent_class = "hypothesis"
+                            else:
+                                parent_class = "researchhubpost"
+                            event_type = f"{parent_class}_threads_{vote_type}"
+                    elif vote_content_type.model == "comment":
+                        vote_item = vote.item
+                        if not vote.item:
+                            continue
                         else:
-                            parent_class = "researchhubpost"
-                        event_type = f"{parent_class}_thread_comments_{vote_type}"
-                elif vote_content_type.model == "reply":
-                    vote_item = vote.item
-                    if not vote.item:
-                        continue
-                    else:
-                        parent_doc_type = vote_item.unified_document.document_type
-                        if parent_doc_type == "PAPER":
-                            parent_class = "paper"
-                        elif parent_doc_type == "HYPOTHESIS":
-                            parent_class = "hypothesis"
+                            parent_doc_type = vote_item.unified_document.document_type
+                            if parent_doc_type == "PAPER":
+                                parent_class = "paper"
+                            elif parent_doc_type == "HYPOTHESIS":
+                                parent_class = "hypothesis"
+                            else:
+                                parent_class = "researchhubpost"
+                            event_type = f"{parent_class}_thread_comments_{vote_type}"
+                    elif vote_content_type.model == "reply":
+                        vote_item = vote.item
+                        if not vote.item:
+                            continue
                         else:
-                            parent_class = "researchhubpost"
-                        event_type = (
-                            f"{parent_class}_thread_comment_replies_{vote_type}"
-                        )
-                else:
+                            parent_doc_type = vote_item.unified_document.document_type
+                            if parent_doc_type == "PAPER":
+                                parent_class = "paper"
+                            elif parent_doc_type == "HYPOTHESIS":
+                                parent_class = "hypothesis"
+                            else:
+                                parent_class = "researchhubpost"
+                            event_type = (
+                                f"{parent_class}_thread_comment_replies_{vote_type}"
+                            )
+                    else:
+                        continue
+                except Exception as e:
+                    print(e)
                     continue
                 user = vote.created_by
                 user_id, user_properties = self.get_user_props(user)
