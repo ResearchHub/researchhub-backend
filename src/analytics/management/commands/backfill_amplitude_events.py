@@ -38,7 +38,7 @@ class Command(BaseCommand):
                 "reputation": user.reputation,
                 "is_suspended": user.is_suspended,
                 "probable_spammer": user.probable_spammer,
-                "invited_by_id": user.invited_by,
+                "invited_by_id": user.invited_by.id,
                 "is_hub_editor": user.is_hub_editor(),
             }
             user_id = f"user: {user.email}_{user.id}"
@@ -148,7 +148,7 @@ class Command(BaseCommand):
         self.forward_amp_event(events)
 
     def handle_hypotheses(self, hypotheses):
-        print("hypotheses")
+        print("Hypotheses")
         count = hypotheses.count()
         events = []
         for i, hypothesis in enumerate(hypotheses.iterator()):
@@ -171,7 +171,7 @@ class Command(BaseCommand):
         self.forward_amp_event(events)
 
     def handle_posts(self, posts):
-        print("posts")
+        print("Posts")
         count = posts.count()
         events = []
         for i, post in enumerate(posts.iterator()):
