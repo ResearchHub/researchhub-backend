@@ -48,6 +48,9 @@ class Amplitude:
             }
             user_id = "_Anonymous_"
         else:
+            invited_by = user.invited_by
+            if invited_by:
+                invited_by = invited_by.id
             user_properties = {
                 "email": user.email,
                 "first_name": user.first_name,
@@ -55,7 +58,7 @@ class Amplitude:
                 "reputation": user.reputation,
                 "is_suspended": user.is_suspended,
                 "probable_spammer": user.probable_spammer,
-                "invited_by_id": user.invited_by,
+                "invited_by_id": invited_by,
                 "is_hub_editor": user.is_hub_editor(),
             }
             user_id = f"user: {user.email}_{user.id}"
