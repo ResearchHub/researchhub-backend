@@ -70,9 +70,13 @@ class Command(BaseCommand):
                 print(f"{i}/{count}")
                 user = comment.created_by
                 user_id, user_properties = self.get_user_props(user)
-                if comment.unified_document.document_type == "PAPER":
+                uni_doc = getattr(comment, "unified_document", None)
+                if not uni_doc:
+                    continue
+
+                if uni_doc.document_type == "PAPER":
                     event_type = "paper_thread_comments_create"
-                elif comment.unified_document.document_type == "HYPOTHESIS":
+                elif uni_doc.document_type == "HYPOTHESIS":
                     event_type = "hypothesis_thread_comments_create"
                 else:
                     event_type = "post_thread_comments_create"
@@ -98,9 +102,13 @@ class Command(BaseCommand):
                 print(f"{i}/{count}")
                 user = reply.created_by
                 user_id, user_properties = self.get_user_props(user)
-                if reply.unified_document.document_type == "PAPER":
+                uni_doc = getattr(reply, "unified_document", None)
+                if not uni_doc:
+                    continue
+
+                if uni_doc.document_type == "PAPER":
                     event_type = "paper_thread_comment_replies_create"
-                elif reply.unified_document.document_type == "HYPOTHESIS":
+                elif uni_doc.document_type == "HYPOTHESIS":
                     event_type = "hypothesis_thread_comment_replies_create"
                 else:
                     event_type = "post_thread_comment_replies_create"
@@ -126,9 +134,13 @@ class Command(BaseCommand):
                 print(f"{i}/{count}")
                 user = thread.created_by
                 user_id, user_properties = self.get_user_props(user)
-                if thread.unified_document.document_type == "PAPER":
+                uni_doc = getattr(thread, "unified_document", None)
+                if not uni_doc:
+                    continue
+
+                if uni_doc.document_type == "PAPER":
                     event_type = "paper_threads_create"
-                elif thread.unified_document.document_type == "HYPOTHESIS":
+                elif uni_doc.document_type == "HYPOTHESIS":
                     event_type = "hypothesis_threads_create"
                 else:
                     event_type = "post_threads_create"
