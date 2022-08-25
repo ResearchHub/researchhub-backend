@@ -426,9 +426,7 @@ class Command(BaseCommand):
         )
         user = User.objects.all()
         threads = Thread.objects.filter(created_by__isnull=False)
-        comments = Comment.objects.filter(
-            created_by__isnull=False, parent__isnull=False
-        )
+        comments = Comment.objects.filter(created_by__isnull=False)
         replies = Reply.objects.filter(created_by__isnull=False)
         votes = Vote.objects.filter(created_by__isnull=False)
 
