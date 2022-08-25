@@ -85,13 +85,14 @@ class Amplitude:
         user = request.user
         user_id, user_properties = self._build_user_properties(user)
         event_type = self._build_event_properties(view)
-
+        geo_properties = self._build_geo_properties(request)
         data = {
             "user_id": user_id,
             "event_type": event_type,
             "event_properties": res.data,
             "user_properties": user_properties,
             "insert_id": f"{event_type}_{res.data['id']}",
+            **geo_properties,
         }
         hit = {
             "api_key": self.api_key,
