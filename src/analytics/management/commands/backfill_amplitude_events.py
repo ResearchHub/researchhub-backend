@@ -215,32 +215,48 @@ class Command(BaseCommand):
                 elif vote_content_type.model == "researchhubpost":
                     event_type = f"researchhubpost_{vote_type}"
                 elif vote_content_type.model == "thread":
-                    parent_doc_type = vote.item.unified_document.document_type
-                    if parent_doc_type == "PAPER":
-                        parent_class = "paper"
-                    elif parent_doc_type == "HYPOTHESIS":
-                        parent_class = "hypothesis"
+                    vote_item = vote.item
+                    if not vote.item:
+                        continue
                     else:
-                        parent_class = "researchhubpost"
-                    event_type = f"{parent_class}_threads_{vote_type}"
+                        parent_doc_type = vote_item.unified_document.document_type
+                        if parent_doc_type == "PAPER":
+                            parent_class = "paper"
+                        elif parent_doc_type == "HYPOTHESIS":
+                            parent_class = "hypothesis"
+                        else:
+                            parent_class = "researchhubpost"
+                        event_type = f"{parent_class}_threads_{vote_type}"
                 elif vote_content_type.model == "comment":
-                    parent_doc_type = vote.item.unified_document.document_type
-                    if parent_doc_type == "PAPER":
-                        parent_class = "paper"
-                    elif parent_doc_type == "HYPOTHESIS":
-                        parent_class = "hypothesis"
+                    vote_item = vote.item
+                    if not vote.item:
+                        continue
                     else:
-                        parent_class = "researchhubpost"
-                    event_type = f"{parent_class}_thread_comments_{vote_type}"
+                        parent_doc_type = vote_item.unified_document.document_type
+                        if parent_doc_type == "PAPER":
+                            parent_class = "paper"
+                        elif parent_doc_type == "HYPOTHESIS":
+                            parent_class = "hypothesis"
+                        else:
+                            parent_class = "researchhubpost"
+                        event_type = f"{parent_class}_thread_comments_{vote_type}"
                 elif vote_content_type.model == "reply":
-                    parent_doc_type = vote.item.unified_document.document_type
-                    if parent_doc_type == "PAPER":
-                        parent_class = "paper"
-                    elif parent_doc_type == "HYPOTHESIS":
-                        parent_class = "hypothesis"
+                    vote_item = vote.item
+                    if not vote.item:
+                        continue
                     else:
-                        parent_class = "researchhubpost"
-                    event_type = f"{parent_class}_thread_comment_replies_{vote_type}"
+                        parent_doc_type = vote_item.unified_document.document_type
+                        if parent_doc_type == "PAPER":
+                            parent_class = "paper"
+                        elif parent_doc_type == "HYPOTHESIS":
+                            parent_class = "hypothesis"
+                        else:
+                            parent_class = "researchhubpost"
+                        event_type = (
+                            f"{parent_class}_thread_comment_replies_{vote_type}"
+                        )
+                else:
+                    continue
                 user = vote.created_by
                 user_id, user_properties = self.get_user_props(user)
                 hit = {
