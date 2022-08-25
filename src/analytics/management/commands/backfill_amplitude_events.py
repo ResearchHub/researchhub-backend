@@ -70,13 +70,18 @@ class Command(BaseCommand):
                 print(f"{i}/{count}")
                 user = comment.created_by
                 user_id, user_properties = self.get_user_props(user)
+                if comment.unified_document == "PAPER":
+                    event_type = "paper_thread_comments_create"
+                elif comment.unified_document == "HYPOTHESIS":
+                    event_type = "hypothesis_thread_comments_create"
+                else:
+                    event_type = "post_thread_comments_create"
                 hit = {
                     "user_id": user_id,
-                    "event_type": "create_comment",
+                    "event_type": event_type,
                     "time": int(comment.created_date.timestamp()),
                     "user_properties": user_properties,
-                    "insert_id": f"comment_{comment.id}",
-                    "is_removed": comment.is_removed,
+                    "insert_id": f"{event_type}_{comment.id}",
                 }
                 events.append(hit)
         self.forward_amp_event(events)
@@ -93,13 +98,18 @@ class Command(BaseCommand):
                 print(f"{i}/{count}")
                 user = reply.created_by
                 user_id, user_properties = self.get_user_props(user)
+                if reply.unified_document == "PAPER":
+                    event_type = "paper_thread_comment_replies_create"
+                elif reply.unified_document == "HYPOTHESIS":
+                    event_type = "hypothesis_thread_comment_replies_create"
+                else:
+                    event_type = "post_thread_comment_replies_create"
                 hit = {
                     "user_id": user_id,
-                    "event_type": "create_reply",
+                    "event_type": event_type,
                     "time": int(reply.created_date.timestamp()),
                     "user_properties": user_properties,
-                    "insert_id": f"reply_{reply.id}",
-                    "is_removed": reply.is_removed,
+                    "insert_id": f"{event_type}_{reply.id}",
                 }
                 events.append(hit)
         self.forward_amp_event(events)
@@ -116,13 +126,18 @@ class Command(BaseCommand):
                 print(f"{i}/{count}")
                 user = thread.created_by
                 user_id, user_properties = self.get_user_props(user)
+                if thread.unified_document == "PAPER":
+                    event_type = "paper_threads_create"
+                elif thread.unified_document == "HYPOTHESIS":
+                    event_type = "hypothesis_threads_create"
+                else:
+                    event_type = "post_threads_create"
                 hit = {
                     "user_id": user_id,
-                    "event_type": "create_thread",
+                    "event_type": event_type,
                     "time": int(thread.created_date.timestamp()),
                     "user_properties": user_properties,
-                    "insert_id": f"thread_{thread.id}",
-                    "is_removed": thread.is_removed,
+                    "insert_id": f"{event_type}_{thread.id}",
                 }
                 events.append(hit)
         self.forward_amp_event(events)
@@ -185,7 +200,7 @@ class Command(BaseCommand):
                 print(f"{i}/{count}")
                 user = post.created_by
                 user_id, user_properties = self.get_user_props(user)
-                event_type = "researchhubpost_create"
+                event_type = "researchhub_post_create"
                 hit = {
                     "user_id": user_id,
                     "event_type": event_type,
@@ -213,7 +228,7 @@ class Command(BaseCommand):
                 elif vote_content_type.model == "hypothesis":
                     event_type = f"hypothesis_{vote_type}"
                 elif vote_content_type.model == "researchhubpost":
-                    event_type = f"researchhubpost_{vote_type}"
+                    event_type = f"researchhub_post_{vote_type}"
                 elif vote_content_type.model == "thread":
                     vote_item = vote.item
                     if not vote.item:
@@ -346,12 +361,41 @@ class Command(BaseCommand):
                 events.append(hit)
         self.forward_amp_event(events)
 
+    def handle_closed_bounties(self, bounties):
+        print("bounties")
+        count = bounties.count()
+        events = []
+        for i, bounty in enumerate(bounties.iterator()):
+            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
+                self.forward_amp_event(events)
+                events = []
+            else:
+                print(f"{i}/{count}")
+                user = bounty.created_by
+                user_id, user_properties = self.get_user_props(user)
+                event_type = "bounty_approve_bounty"
+                hit = {
+                    "user_id": user_id,
+                    "event_type": event_type,
+                    "time": int(bounty.created_date.timestamp()),
+                    "user_properties": user_properties,
+                    "insert_id": f"{event_type}_{bounty.id}",
+                    "event_properties": {
+                        "amount": bounty.amount,
+                    },
+                }
+                events.append(hit)
+        self.forward_amp_event(events)
+
     def handle(self, *args, **options):
         papers = Paper.objects.filter(uploaded_by__isnull=False)
         hypotheses = Hypothesis.objects.filter(created_by__isnull=False)
         posts = ResearchhubPost.objects.filter(created_by__isnull=False)
         purchases = Purchase.objects.filter(user__isnull=False)
         bounties = Bounty.objects.filter(created_by__isnull=False)
+        closed_bounties = Bounty.objects.filter(
+            created_by__isnull=False, status="CLOSED"
+        )
         user = User.objects.all()
         threads = Thread.objects.filter(created_by__isnull=False)
         comments = Comment.objects.filter(created_by__isnull=False)
@@ -368,3 +412,4 @@ class Command(BaseCommand):
         self.handle_user_signup(user)
         self.handle_purchases(purchases)
         self.handle_bounties(bounties)
+        self.handle_closed_bounties(closed_bounties)
