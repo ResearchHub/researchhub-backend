@@ -328,7 +328,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         qs = qs.exclude(id__in=featured_content)
         return qs
 
-    def _get_unifed_document_cache_hit(
+    def _get_unified_document_cache_hit(
         self, document_type, filtering, hub_id, page_number, bounty_query, time_scope
     ):
         cache_hit = None
@@ -402,7 +402,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         page_number = int(query_params.get("page", 1))
 
         filtering = self._get_document_filtering(query_params)
-        cache_hit = self._get_unifed_document_cache_hit(
+        cache_hit = self._get_unified_document_cache_hit(
             document_request_type,
             filtering,
             hub_id,
@@ -488,7 +488,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         all_documents = {}
         for hub_id in hub_ids:
-            cache_hit = self._get_unifed_document_cache_hit(
+            cache_hit = self._get_unified_document_cache_hit(
                 document_request_type,
                 filtering,
                 hub_id,
@@ -512,11 +512,16 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             serializer = self.dynamic_serializer_class(
                 page,
                 _include_fields=[
+                    "id",
+                    "created_date",
+                    "featured",
                     "documents",
                     "document_type",
                     "hot_score",
+                    "hot_score_v2",
+                    "reviews",
                     "score",
-                    "created_date",
+                    "bounties",
                 ],
                 many=True,
                 context=context,
