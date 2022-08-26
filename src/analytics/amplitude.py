@@ -21,18 +21,6 @@ class Amplitude:
         data = view.__dict__
         event_type = f"{data['basename']}_{data['action']}"
         return event_type
-        # from paper.view import PaperViewSet
-        # from researchhub_document.views import ResearchhubPostViewSet
-        # from hypothesis.views import HypothesisViewSet
-
-        # if isinstance(view, PaperViewSet):
-        #     event_properties = {
-
-        #     }
-        # elif isinstance(view, ResearchhubPostViewSet):
-        #     pass
-        # elif isinstance(view, HypothesisViewSet):
-        #     pass
 
     def _build_user_properties(self, user):
         if user.is_anonymous:
