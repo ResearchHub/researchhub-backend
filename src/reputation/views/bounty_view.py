@@ -9,6 +9,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from analytics.amplitude import track_event
 from purchase.models import Balance
 from reputation.distributions import (
     create_bounty_dao_fee_distribution,
@@ -135,6 +136,7 @@ class BountyViewSet(viewsets.ModelViewSet):
         }
         return context
 
+    @track_event
     def create(self, request, *args, **kwargs):
         data = request.data
         user = request.user
@@ -227,6 +229,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             )
             return Response(serializer.data, status=201)
 
+    @track_event
     @action(
         detail=True,
         methods=["post"],
@@ -283,6 +286,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             else:
                 raise Exception("Bounty payout error")
 
+    @track_event
     @action(
         detail=True,
         methods=["post", "delete"],

@@ -13,6 +13,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from analytics.amplitude import track_event
 from notification.models import Notification
 from paper.models import Paper
 from paper.utils import get_cache_key
@@ -32,16 +33,10 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    NEWEST,
-    TOP,
-    TRENDING,
-)
+from researchhub_document.related_models.constants.filters import TRENDING
 from researchhub_document.utils import reset_unified_document_cache
 from user.models import Action, Author, User
 from user.permissions import IsModerator
-from user.related_models.gatekeeper_model import Gatekeeper
 from user.serializers import UserSerializer
 from utils.http import RequestMethods, http_request
 from utils.permissions import (
@@ -106,6 +101,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     throttle_classes = THROTTLE_CLASSES
     ALLOWED_CONTENT_TYPES = ["comment", "reply", "thread", "paper", "researchhubpost"]
 
+    @track_event
     def create(self, request):
         user = request.user
         data = request.data
@@ -431,6 +427,7 @@ class SupportViewSet(viewsets.ModelViewSet):
 
         return Response({"message": "Error"}, status=400)
 
+    @track_event
     def create(self, request):
         sender = request.user
         data = request.data

@@ -25,14 +25,14 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
+from analytics.amplitude import track_event
 from discussion.models import Vote as GrmVote
-from discussion.reaction_serializers import FlagSerializer as GrmFlagSerializer
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
-from discussion.reaction_views import ReactionViewActionMixin, create_flag
+from discussion.reaction_views import ReactionViewActionMixin
 from google_analytics.signals import get_event_hit_response
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
-from paper.models import AdditionalFile, Figure, Flag, Paper, PaperSubmission
+from paper.models import AdditionalFile, Figure, Paper, PaperSubmission
 from paper.permissions import (
     CreatePaper,
     IsAuthor,
@@ -59,7 +59,6 @@ from paper.utils import (
 )
 from purchase.models import Purchase
 from reputation.models import Contribution
-from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.filters import (
@@ -72,7 +71,7 @@ from researchhub_document.related_models.constants.filters import (
 from researchhub_document.utils import reset_unified_document_cache
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.permissions import CreateOnly, CreateOrUpdateIfAllowed, HasAPIKey
-from utils.sentry import log_error, log_info
+from utils.sentry import log_error
 from utils.siftscience import decisions_api, events_api
 from utils.throttles import THROTTLE_CLASSES
 
@@ -197,6 +196,7 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         else:
             return queryset
 
+    @track_event
     def create(self, request, *args, **kwargs):
         try:
             doi = request.data.get("doi", "")
@@ -970,6 +970,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
     throttle_classes = THROTTLE_CLASSES
     permission_classes = [IsAuthenticated | HasAPIKey, CreateOnly]
 
+    @track_event
     def create(self, *args, **kwargs):
         data = self.request.data
         url = data.get("url", "")
@@ -1003,6 +1004,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
             )
         return response
 
+    @track_event
     @action(detail=False, methods=["post"])
     def create_from_doi(self, request):
         data = request.data
