@@ -481,6 +481,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         query_params = request.query_params
         document_request_type = query_params.get("type", "all")
         time_scope = query_params.get("time", "today")
+        bounty_query = query_params.get("bounties", "")
 
         page_number = int(query_params.get("page", 1))
         filtering = self._get_document_filtering(query_params)
@@ -488,7 +489,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         all_documents = {}
         for hub_id in hub_ids:
             cache_hit = self._get_unifed_document_cache_hit(
-                document_request_type, filtering, hub_id, page_number, time_scope
+                document_request_type,
+                filtering,
+                hub_id,
+                page_number,
+                bounty_query,
+                time_scope,
             )
 
             if cache_hit:
