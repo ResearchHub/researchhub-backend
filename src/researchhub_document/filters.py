@@ -276,7 +276,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
         return qs
 
     def subscribed_filter(self, qs, name, value):
-        if value:
+        if value and self.request.user.is_anonymous is not True:
             user = self.request.user
             hub_ids = user.subscribed_hubs.values_list("id", flat=True)
             qs = qs.filter(hubs__in=hub_ids)
