@@ -128,7 +128,6 @@ def preload_trending_documents(
         _include_fields=[
             "created_date",
             "id",
-            "featured",
             "documents",
             "document_type",
             "hot_score",

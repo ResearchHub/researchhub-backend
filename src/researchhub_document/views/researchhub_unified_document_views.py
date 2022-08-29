@@ -310,22 +310,14 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         }
         return context
 
-    def get_featured_documents(self):
-        hub_id = self.request.query_params.get("hub_id", 0) or None
-        featured_content = FeaturedContent.objects.filter(hub_id=hub_id).values_list(
-            "unified_document"
-        )
-        return featured_content
+    def _get_featured_documents_queryset(self):
+        featured_content = FeaturedContent.objects.all().values_list("unified_document")
+        qs = self.get_queryset().filter(id__in=featured_content)
+        return qs
 
     def get_filtered_queryset(self):
-        featured_content = self.get_featured_documents()
-        qs = (
-            self.get_queryset()
-            .filter(is_removed=False)
-            .exclude(excluded_from_feeds__isnull=False)
-        )
+        qs = self.get_queryset().filter(is_removed=False)
         qs = self.filter_queryset(qs)
-        qs = qs.exclude(id__in=featured_content)
         return qs
 
     def _get_unified_document_cache_hit(
@@ -341,32 +333,19 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             return cache_hit
         return None
 
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["get"], permission_classes=[IsModerator])
     def test_get_unified_documents(self, request):
         query_params = request.query_params
         hub_id = query_params.get("hub_id", 0) or 0
-        page_number = int(query_params.get("page", 1))
         have_bounties = query_params.get("have_bounties", False)
-
-        filtering = self._get_document_filtering(query_params)
 
         documents = self.get_filtered_queryset()
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
         page = self.paginate_queryset(documents)
-
-        if page_number == 1 and filtering == "-hot_score":
-            featured_documents = self.get_featured_documents()
-            featured_documents = ResearchhubUnifiedDocument.objects.filter(
-                id__in=featured_documents
-            )
-            featured_documents = list(featured_documents)
-            page = featured_documents + page[: len(page) - len(featured_documents)]
-
         _include_fields = [
             "id",
             "created_date",
-            "featured",
             "documents",
             "document_type",
             "hot_score",
@@ -429,21 +408,36 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
         page = self.paginate_queryset(documents)
-
-        if page_number == 1 and filtering == "-hot_score":
-            featured_documents = self.get_featured_documents()
-            featured_documents = ResearchhubUnifiedDocument.objects.filter(
-                id__in=featured_documents
-            )
-            featured_documents = list(featured_documents)
-            page = featured_documents + page[: len(page) - len(featured_documents)]
-
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=[
                 "id",
                 "created_date",
-                "featured",
+                "documents",
+                "document_type",
+                "hot_score",
+                "hot_score_v2",
+                "reviews",
+                "score",
+                "bounties",
+            ],
+            many=True,
+            context=context,
+        )
+        serializer_data = serializer.data
+
+        return self.get_paginated_response(serializer_data)
+
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    def get_featured_documents(self, request):
+        featured_documents = self._get_featured_documents_queryset()
+        context = self._get_serializer_context()
+        page = self.paginate_queryset(featured_documents)
+        serializer = self.dynamic_serializer_class(
+            page,
+            _include_fields=[
+                "id",
+                "created_date",
                 "documents",
                 "document_type",
                 "hot_score",
@@ -515,7 +509,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 _include_fields=[
                     "id",
                     "created_date",
-                    "featured",
                     "documents",
                     "document_type",
                     "hot_score",
@@ -594,12 +587,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         doc_type = get_doc_type_key(unified_document)
         hub_ids = list(unified_document.hubs.values_list("id", flat=True))
 
-        if request.data["feature_in_homepage"] == True:
+        if request.data["feature_in_homepage"] is True:
             FeaturedContent.objects.get_or_create(
                 unified_document=unified_document, hub_id=None
             )
 
-        if request.data["feature_in_hubs"] == True:
+        if request.data["feature_in_hubs"] is True:
             for hub_id in hub_ids:
                 FeaturedContent.objects.get_or_create(
                     unified_document=unified_document, hub_id=hub_id
