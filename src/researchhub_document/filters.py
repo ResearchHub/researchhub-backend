@@ -21,23 +21,33 @@ DOC_CHOICES = (
     ("hypothesis", "Hypothesis"),
     ("question", "Questions"),
 )
-BOUNTY_CHOICES = (
-    ("all", "All"),
-    ("none", "None")
-    # ("open", "Open"),
-    # ("cancelled", "Cancelled"),
-    # ("expired", "Expired"),
-    # ("closed", "Closed"),
-)
-UNIFIED_DOCUMENT_FILTER_CHOICES = (
-    ("removed", "Removed"),
-    ("top_rated", "Top Rated"),
-    ("most_discussed", "Most Discussed"),
-    ("newest", "Newest"),
-    ("hot", "Hot"),
+TAG_CHOICES = (
+    ("answered", "Answered"),
     ("author_claimed", "Author Claimed"),
-    ("is_open_access", "Open Access"),
+    ("closed", "Closed"),
+    ("expired", "Expired"),
+    ("open", "Open"),
+    ("open_access", "Open Access"),
+    ("peer_reviewed", "Peer Reviewed"),
+    ("unanswered", "Unanswered"),
 )
+ORDER_CHOICES = (
+    ("new", "New"),
+    ("hot", "Hot"),
+    ("discussed", "Discussed"),
+    ("upvoted", "Upvoted"),
+    ("expiring_soon", "Expiring Soon"),
+    ("most_rsc", "Most RSC"),
+)
+TIME_SCOPE_CHOICES = ("today", "week", "month", "year", "all")
+# BOUNTY_CHOICES = (
+#     ("all", "All"),
+#     ("none", "None")
+#     # ("open", "Open"),
+#     # ("cancelled", "Cancelled"),
+#     # ("expired", "Expired"),
+#     # ("closed", "Closed"),
+# )
 
 
 class UnifiedDocumentFilter(filters.FilterSet):
@@ -50,25 +60,41 @@ class UnifiedDocumentFilter(filters.FilterSet):
         field_name="document_type",
         method="document_type_filter",
         choices=DOC_CHOICES,
+        null_value="all",
     )
+    tags = filters.MultipleChoiceFilter(
+        method="tag_filter", label="Tags", choices=TAG_CHOICES
+    )
+
     ordering = filters.ChoiceFilter(
-        method="default_filter",
-        choices=UNIFIED_DOCUMENT_FILTER_CHOICES,
+        method="ordering_filter",
+        choices=ORDER_CHOICES,
         label="Ordering",
     )
     subscribed_hubs = filters.BooleanFilter(
         method="subscribed_filter",
         label="Subscribed Hubs",
     )
-    bounties = filters.ChoiceFilter(
-        field_name="bounties",
-        method="bounty_type_filter",
-        choices=BOUNTY_CHOICES,
-    )
+    # bounties = filters.ChoiceFilter(
+    #     field_name="bounties",
+    #     method="bounty_type_filter",
+    #     choices=BOUNTY_CHOICES,
+    # )
 
     class Meta:
         model = ResearchhubUnifiedDocument
         fields = ["hub_id", "ordering", "subscribed_hubs", "type"]
+
+    def _map_tag_to_document_filter(self, value):
+        if value == "closed":
+            return "bounty_closed", True
+        elif value == "expired":
+            return "bounty_expired", True
+        elif value == "open":
+            return "bounty_open", True
+        elif value == "unanswered":
+            return "answered", False
+        return value, True
 
     def document_type_filter(self, qs, name, value):
         value = value.upper()
@@ -85,6 +111,43 @@ class UnifiedDocumentFilter(filters.FilterSet):
             )
         else:
             qs = qs.exclude(document_type=NOTE)
+        return qs
+
+    def tag_filter(self, qs, name, values):
+        queries = Q()
+        for value in values:
+            key, value = self._map_tag_to_document_filter(value)
+            queries |= Q(**{f"document_filter__{key}": value})
+
+        return qs.filter(queries)
+
+    def ordering_filter(self, qs, name, value):
+        time_scope = self.data.get("time", "today")
+        start_date, end_date = get_date_ranges_by_time_scope(time_scope)
+
+        if time_scope not in TIME_SCOPE_CHOICES:
+            time_scope = "today"
+
+        ordering = []
+        if value == "new":
+            qs = qs.filter(document_filter__created_date__range=(start_date, end_date))
+            ordering.append("-document_filter__created_date")
+        elif value == "hot":
+            ordering.append("-hot_score_v2")
+        elif value == "discussed":
+            qs = qs.filter(
+                document_filter__discussed_date__range=(start_date, end_date)
+            )
+            ordering.append(f"-document_filter__discussed_{time_scope}")
+        elif value == "upvoted":
+            qs = qs.filter(document_filter__upvoted__date_range=(start_date, end_date))
+            ordering.append(f"-document_filter__upvoted_{time_scope}")
+        elif value == "expiring_soon":
+            ordering.append("-document_filter__bounty_expiration_date")
+        elif value == "most_rsc":
+            ordering.append("-document_filter__bounty_total_amount")
+
+        qs = qs.order_by(*ordering)
         return qs
 
     def default_filter(self, qs, name, value):

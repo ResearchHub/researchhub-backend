@@ -11,6 +11,9 @@ from notification.models import Notification
 from reputation.models import Bounty, Contribution
 from researchhub.celery import QUEUE_BOUNTIES, QUEUE_CONTRIBUTIONS, app
 from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import (
+    FILTER_BOUNTY_EXPIRED,
+)
 from utils.message import send_email_message
 from utils.sentry import log_info
 
@@ -121,6 +124,7 @@ def check_open_bounties():
     for bounty in expired_bounties.iterator():
         bounty.set_expired_status()
         refund_status = bounty.refund()
+        bounty.unified_document.update_filter(FILTER_BOUNTY_EXPIRED)
         if refund_status is False:
             ids = expired_bounties.values_list("id", flat=True)
             log_info(f"Failed to refund bounties: {ids}")

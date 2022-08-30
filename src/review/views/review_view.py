@@ -1,12 +1,13 @@
-from rest_framework import status, viewsets
-from rest_framework.decorators import action
+from rest_framework import viewsets
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
-from rest_framework.response import Response
 
 from discussion.models import Thread
 from discussion.reaction_views import ReactionViewActionMixin
 from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import (
+    FILTER_PEER_REVIEWED,
+)
 from researchhub_document.related_models.constants.filters import (
     AUTHOR_CLAIMED,
     DISCUSSED,
@@ -17,7 +18,6 @@ from researchhub_document.utils import get_doc_type_key, reset_unified_document_
 from review.models.review_model import Review
 from review.permissions import AllowedToUpdateReview
 from review.serializers import ReviewSerializer
-from utils import sentry
 from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
 
@@ -39,6 +39,7 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         unified_document = ResearchhubUnifiedDocument.objects.get(id=args[0])
         request.data["created_by"] = request.user.id
         request.data["unified_document"] = unified_document.id
+        unified_document.update_filter(FILTER_PEER_REVIEWED)
         response = super().create(request, *args, **kwargs)
 
         return response
@@ -58,6 +59,6 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 filters=[DISCUSSED, TRENDING, OPEN_ACCESS, AUTHOR_CLAIMED],
             )
         except Exception as e:
-            pass
+            log_error(e)
 
         return response

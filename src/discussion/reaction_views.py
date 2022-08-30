@@ -19,6 +19,7 @@ from discussion.reaction_serializers import (
 )
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
+from researchhub_document.related_models.constants.document_type import SORT_UPVOTED
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     TOP,
@@ -181,6 +182,7 @@ class ReactionViewActionMixin:
                 "This vote already exists", status=status.HTTP_400_BAD_REQUEST
             )
         response = update_or_create_vote(request, user, item, Vote.UPVOTE)
+        item.unified_document.update_filter(SORT_UPVOTED)
         return response
 
     @action(
@@ -217,6 +219,7 @@ class ReactionViewActionMixin:
                 "This vote already exists", status=status.HTTP_400_BAD_REQUEST
             )
         response = update_or_create_vote(request, user, item, Vote.DOWNVOTE)
+        item.unified_document.update_filter(SORT_UPVOTED)
         return response
 
     @action(detail=True, methods=["get"])

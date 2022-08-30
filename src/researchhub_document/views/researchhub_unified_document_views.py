@@ -400,7 +400,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 document_type=[document_request_type],
                 filters=[filtering],
                 date_ranges=[time_scope],
-                bounty_query=bounty_query,
+                bounty_queries=[bounty_query],
                 with_default_hub=with_default_hub,
             )
 

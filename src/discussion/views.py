@@ -42,6 +42,10 @@ from reputation.models import Bounty, Contribution
 from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub_document.models import ResearchhubPost
+from researchhub_document.related_models.constants.document_type import (
+    FILTER_ANSWERED,
+    SORT_DISCUSSED,
+)
 from researchhub_document.related_models.constants.filters import (
     AUTHOR_CLAIMED,
     DISCUSSED,
@@ -113,6 +117,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             created_thread.review_id = request.data.get("review")
             created_thread.save()
 
+        unified_document.update_filter(SORT_DISCUSSED)
         hubs = list(unified_document.hubs.all().values_list("id", flat=True))
         discussion_id = response.data["id"]
 
@@ -276,6 +281,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         target_thread.is_accepted_answer = True
         target_thread.save()
 
+        target_thread.unified_document.update_filter(FILTER_ANSWERED)
         return Response({"thread_id": target_thread.id}, status=200)
         # except Exception as exception:
         #     return Response(str(exception), status=400)
@@ -321,6 +327,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         response = super().create(request, *args, **kwargs)
         response = self.get_self_upvote_response(request, response, Comment)
+        unified_document.update_filter(SORT_DISCUSSED)
         hubs = list(unified_document.hubs.all().values_list("id", flat=True))
         self.sift_track_create_content_comment(request, response, Comment)
 
@@ -385,6 +392,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         comment.is_accepted_answer = True
         comment.save()
 
+        comment.unified_document.update_filter(FILTER_ANSWERED)
         return Response({"comment_id": comment.id}, status=200)
         # except Exception as exception:
         #     return Response(str(exception), status=400)
@@ -466,6 +474,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             request.data["created_location"] = BaseComment.CREATED_LOCATION_PROGRESS
 
         response = super().create(request, *args, **kwargs)
+        unified_document.update_filter(SORT_DISCUSSED)
         hubs = list(unified_document.hubs.all().values_list("id", flat=True))
         self.sift_track_create_content_comment(request, response, Reply)
 
