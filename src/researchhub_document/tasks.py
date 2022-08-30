@@ -155,6 +155,7 @@ def preload_trending_documents(
     queue=QUEUE_CACHES,
 )
 def preload_homepage_feed():
+    return True
     from researchhub_document.utils import reset_unified_document_cache
 
     reset_unified_document_cache(with_default_hub=True)
@@ -166,6 +167,7 @@ def preload_homepage_feed():
     queue=QUEUE_CACHES,
 )
 def preload_hub_feeds():
+    return True
     from hub.views import HubViewSet
     from researchhub_document.utils import reset_unified_document_cache
 

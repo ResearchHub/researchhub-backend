@@ -36,7 +36,7 @@ class Migration(migrations.Migration):
                 ('open_access', models.BooleanField(db_index=True, default=False)),
                 ('peer_reviewed', models.BooleanField(db_index=True, default=False)),
                 ('bounty_expiration_date', models.DateTimeField(null=True)),
-                ('bounty_total_amount', models.DecimalField(db_index=True, decimal_places=10, max_digits=19)),
+                ('bounty_total_amount', models.DecimalField(null=True, db_index=True, decimal_places=10, max_digits=19)),
                 ('discussed_today', models.IntegerField(db_index=True, default=0)),
                 ('discussed_week', models.IntegerField(db_index=True, default=0)),
                 ('discussed_month', models.IntegerField(db_index=True, default=0)),

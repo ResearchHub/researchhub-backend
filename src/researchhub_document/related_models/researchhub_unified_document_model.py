@@ -51,7 +51,7 @@ class DocumentFilter(DefaultModel):
     # Sorting Fields
     bounty_expiration_date = models.DateTimeField(null=True)
     bounty_total_amount = models.DecimalField(
-        decimal_places=10, max_digits=19, db_index=True
+        decimal_places=10, max_digits=19, null=True, db_index=True
     )
 
     discussed_today = models.IntegerField(default=0, db_index=True)
