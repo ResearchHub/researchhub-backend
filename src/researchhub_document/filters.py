@@ -4,6 +4,7 @@ from django_filters import rest_framework as filters
 from hub.models import Hub
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
+    BOUNTY,
     DISCUSSION,
     ELN,
     HYPOTHESIS,
@@ -20,6 +21,7 @@ DOC_CHOICES = (
     ("posts", "Posts"),
     ("hypothesis", "Hypothesis"),
     ("question", "Questions"),
+    ("bounty", "Bounty"),
 )
 TAG_CHOICES = (
     ("answered", "Answered"),
@@ -109,6 +111,8 @@ class UnifiedDocumentFilter(filters.FilterSet):
             qs = qs.filter(document_type=HYPOTHESIS).prefetch_related(
                 "hypothesis__votes", "hypothesis__citations"
             )
+        elif value == BOUNTY:
+            qs = qs.filter(document_filter__has_bounty=True)
         else:
             qs = qs.exclude(document_type=NOTE)
         return qs

@@ -21,6 +21,7 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_CLOSED,
     FILTER_BOUNTY_EXPIRED,
     FILTER_BOUNTY_OPEN,
+    FILTER_HAS_BOUNTY,
     FILTER_OPEN_ACCESS,
     FILTER_PEER_REVIEWED,
     HYPOTHESIS,
@@ -45,6 +46,7 @@ class DocumentFilter(DefaultModel):
     bounty_closed = models.BooleanField(default=False, db_index=True)
     bounty_expired = models.BooleanField(default=False, db_index=True)
     bounty_open = models.BooleanField(default=False, db_index=True)
+    has_bounty = models.BooleanField(default=False, db_index=True)
     open_access = models.BooleanField(default=False, db_index=True)
     peer_reviewed = models.BooleanField(default=False, db_index=True)
 
@@ -138,6 +140,10 @@ class DocumentFilter(DefaultModel):
             ),
         )
 
+    def update_filters(self, update_types):
+        for update_type in update_types:
+            self.update_filter(update_type)
+
     def update_filter(self, update_type=FILTER_ALL):
         unified_document = self.unified_document
         document_type = unified_document.document_type
@@ -167,6 +173,8 @@ class DocumentFilter(DefaultModel):
             updates.append(self.update_bounty_closed)
         if update_type == FILTER_BOUNTY_EXPIRED or update_type == FILTER_ALL:
             updates.append(self.update_bounty_expired)
+        if update_type == FILTER_HAS_BOUNTY or update_type == FILTER_ALL:
+            updates.append(self.update_has_bounty)
         if update_type == SORT_BOUNTY_EXPIRATION_DATE or update_type == FILTER_ALL:
             updates.append(self.update_bounty_expiration_date)
         if update_type == SORT_BOUNTY_TOTAL_AMOUNT or update_type == FILTER_ALL:
@@ -194,7 +202,12 @@ class DocumentFilter(DefaultModel):
             except Exception as e:
                 log_error(e)
                 # TODO: Delete print
-                print("FILTERING UPDATE ERROR", str(update), e)
+                print(
+                    "FILTERING UPDATE ERROR - ",
+                    str(update),
+                    e,
+                    f" - {unified_document.id}",
+                )
 
         self.save()
 
@@ -218,6 +231,9 @@ class DocumentFilter(DefaultModel):
 
     def update_bounty_open(self, unified_document, document):
         self.bounty_open = unified_document.bounties.filter(status=Bounty.OPEN).exists()
+
+    def update_has_bounty(self, unified_document, document):
+        self.has_bounty = unified_document.related_bounties.exists()
 
     def update_open_access(self, unified_document, document):
         self.open_access = document.oa_status != "closed"
@@ -441,6 +457,10 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
 
     def update_filter(self, filter_type):
         self.document_filter.update_filter(filter_type)
+
+    def update_filters(self, filter_types):
+        for filter_type in filter_types:
+            self.update_filter(filter_type)
 
     @property
     def authors(self):

@@ -33,6 +33,7 @@ class Migration(migrations.Migration):
                 ('bounty_closed', models.BooleanField(db_index=True, default=False)),
                 ('bounty_expired', models.BooleanField(db_index=True, default=False)),
                 ('bounty_open', models.BooleanField(db_index=True, default=False)),
+                ('has_bounty', models.BooleanField(db_index=True, default=False)),
                 ('open_access', models.BooleanField(db_index=True, default=False)),
                 ('peer_reviewed', models.BooleanField(db_index=True, default=False)),
                 ('bounty_expiration_date', models.DateTimeField(null=True)),
