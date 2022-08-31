@@ -333,7 +333,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             return cache_hit
         return None
 
-    @action(detail=False, methods=["get"], permission_classes=[IsModerator])
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def test_get_unified_documents(self, request):
         query_params = request.query_params
         hub_id = query_params.get("hub_id", 0) or 0
