@@ -121,10 +121,10 @@ class Migration(migrations.Migration):
             name='document_filter',
             field=models.OneToOneField(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='unified_document', to='researchhub_document.DocumentFilter'),
         ),
-        migrations.RunPython(migrate_paper_to_unified_document),
-        migrations.AlterField(
-            model_name='researchhubunifieddocument',
-            name='document_filter',
-            field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='unified_document', to='researchhub_document.DocumentFilter'),
-        ),
+        # migrations.RunPython(migrate_paper_to_unified_document),
+        # migrations.AlterField(
+        #     model_name='researchhubunifieddocument',
+        #     name='document_filter',
+        #     field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='unified_document', to='researchhub_document.DocumentFilter'),
+        # ),
     ]
