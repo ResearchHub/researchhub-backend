@@ -140,7 +140,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
             )
             ordering.append(f"-document_filter__discussed_{time_scope}")
         elif value == "upvoted":
-            qs = qs.filter(document_filter__upvoted__date_range=(start_date, end_date))
+            qs = qs.filter(document_filter__upvoted_date__range=(start_date, end_date))
             ordering.append(f"-document_filter__upvoted_{time_scope}")
         elif value == "expiring_soon":
             ordering.append("-document_filter__bounty_expiration_date")
