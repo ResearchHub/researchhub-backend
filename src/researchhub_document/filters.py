@@ -170,8 +170,8 @@ class UnifiedDocumentFilter(filters.FilterSet):
 
         ordering = []
         if value == "new":
-            qs = qs.filter(document_filter__created_date__range=(start_date, end_date))
-            ordering.append("-document_filter__created_date")
+            qs = qs.filter(created_date__range=(start_date, end_date))
+            ordering.append("-created_date")
         elif value == "hot":
             ordering.append("-hot_score_v2")
         elif value == "discussed":
