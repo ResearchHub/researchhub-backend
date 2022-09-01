@@ -123,7 +123,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
 
         if value == PAPER:
             qs = qs.filter(document_type=PAPER)
-            selects = "paper"
+            selects = ("paper",)
             prefetches = (
                 "hubs",
                 "paper",
