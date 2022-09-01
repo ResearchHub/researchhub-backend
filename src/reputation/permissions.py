@@ -52,7 +52,7 @@ class UserCanApproveBounty(BasePermission):
             return False
         elif obj.expiration_date <= datetime.now(pytz.UTC):
             self.message = "Bounty is expired"
-            return
+            return False
         if obj.item_content_type == ContentType.objects.get_for_model(
             ResearchhubUnifiedDocument
         ):  # for question bounties, the question creator can control all bounties
