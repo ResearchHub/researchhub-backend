@@ -111,33 +111,43 @@ class UnifiedDocumentFilter(filters.FilterSet):
 
     def document_type_filter(self, qs, name, value):
         value = value.upper()
-
-        if value == PAPER:
-            qs = qs.filter(
-                document_type=PAPER
-            )  # .prefetch_related("paper", "paper__hubs", "paper__uploaded_by", "paper__uploaded_by__author_profile")
-        elif value == POSTS:
-            qs = qs.filter(document_type__in=[DISCUSSION, ELN])
-        elif value == QUESTION:
-            qs = qs.filter(document_type=QUESTION)
-        elif value == HYPOTHESIS:
-            qs = qs.filter(document_type=HYPOTHESIS).prefetch_related(
-                "hypothesis__votes", "hypothesis__citations"
-            )
-        elif value == BOUNTY:
-            qs = qs.filter(document_filter__has_bounty=True)
-        else:
-            qs = qs.exclude(document_type=NOTE)
-        return qs.prefetch_related(
+        selects = ("paper", "hypothesis")
+        prefetches = (
             "hubs",
-            "paper",
             "paper__hubs",
             "paper__uploaded_by",
             "paper__uploaded_by__author_profile",
             "posts",
             "posts__created_by",
-            "hypothesis",
         )
+
+        if value == PAPER:
+            qs = qs.filter(document_type=PAPER)
+            selects = "paper"
+            prefetches = (
+                "hubs",
+                "paper",
+                "paper__hubs",
+                "paper__uploaded_by",
+                "paper__uploaded_by__author_profile",
+                "paper__figures",
+            )
+        elif value == POSTS:
+            qs = qs.filter(document_type__in=[DISCUSSION, ELN])
+            selects = []
+            prefetches = ["hubs", "posts", "posts__created_by"]
+        elif value == QUESTION:
+            qs = qs.filter(document_type=QUESTION)
+            selects = []
+        elif value == HYPOTHESIS:
+            qs = qs.filter(document_type=HYPOTHESIS)
+            selects = ("hypothesis",)
+            prefetches = ("hypothesis__votes", "hypothesis__citations")
+        elif value == BOUNTY:
+            qs = qs.filter(document_filter__has_bounty=True)
+        else:
+            qs = qs.exclude(document_type=NOTE)
+        return qs.select_related(*selects).prefetch_related(*prefetches)
 
     def tag_filter(self, qs, name, values):
         tags = values.split(",")

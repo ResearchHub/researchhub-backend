@@ -323,4 +323,5 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         return post.get_boost_amount()
 
     def get_score(self, post):
+        return post.unified_document.score
         return post.calculate_score()

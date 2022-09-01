@@ -2,7 +2,6 @@ from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from paper.serializers import DynamicPaperSerializer, PaperSerializer
-from reputation.models import Bounty
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (

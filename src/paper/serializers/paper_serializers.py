@@ -771,7 +771,8 @@ class DynamicPaperSerializer(
     bounties = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # GRM
+    # score = serializers.ReadOnlyField()  # GRM
+    score = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -779,6 +780,9 @@ class DynamicPaperSerializer(
     class Meta:
         model = Paper
         fields = "__all__"
+
+    def get_score(self, paper):
+        return paper.unified_document.score
 
     def get_user_vote(self, paper):
         vote = None
