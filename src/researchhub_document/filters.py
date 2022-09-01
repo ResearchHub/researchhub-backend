@@ -33,6 +33,16 @@ TAG_CHOICES = (
     ("peer_reviewed", "Peer Reviewed"),
     ("unanswered", "Unanswered"),
 )
+TAG_CHOICES_STR = (
+    "answered",
+    "author_claimed"
+    "closed"
+    "expired"
+    "open"
+    "open_access"
+    "peer_reviewed"
+    "unanswered",
+)
 ORDER_CHOICES = (
     ("new", "New"),
     ("hot", "Hot"),
@@ -64,9 +74,10 @@ class UnifiedDocumentFilter(filters.FilterSet):
         choices=DOC_CHOICES,
         null_value="all",
     )
-    tags = filters.MultipleChoiceFilter(
-        method="tag_filter", label="Tags", choices=TAG_CHOICES
-    )
+    # tags = filters.MultipleChoiceFilter(
+    #     method="tag_filter", label="Tags", choices=TAG_CHOICES
+    # )
+    tags = filters.CharFilter(method="tag_filter", label="Tags")
 
     ordering = filters.ChoiceFilter(
         method="ordering_filter",
@@ -102,7 +113,9 @@ class UnifiedDocumentFilter(filters.FilterSet):
         value = value.upper()
 
         if value == PAPER:
-            qs = qs.filter(document_type=PAPER)
+            qs = qs.filter(
+                document_type=PAPER
+            )  # .prefetch_related("paper", "paper__hubs", "paper__uploaded_by", "paper__uploaded_by__author_profile")
         elif value == POSTS:
             qs = qs.filter(document_type__in=[DISCUSSION, ELN])
         elif value == QUESTION:
@@ -115,13 +128,24 @@ class UnifiedDocumentFilter(filters.FilterSet):
             qs = qs.filter(document_filter__has_bounty=True)
         else:
             qs = qs.exclude(document_type=NOTE)
-        return qs
+        return qs.prefetch_related(
+            "hubs",
+            "paper",
+            "paper__hubs",
+            "paper__uploaded_by",
+            "paper__uploaded_by__author_profile",
+            "posts",
+            "posts__created_by",
+            "hypothesis",
+        )
 
     def tag_filter(self, qs, name, values):
+        tags = values.split(",")
         queries = Q()
-        for value in values:
-            key, value = self._map_tag_to_document_filter(value)
-            queries |= Q(**{f"document_filter__{key}": value})
+        for value in tags:
+            if value in TAG_CHOICES_STR:
+                key, value = self._map_tag_to_document_filter(value)
+                queries |= Q(**{f"document_filter__{key}": value})
 
         return qs.filter(queries)
 

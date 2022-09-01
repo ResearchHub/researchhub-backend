@@ -337,7 +337,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def test_get_unified_documents(self, request):
         query_params = request.query_params
         hub_id = query_params.get("hub_id", 0) or 0
-        have_bounties = query_params.get("have_bounties", False)
 
         documents = self.get_filtered_queryset()
         context = self._get_serializer_context()
@@ -353,8 +352,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "reviews",
             "score",
         ]
-        if have_bounties:
-            _include_fields.append("bounties")
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=_include_fields,
