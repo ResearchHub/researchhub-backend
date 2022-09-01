@@ -35,12 +35,12 @@ TAG_CHOICES = (
 )
 TAG_CHOICES_STR = (
     "answered",
-    "author_claimed"
-    "closed"
-    "expired"
-    "open"
-    "open_access"
-    "peer_reviewed"
+    "author_claimed",
+    "closed",
+    "expired",
+    "open",
+    "open_access",
+    "peer_reviewed",
     "unanswered",
 )
 ORDER_CHOICES = (
