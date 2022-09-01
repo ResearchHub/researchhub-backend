@@ -378,14 +378,15 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         page_number = int(query_params.get("page", 1))
 
         filtering = self._get_document_filtering(query_params)
-        cache_hit = self._get_unified_document_cache_hit(
-            document_request_type,
-            filtering,
-            hub_id,
-            page_number,
-            bounty_query,
-            time_scope,
-        )
+        cache_hit = None
+        # self._get_unified_document_cache_hit(
+        #     document_request_type,
+        #     filtering,
+        #     hub_id,
+        #     page_number,
+        #     bounty_query,
+        #     time_scope,
+        # )
 
         if cache_hit and page_number == 1:
             cache_hit = self._cache_hit_with_latest_metadata(cache_hit)

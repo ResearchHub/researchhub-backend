@@ -7,12 +7,17 @@ import django.db.models.deletion
 def migrate_paper_to_unified_document(apps, schema_editor):
     ResearchhubUnifiedDocument = apps.get_model('researchhub_document', 'ResearchhubUnifiedDocument')
     DocumentFilter = apps.get_model('researchhub_document', 'DocumentFilter')
-    unified_documents = ResearchhubUnifiedDocument.objects.all()
+    unified_documents = ResearchhubUnifiedDocument.objects.all().order_by("id")
 
-    for uni_doc in unified_documents.iterator():
+    objs = []
+    for i, uni_doc in enumerate(unified_documents.iterator()):
         doc_filter = DocumentFilter.objects.create()
         uni_doc.document_filter = doc_filter
-        uni_doc.save()
+        objs.append(uni_doc)
+        if len(objs) >= 1000:
+            ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
+            objs = []
+    ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
 
 
 class Migration(migrations.Migration):
@@ -121,10 +126,10 @@ class Migration(migrations.Migration):
             name='document_filter',
             field=models.OneToOneField(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='unified_document', to='researchhub_document.DocumentFilter'),
         ),
-        # migrations.RunPython(migrate_paper_to_unified_document),
-        # migrations.AlterField(
-        #     model_name='researchhubunifieddocument',
-        #     name='document_filter',
-        #     field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='unified_document', to='researchhub_document.DocumentFilter'),
-        # ),
+        migrations.RunPython(migrate_paper_to_unified_document),
+        migrations.AlterField(
+            model_name='researchhubunifieddocument',
+            name='document_filter',
+            field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='unified_document', to='researchhub_document.DocumentFilter'),
+        ),
     ]
