@@ -144,7 +144,9 @@ class UnifiedDocumentFilter(filters.FilterSet):
             selects = ("hypothesis",)
             prefetches = ("hypothesis__votes", "hypothesis__citations")
         elif value == BOUNTY:
-            qs = qs.filter(document_filter__has_bounty=True)
+            qs = qs.filter(
+                document_filter__has_bounty=True, document_filter__bounty_open=True
+            )
         else:
             qs = qs.exclude(document_type=NOTE)
         return qs.select_related(*selects).prefetch_related(*prefetches)
