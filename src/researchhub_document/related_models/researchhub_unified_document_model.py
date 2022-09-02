@@ -61,6 +61,7 @@ class DocumentFilter(DefaultModel):
     discussed_month = models.IntegerField(default=0, db_index=True)
     discussed_all = models.IntegerField(default=0, db_index=True)
     discussed_date = models.DateTimeField(auto_now_add=True)
+    discussed_date_ts = models.FloatField(db_index=True, default=0)
 
     # discussed_today_date = models.DateTimeField(auto_now_add=True)
     # discussed_week_date = models.DateTimeField(auto_now_add=True)
@@ -448,7 +449,10 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
     )
     hubs = models.ManyToManyField(Hub, related_name="related_documents", blank=True)
     document_filter = models.OneToOneField(
-        DocumentFilter, on_delete=models.CASCADE, related_name="unified_document"
+        DocumentFilter,
+        on_delete=models.CASCADE,
+        related_name="unified_document",
+        null=True,
     )
 
     class Meta:
