@@ -781,9 +781,6 @@ class DynamicPaperSerializer(
         model = Paper
         fields = "__all__"
 
-    def get_score(self, paper):
-        return paper.unified_document.score
-
     def get_user_vote(self, paper):
         vote = None
         user = get_user_from_request(self.context)
@@ -813,7 +810,9 @@ class DynamicPaperSerializer(
         return serializer.data
 
     def get_boost_amount(self, paper):
-        return paper.get_boost_amount()
+        if paper.purchases.exists():
+            return paper.get_boost_amount()
+        return 0
 
     def get_bounties(self, paper):
         from reputation.serializers import DynamicBountySerializer
@@ -868,6 +867,9 @@ class DynamicPaperSerializer(
                 )
                 return serializer.data
         return None
+
+    def get_score(self, paper):
+        return paper.unified_document.score
 
     def get_unified_document(self, paper):
         from researchhub_document.serializers import DynamicUnifiedDocumentSerializer

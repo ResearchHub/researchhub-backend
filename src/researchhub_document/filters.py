@@ -111,14 +111,21 @@ class UnifiedDocumentFilter(filters.FilterSet):
 
     def document_type_filter(self, qs, name, value):
         value = value.upper()
-        selects = ("paper", "hypothesis")
+        selects = (
+            "paper",
+            "hypothesis",
+        )
         prefetches = (
             "hubs",
             "paper__hubs",
             "paper__uploaded_by",
             "paper__uploaded_by__author_profile",
+            "paper__purchases",
             "posts",
             "posts__created_by",
+            "posts__purchases",
+            "reviews",
+            "related_bounties",
         )
 
         if value == PAPER:
@@ -127,23 +134,43 @@ class UnifiedDocumentFilter(filters.FilterSet):
             prefetches = (
                 "hubs",
                 "paper",
+                "reviews",
+                "related_bounties",
                 "paper__hubs",
                 "paper__uploaded_by",
                 "paper__uploaded_by__author_profile",
                 "paper__figures",
+                "paper__purchases",
             )
         elif value == POSTS:
             qs = qs.filter(document_type__in=[DISCUSSION, ELN])
             selects = []
-            prefetches = ["hubs", "posts", "posts__created_by"]
+            prefetches = [
+                "hubs",
+                "reviews",
+                "related_bounties",
+                "posts",
+                "posts__created_by",
+                "posts__purchases",
+            ]
         elif value == QUESTION:
             qs = qs.filter(document_type=QUESTION)
             selects = []
         elif value == HYPOTHESIS:
             qs = qs.filter(document_type=HYPOTHESIS)
             selects = ("hypothesis",)
-            prefetches = ("hypothesis__votes", "hypothesis__citations")
+            prefetches = (
+                "reviews",
+                "related_bounties",
+                "hypothesis__votes",
+                "hypothesis__citations",
+            )
         elif value == BOUNTY:
+            prefetches = (
+                "hubs",
+                "reviews",
+                "related_bounties",
+            )
             qs = qs.filter(
                 document_filter__has_bounty=True, document_filter__bounty_open=True
             )

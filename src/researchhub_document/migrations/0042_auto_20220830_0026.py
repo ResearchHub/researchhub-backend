@@ -11,14 +11,103 @@ def migrate_paper_to_unified_document(apps, schema_editor):
 
     objs = []
     for i, uni_doc in enumerate(unified_documents.iterator()):
+        print(i)
         doc_filter = DocumentFilter.objects.create()
         uni_doc.document_filter = doc_filter
         objs.append(uni_doc)
         if len(objs) >= 1000:
+            print("UPDATING")
             ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
             objs = []
     ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
 
+
+from django.db import connection
+from threading import Thread
+
+
+def add_filter(start_id, stop_id, apps=None):
+    ResearchhubUnifiedDocument = apps.get_model('researchhub_document', 'ResearchhubUnifiedDocument')
+    DocumentFilter = apps.get_model('researchhub_document', 'DocumentFilter')
+    unified_documents = ResearchhubUnifiedDocument.objects.filter(id__gte=start_id, id__lt=stop_id).order_by("id")
+
+    objs = []
+    for i, uni_doc in enumerate(unified_documents.iterator()):
+        print(i)
+        doc_filter = DocumentFilter.objects.create()
+        uni_doc.document_filter = doc_filter
+        objs.append(uni_doc)
+        if len(objs) >= 1000:
+            print("UPDATING")
+            ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
+            objs = []
+    ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
+    print("-----COMPLETE-----")
+    connection.close()
+    return True
+
+
+def migrate(apps, schema_editor):
+    ResearchhubUnifiedDocument = apps.get_model('researchhub_document', 'ResearchhubUnifiedDocument')
+    count = ResearchhubUnifiedDocument.objects.all().count()
+
+    for i in range(5, count, 5):
+        t = Thread(target=add_filter, args=(i-5, i), kwargs={"apps": apps})
+        t.daemon = True
+        t.start()
+    else:
+        t = Thread(target=add_filter, args=(i, i+1000), kwargs={"apps": apps})
+        t.daemon = True
+        t.start()
+    t.join(timeout=5)
+    # for i in range(100000, count, 100000):
+    #     t = Thread(target=add_filter, args=(i-100000, i), kwargs={"apps": apps})
+    #     t.daemon = True
+    #     t.start()
+    # else:
+    #     t = Thread(target=add_filter, args=(i, i+10000))
+    #     t.daemon = True
+    #     t.start()
+    # connection.close()
+
+
+# from django.db import connection
+# from threading import Thread
+
+# def add_filter(start_id, stop_id):
+#     unified_documents = ResearchhubUnifiedDocument.objects.filter(id__gte=start_id, id__lt=stop_id).order_by("id")
+#     print(unified_documents.first().id, unified_documents.last().id)
+
+#     objs = []
+#     for i, uni_doc in enumerate(unified_documents.iterator()):
+#         doc_filter = DocumentFilter.objects.create()
+#         uni_doc.document_filter = doc_filter
+#         objs.append(uni_doc)
+#         if len(objs) >= 1000:
+#             print("UPDATING")
+#             ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
+#             objs = []
+#     ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
+#     print("COUNT UPDATED - ",len(objs))
+#     print("-----COMPLETE-----")
+#     connection.close()
+
+# def migrate_1():
+#     count = ResearchhubUnifiedDocument.objects.all().count()
+#     for i in range(100000, count, 100000):
+#         t = Thread(target=add_filter, args=(i-100000, i))
+#         t.daemon = True
+#         t.start()
+#     else:
+#         t = Thread(target=add_filter, args=(i, i+1000))
+#         t.daemon = True
+#         t.start()
+
+"""
+ResearchhubUnifiedDocument.objects.all().update(document_filter=None)
+total: 1250302
+id:    1250500
+"""
 
 class Migration(migrations.Migration):
 
@@ -126,10 +215,11 @@ class Migration(migrations.Migration):
             name='document_filter',
             field=models.OneToOneField(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='unified_document', to='researchhub_document.DocumentFilter'),
         ),
-        migrations.RunPython(migrate_paper_to_unified_document),
-        migrations.AlterField(
-            model_name='researchhubunifieddocument',
-            name='document_filter',
-            field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='unified_document', to='researchhub_document.DocumentFilter'),
-        ),
+        # migrations.RunPython(migrate_paper_to_unified_document),
+        # migrations.RunPython(migrate),
+        # migrations.AlterField(
+        #     model_name='researchhubunifieddocument',
+        #     name='document_filter',
+        #     field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='unified_document', to='researchhub_document.DocumentFilter'),
+        # ),
     ]

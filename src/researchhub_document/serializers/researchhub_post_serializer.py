@@ -320,8 +320,9 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_boost_amount(self, post):
-        return post.get_boost_amount()
+        if post.purchases.exists():
+            return post.get_boost_amount()
+        return 0
 
     def get_score(self, post):
         return post.unified_document.score
-        return post.calculate_score()
