@@ -18,6 +18,7 @@ class UnifiedDocPagination(PageNumberPagination):
             "SELECT reltuples FROM pg_class WHERE relname = 'researchhub_document_researchhubunifieddocument'"
         )
         n = int(cursor.fetchone()[0])
+        connection.close()
         return n
 
     def get_paginated_response(self, data):

@@ -48,7 +48,7 @@ def get_doc_type_key(document):
 
 def get_date_ranges_by_time_scope(time_scope):
     end_date = datetime.now()
-    if time_scope == "all_time":
+    if time_scope == "all_time" or time_scope == "all":
         start_date = datetime(year=2018, month=12, day=31, hour=0)
     elif time_scope == "year":
         start_date = datetime.now() - timedelta(days=365)
