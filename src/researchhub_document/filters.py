@@ -113,16 +113,20 @@ class UnifiedDocumentFilter(filters.FilterSet):
         value = value.upper()
         selects = (
             "paper",
+            "paper__uploaded_by",
+            "paper__uploaded_by__author_profile",
             "hypothesis",
+            "hypothesis__created_by",
+            "hypothesis__created_by__author_profile",
         )
         prefetches = (
             "hubs",
             "paper__hubs",
-            "paper__uploaded_by",
             "paper__purchases",
             "paper__figures",
             "posts",
             "posts__created_by",
+            "posts__created_by__author_profile",
             "posts__purchases",
             "reviews",
             "related_bounties",
@@ -130,15 +134,17 @@ class UnifiedDocumentFilter(filters.FilterSet):
 
         if value == PAPER:
             qs = qs.filter(document_type=PAPER)
-            selects = ("paper",)
+            selects = (
+                "paper",
+                "paper__uploaded_by",
+                "paper__uploaded_by__author_profile",
+            )
             prefetches = (
                 "hubs",
                 "paper",
                 "reviews",
                 "related_bounties",
                 "paper__hubs",
-                "paper__uploaded_by",
-                "paper__uploaded_by__author_profile",
                 "paper__figures",
                 "paper__purchases",
             )
@@ -151,6 +157,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
                 "related_bounties",
                 "posts",
                 "posts__created_by",
+                "posts__created_by__author_profile",
                 "posts__purchases",
             ]
         elif value == QUESTION:
@@ -158,7 +165,11 @@ class UnifiedDocumentFilter(filters.FilterSet):
             selects = []
         elif value == HYPOTHESIS:
             qs = qs.filter(document_type=HYPOTHESIS)
-            selects = ("hypothesis",)
+            selects = (
+                "hypothesis",
+                "hypothesis__created_by",
+                "hypothesis__created_by__author_profile",
+            )
             prefetches = (
                 "reviews",
                 "related_bounties",

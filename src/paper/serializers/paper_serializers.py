@@ -846,7 +846,7 @@ class DynamicPaperSerializer(
     def get_first_preview(self, paper):
         context = self.context
         _context_fields = context.get("pap_dps_get_first_preview", {})
-        if paper.figures.filter().exists():
+        if paper.figures.exists():
             figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
             if figure:
                 serializer = DynamicFigureSerializer(
