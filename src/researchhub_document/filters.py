@@ -119,8 +119,8 @@ class UnifiedDocumentFilter(filters.FilterSet):
             "hubs",
             "paper__hubs",
             "paper__uploaded_by",
-            "paper__uploaded_by__author_profile",
             "paper__purchases",
+            "paper__figures",
             "posts",
             "posts__created_by",
             "posts__purchases",
@@ -184,7 +184,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
         for value in tags:
             if value in TAG_CHOICES_STR:
                 key, value = self._map_tag_to_document_filter(value)
-                queries |= Q(**{f"document_filter__{key}": value})
+                queries &= Q(**{f"document_filter__{key}": value})
 
         return qs.filter(queries)
 
@@ -210,7 +210,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
             qs = qs.filter(document_filter__upvoted_date__range=(start_date, end_date))
             ordering.append(f"-document_filter__upvoted_{time_scope}")
         elif value == "expiring_soon":
-            ordering.append("-document_filter__bounty_expiration_date")
+            ordering.append("document_filter__bounty_expiration_date")
         elif value == "most_rsc":
             ordering.append("-document_filter__bounty_total_amount")
 

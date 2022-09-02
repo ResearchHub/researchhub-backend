@@ -224,14 +224,11 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
 
     def get_first_preview(self, paper):
         try:
-            if len(paper.preview_list) > 0:
-                figure = paper.preview_list[0]
-                return FigureSerializer(figure).data
-        except AttributeError:
             figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
             if figure:
                 return FigureSerializer(figure).data
-        return None
+        except AttributeError:
+            return None
 
     def get_user_flag(self, paper):
         if self.context.get("purchase_minimal_serialization", False):
@@ -753,14 +750,11 @@ class PaperReferenceSerializer(
 
     def get_first_preview(self, paper):
         try:
-            if len(paper.preview_list) > 0:
-                figure = paper.preview_list[0]
-                return FigureSerializer(figure).data
-        except AttributeError:
             figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
             if figure:
                 return FigureSerializer(figure).data
-        return None
+        except AttributeError:
+            return None
 
 
 class DynamicPaperSerializer(
@@ -852,14 +846,7 @@ class DynamicPaperSerializer(
     def get_first_preview(self, paper):
         context = self.context
         _context_fields = context.get("pap_dps_get_first_preview", {})
-        try:
-            if paper.preview_list.exists():
-                figure = paper.preview_list.first()
-                serializer = DynamicFigureSerializer(
-                    figure, context=context, **_context_fields
-                )
-                return serializer.data
-        except Exception:
+        if paper.figures.filter().exists():
             figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
             if figure:
                 serializer = DynamicFigureSerializer(

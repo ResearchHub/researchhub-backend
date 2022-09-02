@@ -9,7 +9,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.validators import URLValidator
 from django.db import IntegrityError
-from django.db.models import Count, F, IntegerField, Prefetch, Q, Sum, Value
+from django.db.models import Count, F, IntegerField, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -148,20 +148,7 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             "purchases",
             "threads",
             "threads__comments",
-            Prefetch(
-                "figures",
-                queryset=Figure.objects.filter(figure_type=Figure.FIGURE).order_by(
-                    "created_date"
-                ),
-                to_attr="figure_list",
-            ),
-            Prefetch(
-                "figures",
-                queryset=Figure.objects.filter(figure_type=Figure.PREVIEW).order_by(
-                    "created_date"
-                ),
-                to_attr="preview_list",
-            ),
+            "figures",
         )
 
     def get_queryset(self, prefetch=True, include_autopull=False):
