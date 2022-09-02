@@ -236,7 +236,11 @@ class DocumentFilter(DefaultModel):
         self.has_bounty = unified_document.related_bounties.exists()
 
     def update_open_access(self, unified_document, document):
-        self.open_access = document.oa_status != "closed"
+        is_open_access = document.oa_status and document.oa_status != "closed"
+        if is_open_access:
+            self.open_access = True
+        else:
+            self.open_access = False
 
     def update_peer_reviewed(self, unified_document, document):
         self.peer_reviewed = unified_document.reviews.exists()
