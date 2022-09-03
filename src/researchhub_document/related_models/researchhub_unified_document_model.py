@@ -354,6 +354,9 @@ class DocumentFilter(DefaultModel):
         latest_date = sorted(dates, reverse=True)
         if latest_date:
             self.discussed_date = latest_date[0]
+        else:
+            self.discussed_date = unified_document.created_date
+        self.discussed_date_ts = self.discussed_date.timestamp()
 
     def get_upvotes(self, document, start_date, end_date):
         votes = document.votes.filter(

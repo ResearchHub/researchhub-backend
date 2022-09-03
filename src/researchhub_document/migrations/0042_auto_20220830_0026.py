@@ -71,37 +71,95 @@ def migrate(apps, schema_editor):
     # connection.close()
 
 
-# from django.db import connection
-# from threading import Thread
+from django.db import connection
+from threading import Thread
 
-# def add_filter(start_id, stop_id):
-#     unified_documents = ResearchhubUnifiedDocument.objects.filter(id__gte=start_id, id__lt=stop_id).order_by("id")
-#     print(unified_documents.first().id, unified_documents.last().id)
+def add_filter(start_id, stop_id):
+    unified_documents = ResearchhubUnifiedDocument.objects.filter(id__gte=start_id, id__lt=stop_id).order_by("id")
+    print(unified_documents.first().id, unified_documents.last().id)
 
-#     objs = []
-#     for i, uni_doc in enumerate(unified_documents.iterator()):
-#         doc_filter = DocumentFilter.objects.create()
-#         uni_doc.document_filter = doc_filter
-#         objs.append(uni_doc)
-#         if len(objs) >= 1000:
-#             print("UPDATING")
-#             ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
-#             objs = []
-#     ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
-#     print("COUNT UPDATED - ",len(objs))
-#     print("-----COMPLETE-----")
-#     connection.close()
+    objs = []
+    for i, uni_doc in enumerate(unified_documents.iterator()):
+        doc_filter = DocumentFilter.objects.create()
+        uni_doc.document_filter = doc_filter
+        objs.append(uni_doc)
+        if len(objs) >= 1000:
+            print("UPDATING")
+            ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
+            objs = []
+    ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
+    print("COUNT UPDATED - ",len(objs))
+    print("-----COMPLETE-----")
+    connection.close()
 
-# def migrate_1():
-#     count = ResearchhubUnifiedDocument.objects.all().count()
-#     for i in range(100000, count, 100000):
-#         t = Thread(target=add_filter, args=(i-100000, i))
-#         t.daemon = True
-#         t.start()
-#     else:
-#         t = Thread(target=add_filter, args=(i, i+1000))
-#         t.daemon = True
-#         t.start()
+def migrate_1():
+    count = ResearchhubUnifiedDocument.objects.all().count()
+    for i in range(100000, count, 100000):
+        t = Thread(target=add_filter, args=(i-100000, i))
+        t.daemon = True
+        t.start()
+    else:
+        t = Thread(target=add_filter, args=(i, i+1000))
+        t.daemon = True
+        t.start()
+
+def update_ts(start_id, stop_id):
+    filters = DocumentFilter.objects.filter(id__gte=start_id, id__lt=stop_id).order_by("id")
+    for i, doc_filter in enumerate(filters.iterator()):
+        if i % 1000 == 0:
+            print(i)
+
+        objs = []
+        doc_filter.discussed_date_ts = doc_filter.discussed_date.timestamp()
+        objs.append(doc_filter)
+        if len(objs) >= 1000:
+            print("UPDATING")
+            DocumentFilter.objects.bulk_update(objs, ["discussed_date_ts"])
+            objs = []
+    DocumentFilter.objects.bulk_update(objs, ["discussed_date_ts"])
+    print("COUNT UPDATED - ",len(objs))
+    print("-----COMPLETE-----")
+    connection.close()
+
+def migrate_2():
+    # count = DocumentFilter.objects.all().count()
+    for i in range(100000, 1203741, 100000):
+        t = Thread(target=update_ts, args=(i-100000, i))
+        t.daemon = True
+        t.start()
+    t = Thread(target=update_ts, args=(i, i+1000))
+    t.daemon = True
+    t.start()
+    t.join()
+    connection.close()
+
+from django.core.paginator import Paginator
+from django.db import connection
+from threading import Thread
+
+def update_discussed(paginator, page_number):
+    page = paginator.page(page_number)
+    updates = []
+    print("STARTING")
+    for obj in page.iterator():
+        try:
+            discussed_date = obj.update_discussed_date(None, None)
+            obj.discussed_date_ts = obj.discussed_date.timestamp()
+        except Exception as e:
+            print(e)
+    DocumentFilter.objects.bulk_update(updates, ["discussed_date", "discussed_date_ts"])
+    print("COMPLETED")
+    connection.close()
+
+def migrate_3():
+    CHUNK_SIZE = 100000
+    qs = DocumentFilter.objects.all().order_by("-id")
+    paginator = Paginator(qs, CHUNK_SIZE)
+
+    for page_number in paginator.page_range:
+        t = Thread(target=update_discussed, args=(paginator, page_number))
+        t.daemon = True
+        t.start()
 
 """
 ResearchhubUnifiedDocument.objects.all().update(document_filter=None)
