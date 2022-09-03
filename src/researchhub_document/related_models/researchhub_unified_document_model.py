@@ -164,6 +164,31 @@ class DocumentFilter(DefaultModel):
                 name="flt_discussed_date_2023",
                 condition=Q(discussed_date__lte="2023-01-01"),
             ),
+            models.Index(
+                fields=("discussed_date",),
+                name="flt_discussed_date_ts_2019",
+                condition=Q(discussed_date_ts__lte=1546300800.0),
+            ),
+            models.Index(
+                fields=("discussed_date",),
+                name="flt_discussed_date_ts_2020",
+                condition=Q(discussed_date_ts__lte=1577836800.0),
+            ),
+            models.Index(
+                fields=("discussed_date",),
+                name="flt_discussed_date_ts_2021",
+                condition=Q(discussed_date_ts__lte=1609459200.0),
+            ),
+            models.Index(
+                fields=("discussed_date",),
+                name="flt_discussed_date_ts_2022",
+                condition=Q(discussed_date_ts__lte=1640995200.0),
+            ),
+            models.Index(
+                fields=("discussed_date",),
+                name="flt_discussed_date_ts_2023",
+                condition=Q(discussed_date_ts__lte=1672531200.0),
+            ),
         )
 
     def update_filters(self, update_types):
