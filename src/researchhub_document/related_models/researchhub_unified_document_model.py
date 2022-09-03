@@ -139,6 +139,31 @@ class DocumentFilter(DefaultModel):
                 fields=("upvoted_date",),
                 name="flt_upvoted_date_idx",
             ),
+            models.Index(
+                fields=("discussed_date",),
+                name="flt_discussed_date_2019",
+                condition=Q(discussed_date__lte="2019-01-01"),
+            ),
+            models.Index(
+                fields=("discussed_date",),
+                name="flt_discussed_date_2020",
+                condition=Q(discussed_date__lte="2020-01-01"),
+            ),
+            models.Index(
+                fields=("discussed_date",),
+                name="flt_discussed_date_2021",
+                condition=Q(discussed_date__lte="2021-01-01"),
+            ),
+            models.Index(
+                fields=("discussed_date",),
+                name="flt_discussed_date_2022",
+                condition=Q(discussed_date__lte="2022-01-01"),
+            ),
+            models.Index(
+                fields=("discussed_date",),
+                name="flt_discussed_date_2023",
+                condition=Q(discussed_date__lte="2023-01-01"),
+            ),
         )
 
     def update_filters(self, update_types):
