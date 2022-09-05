@@ -59,9 +59,9 @@ class DocumentFilter(DefaultModel):
     discussed_today = models.IntegerField(default=0, db_index=True)
     discussed_week = models.IntegerField(default=0, db_index=True)
     discussed_month = models.IntegerField(default=0, db_index=True)
+    discussed_year = models.IntegerField(default=0, db_index=True)
     discussed_all = models.IntegerField(default=0, db_index=True)
     discussed_date = models.DateTimeField(auto_now_add=True)
-    discussed_date_ts = models.FloatField(db_index=True, default=0)
 
     # discussed_today_date = models.DateTimeField(auto_now_add=True)
     # discussed_week_date = models.DateTimeField(auto_now_add=True)
@@ -72,6 +72,7 @@ class DocumentFilter(DefaultModel):
     upvoted_today = models.IntegerField(default=0, db_index=True)
     upvoted_week = models.IntegerField(default=0, db_index=True)
     upvoted_month = models.IntegerField(default=0, db_index=True)
+    upvoted_year = models.IntegerField(default=0, db_index=True)
     upvoted_all = models.IntegerField(default=0, db_index=True)
     upvoted_date = models.DateTimeField(auto_now_add=True)
 
@@ -135,6 +136,10 @@ class DocumentFilter(DefaultModel):
             #     fields=("upvoted_all_date",),
             #     name="flt_upvoted_all_date_idx",
             # ),
+            models.Index(
+                fields=("upvoted_date",),
+                name="flt_upvoted_date_idx",
+            ),
         )
 
     def update_filters(self, update_types):
@@ -459,6 +464,16 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
             models.Index(
                 fields=("created_date",),
                 name="uni_doc_created_date_idx",
+            ),
+            models.Index(
+                fields=("document_type",),
+                name="uni_doc_not_note_doc_type_idx",
+                condition=~Q(document_type=NOTE),
+            ),
+            models.Index(
+                fields=("document_type",),
+                name="uni_doc_cond_idx",
+                condition=Q(is_removed=False) & ~Q(document_type=NOTE),
             ),
         )
 

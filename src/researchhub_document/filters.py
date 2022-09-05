@@ -213,12 +213,16 @@ class UnifiedDocumentFilter(filters.FilterSet):
         elif value == "hot":
             ordering.append("-hot_score_v2")
         elif value == "discussed":
-            qs = qs.filter(
-                document_filter__discussed_date__range=(start_date, end_date)
-            )
+            if time_scope != "all":
+                qs = qs.filter(
+                    document_filter__discussed_date__range=(start_date, end_date)
+                )
             ordering.append(f"-document_filter__discussed_{time_scope}")
         elif value == "upvoted":
-            qs = qs.filter(document_filter__upvoted_date__range=(start_date, end_date))
+            if time_scope != "all":
+                qs = qs.filter(
+                    document_filter__upvoted_date__range=(start_date, end_date)
+                )
             ordering.append(f"-document_filter__upvoted_{time_scope}")
         elif value == "expiring_soon":
             ordering.append("document_filter__bounty_expiration_date")
