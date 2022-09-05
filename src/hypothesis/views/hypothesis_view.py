@@ -12,7 +12,7 @@ from hypothesis.serializers import DynamicCitationSerializer, HypothesisSerializ
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import HYPOTHESIS
-from researchhub_document.related_models.constants.filters import NEWEST
+from researchhub_document.related_models.constants.filters import NEW
 from researchhub_document.utils import reset_unified_document_cache
 from utils.throttles import THROTTLE_CLASSES
 
@@ -52,7 +52,7 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
         reset_unified_document_cache(
             hub_ids,
             document_type=["all", "hypothesis"],
-            filters=[NEWEST],
+            filters=[NEW],
             with_default_hub=True,
         )
         return Response(data, status=200)

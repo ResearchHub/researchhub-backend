@@ -12,12 +12,12 @@ from researchhub_document.related_models.constants.document_type import (
     QUESTION,
 )
 from researchhub_document.related_models.constants.filters import (
-    AUTHOR_CLAIMED,
     DISCUSSED,
-    NEWEST,
-    OPEN_ACCESS,
-    TOP,
-    TRENDING,
+    EXPIRING_SOON,
+    HOT,
+    MOST_RSC,
+    NEW,
+    UPVOTED,
 )
 from researchhub_document.tasks import preload_trending_documents
 from utils.sentry import log_error
@@ -29,7 +29,7 @@ CACHE_TOP_RATED_DATES = (
     "-score_year",
     "-score_all_time",
 )
-CACHE_DATE_RANGES = ("today", "week", "month", "year", "all_time")
+CACHE_DATE_RANGES = ("today", "week", "month", "year", "all")
 CACHE_DOCUMENT_TYPES = [
     "all",
     "paper",
@@ -76,9 +76,8 @@ def reset_unified_document_cache(
         HYPOTHESIS.lower(),
         QUESTION.lower(),
     ],
-    filters=[DISCUSSED, TRENDING, NEWEST, TOP, AUTHOR_CLAIMED, OPEN_ACCESS],
+    filters=[DISCUSSED, HOT, NEW, UPVOTED, EXPIRING_SOON, MOST_RSC],
     date_ranges=CACHE_DATE_RANGES,
-    bounty_queries=[""],
     with_default_hub=False,
 ):
     if isinstance(hub_ids, QuerySet):
@@ -93,24 +92,22 @@ def reset_unified_document_cache(
         for hub_id in hub_ids:
             for f in filters:
                 for time_scope in date_ranges:
-                    for bounty_query in bounty_queries:
-                        # Only homepage gets top priority
-                        if hub_id == 0:
-                            priority = 1
-                        else:
-                            priority = 3
+                    # Only homepage gets top priority
+                    if hub_id == 0:
+                        priority = 1
+                    else:
+                        priority = 3
 
-                        preload_trending_documents.apply_async(
-                            (
-                                doc_type,
-                                hub_id,
-                                f,
-                                bounty_query,
-                                time_scope,
-                            ),
-                            priority=priority,
-                            countdown=1,
-                        )
+                    preload_trending_documents.apply_async(
+                        (
+                            doc_type,
+                            hub_id,
+                            f,
+                            time_scope,
+                        ),
+                        priority=priority,
+                        countdown=1,
+                    )
 
 
 def update_unified_document_to_paper(paper):

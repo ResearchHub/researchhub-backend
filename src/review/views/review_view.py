@@ -8,12 +8,7 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     FILTER_PEER_REVIEWED,
 )
-from researchhub_document.related_models.constants.filters import (
-    AUTHOR_CLAIMED,
-    DISCUSSED,
-    OPEN_ACCESS,
-    TRENDING,
-)
+from researchhub_document.related_models.constants.filters import DISCUSSED, HOT
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from review.models.review_model import Review
 from review.permissions import AllowedToUpdateReview
@@ -56,7 +51,7 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             reset_unified_document_cache(
                 hub_ids=hubs,
                 document_type=[doc_type, "all"],
-                filters=[DISCUSSED, TRENDING, OPEN_ACCESS, AUTHOR_CLAIMED],
+                filters=[DISCUSSED, HOT],
             )
         except Exception as e:
             log_error(e)

@@ -38,7 +38,7 @@ from discussion.permissions import Vote as VotePermission
 from hypothesis.models import Citation, Hypothesis
 from paper.models import Paper
 from peer_review.models import PeerReview
-from reputation.models import Bounty, Contribution
+from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub_document.models import ResearchhubPost
@@ -46,12 +46,7 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_ANSWERED,
     SORT_DISCUSSED,
 )
-from researchhub_document.related_models.constants.filters import (
-    AUTHOR_CLAIMED,
-    DISCUSSED,
-    OPEN_ACCESS,
-    TRENDING,
-)
+from researchhub_document.related_models.constants.filters import DISCUSSED, HOT
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from utils import sentry
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -141,7 +136,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         reset_unified_document_cache(
             hub_ids=hubs,
             document_type=[doc_type, "all"],
-            filters=[DISCUSSED, TRENDING, OPEN_ACCESS, AUTHOR_CLAIMED],
+            filters=[DISCUSSED, HOT],
             with_default_hub=True,
         )
 
@@ -348,7 +343,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         reset_unified_document_cache(
             hub_ids=hubs,
             document_type=[doc_type, "all"],
-            filters=[DISCUSSED, TRENDING, OPEN_ACCESS, AUTHOR_CLAIMED],
+            filters=[DISCUSSED, HOT],
             with_default_hub=True,
         )
 
@@ -495,7 +490,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         reset_unified_document_cache(
             hub_ids=hubs,
             document_type=[doc_type, "all"],
-            filters=[DISCUSSED, TRENDING, OPEN_ACCESS, AUTHOR_CLAIMED],
+            filters=[DISCUSSED, HOT],
             with_default_hub=True,
         )
 

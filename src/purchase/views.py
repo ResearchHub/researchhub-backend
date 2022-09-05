@@ -33,7 +33,7 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.related_models.constants.filters import TRENDING
+from researchhub_document.related_models.constants.filters import HOT
 from researchhub_document.utils import reset_unified_document_cache
 from user.models import Action, Author, User
 from user.permissions import IsModerator
@@ -184,7 +184,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 reset_unified_document_cache(
                     hub_ids,
                     document_type=["all", "paper"],
-                    filters=[TRENDING],
+                    filters=[HOT],
                 )
             elif content_type_str == "thread":
                 transfer_rsc = True
@@ -215,7 +215,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 reset_unified_document_cache(
                     hub_ids,
                     document_type=["all", "posts"],
-                    filters=[TRENDING],
+                    filters=[HOT],
                 )
 
             if unified_doc.is_removed:

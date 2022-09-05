@@ -22,8 +22,8 @@ from reputation.tasks import create_contribution
 from researchhub_document.related_models.constants.document_type import SORT_UPVOTED
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
-    TOP,
-    TRENDING,
+    HOT,
+    UPVOTED,
 )
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -154,7 +154,7 @@ class ReactionViewActionMixin:
                     reset_unified_document_cache(
                         hub_ids=hubs,
                         document_type=[doc_type, "all"],
-                        filters=[DISCUSSED, TRENDING],
+                        filters=[DISCUSSED, HOT],
                     )
             except Exception as e:
                 pass
@@ -350,9 +350,9 @@ def create_vote(user, item, vote_type):
 
 
 def update_or_create_vote(request, user, item, vote_type):
-    cache_filters_to_reset = [TOP, TRENDING]
+    cache_filters_to_reset = [UPVOTED, HOT]
     if isinstance(item, (Thread, Comment, Reply)):
-        cache_filters_to_reset = [TRENDING]
+        cache_filters_to_reset = [HOT]
 
     hub_ids = [0]
     # NOTE: Hypothesis citations do not have a unified document attached

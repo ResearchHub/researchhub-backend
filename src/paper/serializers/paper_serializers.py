@@ -45,24 +45,17 @@ from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
-from researchhub_document.related_models.constants.document_type import (
-    PAPER as PAPER_DOC_TYPE,
-)
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
-    NEWEST,
-    OPEN_ACCESS,
-    TOP,
-    TRENDING,
-)
-from researchhub_document.related_models.researchhub_unified_document_model import (
-    ResearchhubUnifiedDocument,
+    HOT,
+    NEW,
+    UPVOTED,
 )
 from researchhub_document.utils import (
     reset_unified_document_cache,
     update_unified_document_to_paper,
 )
-from user.models import Author, User
+from user.models import Author
 from user.serializers import (
     AuthorSerializer,
     DynamicAuthorSerializer,
@@ -340,7 +333,7 @@ class PaperSerializer(BasePaperSerializer):
             "edited_file_extract",
             "external_source",
             "file_created_location",
-            "is_open_access",
+            "i",
             "id",
             "is_removed",
             "is_removed_by_user",
@@ -472,7 +465,7 @@ class PaperSerializer(BasePaperSerializer):
                     reset_unified_document_cache(
                         hub_ids,
                         document_type=["paper", "all"],
-                        filters=[NEWEST, OPEN_ACCESS],
+                        filters=[NEW],
                         with_default_hub=True,
                     )
                 paper.save()
@@ -557,7 +550,7 @@ class PaperSerializer(BasePaperSerializer):
                     reset_unified_document_cache(
                         hub_ids=updated_hub_ids,
                         document_type=["paper", "all"],
-                        filters=[NEWEST, TOP, TRENDING, DISCUSSED, OPEN_ACCESS],
+                        filters=[NEW, UPVOTED, HOT, DISCUSSED],
                         with_default_hub=True,
                     )
 

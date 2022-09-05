@@ -36,7 +36,7 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
-from researchhub_document.related_models.constants.filters import TRENDING
+from researchhub_document.related_models.constants.filters import HOT
 from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
 from utils.permissions import CreateOnly
@@ -239,7 +239,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             reset_unified_document_cache(
                 hub_ids=hubs,
                 document_type=[ALL.lower()],
-                filters=[TRENDING],
+                filters=[HOT],
                 bounty_queries=["", "all"],
                 with_default_hub=True,
             )
@@ -301,7 +301,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             reset_unified_document_cache(
                 hub_ids=hubs,
                 document_type=[ALL.lower()],
-                filters=[TRENDING],
+                filters=[HOT],
                 bounty_queries=["", "all"],
                 with_default_hub=True,
             )
@@ -347,7 +347,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             reset_unified_document_cache(
                 hub_ids=hubs,
                 document_type=[ALL.lower()],
-                filters=[TRENDING],
+                filters=[HOT],
                 bounty_queries=["", "all"],
                 with_default_hub=True,
             )

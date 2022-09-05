@@ -25,12 +25,12 @@ from researchhub_document.models import (
 )
 from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.filters import (
-    AUTHOR_CLAIMED,
     DISCUSSED,
-    NEWEST,
-    OPEN_ACCESS,
-    TOP,
-    TRENDING,
+    EXPIRING_SOON,
+    HOT,
+    MOST_RSC,
+    NEW,
+    UPVOTED,
 )
 from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer,
@@ -93,7 +93,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             document_type=[doc_type, "all"],
-            filters=[NEWEST, TOP, TRENDING, DISCUSSED, OPEN_ACCESS, AUTHOR_CLAIMED],
+            filters=[NEW, UPVOTED, HOT, DISCUSSED, MOST_RSC, EXPIRING_SOON],
             with_default_hub=True,
         )
         return Response(self.get_serializer(instance=doc).data, status=200)
@@ -119,7 +119,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             document_type=[doc_type, "all"],
-            filters=[NEWEST, TOP, TRENDING, DISCUSSED, OPEN_ACCESS, AUTHOR_CLAIMED],
+            filters=[NEW, UPVOTED, HOT, DISCUSSED, MOST_RSC, EXPIRING_SOON],
         )
 
         return Response(self.get_serializer(instance=doc).data, status=200)
@@ -160,33 +160,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             document_type=[doc_type, "all"],
-            filters=[NEWEST, TOP, TRENDING, DISCUSSED],
+            filters=[NEW, UPVOTED, HOT, DISCUSSED],
         )
 
         return update_response
-
-    def _get_document_filtering(self, query_params):
-        filtering = query_params.get("ordering", None)
-
-        if filtering == "removed":
-            filtering = "removed"
-        elif filtering == "top_rated":
-            filtering = "-score"
-        elif filtering == "most_discussed":
-            filtering = "-discussed"
-        elif filtering == "newest":
-            filtering = "-created_date"
-        elif filtering == "hot":
-            filtering = "-hot_score"
-        elif filtering == "user_uploaded":
-            filtering = "user_uploaded"
-        elif filtering == "author_claimed":
-            filtering = "author_claimed"
-        elif filtering == "is_open_access":
-            filtering = "is_open_access"
-        else:
-            filtering = "-score"
-        return filtering
 
     def _get_serializer_context(self):
         context = {
@@ -321,11 +298,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         return qs
 
     def _get_unified_document_cache_hit(
-        self, document_type, filtering, hub_id, page_number, bounty_query, time_scope
+        self, document_type, filtering, hub_id, page_number, time_scope
     ):
         cache_hit = None
         if page_number == 1 and "removed" not in filtering:
-            cache_pk = f"{document_type}_{hub_id}_{filtering}_bounty_{bounty_query}_{time_scope}"
+            cache_pk = f"{document_type}_{hub_id}_{filtering}_{time_scope}"
             cache_key_hub = get_cache_key("hub", cache_pk)
             cache_hit = cache.get(cache_key_hub)
 
@@ -367,7 +344,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         is_anonymous = request.user.is_anonymous
         query_params = request.query_params
         subscribed_hubs = query_params.get("subscribed_hubs", "false")
-        bounty_query = query_params.get("bounties", "")
+        filtering = query_params.get("ordering", HOT)
         time_scope = query_params.get("time", "today")
 
         if subscribed_hubs == "true" and not is_anonymous:
@@ -377,16 +354,14 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         hub_id = query_params.get("hub_id", 0) or 0
         page_number = int(query_params.get("page", 1))
 
-        filtering = self._get_document_filtering(query_params)
         cache_hit = None
-        # self._get_unified_document_cache_hit(
-        #     document_request_type,
-        #     filtering,
-        #     hub_id,
-        #     page_number,
-        #     bounty_query,
-        #     time_scope,
-        # )
+        self._get_unified_document_cache_hit(
+            document_request_type,
+            filtering,
+            hub_id,
+            page_number,
+            time_scope,
+        )
 
         if cache_hit and page_number == 1:
             cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
@@ -398,7 +373,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 document_type=[document_request_type],
                 filters=[filtering],
                 date_ranges=[time_scope],
-                bounty_queries=[bounty_query],
                 with_default_hub=with_default_hub,
             )
 
@@ -472,12 +446,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         hub_ids = request.user.subscribed_hubs.values_list("id", flat=True)
         query_params = request.query_params
         document_request_type = query_params.get("type", "all")
-        bounty_query = query_params.get("bounties", "")
         time_scope = query_params.get("time", "today")
-        bounty_query = query_params.get("bounties", "")
-
+        filtering = query_params.get("ordering", HOT)
         page_number = int(query_params.get("page", 1))
-        filtering = self._get_document_filtering(query_params)
 
         all_documents = {}
         for hub_id in hub_ids:
@@ -486,7 +457,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 filtering,
                 hub_id,
                 page_number,
-                bounty_query,
                 time_scope,
             )
 
@@ -523,11 +493,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         else:
             ordering = query_params.get("ordering", None)
-            if ordering == "top_rated":
+            if ordering == UPVOTED:
                 sort_key = "score"
-            elif ordering == "most_discussed":
+            elif ordering == DISCUSSED:
                 sort_key = "hot_score_v2"
-            elif ordering == "newest":
+            elif ordering == NEW:
                 sort_key = "created_date"
             else:
                 sort_key = "hot_score_v2"
@@ -573,7 +543,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             document_type=["all", doc_type],
-            filters=[TRENDING],
+            filters=[HOT],
             with_default_hub=True,
         )
 
@@ -600,7 +570,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             document_type=["all", doc_type],
-            filters=[TRENDING],
+            filters=[HOT],
             with_default_hub=True,
         )
 
@@ -618,7 +588,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             document_type=["all", doc_type],
-            filters=[TRENDING],
+            filters=[HOT],
             with_default_hub=True,
         )
 
@@ -639,7 +609,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         reset_unified_document_cache(
             hub_ids,
             document_type=["all", doc_type],
-            filters=[TRENDING],
+            filters=[HOT],
             with_default_hub=True,
         )
 
