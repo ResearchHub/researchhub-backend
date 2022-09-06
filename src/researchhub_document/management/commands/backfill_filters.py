@@ -38,6 +38,6 @@ class Command(BaseCommand):
                 t = Thread(target=add_filters, args=(i, i + CHUNK_SIZE))
                 t.daemon = True
                 t.start()
-                t.join()
+            t.join()
 
         migrate()
