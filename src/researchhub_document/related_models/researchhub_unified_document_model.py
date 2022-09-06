@@ -413,6 +413,13 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
                 name="uni_doc_cond_idx",
                 condition=Q(is_removed=False) & ~Q(document_type=NOTE),
             ),
+            models.Index(
+                fields=("document_type",),
+                name="test_uni_doc_cond_idx",
+                condition=Q(is_removed=False)
+                & ~Q(document_type=NOTE)
+                & Q(document_filter__isnull=False),
+            ),
         )
 
     def update_filter(self, filter_type):
