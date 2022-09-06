@@ -63,24 +63,12 @@ class DocumentFilter(DefaultModel):
     discussed_all = models.IntegerField(default=0, db_index=True)
     discussed_date = models.DateTimeField(auto_now_add=True)
 
-    # discussed_today_date = models.DateTimeField(auto_now_add=True)
-    # discussed_week_date = models.DateTimeField(auto_now_add=True)
-    # discussed_month_date = models.DateTimeField(auto_now_add=True)
-    # discussed_year_date = models.DateTimeField(auto_now_add=True)
-    # discussed_all_date = models.DateTimeField(auto_now_add=True)
-
     upvoted_today = models.IntegerField(default=0, db_index=True)
     upvoted_week = models.IntegerField(default=0, db_index=True)
     upvoted_month = models.IntegerField(default=0, db_index=True)
     upvoted_year = models.IntegerField(default=0, db_index=True)
     upvoted_all = models.IntegerField(default=0, db_index=True)
     upvoted_date = models.DateTimeField(auto_now_add=True)
-
-    # upvoted_today_date = models.DateTimeField(auto_now_add=True)
-    # upvoted_week_date = models.DateTimeField(auto_now_add=True)
-    # upvoted_month_date = models.DateTimeField(auto_now_add=True)
-    # upvoted_year_date = models.DateTimeField(auto_now_add=True)
-    # upvoted_all_date = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         indexes = (
@@ -96,46 +84,6 @@ class DocumentFilter(DefaultModel):
                 fields=("discussed_date",),
                 name="flt_discussed_date_idx",
             ),
-            # models.Index(
-            #     fields=("discussed_today_date",),
-            #     name="flt_discussed_today_date_idx",
-            # ),
-            # models.Index(
-            #     fields=("discussed_week_date",),
-            #     name="flt_discussed_week_date_idx",
-            # ),
-            # models.Index(
-            #     fields=("discussed_month_date",),
-            #     name="flt_discussed_month_date_idx",
-            # ),
-            # models.Index(
-            #     fields=("discussed_year_date",),
-            #     name="flt_discussed_year_date_idx",
-            # ),
-            # models.Index(
-            #     fields=("discussed_all_date",),
-            #     name="flt_discussed_all_date_idx",
-            # ),
-            # models.Index(
-            #     fields=("upvoted_today_date",),
-            #     name="flt_upvoted_today_date_idx",
-            # ),
-            # models.Index(
-            #     fields=("upvoted_week_date",),
-            #     name="flt_upvoted_week_date_idx",
-            # ),
-            # models.Index(
-            #     fields=("upvoted_month_date",),
-            #     name="flt_upvoted_month_date_idx",
-            # ),
-            # models.Index(
-            #     fields=("upvoted_year_date",),
-            #     name="flt_upvoted_year_date_idx",
-            # ),
-            # models.Index(
-            #     fields=("upvoted_all_date",),
-            #     name="flt_upvoted_all_date_idx",
-            # ),
             models.Index(
                 fields=("upvoted_date",),
                 name="flt_upvoted_date_idx",
@@ -296,31 +244,26 @@ class DocumentFilter(DefaultModel):
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(hours=(24 + hours_buffer))
         self.discussed_today = self.get_discussued(document, start_date, now)
-        # self.discussed_today_date = now
 
     def update_discussed_week(self, unified_document, document):
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(days=7)
         self.discussed_week = self.get_discussued(document, start_date, now)
-        # self.discussed_week_date = now
 
     def update_discussed_month(self, unified_document, document):
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(days=30)
         self.discussed_month = self.get_discussued(document, start_date, now)
-        # self.discussed_month_date = now
 
     def update_discussed_year(self, unified_document, document):
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(days=365)
         self.discussed_year = self.get_discussued(document, start_date, now)
-        # self.discussed_year_date = now
 
     def update_discussed_all(self, unified_document, document):
         now = datetime.now(pytz.UTC)
         start_date = datetime(year=2018, month=12, day=31, hour=0, tzinfo=pytz.UTC)
         self.discussed_all = self.get_discussued(document, start_date, now)
-        # self.discussed_all_date = now
 
     def update_discussed_date(self, unified_document, document):
         from discussion.models import Comment, Reply
@@ -378,31 +321,26 @@ class DocumentFilter(DefaultModel):
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(hours=(24 + hours_buffer))
         self.upvoted_today = self.get_upvotes(document, start_date, now)
-        # self.upvoted_today_date = now
 
     def update_upvoted_week(self, unified_document, document):
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(days=7)
         self.upvoted_week = self.get_upvotes(document, start_date, now)
-        # self.upvoted_week_date = now
 
     def update_upvoted_month(self, unified_document, document):
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(days=30)
         self.upvoted_month = self.get_upvotes(document, start_date, now)
-        # self.upvoted_month_date = now
 
     def update_upvoted_year(self, unified_document, document):
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(days=365)
         self.upvoted_year = self.get_upvotes(document, start_date, now)
-        # self.upvoted_year_date = now
 
     def update_upvoted_all(self, unified_document, document):
         now = datetime.now(pytz.UTC)
         start_date = datetime(year=2018, month=12, day=31, hour=0, tzinfo=pytz.UTC)
         self.upvoted_all = self.get_upvotes(document, start_date, now)
-        # self.upvoted_all_date = now
 
     def update_upvoted_date(self, unified_document, document):
         latest_vote_date = (
