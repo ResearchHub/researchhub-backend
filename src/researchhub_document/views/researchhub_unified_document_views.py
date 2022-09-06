@@ -301,12 +301,14 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         self, document_type, filtering, hub_id, page_number, time_scope
     ):
         cache_hit = None
-        if page_number == 1 and "removed" not in filtering:
+        if page_number == 1:
             cache_pk = f"{document_type}_{hub_id}_{filtering}_{time_scope}"
             cache_key_hub = get_cache_key("hub", cache_pk)
             cache_hit = cache.get(cache_key_hub)
+            print(cache_key_hub, "CACHE_KEY----!!!!------")
 
         if cache_hit:
+            print("CACHE_HIT ------------------", cache_key_hub)
             return cache_hit
         return None
 

@@ -1,11 +1,10 @@
 from datetime import datetime, timedelta
 
-from django.core.cache import cache
 from django.db.models.query import QuerySet
 
-from paper.utils import add_default_hub, get_cache_key
 from researchhub_document.related_models.constants.document_type import (
     ALL,
+    BOUNTY,
     HYPOTHESIS,
     PAPER,
     POSTS,
@@ -22,13 +21,6 @@ from researchhub_document.related_models.constants.filters import (
 from researchhub_document.tasks import preload_trending_documents
 from utils.sentry import log_error
 
-CACHE_TOP_RATED_DATES = (
-    "-score_today",
-    "-score_week",
-    "-score_month",
-    "-score_year",
-    "-score_all_time",
-)
 CACHE_DATE_RANGES = ("today", "week", "month", "year", "all")
 CACHE_DOCUMENT_TYPES = [
     "all",
@@ -67,6 +59,18 @@ def get_date_ranges_by_time_scope(time_scope):
     return (start_date, end_date)
 
 
+def _should_cache(doc_type, flt, time_scope):
+    if doc_type != BOUNTY.lower() and (flt == MOST_RSC or flt == EXPIRING_SOON):
+        return False
+    if time_scope != "today" and (
+        flt == HOT or flt == MOST_RSC or flt == EXPIRING_SOON
+    ):
+        return False
+    if time_scope != "all" and flt == NEW:
+        return False
+    return True
+
+
 def reset_unified_document_cache(
     hub_ids=[],
     document_type=[
@@ -75,6 +79,7 @@ def reset_unified_document_cache(
         PAPER.lower(),
         HYPOTHESIS.lower(),
         QUESTION.lower(),
+        BOUNTY.lower(),
     ],
     filters=[DISCUSSED, HOT, NEW, UPVOTED, EXPIRING_SOON, MOST_RSC],
     date_ranges=CACHE_DATE_RANGES,
@@ -92,6 +97,9 @@ def reset_unified_document_cache(
         for hub_id in hub_ids:
             for f in filters:
                 for time_scope in date_ranges:
+                    if not _should_cache(doc_type, f, time_scope):
+                        continue
+
                     # Only homepage gets top priority
                     if hub_id == 0:
                         priority = 1
@@ -127,75 +135,3 @@ def update_unified_document_to_paper(paper):
         except Exception as e:
             print(e)
             log_error(e)
-
-
-def invalidate_trending_cache(
-    hub_ids,
-    document_types=CACHE_DOCUMENT_TYPES,
-    date_ranges=CACHE_DATE_RANGES,
-    with_default=True,
-):
-    if with_default:
-        hub_ids = add_default_hub(hub_ids)
-
-    for hub_id in hub_ids:
-        for date_range in date_ranges:
-            for doc_type in document_types:
-                cache_key = get_cache_key(
-                    "hub", f"{doc_type}_{hub_id}_-hot_score_{date_range}"
-                )
-                cache.delete(cache_key)
-
-
-def invalidate_top_rated_cache(
-    hub_ids,
-    document_types=CACHE_DOCUMENT_TYPES,
-    date_ranges=CACHE_DATE_RANGES,
-    with_default=True,
-):
-    if with_default:
-        hub_ids = add_default_hub(hub_ids)
-
-    for hub_id in hub_ids:
-        for date_range in date_ranges:
-            for doc_type in document_types:
-                cache_key = get_cache_key(
-                    "hub", f"{doc_type}_{hub_id}_-score_{date_range}"
-                )
-                cache.delete(cache_key)
-
-
-def invalidate_newest_cache(
-    hub_ids,
-    document_types=CACHE_DOCUMENT_TYPES,
-    date_ranges=CACHE_DATE_RANGES,
-    with_default=True,
-):
-    if with_default:
-        hub_ids = add_default_hub(hub_ids)
-
-    for hub_id in hub_ids:
-        for date_range in date_ranges:
-            for doc_type in document_types:
-                cache_key = get_cache_key(
-                    "hub", f"{doc_type}_{hub_id}_-created_date_{date_range}"
-                )
-                cache.delete(cache_key)
-
-
-def invalidate_most_discussed_cache(
-    hub_ids,
-    document_types=CACHE_DOCUMENT_TYPES,
-    date_ranges=CACHE_DATE_RANGES,
-    with_default=True,
-):
-    if with_default:
-        hub_ids = add_default_hub(hub_ids)
-
-    for hub_id in hub_ids:
-        for date_range in date_ranges:
-            for doc_type in document_types:
-                cache_key = get_cache_key(
-                    "hub", f"{doc_type}_{hub_id}_-discussed_{date_range}"
-                )
-                cache.delete(cache_key)

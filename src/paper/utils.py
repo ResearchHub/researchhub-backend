@@ -609,45 +609,6 @@ def add_default_hub(hub_ids):
     return hub_ids
 
 
-def invalidate_trending_cache(hub_ids, with_default=True):
-    if with_default:
-        hub_ids = add_default_hub(hub_ids)
-
-    for hub_id in hub_ids:
-        cache_key = get_cache_key("hub", f"{hub_id}_-hot_score_today")
-        cache.delete(cache_key)
-
-
-def invalidate_top_rated_cache(hub_ids, with_default=True):
-    if with_default:
-        hub_ids = add_default_hub(hub_ids)
-
-    for hub_id in hub_ids:
-        for key in CACHE_TOP_RATED_DATES:
-            cache_key = get_cache_key("hub", f"{hub_id}_{key}")
-            cache.delete(cache_key)
-
-
-def invalidate_newest_cache(hub_ids, with_default=True):
-    if with_default:
-        hub_ids = add_default_hub(hub_ids)
-
-    for hub_id in hub_ids:
-        cache_key = get_cache_key("hub", f"{hub_id}_-created_date_today")
-        cache.delete(cache_key)
-
-
-def invalidate_most_discussed_cache(hub_ids, with_default=True):
-    if with_default:
-        hub_ids = add_default_hub(hub_ids)
-
-    for hub_id in hub_ids:
-        for key in CACHE_MOST_DISCUSSED_DATES:
-            for doc_type in CACHE_DOCUMENT_TYPES:
-                cache_key = get_cache_key("hub", f"{doc_type}_{hub_id}_{key}")
-                cache.delete(cache_key)
-
-
 def parse_author_name(author):
     full_name = []
 
