@@ -1,9 +1,11 @@
+from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from discussion.models import Comment, Reply, Thread
 from discussion.reaction_models import Vote as GrmVote
 from paper.models import Paper
+from reputation.related_models.bounty import Bounty
 from researchhub_document.tasks import recalc_hot_score_task
 from utils import sentry
 
@@ -21,6 +23,26 @@ def recalc_hot_score(instance, sender, **kwargs):
         )
     except Exception as error:
         print("recalc_hot_score error", error)
+        sentry.log_error(error)
+
+
+@receiver(post_save, sender=Bounty, dispatch_uid="recalc_hot_score_on_bounty")
+def recalc_hot_score_on_bounty_save(instance, sender, **kwargs):
+    uni_doc = instance.unified_document
+    doc = uni_doc.get_document()
+    content_type = ContentType.objects.get_for_model(doc)
+
+    try:
+        recalc_hot_score_task.apply_async(
+            (
+                content_type.id,
+                doc.id,
+            ),
+            priority=2,
+            countdown=5,
+        )
+    except Exception as error:
+        print("recalc_hot_score on bounty save error", error)
         sentry.log_error(error)
 
 
