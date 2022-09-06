@@ -34,10 +34,14 @@ class Command(BaseCommand):
             start = qs.first().id
             end = qs.last().id
 
+            threads = []
             for i in range(start, end + CHUNK_SIZE, CHUNK_SIZE):
                 t = Thread(target=add_filters, args=(i, i + CHUNK_SIZE))
                 t.daemon = True
                 t.start()
-            t.join()
+                threads.append(t)
+
+            for t in threads:
+                t.join()
 
         migrate()
