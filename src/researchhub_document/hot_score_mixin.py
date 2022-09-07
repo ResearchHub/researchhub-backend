@@ -5,6 +5,7 @@ import numpy as np
 from django.db.models import Count, Q
 
 from discussion.models import Vote
+from reputation.related_models.bounty import Bounty
 from researchhub_document.related_models.constants.document_type import PAPER
 
 
@@ -69,6 +70,62 @@ class HotScoreMixin:
 
         return social_media_score
 
+    def _calc_bounty_score(self):
+        total_bounty_score = 0
+
+        try:
+            bounty_promo_period = three_days_in_seconds = 259200
+            open_bounties = Bounty.objects.filter(
+                unified_document_id=self.id, status=Bounty.OPEN
+            )
+
+            for bounty in open_bounties:
+                seconds_since_create = (
+                    datetime.datetime.now(datetime.timezone.utc) - bounty.created_date
+                ).total_seconds()
+                seconds_to_expiration = (
+                    bounty.expiration_date
+                    - datetime.datetime.now(datetime.timezone.utc)
+                ).total_seconds()
+                percentage_within_promo_period = 0
+                this_bounty_score = 0
+
+                is_near_new = 0 < seconds_since_create < bounty_promo_period
+                is_near_expire = 0 < seconds_to_expiration < bounty_promo_period
+
+                if is_near_new:
+                    percentage_within_promo_period = (
+                        (bounty_promo_period - seconds_since_create)
+                        / bounty_promo_period
+                    ) * 100
+                elif is_near_expire:
+                    percentage_within_promo_period = (
+                        (bounty_promo_period - seconds_to_expiration)
+                        / bounty_promo_period
+                    ) * 100
+
+                if is_near_new or is_near_expire:
+                    this_bounty_score = math.log(bounty.amount + 1, 100) + math.log(
+                        percentage_within_promo_period + 1, 7
+                    )
+                    total_bounty_score += this_bounty_score
+
+                # Useful for debugging, do not delete
+                # print("bounty.created_date", bounty.created_date)
+                # print("bounty.expiration_date", bounty.expiration_date)
+                # print("seconds_since_create", seconds_since_create)
+                # print("seconds_to_expiration", seconds_to_expiration)
+                # print("id", bounty.id)
+                # print("is_near_new", is_near_new)
+                # print("is_near_expire", is_near_expire)
+                # print("percentage_within_promo_period", percentage_within_promo_period)
+                # print("score", this_bounty_score)
+
+        except Exception as e:
+            print(e)
+
+        return total_bounty_score
+
     # The basic idea is to take a bunch of signals (e.g discussion count) and
     # add them to some time score elapsed since the epoch. The signals should be
     # somewhat comparable to the time score. To do that, we pass these signals through
@@ -85,6 +142,7 @@ class HotScoreMixin:
 
         total_comment_vote_score = self._count_doc_comment_votes(doc)
         boost_score = self._calc_boost_score()
+        bounty_score = self._calc_bounty_score()
         social_media_score = self._calc_social_media_score()
         time_score = self._get_time_score(self.created_date)
         time_score_with_magnitude = (
@@ -106,7 +164,7 @@ class HotScoreMixin:
         ):
             time_score_with_magnitude *= -1
 
-        agg_score = discussion_vote_score + doc_vote_score + boost_score
+        agg_score = discussion_vote_score + doc_vote_score + boost_score + bounty_score
 
         hot_score = (agg_score + time_score_with_magnitude) * 1000
 
@@ -124,6 +182,7 @@ class HotScoreMixin:
             "boost_score": {"=score": boost_score},
             "agg_score": agg_score,
             "time_score": time_score,
+            "bounty_score": {"=score": bounty_score},
             "time_score_with_magnitude": time_score_with_magnitude,
             "=hot_score": hot_score,
         }
