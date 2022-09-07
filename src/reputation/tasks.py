@@ -124,3 +124,15 @@ def check_open_bounties():
         if refund_status is False:
             ids = expired_bounties.values_list("id", flat=True)
             log_info(f"Failed to refund bounties: {ids}")
+
+
+@periodic_task(
+    run_every=crontab(hour=12),
+    priority=4,
+    queue=QUEUE_BOUNTIES,
+)
+def recalc_hot_score_for_open_bounties():
+    open_bounties = Bounty.objects.filter(status=Bounty.OPEN)
+
+    for bounty in open_bounties:
+        bounty.unified_document.calculate_hot_score_v2(should_save=True)

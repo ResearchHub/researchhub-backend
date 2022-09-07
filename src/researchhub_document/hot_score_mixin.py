@@ -78,7 +78,7 @@ class HotScoreMixin:
             open_bounties = Bounty.objects.filter(
                 unified_document_id=self.id, status=Bounty.OPEN
             )
-            print("open", open_bounties)
+
             for bounty in open_bounties:
                 seconds_since_create = (
                     datetime.datetime.now(datetime.timezone.utc) - bounty.created_date
