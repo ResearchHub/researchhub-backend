@@ -38,7 +38,7 @@ def recalc_hot_score_on_bounty_save(instance, sender, **kwargs):
                 content_type.id,
                 doc.id,
             ),
-            priority=2,
+            priority=4,
             countdown=5,
         )
     except Exception as error:
