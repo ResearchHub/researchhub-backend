@@ -151,13 +151,6 @@ class DocumentFilter(DefaultModel):
                 update(unified_document, document)
             except Exception as e:
                 log_error(e)
-                # TODO: Delete print
-                print(
-                    "FILTERING UPDATE ERROR - ",
-                    str(update),
-                    e,
-                    f" - {unified_document.id}",
-                )
 
         self.save()
 
@@ -411,11 +404,6 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
             models.Index(
                 fields=("document_type",),
                 name="uni_doc_cond_idx",
-                condition=Q(is_removed=False) & ~Q(document_type=NOTE),
-            ),
-            models.Index(
-                fields=("document_type",),
-                name="test_uni_doc_cond_idx",
                 condition=Q(is_removed=False)
                 & ~Q(document_type=NOTE)
                 & Q(document_filter__isnull=False),

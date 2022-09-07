@@ -16,10 +16,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name='researchhubunifieddocument',
-            index=models.Index(condition=models.Q(('is_removed', False), models.Q(_negated=True, document_type='NOTE')), fields=['document_type'], name='uni_doc_cond_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='researchhubunifieddocument',
-            index=models.Index(condition=models.Q(('is_removed', False), models.Q(_negated=True, document_type='NOTE'), ('document_filter__isnull', False)), fields=['document_type'], name='test_uni_doc_cond_idx'),
+            index=models.Index(condition=models.Q(('is_removed', False), models.Q(_negated=True, document_type='NOTE'), ('document_filter__isnull', False)), fields=['document_type'], name='uni_doc_cond_idx'),
         ),
     ]
