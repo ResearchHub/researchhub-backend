@@ -4,165 +4,6 @@ from django.db import migrations, models
 import django.db.models.deletion
 
 
-def migrate_paper_to_unified_document(apps, schema_editor):
-    ResearchhubUnifiedDocument = apps.get_model('researchhub_document', 'ResearchhubUnifiedDocument')
-    DocumentFilter = apps.get_model('researchhub_document', 'DocumentFilter')
-    unified_documents = ResearchhubUnifiedDocument.objects.all().order_by("id")
-
-    objs = []
-    for i, uni_doc in enumerate(unified_documents.iterator()):
-        print(i)
-        doc_filter = DocumentFilter.objects.create()
-        uni_doc.document_filter = doc_filter
-        objs.append(uni_doc)
-        if len(objs) >= 1000:
-            print("UPDATING")
-            ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
-            objs = []
-    ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
-
-
-# from django.db import connection
-# from threading import Thread
-
-
-# def add_filter(start_id, stop_id, apps=None):
-#     ResearchhubUnifiedDocument = apps.get_model('researchhub_document', 'ResearchhubUnifiedDocument')
-#     DocumentFilter = apps.get_model('researchhub_document', 'DocumentFilter')
-#     unified_documents = ResearchhubUnifiedDocument.objects.filter(id__gte=start_id, id__lt=stop_id).order_by("id")
-
-#     objs = []
-#     for i, uni_doc in enumerate(unified_documents.iterator()):
-#         print(i)
-#         doc_filter = DocumentFilter.objects.create()
-#         uni_doc.document_filter = doc_filter
-#         objs.append(uni_doc)
-#         if len(objs) >= 1000:
-#             print("UPDATING")
-#             ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
-#             objs = []
-#     ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
-#     print("-----COMPLETE-----")
-#     connection.close()
-#     return True
-
-
-# def migrate(apps, schema_editor):
-#     ResearchhubUnifiedDocument = apps.get_model('researchhub_document', 'ResearchhubUnifiedDocument')
-#     count = ResearchhubUnifiedDocument.objects.all().count()
-
-#     for i in range(5, count, 5):
-#         t = Thread(target=add_filter, args=(i-5, i), kwargs={"apps": apps})
-#         t.daemon = True
-#         t.start()
-#     else:
-#         t = Thread(target=add_filter, args=(i, i+1000), kwargs={"apps": apps})
-#         t.daemon = True
-#         t.start()
-#     t.join(timeout=5)
-    # for i in range(100000, count, 100000):
-    #     t = Thread(target=add_filter, args=(i-100000, i), kwargs={"apps": apps})
-    #     t.daemon = True
-    #     t.start()
-    # else:
-    #     t = Thread(target=add_filter, args=(i, i+10000))
-    #     t.daemon = True
-    #     t.start()
-    # connection.close()
-
-
-# from django.db import connection
-# from threading import Thread
-
-# def add_filter(start_id, stop_id):
-#     unified_documents = ResearchhubUnifiedDocument.objects.filter(id__gte=start_id, id__lt=stop_id).order_by("id")
-#     print(unified_documents.first().id, unified_documents.last().id)
-
-#     objs = []
-#     for i, uni_doc in enumerate(unified_documents.iterator()):
-#         doc_filter = DocumentFilter.objects.create()
-#         uni_doc.document_filter = doc_filter
-#         objs.append(uni_doc)
-#         if len(objs) >= 1000:
-#             print("UPDATING")
-#             ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
-#             objs = []
-#     ResearchhubUnifiedDocument.objects.bulk_update(objs, ["document_filter"])
-#     print("COUNT UPDATED - ",len(objs))
-#     print("-----COMPLETE-----")
-#     connection.close()
-
-# def migrate_1():
-#     count = ResearchhubUnifiedDocument.objects.all().count()
-#     for i in range(100000, count, 100000):
-#         t = Thread(target=add_filter, args=(i-100000, i))
-#         t.daemon = True
-#         t.start()
-#     else:
-#         t = Thread(target=add_filter, args=(i, i+1000))
-#         t.daemon = True
-#         t.start()
-
-# def update_ts(start_id, stop_id):
-#     filters = DocumentFilter.objects.filter(id__gte=start_id, id__lt=stop_id).order_by("id")
-#     for i, doc_filter in enumerate(filters.iterator()):
-#         if i % 1000 == 0:
-#             print(i)
-
-#         objs = []
-#         doc_filter.discussed_date_ts = doc_filter.discussed_date.timestamp()
-#         objs.append(doc_filter)
-#         if len(objs) >= 1000:
-#             print("UPDATING")
-#             DocumentFilter.objects.bulk_update(objs, ["discussed_date_ts"])
-#             objs = []
-#     DocumentFilter.objects.bulk_update(objs, ["discussed_date_ts"])
-#     print("COUNT UPDATED - ",len(objs))
-#     print("-----COMPLETE-----")
-#     connection.close()
-
-# def migrate_2():
-#     # count = DocumentFilter.objects.all().count()
-#     for i in range(100000, 1203741, 100000):
-#         t = Thread(target=update_ts, args=(i-100000, i))
-#         t.daemon = True
-#         t.start()
-#     t = Thread(target=update_ts, args=(i, i+1000))
-#     t.daemon = True
-#     t.start()
-#     t.join()
-#     connection.close()
-
-# from django.db import connection
-# from threading import Thread
-
-# def update_discussed(start, end):
-#     print(f"STARTING - {start} : {end}")
-#     qs = DocumentFilter.objects.filter(id__gte=start, id__lt=end)
-#     for i, obj in enumerate(qs.iterator()):
-#         if i % 1000 == 0:
-#             print(f"Starting ID - {start} - {i}")
-#         obj.update_filter("SORT_DISCUSSED")
-#     print("COMPLETED")
-#     connection.close()
-
-# def migrate_3():
-#     CHUNK_SIZE = 50000
-#     qs = DocumentFilter.objects.all().order_by("id")
-#     start = qs.first().id
-#     end = qs.last().id
-
-#     for i in range(start, end + CHUNK_SIZE, CHUNK_SIZE):
-#         t = Thread(target=update_discussed, args=(i, i + CHUNK_SIZE))
-#         t.daemon = True
-#         t.start()
-
-"""
-ResearchhubUnifiedDocument.objects.all().update(document_filter=None)
-total: 1250302
-id:    1250500
-"""
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -192,22 +33,12 @@ class Migration(migrations.Migration):
                 ('discussed_year', models.IntegerField(db_index=True, default=0)),
                 ('discussed_all', models.IntegerField(db_index=True, default=0)),
                 ('discussed_date', models.DateTimeField(auto_now_add=True)),
-                # ('discussed_today_date', models.DateTimeField(auto_now_add=True)),
-                # ('discussed_week_date', models.DateTimeField(auto_now_add=True)),
-                # ('discussed_month_date', models.DateTimeField(auto_now_add=True)),
-                # ('discussed_year_date', models.DateTimeField(auto_now_add=True)),
-                # ('discussed_all_date', models.DateTimeField(auto_now_add=True)),
                 ('upvoted_today', models.IntegerField(db_index=True, default=0)),
                 ('upvoted_week', models.IntegerField(db_index=True, default=0)),
                 ('upvoted_month', models.IntegerField(db_index=True, default=0)),
                 ('upvoted_year', models.IntegerField(db_index=True, default=0)),
                 ('upvoted_all', models.IntegerField(db_index=True, default=0)),
                 ('upvoted_date', models.DateTimeField(auto_now_add=True)),
-                # ('upvoted_today_date', models.DateTimeField(auto_now_add=True)),
-                # ('upvoted_week_date', models.DateTimeField(auto_now_add=True)),
-                # ('upvoted_month_date', models.DateTimeField(auto_now_add=True)),
-                # ('upvoted_year_date', models.DateTimeField(auto_now_add=True)),
-                # ('upvoted_all_date', models.DateTimeField(auto_now_add=True)),
             ],
         ),
         migrations.AddIndex(
@@ -222,46 +53,6 @@ class Migration(migrations.Migration):
             model_name='documentfilter',
             index=models.Index(fields=['discussed_date'], name='flt_discussed_date_idx'),
         ),
-        # migrations.AddIndex(
-        #     model_name='documentfilter',
-        #     index=models.Index(fields=['discussed_today_date'], name='flt_discussed_today_date_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='documentfilter',
-        #     index=models.Index(fields=['discussed_week_date'], name='flt_discussed_week_date_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='documentfilter',
-        #     index=models.Index(fields=['discussed_month_date'], name='flt_discussed_month_date_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='documentfilter',
-        #     index=models.Index(fields=['discussed_year_date'], name='flt_discussed_year_date_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='documentfilter',
-        #     index=models.Index(fields=['discussed_all_date'], name='flt_discussed_all_date_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='documentfilter',
-        #     index=models.Index(fields=['upvoted_today_date'], name='flt_upvoted_today_date_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='documentfilter',
-        #     index=models.Index(fields=['upvoted_week_date'], name='flt_upvoted_week_date_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='documentfilter',
-        #     index=models.Index(fields=['upvoted_month_date'], name='flt_upvoted_month_date_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='documentfilter',
-        #     index=models.Index(fields=['upvoted_year_date'], name='flt_upvoted_year_date_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='documentfilter',
-        #     index=models.Index(fields=['upvoted_all_date'], name='flt_upvoted_all_date_idx'),
-        # ),
         migrations.AddIndex(
             model_name='documentfilter',
             index=models.Index(fields=['upvoted_date'], name='flt_upvoted_date_idx'),
@@ -271,11 +62,4 @@ class Migration(migrations.Migration):
             name='document_filter',
             field=models.OneToOneField(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='unified_document', to='researchhub_document.DocumentFilter'),
         ),
-        # migrations.RunPython(migrate_paper_to_unified_document),
-        # migrations.RunPython(migrate),
-        # migrations.AlterField(
-        #     model_name='researchhubunifieddocument',
-        #     name='document_filter',
-        #     field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='unified_document', to='researchhub_document.DocumentFilter'),
-        # ),
     ]
