@@ -333,7 +333,7 @@ class PaperSerializer(BasePaperSerializer):
             "edited_file_extract",
             "external_source",
             "file_created_location",
-            "i",
+            "is_open_access",
             "id",
             "is_removed",
             "is_removed_by_user",

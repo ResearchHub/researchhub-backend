@@ -240,7 +240,6 @@ class BountyViewSet(viewsets.ModelViewSet):
                 hub_ids=hubs,
                 document_type=[ALL.lower()],
                 filters=[HOT],
-                bounty_queries=["", "all"],
                 with_default_hub=True,
             )
             return Response(serializer.data, status=201)
@@ -302,7 +301,6 @@ class BountyViewSet(viewsets.ModelViewSet):
                 hub_ids=hubs,
                 document_type=[ALL.lower()],
                 filters=[HOT],
-                bounty_queries=["", "all"],
                 with_default_hub=True,
             )
             if bounty_paid:
@@ -348,7 +346,6 @@ class BountyViewSet(viewsets.ModelViewSet):
                 hub_ids=hubs,
                 document_type=[ALL.lower()],
                 filters=[HOT],
-                bounty_queries=["", "all"],
                 with_default_hub=True,
             )
 
