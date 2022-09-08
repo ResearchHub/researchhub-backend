@@ -74,11 +74,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
         choices=DOC_CHOICES,
         null_value="all",
     )
-    # tags = filters.MultipleChoiceFilter(
-    #     method="tag_filter", label="Tags", choices=TAG_CHOICES
-    # )
     tags = filters.CharFilter(method="tag_filter", label="Tags")
-
     ordering = filters.ChoiceFilter(
         method="ordering_filter",
         choices=ORDER_CHOICES,
