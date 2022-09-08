@@ -758,7 +758,6 @@ class DynamicPaperSerializer(
     bounties = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
-    # score = serializers.ReadOnlyField()  # GRM
     score = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
