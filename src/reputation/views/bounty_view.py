@@ -300,6 +300,15 @@ class BountyViewSet(viewsets.ModelViewSet):
 
             bounty_cancelled = bounty.cancel()
             bounty.save()
+            bounties_closed = [bounty]
+            # Cancel all group bounties if the cancel request is by the OP
+            if request.user == bounty.item.created_by:
+                all_bounties = bounty.item.bounties.filter(status=Bounty.OPEN)
+                for cur_bounty in all_bounties:
+                    cur_bounty.cancel()
+                    cur_bounty.save()
+                    bounties_closed.append(cur_bounty)
+
             hubs = list(bounty.unified_document.hubs.all().values_list("id", flat=True))
             reset_unified_document_cache(
                 hub_ids=hubs,
@@ -308,8 +317,9 @@ class BountyViewSet(viewsets.ModelViewSet):
                 bounty_query="all",
                 with_default_hub=True,
             )
+
             if bounty_cancelled:
-                serializer = self.get_serializer(bounty)
+                serializer = self.get_serializer(bounties_closed, many=True)
                 return Response(serializer.data, status=200)
             else:
                 raise Exception("Bounty cancel error")
