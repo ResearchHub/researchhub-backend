@@ -336,6 +336,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             unified_document = bounty.unified_document
             unified_document.update_filters(
                 (
+                    FILTER_BOUNTY_OPEN,
                     FILTER_BOUNTY_CLOSED,
                     SORT_BOUNTY_EXPIRATION_DATE,
                     SORT_BOUNTY_TOTAL_AMOUNT,
