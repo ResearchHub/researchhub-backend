@@ -34,8 +34,8 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         unified_document = ResearchhubUnifiedDocument.objects.get(id=args[0])
         request.data["created_by"] = request.user.id
         request.data["unified_document"] = unified_document.id
-        unified_document.update_filter(FILTER_PEER_REVIEWED)
         response = super().create(request, *args, **kwargs)
+        unified_document.update_filter(FILTER_PEER_REVIEWED)
 
         return response
 
