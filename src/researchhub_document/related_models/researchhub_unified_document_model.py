@@ -163,17 +163,19 @@ class DocumentFilter(DefaultModel):
         ).exists()
 
     def update_bounty_closed(self, unified_document, document):
-        self.bounty_closed = unified_document.bounties.filter(
+        self.bounty_closed = unified_document.related_bounties.filter(
             status=Bounty.CLOSED
         ).exists()
 
     def update_bounty_expired(self, unified_document, document):
-        self.bounty_expired = unified_document.bounties.filter(
+        self.bounty_expired = unified_document.related_bounties.filter(
             status=Bounty.EXPIRED
         ).exists()
 
     def update_bounty_open(self, unified_document, document):
-        self.bounty_open = unified_document.bounties.filter(status=Bounty.OPEN).exists()
+        self.bounty_open = unified_document.related_bounties.filter(
+            status=Bounty.OPEN
+        ).exists()
 
     def update_has_bounty(self, unified_document, document):
         self.has_bounty = unified_document.related_bounties.exists()
@@ -189,12 +191,14 @@ class DocumentFilter(DefaultModel):
         self.peer_reviewed = unified_document.reviews.exists()
 
     def update_bounty_expiration_date(self, unified_document, document):
-        bounty = unified_document.bounties.last()
+        bounty = unified_document.related_bounties.filter(status=Bounty.OPEN).last()
         if bounty:
             self.bounty_expiration_date = bounty.expiration_date
+        else:
+            self.bounty_expiration_date = None
 
     def update_bounty_total_amount(self, unified_document, document):
-        self.bounty_total_amount = unified_document.bounties.aggregate(
+        self.bounty_total_amount = unified_document.related_bounties.aggregate(
             total=Coalesce(Sum("amount", filter=Q(status=Bounty.OPEN)), 0)
         ).get("total", 0)
 
@@ -487,7 +491,7 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         return details
 
     def save(self, **kwargs):
-        if not hasattr(self, "document_filter"):
+        if getattr(self, "document_filter", None) is None:
             self.document_filter = DocumentFilter.objects.create()
         super().save(**kwargs)
 

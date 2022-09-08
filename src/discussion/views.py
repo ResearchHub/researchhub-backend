@@ -44,9 +44,18 @@ from researchhub.lib import get_document_id_from_path
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     FILTER_ANSWERED,
+    FILTER_BOUNTY_CLOSED,
+    FILTER_BOUNTY_OPEN,
+    SORT_BOUNTY_EXPIRATION_DATE,
+    SORT_BOUNTY_TOTAL_AMOUNT,
     SORT_DISCUSSED,
 )
-from researchhub_document.related_models.constants.filters import DISCUSSED, HOT
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    EXPIRING_SOON,
+    HOT,
+    MOST_RSC,
+)
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from utils import sentry
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -276,7 +285,24 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         target_thread.is_accepted_answer = True
         target_thread.save()
 
-        target_thread.unified_document.update_filter(FILTER_ANSWERED)
+        target_thread.unified_document.update_filters(
+            (
+                FILTER_ANSWERED,
+                SORT_BOUNTY_TOTAL_AMOUNT,
+                SORT_BOUNTY_EXPIRATION_DATE,
+                FILTER_BOUNTY_CLOSED,
+                FILTER_BOUNTY_OPEN,
+            )
+        )
+        unified_document = target_thread.unified_document
+        hubs = list(unified_document.hubs.all().values_list("id", flat=True))
+        doc_type = get_doc_type_key(unified_document)
+        reset_unified_document_cache(
+            hub_ids=hubs,
+            document_type=[doc_type],
+            filters=[EXPIRING_SOON, MOST_RSC],
+            with_default_hub=True,
+        )
         return Response({"thread_id": target_thread.id}, status=200)
         # except Exception as exception:
         #     return Response(str(exception), status=400)
@@ -387,7 +413,24 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         comment.is_accepted_answer = True
         comment.save()
 
-        comment.unified_document.update_filter(FILTER_ANSWERED)
+        comment.unified_document.update_filters(
+            (
+                FILTER_ANSWERED,
+                SORT_BOUNTY_TOTAL_AMOUNT,
+                SORT_BOUNTY_EXPIRATION_DATE,
+                FILTER_BOUNTY_CLOSED,
+                FILTER_BOUNTY_OPEN,
+            )
+        )
+        unified_document = comment.unified_document
+        hubs = list(unified_document.hubs.all().values_list("id", flat=True))
+        doc_type = get_doc_type_key(unified_document)
+        reset_unified_document_cache(
+            hub_ids=hubs,
+            document_type=[doc_type],
+            filters=[EXPIRING_SOON, MOST_RSC],
+            with_default_hub=True,
+        )
         return Response({"comment_id": comment.id}, status=200)
         # except Exception as exception:
         #     return Response(str(exception), status=400)

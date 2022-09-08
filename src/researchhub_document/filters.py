@@ -208,13 +208,15 @@ class UnifiedDocumentFilter(filters.FilterSet):
         elif value == HOT:
             ordering.append("-hot_score_v2")
         elif value == DISCUSSED:
+            key = f"document_filter__discussed_{time_scope}"
             if time_scope != "all":
                 qs = qs.filter(
-                    document_filter__discussed_date__range=(start_date, end_date)
+                    document_filter__discussed_date__range=(start_date, end_date),
+                    **{f"{key}__gt": 0},
                 )
             else:
                 qs = qs.filter(document_filter__isnull=False)
-            ordering.append(f"-document_filter__discussed_{time_scope}")
+            ordering.append(f"-{key}")
         elif value == UPVOTED:
             if time_scope != "all":
                 qs = qs.filter(
