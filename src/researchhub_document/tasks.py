@@ -142,12 +142,11 @@ def preload_homepage_feed():
     reset_unified_document_cache(with_default_hub=True)
 
 
-# TODO: Enable
-# @periodic_task(
-#     run_every=crontab(hour=12),
-#     priority=2,
-#     queue=QUEUE_CACHES,
-# )
+@periodic_task(
+    run_every=crontab(hour=12),
+    priority=2,
+    queue=QUEUE_CACHES,
+)
 def preload_hub_feeds():
     from hub.views import HubViewSet
     from researchhub_document.utils import reset_unified_document_cache
