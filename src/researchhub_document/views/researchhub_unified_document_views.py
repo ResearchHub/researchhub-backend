@@ -310,8 +310,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             return cache_hit
         return None
 
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["get"], permission_classes=[IsModerator])
     def test_get_unified_documents(self, request):
+        # This method is loads the feed without the cache
         query_params = request.query_params
         hub_id = query_params.get("hub_id", 0) or 0
 
@@ -448,6 +449,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         document_request_type = query_params.get("type", "all")
         time_scope = query_params.get("time", "today")
         filtering = query_params.get("ordering", HOT)
+        tags = query_params.get("tags", None)
         page_number = int(query_params.get("page", 1))
 
         all_documents = {}
@@ -460,7 +462,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 time_scope,
             )
 
-            if cache_hit:
+            if cache_hit and not tags:
                 cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
                 for doc in cache_hit["results"]:
                     if doc["id"] not in all_documents:
