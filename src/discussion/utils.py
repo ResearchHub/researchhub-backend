@@ -29,3 +29,15 @@ def get_comment_id_from_path(request):
         except ValueError:
             print("Failed to get comment id")
     return comment_id
+
+
+def get_reply_id_from_path(request):
+    REPLY = 8
+    comment_id = None
+    path_parts = request.path.split("/")
+    if path_parts[REPLY] == "reply":
+        try:
+            comment_id = int(path_parts[REPLY + 1])
+        except ValueError:
+            print("Failed to get reply id")
+    return comment_id
