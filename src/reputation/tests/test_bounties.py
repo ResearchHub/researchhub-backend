@@ -19,7 +19,7 @@ class BountyViewTests(APITestCase):
         self.user_2 = create_random_default_user("bounty_user_2")
         self.recipient = create_random_default_user("bounty_recipient")
         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
-        self.paper = create_paper()
+        self.paper = create_paper(uploaded_by=self.user)
         self.thread = create_thread(created_by=self.recipient)
         self.hub = create_hub()
         self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)

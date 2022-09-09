@@ -1,10 +1,12 @@
 from datetime import datetime
 
 import pytz
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.permissions import BasePermission
 
 from reputation.models import Bounty
 from researchhub.settings import DIST_WHITELIST
+from researchhub_document.models import ResearchhubUnifiedDocument
 from utils.http import RequestMethods
 from utils.permissions import AuthorizationBasedPermission
 
@@ -51,6 +53,10 @@ class UserCanApproveBounty(BasePermission):
         elif obj.expiration_date <= datetime.now(pytz.UTC):
             self.message = "Bounty is expired"
             return False
+        if obj.item_content_type == ContentType.objects.get_for_model(
+            ResearchhubUnifiedDocument
+        ):  # for question bounties, the question creator can control all bounties
+            return obj.item.created_by == request.user
         return obj.created_by == request.user
 
 
