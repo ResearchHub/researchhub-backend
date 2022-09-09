@@ -14,6 +14,9 @@ from analytics.amplitude import track_event
 from discussion.models import BaseComment, Comment, Reply, Thread
 from discussion.permissions import (
     CanGiveCommentBounty,
+    CensorComment,
+    CensorReply,
+    CensorThread,
     CreateDiscussionComment,
     CreateDiscussionReply,
     CreateDiscussionThread,
@@ -60,6 +63,7 @@ from .serializers import (
 from .utils import (
     ORDERING_SCORE_ANNOTATION,
     get_comment_id_from_path,
+    get_reply_id_from_path,
     get_thread_id_from_path,
 )
 
@@ -146,6 +150,20 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             request, response, Thread, is_thread=True
         )
         return response
+
+    @action(
+        detail=True,
+        methods=["patch", "delete"],
+        permission_classes=[CensorThread],
+    )
+    def delete(self, request, *args, **kwargs):
+        thread_id = get_thread_id_from_path(self.request)
+
+        instance = Thread.objects.get(id=thread_id)
+        instance.is_removed = True
+        instance.save()
+
+        return Response(status=status.HTTP_200_OK)
 
     def get_serializer_context(self):
         return {
@@ -336,6 +354,20 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
     @action(
         detail=True,
+        methods=["patch", "delete"],
+        permission_classes=[CensorComment],
+    )
+    def delete(self, request, *args, **kwargs):
+        comment_id = get_comment_id_from_path(self.request)
+
+        instance = Comment.objects.get(id=comment_id)
+        instance.is_removed = True
+        instance.save()
+
+        return Response(status=status.HTTP_200_OK)
+
+    @action(
+        detail=True,
         methods=["post"],
         permission_classes=[CanGiveCommentBounty],
     )
@@ -464,6 +496,20 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         response = super().update(request, *args, **kwargs)
         self.sift_track_update_content_comment(request, response, Reply)
         return response
+
+    @action(
+        detail=True,
+        methods=["patch", "delete"],
+        permission_classes=[CensorReply],
+    )
+    def delete(self, request, *args, **kwargs):
+        reply_id = get_reply_id_from_path(self.request)
+
+        instance = Reply.objects.get(id=reply_id)
+        instance.is_removed = True
+        instance.save()
+
+        return Response(status=status.HTTP_200_OK)
 
     @action(
         detail=True,
