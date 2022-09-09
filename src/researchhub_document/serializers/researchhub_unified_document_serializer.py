@@ -2,7 +2,6 @@ from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from paper.serializers import DynamicPaperSerializer, PaperSerializer
-from reputation.models import Bounty
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
@@ -103,20 +102,15 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         context = self.context
         _context_fields = context.get("doc_duds_get_bounties", {})
         _filter_fields = _context_fields.get("_filter_fields", {})
-        serializer = DynamicBountySerializer(
-            unified_doc.related_bounties.filter(**_filter_fields),
-            many=True,
-            context=context,
-            **_context_fields
-        )
-        return serializer.data
-
-    def get_featured(self, unified_doc):
-        hub_id = self.context.get("hub_id", 0)
-        if hub_id is not None:
-            if hub_id == 0:
-                hub_id = None
-            return unified_doc.featured_in_hubs.filter(hub_id=hub_id).exists()
+        if unified_doc.related_bounties.exists():
+            serializer = DynamicBountySerializer(
+                unified_doc.related_bounties.filter(**_filter_fields),
+                many=True,
+                context=context,
+                **_context_fields
+            )
+            return serializer.data
+        return []
 
     def get_documents(self, unified_doc):
         context = self.context
@@ -161,6 +155,8 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_reviews(self, unified_doc):
+        if not unified_doc.reviews.exists():
+            return {"avg": 0, "count": 0}
         return unified_doc.get_review_details()
         # context = self.context
         # get_reviews = context.get("doc_duds_get_reviews", None)

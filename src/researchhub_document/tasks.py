@@ -54,40 +54,21 @@ def preload_trending_documents(
     document_type,
     hub_id,
     filtering,
-    bounty_query,
     time_scope,
 ):
     from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
     from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
 
-    if time_scope == "all_time":
-        cache_pk = (
-            f"{document_type}_{hub_id}_{filtering}_bounty_{bounty_query}_all_time"
-        )
+    if time_scope == "all":
+        cache_pk = f"{document_type}_{hub_id}_{filtering}_all"
     elif time_scope == "year":
-        cache_pk = f"{document_type}_{hub_id}_{filtering}_bounty_{bounty_query}_year"
+        cache_pk = f"{document_type}_{hub_id}_{filtering}_year"
     elif time_scope == "month":
-        cache_pk = f"{document_type}_{hub_id}_{filtering}_bounty_{bounty_query}_month"
+        cache_pk = f"{document_type}_{hub_id}_{filtering}_month"
     elif time_scope == "week":
-        cache_pk = f"{document_type}_{hub_id}_{filtering}_bounty_{bounty_query}_week"
+        cache_pk = f"{document_type}_{hub_id}_{filtering}_week"
     else:  # Today
-        cache_pk = f"{document_type}_{hub_id}_{filtering}_bounty_{bounty_query}_today"
-
-    query_string_filtering = "top_rated"
-    if filtering == "removed":
-        query_string_filtering = "removed"
-    elif filtering == "-score":
-        query_string_filtering = "top_rated"
-    elif filtering == "-discussed":
-        query_string_filtering = "most_discussed"
-    elif filtering == "-created_date":
-        query_string_filtering = "newest"
-    elif filtering == "-hot_score":
-        query_string_filtering = "hot"
-    elif filtering == "is_open_access":
-        query_string_filtering = "is_open_access"
-    elif filtering == "author_claimed":
-        query_string_filtering = "author_claimed"
+        cache_pk = f"{document_type}_{hub_id}_{filtering}_today"
 
     request_path = "/api/researchhub_unified_document/get_unified_documents/"
     if STAGING:
@@ -102,8 +83,8 @@ def preload_trending_documents(
 
     if hub_id == 0:
         hub_id = ""
-    query_string = "page=1&time={}&ordering={}&hub_id={}&type={}&bounties={}".format(
-        time_scope, query_string_filtering, hub_id, document_type, bounty_query
+    query_string = "page=1&time={}&ordering={}&hub_id={}&type={}".format(
+        time_scope, filtering, hub_id, document_type
     )
     http_meta = {
         "QUERY_STRING": query_string,
@@ -128,7 +109,6 @@ def preload_trending_documents(
         _include_fields=[
             "created_date",
             "id",
-            "featured",
             "documents",
             "document_type",
             "hot_score",
@@ -156,6 +136,7 @@ def preload_trending_documents(
     queue=QUEUE_CACHES,
 )
 def preload_homepage_feed():
+    return True
     from researchhub_document.utils import reset_unified_document_cache
 
     reset_unified_document_cache(with_default_hub=True)

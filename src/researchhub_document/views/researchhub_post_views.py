@@ -14,8 +14,7 @@ from rest_framework.viewsets import ModelViewSet
 from analytics.amplitude import track_event
 from discussion.reaction_views import ReactionViewActionMixin
 from hub.models import Hub
-from note.models import Note, NoteContent
-from peer_review.models import PeerReviewRequest
+from note.models import NoteContent
 from peer_review.serializers import PeerReviewRequestSerializer
 from purchase.models import Balance, Purchase
 from researchhub.settings import (
@@ -36,10 +35,9 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
-    NEWEST,
-    OPEN_ACCESS,
-    TOP,
-    TRENDING,
+    HOT,
+    NEW,
+    UPVOTED,
 )
 from researchhub_document.serializers.researchhub_post_serializer import (
     ResearchhubPostSerializer,
@@ -135,7 +133,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
             reset_unified_document_cache(
                 hub_ids,
                 document_type=["all", "posts"],
-                filters=[NEWEST, OPEN_ACCESS],
+                filters=[NEW],
                 with_default_hub=True,
             )
 
@@ -195,7 +193,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
         reset_unified_document_cache(
             hub_ids,
             document_type=["all", "posts"],
-            filters=[NEWEST, DISCUSSED, TOP, TRENDING, OPEN_ACCESS],
+            filters=[NEW, DISCUSSED, UPVOTED, HOT],
         )
 
         if assign_doi:

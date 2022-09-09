@@ -38,15 +38,23 @@ from discussion.permissions import Vote as VotePermission
 from hypothesis.models import Citation, Hypothesis
 from paper.models import Paper
 from peer_review.models import PeerReview
-from reputation.models import Bounty, Contribution
+from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub_document.models import ResearchhubPost
+from researchhub_document.related_models.constants.document_type import (
+    FILTER_ANSWERED,
+    FILTER_BOUNTY_CLOSED,
+    FILTER_BOUNTY_OPEN,
+    SORT_BOUNTY_EXPIRATION_DATE,
+    SORT_BOUNTY_TOTAL_AMOUNT,
+    SORT_DISCUSSED,
+)
 from researchhub_document.related_models.constants.filters import (
-    AUTHOR_CLAIMED,
     DISCUSSED,
-    OPEN_ACCESS,
-    TRENDING,
+    EXPIRING_SOON,
+    HOT,
+    MOST_RSC,
 )
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from utils import sentry
@@ -113,6 +121,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             created_thread.review_id = request.data.get("review")
             created_thread.save()
 
+        unified_document.update_filter(SORT_DISCUSSED)
         hubs = list(unified_document.hubs.all().values_list("id", flat=True))
         discussion_id = response.data["id"]
 
@@ -136,7 +145,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         reset_unified_document_cache(
             hub_ids=hubs,
             document_type=[doc_type, "all"],
-            filters=[DISCUSSED, TRENDING, OPEN_ACCESS, AUTHOR_CLAIMED],
+            filters=[DISCUSSED, HOT],
             with_default_hub=True,
         )
 
@@ -276,6 +285,24 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         target_thread.is_accepted_answer = True
         target_thread.save()
 
+        target_thread.unified_document.update_filters(
+            (
+                FILTER_ANSWERED,
+                SORT_BOUNTY_TOTAL_AMOUNT,
+                SORT_BOUNTY_EXPIRATION_DATE,
+                FILTER_BOUNTY_CLOSED,
+                FILTER_BOUNTY_OPEN,
+            )
+        )
+        unified_document = target_thread.unified_document
+        hubs = list(unified_document.hubs.all().values_list("id", flat=True))
+        doc_type = get_doc_type_key(unified_document)
+        reset_unified_document_cache(
+            hub_ids=hubs,
+            document_type=[doc_type],
+            filters=[EXPIRING_SOON, MOST_RSC],
+            with_default_hub=True,
+        )
         return Response({"thread_id": target_thread.id}, status=200)
         # except Exception as exception:
         #     return Response(str(exception), status=400)
@@ -321,6 +348,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         response = super().create(request, *args, **kwargs)
         response = self.get_self_upvote_response(request, response, Comment)
+        unified_document.update_filter(SORT_DISCUSSED)
         hubs = list(unified_document.hubs.all().values_list("id", flat=True))
         self.sift_track_create_content_comment(request, response, Comment)
 
@@ -341,7 +369,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         reset_unified_document_cache(
             hub_ids=hubs,
             document_type=[doc_type, "all"],
-            filters=[DISCUSSED, TRENDING, OPEN_ACCESS, AUTHOR_CLAIMED],
+            filters=[DISCUSSED, HOT],
             with_default_hub=True,
         )
 
@@ -385,6 +413,24 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         comment.is_accepted_answer = True
         comment.save()
 
+        comment.unified_document.update_filters(
+            (
+                FILTER_ANSWERED,
+                SORT_BOUNTY_TOTAL_AMOUNT,
+                SORT_BOUNTY_EXPIRATION_DATE,
+                FILTER_BOUNTY_CLOSED,
+                FILTER_BOUNTY_OPEN,
+            )
+        )
+        unified_document = comment.unified_document
+        hubs = list(unified_document.hubs.all().values_list("id", flat=True))
+        doc_type = get_doc_type_key(unified_document)
+        reset_unified_document_cache(
+            hub_ids=hubs,
+            document_type=[doc_type],
+            filters=[EXPIRING_SOON, MOST_RSC],
+            with_default_hub=True,
+        )
         return Response({"comment_id": comment.id}, status=200)
         # except Exception as exception:
         #     return Response(str(exception), status=400)
@@ -466,6 +512,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             request.data["created_location"] = BaseComment.CREATED_LOCATION_PROGRESS
 
         response = super().create(request, *args, **kwargs)
+        unified_document.update_filter(SORT_DISCUSSED)
         hubs = list(unified_document.hubs.all().values_list("id", flat=True))
         self.sift_track_create_content_comment(request, response, Reply)
 
@@ -486,7 +533,7 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         reset_unified_document_cache(
             hub_ids=hubs,
             document_type=[doc_type, "all"],
-            filters=[DISCUSSED, TRENDING, OPEN_ACCESS, AUTHOR_CLAIMED],
+            filters=[DISCUSSED, HOT],
             with_default_hub=True,
         )
 

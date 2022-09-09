@@ -2,6 +2,7 @@ from statistics import mean
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
+from django.db.models import Q
 
 from hub.models import Hub
 from researchhub.settings import BASE_FRONTEND_URL
@@ -15,6 +16,7 @@ from researchhub_document.related_models.constants.document_type import (
     PAPER,
     QUESTION,
 )
+from researchhub_document.related_models.document_filter_model import DocumentFilter
 from researchhub_document.tasks import update_elastic_registry
 from user.models import Author
 from utils.models import DefaultModel
@@ -58,6 +60,12 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         object_id_field="item_object_id",
     )
     hubs = models.ManyToManyField(Hub, related_name="related_documents", blank=True)
+    document_filter = models.OneToOneField(
+        DocumentFilter,
+        on_delete=models.CASCADE,
+        related_name="unified_document",
+        null=True,
+    )
 
     class Meta:
         indexes = (
@@ -65,7 +73,26 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
                 fields=("created_date",),
                 name="uni_doc_created_date_idx",
             ),
+            models.Index(
+                fields=("document_type",),
+                name="uni_doc_not_note_doc_type_idx",
+                condition=~Q(document_type=NOTE),
+            ),
+            models.Index(
+                fields=("document_type",),
+                name="uni_doc_cond_idx",
+                condition=Q(is_removed=False)
+                & ~Q(document_type=NOTE)
+                & Q(document_filter__isnull=False),
+            ),
         )
+
+    def update_filter(self, filter_type):
+        self.document_filter.update_filter(filter_type)
+
+    def update_filters(self, filter_types):
+        for filter_type in filter_types:
+            self.update_filter(filter_type)
 
     @property
     def authors(self):
@@ -137,6 +164,8 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         return details
 
     def save(self, **kwargs):
+        if getattr(self, "document_filter", None) is None:
+            self.document_filter = DocumentFilter.objects.create()
         super().save(**kwargs)
 
         # Update the Elastic Search index for post records.

@@ -9,7 +9,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.validators import URLValidator
 from django.db import IntegrityError
-from django.db.models import Count, F, IntegerField, Prefetch, Q, Sum, Value
+from django.db.models import Count, F, IntegerField, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -63,10 +63,9 @@ from researchhub.lib import get_document_id_from_path
 from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
-    NEWEST,
-    OPEN_ACCESS,
-    TOP,
-    TRENDING,
+    HOT,
+    NEW,
+    UPVOTED,
 )
 from researchhub_document.utils import reset_unified_document_cache
 from utils.http import GET, POST, check_url_contains_pdf
@@ -148,23 +147,10 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             "purchases",
             "threads",
             "threads__comments",
-            Prefetch(
-                "figures",
-                queryset=Figure.objects.filter(figure_type=Figure.FIGURE).order_by(
-                    "created_date"
-                ),
-                to_attr="figure_list",
-            ),
-            Prefetch(
-                "figures",
-                queryset=Figure.objects.filter(figure_type=Figure.PREVIEW).order_by(
-                    "created_date"
-                ),
-                to_attr="preview_list",
-            ),
+            "figures",
         )
 
-    def get_queryset(self, prefetch=True, include_autopull=False):
+    def get_queryset(self, prefetch=True):
         query_params = self.request.query_params
         queryset = self.queryset
         ordering = query_params.get("ordering", None)
@@ -179,9 +165,6 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             pass
         else:
             queryset = queryset.filter(is_removed=False)
-
-        # if ordering == 'newest' and not include_autopull:
-        #     queryset = queryset.filter(uploaded_by__isnull=False)
 
         user = self.request.user
         if user.is_staff:
@@ -399,7 +382,7 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         reset_unified_document_cache(
             hub_ids,
-            filters=[TRENDING, TOP, DISCUSSED, NEWEST, OPEN_ACCESS],
+            filters=[HOT, UPVOTED, DISCUSSED, NEW],
             document_type=["all", "paper"],
             with_default_hub=True,
         )
@@ -425,7 +408,7 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         hub_ids = paper.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
             hub_ids,
-            filters=[TRENDING, TOP, DISCUSSED, NEWEST, OPEN_ACCESS],
+            filters=[HOT, UPVOTED, DISCUSSED, NEW],
             document_type=["all", "paper"],
         )
         return Response(self.get_serializer(instance=paper).data, status=200)
@@ -768,62 +751,6 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             filename, ContentFile(json.dumps(data).encode("utf8"))
         )
         return Response(status=status.HTTP_200_OK)
-
-    def _set_hub_paper_ordering(self, request):
-        ordering = request.query_params.get("ordering", None)
-        # TODO send correct ordering from frontend
-        if ordering == "removed":
-            ordering = "removed"
-        elif ordering == "top_rated":
-            ordering = "-score"
-        elif ordering == "most_discussed":
-            ordering = "-discussed"
-        elif ordering == "newest":
-            ordering = "-created_date"
-        elif ordering == "hot":
-            ordering = "-hot_score"
-        elif ordering == "user-uploaded":
-            ordering = "user-uploaded"
-        else:
-            ordering = "-score"
-        return ordering
-
-    def _get_filtered_papers(self, hub_id, ordering):
-        # hub_id = 0 is the homepage
-        # we aren't on a specific hub so don't filter by that hub_id
-        if int(hub_id) == 0:
-            qs = self.get_queryset(
-                prefetch=False,
-            ).prefetch_related(*self.prefetch_lookups())
-
-            if "removed" in ordering:
-                qs = qs.filter(is_removed=True)
-            elif "user-uploaded" in ordering:
-                qs = qs.filter(uploaded_by_id__isnull=False)
-            else:
-                qs = qs.filter(
-                    is_removed=False,
-                    is_removed_by_user=False,
-                )
-        else:
-            qs = (
-                self.get_queryset(prefetch=False)
-                .filter(
-                    hubs__id__in=[int(hub_id)],
-                )
-                .prefetch_related(*self.prefetch_lookups())
-            )
-
-            if "removed" in ordering:
-                qs = qs.filter(is_removed=True)
-            elif "user-uploaded" in ordering:
-                qs = qs.filter(uploaded_by_id__isnull=False)
-            else:
-                qs = qs.filter(
-                    is_removed=False,
-                    is_removed_by_user=False,
-                )
-        return qs
 
 
 class AdditionalFileViewSet(viewsets.ModelViewSet):

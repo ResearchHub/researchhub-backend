@@ -45,24 +45,17 @@ from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
-from researchhub_document.related_models.constants.document_type import (
-    PAPER as PAPER_DOC_TYPE,
-)
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
-    NEWEST,
-    OPEN_ACCESS,
-    TOP,
-    TRENDING,
-)
-from researchhub_document.related_models.researchhub_unified_document_model import (
-    ResearchhubUnifiedDocument,
+    HOT,
+    NEW,
+    UPVOTED,
 )
 from researchhub_document.utils import (
     reset_unified_document_cache,
     update_unified_document_to_paper,
 )
-from user.models import Author, User
+from user.models import Author
 from user.serializers import (
     AuthorSerializer,
     DynamicAuthorSerializer,
@@ -224,14 +217,11 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
 
     def get_first_preview(self, paper):
         try:
-            if len(paper.preview_list) > 0:
-                figure = paper.preview_list[0]
-                return FigureSerializer(figure).data
-        except AttributeError:
             figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
             if figure:
                 return FigureSerializer(figure).data
-        return None
+        except AttributeError:
+            return None
 
     def get_user_flag(self, paper):
         if self.context.get("purchase_minimal_serialization", False):
@@ -475,7 +465,7 @@ class PaperSerializer(BasePaperSerializer):
                     reset_unified_document_cache(
                         hub_ids,
                         document_type=["paper", "all"],
-                        filters=[NEWEST, OPEN_ACCESS],
+                        filters=[NEW],
                         with_default_hub=True,
                     )
                 paper.save()
@@ -560,7 +550,7 @@ class PaperSerializer(BasePaperSerializer):
                     reset_unified_document_cache(
                         hub_ids=updated_hub_ids,
                         document_type=["paper", "all"],
-                        filters=[NEWEST, TOP, TRENDING, DISCUSSED, OPEN_ACCESS],
+                        filters=[NEW, UPVOTED, HOT, DISCUSSED],
                         with_default_hub=True,
                     )
 
@@ -753,14 +743,11 @@ class PaperReferenceSerializer(
 
     def get_first_preview(self, paper):
         try:
-            if len(paper.preview_list) > 0:
-                figure = paper.preview_list[0]
-                return FigureSerializer(figure).data
-        except AttributeError:
             figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
             if figure:
                 return FigureSerializer(figure).data
-        return None
+        except AttributeError:
+            return None
 
 
 class DynamicPaperSerializer(
@@ -771,7 +758,7 @@ class DynamicPaperSerializer(
     bounties = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # GRM
+    score = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -809,7 +796,9 @@ class DynamicPaperSerializer(
         return serializer.data
 
     def get_boost_amount(self, paper):
-        return paper.get_boost_amount()
+        if paper.purchases.exists():
+            return paper.get_boost_amount()
+        return 0
 
     def get_bounties(self, paper):
         from reputation.serializers import DynamicBountySerializer
@@ -849,14 +838,7 @@ class DynamicPaperSerializer(
     def get_first_preview(self, paper):
         context = self.context
         _context_fields = context.get("pap_dps_get_first_preview", {})
-        try:
-            if paper.preview_list.exists():
-                figure = paper.preview_list.first()
-                serializer = DynamicFigureSerializer(
-                    figure, context=context, **_context_fields
-                )
-                return serializer.data
-        except Exception:
+        if paper.figures.exists():
             figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
             if figure:
                 serializer = DynamicFigureSerializer(
@@ -864,6 +846,9 @@ class DynamicPaperSerializer(
                 )
                 return serializer.data
         return None
+
+    def get_score(self, paper):
+        return paper.unified_document.score
 
     def get_unified_document(self, paper):
         from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
