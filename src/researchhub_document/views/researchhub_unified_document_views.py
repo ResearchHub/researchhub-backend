@@ -453,7 +453,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         page_number = int(query_params.get("page", 1))
 
         all_documents = {}
-        if tags:
+        if not tags:
             for hub_id in hub_ids:
                 cache_hit = self._get_unified_document_cache_hit(
                     document_request_type,
