@@ -453,20 +453,21 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         page_number = int(query_params.get("page", 1))
 
         all_documents = {}
-        for hub_id in hub_ids:
-            cache_hit = self._get_unified_document_cache_hit(
-                document_request_type,
-                filtering,
-                hub_id,
-                page_number,
-                time_scope,
-            )
+        if tags:
+            for hub_id in hub_ids:
+                cache_hit = self._get_unified_document_cache_hit(
+                    document_request_type,
+                    filtering,
+                    hub_id,
+                    page_number,
+                    time_scope,
+                )
 
-            if cache_hit and not tags:
-                cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
-                for doc in cache_hit["results"]:
-                    if doc["id"] not in all_documents:
-                        all_documents[doc["id"]] = doc
+                if cache_hit:
+                    cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
+                    for doc in cache_hit["results"]:
+                        if doc["id"] not in all_documents:
+                            all_documents[doc["id"]] = doc
 
         all_documents = list(all_documents.values())
         if len(all_documents) == 0:
