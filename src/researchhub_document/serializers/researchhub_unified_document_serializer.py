@@ -90,7 +90,6 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     access_group = SerializerMethodField()
     hubs = SerializerMethodField()
     reviews = SerializerMethodField()
-    featured = SerializerMethodField()
 
     class Meta:
         model = ResearchhubUnifiedDocument
