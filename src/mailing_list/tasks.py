@@ -214,7 +214,6 @@ def send_hub_digest(frequency):
     req = Request(http_req)
     http_req.GET = query_dict
     document_view.request = req
-    filtering = document_view._get_document_filtering({"ordering": "hot"})
 
     documents = document_view.get_filtered_queryset()[0:5]
 
