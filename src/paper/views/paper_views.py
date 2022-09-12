@@ -914,7 +914,14 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
         if duplicate_papers:
             serializer = DynamicPaperSerializer(
                 duplicate_papers,
-                _include_fields=["doi", "id", "title", "url"],
+                _include_fields=[
+                    "doi",
+                    "id",
+                    "title",
+                    "url",
+                    "uploaded_by",
+                    "created_date",
+                ],
                 many=True,
             )
             duplicate_data = {"data": serializer.data}
