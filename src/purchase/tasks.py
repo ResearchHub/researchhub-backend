@@ -90,7 +90,7 @@ def send_support_email(
             <a href="{url}" class="header-link">key takeaway</a>
         """
     elif content_type == "researchhubpost":
-        post = ResearchhubPost.objects.get(id=paper_id)
+        post = ResearchhubPost.objects.get(id=object_id)
         url = f"{BASE_FRONTEND_URL}/post/{post.id}/{post.slug}"
         object_supported = f"""
             <a href="{url}" class="header-link">key takeaway</a>

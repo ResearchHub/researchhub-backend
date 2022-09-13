@@ -264,8 +264,12 @@ def create_notification(sender, instance, created, action, **kwargs):
                 if not TESTING:
                     notification.send_notification()
 
-            email_preference = recipient.emailrecipient
+            email_preference = getattr(recipient, "emailrecipient", None)
             subscription = None
+
+            # Checks if the recipient has an email recipient obj
+            if not email_preference:
+                return
 
             if sender == Thread:
                 subscription = email_preference.thread_subscription
