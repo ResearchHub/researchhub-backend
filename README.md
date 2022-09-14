@@ -19,28 +19,28 @@ Our mission is to accelerate the pace of scientific research 🚀
 We believe that by empowering scientists to independently fund, create, and publish academic content we can revolutionize the speed at which new knowledge is created and transformed into life-changing products.
 
 ## Important Links  👀
-💡 Got an idea or request? [Create a discussion on Github](https://github.com/ResearchHub/researchhub-web-internal/discussions/categories/ideas-and-requests).
-❓ Got a question? [Ask it here](https://github.com/ResearchHub/researchhub-web-internal/discussions/categories/q-a)
-🐛 Found a bug? [Report it here](https://github.com/ResearchHub/researchhub-web-internal/discussions/categories/bugs)
-💰 Earn ResearchCoin (RSC) by [completing bounties](https://github.com/ResearchHub/researchhub-web-internal/issues)
-🙌 Want to work with us? [View our open positions](https://www.notion.so/researchhub/Working-at-ResearchHub-6e0089f0e234407389eb889d342e5049)
-➕ Want to contribute to this project? [Introduce yourself in our Slack community](https://researchhub-community.slack.com)
-📰 Read the [ResearchCoin White Paper](https://www.researchhub.com/paper/819400/the-researchcoin-whitepaper)
+💡 Got an idea or request? [Create a discussion on Github](https://github.com/ResearchHub/researchhub-web-internal/discussions/categories/ideas-and-requests).  
+❓ Got a question? [Ask it here](https://github.com/ResearchHub/researchhub-web-internal/discussions/categories/q-a)  
+🐛 Found a bug? [Report it here](https://github.com/ResearchHub/researchhub-web-internal/discussions/categories/bugs)  
+💰 Earn ResearchCoin (RSC) by [completing bounties](https://github.com/ResearchHub/researchhub-web-internal/issues)  
+🙌 Want to work with us? [View our open positions](https://www.notion.so/researchhub/Working-at-ResearchHub-6e0089f0e234407389eb889d342e5049)  
+➕ Want to contribute to this project? [Introduce yourself in our Slack community](https://researchhub-community.slack.com)  
+📰 Read the [ResearchCoin White Paper](https://www.researchhub.com/paper/819400/the-researchcoin-whitepaper)  
 
-## Quickstart
+## Installation
+### 1. Quick install using Docker (Recommended)
 
-### DOCKER
-Download or clone this repository. Inside the directory, run
+1. Clone this repository. Inside the directory, run
 ```
 docker build --tag researchhub-backend .
 docker-compose up
 ```
-The backend is now running on localhost:8000
+The backend will now run at localhost:8000  
+2. Setup and run the [web app](https://github.com/ResearchHub/researchhub-web) at localhost:3000 
 
+### 2. Native install (Slower, not recommended)
 
-## Setup
-
-### GENERAL
+#### General
 
 Install the `flake8` linter in your IDE
 
@@ -79,7 +79,7 @@ Install git hooks
 ./scripts/install-hooks
 ```
 
-### DATABASE
+#### DATABASE
 
 Create a db file in config
 
@@ -114,7 +114,7 @@ docker run \
   postgres:12
 ```
 
-### ENVIRONMENT
+#### ENVIRONMENT
 
 The project environment is managed using [Poetry](https://python-poetry.org/docs/).
 
@@ -146,7 +146,7 @@ poetry add package_name
 poetry export -f requirements.txt --output requirements.txt
 ```
 
-### REDIS (Required)
+#### REDIS (Required)
 
 Make sure to run `redis-server` in a separate terminal.
 

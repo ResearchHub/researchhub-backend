@@ -15,11 +15,12 @@ class Command(BaseCommand):
         if already_setup:
             return "Initial Setup is Already Complete"
 
+        # Keys here are specific for open source community
         social_app = SocialApp.objects.create(
             provider="google",
             name="Google",
-            client_id="INSERT_CLIENT_ID_HERE",
-            secret="INSERT_SECRET_HERE",
+            client_id="192509748493-5sevdn2gk34kb6i9ehiges3vioui5drm.apps.googleusercontent.com",
+            secret="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",
             key="",
         )
         site = Site.objects.first()

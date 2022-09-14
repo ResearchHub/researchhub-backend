@@ -19,6 +19,7 @@ RUN apt-get -y install redis-server
 COPY src/requirements.txt .
 
 RUN pip3 install -r requirements.txt --no-deps
+RUN python3 -m pip install -U "watchdog[watchmedo]"
 
 RUN mkdir -p /usr/app/src
 COPY .  /usr/app/

@@ -45,12 +45,16 @@ services:
   backend:
     image: researchhub-backend
     environment: *env
-    command: python manage.py runserver 0.0.0.0:8080
+    command:
+      sh -c '
+              watchmedo auto-restart --recursive --pattern="*.py;*.env;*.html" --directory="." python manage.py runserver -- --nostatic 0.0.0.0:8080'
     ports:
     - '8000:8080'
     depends_on:
       - setup
       - elasticsearch
+    volumes:
+      - ./src:/usr/app/src
   redis:
     image: researchhub-backend
     restart: always
