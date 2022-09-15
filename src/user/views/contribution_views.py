@@ -172,7 +172,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         return context
 
     @action(detail=False, methods=["get"], permission_classes=(AllowAny,))
-    def contributions(self, request):
+    def latest_contributions(self, request):
         actions = self._get_latest_actions()
         page = self.paginate_queryset(actions)
         serializer = DynamicActionSerializer(
