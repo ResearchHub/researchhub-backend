@@ -641,18 +641,7 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
     def get_bounties(self, obj):
         from reputation.serializers import DynamicBountySerializer
 
-        context = {
-            "rep_dbs_get_created_by": {"_include_fields": ("author_profile",)},
-            "rep_dbs_get_solution": {"_include_fields": ("id",)},
-            "usr_dus_get_author_profile": {
-                "_include_fields": (
-                    "id",
-                    "profile_image",
-                    "first_name",
-                    "last_name",
-                )
-            },
-        }
+        s
         serializer = DynamicBountySerializer(
             obj.bounties.all(),
             many=True,

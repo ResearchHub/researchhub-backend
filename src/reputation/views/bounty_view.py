@@ -112,7 +112,7 @@ class BountyViewSet(viewsets.ModelViewSet):
         context = {
             "rep_dbs_get_created_by": {"_include_fields": ("author_profile", "id")},
             "usr_dus_get_author_profile": {
-                "_include_fields": ("id", "first_name", "last_name")
+                "_include_fields": ("id", "first_name", "last_name", "profile_image")
             },
         }
         return context
@@ -129,7 +129,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 "unified_document",
             )
         }
-        context["doc_duds_get_created_by"] = {"_include_fields": ("author_profile",)}
+        context["doc_duds_get_created_by"] = {"_include_fields": ("author_profile")}
         context["doc_duds_get_documents"] = {
             "_include_fields": (
                 "id",
@@ -137,7 +137,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 "title",
             )
         }
-        context["dis_dts_get_created_by"] = {"_include_fields": ("author_profile",)}
+        context["dis_dts_get_created_by"] = {"_include_fields": ("author_profile")}
         context["dis_dts_get_unified_document"] = {
             "_include_fields": ("documents", "document_type")
         }
