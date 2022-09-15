@@ -88,7 +88,8 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         )
 
     def update_filter(self, filter_type):
-        self.document_filter.update_filter(filter_type)
+        if self.document_filter:
+            self.document_filter.update_filter(filter_type)
 
     def update_filters(self, filter_types):
         for filter_type in filter_types:
