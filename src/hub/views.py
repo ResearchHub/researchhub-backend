@@ -237,9 +237,7 @@ class HubViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=[GET])
     def latest_actions(self, request, pk=None):
-        models = [
-            # 'bulletpoint',
-            # 'summary',
+        models = (
             "thread",
             "comment",
             "reply",
@@ -247,7 +245,7 @@ class HubViewSet(viewsets.ModelViewSet):
             "researchhubpost",
             "paper",
             "hypothesis",
-        ]
+        )
 
         # PK == 0 indicates for now that we're on the homepage
         if pk == "0":

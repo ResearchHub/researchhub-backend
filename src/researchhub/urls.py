@@ -185,6 +185,10 @@ router.register(
 router.register(r"audit", user.views.AuditViewSet, basename="audit")
 
 router.register(
+    r"contribution", user.views.ContributionViewSet, basename="contribution"
+)
+
+router.register(
     r"email_recipient",
     mailing_list.views.EmailRecipientViewSet,
     basename="email_recipient",
