@@ -30,7 +30,10 @@ We believe that by empowering scientists to independently fund, create, and publ
 ## Installation
 ### 1. Quick install using Docker (Recommended)
 
-1. Clone this repository. Inside the directory, run
+### DOCKER
+1. Download or clone this repository.
+2. Inside dir root, run `cp db_config.sample.py src/config/db.py`
+3. Run:
 ```
 docker build --tag researchhub-backend .
 docker-compose up
