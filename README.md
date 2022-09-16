@@ -32,14 +32,15 @@ We believe that by empowering scientists to independently fund, create, and publ
 
 ### DOCKER
 1. Download or clone this repository.
-2. Inside dir root, run `cp db_config.sample.py src/config/db.py`
-3. Run:
+2. Inside dir root, run `cp db_config.sample.py src/config_local/db.py`
+3. Also run `cp keys.sample.py src/config_local/keys.py`
+4. Run:
 ```
 docker build --tag researchhub-backend .
 docker-compose up
 ```
 The backend will now run at localhost:8000  
-2. Setup and run the [web app](https://github.com/ResearchHub/researchhub-web) at localhost:3000 
+5. Setup and run the [web app](https://github.com/ResearchHub/researchhub-web) at localhost:3000 
 
 ### 2. Native install (Slower, not recommended)
 
