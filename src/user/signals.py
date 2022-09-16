@@ -264,32 +264,39 @@ def create_notification(sender, instance, created, action, **kwargs):
                 if not TESTING:
                     notification.send_notification()
 
-            email_preference = recipient.emailrecipient
+            email_preference = getattr(recipient, "emailrecipient", None)
             subscription = None
 
-            if sender == Thread:
-                subscription = email_preference.thread_subscription
-                subject = "ResearchHub | Someone commented on your paper"
-            elif sender == Comment:
-                subscription = email_preference.comment_subscription
-                subject = "ResearchHub | Someone commented on your thread"
-            elif sender == Reply:
-                subscription = email_preference.reply_subscription
-                subject = "ResearchHub | Someone replied to your comment"
+            try:
+                # Checks if the recipient has an email recipient obj
+                if not email_preference:
+                    return
 
-            if (
-                email_preference.receives_notifications
-                and subscription
-                and not subscription.none
-            ):
-                context = build_notification_context([action])
-                send_email_message(
-                    recipient.email,
-                    "notification_email.txt",
-                    subject,
-                    context,
-                    html_template="notification_email.html",
-                )
+                if sender == Thread:
+                    subscription = email_preference.thread_subscription
+                    subject = "ResearchHub | Someone commented on your paper"
+                elif sender == Comment:
+                    subscription = email_preference.comment_subscription
+                    subject = "ResearchHub | Someone commented on your thread"
+                elif sender == Reply:
+                    subscription = email_preference.reply_subscription
+                    subject = "ResearchHub | Someone replied to your comment"
+
+                if (
+                    email_preference.receives_notifications
+                    and subscription
+                    and not subscription.none
+                ):
+                    context = build_notification_context([action])
+                    send_email_message(
+                        recipient.email,
+                        "notification_email.txt",
+                        subject,
+                        context,
+                        html_template="notification_email.html",
+                    )
+            except Exception as e:
+                log_error(e)
 
 
 def get_related_hubs(instance):

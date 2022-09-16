@@ -530,6 +530,10 @@ class UserActions:
                 data["support_type"] = item.content_type.model
             elif isinstance(item, ResearchhubPost):
                 data["post_title"] = item.title
+            elif isinstance(item, Bounty):
+                item = item.item
+            elif isinstance(item, Verdict):
+                item = item.flag.item
             elif isinstance(item, BulletVote):
                 item = item.bulletpoint
             elif isinstance(item, SummaryVote):
