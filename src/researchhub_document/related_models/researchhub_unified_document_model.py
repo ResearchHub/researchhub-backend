@@ -164,6 +164,11 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
             details["count"] = reviews.count()
         return details
 
+    def frontend_view_link(self):
+        doc = self.get_document()
+        url = f"{BASE_FRONTEND_URL}/{self.document_type.lower()}/{doc.id}/{doc.slug}"
+        return url
+
     def save(self, **kwargs):
         if getattr(self, "document_filter", None) is None:
             self.document_filter = DocumentFilter.objects.create()
