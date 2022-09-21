@@ -10,16 +10,14 @@ from django.utils import timezone
 from rest_framework.request import Request
 
 from discussion.models import Comment, Reply, Thread
-from discussion.reaction_models import Vote
 from hub.models import Hub
 from hypothesis.models import Hypothesis
 from mailing_list.lib import base_email_context
 from mailing_list.models import EmailTaskLog, NotificationFrequencies
 from paper.models import Paper
 from paper.models import Vote as PaperVote
-from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
 from researchhub.celery import QUEUE_NOTIFICATION, app
-from researchhub.settings import APP_ENV, PRODUCTION, STAGING
+from researchhub.settings import PRODUCTION, STAGING
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
 from user.models import Action, User
@@ -32,23 +30,23 @@ def notify_immediate(action_id):
     # actions_notifications([action_id], NotificationFrequencies.IMMEDIATE)
 
 
+# Disabling digests
 @periodic_task(run_every=crontab(minute="30", hour="1"), priority=7)
 def notify_daily():
-    # send_editor_hub_digest(NotificationFrequencies.DAILY)
+    return
     send_hub_digest(NotificationFrequencies.DAILY)
 
 
 @periodic_task(run_every=crontab(minute="0", hour="*/3"), priority=7)
 def notify_three_hours():
-    # send_editor_hub_digest(NotificationFrequencies.THREE_HOUR)
+    return
     send_hub_digest(NotificationFrequencies.THREE_HOUR)
-    pass
 
 
 # Noon PST
 @periodic_task(run_every=crontab(minute=0, hour=20, day_of_week="friday"), priority=9)
 def notify_weekly():
-    # send_editor_hub_digest(NotificationFrequencies.WEEKLY)
+    return
     send_hub_digest(NotificationFrequencies.WEEKLY)
 
 
