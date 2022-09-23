@@ -7,6 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import DurationField, F
 from django.db.models.functions import Cast
 
+from mailing_list.lib import base_email_context
 from notification.models import Notification
 from reputation.models import Bounty, Contribution
 from researchhub.celery import QUEUE_BOUNTIES, QUEUE_CONTRIBUTIONS, app
@@ -92,9 +93,10 @@ def check_open_bounties():
         time_left__gt=timedelta(days=0), time_left__lte=timedelta(days=1)
     )
     for bounty in upcoming_expirations.iterator():
-        bounty_action = bounty.actions.first()
         # Sends a notification if no notification exists for current bounty
-        if not Notification.objects.filter(action=bounty_action).exists():
+        if not Notification.objects.filter(
+            object_id=bounty.id, content_type=ContentType.objects.get_for_model(Bounty)
+        ).exists():
             bounty_creator = bounty.created_by
             bounty_item = bounty.item
             if isinstance(bounty_item, ResearchhubUnifiedDocument):
@@ -102,15 +104,22 @@ def check_open_bounties():
             else:
                 unified_doc = bounty_item.unified_document
             notification = Notification.objects.create(
-                action=bounty_action,
+                item=bounty,
                 action_user=bounty_creator,
                 recipient=bounty_creator,
                 unified_document=unified_doc,
+                notification_type=Notification.BOUNTY_EXPIRING_SOON,
             )
             notification.send_notification()
 
             outer_subject = "Your ResearchHub Bounty is Expiring"
-            context = build_notification_context(bounty_action)
+            context = {**base_email_context}
+            context["action"] = {
+                "message": "Your bounty is expiring in one day! \
+                If you have a suitable answer, make sure to pay out \
+                your bounty in order to keep your reputation on ResearchHub high.",
+                "frontend_view_link": unified_doc.frontend_view_link(),
+            }
             context["subject"] = "Your Bounty is Expiring"
             send_email_message(
                 [bounty_creator.email],

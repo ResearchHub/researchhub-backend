@@ -209,7 +209,7 @@ def create_action(sender, instance, created, **kwargs):
         hubs = get_related_hubs(instance)
         if hubs:
             action.hubs.add(*hubs)
-        create_notification(sender, instance, created, action, **kwargs)
+        # create_notification(sender, instance, created, action, **kwargs)
 
         return action
 

@@ -418,16 +418,17 @@ class AuditViewSet(viewsets.GenericViewSet):
             content_creator = flagged_content.uploaded_by
         else:
             content_creator = flagged_content.created_by
-        action = Action.objects.create(
+        Action.objects.create(
             item=verdict, user=remover, content_type=get_content_type_for_model(verdict)
         )
 
         anon_remover = self._get_anonymous_remover()
         notification = Notification.objects.create(
             action_user=anon_remover,
-            action=action,
+            item=verdict,
             recipient=content_creator,
             unified_document=flagged_content.unified_document,
+            notification_type=Notification.FLAGGED_CONTENT_VERDICT,
         )
         notification.send_notification()
         if send_email:
