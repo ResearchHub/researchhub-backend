@@ -49,7 +49,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         #         summary_vote_ct,
         #     ]
         # )
-        return notifications
+        return notifications.order_by("-created_date")
         # notifications = (
         #     notifications.order_by("-created_date")
         #     .select_related(
@@ -77,15 +77,14 @@ class NotificationViewSet(viewsets.ModelViewSet):
         serializer = DynamicNotificationSerializer(
             page,
             _include_fields=[
-                "action",
                 "body",
                 "action_user",
                 "created_date",
                 "id",
+                "navigation_url",
                 "read",
                 "read_date",
                 "recipient",
-                "unified_document",
             ],
             context=context,
             many=True,

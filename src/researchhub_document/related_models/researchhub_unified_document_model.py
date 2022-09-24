@@ -14,6 +14,7 @@ from researchhub_document.related_models.constants.document_type import (
     HYPOTHESIS,
     NOTE,
     PAPER,
+    POSTS,
     QUESTION,
 )
 from researchhub_document.related_models.document_filter_model import DocumentFilter
@@ -166,7 +167,10 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
 
     def frontend_view_link(self):
         doc = self.get_document()
-        url = f"{BASE_FRONTEND_URL}/{self.document_type.lower()}/{doc.id}/{doc.slug}"
+        document_type = self.document_type
+        if document_type in (QUESTION, DISCUSSION, POSTS):
+            document_type = "post"
+        url = f"{BASE_FRONTEND_URL}/{document_type.lower()}/{doc.id}/{doc.slug}"
         return url
 
     def save(self, **kwargs):

@@ -20,13 +20,14 @@ def create_thread_notification(sender, instance, created, **kwargs):
 
         for recipient in instance.users_to_notify:
             if recipient != creator:
-                Notification.objects.create(
+                notification = Notification.objects.create(
                     item=instance,
                     unified_document=instance.unified_document,
                     notification_type=notification_type,
                     recipient=recipient,
                     action_user=creator,
                 )
+                notification.send_notification()
 
 
 @receiver(post_save, sender=Thread, dispatch_uid="thread_post_save_signal")

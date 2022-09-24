@@ -1,8 +1,22 @@
-from utils.sentry import log_error
-from user.tasks import preload_latest_activity
 from paper.models import Paper
 from user.aggregates import TenPercentile, TwoPercentile
 from user.models import User
+from user.tasks import preload_latest_activity
+from utils.sentry import log_error
+
+
+def get_rh_community_user():
+    user = User.objects.filter(email="community@researchhub.com")
+    if user.exists():
+        return user.first()
+
+    user = User.objects.filter(email="bank@researchhub.com")
+    if user.exists():
+        return user.first()
+
+    # For some reason last is returning the first user
+    return User.objects.last()
+
 
 def move_paper_to_author(target_paper, target_author, source_author=None):
     target_paper.authors.add(target_author)
@@ -23,17 +37,17 @@ def merge_author_profiles(source, target):
         paper.reset_cache()
 
     attributes = [
-        'description',
-        'author_score',
-        'university',
-        'orcid_id',
-        'orcid_account',
-        'education',
-        'headline',
-        'facebook',
-        'linkedin',
-        'twitter',
-        'academic_verification'
+        "description",
+        "author_score",
+        "university",
+        "orcid_id",
+        "orcid_account",
+        "education",
+        "headline",
+        "facebook",
+        "linkedin",
+        "twitter",
+        "academic_verification",
     ]
     for attr in attributes:
         try:
@@ -55,43 +69,36 @@ def merge_author_profiles(source, target):
     source.save()
     return source
 
+
 def calculate_show_referral(user):
-    aggregation = User.objects.all().aggregate(TenPercentile('reputation'))
-    percentage = aggregation['reputation__ten-percentile']
+    aggregation = User.objects.all().aggregate(TenPercentile("reputation"))
+    percentage = aggregation["reputation__ten-percentile"]
     reputation = user.reputation
     show_referral = float(reputation) >= percentage
     return show_referral
 
+
 def calculate_eligible_enhanced_upvotes(user):
-    aggregation = User.objects.all().aggregate(TwoPercentile('reputation'))
-    percentage = aggregation['reputation__two-percentile']
+    aggregation = User.objects.all().aggregate(TwoPercentile("reputation"))
+    percentage = aggregation["reputation__two-percentile"]
     reputation = user.reputation
     eligible = float(reputation) >= percentage
     return eligible
 
 
 def reset_latest_acitvity_cache(
-    hub_ids='',
-    ordering='-created_date',
-    include_default=True,
-    use_celery=True
+    hub_ids="", ordering="-created_date", include_default=True, use_celery=True
 ):
     # Resets the 'all' feed
     if include_default:
         if use_celery:
-            preload_latest_activity.apply_async(
-                ('', ordering),
-                priority=1
-            )
+            preload_latest_activity.apply_async(("", ordering), priority=1)
         else:
-            preload_latest_activity('', ordering)
+            preload_latest_activity("", ordering)
 
-    hub_ids_list = hub_ids.split(',')
+    hub_ids_list = hub_ids.split(",")
     for hub_id in hub_ids_list:
         if use_celery:
-            preload_latest_activity.apply_async(
-                (hub_id, ordering),
-                priority=1
-            )
+            preload_latest_activity.apply_async((hub_id, ordering), priority=1)
         else:
             preload_latest_activity(hub_id, ordering)

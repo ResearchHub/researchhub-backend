@@ -17,6 +17,7 @@ from user.filters import AuditDashboardFilterBackend
 from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
+from user.utils import get_rh_community_user
 from utils import sentry
 from utils.message import send_email_message
 
@@ -422,7 +423,7 @@ class AuditViewSet(viewsets.GenericViewSet):
             item=verdict, user=remover, content_type=get_content_type_for_model(verdict)
         )
 
-        anon_remover = self._get_anonymous_remover()
+        anon_remover = get_rh_community_user()
         notification = Notification.objects.create(
             action_user=anon_remover,
             item=verdict,
@@ -459,15 +460,3 @@ class AuditViewSet(viewsets.GenericViewSet):
             "flagged_and_removed_content.html",
             "ResearchHub Digest <digest@researchhub.com>",
         )
-
-    def _get_anonymous_remover(self):
-        user = User.objects.filter(email="community@researchhub.com")
-        if user.exists():
-            return user.first()
-
-        user = User.objects.filter(email="bank@researchhub.com")
-        if user.exists():
-            return user.first()
-
-        # For some reason last is returning the first user
-        return User.objects.last()

@@ -15,6 +15,7 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_EXPIRED,
 )
+from user.utils import get_rh_community_user
 from utils.message import send_email_message
 from utils.sentry import log_info
 
@@ -137,6 +138,49 @@ def check_open_bounties():
         if refund_status is False:
             ids = expired_bounties.values_list("id", flat=True)
             log_info(f"Failed to refund bounties: {ids}")
+
+
+@periodic_task(
+    run_every=crontab(hour="0, 6, 12, 18"),
+    priority=5,
+    queue=QUEUE_BOUNTIES,
+)
+def send_bounty_hub_notifications():
+    action_user = get_rh_community_user()
+    open_bounties = Bounty.objects.filter(status=Bounty.OPEN,).annotate(
+        time_left=Cast(
+            F("expiration_date") - datetime.now(pytz.UTC),
+            DurationField(),
+        )
+    )
+
+    upcoming_expirations = open_bounties.filter(
+        time_left__gt=timedelta(days=0), time_left__lte=timedelta(days=5)
+    )
+    for bounty in upcoming_expirations.iterator():
+        hubs = bounty.unified_document.hubs.all()
+        for hub in hubs.iterator():
+            for subscriber in hub.subscribers.all().iterator():
+                # Sends a notification if no notification exists for user in hub with current bounty
+                if not Notification.objects.filter(
+                    object_id=bounty.id,
+                    content_type=ContentType.objects.get_for_model(Bounty),
+                    recipient=subscriber,
+                    action_user=action_user,
+                ).exists():
+                    bounty_item = bounty.item
+                    if isinstance(bounty_item, ResearchhubUnifiedDocument):
+                        unified_doc = bounty_item
+                    else:
+                        unified_doc = bounty_item.unified_document
+                    notification = Notification.objects.create(
+                        item=bounty,
+                        action_user=action_user,
+                        recipient=subscriber,
+                        unified_document=unified_doc,
+                        notification_type=Notification.BOUNTY_HUB_EXPIRING_SOON,
+                    )
+                    notification.send_notification()
 
 
 @periodic_task(

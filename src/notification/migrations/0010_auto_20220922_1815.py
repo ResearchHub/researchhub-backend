@@ -51,7 +51,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='notification',
             name='notification_type',
-            field=models.CharField(choices=[('DEPRECATED', 'DEPRECATED'), ('THREAD_ON_DOC', 'THREAD_ON_DOC'), ('COMMENT_ON_THREAD', 'COMMENT_ON_THREAD'), ('REPLY_ON_THREAD', 'REPLY_ON_THREAD'), ('RSC_WITHDRAWAL_COMPLETE', 'RSC_WITHDRAWAL_COMPLETE'), ('RSC_SUPPORT_ON_DOC', 'RSC_SUPPORT_ON_DOC'), ('RSC_SUPPORT_ON_DIS', 'RSC_SUPPORT_ON_DIS'), ('FLAGGED_CONTENT_VERDICT', 'FLAGGED_CONTENT_VERDICT'), ('BOUNTY_EXPIRING_SOON', 'BOUNTY_EXPIRING_SOON'), ('DIS_ON_BOUNTY', 'DIS_ON_BOUNTY')], max_length=32, null=True),
+            field=models.CharField(choices=[('DEPRECATED', 'DEPRECATED'), ('THREAD_ON_DOC', 'THREAD_ON_DOC'), ('COMMENT_ON_THREAD', 'COMMENT_ON_THREAD'), ('REPLY_ON_THREAD', 'REPLY_ON_THREAD'), ('RSC_WITHDRAWAL_COMPLETE', 'RSC_WITHDRAWAL_COMPLETE'), ('RSC_SUPPORT_ON_DOC', 'RSC_SUPPORT_ON_DOC'), ('RSC_SUPPORT_ON_DIS', 'RSC_SUPPORT_ON_DIS'), ('FLAGGED_CONTENT_VERDICT', 'FLAGGED_CONTENT_VERDICT'), ('BOUNTY_EXPIRING_SOON', 'BOUNTY_EXPIRING_SOON'), ('BOUNTY_HUB_EXPIRING_SOON', 'BOUNTY_HUB_EXPIRING_SOON'), ('DIS_ON_BOUNTY', 'DIS_ON_BOUNTY')], max_length=32, null=True),
         ),
         migrations.AddField(
             model_name='notification',
@@ -62,6 +62,11 @@ class Migration(migrations.Migration):
             model_name='notification',
             name='object_id',
             field=models.PositiveIntegerField(null=True),
+        ),
+        migrations.AddField(
+            model_name='notification',
+            name='navigation_url',
+            field=models.URLField(null=True),
         ),
         migrations.RunPython(migrate_notifications),
         migrations.AlterField(
