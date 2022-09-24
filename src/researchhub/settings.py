@@ -221,6 +221,7 @@ INSTALLED_APPS = [
     "researchhub_access_group",
     "search",
     "summary",
+    "tag",
     "user",
     "new_feature_release",
     "peer_review",

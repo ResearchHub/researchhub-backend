@@ -49,6 +49,7 @@ from utils.twitter import (
     get_twitter_results,
     get_twitter_url_results,
 )
+from tag.models import Concept
 
 DOI_IDENTIFIER = "10."
 ARXIV_IDENTIFIER = "arXiv:"
@@ -104,6 +105,7 @@ class Paper(AbstractGenericReactionModel):
         help_text="Author that participated in the research paper",
     )
     hubs = models.ManyToManyField("hub.Hub", related_name="papers", blank=True)
+    concepts = models.ManyToManyField("tag.Concept", related_name="concepts", blank=True)
     summary = models.ForeignKey(
         Summary, blank=True, null=True, related_name="papers", on_delete=models.SET_NULL
     )
