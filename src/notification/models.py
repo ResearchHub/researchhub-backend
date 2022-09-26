@@ -334,6 +334,7 @@ class Notification(models.Model):
         bounty_item = bounty.item
         unified_document = bounty.unified_document
         base_url = unified_document.frontend_view_link()
+        comments_url = f"{base_url}#comments"
 
         return [
             {
