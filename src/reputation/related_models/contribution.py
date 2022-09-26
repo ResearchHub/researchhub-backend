@@ -47,5 +47,8 @@ class Contribution(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        indexes = (models.Index(fields=("content_type", "object_id")),)
+
     def __str__(self):
         return "Contribution: {} - {}".format(self.id, self.contribution_type)
