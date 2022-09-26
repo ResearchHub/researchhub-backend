@@ -51,7 +51,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='notification',
             name='notification_type',
-            field=models.CharField(choices=[('DEPRECATED', 'DEPRECATED'), ('THREAD_ON_DOC', 'THREAD_ON_DOC'), ('COMMENT_ON_THREAD', 'COMMENT_ON_THREAD'), ('REPLY_ON_THREAD', 'REPLY_ON_THREAD'), ('RSC_WITHDRAWAL_COMPLETE', 'RSC_WITHDRAWAL_COMPLETE'), ('RSC_SUPPORT_ON_DOC', 'RSC_SUPPORT_ON_DOC'), ('RSC_SUPPORT_ON_DIS', 'RSC_SUPPORT_ON_DIS'), ('FLAGGED_CONTENT_VERDICT', 'FLAGGED_CONTENT_VERDICT'), ('BOUNTY_EXPIRING_SOON', 'BOUNTY_EXPIRING_SOON'), ('BOUNTY_HUB_EXPIRING_SOON', 'BOUNTY_HUB_EXPIRING_SOON'), ('DIS_ON_BOUNTY', 'DIS_ON_BOUNTY')], max_length=32, null=True),
+            field=models.CharField(choices=[('DEPRECATED', 'DEPRECATED'), ('THREAD_ON_DOC', 'THREAD_ON_DOC'), ('COMMENT_ON_THREAD', 'COMMENT_ON_THREAD'), ('REPLY_ON_THREAD', 'REPLY_ON_THREAD'), ('RSC_WITHDRAWAL_COMPLETE', 'RSC_WITHDRAWAL_COMPLETE'), ('RSC_SUPPORT_ON_DOC', 'RSC_SUPPORT_ON_DOC'), ('RSC_SUPPORT_ON_DIS', 'RSC_SUPPORT_ON_DIS'), ('FLAGGED_CONTENT_VERDICT', 'FLAGGED_CONTENT_VERDICT'), ('BOUNTY_EXPIRING_SOON', 'BOUNTY_EXPIRING_SOON'), ('DIS_ON_BOUNTY', 'DIS_ON_BOUNTY')], max_length=32, null=True),
         ),
         migrations.AddField(
             model_name='notification',
@@ -68,6 +68,10 @@ class Migration(migrations.Migration):
             name='navigation_url',
             field=models.URLField(null=True),
         ),
+        migrations.AddIndex(
+            model_name='notification',
+            index=models.Index(fields=['content_type', 'object_id'], name='notificatio_content_743343_idx'),
+        ),
         migrations.RunPython(migrate_notifications),
         migrations.AlterField(
             model_name='notification',
@@ -79,4 +83,9 @@ class Migration(migrations.Migration):
             name='object_id',
             field=models.PositiveIntegerField(),
         ),
+        # migrations.AlterField(
+        #     model_name='notification',
+        #     name='action',
+        #     field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='notifications', to='user.Action'),
+        # ),
     ]

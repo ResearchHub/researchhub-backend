@@ -10,10 +10,6 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from user.models import Action, User
 
-"""
-<QuerySet ['comment', 'reply', 'thread', 'summary', 'withdrawal', 'bulletpoint', 'purchase', 'vote', 'vote', 'verdict', 'bounty']>
-"""
-
 
 class Notification(models.Model):
     DEPRECATED = "DEPRECATED"
@@ -82,6 +78,9 @@ class Notification(models.Model):
     read_date = models.DateTimeField(null=True, blank=True)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = (models.Index(fields=("content_type", "object_id")),)
 
     def save(self, *args, **kwargs):
         self.format_body()
