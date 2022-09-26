@@ -72,6 +72,11 @@ class Migration(migrations.Migration):
             name='navigation_url',
             field=models.URLField(max_length=1024, null=True),
         ),
+        migrations.AddField(
+            model_name='notification',
+            name='extra',
+            field=django.contrib.postgres.fields.hstore.HStoreField(default=dict),
+        ),
         migrations.AddIndex(
             model_name='notification',
             index=models.Index(fields=['content_type', 'object_id'], name='notificatio_content_743343_idx'),

@@ -1,3 +1,5 @@
+import json
+
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -44,6 +46,7 @@ class Notification(models.Model):
     body = ArrayField(
         HStoreField(), default=list  # Do not use [] because it is mutable and is shared
     )
+    extra = HStoreField(default=dict)
     navigation_url = models.URLField(null=True, max_length=1024)
     read = models.BooleanField(default=False)
 
@@ -106,8 +109,8 @@ class Notification(models.Model):
         self.navigation_url = navigation_url
 
     def _truncate_title(self, title):
-        if len(title) > 80:
-            title = f"{title[:80]}..."
+        if len(title) > 75:
+            title = f"{title[:75]}..."
         return title
 
     def _create_frontend_doc_link(self):
@@ -309,20 +312,27 @@ class Notification(models.Model):
     def _format_bounty_hub_expiring_soon(self):
         bounty = self.item
         unified_document = bounty.unified_document
+        document = unified_document.get_document()
+        doc_title = self._truncate_title(document.title)
         base_url = unified_document.frontend_view_link()
+        hub_details = json.loads(self.extra.get("hub_details", "{}"))
+        hub_name = hub_details.get("name", "").title()
 
         return [
             {"type": "text", "value": "A "},
+            {"type": "text", "value": f"{bounty.amount:.0f} RSC ", "extra": '["bold"]'},
+            {"type": "text", "value": "bounty for "},
             {
                 "type": "link",
-                "value": "bounty ",
+                "value": f"{doc_title} ",
                 "link": base_url,
-                "extra": '["bold", "link"]',
+                "extra": '["link"]',
             },
-            {"type": "text", "value": "is expiring in a hub you are subscribed to."},
+            {"type": "text", "value": "is expiring in 5 days in the"},
+            {"type": "text", "value": f"{hub_name} hub.\n"},
             {
                 "type": "text",
-                "value": "If you have an answer, you may be entitled for an award.",
+                "value": "Answer before the bounty expires!",
                 "extra": '["flex"]',
             },
         ], base_url

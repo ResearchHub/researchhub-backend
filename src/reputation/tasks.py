@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 
 import pytz
@@ -177,6 +178,11 @@ def send_bounty_hub_notifications():
                         recipient=subscriber,
                         unified_document=unified_doc,
                         notification_type=Notification.BOUNTY_HUB_EXPIRING_SOON,
+                        extra={
+                            "hub_details": json.dumps(
+                                {"name": hub.name, "slug": hub.slug}
+                            )
+                        },
                     )
                     notification.send_notification()
 
