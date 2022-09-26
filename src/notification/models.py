@@ -258,6 +258,7 @@ class Notification(models.Model):
         action_user = self.action_user
         action_user_name = action_user.first_name
         base_url = self._create_frontend_doc_link()
+        comments_url = f"{base_url}#comments"
         dis = purchase.item
 
         return [
