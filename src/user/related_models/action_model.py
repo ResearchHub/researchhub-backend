@@ -186,7 +186,9 @@ class Action(DefaultModel):
         item = self.item
 
         if isinstance(item, Bounty):
-            item = item.item.get_document()
+            item = item.item
+            if isinstance(item, ResearchhubUnifiedDocument):
+                item = item.get_document()
 
         if isinstance(item, Summary):
             link += "/paper/{}/".format(item.paper.id)
