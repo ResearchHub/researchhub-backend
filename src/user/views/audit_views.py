@@ -92,6 +92,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "uploaded_by",
                     "unified_document",
                     "source",
+                    "abstract",
                     "amount",
                     "plain_text",
                     "title",
@@ -112,6 +113,9 @@ class AuditViewSet(viewsets.GenericViewSet):
                 "_include_fields": [
                     "id",
                     "document_type",
+                    "documents",
+                    "slug",
+                    "title",
                 ]
             },
             "pap_dps_get_uploaded_by": {
@@ -170,6 +174,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "title",
                     "post_title",
                     "slug",
+                    "renderable_text",
                 ]
             },
             "hyp_dhs_get_unified_document": {
@@ -179,6 +184,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "documents",
                     "title",
                     "slug",
+                    "renderable_text",
                 ]
             },
             "hyp_dhs_get_created_by": {

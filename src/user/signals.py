@@ -302,7 +302,8 @@ def create_notification(sender, instance, created, action, **kwargs):
 def get_related_hubs(instance):
     try:
         if isinstance(
-            instance, (Paper, ResearchhubPost, Hypothesis, Thread, Comment, Reply)
+            instance,
+            (Paper, ResearchhubPost, Hypothesis, Thread, Comment, Reply, Bounty),
         ):
             return instance.unified_document.hubs.all()
         elif isinstance(instance, PaperSubmission):
