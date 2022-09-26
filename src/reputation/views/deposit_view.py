@@ -163,7 +163,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 )
 
                 notification, notification_created = Notification.objects.get_or_create(
-                    item=withdrawal,
+                    content_type=withdrawal_content_type,
+                    object_id=withdrawal.id,
                     action_user=withdrawal.user,
                     recipient=withdrawal.user,
                     notification_type=Notification.RSC_WITHDRAWAL_COMPLETE,

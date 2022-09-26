@@ -66,7 +66,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='notification',
             name='navigation_url',
-            field=models.URLField(null=True, max_length=1024),
+            field=models.URLField(max_length=1024, null=True),
         ),
         migrations.AddIndex(
             model_name='notification',
