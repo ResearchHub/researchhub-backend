@@ -8,7 +8,7 @@ from django.db import models
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
-from user.models import Action, User
+from user.models import User
 
 
 class Notification(models.Model):

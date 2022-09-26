@@ -81,8 +81,6 @@ def create_author_contribution(contribution_type, user_id, unified_doc_id, objec
     queue=QUEUE_BOUNTIES,
 )
 def check_open_bounties():
-    from mailing_list.tasks import build_notification_context
-
     open_bounties = Bounty.objects.filter(status=Bounty.OPEN,).annotate(
         time_left=Cast(
             F("expiration_date") - datetime.now(pytz.UTC),
