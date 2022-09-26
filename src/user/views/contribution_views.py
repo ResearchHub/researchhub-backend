@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
+from user.filters import ActionDashboardFilter, AuditDashboardFilterBackend
 from user.models import Action
 from user.serializers import DynamicActionSerializer
 from utils import sentry
@@ -19,6 +20,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     pagination_class = CursorSetPagination
     order_fields = ("created_date",)
+    filter_backends = (AuditDashboardFilterBackend,)
 
     def _get_allowed_models(self):
         return (
@@ -68,23 +70,37 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                 "_include_fields": [
                     "id",
                     "profile_image",
+                    "first_name",
+                    "last_name",
                 ]
             },
             "usr_das_get_item": {
                 "_include_fields": [
+                    "id",
                     "slug",
                     "paper_title",
                     "title",
                     "unified_document",
                     "content_type",
                     "source",
+                    "abstract",
                     "user",
+                    "hubs",
                     "amount",
                     "plain_text",
                     "item",
+                    "discussion_post_type",
                 ]
             },
             "usr_das_get_hubs": {
+                "_include_fields": [
+                    "id",
+                    "name",
+                    "hub_image",
+                    "slug",
+                ]
+            },
+            "pap_dps_get_hubs": {
                 "_include_fields": [
                     "id",
                     "name",
@@ -159,6 +175,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "title",
                     "post_title",
                     "slug",
+                    "renderable_text",
                 ]
             },
             "rep_dbs_get_item": {
@@ -166,6 +183,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "id",
                     "documents",
                     "document_type",
+                    "unified_document",
                 ]
             },
         }
