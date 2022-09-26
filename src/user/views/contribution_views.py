@@ -24,7 +24,6 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = (DjangoFilterBackend,)
     filterset_fields = ("hubs",)
     order_fields = ("created_date",)
-    filter_backends = (AuditDashboardFilterBackend,)
 
     def _get_allowed_models(self):
         return (
