@@ -27,6 +27,10 @@ def migrate_notifications(apps, schema_editor):
             notification.notification_type = 'RSC_SUPPORT_ON_DOC'
         elif action_model == 'verdict':
             notification.notification_type = 'FLAGGED_CONTENT_VERDICT'
+        elif action_model == 'withdrawal':
+            notification.notification_type = 'RSC_WITHDRAWAL_COMPLETE'
+        elif action_model == 'verdict':
+            notification.notification_type = 'FLAGGED_CONTENT_VERDICT'
         else:
             notification.notification_type = 'DEPRECATED'
             notification.object_id = 1
@@ -83,10 +87,8 @@ class Migration(migrations.Migration):
             name='object_id',
             field=models.PositiveIntegerField(),
         ),
-        # TODO: Delete
-        migrations.AlterField(
+        migrations.RemoveField(
             model_name='notification',
             name='action',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='notifications', to='user.Action'),
         ),
     ]

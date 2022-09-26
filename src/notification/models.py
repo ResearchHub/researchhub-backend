@@ -65,9 +65,6 @@ class Notification(models.Model):
     action_user = models.ForeignKey(
         User, related_name="creator_notifications", on_delete=models.CASCADE
     )
-    action = models.ForeignKey(
-        Action, related_name="notifications", on_delete=models.CASCADE, null=True
-    )
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.PositiveIntegerField()
     item = GenericForeignKey(
@@ -304,7 +301,7 @@ class Notification(models.Model):
 
         return [
             {"type": "text", "value": "Your bounty is expiring in "},
-            {"type": "text", "value": "24 hours ", "extra": '["bold", "link"]'},
+            {"type": "text", "value": "24 hours ", "extra": '["bold"]'},
             {"type": "text", "value": "Please award it to the best answer. "},
             {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
         ], base_url

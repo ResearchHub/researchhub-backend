@@ -31,43 +31,11 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return [permission() for permission in permission_classes]
 
     def get_queryset(self):
-        # bulletpoint_ct = ContentType.objects.get(model="bulletpoint")
-        # bulletpoint_vote_ct = ContentType.objects.get(
-        #     app_label="bullet_point", model="vote"
-        # )
-        # summary_ct = ContentType.objects.get(model="summary")
-        # summary_vote_ct = ContentType.objects.get(app_label="summary", model="vote")
         user = self.request.user
         notifications = Notification.objects.filter(recipient=user).exclude(
             notification_type=Notification.DEPRECATED
         )
-        # notifications = notifications.exclude(
-        #     action__content_type__in=[
-        #         bulletpoint_ct,
-        #         bulletpoint_vote_ct,
-        #         summary_ct,
-        #         summary_vote_ct,
-        #     ]
-        # )
         return notifications.order_by("-created_date")
-        # notifications = (
-        #     notifications.order_by("-created_date")
-        #     .select_related(
-        #         "action__content_type",
-        #         "action_user",
-        #         "action_user__author_profile",
-        #         "recipient",
-        #         "recipient__author_profile",
-        #         "unified_document",
-        #         "unified_document__paper",
-        #         "unified_document__hypothesis",
-        #     )
-        #     .prefetch_related(
-        #         "action__item",
-        #         "unified_document__posts",
-        #     )
-        # )
-        # return notifications
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
