@@ -44,7 +44,7 @@ class Notification(models.Model):
     body = ArrayField(
         HStoreField(), default=list  # Do not use [] because it is mutable and is shared
     )
-    navigation_url = models.URLField(null=True)
+    navigation_url = models.URLField(null=True, max_length=1024)
     read = models.BooleanField(default=False)
 
     unified_document = models.ForeignKey(
