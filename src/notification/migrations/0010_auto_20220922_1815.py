@@ -30,7 +30,7 @@ def migrate_notifications(apps, schema_editor):
         else:
             notification.notification_type = 'DEPRECATED'
             notification.object_id = 1
-            notification.content_type = 6
+            notification.content_type_id = 6
         notification.save()
 
 
