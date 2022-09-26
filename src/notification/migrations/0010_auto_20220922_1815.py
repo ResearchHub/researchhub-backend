@@ -83,9 +83,10 @@ class Migration(migrations.Migration):
             name='object_id',
             field=models.PositiveIntegerField(),
         ),
-        # migrations.AlterField(
-        #     model_name='notification',
-        #     name='action',
-        #     field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='notifications', to='user.Action'),
-        # ),
+        # TODO: Delete
+        migrations.AlterField(
+            model_name='notification',
+            name='action',
+            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='notifications', to='user.Action'),
+        ),
     ]
