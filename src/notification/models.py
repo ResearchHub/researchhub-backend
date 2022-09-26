@@ -1,5 +1,3 @@
-import json
-
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -304,7 +302,7 @@ class Notification(models.Model):
 
         return [
             {"type": "text", "value": "Your bounty is expiring in "},
-            {"type": "text", "value": "24 hours ", "extra": '["bold"]'},
+            {"type": "text", "value": "24 hours. ", "extra": '["bold"]'},
             {"type": "text", "value": "Please award it to the best answer. "},
             {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
         ], base_url
@@ -315,12 +313,14 @@ class Notification(models.Model):
         document = unified_document.get_document()
         doc_title = self._truncate_title(document.title)
         base_url = unified_document.frontend_view_link()
-        hub_details = json.loads(self.extra.get("hub_details", "{}"))
-        hub_name = hub_details.get("name", "").title()
 
         return [
             {"type": "text", "value": "A "},
-            {"type": "text", "value": f"{bounty.amount:.0f} RSC ", "extra": '["bold"]'},
+            {
+                "type": "text",
+                "value": f"{bounty.amount:.0f} RSC ",
+                "extra": '["bold", "rsc_color"]',
+            },
             {"type": "text", "value": "bounty for "},
             {
                 "type": "link",
@@ -328,12 +328,10 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
-            {"type": "text", "value": "is expiring in 5 days in the"},
-            {"type": "text", "value": f"{hub_name} hub.\n"},
+            {"type": "text", "value": "is expiring soon. "},
             {
                 "type": "text",
                 "value": "Answer before the bounty expires!",
-                "extra": '["flex"]',
             },
         ], base_url
 
