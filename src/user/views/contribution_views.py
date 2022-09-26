@@ -1,3 +1,5 @@
+from django.db.models import Q
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
@@ -19,6 +21,8 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Action.objects.all()
     permission_classes = [IsAuthenticated]
     pagination_class = CursorSetPagination
+    filter_backends = (DjangoFilterBackend,)
+    filterset_fields = ("hubs",)
     order_fields = ("created_date",)
     filter_backends = (AuditDashboardFilterBackend,)
 
@@ -40,7 +44,15 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
 
     def _get_latest_actions(self):
         actions = (
-            self.get_queryset()
+            self.get_filtered_queryset()
+            .filter(
+                Q(papers__is_removed=False)
+                | Q(threads__is_removed=False)
+                | Q(comments__is_removed=False)
+                | Q(replies__is_removed=False)
+                | Q(posts__unified_document__is_removed=False)
+                | Q(hypothesis__unified_document__is_removed=False)
+            )
             .filter(
                 user__isnull=False, content_type__model__in=self._get_allowed_models()
             )
