@@ -2,11 +2,7 @@ import rest_framework.serializers as serializers
 
 from notification.models import Notification
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
-from user.serializers import (
-    DynamicActionSerializer,
-    DynamicUserSerializer,
-    UserSerializer,
-)
+from user.serializers import DynamicUserSerializer, UserSerializer
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -25,7 +21,8 @@ class NotificationSerializer(serializers.ModelSerializer):
             "action_user",
             "recipient",
             "created_date",
-            "unified_document" "updated_date",
+            "unified_document",
+            "updated_date",
         ]
 
 
