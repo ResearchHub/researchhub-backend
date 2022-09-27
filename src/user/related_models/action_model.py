@@ -149,17 +149,11 @@ class Action(DefaultModel):
     @property
     def created_by(self):
         created_by = None
-        try:
-            doc_type = self.item.unified_document.document_type
-            if doc_type == "DISCUSSION":
-                created_by = self.item.created_by
-            elif doc_type == "HYPOTHESIS":
-                created_by = self.item.created_by
-            elif doc_type == "PAPER":
-                created_by = self.item.uploaded_by
-        except Exception as e:
-            return None
-
+        item = self.item
+        if hasattr(item, "created_by"):
+            created_by = item.created_by
+        elif hasattr(item, "uploaded_by"):
+            created_by = item.uploaded_by
         return created_by
 
     @property
