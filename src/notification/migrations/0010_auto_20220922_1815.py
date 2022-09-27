@@ -38,6 +38,16 @@ def migrate_notifications(apps, schema_editor):
         notification.save()
 
 
+def format_notifications(apps, schema_editor):
+    Notification = apps.get_model('notification', 'notification')
+
+    for notification in Notification.objects.all().iterator():
+        try:
+            notification.save()
+        except Exception as e:
+            print(e)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -96,4 +106,5 @@ class Migration(migrations.Migration):
             model_name='notification',
             name='action',
         ),
+        migrations.RunPython(format_notifications),
     ]
