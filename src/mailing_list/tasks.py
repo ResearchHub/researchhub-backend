@@ -4,7 +4,7 @@ from datetime import timedelta
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count, Q
+from django.db.models import Q
 from django.http.request import HttpRequest, QueryDict
 from django.utils import timezone
 from rest_framework.request import Request
@@ -13,12 +13,11 @@ from discussion.models import Comment, Reply, Thread
 from hub.models import Hub
 from hypothesis.models import Hypothesis
 from mailing_list.lib import base_email_context
-from mailing_list.models import EmailTaskLog, NotificationFrequencies
+from mailing_list.models import EmailRecipient, EmailTaskLog, NotificationFrequencies
 from paper.models import Paper
-from paper.models import Vote as PaperVote
 from researchhub.celery import QUEUE_NOTIFICATION, app
 from researchhub.settings import PRODUCTION, STAGING
-from researchhub_document.models import ResearchhubPost
+from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
 from user.models import Action, User
 from utils.message import send_email_message
@@ -50,10 +49,80 @@ def notify_weekly():
     send_hub_digest(NotificationFrequencies.WEEKLY)
 
 
+# Noon PST
+@periodic_task(run_every=crontab(minute=0, hour=20, day_of_week="friday"), priority=9)
+def weekly_bounty_digest():
+    send_bounty_digest(NotificationFrequencies.WEEKLY)
+
+
 """
-from mailing_list.tasks import send_editor_hub_digest
-send_editor_hub_digest(10080)
+from mailing_list.tasks import send_bounty_digest
+send_bounty_digest(10080)
 """
+
+
+def send_bounty_digest(frequency):
+    emails = []
+    etl = EmailTaskLog.objects.create(emails="", notification_frequency=frequency)
+
+    open_bounties = ResearchhubUnifiedDocument.objects.filter(
+        document_filter__bounty_open=True
+    ).order_by(
+        "-document_filter__bounty_total_amount",
+        "document_filter__bounty_expiration_date",
+    )[
+        :5
+    ]
+
+    for email_recipient in EmailRecipient.objects.filter(
+        bounty_digest_subscription__none=False
+    ).iterator():
+        recipient = email_recipient.user
+        if not check_user_can_receive_bounty_digest(recipient, frequency):
+            continue
+
+        if open_bounties.count() == 0:
+            continue
+
+        paper_ids = list(open_bounties.values_list("paper__id", flat=True))
+        post_ids = list(open_bounties.values_list("posts__id", flat=True))
+        hypothesis_ids = list(open_bounties.values_list("hypothesis__id", flat=True))
+        actions = Action.objects.filter(
+            Q(
+                content_type=ContentType.objects.get_for_model(Paper),
+                object_id__in=paper_ids,
+            )
+            | Q(
+                content_type=ContentType.objects.get_for_model(ResearchhubPost),
+                object_id__in=post_ids,
+            )
+            | Q(
+                content_type=ContentType.objects.get_for_model(Hypothesis),
+                object_id__in=hypothesis_ids,
+            )
+        )
+
+        email_context = {
+            **base_email_context,
+            "first_name": recipient.first_name,
+            "last_name": recipient.last_name,
+            "actions": [act.email_context() for act in actions],
+        }
+
+        recipient = [recipient.email]
+        subject = "ResearchHub | Your Bounty Digest"
+        send_email_message(
+            recipient,
+            "bounty_digest.txt",
+            subject,
+            email_context,
+            "bounty_digest.html",
+            "ResearchHub Bounty Digest <digest@researchhub.com>",
+        )
+        emails += recipient
+
+    etl.emails = ",".join(emails)
+    etl.save()
 
 
 def send_editor_hub_digest(frequency):
@@ -131,51 +200,6 @@ def send_hub_digest(frequency):
     etl = EmailTaskLog.objects.create(emails="", notification_frequency=frequency)
     end_date = timezone.now()
     start_date = calculate_hub_digest_start_date(end_date, frequency)
-    upvotes = Count(
-        "vote",
-        filter=Q(
-            vote__vote_type=PaperVote.UPVOTE,
-            vote__updated_date__gte=start_date,
-            vote__updated_date__lte=end_date,
-        ),
-    )
-
-    downvotes = Count(
-        "vote",
-        filter=Q(
-            vote__vote_type=PaperVote.DOWNVOTE,
-            vote__created_date__gte=start_date,
-            vote__created_date__lte=end_date,
-        ),
-    )
-
-    # TODO don't include censored threads?
-    thread_counts = Count(
-        "threads",
-        filter=Q(
-            threads__created_date__gte=start_date,
-            threads__created_date__lte=end_date,
-            # threads__is_removed=False,
-        ),
-    )
-
-    comment_counts = Count(
-        "threads__comments",
-        filter=Q(
-            threads__comments__created_date__gte=start_date,
-            threads__comments__created_date__lte=end_date,
-            # threads__comments__is_removed=False,
-        ),
-    )
-
-    reply_counts = Count(
-        "threads__comments__replies",
-        filter=Q(
-            threads__comments__replies__created_date__gte=start_date,
-            threads__comments__replies__created_date__lte=end_date,
-            # threads__comments__replies__is_removed=False,
-        ),
-    )
 
     users = Hub.objects.filter(
         subscribers__isnull=False,
@@ -342,5 +366,19 @@ def check_editor_can_receive_digest(user, frequency):
         )  # noqa: E501
 
         return receives_notification and not no_hub_subscription and notif_freq
+    except Exception:
+        return False
+
+
+def check_user_can_receive_bounty_digest(user, frequency):
+    try:
+        email_recipient = user.emailrecipient
+        receives_notification = email_recipient.receives_notifications
+        no_bounty_subscription = email_recipient.bounty_digest_subscription.none
+        notif_freq = (
+            email_recipient.digest_subscription.notification_frequency == frequency
+        )  # noqa: E501
+
+        return receives_notification and not no_bounty_subscription and notif_freq
     except Exception:
         return False

@@ -2,6 +2,8 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import BrinIndex
 from django.db import models
+from django.db.models import Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from discussion.models import Comment, Reply, Thread
@@ -66,8 +68,11 @@ class Action(DefaultModel):
 
     def email_context(self):
         act = self
-        if not hasattr(act.item, "created_by") and hasattr(act.item, "proposed_by"):
-            act.item.created_by = act.item.proposed_by
+        action_item = act.item
+        if not hasattr(action_item, "created_by") and hasattr(
+            action_item, "proposed_by"
+        ):
+            action_item.created_by = action_item.proposed_by
 
         if hasattr(act, "content_type") and act.content_type and act.content_type.name:
             act.content_type_name = act.content_type.name
@@ -101,10 +106,17 @@ class Action(DefaultModel):
         if act.content_type_name == "summary":
             act.label += " summary"
 
-        if isinstance(act.item, Bounty):
+        if isinstance(action_item, Bounty):
             act.message = "Your bounty is expiring in one day! \
             If you have a suitable answer, make sure to pay out \
             your bounty in order to keep your reputation on ResearchHub high."
+
+        uni_doc = getattr(action_item, "unified_document", None)
+        if uni_doc:
+            amount = uni_doc.related_bounties.aggregate(
+                total=Coalesce(Sum("amount"), 0)
+            ).get("total", 0)
+            act.bounty_amount = f"{amount:.0f}"
 
         return act
 
@@ -180,7 +192,10 @@ class Action(DefaultModel):
     @property
     def frontend_view_link(self):
         from hypothesis.models import Hypothesis
-        from researchhub_document.models import ResearchhubPost
+        from researchhub_document.models import (
+            ResearchhubPost,
+            ResearchhubUnifiedDocument,
+        )
 
         link = BASE_FRONTEND_URL
         item = self.item

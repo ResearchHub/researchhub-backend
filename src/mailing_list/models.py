@@ -15,8 +15,8 @@ class EmailTaskLog(models.Model):
 
 class SubscriptionField(models.OneToOneField):
     def __init__(self, *args, **kwargs):
-        kwargs['on_delete'] = models.CASCADE
-        kwargs['null'] = True
+        kwargs["on_delete"] = models.CASCADE
+        kwargs["null"] = True
         return super().__init__(*args, **kwargs)
 
 
@@ -24,50 +24,47 @@ class EmailRecipient(models.Model):
     """Subscriptions define what category of content a user is notified about
     and how often they are notified, but not what they are subscribed to.
     """
+
     email = models.EmailField(unique=True)
     do_not_email = models.BooleanField(default=False)
     is_opted_out = models.BooleanField(default=False)
     next_cursor = models.IntegerField(default=0)
     user = models.OneToOneField(
-        'user.User',
-        on_delete=models.CASCADE,
-        default=None,
-        null=True
+        "user.User", on_delete=models.CASCADE, default=None, null=True
     )
     digest_subscription = SubscriptionField(
-        'mailing_list.DigestSubscription',
-        related_name='email_recipient'
+        "mailing_list.DigestSubscription", related_name="email_recipient"
+    )
+    bounty_digest_subscription = SubscriptionField(
+        "mailing_list.BountyDigestSubscription", related_name="email_recipient"
     )
     hub_subscription = SubscriptionField(
-        'mailing_list.HubSubscription',
-        related_name='email_recipient'
+        "mailing_list.HubSubscription", related_name="email_recipient"
     )
     paper_subscription = SubscriptionField(
-        'mailing_list.PaperSubscription',
-        related_name='email_recipient'
+        "mailing_list.PaperSubscription", related_name="email_recipient"
     )
     comment_subscription = SubscriptionField(
-        'mailing_list.CommentSubscription',
-        related_name='email_recipient'
+        "mailing_list.CommentSubscription", related_name="email_recipient"
     )
     thread_subscription = SubscriptionField(
-        'mailing_list.ThreadSubscription',
-        related_name='email_recipient'
+        "mailing_list.ThreadSubscription", related_name="email_recipient"
     )
     reply_subscription = SubscriptionField(
-        'mailing_list.ReplySubscription',
-        related_name='email_recipient'
+        "mailing_list.ReplySubscription", related_name="email_recipient"
     )
     bounced_date = models.DateTimeField(default=None, null=True)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f'{self.email}'
+        return f"{self.email}"
 
     def save(self, *args, **kwargs):
         if self.digest_subscription is None:
             self.digest_subscription = DigestSubscription.objects.create()
+        if self.bounty_digest_subscription is None:
+            self.bounty_digest_subscription = BountyDigestSubscription.objects.create()
         if self.paper_subscription is None:
             self.paper_subscription = PaperSubscription.objects.create()
         if self.thread_subscription is None:
@@ -94,14 +91,14 @@ class EmailRecipient(models.Model):
 
 class BaseSubscription(models.Model):
     NOTIFICATION_FREQUENCY_CHOICES = (
-        ('IMMEDIATE', NotificationFrequencies.IMMEDIATE),
-        ('THREE_HOUR', NotificationFrequencies.THREE_HOUR),
-        ('DAILY', NotificationFrequencies.DAILY),
-        ('WEEKLY', NotificationFrequencies.WEEKLY),
+        ("IMMEDIATE", NotificationFrequencies.IMMEDIATE),
+        ("THREE_HOUR", NotificationFrequencies.THREE_HOUR),
+        ("DAILY", NotificationFrequencies.DAILY),
+        ("WEEKLY", NotificationFrequencies.WEEKLY),
     )
     notification_frequency = models.IntegerField(
         default=NotificationFrequencies.IMMEDIATE,
-        choices=NOTIFICATION_FREQUENCY_CHOICES
+        choices=NOTIFICATION_FREQUENCY_CHOICES,
     )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -121,7 +118,15 @@ class BaseSubscription(models.Model):
 class DigestSubscription(BaseSubscription):
     notification_frequency = models.IntegerField(
         default=NotificationFrequencies.WEEKLY,
-        choices=BaseSubscription.NOTIFICATION_FREQUENCY_CHOICES
+        choices=BaseSubscription.NOTIFICATION_FREQUENCY_CHOICES,
+    )
+    none = models.BooleanField(default=False)
+
+
+class BountyDigestSubscription(BaseSubscription):
+    notification_frequency = models.IntegerField(
+        default=NotificationFrequencies.WEEKLY,
+        choices=BaseSubscription.NOTIFICATION_FREQUENCY_CHOICES,
     )
     none = models.BooleanField(default=False)
 
