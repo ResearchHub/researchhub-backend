@@ -81,7 +81,7 @@ body {
   align-items: center;
   margin-left: 10px;
   width: 100%;
-  margin-top: 16px;
+  margin-top: 11px;
   overflow-wrap: "break-word";
   line-height: 1.6;
   color: rgb(0,0,0);
@@ -219,5 +219,5 @@ body {
 
 .bounty-amount {
   width: 12px;
-  margin-left:  4px;
+  margin-left: 3px;
 }
