@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 import cloudscraper
 import feedparser
 import fitz
+import operator
 import requests
 import twitter
 from bs4 import BeautifulSoup
@@ -1396,6 +1397,9 @@ def celery_openalex(self, celery_data):
             if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
                 paper_data.setdefault("pdf_url", oa_pdf_url)
 
+            concepts = result.get("concepts", [])
+            format_raw_concepts(concepts)
+            paper_data.setdefault("concepts", concepts)
         return celery_data
     except DOINotFoundError as e:
         raise e
@@ -1404,6 +1408,14 @@ def celery_openalex(self, celery_data):
     except Exception as e:
         raise e
 
+# dehydrated concepts: https://docs.openalex.org/about-the-data/work#concepts
+# hydrated concepts: https://docs.openalex.org/about-the-data/concept
+def format_raw_concepts(concepts):
+    # sort concepts by level (general to specific) and then score (strongly to weakly connected)
+    concepts.sort(key=operator.itemgetter("score"), reverse=True)
+    concepts.sort(key=operator.itemgetter("level"))
+
+    # TODO: these are dehydrated Concepts, hydrate them to get fields like description
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA)
 def celery_semantic_scholar(self, celery_data):
@@ -1478,8 +1490,16 @@ def celery_create_paper(self, celery_data):
                 f"Unable to find article for: {dois}, {paper_submission.url}"
             )
 
+        concepts = paper_data.pop("concepts", None)
+
         async_paper_updator = getattr(paper_submission, "async_updator", None)
         paper = Paper(**paper_data)
+
+        if concepts is not None:
+            for concept in concepts:
+                # TODO: create model object for concept if it doesn't yet exist,
+                #   then associate the concept with paper
+                pass
 
         if async_paper_updator is not None:
             paper.doi = async_paper_updator.doi
