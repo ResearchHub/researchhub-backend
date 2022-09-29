@@ -66,6 +66,7 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         related_name="unified_document",
         null=True,
     )
+    concepts = models.ManyToManyField("tag.Concept", related_name="concepts", blank=True)
 
     class Meta:
         indexes = (
