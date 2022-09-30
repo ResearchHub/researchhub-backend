@@ -127,8 +127,12 @@ class Action(DefaultModel):
             amount = uni_doc.related_bounties.aggregate(
                 total=Coalesce(Sum("amount"), 0)
             ).get("total", 0)
+            hubs = uni_doc.hubs
             act.bounty_amount = f"{amount:.0f}"
-            act.first_hub = uni_doc.hubs.first().name.title()
+            if hubs.exists():
+                act.first_hub = hubs.first().name.title()
+            else:
+                act.first_hub = "ResearchHub"
             act.document_type = uni_doc.fe_document_type.title()
 
         act.time_since = time_since(action_item.created_date)
