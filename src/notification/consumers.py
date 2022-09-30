@@ -56,14 +56,14 @@ class NotificationConsumer(WebsocketConsumer):
         serialized_data = DynamicNotificationSerializer(
             notification,
             _include_fields=[
-                "action",
                 "action_user",
+                "body",
                 "created_date",
                 "id",
+                "notification_type",
                 "read",
                 "read_date",
                 "recipient",
-                "unified_document",
             ],
             context=context,
         ).data

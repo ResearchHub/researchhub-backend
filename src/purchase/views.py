@@ -168,6 +168,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
             item = purchase.item
             context = {"purchase_minimal_serialization": True, "exclude_stats": True}
+            notification_type = Notification.RSC_SUPPORT_ON_DOC
 
             #  transfer_rsc is set each time just in case we want
             #  to disable rsc transfer for a specific item
@@ -190,13 +191,16 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 transfer_rsc = True
                 recipient = item.created_by
                 unified_doc = item.unified_document
+                notification_type = Notification.RSC_SUPPORT_ON_DIS
             elif content_type_str == "comment":
                 transfer_rsc = True
                 unified_doc = item.unified_document
+                notification_type = Notification.RSC_SUPPORT_ON_DIS
                 recipient = item.created_by
             elif content_type_str == "reply":
                 transfer_rsc = True
                 unified_doc = item.unified_document
+                notification_type = Notification.RSC_SUPPORT_ON_DIS
                 recipient = item.created_by
             elif content_type_str == "summary":
                 transfer_rsc = True
@@ -234,7 +238,9 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         serializer_data = serializer.data
 
         if recipient and user:
-            self.send_purchase_notification(purchase, unified_doc, recipient)
+            self.send_purchase_notification(
+                purchase, unified_doc, recipient, notification_type
+            )
             self.send_purchase_email(purchase, recipient, unified_doc)
 
         create_contribution.apply_async(
@@ -308,10 +314,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def send_purchase_notification(
-        self,
-        purchase,
-        unified_doc,
-        recipient,
+        self, purchase, unified_doc, recipient, notification_type
     ):
         creator = purchase.user
 
@@ -319,7 +322,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             return
 
         content_type = ContentType.objects.get_for_model(purchase)
-        action = Action.objects.create(
+        Action.objects.create(
             user=recipient,
             content_type=content_type,
             object_id=purchase.id,
@@ -328,7 +331,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             unified_document=unified_doc,
             recipient=recipient,
             action_user=creator,
-            action=action,
+            item=purchase,
+            notification_type=notification_type,
         )
         notification.send_notification()
 
@@ -543,6 +547,7 @@ class SupportViewSet(viewsets.ModelViewSet):
 
 
 class StripeViewSet(viewsets.ModelViewSet):
+    # Deprecated
     queryset = Wallet.objects.all()
     serializer_class = WalletSerializer
     permission_classes = []

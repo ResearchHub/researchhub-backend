@@ -10,7 +10,7 @@ from django.utils import timezone
 from hub.models import Hub
 from mailing_list.models import EmailRecipient
 from reputation.models import PaidStatusModelMixin, Withdrawal
-from researchhub.settings import NO_ELASTIC
+from researchhub.settings import BASE_FRONTEND_URL, NO_ELASTIC
 from researchhub_access_group.constants import EDITOR
 from user.tasks import handle_spam_user_task, update_elastic_registry
 from utils.message import send_email_message
@@ -190,3 +190,6 @@ class User(AbstractUser):
             content_type=hub_content_type,
             object_id__in=hubs.values_list("id", flat=True),
         ).exists()
+
+    def frontend_view_link(self):
+        return f"{BASE_FRONTEND_URL}/user/{self.author_profile.id}/overview"

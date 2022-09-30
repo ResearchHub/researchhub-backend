@@ -15,12 +15,10 @@ from django.utils.text import slugify
 
 from bullet_point.models import BulletPoint
 from bullet_point.models import Vote as BulletPointVote
-from bullet_point.serializers import BulletPointVoteSerializer
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from hypothesis.models import Hypothesis
 from mailing_list.tasks import build_notification_context
-from notification.models import Notification
 from paper.models import Paper, PaperSubmission
 from purchase.models import Wallet
 from reputation import distributions
@@ -32,7 +30,6 @@ from researchhub_access_group.models import Permission
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from summary.models import Summary
 from summary.models import Vote as SummaryVote
-from summary.serializers import SummaryVoteSerializer
 from user.constants.organization_constants import PERSONAL
 from user.models import Action, Author, Organization, User
 from user.tasks import (
@@ -209,64 +206,20 @@ def create_action(sender, instance, created, **kwargs):
         hubs = get_related_hubs(instance)
         if hubs:
             action.hubs.add(*hubs)
-        create_notification(sender, instance, created, action, **kwargs)
 
+        send_discussion_email_notification(instance, sender, action)
         return action
 
 
-@receiver(post_delete, sender=Paper, dispatch_uid="paper_delete_action")
-def create_delete_action(sender, instance, using, **kwargs):
-    display = False
-    action = Action.objects.create(item=instance, display=display)
-    return action
-
-
-def create_notification(sender, instance, created, action, **kwargs):
-    if sender == GrmVote or sender == PaperSubmission or sender == Bounty:
+def send_discussion_email_notification(instance, sender, action):
+    if sender not in (Thread, Comment, Reply):
         return
 
-    if created:
-        for recipient in action.item.users_to_notify:
-            recipient_exists = True
-            if sender in (Summary, BulletPointVote, SummaryVote):
-                return
-
-            if sender == Paper:
-                creator = instance.uploaded_by
-                if instance.uploaded_by == creator:
-                    return
-                unified_document = instance.unified_document
-            elif sender == ResearchhubPost:
-                creator = instance.created_by
-                unified_document = instance.unified_document
-            elif sender == Hypothesis:
-                creator = instance.created_by
-                unified_document = instance.unified_document
-            else:
-                creator = instance.created_by
-                unified_document = instance.unified_document
-
-            if unified_document is None:
-                return
-
-            if type(recipient) is Author and recipient.user:
-                recipient = recipient.user
-            elif type(recipient) is Author and not recipient.user:
-                recipient_exists = False
-
-            if recipient != creator and recipient_exists:
-                notification = Notification.objects.create(
-                    unified_document=unified_document,
-                    recipient=recipient,
-                    action_user=creator,
-                    action=action,
-                )
-                if not TESTING:
-                    notification.send_notification()
-
+    for recipient in instance.users_to_notify:
+        creator = instance.created_by
+        if recipient != creator:
             email_preference = getattr(recipient, "emailrecipient", None)
             subscription = None
-
             try:
                 # Checks if the recipient has an email recipient obj
                 if not email_preference:
@@ -297,6 +250,13 @@ def create_notification(sender, instance, created, action, **kwargs):
                     )
             except Exception as e:
                 log_error(e)
+
+
+@receiver(post_delete, sender=Paper, dispatch_uid="paper_delete_action")
+def create_delete_action(sender, instance, using, **kwargs):
+    display = False
+    action = Action.objects.create(item=instance, display=display)
+    return action
 
 
 def get_related_hubs(instance):
