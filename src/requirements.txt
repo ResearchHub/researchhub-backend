@@ -93,6 +93,7 @@ aioredis==1.3.1 ; python_version >= "3.8" and python_version < "4.0" \
 aiosignal==1.2.0 ; python_version >= "3.8" and python_version < "4.0" \
 =======
 aiohttp==3.8.3; python_version >= "3.6"
+<<<<<<< HEAD
 aioredis==1.3.1; python_version >= "3.6" \
     --hash=sha256:b61808d7e97b7cd5a92ed574937a079c9387fdadd22bfbfa7ad2fd319ecc26e3 \
     --hash=sha256:15f8af30b044c771aee6787e5ec24694c048184c7b9e54c3b60c750a4b93273a
@@ -138,12 +139,20 @@ backcall==0.2.0 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:fbbce6a29f263178a1f7915c1940bde0ec2b2a967566fe1c65c1dfb7422bd255
 base58==2.1.1 ; python_version >= "3.8" and python_version < "4" \
 =======
+=======
+aioredis==1.3.1; python_version >= "3.6"
+aiosignal==1.2.0; python_version >= "3.6"
+amqp==2.6.1; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.5.0"
+appdirs==1.4.4; python_version >= "3.7" and python_version < "4.0"
+appnope==0.1.3; sys_platform == "darwin" and python_version >= "3.8"
+arxiv==0.5.3
+asgiref==3.5.2; python_version >= "3.7"
+>>>>>>> eca6baaf (updating reqs)
 asttokens==2.0.8; python_version >= "3.8"
-async-timeout==4.0.2; python_version >= "3.6" \
-    --hash=sha256:2163e1640ddb52b7a8c80d0a67a08587e5d245cc9c553a74a847056bc2976b15 \
-    --hash=sha256:8ca1e4fcf50d07413d66d1a5e416e42cfdf5851c981d679a09851a6853383b3c
+async-timeout==4.0.2; python_version >= "3.6"
 attrs==22.1.0; python_version >= "3.7" and python_version < "4" and python_full_version >= "3.7.1"
 autobahn==22.7.1; python_version >= "3.7"
+<<<<<<< HEAD
 automat==20.2.0; python_full_version >= "3.7.1" and python_version >= "3.6" \
     --hash=sha256:b6feb6455337df834f6c9962d6ccf771515b7d939bca142b29c20c2376bc6111 \
     --hash=sha256:7979803c74610e11ef0c0d68a2942b152df52da55336e0c9d58daf1831cbdf33
@@ -206,17 +215,22 @@ cattrs==22.1.0 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:d55c477b4672f93606e992049f15d526dc7867e6c756cd6256d4af92e2b1e364
 celery-redbeat==1.0.0 ; python_version >= "3.8" and python_version < "4.0" \
 =======
+=======
+automat==20.2.0; python_full_version >= "3.7.1" and python_version >= "3.6"
+autopep8==1.6.0; python_version >= "3.6"
+backcall==0.2.0; python_version >= "3.8"
+base58==2.1.1; python_full_version >= "3.5.4" and python_full_version < "3.6.0" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.6.0" and python_full_version < "3.6.1" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.6.1" and python_full_version < "3.7.0" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.7.0" and python_full_version < "3.7.1" and python_version >= "3.6" and python_version < "4" or python_version >= "3.6" and python_version < "4" and python_full_version > "3.7.1"
+beautifulsoup4==4.11.1; python_full_version >= "3.6.0"
+billiard==3.6.4.0; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.5.0"
+bitarray==1.2.2; python_version >= "3.6" and python_version < "4"
+>>>>>>> eca6baaf (updating reqs)
 black==22.8.0; python_full_version >= "3.6.2"
-boto3==1.15.3 \
-    --hash=sha256:b2aa8a8ddb6a4301741a713ecc44262d49782fda754444e499851aaba8feb2bd \
-    --hash=sha256:3f0d8dc7dec39876b7b224469639d8eef4dba1c2dc779a1b30fc73f99a18f742
-botocore==1.18.18; python_version >= "2.7" \
-    --hash=sha256:de5f9fc0c7e88ee7ba831fa27475be258ae09ece99143ed623d3618a3c84ee2c \
-    --hash=sha256:e224754230e7e015836ba20037cac6321e8e2ce9b8627c14d579fcb37249decd
-bs4==0.0.1 \
-    --hash=sha256:36ecea1fd7cc5c0c6e4a1ff075df26d50da647b75376626cc186e2212886dd3a
+boto3==1.15.3
+botocore==1.18.18; python_version >= "2.7"
+bs4==0.0.1
 cachetools==5.2.0; python_version >= "3.7" and python_version < "4.0" and (python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.6.0")
 cattrs==22.1.0; python_version >= "3.7" and python_version < "4.0"
+<<<<<<< HEAD
 celery-redbeat==1.0.0 \
 >>>>>>> de70de76 (updating reqs)
     --hash=sha256:36b98c32ea4ca6f6f1ccddc3fdb9f5cd7a4bd273650cf931c6c46fb7fbc60a91
@@ -453,29 +467,29 @@ dj-rest-auth==2.2.5 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:c9a0dd9c79c33a2d4c723d1e4c1a60ab4657b6333aa2539b6781fe25a01c41b6
 django-allauth==0.48.0 ; python_version >= "3.8" and python_version < "4.0" \
 =======
+=======
+celery-redbeat==1.0.0
+celery==4.4.7; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.5.0")
+certifi==2022.9.24; python_version >= "3.7" and python_version < "4" and (python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" and python_version < "4" and python_version >= "3.6")
+cffi==1.15.1; python_version >= "3.6"
+cfgv==3.3.1; python_full_version >= "3.6.1"
+channels-redis==3.3.0; python_version >= "3.6"
+channels==3.0.4; python_version >= "3.6"
+>>>>>>> eca6baaf (updating reqs)
 charset-normalizer==2.1.1; python_version >= "3.7" and python_version < "4" and python_full_version >= "3.6.0"
-click==8.1.3; python_version >= "3.7" and python_full_version >= "3.6.2" \
-    --hash=sha256:bb4d8133cb15a609f44e8213d9b391b0809795062913b383c62be0ee95b1db48 \
-    --hash=sha256:7682dc8afb30297001674575ea00d1814d808d6a36af415a82bd481d37ba7b8e
+click==8.1.3; python_version >= "3.7" and python_full_version >= "3.6.2"
 cloudscraper==1.2.64
 colorama==0.4.5; python_version >= "3.8" and python_full_version < "3.0.0" and sys_platform == "win32" and platform_system == "Windows" or sys_platform == "win32" and python_version >= "3.8" and python_full_version >= "3.5.0" and platform_system == "Windows"
-constantly==15.1.0; python_full_version >= "3.7.1" and python_version >= "3.6" \
-    --hash=sha256:dd2fa9d6b1a51a83f0d7dd76293d734046aa176e384bf6e33b7e44880eb37c5d \
-    --hash=sha256:586372eb92059873e29eba4f9dec8381541b4d3834660707faf8ba59146dfc35
+constantly==15.1.0; python_full_version >= "3.7.1" and python_version >= "3.6"
 cryptography==38.0.1
 cssutils==2.6.0; python_version >= "3.7"
 cytoolz==0.12.0; python_version >= "3.6" and python_full_version < "3.5.2" and python_version < "4" and implementation_name == "cpython" or python_full_version > "3.5.2" and python_version < "4" and python_version >= "3.6" and implementation_name == "cpython"
-daphne==3.0.2; python_version >= "3.6" \
-    --hash=sha256:a9af943c79717bc52fe64a3c236ae5d3adccc8b5be19c881b442d2c3db233393 \
-    --hash=sha256:76ffae916ba3aa66b46996c14fa713e46004788167a4873d647544e750e0e99f
-decorator==5.1.1; python_version >= "3.8" \
-    --hash=sha256:b8c3f85900b9dc423225913c5aace94729fe1fa9763b38939a95226f02d37186 \
-    --hash=sha256:637996211036b6385ef91435e4fae22989472f9d571faba8927ba8253acbc330
-defusedxml==0.7.1; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.5.0" \
-    --hash=sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61 \
-    --hash=sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69
+daphne==3.0.2; python_version >= "3.6"
+decorator==5.1.1; python_version >= "3.8"
+defusedxml==0.7.1; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.5.0"
 distlib==0.3.6; python_version >= "3.6" and python_full_version >= "3.6.1"
 dj-rest-auth==2.2.5; python_version >= "3.5"
+<<<<<<< HEAD
 django-allauth==0.48.0 \
 >>>>>>> de70de76 (updating reqs)
     --hash=sha256:531821ce6a2278168054add13421776c9f8e565cf39926e799fa02d6c29da920
@@ -622,32 +636,49 @@ flake8==4.0.1 ; python_version >= "3.8" and python_version < "4.0" \
 errorhandler==2.0.1; python_version >= "3.7" \
     --hash=sha256:dc6c54f5d9a4599e744b57aac2f925cce873188e9b02cae7c0eb120ee08a893f \
     --hash=sha256:7e578ad67af40845bfd044f71627a29f1fc436d53ccb058bbf1792ef31ab6163
+=======
+django-allauth==0.48.0
+django-celery-beat==2.0.0
+django-celery-results==2.0.1
+django-contrib-comments==1.9.2
+django-cors-headers==3.5.0; python_version >= "3.5"
+django-dbbackup==3.3.0
+django-debug-toolbar==3.1.1; python_version >= "3.5"
+django-elasticsearch-debug-toolbar==2.0.0
+django-elasticsearch-dsl-drf==0.20.8; python_version >= "2.7"
+django-elasticsearch-dsl==7.2.0
+django-extensions==3.0.9; python_version >= "3.5"
+django-filter==2.4.0; python_version >= "3.5"
+django-inlinecss==0.3.0
+django-ipware==3.0.1
+django-mjml==0.12.0
+django-nine==0.2.5; python_version >= "2.7"
+django-redis-cache==2.1.0
+django-ses==1.0.3; python_version >= "2.7"
+django-silk==4.2.0; python_version >= "3.6"
+django-storages==1.10.1; python_version >= "3.5"
+django-timezone-field==4.2.3; python_version >= "3.5"
+django==2.2; python_version >= "3.5"
+djangorestframework-api-key==2.2.0; python_version >= "3.6"
+djangorestframework==3.13.1; python_version >= "3.6"
+elastic-apm==6.3.3; python_version >= "3.6" and python_version < "4"
+elasticsearch-dsl==7.3.0; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.4.0")
+elasticsearch==7.13.1; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.4.0" and python_version < "4")
+errorhandler==2.0.1; python_version >= "3.7"
+>>>>>>> eca6baaf (updating reqs)
 eth-abi==2.2.0; python_version >= "3.6" and python_version < "4"
-eth-account==0.5.6; python_version >= "3.6" and python_version < "4" \
-    --hash=sha256:baef80956e88af5643f8602e72aab6bcd91d8a9f71dd03c7a7f1145f5e6fd694 \
-    --hash=sha256:d324daf5a40bd5bdaf5ddaebfec71e7440b21f9ae4989921ce1253d63f8fe436
+eth-account==0.5.6; python_version >= "3.6" and python_version < "4"
 eth-hash==0.3.3; python_version >= "3.6" and python_version < "4" and (python_version >= "3.6" and python_full_version < "3.5.2" and python_version < "4" or python_full_version > "3.5.2" and python_version < "4" and python_version >= "3.6")
-eth-keyfile==0.5.1; python_version >= "3.6" and python_version < "4" \
-    --hash=sha256:939540efb503380bc30d926833e6a12b22c6750de80feef3720d79e5a79de47d \
-    --hash=sha256:70d734af17efdf929a90bb95375f43522be4ed80c3b9e0a8bca575fb11cd1159
-eth-keys==0.3.3 \
-    --hash=sha256:a9a1e83e443bd369265b1a1b66dc30f6841bdbb3577ecd042e037b7b405b6cb0 \
-    --hash=sha256:412dd5c9732b8e92af40c9c77597f4661c57eba3897aaa55e527af56a8c5ab47
-eth-rlp==0.2.1; python_version >= "3.6" and python_version < "4" \
-    --hash=sha256:f016f980b0ed42ee7650ba6e4e4d3c4e9aa06d8b9c6825a36d3afe5aa0187a8b \
-    --hash=sha256:cc389ef8d7b6f76a98f90bcdbff1b8684b3a78f53d47e871191b50d4d6aee5a1
-eth-typing==2.3.0; python_version >= "3.6" and python_version < "4" and (python_version >= "3.6" and python_full_version < "3.5.2" and python_version < "4" or python_full_version > "3.5.2" and python_version < "4" and python_version >= "3.6") \
-    --hash=sha256:39cce97f401f082739b19258dfa3355101c64390914c73fe2b90012f443e0dc7 \
-    --hash=sha256:b7fa58635c1cb0cbf538b2f5f1e66139575ea4853eac1d6000f0961a4b277422
-eth-utils==1.10.0; python_version >= "3.6" and python_full_version < "3.5.2" and python_version < "4" or python_full_version > "3.5.2" and python_version < "4" and python_version >= "3.6" \
-    --hash=sha256:bf82762a46978714190b0370265a7148c954d3f0adaa31c6f085ea375e4c61af \
-    --hash=sha256:74240a8c6f652d085ed3c85f5f1654203d2f10ff9062f83b3bad0a12ff321c7a
+eth-keyfile==0.5.1; python_version >= "3.6" and python_version < "4"
+eth-keys==0.3.3
+eth-rlp==0.2.1; python_version >= "3.6" and python_version < "4"
+eth-typing==2.3.0; python_version >= "3.6" and python_version < "4" and (python_version >= "3.6" and python_full_version < "3.5.2" and python_version < "4" or python_full_version > "3.5.2" and python_version < "4" and python_version >= "3.6")
+eth-utils==1.10.0; python_version >= "3.6" and python_full_version < "3.5.2" and python_version < "4" or python_full_version > "3.5.2" and python_version < "4" and python_version >= "3.6"
 exceptiongroup==1.0.0rc9; python_version >= "3.7" and python_version <= "3.10"
 executing==1.1.0; python_version >= "3.8"
-feedparser==6.0.8; python_version >= "3.6" \
-    --hash=sha256:1b7f57841d9cf85074deb316ed2c795091a238adb79846bc46dccdaf80f9c59a \
-    --hash=sha256:5ce0410a05ab248c8c7cfca3a0ea2203968ee9ff4486067379af4827a59f9661
+feedparser==6.0.8; python_version >= "3.6"
 filelock==3.8.0; python_version >= "3.7" and python_full_version >= "3.6.1"
+<<<<<<< HEAD
 flake8==4.0.1; python_version >= "3.6" \
 >>>>>>> de70de76 (updating reqs)
     --hash=sha256:479b1304f72536a55948cb40a32dce8bb0ffe3501e26eaf292c7e60eb5e0428d \
@@ -747,26 +778,22 @@ hexbytes==0.3.0 ; python_version >= "3.8" and python_version < "4" \
     --hash=sha256:afeebfb800f5f15a3ca5bab52e49eabcb4b6dac06ec8ff01a94fdb890c6c0712
 hiredis==2.0.0 ; python_version >= "3.8" and python_version < "4.0" \
 =======
+=======
+flake8==4.0.1; python_version >= "3.6"
+flower==0.9.7
+>>>>>>> eca6baaf (updating reqs)
 frozenlist==1.3.1; python_version >= "3.7"
-future==0.18.2; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.3.0" and python_version >= "2.7" \
-    --hash=sha256:b1bead90b70cf6ec3f0710ae53a525360fa360d306a86583adc6bf83a4db537d
-geoip2==4.4.0; python_version >= "3.6" \
-    --hash=sha256:f9172cdfb2a5f9225ace5e30dd7426413ad28798a5f474cd1538780686bd6a87 \
-    --hash=sha256:f150bed3190d543712a17467208388d31bd8ddb49b2226fba53db8aaedb8ba89
+future==0.18.2; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.3.0" and python_version >= "2.7"
+geoip2==4.4.0; python_version >= "3.6"
 google-api-core==1.33.1; python_version >= "3.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" and python_version >= "3.7"
-google-api-python-client==1.12.1; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.4.0") \
-    --hash=sha256:ddadc243ce627512c2a27e11d369f5ddf658ef80dbffb247787499486ef1ea98 \
-    --hash=sha256:750316d670119bf680c24ff73825a05b1b4f48b9157bd48c6e3f2bea15ceb586
-google-auth-httplib2==0.1.0; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" \
-    --hash=sha256:a07c39fd632becacd3f07718dfd6021bf396978f03ad3ce4321d060015cc30ac \
-    --hash=sha256:31e49c36c6b5643b57e82617cb3e021e3e1d2df9da63af67252c02fa9c1f4a10
+google-api-python-client==1.12.1; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.4.0")
+google-auth-httplib2==0.1.0; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0"
 google-auth==2.12.0; python_version >= "3.7" and python_full_version < "3.0.0" or python_full_version >= "3.6.0" and python_version >= "3.7"
 googleapis-common-protos==1.56.4; python_version >= "3.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" and python_version >= "3.7"
 gprof2dot==2022.7.29; python_version >= "3.6"
-habanero==1.0.0 \
-    --hash=sha256:9cd3619cfee67e4f6980b9db4b4b4b397cdb7c21876ecfc3610a0f8a58c39e38 \
-    --hash=sha256:2763debc455841e28715ff20c9884249e1b2eecfd22c20967928e1eb657a0fe5
+habanero==1.0.0
 hexbytes==0.3.0; python_version >= "3.7" and python_version < "4"
+<<<<<<< HEAD
 hiredis==2.0.0; python_version >= "3.6" \
     --hash=sha256:b4c8b0bc5841e578d5fb32a16e0c305359b987b850a06964bd5a62739d688048 \
     --hash=sha256:0adea425b764a08270820531ec2218d0508f8ae15a448568109ffcae050fee26 \
@@ -852,13 +879,17 @@ ipdb==0.13.9 ; python_version >= "3.8" and python_version < "4.0" \
 httplib2==0.20.4; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" \
     --hash=sha256:8b6a905cb1c79eefd03f8669fd993c36dc341f7c558f056cb5a33b5c2f458543 \
     --hash=sha256:58a98e45b4b1a48273073f905d2961666ecf0fbac4250ea5b47aef259eb5c585
+=======
+hiredis==2.0.0; python_version >= "3.6"
+html5lib==1.1; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.5.0")
+httplib2==0.20.4; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0"
+>>>>>>> eca6baaf (updating reqs)
 humanize==4.4.0; python_version >= "3.7"
-hyperlink==21.0.0; python_full_version >= "3.7.1" and python_version >= "3.7" \
-    --hash=sha256:e6b14c37ecb73e89c77d78cdb4c2cc8f3fb59a885c5b3f819ff4ed80f25af1b4 \
-    --hash=sha256:427af957daa58bc909471c6c40f74c5450fa123dd093fc53efd2e91d2705a56b
+hyperlink==21.0.0; python_full_version >= "3.7.1" and python_version >= "3.7"
 identify==2.5.5; python_version >= "3.7" and python_full_version >= "3.6.1"
 idna==3.4; python_version >= "3.7" and python_version < "4" and python_full_version >= "3.7.1" and (python_version >= "3.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" and python_version >= "3.7")
 importlib-metadata==4.12.0; python_version < "3.10" and python_version >= "3.7"
+<<<<<<< HEAD
 incremental==21.3.0; python_full_version >= "3.7.1" and python_version >= "3.6" \
     --hash=sha256:92014aebc6a20b78a8084cdd5645eeaa7f74b8933f70fa3ada2cfbd1e3b54321 \
     --hash=sha256:02f5de5aff48f6b9f665d99d48bfc7ec03b6e3943210de7cfc88856d755d6f57
@@ -1315,13 +1346,41 @@ pandas==1.3.4 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:2d1dc09c0013d8faa7474574d61b575f9af6257ab95c93dcf33a14fd8d2c1bab \
     --hash=sha256:35c77609acd2e4d517da41bae0c11c70d31c87aae8dd1aabd2670906c6d2c143 \
 =======
+=======
+incremental==21.3.0; python_full_version >= "3.7.1" and python_version >= "3.6"
+ipdb==0.13.9; python_version >= "2.7"
+ipfshttpclient==0.7.0; python_full_version >= "3.5.4" and python_full_version < "3.6.0" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.6.0" and python_full_version < "3.6.1" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.6.1" and python_full_version < "3.7.0" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.7.0" and python_full_version < "3.7.1" and python_version >= "3.6" and python_version < "4" or python_version >= "3.6" and python_version < "4" and python_full_version > "3.7.1"
+ipython==8.5.0; python_version >= "3.8"
+isbnlib==3.10.10; python_version >= "3.7"
+iso8601==1.0.2; python_full_version >= "3.6.2" and python_version < "4.0"
+jedi==0.18.1; python_version >= "3.8"
+jellyfish==0.8.9; python_version > "3.5"
+jinja2==3.1.2; python_version >= "3.7"
+jmespath==0.10.0; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.3.0" and python_version >= "2.7"
+joblib==1.2.0; python_version >= "3.7"
+jsonschema==3.2.0; python_version >= "3.7" and python_version < "4"
+kombu==4.6.11; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.5.0"
+lru-dict==1.1.8; python_version >= "3.6" and python_version < "4"
+lxml==4.6.4; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.5.0")
+mailchimp-marketing==3.0.75
+manubot==0.5.3; python_version >= "3.7"
+markdown==3.4.1; python_version >= "3.7"
+markupsafe==2.1.1; python_version >= "3.7"
+matplotlib-inline==0.1.6; python_version >= "3.8"
+maxminddb==2.2.0; python_version >= "3.6"
+mccabe==0.6.1; python_version >= "3.6"
+msgpack==1.0.4; python_version >= "3.6"
+multiaddr==0.0.9; python_full_version >= "3.5.4" and python_full_version < "3.6.0" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.6.0" and python_full_version < "3.6.1" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.6.1" and python_full_version < "3.7.0" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.7.0" and python_full_version < "3.7.1" and python_version >= "3.6" and python_version < "4" or python_version >= "3.6" and python_version < "4" and python_full_version > "3.7.1"
+multidict==6.0.2; python_version >= "3.7"
+mypy-extensions==0.4.3; python_full_version >= "3.6.2"
+netaddr==0.8.0; python_full_version >= "3.5.4" and python_full_version < "3.6.0" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.6.0" and python_full_version < "3.6.1" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.6.1" and python_full_version < "3.7.0" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.7.0" and python_full_version < "3.7.1" and python_version >= "3.6" and python_version < "4" or python_version >= "3.6" and python_version < "4" and python_full_version > "3.7.1"
+>>>>>>> eca6baaf (updating reqs)
 newrelic==7.16.0.178; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.6.0")
-nltk==3.6.5; python_version >= "3.6" \
-    --hash=sha256:95fb4f577efe93af21765e9b2852235c2c6a405885da2a70f397478d94e906e0 \
-    --hash=sha256:834d1a8e38496369390be699be9bca4f2a0f2175b50327272b2ec7a98ffda2a0
+nltk==3.6.5; python_version >= "3.6"
 nodeenv==1.7.0; python_full_version >= "3.7.0"
 numpy==1.23.3
 oauthlib==3.2.1; python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" and python_version >= "3.6"
+<<<<<<< HEAD
 packaging==21.3; python_version >= "3.7" \
     --hash=sha256:ef103e05f519cdc783ae24ea4e2e0f508a9c99b2d4969652eed6a2e1ea5bd522 \
     --hash=sha256:dd47c42927d89ab911e606518907cc2d3a1f38bbd026385970643f9c5b8ecfeb
@@ -1368,13 +1427,15 @@ pexpect==4.8.0 ; python_version >= "3.8" and python_version < "4.0" and sys_plat
     --hash=sha256:003ba92db58b71a5f8add604a17a059f3068ef4e8c0c365b088468d0d64935fd \
     --hash=sha256:a51528192755f7429c5bcc9e80832c517340317c861318fea9cea081b57c9afd \
     --hash=sha256:a2aa18d3f0b7d538e21932f637fbfe8518d085238b429e4790a35e1e44a96ffc
+=======
+packaging==21.3; python_version >= "3.7"
+pandas==1.3.4; python_full_version >= "3.7.1"
+>>>>>>> eca6baaf (updating reqs)
 panflute==2.2.3; python_version >= "3.7"
-parsimonious==0.8.1; python_version >= "3.6" and python_version < "4" \
-    --hash=sha256:3add338892d580e0cb3b1a39e4a1b427ff9f687858fdd61097053742391a9f6b
-parso==0.8.3; python_version >= "3.8" \
-    --hash=sha256:c001d4636cd3aecdaf33cbb40aebb59b094be2a74c556778ef5576c175e19e75 \
-    --hash=sha256:8c07be290bb59f03588915921e29e8a50002acaf2cdc5fa0e0114f91709fafa0
+parsimonious==0.8.1; python_version >= "3.6" and python_version < "4"
+parso==0.8.3; python_version >= "3.8"
 pathspec==0.10.1; python_version >= "3.7" and python_full_version >= "3.6.2"
+<<<<<<< HEAD
 pexpect==4.8.0; sys_platform != "win32" and python_version >= "3.8" \
 >>>>>>> de70de76 (updating reqs)
     --hash=sha256:0b48a55dcb3c05f3329815901ea4fc1537514d6ba867a152b581d69ae3710937 \
@@ -1604,11 +1665,30 @@ pyjwt[crypto]==2.3.0 ; python_version >= "3.8" and python_version < "4.0" \
 pymupdf==1.19.6 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:05c54acf69ee55ef97453f9c52982ef2839c188fe464d6b4cdc053bd4c6298f1 \
 =======
+=======
+pexpect==4.8.0; sys_platform != "win32" and python_version >= "3.8"
+pickleshare==0.7.5; python_version >= "3.8"
+pillow==8.4.0; python_version >= "3.6"
+platformdirs==2.5.2; python_version >= "3.7" and python_full_version >= "3.6.2"
+postgres==4.0
+pre-commit==2.17.0; python_full_version >= "3.6.1"
+prometheus-client==0.8.0
+prompt-toolkit==3.0.31; python_full_version >= "3.6.2" and python_version >= "3.8"
+protobuf==3.20.3; python_version >= "3.7" and python_version < "4" and (python_version >= "3.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" and python_version >= "3.7")
+psycopg2-binary==2.8.6; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.4.0")
+psycopg2-pool==1.1; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.5.0"
+ptyprocess==0.7.0; sys_platform != "win32" and python_version >= "3.8"
+pure-eval==0.2.2; python_version >= "3.8"
+pyasn1-modules==0.2.8; python_full_version >= "3.7.1" and python_version >= "3.6"
+pyasn1==0.4.8; python_version >= "3.6" and python_version < "4" and (python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.6.0" and python_version >= "3.6") and python_full_version >= "3.7.1"
+pybase62==0.5.0; python_version >= "3.7"
+pycodestyle==2.8.0; python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.5.0" and python_version >= "3.6"
+pycparser==2.21; python_version >= "3.6" and python_full_version < "3.0.0" or python_version >= "3.6" and python_full_version >= "3.4.0"
+>>>>>>> eca6baaf (updating reqs)
 pycryptodome==3.15.0; python_version >= "3.6" and python_full_version < "3.0.0" and python_version < "4" or python_version >= "3.6" and python_version < "4" and python_full_version >= "3.5.0"
-pyflakes==2.4.0; python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" and python_version >= "3.6" \
-    --hash=sha256:3bb3a3f256f4b7968c9c788781e4ff07dce46bdf12339dcda61053375426ee2e \
-    --hash=sha256:05a85c2872edf37a4ed30b0cce2f6093e1d0581f8c19d7393122da7e25b2b24c
+pyflakes==2.4.0; python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" and python_version >= "3.6"
 pygments==2.13.0; python_version >= "3.8"
+<<<<<<< HEAD
 pyjwt==2.3.0; python_version >= "3.6" \
     --hash=sha256:e0c4bb8d9f0af0c7f5b1ec4c5036309617d03d56932877f2f7a0beeb5318322f \
     --hash=sha256:b888b4d56f06f6dcd777210c334e69c737be74755d3e5e9ee3fe67dc18a0ee41
@@ -1895,23 +1975,35 @@ ratelimiter==1.2.0.post0; python_version >= "3.7" \
 redis==3.5.3; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.5.0" \
     --hash=sha256:432b788c4530cfe16d8d943a09d40ca6c16149727e4afe8c2c9d5580c59d9f24 \
     --hash=sha256:0e7e0cfca8660dea8b7d5cd8c4f6c5e29e11f31158c0b0ae91a397f00e5a05a2
+=======
+pyjwt==2.3.0; python_version >= "3.6"
+pymupdf==1.19.6; python_version >= "3.6"
+pynliner==0.8.0
+pyopenssl==22.1.0; python_full_version >= "3.7.1" and python_version >= "3.6"
+pyparsing==3.0.9; python_full_version >= "3.6.8" and python_version >= "3.7"
+pypiwin32==223; python_version >= "3.6" and python_version < "4" and platform_system == "Windows"
+pyrsistent==0.18.1; python_version >= "3.7" and python_version < "4"
+python-crontab==2.6.0
+python-dateutil==2.8.2; python_full_version >= "3.7.1" and python_version >= "3.6" and (python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.3.0") and (python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0")
+python-slugify==4.0.1; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.5.0")
+python-twitter==3.5
+python3-openid==3.2.0
+pytz==2022.2.1; python_full_version >= "3.7.1" and python_version >= "3.6" and (python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.5.0")
+pywin32==304; python_version >= "3.6" and python_version < "4" and platform_system == "Windows"
+pyyaml==6.0; python_version >= "3.7" and python_full_version >= "3.6.1"
+ratelimiter==1.2.0.post0; python_version >= "3.7"
+redis==3.5.3; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.5.0"
+>>>>>>> eca6baaf (updating reqs)
 regex==2022.9.13; python_version >= "3.6"
 requests-cache==0.9.6; python_version >= "3.7" and python_version < "4.0"
-requests-oauthlib==1.3.1; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" \
-    --hash=sha256:75beac4a47881eeb94d5ea5d6ad31ef88856affe2332b9aafb52c6452ccf0d7a \
-    --hash=sha256:2577c501a2fb8d05a304c09d090d6e47c306fef15809d102b327cf8364bddab5
-requests-toolbelt==0.9.1 \
-    --hash=sha256:968089d4584ad4ad7c171454f0a5c6dac23971e9472521ea3b6d49d610aa6fc0 \
-    --hash=sha256:380606e1d10dc85c3bd47bf5a6095f815ec007be7a8b69c878507068df059e6f
+requests-oauthlib==1.3.1; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0"
+requests-toolbelt==0.9.1
 requests==2.28.1; python_version >= "3.7" and python_version < "4" and (python_version >= "3.0" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" and python_version >= "3.0") and (python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0") and (python_full_version >= "3.5.4" and python_full_version < "3.6.0" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.6.0" and python_full_version < "3.6.1" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.6.1" and python_full_version < "3.7.0" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.7.0" and python_full_version < "3.7.1" and python_version >= "3.6" and python_version < "4" or python_version >= "3.6" and python_version < "4" and python_full_version > "3.7.1") and (python_version >= "3.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" and python_version >= "3.7")
-rlp==2.0.1; python_version >= "3.6" and python_version < "4" \
-    --hash=sha256:52a57c9f53f03c88b189283734b397314288250cc4a3c4113e9e36e2ac6bdd16 \
-    --hash=sha256:665e8312750b3fc5f7002e656d05b9dcb6e93b6063df40d95c49ad90c19d1f0e
+rlp==2.0.1; python_version >= "3.6" and python_version < "4"
 rsa==4.9; python_version >= "3.6" and python_version < "4" and (python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.6.0" and python_version >= "3.6")
-s3transfer==0.3.7; python_version >= "2.7" \
-    --hash=sha256:efa5bd92a897b6a8d5c1383828dca3d52d0790e0756d49740563a3fb6ed03246 \
-    --hash=sha256:35627b86af8ff97e7ac27975fe0a98a312814b46c6333d8a6b889627bcd80994
+s3transfer==0.3.7; python_version >= "2.7"
 sentry-sdk==1.9.0
+<<<<<<< HEAD
 service-identity==21.1.0; python_full_version >= "3.7.1" and python_version >= "3.6" \
 >>>>>>> de70de76 (updating reqs)
     --hash=sha256:6e6c6086ca271dc11b033d17c3a8bea9f24ebff920c587da090afc9519419d34 \
@@ -1986,24 +2078,26 @@ twisted-iocpsupport==1.0.2 ; python_version >= "3.8" and python_version < "4.0" 
     --hash=sha256:306becd6e22ab6e8e4f36b6bdafd9c92e867c98a5ce517b27fdd27760ee7ae41 \
     --hash=sha256:3c61742cb0bc6c1ac117a7e5f422c129832f0c295af49e01d8a6066df8cfc04d \
 =======
+=======
+service-identity==21.1.0; python_full_version >= "3.7.1" and python_version >= "3.6"
+sgmllib3k==1.0.0; python_version >= "3.6"
+sift==5.0.1; python_version >= "2.7"
+six==1.16.0; python_full_version > "3.7.1" and python_version >= "3.8" and python_version < "4"
+smart-open==5.2.1; python_version >= "3.6" and python_version < "4.0"
+soupsieve==2.3.2.post1; python_version >= "3.6" and python_full_version >= "3.6.0"
+sqlparse==0.3.1; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.4.0")
+>>>>>>> eca6baaf (updating reqs)
 stack-data==0.5.1; python_version >= "3.8"
-stripe==2.62.0; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.4.0") \
-    --hash=sha256:026905a5732c28d42997e0bad774a07ca587e696a9b222738ededab3c3402250 \
-    --hash=sha256:1fb51d67a961ea889c5be324f020535ed511c6f483bd13a07f48f6e369fa8df0
+stripe==2.62.0; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.4.0")
 tenacity==8.1.0; python_version >= "3.6"
-text-unidecode==1.3; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.5.0" \
-    --hash=sha256:bad6603bb14d279193107714b288be206cac565dfa49aa5b105294dd5c4aab93 \
-    --hash=sha256:1311f10e8b895935241623731c2ba64f4c455287888b18189350b67134a822e8
-toml==0.10.2; python_full_version >= "3.6.1" and python_version > "3.6" and (python_version >= "3.7" and python_full_version < "3.0.0" or python_full_version >= "3.3.0" and python_version >= "3.7") and (python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.3.0" and python_version >= "3.6") \
-    --hash=sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b \
-    --hash=sha256:b3bda1d108d5dd99f4a20d24d9c348e91c4db7ab1b749200bded2f839ccbe68f
-tomli==2.0.1; python_full_version < "3.11.0a7" and python_full_version >= "3.6.2" and python_version >= "3.7" \
-    --hash=sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc \
-    --hash=sha256:de526c12914f0c550d15924c62d72abc48d6fe7364aa87328337a31007fe8a4f
+text-unidecode==1.3; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.5.0"
+toml==0.10.2; python_full_version >= "3.6.1" and python_version > "3.6" and (python_version >= "3.7" and python_full_version < "3.0.0" or python_full_version >= "3.3.0" and python_version >= "3.7") and (python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.3.0" and python_version >= "3.6")
+tomli==2.0.1; python_full_version < "3.11.0a7" and python_full_version >= "3.6.2" and python_version >= "3.7"
 toolz==0.12.0; python_version >= "3.5"
 tornado==6.2; python_version >= "3.7"
 tqdm==4.64.1; python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" and python_version >= "3.6"
 traitlets==5.4.0; python_version >= "3.8"
+<<<<<<< HEAD
 twisted-iocpsupport==1.0.2; python_full_version >= "3.7.1" and python_version >= "3.6" and platform_system == "Windows" \
 >>>>>>> de70de76 (updating reqs)
     --hash=sha256:72068b206ee809c9c596b57b5287259ea41ddb4774d86725b19f35bf56aa32a9 \
@@ -2032,12 +2126,14 @@ unidecode==1.3.4 ; python_version >= "3.8" and python_version < "4.0" \
 uritemplate==3.0.1 ; python_version >= "3.8" and python_version < "4.0" \
 =======
     --hash=sha256:7d972cfa8439bdcb35a7be78b7ef86d73b34b808c74be56dfa785c8a93b851bf
+=======
+twisted-iocpsupport==1.0.2; python_full_version >= "3.7.1" and python_version >= "3.6" and platform_system == "Windows"
+>>>>>>> eca6baaf (updating reqs)
 twisted==22.8.0; python_full_version >= "3.7.1" and python_version >= "3.6"
-txaio==22.2.1; python_version >= "3.7" \
-    --hash=sha256:41223af4a9d5726e645a8ee82480f413e5e300dd257db94bc38ae12ea48fb2e5 \
-    --hash=sha256:2e4582b70f04b2345908254684a984206c0d9b50e3074a24a4c55aba21d24d01
+txaio==22.2.1; python_version >= "3.7"
 typing-extensions==4.3.0; python_version < "3.10" and python_full_version >= "3.7.1" and python_version >= "3.7"
 unidecode==1.3.6; python_version >= "3.5"
+<<<<<<< HEAD
 uritemplate==3.0.1; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" \
 >>>>>>> de70de76 (updating reqs)
     --hash=sha256:07620c3f3f8eed1f12600845892b0e036a2420acf513c53f7de0abd911a5894f \
@@ -2259,3 +2355,20 @@ zope.interface==5.4.0; python_full_version >= "3.7.1" and python_version >= "3.6
     --hash=sha256:dd93ea5c0c7f3e25335ab7d22a507b1dc43976e1345508f845efc573d3d779d8 \
     --hash=sha256:f44e517131a98f7a76696a7b21b164bcb85291cee106a23beccce454e1f433a4 \
     --hash=sha256:f7ee479e96f7ee350db1cf24afa5685a5899e2b34992fb99e1f7c1b0b758d263
+=======
+uritemplate==3.0.1; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0"
+url-normalize==1.4.3; python_version >= "3.7" and python_full_version < "3.0.0" and python_version < "4.0" or python_version >= "3.7" and python_version < "4.0" and python_full_version >= "3.6.0"
+urllib3==1.25.11; python_version >= "3.7" and python_full_version < "3.0.0" and python_version < "4" or python_full_version >= "3.5.0" and python_version < "4" and python_version >= "3.7"
+varint==1.0.2; python_full_version >= "3.5.4" and python_full_version < "3.6.0" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.6.0" and python_full_version < "3.6.1" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.6.1" and python_full_version < "3.7.0" and python_version >= "3.6" and python_version < "4" or python_full_version > "3.7.0" and python_full_version < "3.7.1" and python_version >= "3.6" and python_version < "4" or python_version >= "3.6" and python_version < "4" and python_full_version > "3.7.1"
+vine==1.3.0; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.5.0"
+virtualenv==20.16.5; python_version >= "3.6" and python_full_version >= "3.6.1"
+watchdog==2.1.9; python_version >= "3.6"
+wcwidth==0.2.5; python_full_version >= "3.6.2" and python_version >= "3.8"
+web3==5.12.1; python_version >= "3.6" and python_version < "4"
+webencodings==0.5.1; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.5.0"
+websockets==8.1; python_version >= "3.6" and python_version < "4" and python_full_version >= "3.6.1"
+xmltodict==0.12.0; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.4.0")
+yarl==1.8.1; python_version >= "3.7"
+zipp==3.8.1; python_version < "3.10" and python_version >= "3.7"
+zope.interface==5.4.0; python_full_version >= "3.7.1" and python_version >= "3.6"
+>>>>>>> eca6baaf (updating reqs)
