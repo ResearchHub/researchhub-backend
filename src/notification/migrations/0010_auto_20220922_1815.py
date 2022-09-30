@@ -49,6 +49,7 @@ def format_notifications(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    atomic = False
 
     dependencies = [
         ('contenttypes', '0002_remove_content_type_name'),
@@ -87,10 +88,6 @@ class Migration(migrations.Migration):
             name='extra',
             field=django.contrib.postgres.fields.hstore.HStoreField(default=dict),
         ),
-        migrations.AddIndex(
-            model_name='notification',
-            index=models.Index(fields=['content_type', 'object_id'], name='notificatio_content_743343_idx'),
-        ),
         migrations.RunPython(migrate_notifications),
         migrations.AlterField(
             model_name='notification',
@@ -107,4 +104,8 @@ class Migration(migrations.Migration):
             name='action',
         ),
         migrations.RunPython(format_notifications),
+        migrations.AddIndex(
+            model_name='notification',
+            index=models.Index(fields=['content_type', 'object_id'], name='notificatio_content_743343_idx'),
+        ),
     ]
