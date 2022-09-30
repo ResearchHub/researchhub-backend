@@ -3,6 +3,7 @@ from statistics import mean
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import Q
+from django.utils.functional import cached_property
 
 from hub.models import Hub
 from researchhub.settings import BASE_FRONTEND_URL
@@ -148,7 +149,14 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         else:
             raise Exception(f"Unrecognized document_type: {self.document_type}")
 
-    @property
+    @cached_property
+    def fe_document_type(self):
+        document_type = self.document_type
+        if document_type == HYPOTHESIS:
+            return "META-STUDY"
+        return document_type
+
+    @cached_property
     def created_by(self):
         if self.document_type == PAPER:
             return self.paper.uploaded_by

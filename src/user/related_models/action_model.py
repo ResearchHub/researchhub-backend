@@ -111,7 +111,6 @@ class Action(DefaultModel):
             noun = self.doc_type
 
         act.label = "has {} {}".format(verb, noun)
-        act.document_type_icon = doc_type_icon
 
         if act.content_type_name == "summary":
             act.label += " summary"
@@ -123,13 +122,17 @@ class Action(DefaultModel):
 
         uni_doc = getattr(action_item, "unified_document", None)
         if uni_doc:
+            if uni_doc.document_type == "QUESTION":
+                doc_type_icon = "https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-question-icon.png"
             amount = uni_doc.related_bounties.aggregate(
                 total=Coalesce(Sum("amount"), 0)
             ).get("total", 0)
             act.bounty_amount = f"{amount:.0f}"
-            act.first_hub = uni_doc.hubs.first().name
+            act.first_hub = uni_doc.hubs.first().name.title()
+            act.document_type = uni_doc.fe_document_type.title()
 
         act.time_since = time_since(action_item.created_date)
+        act.document_type_icon = doc_type_icon
 
         return act
 
