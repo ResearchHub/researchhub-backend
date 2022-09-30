@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 import pytz
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.db.models import Sum
 
 from utils.models import DefaultModel
 
@@ -78,6 +80,45 @@ class Bounty(DefaultModel):
 
     def set_closed_status(self, should_save=True):
         self.set_status(self.CLOSED, should_save=should_save)
+
+    def expiry_close(self):
+        from reputation.models import Escrow
+
+        document_type = self.unified_document.document_type
+
+        if document_type == "QUESTION" or document_type == "POST":
+            threads = self.unified_document.posts.first().threads
+        elif document_type == "PAPER":
+            threads = self.unified_document.paper.threads
+        elif document_type == "HYPOTHESIS":
+            threads = self.unified_document.hypothesis.first().threads
+        else:
+            return None
+
+        thread_count = threads.count()
+        thread_score_total = threads.aggregate(total_score=Sum("votes__vote_type"))
+        thread_score_dict = {}
+
+        for thread in threads.all():
+            escrow_percent = thread.score / thread_score_total["total_score"]
+            cur_amount = self.escrow.amount * Decimal(escrow_percent)
+            cur_escrow = self.escrow
+
+            escrow = Escrow.objects.create(
+                hold_type=Escrow.BOUNTY,
+                amount=cur_amount,
+                bounty_for_expiry=self,
+                recipient=thread.created_by,
+                created_by=cur_escrow.created_by,
+                content_type=cur_escrow.content_type,
+                object_id=cur_escrow.object_id,
+                item=cur_escrow.item,
+                status=Escrow.EXPIRY_PAID,
+                bounty_fee=cur_escrow.bounty_fee,
+            )
+            escrow.payout(payout_amount=cur_amount)
+            escrow.status = Escrow.EXPIRY_PAID
+            escrow.save()
 
     def approve(self, payout_amount=None):
         if not payout_amount:
