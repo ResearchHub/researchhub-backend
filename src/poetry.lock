@@ -767,6 +767,20 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "django-mjml"
+version = "0.12.0"
+description = "Use MJML in Django templates"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+django = ">=1.8,<4.1"
+
+[package.extras]
+requests = ["requests (>=2.20)", "requests[security] (>=2.20)"]
+
+[[package]]
 name = "django-nine"
 version = "0.2.5"
 description = "Version checking library."
@@ -2924,7 +2938,7 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "65fbf4e99e83db420225516ea4dc5a0dfbe8eb03b3aa806cf4f6bfdcb9daf100"
+content-hash = "3a11271a800f4439df96ab61a134eefb5b0f47a31507f382d9ff181f5313c549"
 
 [metadata.files]
 aiohttp = [
@@ -3432,6 +3446,7 @@ django-inlinecss = [
 django-ipware = [
     {file = "django-ipware-3.0.1.tar.gz", hash = "sha256:73a640a5bff00aa7503a35e92e462001cfabb07d73d649c262f117423beee953"},
 ]
+django-mjml = []
 django-nine = [
     {file = "django-nine-0.2.5.tar.gz", hash = "sha256:84322aff8201ceb7647d846ca58863d34e27eb1438aa109819ad091a773a7c96"},
     {file = "django_nine-0.2.5-py2.py3-none-any.whl", hash = "sha256:17337c28e1a45255f5552a2267e2e943e26c944f6f89ed281e6963b901700647"},

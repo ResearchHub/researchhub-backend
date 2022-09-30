@@ -14,6 +14,7 @@ from researchhub.settings import BASE_FRONTEND_URL, TESTING
 from summary.models import Summary
 from user.related_models.user_model import User
 from utils.models import DefaultModel
+from utils.time import time_since
 
 
 class Action(DefaultModel):
@@ -77,6 +78,7 @@ class Action(DefaultModel):
         if hasattr(act, "content_type") and act.content_type and act.content_type.name:
             act.content_type_name = act.content_type.name
 
+        doc_type_icon = ""
         verb = "done a noteworthy action on"
         if act.content_type_name == "reply":
             verb = "replied to"
@@ -88,10 +90,17 @@ class Action(DefaultModel):
             verb = "created a new discussion on"
         elif act.content_type_name == "hypothesis":
             verb = "created a new hypothesis on"
+            doc_type_icon = "https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-question-icon.png"
         elif act.content_type_name == "researchhub post":
             verb = "created a new post on"
+            doc_type_icon = (
+                "https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-post-icon.png"
+            )
         elif act.content_type_name == "paper":
             verb = "uploaded a new paper"
+            doc_type_icon = (
+                "https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-paper-icon.png"
+            )
 
         noun = ""
         if act.content_type_name == "comment":
@@ -102,6 +111,7 @@ class Action(DefaultModel):
             noun = self.doc_type
 
         act.label = "has {} {}".format(verb, noun)
+        act.document_type_icon = doc_type_icon
 
         if act.content_type_name == "summary":
             act.label += " summary"
@@ -117,6 +127,9 @@ class Action(DefaultModel):
                 total=Coalesce(Sum("amount"), 0)
             ).get("total", 0)
             act.bounty_amount = f"{amount:.0f}"
+            act.first_hub = uni_doc.hubs.first().name
+
+        act.time_since = time_since(action_item.created_date)
 
         return act
 
