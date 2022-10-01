@@ -1,7 +1,6 @@
-import requests
-
 from paper.exceptions import DOINotFoundError
 from tag.models import Concept
+from utils.retryable_requests import retryable_requests_session
 
 
 class OpenAlex:
@@ -23,9 +22,10 @@ class OpenAlex:
         params = {**filters, **self.base_params}
         headers = {**headers, **self.base_headers}
         url = f"{self.base_url}/{url}"
-        response = requests.get(
-            url, params=params, headers=headers, timeout=self.timeout
-        )
+        with retryable_requests_session() as session:
+            response = session.get(
+                url, params=params, headers=headers, timeout=self.timeout
+            )
         response.raise_for_status()
         return response.json()
 
