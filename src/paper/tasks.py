@@ -1422,7 +1422,12 @@ def hydrate_and_sort(concepts):
     def hydrate_concept(concept_id):
         return OpenAlex().get_hydrated_concept(concept_id)
 
-    return [hydrate_concept(concept["id"]) for concept in concepts]
+    try:
+        return [hydrate_concept(concept["id"]) for concept in concepts]
+    except HTTPError as e:
+        sentry.log_error(e)
+        print(e)
+        return []
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA)
 def celery_semantic_scholar(self, celery_data):
