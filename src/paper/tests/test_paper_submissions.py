@@ -12,6 +12,8 @@ class PaperSubmissionViewTests(APITestCase):
         self.duplicate_url = "https://www.vitisgen2.org/research-in-plain-english/evaluating-and-mapping-grape-color-using-image-based-phenotyping/"
         self.true_doi = "10.34133/2020/8086309"
         self.paper_publish_date = "2020-04-24"
+        self.concept_display_names = ['Computer science', 'Mathematics', 'Artificial intelligence', 'Hue',
+                                      'RGB color model', 'Population', 'Berry', 'Lightness', 'Quantitative trait locus', 'Color space']
         self.submitter = create_random_default_user("submitter")
         self.client.force_authenticate(self.submitter)
 
@@ -44,6 +46,9 @@ class PaperSubmissionViewTests(APITestCase):
         celery_data_after_openalex = celery_openalex.apply((celery_data,)).result
         paper_publish_date = celery_data_after_openalex[0]["paper_publish_date"]
         self.assertEqual(self.paper_publish_date, paper_publish_date)
+        concepts = celery_data_after_openalex[0]["concepts"]
+        self.assertEqual(self.concept_display_names,
+                    [concept["display_name"] for concept in concepts])
 
         celery_data_after_crossref = celery_crossref.apply((celery_data,)).result
         doi = celery_data_after_crossref[0]["doi"]

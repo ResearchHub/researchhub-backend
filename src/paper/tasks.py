@@ -1,6 +1,7 @@
 import codecs
 import json
 import logging
+import operator
 import os
 import re
 import shutil
@@ -1396,6 +1397,9 @@ def celery_openalex(self, celery_data):
             if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
                 paper_data.setdefault("pdf_url", oa_pdf_url)
 
+            concepts = result.get("concepts", [])
+            paper_data.setdefault("concepts", hydrate_and_sort(concepts))
+
         return celery_data
     except DOINotFoundError as e:
         raise e
@@ -1404,6 +1408,19 @@ def celery_openalex(self, celery_data):
     except Exception as e:
         raise e
 
+# Given a list of dehydrated concepts, hydrate them to get the rest of the fields such as description.
+# dehydrated concepts: https://docs.openalex.org/about-the-data/work#concepts
+# hydrated concepts: https://docs.openalex.org/about-the-data/concept
+def hydrate_and_sort(concepts):
+    # sort concepts by level (general to specific) and then score (strongly to weakly connected)
+    concepts.sort(key=operator.itemgetter("score"), reverse=True)
+    concepts.sort(key=operator.itemgetter("level"))
+
+    # TODO: parallelize hydration
+    def hydrate_concept(concept_id):
+        return OpenAlex().get_hydrated_concept(concept_id)
+
+    return [hydrate_concept(concept["id"]) for concept in concepts]
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA)
 def celery_semantic_scholar(self, celery_data):
@@ -1477,6 +1494,9 @@ def celery_create_paper(self, celery_data):
             raise DOINotFoundError(
                 f"Unable to find article for: {dois}, {paper_submission.url}"
             )
+
+        paper_data.pop("concepts", None)
+        # TODO: associate concepts to unified_document, making sure to avoid creating duplicates
 
         async_paper_updator = getattr(paper_submission, "async_updator", None)
         paper = Paper(**paper_data)
