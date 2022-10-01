@@ -2,6 +2,7 @@ from rest_framework.test import APITestCase
 
 from paper.exceptions import DuplicatePaperError
 from paper.models import PaperSubmission
+from paper.related_models.paper_model import Paper
 from paper.tasks import celery_create_paper, celery_crossref, celery_get_doi, celery_openalex
 from user.tests.helpers import create_random_default_user
 
@@ -56,6 +57,9 @@ class PaperSubmissionViewTests(APITestCase):
 
         paper_id = celery_create_paper.apply((celery_data,)).result
         self.assertEqual(isinstance(paper_id, int), True)
+
+        self.assertEqual(set(self.concept_display_names),
+                         set(c.display_name for c in Paper.objects.get(pk=paper_id).unified_document.concepts.all()))
 
     def _duplicate_doi_flow(self):
         self.client.force_authenticate(self.submitter)

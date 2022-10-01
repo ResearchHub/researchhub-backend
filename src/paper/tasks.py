@@ -83,6 +83,7 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_OPEN_ACCESS,
 )
 from researchhub_document.utils import update_unified_document_to_paper
+from tag.models import Concept
 from utils import sentry
 from utils.arxiv.categories import (
     ARXIV_CATEGORIES,
@@ -1398,8 +1399,9 @@ def celery_openalex(self, celery_data):
                 paper_data.setdefault("pdf_url", oa_pdf_url)
 
             concepts = result.get("concepts", [])
+            logger.info(f"concepts after get_data_from_doi: {concepts}")
             paper_data.setdefault("concepts", hydrate_and_sort(concepts))
-
+            logger.info(f"concepts after hydrate_and_sort: {paper_data['concepts']}")
         return celery_data
     except DOINotFoundError as e:
         raise e
@@ -1495,8 +1497,7 @@ def celery_create_paper(self, celery_data):
                 f"Unable to find article for: {dois}, {paper_submission.url}"
             )
 
-        paper_data.pop("concepts", None)
-        # TODO: associate concepts to unified_document, making sure to avoid creating duplicates
+        concepts = paper_data.pop("concepts", None)
 
         async_paper_updator = getattr(paper_submission, "async_updator", None)
         paper = Paper(**paper_data)
@@ -1513,6 +1514,21 @@ def celery_create_paper(self, celery_data):
         paper_submission.set_complete_status(save=False)
         paper_submission.paper = paper
         paper_submission.save()
+
+        logger.info(f"concepts in celery_create_paper: {concepts}")
+        if concepts is not None:
+            for concept in concepts:
+                # create model object for concept if it doesn't yet exist, then associate the concept with paper
+                (stored_concept, created) = Concept.objects.get_or_create(
+                    openalex_id=concept.pop("openalex_id"), defaults=concept)
+                if not created:
+                    # update existing concept with fresh data from openalex
+                    stored_concept.display_name          = concept["display_name"]
+                    stored_concept.description           = concept["description"]
+                    stored_concept.openalex_created_date = concept["openalex_created_date"]
+                    stored_concept.openalex_updated_date = concept["openalex_updated_date"]
+                    stored_concept.save()
+                paper.unified_document.concepts.add(stored_concept)
 
         uploaded_by = paper_submission.uploaded_by
 

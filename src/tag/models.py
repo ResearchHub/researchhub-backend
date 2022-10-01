@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from django.db import models
 from utils.models import DefaultModel
 
@@ -39,6 +41,9 @@ class Concept(DefaultModel):
         null=False,
         max_length=255,
     )
+
+    def needs_refresh(self):
+        return datetime.now(self.updated_date.tzinfo) - self.updated_date > timedelta(days=30)
 
     def __str__(self):
         return self.display_name
