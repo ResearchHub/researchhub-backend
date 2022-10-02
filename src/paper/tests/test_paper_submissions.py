@@ -1,3 +1,7 @@
+import json
+import re
+
+import responses
 from rest_framework.test import APITestCase
 
 from paper.exceptions import DuplicatePaperError
@@ -28,7 +32,9 @@ class PaperSubmissionViewTests(APITestCase):
             uploaded_by=self.submitter,
         )
 
+    @responses.activate
     def test_full_flow(self):
+        self._install_mock_responses()
         self.client.force_authenticate(self.submitter)
         self._paper_submission_flow()
         self._duplicate_doi_flow()
@@ -80,3 +86,24 @@ class PaperSubmissionViewTests(APITestCase):
         self.assertEqual(
             isinstance(celery_data_after_crossref, DuplicatePaperError), True
         )
+
+    def _install_mock_responses(self):
+        # https://api.openalex.org/concepts?filter=openalex_id
+        # :https://openalex.org/C126537357
+        # |https://openalex.org/C82990744
+        # |https://openalex.org/C154945302
+        # |https://openalex.org/C2908647359
+        # |https://openalex.org/C2776034682
+        # |https://openalex.org/C81941488
+        # |https://openalex.org/C193601281
+        # |https://openalex.org/C2961294
+        # |https://openalex.org/C41008148
+        # |https://openalex.org/C33923547
+        with open("./paper/tests/concepts_by_openalex_id.json", "r") as response_body_file:
+            concepts_json = json.load(response_body_file)
+        response = responses.Response(
+            method="GET",
+            url=re.compile(r"^https://api.openalex.org/concepts"),
+            json=concepts_json)
+        responses.add(response)
+        responses.add_passthru(re.compile("^(?!https://api.openalex.org/concepts)"))
