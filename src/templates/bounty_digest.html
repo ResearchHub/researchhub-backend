@@ -51,8 +51,9 @@
               </td>
             </tr>
           </mj-table>
-          <mj-text font-size="18px" color="#241F3A" font-weight="500" line-height="24px" padding-top="2px" font-family="roboto">
-            {{ action.title }}
+          <mj-text font-size="18px" font-weight="500" line-height="24px" padding-top="2px" font-family="roboto">
+            <a href="{{ action.link }}" target="_blank" style="color:#241F3A;text-decoration:none;"> {{ action.title }}
+            </a>
           </mj-text>
           <mj-text color="#241F3A" font-size="14px" font-weight="400" line-height="18px" font-family="roboto" padding-top="5px">
             <span style="color:#241F3A;opacity:80%;font-family:Roboto;">
@@ -61,22 +62,22 @@
           </mj-text>
           <mj-table mj-class="table-fitcontent" line-height="0px">
             <tr>
-              <td>
-                <img width="12px" src="{{ action.document_type_icon }}" style="padding:5px"></img>
-              </td>
-              <td>
-                <span style="color:#241F3A;opacity:80%;font-family:Roboto;">
+              <td style="background:rgb(235, 235, 235);border-radius:4px;padding:2px 6px 2px 6px">
+                <div>
+                  <img width="14px" src="{{ action.document_type_icon }}" style="padding:5px"></img>
+                  <span style="vertical-align:text-top;color:#241F3A;opacity:80%;font-family:Roboto;font-size:14px;font-weight:500">
                   {{ action.document_type }}
-                </span>
+                  </span>
+                </div>
               </td>
-              <td>
-                <img width="12px" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/coin-filled.png" style="padding:5px;margin-left:5px">
-                </img>
-              </td>
-              <td>
-                <span style="color:#241F3A;opacity:80%;font-family:Roboto;">
-                  +{{ action.bounty_amount }}
-                </span>
+              <td style="padding:5px"/>
+              <td style="background:rgb(252, 242, 220);border-radius:4px;padding:2px 6px 2px 6px">
+                <div>
+                  <img width="15px" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/rsc.png" style="vertical-align:sub;margin-right:4px"></img>
+                  <span style="color:rgb(255, 122, 0);opacity:80%;font-family:Roboto;font-size:14px;font-weight:500">
+                    +{{ action.bounty_amount }}
+                  </span>
+                </div>
               </td>
             </tr>
           </mj-table>
