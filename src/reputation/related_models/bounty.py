@@ -99,6 +99,9 @@ class Bounty(DefaultModel):
         thread_score_total = threads.aggregate(total_score=Sum("votes__vote_type"))
         thread_score_dict = {}
 
+        self.escrow.status = Escrow.EXPIRY_CLOSED
+        self.escrow.save()
+
         for thread in threads.all():
             escrow_percent = thread.score / thread_score_total["total_score"]
             cur_amount = self.escrow.amount * Decimal(escrow_percent)
@@ -119,6 +122,8 @@ class Bounty(DefaultModel):
             escrow.payout(payout_amount=cur_amount)
             escrow.status = Escrow.EXPIRY_PAID
             escrow.save()
+
+        self.set_expired_status()
 
     def approve(self, payout_amount=None):
         if not payout_amount:
