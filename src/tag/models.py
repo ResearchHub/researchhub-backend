@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from django.db import models
 from utils.models import DefaultModel
 
@@ -5,8 +7,10 @@ from utils.models import DefaultModel
 # zero or more to attach to the paper. https://docs.openalex.org/about-the-data/concept
 class Concept(DefaultModel):
 
-    # https://docs.openalex.org/about-the-data/concept#i
+    # e.g. "https://openalex.org/C2524010"
+    # https://docs.openalex.org/about-the-data/concept#id
     openalex_id = models.CharField(
+        unique=True,
         blank=False,
         null=False,
         max_length=255,
@@ -22,6 +26,7 @@ class Concept(DefaultModel):
     # https://docs.openalex.org/about-the-data/concept#description
     description = models.TextField(default='', blank=True)
 
+    # e.g. "2016-06-24"
     # https://docs.openalex.org/about-the-data/concept#created_date
     openalex_created_date = models.CharField(
         blank=False,
@@ -29,9 +34,18 @@ class Concept(DefaultModel):
         max_length=255,
     )
 
+    # e.g. "2022-09-29T07:50:07.737330"
     # https://docs.openalex.org/about-the-data/concept#updated_date
     openalex_updated_date = models.CharField(
         blank=False,
         null=False,
         max_length=255,
     )
+
+    def needs_refresh(self):
+        return datetime.now(self.updated_date.tzinfo) - self.updated_date > timedelta(days=30)
+
+    def __str__(self):
+        return self.display_name
+
+
