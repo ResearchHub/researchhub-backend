@@ -30,23 +30,33 @@
               </td>
               <td>
                 <span style="font-weight:500;padding-left:5px;font-family:Roboto;">
-                  {{ action.created_by.first_name }}
+                  <a href="{{ action.link }}" target="_blank" style="color:#241F3A;text-decoration:none;">
+                    {{ action.created_by.first_name }}
+                  </a>
                 </span>
                 <span style="color:#241F3A;opacity:80%;font-family:Roboto;">
-                  posted in
+                  <a href="{{ action.link }}" target="_blank" style="color:#241F3A;text-decoration:none;">
+                    posted in
+                  </a>
                 </span>
                 <span style="font-weight:500;font-family:Roboto;">
-                  {{ action.first_hub }}
+                  <a href="{{ action.link }}" target="_blank" style="color:#241F3A;text-decoration:none;">
+                    {{ action.first_hub }}
+                  </a>
                 </span>
               </td>
               <td align="right">
                 <span style="color:#241F3A99;padding:5px">
-                  •
+                  <a href="{{ action.link }}" target="_blank" style="color:#241F3A;text-decoration:none;">
+                    •
+                  </a>
                 </span>
               </td>
               <td>
                 <span style="color:#241F3A99;font-family:Roboto;">
-                  {{ action.time_since }}
+                  <a href="{{ action.link }}" target="_blank" style="color:#241F3A;text-decoration:none;">
+                    {{ action.time_since }}
+                  </a>
                 </span>
               </td>
             </tr>
@@ -57,7 +67,9 @@
           </mj-text>
           <mj-text color="#241F3A" font-size="14px" font-weight="400" line-height="18px" font-family="roboto" padding-top="5px">
             <span style="color:#241F3A;opacity:80%;font-family:Roboto;">
-              {{ action.doc_summary }}
+              <a href="{{ action.link }}" target="_blank" style="color:#241F3A;text-decoration:none;">
+                {{ action.doc_summary }}
+              </a>
             </span>
           </mj-text>
           <mj-table mj-class="table-fitcontent" line-height="0px">
@@ -65,17 +77,21 @@
               <td style="background:rgb(235, 235, 235);border-radius:4px;padding:2px 6px 2px 6px">
                 <div>
                   <img width="14px" src="{{ action.document_type_icon }}" style="padding:5px"></img>
-                  <span style="vertical-align:text-top;color:#241F3A;opacity:80%;font-family:Roboto;font-size:14px;font-weight:500">
-                  {{ action.document_type }}
+                  <span style="vertical-align:text-top;opacity:80%;font-family:Roboto;font-size:14px;font-weight:500">
+                    <a href="{{ action.link }}" target="_blank" style="color:rgb(135,133,147);text-decoration:none;">
+                      {{ action.document_type }}
+                    </a>
                   </span>
                 </div>
               </td>
               <td style="padding:5px"/>
               <td style="background:rgb(252, 242, 220);border-radius:4px;padding:2px 6px 2px 6px">
                 <div>
-                  <img width="15px" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/rsc.png" style="vertical-align:sub;margin-right:4px"></img>
-                  <span style="color:rgb(255, 122, 0);opacity:80%;font-family:Roboto;font-size:14px;font-weight:500">
-                    +{{ action.bounty_amount }}
+                  <img width="14px" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/rsc.png" style="vertical-align:sub;margin-right:4px"></img>
+                  <span style="font-family:Roboto;font-size:14px;font-weight:500">
+                    <a href="{{ action.link }}" target="_blank" style="color:rgb(255, 122, 0);text-decoration:none;">
+                      {{ action.bounty_amount }}
+                    </a>
                   </span>
                 </div>
               </td>

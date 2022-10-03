@@ -128,7 +128,7 @@ class Action(DefaultModel):
                 total=Coalesce(Sum("amount"), 0)
             ).get("total", 0)
             hubs = uni_doc.hubs
-            act.bounty_amount = f"{amount:.0f}"
+            act.bounty_amount = f"{amount:,.0f} Bounty"
             if hubs.exists():
                 act.first_hub = hubs.first().name.title()
             else:
