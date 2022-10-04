@@ -73,15 +73,14 @@ def send_bounty_digest(frequency):
     )[
         :5
     ]
+    if open_bounties.count() == 0:
+        return
 
     for email_recipient in EmailRecipient.objects.filter(
         bounty_digest_subscription__none=False
     ).iterator():
         recipient = email_recipient.user
         if not check_user_can_receive_bounty_digest(recipient, frequency):
-            continue
-
-        if open_bounties.count() == 0:
             continue
 
         paper_ids = list(open_bounties.values_list("paper__id", flat=True))
