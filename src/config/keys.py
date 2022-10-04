@@ -40,6 +40,9 @@ CROSSREF_LOGIN_PASSWORD = os.environ.get("CROSSREF_LOGIN_PASSWORD", "")
 
 ASYNC_SERVICE_API_KEY = os.environ.get("ASYNC_SERVICE_API_KEY", "")
 
+MJML_APP_ID = os.environ.get("MJML_APP_ID", "")
+MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", "")
+
 MORALIS_API_KEY = os.environ.get("MORALIS_API_KEY", "")
 WEB3_NETWORK = os.environ.get("WEB3_NETWORK", "")
 PROVIDER_URL = os.environ.get("PROVIDER_URL", "")
@@ -50,6 +53,3 @@ WEB3_RSC_ADDRESS = os.environ.get(
     "WEB3_RSC_ADDRESS", "0x82620900630a2Ab6a319791140891110B4cAA033"
 )
 WEB3_KEYSTORE_ADDRESS = os.environ.get("WEB3_KEYSTORE_ADDRESS", "")
-
-MJML_APP_ID = os.environ.get("MJML_APP_ID", " ")
-MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", " ")
