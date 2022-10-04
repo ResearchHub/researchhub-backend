@@ -154,6 +154,8 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         document_type = self.document_type
         if document_type == HYPOTHESIS:
             return "META-STUDY"
+        elif document_type == DISCUSSION:
+            return "POST"
         return document_type
 
     @cached_property
