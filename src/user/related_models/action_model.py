@@ -90,16 +90,16 @@ class Action(DefaultModel):
             verb = "created a new discussion on"
         elif act.content_type_name == "hypothesis":
             verb = "created a new hypothesis on"
-            doc_type_icon = "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/meta-study.png"
+            doc_type_icon = "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/meta-study-512.png"
         elif act.content_type_name == "researchhub post":
             verb = "created a new post on"
             doc_type_icon = (
-                "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/post.png"
+                "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/post-512.png"
             )
         elif act.content_type_name == "paper":
             verb = "uploaded a new paper"
             doc_type_icon = (
-                "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/paper.png"
+                "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/paper-512.png"
             )
 
         noun = ""
@@ -123,7 +123,7 @@ class Action(DefaultModel):
         uni_doc = getattr(action_item, "unified_document", None)
         if uni_doc:
             if uni_doc.document_type == "QUESTION":
-                doc_type_icon = "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/question.png"
+                doc_type_icon = "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/question-512.png"
             amount = uni_doc.related_bounties.aggregate(
                 total=Coalesce(Sum("amount"), 0)
             ).get("total", 0)
