@@ -423,6 +423,9 @@ class AuditViewSet(viewsets.GenericViewSet):
             item=verdict, user=remover, content_type=get_content_type_for_model(verdict)
         )
 
+        if content_creator is None:
+            return
+
         anon_remover = get_rh_community_user()
         notification = Notification.objects.create(
             action_user=anon_remover,
