@@ -51,5 +51,5 @@ WEB3_RSC_ADDRESS = os.environ.get(
 )
 WEB3_KEYSTORE_ADDRESS = os.environ.get("WEB3_KEYSTORE_ADDRESS", "")
 
-MJML_APP_ID = os.environ.get("MJML_APP_ID", "")
-MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", "")
+MJML_APP_ID = os.environ.get("MJML_APP_ID", " ")
+MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", " ")
