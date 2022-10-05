@@ -2,6 +2,8 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import BrinIndex
 from django.db import models
+from django.db.models import Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from discussion.models import Comment, Reply, Thread
@@ -12,6 +14,7 @@ from researchhub.settings import BASE_FRONTEND_URL, TESTING
 from summary.models import Summary
 from user.related_models.user_model import User
 from utils.models import DefaultModel
+from utils.time import time_since
 
 
 class Action(DefaultModel):
@@ -66,12 +69,16 @@ class Action(DefaultModel):
 
     def email_context(self):
         act = self
-        if not hasattr(act.item, "created_by") and hasattr(act.item, "proposed_by"):
-            act.item.created_by = act.item.proposed_by
+        action_item = act.item
+        if not hasattr(action_item, "created_by") and hasattr(
+            action_item, "proposed_by"
+        ):
+            action_item.created_by = action_item.proposed_by
 
         if hasattr(act, "content_type") and act.content_type and act.content_type.name:
             act.content_type_name = act.content_type.name
 
+        doc_type_icon = ""
         verb = "done a noteworthy action on"
         if act.content_type_name == "reply":
             verb = "replied to"
@@ -83,10 +90,17 @@ class Action(DefaultModel):
             verb = "created a new discussion on"
         elif act.content_type_name == "hypothesis":
             verb = "created a new hypothesis on"
+            doc_type_icon = "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/meta-study-512.png"
         elif act.content_type_name == "researchhub post":
             verb = "created a new post on"
+            doc_type_icon = (
+                "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/post-512.png"
+            )
         elif act.content_type_name == "paper":
             verb = "uploaded a new paper"
+            doc_type_icon = (
+                "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/paper-512.png"
+            )
 
         noun = ""
         if act.content_type_name == "comment":
@@ -101,10 +115,29 @@ class Action(DefaultModel):
         if act.content_type_name == "summary":
             act.label += " summary"
 
-        if isinstance(act.item, Bounty):
+        if isinstance(action_item, Bounty):
             act.message = "Your bounty is expiring in one day! \
             If you have a suitable answer, make sure to pay out \
             your bounty in order to keep your reputation on ResearchHub high."
+
+        uni_doc = getattr(action_item, "unified_document", None)
+        if uni_doc:
+            if uni_doc.document_type == "QUESTION":
+                doc_type_icon = "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/question-512.png"
+            amount = uni_doc.related_bounties.aggregate(
+                total=Coalesce(Sum("amount"), 0)
+            ).get("total", 0)
+            hubs = uni_doc.hubs
+            act.bounty_amount = f"{amount:,.0f} Bounty"
+            if hubs.exists():
+                act.first_hub = hubs.first().name.title()
+            else:
+                act.first_hub = "ResearchHub"
+            act.document_type = uni_doc.fe_document_type.title()
+            act.link = uni_doc.frontend_view_link()
+
+        act.time_since = time_since(action_item.created_date)
+        act.document_type_icon = doc_type_icon
 
         return act
 
@@ -137,17 +170,11 @@ class Action(DefaultModel):
     @property
     def created_by(self):
         created_by = None
-        try:
-            doc_type = self.item.unified_document.document_type
-            if doc_type == "DISCUSSION":
-                created_by = self.item.created_by
-            elif doc_type == "HYPOTHESIS":
-                created_by = self.item.created_by
-            elif doc_type == "PAPER":
-                created_by = self.item.uploaded_by
-        except Exception as e:
-            return None
-
+        item = self.item
+        if hasattr(item, "created_by"):
+            created_by = item.created_by
+        elif hasattr(item, "uploaded_by"):
+            created_by = item.uploaded_by
         return created_by
 
     @property
@@ -161,26 +188,27 @@ class Action(DefaultModel):
             else:
                 doc_type = item.unified_document.document_type
                 if doc_type == "DISCUSSION":
-                    summary = self.item.renderable_text
+                    summary = item.renderable_text
                 elif doc_type == "HYPOTHESIS":
-                    summary = self.item.renderable_text
+                    summary = item.renderable_text
                 elif doc_type == "PAPER":
-                    summary = self.item.abstract
+                    summary = item.abstract
                 elif doc_type == "QUESTION":
-                    summary = self.item.renderable_text
+                    summary = item.renderable_text
         except Exception as e:
             return ""
 
-        if summary and len(summary) > SUMMARY_MAX_LEN:
+        if len(summary) > SUMMARY_MAX_LEN:
             summary = f"{summary[:SUMMARY_MAX_LEN]} ..."
-        else:
-            summary = ""
         return summary
 
     @property
     def frontend_view_link(self):
         from hypothesis.models import Hypothesis
-        from researchhub_document.models import ResearchhubPost
+        from researchhub_document.models import (
+            ResearchhubPost,
+            ResearchhubUnifiedDocument,
+        )
 
         link = BASE_FRONTEND_URL
         item = self.item

@@ -199,6 +199,8 @@ INSTALLED_APPS = [
     "channels",
     # Django Celery Results
     # "django_celery_results",
+    # MJML
+    "mjml",
     # Custom apps
     "analytics",
     "bullet_point",
@@ -802,3 +804,17 @@ except Exception as e:
 
 # API Key Settings
 API_KEY_CUSTOM_HEADER = "HTTP_RH_API_KEY"
+
+
+# MJML
+KEYS_MJML_APP_ID = getattr(keys, "MJML_APP_ID", "")
+KEYS_MJML_SECRET_KEY = getattr(keys, "MJML_SECRET_KEY", "")
+MJML_APP_ID = os.environ.get("MJML_APP_ID", KEYS_MJML_APP_ID)
+MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", KEYS_MJML_SECRET_KEY)
+MJML_BACKEND_MODE = "httpserver"
+MJML_HTTPSERVERS = [
+    {
+        "URL": "https://api.mjml.io/v1/render",  # official MJML API
+        "HTTP_AUTH": (MJML_APP_ID, MJML_SECRET_KEY),
+    },
+]

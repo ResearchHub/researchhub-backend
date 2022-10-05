@@ -1,0 +1,117 @@
+{% load mjml %}
+
+{% mjml %}
+
+<mjml>
+  <mj-head>
+    <mj-attributes>
+      <mj-class name="table-fitcontent" width="fit-content" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body>
+    <mj-section padding="0px">
+      <mj-column>
+        <mj-image width="175px" padding="35px" src="https://researchhub-paper-prod.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png"></mj-image>
+        <mj-text font-size="20px" font-weight="500" font-family="roboto">Open Bounties</mj-text>
+        <mj-text font-size="14px" font-weight="400" line-height="20px" font-family="roboto" color="#241F3A">
+          Hey {{ first_name }}, here are all the new open bounties from your hubs you’ve joined. Answer the bounties for a chance to earn RSC!
+        </mj-text>
+        <mj-divider border-width="1px" border-color="#ddd"></mj-divider>
+      </mj-column>
+    </mj-section>
+    {% for action in actions %}
+    <mj-section padding="0px">
+      <mj-group>
+        <mj-column>
+          <mj-table mj-class="table-fitcontent">
+            <tr>
+              <td>
+                <img align="left" width="30px" style="object-fit:contain;border-radius:50%" src="{{ action.created_by.author_profile.profile_image|default:"https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg" }}"></img>
+              </td>
+              <td>
+                <span style="font-weight:500;padding-left:5px;font-family:Roboto;">
+                  <a href="{{ action.link }}" target="_blank" style="color:#241F3A;text-decoration:none;">
+                    {{ action.created_by.first_name }}
+                  </a>
+                </span>
+                <span style="color:#241F3A;opacity:80%;font-family:Roboto;">
+                  <a href="{{ action.link }}" target="_blank" style="color:#241F3A;text-decoration:none;">
+                    posted in
+                  </a>
+                </span>
+                <span style="font-weight:500;font-family:Roboto;">
+                  <a href="{{ action.link }}" target="_blank" style="color:#241F3A;text-decoration:none;">
+                    {{ action.first_hub }}
+                  </a>
+                </span>
+              </td>
+              <td align="right">
+                <span style="color:#241F3A99;padding:5px">
+                  <a href="{{ action.link }}" target="_blank" style="color:#241F3A99;text-decoration:none;">
+                    •
+                  </a>
+                </span>
+              </td>
+              <td>
+                <span style="color:#241F3A99;font-family:Roboto;">
+                  <a href="{{ action.link }}" target="_blank" style="color:#241F3A99;text-decoration:none;">
+                    {{ action.time_since }}
+                  </a>
+                </span>
+              </td>
+            </tr>
+          </mj-table>
+          <mj-text font-size="18px" font-weight="500" line-height="24px" padding-top="2px" font-family="roboto">
+            <a href="{{ action.link }}" target="_blank" style="color:#241F3A;text-decoration:none;"> {{ action.title }}
+            </a>
+          </mj-text>
+          <mj-text color="#241F3A" font-size="14px" font-weight="400" line-height="18px" font-family="roboto" padding-top="5px">
+            <span style="color:#241F3A;opacity:80%;font-family:Roboto;">
+              <a href="{{ action.link }}" target="_blank" style="color:#241F3A;text-decoration:none;">
+                {{ action.doc_summary }}
+              </a>
+            </span>
+          </mj-text>
+          <mj-table mj-class="table-fitcontent" line-height="0px">
+            <tr>
+              <td style="background:rgb(235, 235, 235);border-radius:4px;padding:2px 8px 2px 8px">
+                <div>
+                  <img width="15px" src="{{ action.document_type_icon }}" style="padding:5px"></img>
+                  <span style="font-family:sans-serif;font-size:14px;font-weight:500">
+                    <a href="{{ action.link }}" target="_blank" style="vertical-align:text-top;color:rgb(135,133,147);text-decoration:none;">
+                      {{ action.document_type }}
+                    </a>
+                  </span>
+                </div>
+              </td>
+              <td style="padding:5px"/>
+              <td style="background:rgb(252, 242, 220);border-radius:4px;padding:2px 8px 2px 8px">
+                <div>
+                  <img width="15px" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/rsc-512.png" style="vertical-align:text-top;margin-right:4px"></img>
+                  <span style="font-family:sans-serif;font-size:14px;font-weight:500">
+                    <a href="{{ action.link }}" target="_blank" style="color:rgb(255, 122, 0);text-decoration:none;">
+                      {{ action.bounty_amount }}
+                    </a>
+                  </span>
+                </div>
+              </td>
+            </tr>
+          </mj-table>
+          <mj-divider border-width="1px" border-color="#ddd"></mj-divider>
+        </mj-column>
+      </mj-group>
+    </mj-section>
+    {% endfor %}
+    <mj-section padding="5px">
+      <mj-column>
+        <mj-text align="center">
+          <a href="{{opt_out}}">
+            Unsubscribe or change how frequently I get updated
+          </a>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>
+
+{% endmjml %}
