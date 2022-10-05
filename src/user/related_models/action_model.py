@@ -188,20 +188,18 @@ class Action(DefaultModel):
             else:
                 doc_type = item.unified_document.document_type
                 if doc_type == "DISCUSSION":
-                    summary = self.item.renderable_text
+                    summary = item.renderable_text
                 elif doc_type == "HYPOTHESIS":
-                    summary = self.item.renderable_text
+                    summary = item.renderable_text
                 elif doc_type == "PAPER":
-                    summary = self.item.abstract
+                    summary = item.abstract
                 elif doc_type == "QUESTION":
-                    summary = self.item.renderable_text
+                    summary = item.renderable_text
         except Exception as e:
             return ""
 
-        if summary and len(summary) > SUMMARY_MAX_LEN:
+        if len(summary) > SUMMARY_MAX_LEN:
             summary = f"{summary[:SUMMARY_MAX_LEN]} ..."
-        else:
-            summary = ""
         return summary
 
     @property
