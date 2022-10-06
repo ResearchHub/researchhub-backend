@@ -50,7 +50,11 @@ def notify_weekly():
 
 
 # Noon PST
-@periodic_task(run_every=crontab(minute=0, hour=20, day_of_week="friday"), priority=9)
+@periodic_task(
+    run_every=crontab(minute=0, hour=20, day_of_week="friday"),
+    priority=9,
+    queue=QUEUE_NOTIFICATION,
+)
 def weekly_bounty_digest():
     send_bounty_digest(NotificationFrequencies.WEEKLY)
 
