@@ -13,6 +13,7 @@ from researchhub_document.serializers import (
     DynamicPostSerializer,
     ResearchhubPostSerializer,
 )
+from tag.serializers import DynamicConceptSerializer, SimpleConceptSerializer
 from user.serializers import DynamicUserSerializer, UserSerializer
 
 
@@ -52,6 +53,7 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
     hubs = SimpleHubSerializer(
         many=True, required=False, context={"no_subscriber_info": True}
     ).data
+    concepts = SimpleConceptSerializer(many=True, required=False).data
 
     def get_access_group(self, instance):
         # TODO: calvinhlee - access_group is for ELN. Work on this later
@@ -90,6 +92,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     access_group = SerializerMethodField()
     hubs = SerializerMethodField()
     reviews = SerializerMethodField()
+    concepts = SerializerMethodField()
 
     class Meta:
         model = ResearchhubUnifiedDocument
@@ -162,3 +165,15 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         # if get_reviews:
         #     return unified_doc.get_review_details()
         # return None
+
+    def get_concepts(self, unified_doc):
+        context = self.context
+        _context_fields = context.get("doc_duds_get_concepts", {})
+        serializer = DynamicConceptSerializer(
+            unified_doc.concepts,
+            many=True,
+            required=False,
+            context=context,
+            **_context_fields
+        )
+        return serializer.data
