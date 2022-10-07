@@ -24,7 +24,10 @@ class Concept(DefaultModel):
     )
 
     # https://docs.openalex.org/about-the-data/concept#description
-    description = models.TextField(default='', blank=True)
+    description = models.TextField(
+        blank=True,
+        null=False,
+        default='')
 
     # e.g. "2016-06-24"
     # https://docs.openalex.org/about-the-data/concept#created_date

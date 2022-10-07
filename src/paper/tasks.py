@@ -1418,12 +1418,8 @@ def hydrate_and_sort(concepts):
     concepts.sort(key=operator.itemgetter("score"), reverse=True)
     concepts.sort(key=operator.itemgetter("level"))
 
-    # TODO: parallelize hydration
-    def hydrate_concept(concept_id):
-        return OpenAlex().get_hydrated_concept(concept_id)
-
     try:
-        return [hydrate_concept(concept["id"]) for concept in concepts]
+        return OpenAlex().get_hydrated_concepts([concept["id"] for concept in concepts])
     except HTTPError as e:
         sentry.log_error(e)
         print(e)
