@@ -28,18 +28,27 @@ We believe that by empowering scientists to independently fund, create, and publ
 📰 Read the [ResearchCoin White Paper](https://www.researchhub.com/paper/819400/the-researchcoin-whitepaper)  
 
 ## Installation
+
 ### 1. Quick install using Docker (Recommended)
 
 1. Download or clone this repository.
-2. Inside dir root, run `cp db_config.sample.py src/config_local/db.py`
-3. Also run `cp keys.sample.py src/config_local/keys.py`
-4. Run:
+2. Copy local config files. From inside the dir root, run
+
+```
+cp db_config.sample.py src/config_local/db.py
+cp keys.sample.py src/config_local/keys.py
+cp twitter_config_sample.py src/config_local/twitter.py
+```
+
+3. Run:
+
 ```
 docker build --tag researchhub-backend .
 docker-compose up
 ```
+
 The backend will now run at localhost:8000  
-5. Setup and run the [web app](https://github.com/ResearchHub/researchhub-web) at localhost:3000 
+4. Setup and run the [web app](https://github.com/ResearchHub/researchhub-web) at localhost:3000
 
 ### 2. Native install (Slower, not recommended)
 
