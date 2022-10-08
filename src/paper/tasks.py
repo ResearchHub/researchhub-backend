@@ -1410,6 +1410,7 @@ def celery_openalex(self, celery_data):
     except Exception as e:
         raise e
 
+
 # Given a list of dehydrated concepts, hydrate them to get the rest of the fields such as description.
 # dehydrated concepts: https://docs.openalex.org/about-the-data/work#concepts
 # hydrated concepts: https://docs.openalex.org/about-the-data/concept
@@ -1424,6 +1425,7 @@ def hydrate_and_sort(concepts):
         sentry.log_error(e)
         print(e)
         return []
+
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA)
 def celery_semantic_scholar(self, celery_data):
@@ -1521,13 +1523,18 @@ def celery_create_paper(self, celery_data):
             for concept in concepts:
                 # create model object for concept if it doesn't yet exist, then associate the concept with paper
                 (stored_concept, created) = Concept.objects.get_or_create(
-                    openalex_id=concept.pop("openalex_id"), defaults=concept)
+                    openalex_id=concept.pop("openalex_id"), defaults=concept
+                )
                 if not created:
                     # update existing concept with fresh data from openalex
-                    stored_concept.display_name          = concept["display_name"]
-                    stored_concept.description           = concept["description"]
-                    stored_concept.openalex_created_date = concept["openalex_created_date"]
-                    stored_concept.openalex_updated_date = concept["openalex_updated_date"]
+                    stored_concept.display_name = concept.get("display_name", "")
+                    stored_concept.description = concept.get("description", "")
+                    stored_concept.openalex_created_date = concept[
+                        "openalex_created_date"
+                    ]
+                    stored_concept.openalex_updated_date = concept[
+                        "openalex_updated_date"
+                    ]
                     stored_concept.save()
                 paper.unified_document.concepts.add(stored_concept)
 
