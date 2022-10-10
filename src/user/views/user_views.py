@@ -37,7 +37,7 @@ from researchhub_document.serializers import DynamicPostSerializer
 from review.models.review_model import Review
 from user.filters import AuthorFilter, UserFilter
 from user.models import Author, Follow, Major, University, User, Verification
-from user.permissions import Censor, UpdateAuthor
+from user.permissions import Censor, RequestorIsOwnUser, UpdateAuthor
 from user.serializers import (
     AuthorEditableSerializer,
     AuthorSerializer,
@@ -123,6 +123,29 @@ class UserViewSet(viewsets.ModelViewSet):
         amount = distributions.get("rsc_earned") or 0
 
         return Response({"amount": amount})
+
+    @action(
+        detail=True,
+        methods=[RequestMethods.POST],
+        permission_classes=[RequestorIsOwnUser],
+    )
+    def set_should_display_rsc_balance(self, request, pk=None):
+        try:
+            user = User.objects.get(id=request.user.id)
+            target_value = request.data.get("should_display_rsc_balance_home")
+            user.should_display_rsc_balance_home = target_value
+            user.save()
+            return Response(
+                {
+                    "user_id": request.user.id,
+                    "should_display_rsc_balance_home": target_value,
+                }
+            )
+        except Exception as exception:
+            return Response(
+                f"Failed to update user: {exception}",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     @method_decorator(cache_page(60 * 60 * 6))
     @action(

@@ -35,28 +35,29 @@ User objects have the following fields by default:
 
 
 class User(AbstractUser):
-    country_code = models.CharField(max_length=4, null=True, blank=True)
-    reputation = models.IntegerField(default=100)
-    upload_tutorial_complete = models.BooleanField(default=False)
-    has_seen_first_coin_modal = models.BooleanField(default=False)
-    has_seen_orcid_connect_modal = models.BooleanField(default=False)
-    has_seen_stripe_modal = models.BooleanField(default=False)
     agreed_to_terms = models.BooleanField(default=False)
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
     bookmarks = models.ManyToManyField(
         "paper.Paper", related_name="users_who_bookmarked"
     )
-    moderator = models.BooleanField(default=False)
-    is_suspended = models.BooleanField(default=False)
-    probable_spammer = models.BooleanField(default=False)
-    suspended_updated_date = models.DateTimeField(null=True)
-    spam_updated_date = models.DateTimeField(null=True)
-    referral_code = models.CharField(max_length=36, default=uuid.uuid4, unique=True)
+    country_code = models.CharField(max_length=4, null=True, blank=True)
+    created_date = models.DateTimeField(auto_now_add=True)
+    has_seen_first_coin_modal = models.BooleanField(default=False)
+    has_seen_orcid_connect_modal = models.BooleanField(default=False)
+    has_seen_stripe_modal = models.BooleanField(default=False)
     invited_by = models.ForeignKey(
         "self", related_name="invitee", on_delete=models.SET_NULL, null=True, blank=True
     )
+    is_suspended = models.BooleanField(default=False)
+    moderator = models.BooleanField(default=False)
+    probable_spammer = models.BooleanField(default=False)
+    referral_code = models.CharField(max_length=36, default=uuid.uuid4, unique=True)
+    reputation = models.IntegerField(default=100)
+    should_display_rsc_balance_home = models.BooleanField(default=True)
     sift_risk_score = models.FloatField(null=True, blank=True)
+    spam_updated_date = models.DateTimeField(null=True)
+    suspended_updated_date = models.DateTimeField(null=True)
+    updated_date = models.DateTimeField(auto_now=True)
+    upload_tutorial_complete = models.BooleanField(default=False)
 
     objects = UserManager()
 
