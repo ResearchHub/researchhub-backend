@@ -293,7 +293,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def get_filtered_queryset(self):
         qs = self.get_queryset().filter(is_removed=False)
         qs = self.filter_queryset(qs)
-        return qs
+        return qs.prefetch_related("concepts")
 
     def _get_unified_document_cache_hit(
         self, document_type, filtering, hub_id, page_number, time_scope
