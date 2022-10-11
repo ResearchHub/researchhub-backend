@@ -391,6 +391,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "reviews",
                 "score",
                 "bounties",
+                "concepts",
             ],
             many=True,
             context=context,

@@ -1,7 +1,7 @@
 {
   "meta": {
-    "count": 10,
-    "db_response_time_ms": 10,
+    "count": 16,
+    "db_response_time_ms": 14,
     "page": 1,
     "per_page": 25
   },
@@ -13,7 +13,7 @@
       "level": 0,
       "description": "theoretical study of the formal foundation enabling the automated processing or computation of information, for example on a computer or over a data transmission network",
       "works_count": 41363895,
-      "cited_by_count": 215486345,
+      "cited_by_count": 221356896,
       "ids": {
         "openalex": "https://openalex.org/C41008148",
         "wikidata": "https://www.wikidata.org/wiki/Q21198",
@@ -913,62 +913,913 @@
       "counts_by_year": [
         {
           "year": 2022,
-          "works_count": 1254935,
-          "cited_by_count": 10685811
+          "works_count": 1256246,
+          "cited_by_count": 11136102
         },
         {
           "year": 2021,
-          "works_count": 1947582,
-          "cited_by_count": 16243805
+          "works_count": 1948837,
+          "cited_by_count": 17553033
         },
         {
           "year": 2020,
-          "works_count": 2243765,
-          "cited_by_count": 14467072
+          "works_count": 2246220,
+          "cited_by_count": 15871272
         },
         {
           "year": 2019,
-          "works_count": 2063566,
-          "cited_by_count": 13600913
+          "works_count": 2059576,
+          "cited_by_count": 13772205
         },
         {
           "year": 2018,
-          "works_count": 2003819,
-          "cited_by_count": 11692869
+          "works_count": 2002421,
+          "cited_by_count": 11819231
         },
         {
           "year": 2017,
-          "works_count": 1971078,
-          "cited_by_count": 10955556
+          "works_count": 1982640,
+          "cited_by_count": 10557376
         },
         {
           "year": 2016,
-          "works_count": 1957173,
-          "cited_by_count": 10519804
+          "works_count": 1961607,
+          "cited_by_count": 10467454
         },
         {
           "year": 2015,
-          "works_count": 1980187,
-          "cited_by_count": 10686774
+          "works_count": 1984439,
+          "cited_by_count": 10669476
         },
         {
           "year": 2014,
-          "works_count": 1956111,
-          "cited_by_count": 10449463
+          "works_count": 1957230,
+          "cited_by_count": 10453779
         },
         {
           "year": 2013,
-          "works_count": 1848810,
-          "cited_by_count": 9677278
+          "works_count": 1849386,
+          "cited_by_count": 9724305
         },
         {
           "year": 2012,
-          "works_count": 1710084,
-          "cited_by_count": 8639643
+          "works_count": 1713993,
+          "cited_by_count": 8780751
         }
       ],
       "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C41008148",
-      "updated_date": "2022-10-03T10:19:08.277991",
+      "updated_date": "2022-10-09T09:54:26.332086",
+      "created_date": "2016-06-24"
+    },
+    {
+      "id": "https://openalex.org/C86803240",
+      "wikidata": "https://www.wikidata.org/wiki/Q420",
+      "display_name": "Biology",
+      "level": 0,
+      "description": "branch of science that primarily deals with structure, function, growth, evolution, and distribution of organisms",
+      "works_count": 17354067,
+      "cited_by_count": 365302630,
+      "ids": {
+        "openalex": "https://openalex.org/C86803240",
+        "wikidata": "https://www.wikidata.org/wiki/Q420",
+        "mag": "86803240",
+        "wikipedia": "https://en.wikipedia.org/wiki/Biology",
+        "umls_cui": [
+          "C0005532"
+        ]
+      },
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/3/32/EscherichiaColi_NIAID.jpg",
+      "image_thumbnail_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/32/EscherichiaColi_NIAID.jpg/100px-EscherichiaColi_NIAID.jpg",
+      "international": {
+        "display_name": {
+          "ab": "\u0430\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u0430",
+          "af": "biologie",
+          "am": "\u1225\u1290 \u1215\u12ed\u12c8\u1275",
+          "an": "bioloch\u00eda",
+          "ar": "\u0639\u0644\u0645 \u0627\u0644\u0623\u062d\u064a\u0627\u0621",
+          "ary": "\u0628\u064a\u0648\u0644\u0648\u062c\u064a\u0627",
+          "arz": "\u0628\u064a\u0648\u0644\u0648\u062c\u064a\u0627",
+          "as": "\u099c\u09c0\u09f1 \u09ac\u09bf\u099c\u09cd\u099e\u09be\u09a8",
+          "ast": "biolox\u00eda",
+          "av": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "avk": "bliopa",
+          "az": "biologiya",
+          "azb": "\u062c\u0627\u0646\u0644\u06cc \u0628\u06cc\u0644\u06cc\u0645",
+          "ba": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "bar": "Biologie",
+          "bcl": "biyolohiya",
+          "be": "\u0431\u0456\u044f\u043b\u043e\u0433\u0456\u044f",
+          "be-tarask": "\u0431\u0456\u044f\u043b\u0451\u0433\u0456\u044f",
+          "bg": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "bho": "\u091c\u0940\u0935 \u092c\u093f\u091c\u094d\u091e\u093e\u0928",
+          "bi": "baeoloji",
+          "bjn": "biologi",
+          "blk": "\u1007\u102e\u101d\u1017\u1031\u1012",
+          "bn": "\u099c\u09c0\u09ac\u09ac\u09bf\u099c\u09cd\u099e\u09be\u09a8",
+          "bo": "\u0f66\u0f90\u0fb1\u0f7a\u0f0b\u0f51\u0f44\u0f7c\u0f66\u0f0b\u0f62\u0f72\u0f42\u0f0b\u0f54\u0f0d",
+          "br": "bevoniezh",
+          "bs": "biologija",
+          "bug": "\u1a05\u1a17\u1a15\u1a1a\u1a12\u1a1a\u1a01\u1a17",
+          "bxr": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438",
+          "ca": "biologia",
+          "cdo": "s\u0115ng-\u016dk-h\u014fk",
+          "ce": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438",
+          "ceb": "biyolohiya",
+          "ch": "bioloyia",
+          "ckb": "\u0698\u06cc\u0646\u0646\u0627\u0633\u06cc",
+          "co": "Biologia",
+          "crh": "ayatiyat",
+          "crh-latn": "ayatiyat",
+          "cs": "biologie",
+          "csb": "biologij\u00f4",
+          "cv": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438",
+          "cy": "bioleg",
+          "da": "biologi",
+          "dag": "binni\u025bma vihigu",
+          "de": "Biologie",
+          "din": "pi\u00f6c\u00ebp\u00efr",
+          "diq": "biyolociye",
+          "dv": "\u078b\u07a8\u0783\u07aa\u0789\u07a7\u0784\u07ac\u0780\u07ad \u0787\u07a8\u078d\u07b0\u0789\u07aa",
+          "el": "\u03b2\u03b9\u03bf\u03bb\u03bf\u03b3\u03af\u03b1",
+          "en": "biology",
+          "en-ca": "biology",
+          "en-gb": "biology",
+          "eo": "biologio",
+          "es": "biolog\u00eda",
+          "et": "bioloogia",
+          "eu": "biologia",
+          "ext": "biologia",
+          "fa": "\u0632\u06cc\u0633\u062a\u200c\u0634\u0646\u0627\u0633\u06cc",
+          "fi": "biologia",
+          "fj": "biology",
+          "fo": "l\u00edvfr\u00f8\u00f0i",
+          "fr": "biologie",
+          "frp": "biologia",
+          "frr": "Biologii",
+          "fur": "Biologjie",
+          "fy": "biology",
+          "ga": "bitheola\u00edocht",
+          "gcr": "byoloji",
+          "gd": "bith-e\u00f2las",
+          "gl": "biolox\u00eda",
+          "glk": "\u0632\u06cc\u0648\u06cc\u0634\u062a\u0634\u0646\u0627\u0633\u06cc",
+          "gn": "tekovekuaaty",
+          "gsw": "Biologi",
+          "gu": "\u0a9c\u0ac0\u0ab5\u0ab5\u0abf\u0a9c\u0acd\u0a9e\u0abe\u0aa8",
+          "gv": "Bea-oaylleeaght",
+          "hak": "s\u00e2ng-vu\u030dt-ho\u030dk",
+          "haw": "K\u0101laimeaola",
+          "he": "\u05d1\u05d9\u05d5\u05dc\u05d5\u05d2\u05d9\u05d4",
+          "hi": "\u091c\u0940\u0935 \u0935\u093f\u091c\u094d\u091e\u093e\u0928",
+          "hif": "Jiu vigyan",
+          "hr": "biologija",
+          "hsb": "biologija",
+          "ht": "biyoloji",
+          "hu": "biol\u00f3gia",
+          "hy": "\u056f\u0565\u0576\u057d\u0561\u0562\u0561\u0576\u0578\u0582\u0569\u0575\u0578\u0582\u0576",
+          "hyw": "\u053f\u0565\u0576\u057d\u0561\u0562\u0561\u0576\u0578\u0582\u0569\u056b\u0582\u0576",
+          "ia": "biologia",
+          "id": "biologi",
+          "ie": "biologie",
+          "ilo": "biolohia",
+          "inh": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438",
+          "io": "biologio",
+          "is": "l\u00edffr\u00e6\u00f0i",
+          "it": "biologia",
+          "iu": "\u1406\u14aa\u1505\u14f1\u14ef\u1583\u1550\u1450\u14d5\u1546\u14c2\u1585",
+          "ja": "\u751f\u7269\u5b66",
+          "jam": "bailoji",
+          "jbo": "mivyske",
+          "jv": "biologi",
+          "ka": "\u10d1\u10d8\u10dd\u10da\u10dd\u10d2\u10d8\u10d0",
+          "kaa": "biologiya",
+          "kab": "tasnudert",
+          "kbp": "tomna\u0263 l\u025b\u0263t\u028b",
+          "ki": "bayoroj\u0129",
+          "kk": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "kl": "uumassusililerineq",
+          "km": "\u1787\u17b8\u179c\u179c\u17b7\u1791\u17d2\u1799\u17b6",
+          "kn": "\u0c9c\u0cc0\u0cb5\u0cb6\u0cbe\u0cb8\u0ccd\u0ca4\u0ccd\u0cb0",
+          "ko": "\uc0dd\ubb3c\ud559",
+          "ks": "\u0632\u064f\u063a\u0672\u0646\u0620",
+          "ku": "biyoloj\u00ee",
+          "kw": "bywonieth",
+          "ky": "\u0411\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "la": "biologia",
+          "lad": "biolojiya",
+          "lb": "Biologie",
+          "lez": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "lfn": "biolojia",
+          "lg": "essomabiramu",
+          "li": "Biologie",
+          "lij": "biologia",
+          "lld": "Biologia",
+          "lmo": "Biulug\u00eca",
+          "ln": "mamb\u00ed ma bom\u0254i",
+          "lo": "\u0e8a\u0eb5\u0ea7\u0eb0\u0eaa\u0eb2\u0e94",
+          "lrc": "\u0632\u0626\u0634\u062a",
+          "lt": "biologija",
+          "lv": "biolo\u0123ija",
+          "lzh": "\u751f\u7269\u5b78",
+          "mad": "biologi",
+          "mai": "\u091c\u0940\u0935\u0936\u093e\u0938\u094d\u0924\u094d\u0930",
+          "map-bms": "Biologi",
+          "mg": "biolojia",
+          "mhr": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u0439",
+          "mi": "p\u016btaiao koiora",
+          "min": "biologi",
+          "mk": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u0458\u0430",
+          "ml": "\u0d1c\u0d40\u0d35\u0d36\u0d3e\u0d38\u0d4d\u0d24\u0d4d\u0d30\u0d02",
+          "mn": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438",
+          "mni": "\uabca\uabcb\uabe5\uabe2\uabc4\uabe5\uabdf\uabd5 \uabc5\uabe9\uabc5\uabc2\uabe3\uabdf",
+          "mr": "\u091c\u0940\u0935\u0936\u093e\u0938\u094d\u0924\u094d\u0930",
+          "ms": "biologi",
+          "ms-arab": "\u0628\u064a\u0648\u0644\u0648\u0762\u064a",
+          "mt": "bijolo\u0121ija",
+          "mwl": "biologie",
+          "my": "\u1007\u102e\u101d\u1017\u1031\u1012",
+          "myv": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u044f\u0441\u044c-\u044d\u0440\u0438\u0435\u043d\u044c\u0441\u043e\u0434\u0430\u043c\u043e\u0441\u044c",
+          "nah": "Y\u014dlizmatiliztli",
+          "nan": "seng-bu\u030dt-ha\u030dk",
+          "nap": "biologgia",
+          "nb": "biologi",
+          "nds": "Biologie",
+          "nds-nl": "Biologie",
+          "ne": "\u091c\u0940\u0935\u0936\u093e\u0938\u094d\u0924\u094d\u0930",
+          "new": "\u091c\u0940\u0935\u0936\u093e\u0938\u094d\u0924\u094d\u0930",
+          "nl": "biologie",
+          "nn": "biologi",
+          "nov": "biologia",
+          "nqo": "\u07e3\u07cc\u07e1\u07ca\u07de\u07ca\u07d9\u07ca\u07f2",
+          "nrm": "biologie",
+          "nso": "thutaphedi",
+          "oc": "biologia",
+          "olo": "biolougii",
+          "om": "baayoolojii",
+          "or": "\u0b1c\u0b40\u0b2c \u0b2c\u0b3f\u0b1c\u0b4d\u0b1e\u0b3e\u0b28",
+          "os": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438",
+          "pa": "\u0a1c\u0a40\u0a35 \u0a35\u0a3f\u0a17\u0a3f\u0a06\u0a28",
+          "pam": "biolohiya",
+          "pap": "biologia",
+          "pfl": "Bioloschie",
+          "pih": "biiolojii",
+          "pl": "biologia",
+          "pms": "Biolog\u00eca",
+          "pnb": "\u062c\u06cc\u0648\u0646 \u067e\u0691\u06be\u062a",
+          "ps": "\u0698\u0648\u0646\u067e\u0648\u0647\u0646\u0647",
+          "pt": "biologia",
+          "pt-br": "biologia",
+          "qu": "kawsay yachay",
+          "rm": "biologia",
+          "ro": "biologie",
+          "ru": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "rue": "\u0431\u0456\u043e\u043b\u043e\u0491\u0456\u044f",
+          "rup": "biologhia",
+          "sa": "\u091c\u0940\u0935\u0936\u093e\u0938\u094d\u0924\u094d\u0930\u092e\u094d",
+          "sah": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "sc": "biologia",
+          "scn": "biulugg\u00eca",
+          "sco": "biology",
+          "sd": "\u062d\u064a\u0627\u062a\u064a\u0627\u062a",
+          "se": "biologiija",
+          "sgs": "bioluog\u0117j\u0117",
+          "sh": "biologija",
+          "shi": "tasnudert",
+          "si": "\u0da2\u0dd3\u0dc0 \u0dc0\u0dd2\u0daf\u0dca\u200d\u0dba\u0dcf\u0dc0",
+          "sk": "biol\u00f3gia",
+          "skr": "\u062d\u06cc\u0627\u062a\u06cc\u0627\u062a",
+          "sl": "biologija",
+          "sm": "paiolo",
+          "smn": "biologia",
+          "sms": "biologia",
+          "sn": "ketaupenyu",
+          "so": "bayoloji",
+          "sq": "biologji",
+          "sr": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u0458\u0430",
+          "ss": "Ibhayoloji",
+          "st": "baeloji",
+          "stq": "Biologie",
+          "su": "biologi",
+          "sv": "biologi",
+          "sw": "biolojia",
+          "szl": "biologij\u014f",
+          "ta": "\u0b89\u0baf\u0bbf\u0bb0\u0bbf\u0baf\u0bb2\u0bcd",
+          "tcy": "\u0c9c\u0cc0\u0cb5 \u0cb6\u0cbe\u0cb8\u0ccd\u0ca4\u0ccd\u0cb0",
+          "te": "\u0c1c\u0c40\u0c35 \u0c36\u0c3e\u0c38\u0c4d\u0c24\u0c4d\u0c30\u0c02",
+          "tet": "biolojia",
+          "tg": "\u0437\u0438\u0441\u0442\u0448\u0438\u043d\u043e\u0441\u04e3",
+          "tg-cyrl": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "th": "\u0e0a\u0e35\u0e27\u0e27\u0e34\u0e17\u0e22\u0e32",
+          "ti": "\u1263\u12ee\u120e\u1302",
+          "tk": "biologi\u00fda",
+          "tl": "biyolohiya",
+          "tpi": "save long laip",
+          "tr": "biyoloji",
+          "ts": "Ntivo-Vutomi",
+          "tt": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "udm": "\u0431\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "ug": "\u0628\u0649\u0626\u0648\u0644\u0648\u06af\u0649\u064a\u06d5",
+          "uk": "\u0431\u0456\u043e\u043b\u043e\u0433\u0456\u044f",
+          "ur": "\u062d\u06cc\u0627\u062a\u06cc\u0627\u062a",
+          "uz": "biologiya",
+          "vec": "bio\u0142ozia",
+          "vi": "sinh h\u1ecdc",
+          "vls": "Biologie",
+          "vo": "lifav",
+          "vro": "bioloogia",
+          "wa": "biyolodjeye",
+          "war": "biyolohiya",
+          "wuu": "\u751f\u7269\u5b78",
+          "xal": "\u0431\u0438\u043e\u043b\u043e\u0433",
+          "xh": "IBayoloji",
+          "xmf": "\u10d1\u10d8\u10dd\u10da\u10dd\u10d2\u10d8\u10d0",
+          "yi": "\u05d1\u05d9\u05d0\u05dc\u05d0\u05d2\u05d9\u05e2",
+          "yue": "\u751f\u7269\u5b78",
+          "zea": "biologie",
+          "zh": "\u751f\u7269\u5b66",
+          "zh-cn": "\u751f\u7269\u5b66",
+          "zh-hans": "\u751f\u7269\u5b66",
+          "zh-hant": "\u751f\u7269\u5b78",
+          "zh-hk": "\u751f\u7269\u5b78",
+          "zh-tw": "\u751f\u7269\u5b78",
+          "zu": "Ibhayoloji"
+        },
+        "description": {
+          "ar": "\u0639\u0644\u0645 \u0637\u0628\u064a\u0639\u064a \u064a\u064f\u0639\u0646\u0649 \u0628\u062f\u0631\u0627\u0633\u0629 \u0627\u0644\u062d\u064a\u0627\u0629 \u0648\u0627\u0644\u0643\u0627\u0626\u0646\u0627\u062a \u0627\u0644\u062d\u064a\u0629",
+          "ast": "ciencia natural que tien como oxetu d'estudiu la materia vivo, el so orixe y evoluci\u00f3n",
+          "az": "canl\u0131 t\u0259bi\u0259t haqq\u0131nda elm",
+          "ba": "\u0439\u04d9\u043d\u043b\u0435 \u0442\u04d9\u0431\u0438\u0493\u04d9\u0442 \u0442\u0443\u0440\u0430\u04bb\u044b\u043d\u0434\u0430 \u0444\u04d9\u043d.",
+          "bar": "Wissnschoft, de se mid olle Sochan befosst, de wos midn Lebm zon doan hobnt",
+          "be": "\u043d\u0430\u0432\u0443\u043a\u0430",
+          "be-tarask": "\u043d\u0430\u0432\u0443\u043a\u0430 \u043f\u0440\u0430 \u0436\u044b\u0446\u044c\u0446\u0451",
+          "bg": "\u043d\u0430\u0443\u043a\u0430\u0442\u0430 \u0437\u0430 \u0436\u0438\u0432\u043e\u0442\u0430",
+          "bn": "\u09ac\u09bf\u099c\u09cd\u099e\u09be\u09a8\u09c7\u09b0 \u09b6\u09be\u0996\u09be \u09af\u09c7\u0996\u09be\u09a8\u09c7 \u099c\u09c0\u09ac\u09a8\u09c7\u09b0 \u09b8\u09ae\u09b8\u09cd\u09a4 \u0985\u09a8\u09c1\u09b7\u0999\u09cd\u0997 \u09a8\u09bf\u09af\u09bc\u09c7 \u0986\u09b2\u09cb\u099a\u09a8\u09be, \u0985\u09a7\u09cd\u09af\u09af\u09bc\u09a8 \u0993 \u0997\u09ac\u09c7\u09b7\u09a3\u09be \u0995\u09b0\u09be \u09b9\u09af\u09bc",
+          "bo": "\u0f62\u0f44\u0f0b\u0f56\u0fb1\u0f74\u0f44\u0f0b\u0f5a\u0f53\u0f0b\u0f62\u0f72\u0f42\u0f0b\u0f42\u0f72\u0f0b\u0f56\u0fb1\u0f7a\u0f0b\u0f56\u0fb2\u0f42\u0f0b\u0f45\u0f72\u0f42",
+          "ca": "Ci\u00e8ncia natural que t\u00e9 com a objecte d'estudi la mat\u00e8ria viva, el seu origen i evoluci\u00f3",
+          "ckb": "\u0632\u0627\u0646\u0633\u062a\u06cc \u062a\u0648\u06ce\u0698\u06cc\u0646\u06d5\u0648\u06d5\u06cc \u0632\u06cc\u0646\u062f\u06d5\u0648\u06d5\u0631\u0627\u0646",
+          "cs": "v\u011bda zab\u00fdvaj\u00edc\u00ed se \u017eivou hmotou",
+          "da": "videnskab involverer studiet af livet, levende organismer og livsprocesser",
+          "de": "Wissenschaft des Lebendigen",
+          "el": "\u03b5\u03c0\u03b9\u03c3\u03c4\u03ae\u03bc\u03b7 \u03c0\u03bf\u03c5 \u03bc\u03b5\u03bb\u03b5\u03c4\u03ac \u03c4\u03b7 \u03b6\u03c9\u03ae",
+          "en": "branch of science that primarily deals with structure, function, growth, evolution, and distribution of organisms",
+          "en-gb": "study of living things",
+          "eo": "scienco pri vivo",
+          "es": "rama de la ciencia que se ocupa principalmente de la estructura, funci\u00f3n, crecimiento, evoluci\u00f3n y distribuci\u00f3n de los organismos",
+          "et": "elu uuriv loodusteaduse haru",
+          "fa": "\u0634\u0627\u062e\u0647\u200c\u0627\u06cc \u0627\u0632 \u0639\u0644\u0645 \u06a9\u0647 \u0628\u0647 \u0645\u0637\u0627\u0644\u0639\u0647\u0654 \u062c\u0627\u0646\u062f\u0627\u0631\u0627\u0646 \u0645\u06cc\u200c\u067e\u0631\u062f\u0627\u0632\u062f",
+          "fi": "luonnontiede, joka tutkii el\u00e4m\u00e4\u00e4",
+          "fr": "science de la vie",
+          "gl": "estudo da vida",
+          "he": "\u05d7\u05e7\u05e8 \u05d4\u05e8\u05db\u05d1 \u05e2\u05d5\u05dc\u05dd \u05d4\u05d7\u05d9",
+          "hu": "\u00e9l\u0151l\u00e9nyekkel foglalkoz\u00f3 tudom\u00e1ny\u00e1g",
+          "id": "cabang ilmu alam dan ilmu sosial | Kajian mengenai kehidupan",
+          "ilo": "masna a siensia a maipapan iti panagadal iti biag ken dagiti sibibiag nga organismo",
+          "it": "scienza che studia la vita",
+          "ja": "\u751f\u547d\u73fe\u8c61\u3092\u7814\u7a76\u3059\u308b\u3001\u81ea\u7136\u79d1\u5b66\u306e\u4e00\u5206\u91ce",
+          "ko": "\uc0dd\uba85\uc5d0 \ub300\ud574 \uc5f0\uad6c\ud558\ub294 \uacfc\ud559",
+          "ku": "\u00e7iqilek\u00ee zanist\u00ea",
+          "lad": "sensia de la vida",
+          "lv": "dabas zin\u0101tne par dz\u012bv\u012bbu un da\u017e\u0101diem organismiem",
+          "mi": "akoranga",
+          "mk": "\u043d\u0430\u0443\u043a\u0430 \u0448\u0442\u043e \u0433\u0438 \u0438\u0437\u0443\u0447\u0443\u0432\u0430 \u0436\u0438\u0432\u0438\u0442\u0435 \u043e\u0440\u0433\u0430\u043d\u0438\u0437\u043c\u0438",
+          "ms": "cabang sains berkaitan benda-benda hidup",
+          "nb": "l\u00e6ren om levende ting",
+          "ne": "\u091c\u0940\u0935\u0915\u094b \u0905\u0927\u094d\u092f\u0928",
+          "nl": "leer van de levende wezens",
+          "nqo": "\u07db\u07ce\u07f2\u07de\u07ce\u07f2 \u07df\u07d0\u07f2\u07de\u07cf \u07e1\u07cd\u07f2 \u07e6\u07cb\u07eb \u07e3\u07cc\u07e1\u07ca \u07db\u07ce\u07ef\u07e6\u07ca \u07df\u07ce\u07ec \u07de\u07ca\u07ec\u07d9\u07ca\u07f2\u07ec \u07e0\u07ca\u07eb\u07f8 \u07ca\u07ec \u07e3\u07cc\u07eb \u07de\u07f5\u07ca\u07ec\u07df\u07ce\u07eb \u07df\u07ca\u07eb \u07de\u07cf \u07e2\u07ca\u07e2\u07cc\u07e3\u07cc\u07f2\u07eb",
+          "om": "saayinsii jiruu fi jireenya lubbu qabeeyyi qoratu",
+          "pl": "nauka o \u017cyciu",
+          "pt": "ci\u00eancia que estuda a vida e os organismos vivos",
+          "pt-br": "estudo da vida",
+          "ru": "\u043d\u0430\u0443\u043a\u0430 \u043e \u0436\u0438\u0432\u044b\u0445 \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0430\u0445 \u0438 \u0438\u0445 \u0432\u0437\u0430\u0438\u043c\u043e\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0438 \u0441\u043e \u0441\u0440\u0435\u0434\u043e\u0439",
+          "scn": "scienza chi studia la vita",
+          "sd": "\u062c\u064a\u0627\u067e\u064a \u062c\u0648 \u0627\u0680\u064a\u0627\u0633 (\u0632\u0646\u062f\u06af\u064a\u0621\u064e \u0628\u0627\u0628\u062a \u0639\u0644\u0645)",
+          "sh": "nauka o \u017eivim bi\u0107ima",
+          "si": "\u0dc3\u0d82\u0db0\u0dcf\u0dbb\u0db1\u0dba \u0dc3\u0dc4 \u0da0\u0dbd\u0db1\u0dba",
+          "sk": "n\u00e1uka o \u017eivote",
+          "sl": "veda o \u017eivljenju, ena izmed naravoslovnih ved",
+          "sq": "shkenc\u00eb q\u00eb studion qeniet e gjalla",
+          "sr": "\u043d\u0430\u0443\u043a\u0430 \u043e \u0436\u0438\u0432\u0438\u043c \u0431\u0438\u045b\u0438\u043c\u0430",
+          "sv": "naturvetenskap som ber\u00f6r l\u00e4ran om livet, levande organismer och livets processer",
+          "tg": "\u0438\u043b\u043c\u0435, \u043a\u0438 \u04b3\u0430\u0451\u0442\u0438 \u0437\u0438\u043d\u0434\u0430\u0440\u043e \u043c\u0435\u043e\u043c\u04ef\u0437\u0430\u0434",
+          "th": "\u0e01\u0e32\u0e23\u0e28\u0e36\u0e01\u0e29\u0e32\u0e2a\u0e34\u0e48\u0e07\u0e21\u0e35\u0e0a\u0e35\u0e27\u0e34\u0e15",
+          "ti": "\u1293\u12ed \u1202\u12c8\u1275 \u1218\u133d\u1293\u12d5\u1272",
+          "tr": "canl\u0131lar\u0131 inceleyen bilim dal\u0131",
+          "tt": "\u0442\u0435\u0440\u0435 \u0442\u043e\u0440\u043c\u044b\u0448\u043d\u044b, \u0442\u0435\u0440\u0435\u043a\u043b\u0435\u043a\u043d\u0435 \u04bb\u04d9\u043c \u0430\u043d\u044b\u04a3 \u0442\u0430\u0431\u0438\u0433\u0430\u0442\u044c \u0431\u0435\u043b\u04d9\u043d \u0431\u04d9\u0439\u043b\u04d9\u043d\u0435\u0448\u0435\u043d \u04e9\u0439\u0440\u04d9\u043d\u04d9 \u0442\u043e\u0440\u0433\u0430\u043d \u0444\u04d9\u043d",
+          "uk": "\u043d\u0430\u0443\u043a\u0430 \u0449\u043e \u0432\u0438\u0432\u0447\u0430\u0454 \u0436\u0438\u0442\u0442\u044f \u0432 \u0443\u0441\u0456\u0445 \u0439\u043e\u0433\u043e \u043f\u0440\u043e\u044f\u0432\u0430\u0445",
+          "vec": "siensa che \u0142a studia \u0142a vita in tute \u0142e so forme",
+          "vi": "m\u00f4n khoa h\u1ecdc nghi\u00ean c\u1ee9u v\u1ec1 sinh v\u1eadt",
+          "zh": "\u7814\u7a76\u751f\u547d\u7684\u81ea\u7136\u79d1\u5b78",
+          "zh-cn": "\u7814\u7a76\u751f\u547d\u7684\u81ea\u7136\u79d1\u5b66",
+          "zh-hans": "\u7814\u7a76\u751f\u547d\u7684\u81ea\u7136\u79d1\u5b66",
+          "zh-hant": "\u7814\u7a76\u751f\u547d\u7684\u81ea\u7136\u79d1\u5b78",
+          "zh-hk": "\u7814\u7a76\u751f\u547d\u7684\u81ea\u7136\u79d1\u5b78",
+          "zh-tw": "\u7814\u7a76\u751f\u547d\u7684\u81ea\u7136\u79d1\u5b78"
+        }
+      },
+      "ancestors": [],
+      "related_concepts": [
+        {
+          "id": "https://openalex.org/C185592680",
+          "wikidata": null,
+          "display_name": "Chemistry",
+          "level": 0,
+          "score": 229.3072
+        },
+        {
+          "id": "https://openalex.org/C121332964",
+          "wikidata": null,
+          "display_name": "Physics",
+          "level": 0,
+          "score": 215.60185
+        },
+        {
+          "id": "https://openalex.org/C33923547",
+          "wikidata": null,
+          "display_name": "Mathematics",
+          "level": 0,
+          "score": 157.68698
+        },
+        {
+          "id": "https://openalex.org/C90856448",
+          "wikidata": null,
+          "display_name": "Zoology",
+          "level": 1,
+          "score": 112.06849
+        },
+        {
+          "id": "https://openalex.org/C18903297",
+          "wikidata": null,
+          "display_name": "Ecology",
+          "level": 1,
+          "score": 105.077515
+        },
+        {
+          "id": "https://openalex.org/C54355233",
+          "wikidata": null,
+          "display_name": "Genetics",
+          "level": 1,
+          "score": 99.946335
+        },
+        {
+          "id": "https://openalex.org/C15744967",
+          "wikidata": null,
+          "display_name": "Psychology",
+          "level": 0,
+          "score": 99.701775
+        },
+        {
+          "id": "https://openalex.org/C41008148",
+          "wikidata": null,
+          "display_name": "Computer science",
+          "level": 0,
+          "score": 72.15612
+        },
+        {
+          "id": "https://openalex.org/C55493867",
+          "wikidata": null,
+          "display_name": "Biochemistry",
+          "level": 1,
+          "score": 70.11045
+        },
+        {
+          "id": "https://openalex.org/C162324750",
+          "wikidata": null,
+          "display_name": "Economics",
+          "level": 0,
+          "score": 69.79827
+        },
+        {
+          "id": "https://openalex.org/C59822182",
+          "wikidata": null,
+          "display_name": "Botany",
+          "level": 1,
+          "score": 68.97937
+        },
+        {
+          "id": "https://openalex.org/C71924100",
+          "wikidata": null,
+          "display_name": "Medicine",
+          "level": 0,
+          "score": 66.43467
+        },
+        {
+          "id": "https://openalex.org/C42407357",
+          "wikidata": null,
+          "display_name": "Physiology",
+          "level": 1,
+          "score": 64.58627
+        },
+        {
+          "id": "https://openalex.org/C95457728",
+          "wikidata": null,
+          "display_name": "History",
+          "level": 0,
+          "score": 63.522514
+        },
+        {
+          "id": "https://openalex.org/C144024400",
+          "wikidata": null,
+          "display_name": "Sociology",
+          "level": 0,
+          "score": 55.655975
+        },
+        {
+          "id": "https://openalex.org/C205649164",
+          "wikidata": null,
+          "display_name": "Geography",
+          "level": 0,
+          "score": 54.900837
+        },
+        {
+          "id": "https://openalex.org/C138885662",
+          "wikidata": null,
+          "display_name": "Philosophy",
+          "level": 0,
+          "score": 53.066486
+        },
+        {
+          "id": "https://openalex.org/C127313418",
+          "wikidata": null,
+          "display_name": "Geology",
+          "level": 0,
+          "score": 52.934113
+        },
+        {
+          "id": "https://openalex.org/C127413603",
+          "wikidata": null,
+          "display_name": "Engineering",
+          "level": 0,
+          "score": 48.14887
+        },
+        {
+          "id": "https://openalex.org/C105702510",
+          "wikidata": null,
+          "display_name": "Anatomy",
+          "level": 1,
+          "score": 45.589718
+        },
+        {
+          "id": "https://openalex.org/C36289849",
+          "wikidata": null,
+          "display_name": "Social science",
+          "level": 1,
+          "score": 44.862877
+        },
+        {
+          "id": "https://openalex.org/C19165224",
+          "wikidata": null,
+          "display_name": "Anthropology",
+          "level": 1,
+          "score": 43.6167
+        },
+        {
+          "id": "https://openalex.org/C153911025",
+          "wikidata": null,
+          "display_name": "Molecular biology",
+          "level": 1,
+          "score": 42.823093
+        },
+        {
+          "id": "https://openalex.org/C151730666",
+          "wikidata": null,
+          "display_name": "Paleontology",
+          "level": 1,
+          "score": 38.10297
+        },
+        {
+          "id": "https://openalex.org/C169760540",
+          "wikidata": null,
+          "display_name": "Neuroscience",
+          "level": 1,
+          "score": 37.090626
+        },
+        {
+          "id": "https://openalex.org/C150903083",
+          "wikidata": null,
+          "display_name": "Biotechnology",
+          "level": 1,
+          "score": 36.159473
+        },
+        {
+          "id": "https://openalex.org/C2524010",
+          "wikidata": null,
+          "display_name": "Geometry",
+          "level": 1,
+          "score": 35.86919
+        },
+        {
+          "id": "https://openalex.org/C78458016",
+          "wikidata": null,
+          "display_name": "Evolutionary biology",
+          "level": 1,
+          "score": 32.58231
+        },
+        {
+          "id": "https://openalex.org/C17744445",
+          "wikidata": null,
+          "display_name": "Political science",
+          "level": 0,
+          "score": 31.628723
+        },
+        {
+          "id": "https://openalex.org/C95444343",
+          "wikidata": null,
+          "display_name": "Cell biology",
+          "level": 1,
+          "score": 30.988123
+        },
+        {
+          "id": "https://openalex.org/C39432304",
+          "wikidata": null,
+          "display_name": "Environmental science",
+          "level": 0,
+          "score": 30.663008
+        },
+        {
+          "id": "https://openalex.org/C15708023",
+          "wikidata": null,
+          "display_name": "Humanities",
+          "level": 1,
+          "score": 26.0687
+        },
+        {
+          "id": "https://openalex.org/C89423630",
+          "wikidata": null,
+          "display_name": "Microbiology",
+          "level": 1,
+          "score": 25.264006
+        },
+        {
+          "id": "https://openalex.org/C142362112",
+          "wikidata": null,
+          "display_name": "Art",
+          "level": 0,
+          "score": 24.120262
+        },
+        {
+          "id": "https://openalex.org/C60644358",
+          "wikidata": null,
+          "display_name": "Bioinformatics",
+          "level": 1,
+          "score": 22.9298
+        },
+        {
+          "id": "https://openalex.org/C1965285",
+          "wikidata": null,
+          "display_name": "Earth science",
+          "level": 1,
+          "score": 22.581955
+        },
+        {
+          "id": "https://openalex.org/C98274493",
+          "wikidata": null,
+          "display_name": "Pharmacology",
+          "level": 1,
+          "score": 22.54392
+        },
+        {
+          "id": "https://openalex.org/C187736073",
+          "wikidata": null,
+          "display_name": "Management",
+          "level": 1,
+          "score": 22.354439
+        },
+        {
+          "id": "https://openalex.org/C121955636",
+          "wikidata": null,
+          "display_name": "Accounting",
+          "level": 1,
+          "score": 20.55881
+        },
+        {
+          "id": "https://openalex.org/C12554922",
+          "wikidata": null,
+          "display_name": "Biophysics",
+          "level": 1,
+          "score": 19.987907
+        },
+        {
+          "id": "https://openalex.org/C192562407",
+          "wikidata": null,
+          "display_name": "Materials science",
+          "level": 0,
+          "score": 19.84423
+        },
+        {
+          "id": "https://openalex.org/C46312422",
+          "wikidata": null,
+          "display_name": "Communication",
+          "level": 1,
+          "score": 17.634289
+        },
+        {
+          "id": "https://openalex.org/C178550888",
+          "wikidata": null,
+          "display_name": "Business administration",
+          "level": 1,
+          "score": 16.438328
+        },
+        {
+          "id": "https://openalex.org/C159110408",
+          "wikidata": null,
+          "display_name": "Nursing",
+          "level": 1,
+          "score": 16.118418
+        },
+        {
+          "id": "https://openalex.org/C42360764",
+          "wikidata": null,
+          "display_name": "Chemical engineering",
+          "level": 1,
+          "score": 13.667889
+        },
+        {
+          "id": "https://openalex.org/C111368507",
+          "wikidata": null,
+          "display_name": "Oceanography",
+          "level": 1,
+          "score": 13.576583
+        },
+        {
+          "id": "https://openalex.org/C171250308",
+          "wikidata": null,
+          "display_name": "Nanotechnology",
+          "level": 1,
+          "score": 13.203173
+        },
+        {
+          "id": "https://openalex.org/C28826006",
+          "wikidata": null,
+          "display_name": "Applied mathematics",
+          "level": 1,
+          "score": 11.603401
+        },
+        {
+          "id": "https://openalex.org/C42972112",
+          "wikidata": null,
+          "display_name": "Veterinary medicine",
+          "level": 1,
+          "score": 10.615673
+        },
+        {
+          "id": "https://openalex.org/C136229726",
+          "wikidata": null,
+          "display_name": "Biomedical engineering",
+          "level": 1,
+          "score": 8.513442
+        },
+        {
+          "id": "https://openalex.org/C6557445",
+          "wikidata": null,
+          "display_name": "Agronomy",
+          "level": 1,
+          "score": 7.513595
+        },
+        {
+          "id": "https://openalex.org/C70721500",
+          "wikidata": null,
+          "display_name": "Computational biology",
+          "level": 1,
+          "score": 7.4706335
+        },
+        {
+          "id": "https://openalex.org/C37621935",
+          "wikidata": null,
+          "display_name": "Agricultural science",
+          "level": 1,
+          "score": 7.2842097
+        },
+        {
+          "id": "https://openalex.org/C19417346",
+          "wikidata": null,
+          "display_name": "Pedagogy",
+          "level": 1,
+          "score": 7.1365857
+        },
+        {
+          "id": "https://openalex.org/C31903555",
+          "wikidata": null,
+          "display_name": "Food science",
+          "level": 1,
+          "score": 6.859602
+        },
+        {
+          "id": "https://openalex.org/C33070731",
+          "wikidata": null,
+          "display_name": "Toxicology",
+          "level": 1,
+          "score": 6.515141
+        },
+        {
+          "id": "https://openalex.org/C87717796",
+          "wikidata": null,
+          "display_name": "Environmental engineering",
+          "level": 1,
+          "score": 6.487004
+        },
+        {
+          "id": "https://openalex.org/C91586092",
+          "wikidata": null,
+          "display_name": "Atmospheric sciences",
+          "level": 1,
+          "score": 5.814927
+        },
+        {
+          "id": "https://openalex.org/C24667770",
+          "wikidata": null,
+          "display_name": "Religious studies",
+          "level": 1,
+          "score": 5.3512793
+        },
+        {
+          "id": "https://openalex.org/C49204034",
+          "wikidata": null,
+          "display_name": "Climatology",
+          "level": 1,
+          "score": 5.2326217
+        },
+        {
+          "id": "https://openalex.org/C186060115",
+          "wikidata": null,
+          "display_name": "Biological system",
+          "level": 1,
+          "score": 4.7702737
+        },
+        {
+          "id": "https://openalex.org/C74909509",
+          "wikidata": null,
+          "display_name": "Gerontology",
+          "level": 1,
+          "score": 4.4853063
+        },
+        {
+          "id": "https://openalex.org/C140793950",
+          "wikidata": null,
+          "display_name": "Animal science",
+          "level": 1,
+          "score": 3.4762228
+        }
+      ],
+      "counts_by_year": [
+        {
+          "year": 2022,
+          "works_count": 429309,
+          "cited_by_count": 15789931
+        },
+        {
+          "year": 2021,
+          "works_count": 657809,
+          "cited_by_count": 21984152
+        },
+        {
+          "year": 2020,
+          "works_count": 672666,
+          "cited_by_count": 19672402
+        },
+        {
+          "year": 2019,
+          "works_count": 605365,
+          "cited_by_count": 17037078
+        },
+        {
+          "year": 2018,
+          "works_count": 589332,
+          "cited_by_count": 15767364
+        },
+        {
+          "year": 2017,
+          "works_count": 579137,
+          "cited_by_count": 15089354
+        },
+        {
+          "year": 2016,
+          "works_count": 603646,
+          "cited_by_count": 14949373
+        },
+        {
+          "year": 2015,
+          "works_count": 608866,
+          "cited_by_count": 15156833
+        },
+        {
+          "year": 2014,
+          "works_count": 606096,
+          "cited_by_count": 15156002
+        },
+        {
+          "year": 2013,
+          "works_count": 594181,
+          "cited_by_count": 14645807
+        },
+        {
+          "year": 2012,
+          "works_count": 562709,
+          "cited_by_count": 13698240
+        }
+      ],
+      "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C86803240",
+      "updated_date": "2022-10-09T09:34:05.545425",
       "created_date": "2016-06-24"
     },
     {
@@ -978,7 +1829,7 @@
       "level": 0,
       "description": "field of study",
       "works_count": 9199259,
-      "cited_by_count": 84463437,
+      "cited_by_count": 86590745,
       "ids": {
         "openalex": "https://openalex.org/C33923547",
         "wikidata": "https://www.wikidata.org/wiki/Q395",
@@ -1984,62 +2835,658 @@
       "counts_by_year": [
         {
           "year": 2022,
-          "works_count": 209582,
-          "cited_by_count": 2779389
+          "works_count": 210133,
+          "cited_by_count": 2906333
         },
         {
           "year": 2021,
-          "works_count": 361996,
-          "cited_by_count": 4676728
+          "works_count": 361699,
+          "cited_by_count": 4957854
         },
         {
           "year": 2020,
-          "works_count": 383653,
-          "cited_by_count": 4392071
+          "works_count": 382254,
+          "cited_by_count": 4697370
         },
         {
           "year": 2019,
-          "works_count": 377414,
-          "cited_by_count": 4237507
+          "works_count": 376367,
+          "cited_by_count": 4283062
         },
         {
           "year": 2018,
-          "works_count": 367760,
-          "cited_by_count": 3832078
+          "works_count": 366323,
+          "cited_by_count": 3853568
         },
         {
           "year": 2017,
-          "works_count": 369039,
-          "cited_by_count": 3591930
+          "works_count": 373657,
+          "cited_by_count": 3561266
         },
         {
           "year": 2016,
-          "works_count": 368132,
-          "cited_by_count": 3583114
+          "works_count": 369741,
+          "cited_by_count": 3608337
         },
         {
           "year": 2015,
-          "works_count": 370216,
-          "cited_by_count": 3664144
+          "works_count": 370149,
+          "cited_by_count": 3676869
         },
         {
           "year": 2014,
-          "works_count": 375589,
-          "cited_by_count": 3657792
+          "works_count": 375602,
+          "cited_by_count": 3680116
         },
         {
           "year": 2013,
-          "works_count": 355527,
-          "cited_by_count": 3442117
+          "works_count": 356018,
+          "cited_by_count": 3473038
         },
         {
           "year": 2012,
-          "works_count": 333254,
-          "cited_by_count": 3092658
+          "works_count": 335548,
+          "cited_by_count": 3165045
         }
       ],
       "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C33923547",
-      "updated_date": "2022-10-03T10:14:46.735567",
+      "updated_date": "2022-10-09T09:52:00.519373",
+      "created_date": "2016-06-24"
+    },
+    {
+      "id": "https://openalex.org/C144024400",
+      "wikidata": "https://www.wikidata.org/wiki/Q21201",
+      "display_name": "Sociology",
+      "level": 0,
+      "description": "scientific study of human society and its origins, development, organizations, and institutions",
+      "works_count": 7721628,
+      "cited_by_count": 41823728,
+      "ids": {
+        "openalex": "https://openalex.org/C144024400",
+        "wikidata": "https://www.wikidata.org/wiki/Q21201",
+        "mag": "144024400",
+        "wikipedia": "https://en.wikipedia.org/wiki/Sociology",
+        "umls_cui": [
+          "C0037468"
+        ]
+      },
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/e/e4/Social_Network_Diagram_%28segment%29.svg",
+      "image_thumbnail_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Social_Network_Diagram_%28segment%29.svg/100px-Social_Network_Diagram_%28segment%29.svg.png",
+      "international": {
+        "display_name": {
+          "af": "sosiologie",
+          "am": "\u12e8\u1263\u1215\u120d \u1325\u1293\u1275",
+          "an": "Socioloch\u00eda",
+          "ar": "\u0639\u0644\u0645 \u0627\u0644\u0627\u062c\u062a\u0645\u0627\u0639",
+          "arz": "\u0633\u0648\u0633\u064a\u0648\u0644\u0648\u062c\u064a\u0627",
+          "as": "\u09b8\u09ae\u09be\u099c\u09a4\u09a4\u09cd\u09a4\u09cd\u09ac",
+          "ast": "Sociolox\u00eda",
+          "az": "sosiologiya",
+          "azb": "\u062c\u0627\u0645\u06cc\u0639\u0647 \u0622\u0631\u0627\u0634\u062f\u06cc\u0631\u0645\u0627\u0633\u06cc",
+          "ba": "\u0441\u043e\u0446\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "be": "\u0441\u0430\u0446\u044b\u044f\u043b\u043e\u0433\u0456\u044f",
+          "be-tarask": "\u0441\u0430\u0446\u044b\u044f\u043b\u0451\u0433\u0456\u044f",
+          "bg": "\u0421\u043e\u0446\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "bho": "\u0938\u092e\u093e\u091c\u0936\u093e\u0938\u094d\u0924\u094d\u0930",
+          "bn": "\u09b8\u09ae\u09be\u099c\u09ac\u09bf\u099c\u09cd\u099e\u09be\u09a8",
+          "bo": "\u0f66\u0fa4\u0fb1\u0f72\u0f0b\u0f5a\u0f7c\u0f42\u0f66\u0f0b\u0f62\u0f72\u0f42\u0f0b\u0f54\u0f0d",
+          "br": "sokiologiezh",
+          "bs": "Sociologija",
+          "ca": "sociologia",
+          "ceb": "Sosyolohiya",
+          "ckb": "\u06a9\u06c6\u0645\u06d5\u06b5\u0646\u0627\u0633\u06cc",
+          "co": "Sociologia",
+          "cs": "sociologie",
+          "cv": "\u0421\u043e\u0446\u0438\u043e\u043b\u043e\u0433\u0438",
+          "cy": "Cymdeithaseg",
+          "da": "sociologi",
+          "de": "Soziologie",
+          "diq": "Sosyolociye",
+          "el": "\u03ba\u03bf\u03b9\u03bd\u03c9\u03bd\u03b9\u03bf\u03bb\u03bf\u03b3\u03af\u03b1",
+          "eml": "Sociolog\u00eca",
+          "en": "sociology",
+          "en-ca": "Sociology",
+          "en-gb": "sociology",
+          "eo": "sociologio",
+          "es": "sociolog\u00eda",
+          "et": "sotsioloogia",
+          "eu": "soziologia",
+          "ext": "Sociologia",
+          "fa": "\u062c\u0627\u0645\u0639\u0647\u200c\u0634\u0646\u0627\u0633\u06cc",
+          "fi": "sosiologia",
+          "fj": "Sociology",
+          "fr": "sociologie",
+          "frr": "Sotsiologii",
+          "fur": "Sociologjie",
+          "fy": "sosjology",
+          "ga": "socheola\u00edocht",
+          "gan": "\u793e\u6703\u5b78",
+          "gcr": "Sosyoloji",
+          "gd": "E\u00f2las-comainn",
+          "gl": "sociolox\u00eda",
+          "gsw": "Soziologie",
+          "gu": "\u0ab8\u0aae\u0abe\u0a9c\u0ab6\u0abe\u0ab8\u0acd\u0aa4\u0acd\u0ab0",
+          "gv": "Sheshoaylleeaght",
+          "ha": "Kimiyar al'umma",
+          "he": "\u05e1\u05d5\u05e6\u05d9\u05d5\u05dc\u05d5\u05d2\u05d9\u05d4",
+          "hi": "\u0938\u092e\u093e\u091c\u0936\u093e\u0938\u094d\u0924\u094d\u0930",
+          "hr": "Sociologija",
+          "hsb": "sociologija",
+          "ht": "Sosyoloji",
+          "hu": "szociol\u00f3gia",
+          "hy": "\u0540\u0561\u057d\u0561\u0580\u0561\u056f\u0561\u0563\u056b\u057f\u0578\u0582\u0569\u0575\u0578\u0582\u0576",
+          "ia": "Sociologia",
+          "id": "sosiologi",
+          "ie": "Sociologie",
+          "io": "sociologio",
+          "is": "F\u00e9lagsfr\u00e6\u00f0i",
+          "it": "sociologia",
+          "ja": "\u793e\u4f1a\u5b66",
+          "jam": "Suosialaji",
+          "jv": "Sosiologi",
+          "ka": "\u10e1\u10dd\u10ea\u10d8\u10dd\u10da\u10dd\u10d2\u10d8\u10d0",
+          "kk": "\u04d8\u043b\u0435\u0443\u043c\u0435\u0442\u0442\u0430\u043d\u0443",
+          "km": "\u179f\u1784\u17d2\u1782\u1798\u179c\u17b7\u1791\u17d2\u1799\u17b6\u1798\u17bc\u179b\u178a\u17d2\u178b\u17b6\u1793",
+          "kn": "\u0cb8\u0cae\u0cbe\u0c9c\u0cb6\u0cbe\u0cb8\u0ccd\u0ca4\u0ccd\u0cb0",
+          "ko": "\uc0ac\ud68c\ud559",
+          "krc": "\u0421\u043e\u0446\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "ku": "Civaknas\u00ee",
+          "ky": "\u0421\u043e\u0446\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "la": "sociologia",
+          "lad": "Sosiolojiya",
+          "lb": "Soziologie",
+          "lfn": "sosiolojia",
+          "li": "Sociologie",
+          "lij": "S\u00f2ciologia",
+          "lld": "Soziologia",
+          "lt": "Sociologija",
+          "lv": "sociolo\u0123ija",
+          "mhr": "\u0441\u043e\u0446\u0438\u043e\u043b\u043e\u0433\u0438\u0439",
+          "mk": "\u0441\u043e\u0446\u0438\u043e\u043b\u043e\u0433\u0438\u0458\u0430",
+          "ml": "\u0d38\u0d2e\u0d42\u0d39\u0d36\u0d3e\u0d38\u0d4d\u0d24\u0d4d\u0d30\u0d02",
+          "mr": "\u0938\u092e\u093e\u091c\u0936\u093e\u0938\u094d\u0924\u094d\u0930",
+          "ms": "sosiologi",
+          "ms-arab": "\u0633\u0648\u0633\u064a\u0648\u0644\u0648\u0762\u064a",
+          "mt": "so\u010bjolo\u0121ija",
+          "mwl": "Sociologie",
+          "my": "\u101c\u1030\u1019\u103e\u102f\u1017\u1031\u1012",
+          "nan": "Si\u0101-ho\u0113-ha\u030dk",
+          "nb": "sosiologi",
+          "nds": "Soziologie",
+          "nds-nl": "Sosjologie",
+          "ne": "\u0938\u092e\u093e\u091c\u0936\u093e\u0938\u094d\u0924\u094d\u0930",
+          "new": "\u0938\u092e\u093e\u091c\u0936\u093e\u0938\u094d\u0924\u094d\u0930",
+          "nl": "sociologie",
+          "nn": "sosiologi",
+          "nov": "sosiologia",
+          "nqo": "\u07d8\u07cd\u07ec\u07df\u07d0\u07f2\u07ec\u07d8\u07d0\u07ec\u07e6\u07ca",
+          "nrm": "Sociologie",
+          "oc": "sociologia",
+          "or": "\u0b38\u0b2e\u0b3e\u0b1c \u0b2c\u0b3f\u0b1c\u0b4d\u0b1e\u0b3e\u0b28",
+          "os": "\u0441\u043e\u0446\u0438\u043e\u043b\u043e\u0433\u0438",
+          "pa": "\u0a38\u0a2e\u0a3e\u0a1c \u0a35\u0a3f\u0a17\u0a3f\u0a06\u0a28",
+          "pcd": "Sociolodjie",
+          "pih": "sosiolojii",
+          "pl": "socjologia",
+          "pnb": "\u0639\u0645\u0631\u0627\u0646\u06cc\u0627\u062a",
+          "ps": "\u067c\u0648\u0644\u0646\u067e\u0648\u0647\u0646\u0647",
+          "pt": "sociologia",
+          "pt-br": "sociologia",
+          "ro": "sociologie",
+          "ru": "\u0441\u043e\u0446\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "rue": "\u0421\u043e\u0446\u0456\u043e\u043b\u043e\u0491\u0456\u044f",
+          "sa": "\u0938\u092e\u093e\u091c\u0936\u093e\u0938\u094d\u0924\u094d\u0930\u092e\u094d",
+          "sah": "\u0421\u043e\u0446\u0438\u043e\u043b\u043e\u0433\u0438\u044f",
+          "sat": "\u1c65\u1c5f\u1c76\u1c5b\u1c5f \u1c65\u1c5f\u1c6c\u1c6e\u1c65",
+          "sc": "Sotziologia",
+          "scn": "Suciulugg\u00eca",
+          "sco": "Sociology",
+          "sd": "\u0633\u0645\u0627\u062c\u064a\u0627\u062a",
+          "se": "sosiologiija",
+          "sgs": "Suoc\u0113luog\u0117j\u0117",
+          "sh": "sociologija",
+          "shi": "Tasnamunt",
+          "si": "\u0dc3\u0db8\u0dcf\u0da2 \u0dc0\u0dd2\u0daf\u0dca\u200d\u0dba\u0dcf\u0dc0",
+          "sk": "Sociol\u00f3gia",
+          "sl": "Sociologija",
+          "smn": "sosiologia",
+          "sms": "sosiologia",
+          "sn": "Daranzanga",
+          "sq": "Sociologjia",
+          "sr": "\u0441\u043e\u0446\u0438\u043e\u043b\u043e\u0433\u0438\u0458\u0430",
+          "su": "Sosiologi",
+          "sv": "sociologi",
+          "sw": "Sosholojia",
+          "ta": "\u0b9a\u0bae\u0bc2\u0b95\u0bb5\u0bbf\u0baf\u0bb2\u0bcd",
+          "te": "\u0c38\u0c3e\u0c2e\u0c3e\u0c1c\u0c3f\u0c15 \u0c36\u0c3e\u0c38\u0c4d\u0c24\u0c4d\u0c30\u0c02",
+          "tg": "\u04b7\u043e\u043c\u0435\u0430\u0448\u0438\u043d\u043e\u0441\u04e3",
+          "tg-cyrl": "\u04b7\u0430\u043c\u044a\u0438\u044f\u0442\u0448\u0438\u043d\u043e\u0441\u04e3",
+          "th": "\u0e2a\u0e31\u0e07\u0e04\u0e21\u0e27\u0e34\u0e17\u0e22\u0e32",
+          "tk": "Sosiologi\u00fda",
+          "tl": "Sosyolohiya",
+          "tpi": "Sosiolosi",
+          "tr": "toplum bilimi",
+          "tt": "\u0497\u04d9\u043c\u0433\u044b\u044f\u0442\u044c\u0431\u0435\u043b\u0435\u043c",
+          "tt-cyrl": "\u0497\u04d9\u043c\u0433\u044b\u044f\u0442\u044c\u0431\u0435\u043b\u0435\u043c",
+          "uk": "\u0441\u043e\u0446\u0456\u043e\u043b\u043e\u0433\u0456\u044f",
+          "ur": "\u0645\u0639\u0627\u0634\u0631\u06cc\u0627\u062a",
+          "uz": "Sotsiologiya",
+          "vec": "Socio\u0142ogia",
+          "vep": "sociologii",
+          "vi": "x\u00e3 h\u1ed9i h\u1ecdc",
+          "vo": "sog\u00e4dav",
+          "vro": "Sotsioloogia",
+          "war": "Sosyolohiya",
+          "wuu": "\u793e\u4f1a\u5b66",
+          "xh": "ISosioloji",
+          "xmf": "\u10e1\u10dd\u10ea\u10d8\u10dd\u10da\u10dd\u10d2\u10d8\u10d0",
+          "yi": "\u05e1\u05d0\u05e6\u05d9\u05d0\u05dc\u05d0\u05d2\u05d9\u05e2",
+          "yo": "\u00ec\u1e63e\u1ecd\u0300r\u1ecd\u0300\u00e0w\u00f9j\u1ecd",
+          "yue": "\u793e\u6703\u5b78",
+          "zea": "Sociolohie",
+          "zh": "\u793e\u6703\u5b78",
+          "zh-cn": "\u793e\u4f1a\u5b66",
+          "zh-hans": "\u793e\u4f1a\u5b66",
+          "zh-hant": "\u793e\u6703\u5b78",
+          "zh-hk": "\u793e\u6703\u5b78",
+          "zh-mo": "\u793e\u6703\u5b78",
+          "zh-my": "\u793e\u4f1a\u5b66",
+          "zh-sg": "\u793e\u4f1a\u5b66",
+          "zh-tw": "\u793e\u6703\u5b78"
+        },
+        "description": {
+          "ar": "\u0627\u0644\u062f\u0631\u0627\u0633\u0629 \u0627\u0644\u0639\u0644\u0645\u064a\u0629 \u0644\u0644\u0633\u0644\u0648\u0643 \u0627\u0644\u0627\u062c\u062a\u0645\u0627\u0639\u064a \u0644\u0644\u0623\u0641\u0631\u0627\u062f\u060c \u0648\u0627\u0644\u0623\u0633\u0627\u0644\u064a\u0628 \u0627\u0644\u062a\u064a \u064a\u0646\u062a\u0638\u0645 \u0628\u0647\u0627 \u0627\u0644\u0645\u062c\u062a\u0645\u0639",
+          "ba": "\u0438\u0436\u0442\u0438\u043c\u0430\u0493\u0438 \u0444\u04d9\u043d",
+          "be": "\u043d\u0430\u0432\u0443\u043a\u043e\u0432\u0430\u044f \u0434\u044b\u0441\u0446\u044b\u043f\u043b\u0456\u043d\u0430",
+          "be-tarask": "\u043d\u0430\u0432\u0443\u043a\u043e\u0432\u0430\u044f \u0434\u044b\u0441\u0446\u044b\u043f\u043b\u0456\u043d\u0430",
+          "bn": "\u09ae\u09be\u09a8\u09ac\u09b8\u09ae\u09be\u099c \u098f\u09ac\u0982 \u098f\u09b0 \u09b8\u09c3\u09b7\u09cd\u099f\u09bf, \u0995\u09cd\u09b0\u09ae\u09ac\u09bf\u0995\u09be\u09b6 \u0993 \u09b8\u0982\u0997\u09a0\u09a8\u09c7\u09b0 \u09ac\u09c8\u099c\u09cd\u099e\u09be\u09a8\u09bf\u0995 \u0986\u09b2\u099a\u09a8\u09be\u09b6\u09be\u09b8\u09cd\u09a4\u09cd\u09b0",
+          "co": "Scienza suciale",
+          "da": "videnskabelig disciplin der unders\u00f8gelser samfund og social handling i bred forstand",
+          "de": "Wissenschaft der empirischen und theoretischen Erforschung des sozialen Verhaltens",
+          "el": "\u03b5\u03c0\u03b9\u03c3\u03c4\u03b7\u03bc\u03bf\u03bd\u03b9\u03ba\u03ae \u03bc\u03b5\u03bb\u03ad\u03c4\u03b7 \u03c4\u03b7\u03c2 \u03ba\u03bf\u03b9\u03bd\u03c9\u03bd\u03b9\u03ba\u03ae\u03c2 \u03c3\u03c5\u03bc\u03c0\u03b5\u03c1\u03b9\u03c6\u03bf\u03c1\u03ac\u03c2, \u03c4\u03b7\u03c2 \u03c0\u03c1\u03bf\u03ad\u03bb\u03b5\u03c5\u03c3\u03ae\u03c2 \u03c4\u03b7\u03c2, \u03c4\u03b7\u03c2 \u03b1\u03bd\u03ac\u03c0\u03c4\u03c5\u03be\u03ae\u03c2 \u03c4\u03b7\u03c2, \u03c4\u03b7\u03c2 \u03bf\u03c1\u03b3\u03ac\u03bd\u03c9\u03c3\u03b7\u03c2 \u03c4\u03b7\u03c2 \u03ba\u03bf\u03b9\u03bd\u03c9\u03bd\u03af\u03b1\u03c2 \u03ba\u03b1\u03b9 \u03c4\u03c9\u03bd \u03b8\u03b5\u03c3\u03bc\u03ce\u03bd \u03c4\u03b7\u03c2",
+          "en": "scientific study of human society and its origins, development, organizations, and institutions",
+          "es": "ciencia social que estudia los fen\u00f3menos colectivos producidos por la actividad social de los seres humanos",
+          "fa": "\u0639\u0644\u0645 \u0645\u0631\u0628\u0648\u0637 \u0628\u0647 \u062a\u062d\u0642\u06cc\u0642 \u0648 \u0628\u0631\u0631\u0633\u06cc \u062c\u0648\u0627\u0645\u0639",
+          "fi": "yhteiskuntatiede",
+          "fr": "science des soci\u00e9t\u00e9s humaines et de leurs origines, d\u00e9veloppements et institutions",
+          "gl": "ciencia social que estuda os fen\u00f3menos colectivos producidos pola actividade social dos seres humanos",
+          "gu": "\u0ab5\u0acd\u0aaf\u0a95\u0acd\u0aa4\u0abf\u0aa8\u0abe \u0ab8\u0abe\u0aae\u0abe\u0a9c\u0abf\u0a95 \u0a9c\u0ac0\u0ab5\u0aa8\u0aa8\u0acb, \u0ab8\u0aae\u0ac2\u0ab9\u0a9c\u0ac0\u0ab5\u0aa8\u0aa8\u0ac0 \u0a86\u0a82\u0aa4\u0ab0\u0a95\u0acd\u0ab0\u0abf\u0aaf\u0abe\u0a93 \u0a85\u0aa8\u0ac7 \u0a86\u0a82\u0aa4\u0ab0\u0ab8\u0a82\u0aac\u0a82\u0aa7\u0acb\u0aa8\u0acb \u0a85\u0aad\u0acd\u0aaf\u0abe\u0ab8 \u0a95\u0ab0\u0aa4\u0ac0 \u0ab8\u0abe\u0aae\u0abe\u0a9c\u0abf\u0a95 \u0ab5\u0abf\u0a9c\u0acd\u0a9e\u0abe\u0aa8\u0aa8\u0ac0 \u0a8f\u0a95 \u0ab6\u0abe\u0a96\u0abe",
+          "he": "\u05ea\u05d7\u05d5\u05dd \u05de\u05d7\u05e7\u05e8 \u05d4\u05e2\u05d5\u05e1\u05e7 \u05d1\u05d7\u05d1\u05e8\u05d4",
+          "hi": "\u0938\u092e\u093e\u091c \u0915\u0947 \u0935\u093f\u092d\u093f\u0928\u094d\u0928 \u092a\u0939\u0932\u0941\u0913\u0902 \u0915\u093e \u0915\u094d\u0930\u092e\u092c\u0926\u094d\u0927 \u0905\u0927\u094d\u092f\u092f\u0928",
+          "hsb": "w\u011bdomos\u0107 socialneho zad\u017aer\u017eenja",
+          "id": "kajiah ilmiah mengenai masyarakat manusia dan asalnya, perkembangan, aturan, dan institusinya",
+          "it": "scienza sociale che studia i fenomeni della societ\u00e0 umana",
+          "ja": "\u793e\u4f1a\u73fe\u8c61\u306e\u5b9f\u614b\u3084\u3001\u73fe\u8c61\u306e\u8d77\u3053\u308b\u539f\u56e0\u306b\u95a2\u3059\u308b\u30e1\u30ab\u30cb\u30ba\u30e0\uff08\u56e0\u679c\u95a2\u4fc2\uff09\u3092\u7d71\u8a08\u30fb\u30c7\u30fc\u30bf\u306a\u3069\u3092\u7528\u3044\u3066\u5206\u6790\u3059\u308b\u3053\u3068\u3067\u89e3\u660e\u3059\u308b\u5b66\u554f",
+          "ko": "\uc0ac\ud68c\ub97c \uc5f0\uad6c\ud558\ub294 \ud559\ubb38",
+          "ku": "\u00e7iqilek\u00ee zanist\u00ea",
+          "mr": "\u092e\u093e\u0928\u0935\u0940 \u0938\u092e\u093e\u091c \u0906\u0923\u093f \u0924\u094d\u092f\u093e\u091a\u0940 \u0909\u0924\u094d\u092a\u0924\u094d\u0924\u0940, \u0935\u093f\u0915\u093e\u0938, \u0938\u0902\u0938\u094d\u0925\u093e \u0906\u0923\u093f \u0938\u0902\u0938\u094d\u0925\u093e \u092f\u093e\u0902\u091a\u093e \u0935\u0948\u091c\u094d\u091e\u093e\u0928\u093f\u0915 \u0905\u092d\u094d\u092f\u093e\u0938",
+          "nb": "samfunnsvitenskapelig fag",
+          "nl": "wetenschap over sociale relaties tussen mensen",
+          "nqo": "\u07e1\u07d0\u07f0\u07e3\u07cd\u07f2\u07ec\u07dd\u07cc\u07f2 \u07e0\u07ce\u07ec \u07df\u07ca\u07eb \u07de\u07cf\u07df\u07ca\u07d8\u07cd \u07df\u07d0\u07f2\u07de\u07cf \u07e3\u07f4\u07ca\u07ec \u07db\u07ce\u07f2\u07f8 \u07db\u07d3\u07ca\u07ec\u07d5\u07cc\u07f8 \u07db\u07cc\u07f2\u07ec\u07dd\u07cf\u07f2\u07ec\u07e7\u07ca\u07ec\u07df\u07cc\u07f8 \u07ca\u07ec \u07e3\u07cc\u07eb \u07df\u07d0\u07f2\u07d8\u07e6\u07ca\u07df\u07cc.",
+          "or": "\u0b2c\u0b3f\u0b1c\u0b4d\u0b1e\u0b3e\u0b28",
+          "pl": "dyscyplina naukowa",
+          "pt": "ci\u00eancia social que estuda a sociedade, padr\u00f5es de rela\u00e7\u00f5es sociais, intera\u00e7\u00e3o social e cultura da vida cotidiana",
+          "ro": "studiul societ\u0103\u021bii umane, inclusiv istoricul, dezvoltarea, organizarea \u0219i institu\u021biile ei",
+          "ru": "\u043d\u0430\u0443\u0447\u043d\u0430\u044f \u0434\u0438\u0441\u0446\u0438\u043f\u043b\u0438\u043d\u0430, \u0438\u0437\u0443\u0447\u0430\u044e\u0449\u0430\u044f \u043e\u0431\u0449\u0435\u0441\u0442\u0432\u043e \u0438 \u0441\u043e\u0446\u0438\u0430\u043b\u044c\u043d\u044b\u0435 \u0441\u0438\u0441\u0442\u0435\u043c\u044b",
+          "sk": "veda o spolo\u010dnosti",
+          "sv": "vetenskaplig disciplin som studerar samh\u00e4llen och social handling i vid bem\u00e4rkelse",
+          "te": "\u0c2e\u0c3e\u0c28\u0c35 \u0c38\u0c2e\u0c3e\u0c1c\u0c3e\u0c32\u0c2a\u0c48 \u0c1c\u0c30\u0c3f\u0c2a\u0c47 \u0c36\u0c3e\u0c38\u0c4d\u0c24\u0c4d\u0c30\u0c40\u0c2f \u0c32\u0c47\u0c26\u0c3e \u0c15\u0c4d\u0c30\u0c2e\u0c2c\u0c26\u0c4d\u0c27 \u0c05\u0c27\u0c4d\u0c2f\u0c2f\u0c28\u0c02",
+          "tl": "pang-agham na pag-aaral ng lipunan ng tao at mga pinagmulan nito, pag-unlad, mga organisasyon at mga institusyon",
+          "tr": "toplumun olu\u015fum, i\u015fleyi\u015f ve geli\u015fim yasalar\u0131n\u0131 inceleyen bilim dal\u0131",
+          "uk": "\u043d\u0430\u0443\u043a\u043e\u0432\u0435 \u0434\u043e\u0441\u043b\u0456\u0434\u0436\u0435\u043d\u043d\u044f \u043b\u044e\u0434\u0441\u044c\u043a\u043e\u0433\u043e \u0441\u0443\u0441\u043f\u0456\u043b\u044c\u0441\u0442\u0432\u0430 \u0442\u0430 \u0439\u043e\u0433\u043e \u043f\u043e\u0445\u043e\u0434\u0436\u0435\u043d\u043d\u044f, \u0440\u043e\u0437\u0432\u0438\u0442\u043a\u0443, \u043e\u0440\u0433\u0430\u043d\u0456\u0437\u0430\u0446\u0456\u0457 \u0442\u0430 \u0456\u043d\u0441\u0442\u0438\u0442\u0443\u0446\u0456\u0439",
+          "vi": "khoa h\u1ecdc v\u1ec1 c\u00e1c quy lu\u1eadt v\u00e0 t\u00ednh quy lu\u1eadt x\u00e3 h\u1ed9i chung",
+          "zh": "\u5b78\u79d1"
+        }
+      },
+      "ancestors": [],
+      "related_concepts": [
+        {
+          "id": "https://openalex.org/C15744967",
+          "wikidata": null,
+          "display_name": "Psychology",
+          "level": 0,
+          "score": 209.12833
+        },
+        {
+          "id": "https://openalex.org/C19165224",
+          "wikidata": null,
+          "display_name": "Anthropology",
+          "level": 1,
+          "score": 187.8283
+        },
+        {
+          "id": "https://openalex.org/C17744445",
+          "wikidata": null,
+          "display_name": "Political science",
+          "level": 0,
+          "score": 163.40619
+        },
+        {
+          "id": "https://openalex.org/C162324750",
+          "wikidata": null,
+          "display_name": "Economics",
+          "level": 0,
+          "score": 151.93526
+        },
+        {
+          "id": "https://openalex.org/C36289849",
+          "wikidata": null,
+          "display_name": "Social science",
+          "level": 1,
+          "score": 130.69449
+        },
+        {
+          "id": "https://openalex.org/C138885662",
+          "wikidata": null,
+          "display_name": "Philosophy",
+          "level": 0,
+          "score": 121.20986
+        },
+        {
+          "id": "https://openalex.org/C95457728",
+          "wikidata": null,
+          "display_name": "History",
+          "level": 0,
+          "score": 102.333015
+        },
+        {
+          "id": "https://openalex.org/C33923547",
+          "wikidata": null,
+          "display_name": "Mathematics",
+          "level": 0,
+          "score": 69.90744
+        },
+        {
+          "id": "https://openalex.org/C121332964",
+          "wikidata": null,
+          "display_name": "Physics",
+          "level": 0,
+          "score": 56.64511
+        },
+        {
+          "id": "https://openalex.org/C86803240",
+          "wikidata": null,
+          "display_name": "Biology",
+          "level": 0,
+          "score": 55.655975
+        },
+        {
+          "id": "https://openalex.org/C73484699",
+          "wikidata": null,
+          "display_name": "Criminology",
+          "level": 1,
+          "score": 53.500675
+        },
+        {
+          "id": "https://openalex.org/C199539241",
+          "wikidata": null,
+          "display_name": "Law",
+          "level": 1,
+          "score": 51.65202
+        },
+        {
+          "id": "https://openalex.org/C205649164",
+          "wikidata": null,
+          "display_name": "Geography",
+          "level": 0,
+          "score": 44.258564
+        },
+        {
+          "id": "https://openalex.org/C15708023",
+          "wikidata": null,
+          "display_name": "Humanities",
+          "level": 1,
+          "score": 41.996582
+        },
+        {
+          "id": "https://openalex.org/C41895202",
+          "wikidata": null,
+          "display_name": "Linguistics",
+          "level": 1,
+          "score": 37.856277
+        },
+        {
+          "id": "https://openalex.org/C77805123",
+          "wikidata": null,
+          "display_name": "Social psychology",
+          "level": 1,
+          "score": 30.246412
+        },
+        {
+          "id": "https://openalex.org/C124952713",
+          "wikidata": null,
+          "display_name": "Literature",
+          "level": 1,
+          "score": 25.730991
+        },
+        {
+          "id": "https://openalex.org/C187736073",
+          "wikidata": null,
+          "display_name": "Management",
+          "level": 1,
+          "score": 23.113443
+        },
+        {
+          "id": "https://openalex.org/C149923435",
+          "wikidata": null,
+          "display_name": "Demography",
+          "level": 1,
+          "score": 22.524214
+        },
+        {
+          "id": "https://openalex.org/C111472728",
+          "wikidata": null,
+          "display_name": "Epistemology",
+          "level": 1,
+          "score": 20.623404
+        },
+        {
+          "id": "https://openalex.org/C46312422",
+          "wikidata": null,
+          "display_name": "Communication",
+          "level": 1,
+          "score": 19.66579
+        },
+        {
+          "id": "https://openalex.org/C3116431",
+          "wikidata": null,
+          "display_name": "Public administration",
+          "level": 1,
+          "score": 18.29298
+        },
+        {
+          "id": "https://openalex.org/C136264566",
+          "wikidata": null,
+          "display_name": "Economy",
+          "level": 1,
+          "score": 16.607382
+        },
+        {
+          "id": "https://openalex.org/C11171543",
+          "wikidata": null,
+          "display_name": "Psychoanalysis",
+          "level": 1,
+          "score": 16.16446
+        },
+        {
+          "id": "https://openalex.org/C24667770",
+          "wikidata": null,
+          "display_name": "Religious studies",
+          "level": 1,
+          "score": 15.766579
+        },
+        {
+          "id": "https://openalex.org/C138921699",
+          "wikidata": null,
+          "display_name": "Political economy",
+          "level": 1,
+          "score": 15.631558
+        },
+        {
+          "id": "https://openalex.org/C107993555",
+          "wikidata": null,
+          "display_name": "Gender studies",
+          "level": 1,
+          "score": 13.950161
+        },
+        {
+          "id": "https://openalex.org/C29595303",
+          "wikidata": null,
+          "display_name": "Media studies",
+          "level": 1,
+          "score": 13.514189
+        },
+        {
+          "id": "https://openalex.org/C107038049",
+          "wikidata": null,
+          "display_name": "Aesthetics",
+          "level": 1,
+          "score": 12.213161
+        },
+        {
+          "id": "https://openalex.org/C2549261",
+          "wikidata": null,
+          "display_name": "Ethnology",
+          "level": 1,
+          "score": 12.015055
+        },
+        {
+          "id": "https://openalex.org/C45355965",
+          "wikidata": null,
+          "display_name": "Socioeconomics",
+          "level": 1,
+          "score": 10.626243
+        },
+        {
+          "id": "https://openalex.org/C19417346",
+          "wikidata": null,
+          "display_name": "Pedagogy",
+          "level": 1,
+          "score": 9.726947
+        },
+        {
+          "id": "https://openalex.org/C138496976",
+          "wikidata": null,
+          "display_name": "Developmental psychology",
+          "level": 1,
+          "score": 8.733191
+        },
+        {
+          "id": "https://openalex.org/C74909509",
+          "wikidata": null,
+          "display_name": "Gerontology",
+          "level": 1,
+          "score": 8.038326
+        },
+        {
+          "id": "https://openalex.org/C52119013",
+          "wikidata": null,
+          "display_name": "Art history",
+          "level": 1,
+          "score": 7.8200707
+        },
+        {
+          "id": "https://openalex.org/C39549134",
+          "wikidata": null,
+          "display_name": "Public relations",
+          "level": 1,
+          "score": 7.711446
+        },
+        {
+          "id": "https://openalex.org/C6303427",
+          "wikidata": null,
+          "display_name": "Economic history",
+          "level": 1,
+          "score": 5.0604434
+        },
+        {
+          "id": "https://openalex.org/C161191863",
+          "wikidata": null,
+          "display_name": "Library science",
+          "level": 1,
+          "score": 3.4762142
+        },
+        {
+          "id": "https://openalex.org/C26271046",
+          "wikidata": null,
+          "display_name": "Economic geography",
+          "level": 1,
+          "score": 2.4090157
+        },
+        {
+          "id": "https://openalex.org/C48824518",
+          "wikidata": null,
+          "display_name": "Agricultural economics",
+          "level": 1,
+          "score": 1.9270447
+        },
+        {
+          "id": "https://openalex.org/C148383697",
+          "wikidata": null,
+          "display_name": "Regional science",
+          "level": 1,
+          "score": 1.8822601
+        }
+      ],
+      "counts_by_year": [
+        {
+          "year": 2022,
+          "works_count": 188801,
+          "cited_by_count": 1687789
+        },
+        {
+          "year": 2021,
+          "works_count": 359499,
+          "cited_by_count": 2707869
+        },
+        {
+          "year": 2020,
+          "works_count": 411073,
+          "cited_by_count": 2712280
+        },
+        {
+          "year": 2019,
+          "works_count": 379041,
+          "cited_by_count": 2540328
+        },
+        {
+          "year": 2018,
+          "works_count": 387937,
+          "cited_by_count": 2175890
+        },
+        {
+          "year": 2017,
+          "works_count": 390673,
+          "cited_by_count": 1947474
+        },
+        {
+          "year": 2016,
+          "works_count": 401360,
+          "cited_by_count": 2096292
+        },
+        {
+          "year": 2015,
+          "works_count": 373701,
+          "cited_by_count": 2190882
+        },
+        {
+          "year": 2014,
+          "works_count": 372387,
+          "cited_by_count": 2252353
+        },
+        {
+          "year": 2013,
+          "works_count": 361034,
+          "cited_by_count": 2113169
+        },
+        {
+          "year": 2012,
+          "works_count": 336999,
+          "cited_by_count": 1871029
+        }
+      ],
+      "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C144024400",
+      "updated_date": "2022-10-09T09:45:51.933260",
       "created_date": "2016-06-24"
     },
     {
@@ -2049,7 +3496,7 @@
       "level": 1,
       "description": "field of computer science and engineering practices for intelligence demonstrated by machines and intelligent agents",
       "works_count": 4194123,
-      "cited_by_count": 48130929,
+      "cited_by_count": 50130107,
       "ids": {
         "openalex": "https://openalex.org/C154945302",
         "wikidata": "https://www.wikidata.org/wiki/Q11660",
@@ -2974,62 +4421,62 @@
       "counts_by_year": [
         {
           "year": 2022,
-          "works_count": 220790,
-          "cited_by_count": 2849570
+          "works_count": 221237,
+          "cited_by_count": 2983086
         },
         {
           "year": 2021,
-          "works_count": 364453,
-          "cited_by_count": 4607258
+          "works_count": 364077,
+          "cited_by_count": 5103264
         },
         {
           "year": 2020,
-          "works_count": 314723,
-          "cited_by_count": 3917723
+          "works_count": 315267,
+          "cited_by_count": 4399889
         },
         {
           "year": 2019,
-          "works_count": 277390,
-          "cited_by_count": 3460400
+          "works_count": 276269,
+          "cited_by_count": 3521772
         },
         {
           "year": 2018,
-          "works_count": 230068,
-          "cited_by_count": 2694407
+          "works_count": 230006,
+          "cited_by_count": 2733709
         },
         {
           "year": 2017,
-          "works_count": 191916,
-          "cited_by_count": 2357146
+          "works_count": 193595,
+          "cited_by_count": 2273801
         },
         {
           "year": 2016,
-          "works_count": 182463,
-          "cited_by_count": 2160384
+          "works_count": 181904,
+          "cited_by_count": 2145105
         },
         {
           "year": 2015,
-          "works_count": 184124,
-          "cited_by_count": 2100653
+          "works_count": 184223,
+          "cited_by_count": 2103583
         },
         {
           "year": 2014,
-          "works_count": 173996,
-          "cited_by_count": 1974812
+          "works_count": 173845,
+          "cited_by_count": 1983521
         },
         {
           "year": 2013,
-          "works_count": 172248,
-          "cited_by_count": 1799548
+          "works_count": 172449,
+          "cited_by_count": 1817321
         },
         {
           "year": 2012,
-          "works_count": 163352,
-          "cited_by_count": 1591428
+          "works_count": 163860,
+          "cited_by_count": 1626682
         }
       ],
       "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C154945302",
-      "updated_date": "2022-10-03T10:27:50.879755",
+      "updated_date": "2022-10-09T09:50:04.483123",
       "created_date": "2016-06-24"
     },
     {
@@ -3039,7 +4486,7 @@
       "level": 2,
       "description": "ensemble of individuals of a species in an area, or their number",
       "works_count": 2975042,
-      "cited_by_count": 54057444,
+      "cited_by_count": 55954934,
       "ids": {
         "openalex": "https://openalex.org/C2908647359",
         "wikidata": "https://www.wikidata.org/wiki/Q2625603",
@@ -3195,63 +4642,1780 @@
       "counts_by_year": [
         {
           "year": 2022,
-          "works_count": 133124,
-          "cited_by_count": 2980414
+          "works_count": 133191,
+          "cited_by_count": 3089628
         },
         {
           "year": 2021,
-          "works_count": 204549,
-          "cited_by_count": 4152374
+          "works_count": 204420,
+          "cited_by_count": 4277448
         },
         {
           "year": 2020,
-          "works_count": 171727,
-          "cited_by_count": 3715052
+          "works_count": 171302,
+          "cited_by_count": 3838478
         },
         {
           "year": 2019,
-          "works_count": 148674,
-          "cited_by_count": 3220851
+          "works_count": 148550,
+          "cited_by_count": 3290582
         },
         {
           "year": 2018,
-          "works_count": 143997,
-          "cited_by_count": 2972367
+          "works_count": 143299,
+          "cited_by_count": 3026989
         },
         {
           "year": 2017,
-          "works_count": 142593,
-          "cited_by_count": 2856324
+          "works_count": 142472,
+          "cited_by_count": 2862057
         },
         {
           "year": 2016,
-          "works_count": 144917,
-          "cited_by_count": 2757495
+          "works_count": 146193,
+          "cited_by_count": 2828335
         },
         {
           "year": 2015,
-          "works_count": 145178,
-          "cited_by_count": 2777905
+          "works_count": 145261,
+          "cited_by_count": 2831350
         },
         {
           "year": 2014,
-          "works_count": 144313,
-          "cited_by_count": 2658778
+          "works_count": 144222,
+          "cited_by_count": 2726793
         },
         {
           "year": 2013,
-          "works_count": 135395,
-          "cited_by_count": 2484180
+          "works_count": 135444,
+          "cited_by_count": 2542934
         },
         {
           "year": 2012,
-          "works_count": 120524,
-          "cited_by_count": 2215472
+          "works_count": 121236,
+          "cited_by_count": 2316244
         }
       ],
       "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C2908647359",
-      "updated_date": "2022-10-03T10:42:10.137887",
+      "updated_date": "2022-10-09T09:38:47.901504",
       "created_date": "2019-01-25"
+    },
+    {
+      "id": "https://openalex.org/C59822182",
+      "wikidata": "https://www.wikidata.org/wiki/Q441",
+      "display_name": "Botany",
+      "level": 1,
+      "description": "science of plant life",
+      "works_count": 2250010,
+      "cited_by_count": 28478366,
+      "ids": {
+        "openalex": "https://openalex.org/C59822182",
+        "wikidata": "https://www.wikidata.org/wiki/Q441",
+        "mag": "59822182",
+        "wikipedia": "https://en.wikipedia.org/wiki/Botany",
+        "umls_cui": [
+          "C0006038"
+        ]
+      },
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/6/6c/Myris_fragr_Fr_080112-3294_ltn.jpg",
+      "image_thumbnail_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/Myris_fragr_Fr_080112-3294_ltn.jpg/100px-Myris_fragr_Fr_080112-3294_ltn.jpg",
+      "international": {
+        "display_name": {
+          "ab": "\u0430\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "af": "plantkunde",
+          "am": "\u1225\u1290 \u12d5\u133d",
+          "an": "botanica",
+          "ar": "\u0639\u0644\u0645 \u0627\u0644\u0646\u0628\u0627\u062a",
+          "arz": "\u0639\u0644\u0645 \u0627\u0644\u0646\u0628\u0627\u062a",
+          "as": "\u0989\u09a6\u09cd\u09ad\u09bf\u09a6 \u09ac\u09bf\u099c\u09cd\u099e\u09be\u09a8",
+          "ast": "bot\u00e1nica",
+          "az": "botanika",
+          "ba": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "bar": "Botanik",
+          "bcl": "botanika",
+          "be": "\u0431\u0430\u0442\u0430\u043d\u0456\u043a\u0430",
+          "be-tarask": "\u0431\u0430\u0442\u0430\u043d\u0456\u043a\u0430",
+          "bg": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "bho": "\u092c\u0928\u0938\u094d\u092a\u0924\u093f \u092c\u093f\u091c\u094d\u091e\u093e\u0928",
+          "bi": "boteni",
+          "blk": "\u101b\u102f\u1000\u1039\u1001\u1017\u1031\u1012",
+          "bn": "\u0989\u09a6\u09cd\u09ad\u09bf\u09a6\u09ac\u09bf\u099c\u09cd\u099e\u09be\u09a8",
+          "bo": "\u0f62\u0fa9\u0f72\u0f0b\u0f64\u0f72\u0f44\u0f0b\u0f62\u0f72\u0f42\u0f0b\u0f54\u0f0d",
+          "br": "louzawouriezh",
+          "bs": "botanika",
+          "ca": "bot\u00e0nica",
+          "ce": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "ceb": "botanika",
+          "ckb": "\u0695\u0648\u06d5\u06a9\u0646\u0627\u0633\u06cc",
+          "co": "botanica",
+          "crh": "nebatiyat",
+          "cs": "botanika",
+          "cv": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "cy": "botaneg",
+          "da": "botanik",
+          "de": "Botanik",
+          "de-ch": "Botanik",
+          "diq": "botanik",
+          "dv": "\u078e\u07a6\u0780\u07a6\u0788\u07a9 \u0787\u07a8\u078d\u07b0\u0789\u07aa",
+          "el": "\u03b2\u03bf\u03c4\u03b1\u03bd\u03b9\u03ba\u03ae",
+          "en": "botany",
+          "en-ca": "botany",
+          "en-gb": "botany",
+          "eo": "plantoscienco",
+          "es": "bot\u00e1nica",
+          "et": "botaanika",
+          "eu": "botanika",
+          "ext": "bot\u00e1nica",
+          "fa": "\u06af\u06cc\u0627\u0647\u200c\u0634\u0646\u0627\u0633\u06cc",
+          "fi": "kasvitiede",
+          "fj": "botany",
+          "fr": "botanique",
+          "frp": "botanica",
+          "fur": "botaniche",
+          "fy": "Botany",
+          "ga": "luibheola\u00edocht",
+          "gcr": "botanik",
+          "gd": "Luibh-e\u00f2las",
+          "gl": "bot\u00e1nica",
+          "gsw": "Botanik",
+          "gu": "\u0ab5\u0aa8\u0ab8\u0acd\u0aaa\u0aa4\u0abf\u0ab6\u0abe\u0ab8\u0acd\u0aa4\u0acd\u0ab0",
+          "gv": "lus-oaylleeaght",
+          "haw": "k\u0101lailau nahele",
+          "he": "\u05d1\u05d5\u05d8\u05e0\u05d9\u05e7\u05d4",
+          "hi": "\u0935\u0928\u0938\u094d\u092a\u0924\u093f \u0935\u093f\u091c\u094d\u091e\u093e\u0928",
+          "hif": "botany",
+          "hr": "botanika",
+          "hsb": "botanika",
+          "ht": "etid plant",
+          "hu": "botanika",
+          "hy": "\u0562\u0578\u0582\u057d\u0561\u0562\u0561\u0576\u0578\u0582\u0569\u0575\u0578\u0582\u0576",
+          "hyw": "\u0532\u0578\u0582\u057d\u0561\u0562\u0561\u0576\u0578\u0582\u0569\u056b\u0582\u0576",
+          "ia": "botanica",
+          "id": "botani",
+          "ie": "botanica",
+          "ilo": "botanika",
+          "inh": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "io": "botaniko",
+          "is": "grasafr\u00e6\u00f0i",
+          "it": "botanica",
+          "ja": "\u690d\u7269\u5b66",
+          "jam": "batani",
+          "jbo": "spaske",
+          "jv": "botani",
+          "ka": "\u10d1\u10dd\u10e2\u10d0\u10dc\u10d8\u10d9\u10d0",
+          "kaa": "Botanika",
+          "kab": "tasnim\u0263an",
+          "kk": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "kn": "\u0cb8\u0cb8\u0ccd\u0caf\u0cb6\u0cbe\u0cb8\u0ccd\u0ca4\u0ccd\u0cb0",
+          "ko": "\uc2dd\ubb3c\ud559",
+          "ks": "\u0646\u064e\u0628\u0627\u062a\u06cc\u0627\u062a",
+          "ku": "botan\u00eek",
+          "kw": "losonieth",
+          "ky": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "la": "Botanice",
+          "lad": "bot\u00e1nika",
+          "lb": "Botanik",
+          "lez": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "lfn": "botanica",
+          "li": "Plantk\u00f3nde",
+          "lmo": "bot\u00e0nica",
+          "lt": "botanika",
+          "lv": "bot\u0101nika",
+          "mai": "\u0935\u0928\u0938\u094d\u092a\u0924\u093f \u0935\u093f\u091c\u094d\u091e\u093e\u0928",
+          "map-bms": "botani",
+          "mg": "botany",
+          "mhr": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0435",
+          "mk": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "ml": "\u0d38\u0d38\u0d4d\u0d2f\u0d36\u0d3e\u0d38\u0d4d\u0d24\u0d4d\u0d30\u0d02",
+          "mn": "\u0443\u0440\u0433\u0430\u043c\u0430\u043b \u0441\u0443\u0434\u043b\u0430\u043b",
+          "mr": "\u0935\u0928\u0938\u094d\u092a\u0924\u0940\u0936\u093e\u0938\u094d\u0924\u094d\u0930",
+          "mrj": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "ms": "botani",
+          "ms-arab": "\u0628\u0648\u062a\u0627\u0646\u064a",
+          "mt": "botanija",
+          "my": "\u101b\u102f\u1000\u1039\u1001\u1017\u1031\u1012",
+          "nah": "tlanelhuay\u014dmatiliztli",
+          "nan": "si\u030dt-bu\u030dt-ha\u030dk",
+          "nb": "botanikk",
+          "nds": "Botanik",
+          "ne": "\u0935\u0928\u0938\u094d\u092a\u0924\u093f\u0936\u093e\u0938\u094d\u0924\u094d\u0930",
+          "new": "\u092c\u094b\u0924\u093e\u0928\u0940",
+          "nl": "plantkunde",
+          "nn": "botanikk",
+          "nov": "botanike",
+          "nqo": "\u07dd\u07cd\u07d8\u07cd\u07f2\u07dd\u07cb\u07f2",
+          "nrm": "botannie",
+          "oc": "botanica",
+          "or": "\u0b09\u0b26\u0b4d\u0b2d\u0b3f\u0b26 \u0b2c\u0b3f\u0b1c\u0b4d\u0b1e\u0b3e\u0b28",
+          "os": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u00e6",
+          "pa": "\u0a2c\u0a28\u0a38\u0a2a\u0a24\u0a40 \u0a35\u0a3f\u0a17\u0a3f\u0a06\u0a28",
+          "pam": "botany",
+          "pfl": "Butonik",
+          "pih": "botenii",
+          "pl": "botanika",
+          "pms": "bot\u00e0nica",
+          "pnb": "\u0628\u0627\u0679\u0646\u06cc",
+          "ps": "\u0628\u0648\u067c\u067e\u0648\u0647\u0646\u0647",
+          "pt": "bot\u00e2nica",
+          "pt-br": "bot\u00e2nica",
+          "qu": "butanika",
+          "ro": "botanic\u0103",
+          "ru": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "rue": "\u0431\u043e\u0442\u0430\u043d\u0456\u043a\u0430",
+          "rw": "Ubushakashatsi ku Bimera",
+          "sa": "\u0935\u0928\u0938\u094d\u092a\u0924\u093f\u0935\u093f\u091c\u094d\u091e\u093e\u0928\u092e\u094d",
+          "sah": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "sc": "bot\u00e0nica",
+          "scn": "but\u00e0nica",
+          "sco": "botany",
+          "sgs": "buotan\u0117ka",
+          "sh": "botanika",
+          "shi": "tasnm\u0263ayt",
+          "si": "\u0d8b\u0daf\u0dca\u0db7\u0dd2\u0daf \u0dc0\u0dd2\u0daf\u0dca\u200d\u0dba\u0dcf\u0dc0",
+          "sk": "botanika",
+          "sl": "botanika",
+          "sq": "botanika",
+          "sr": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "su": "botani",
+          "sv": "botanik",
+          "sw": "botania",
+          "ta": "\u0ba4\u0bbe\u0bb5\u0bb0\u0bb5\u0bbf\u0baf\u0bb2\u0bcd",
+          "te": "\u0c35\u0c43\u0c15\u0c4d\u0c37\u0c36\u0c3e\u0c38\u0c4d\u0c24\u0c4d\u0c30\u0c02",
+          "tg": "\u0433\u0438\u0451\u04b3\u0448\u0438\u043d\u043e\u0441\u04e3",
+          "th": "\u0e1e\u0e24\u0e01\u0e29\u0e28\u0e32\u0e2a\u0e15\u0e23\u0e4c",
+          "tk": "botanika",
+          "tl": "botanika",
+          "tr": "botanik",
+          "tt": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "udm": "\u0431\u043e\u0442\u0430\u043d\u0438\u043a\u0430",
+          "uk": "\u0431\u043e\u0442\u0430\u043d\u0456\u043a\u0430",
+          "ur": "\u0646\u0628\u0627\u062a\u06cc\u0627\u062a",
+          "uz": "botanika",
+          "vec": "bot\u00e0nega",
+          "vi": "th\u1ef1c v\u1eadt h\u1ecdc",
+          "vo": "planav",
+          "wa": "botanike",
+          "war": "botanika",
+          "wuu": "\u690d\u7269\u5b66",
+          "xmf": "\u10d1\u10dd\u10e2\u10d0\u10dc\u10d8\u10d9\u10d0",
+          "yi": "\u05d1\u05d0\u05d8\u05d0\u05e0\u05d9\u05e7",
+          "yue": "\u690d\u7269\u5b78",
+          "zh": "\u690d\u7269\u5b66",
+          "zh-cn": "\u690d\u7269\u5b66",
+          "zh-hans": "\u690d\u7269\u5b66",
+          "zh-hant": "\u690d\u7269\u5b66",
+          "zh-hk": "\u690d\u7269\u5b78",
+          "zh-mo": "\u690d\u7269\u5b78",
+          "zh-my": "\u690d\u7269\u5b66",
+          "zh-sg": "\u690d\u7269\u5b66",
+          "zh-tw": "\u690d\u7269\u5b78"
+        },
+        "description": {
+          "ar": "\u0639\u0644\u0645 \u0627\u0644\u062d\u064a\u0627\u0629 \u0627\u0644\u0646\u0628\u0627\u062a\u064a\u0629",
+          "ast": "parte de la biolox\u00eda qu\u2019estudia los vexetales",
+          "be-tarask": "\u043d\u0430\u0432\u0443\u043a\u0430 \u043f\u0440\u0430 \u0440\u0430\u0441\u044c\u043b\u0456\u043d\u044b",
+          "bn": "\u0989\u09a6\u09cd\u09ad\u09bf\u09a6\u09c7\u09b0 \u099c\u09c0\u09ac\u09a8 \u098f\u09b0 \u09ac\u09bf\u099c\u09cd\u099e\u09be\u09a8",
+          "bs": "grana biologije koja prou\u010dava biljke",
+          "ca": "branca de la biologia que t\u00e9 per objecte l'estudi dels vegetals",
+          "crh": "\u00f6s\u00fcmlik bilimi",
+          "cs": "v\u011bda zkoumaj\u00edc\u00ed \u017eivot rostlin",
+          "cy": "maes academaidd",
+          "da": "l\u00e6ren af planter",
+          "de": "Pflanzenkunde; erforscht als Teilgebiet der Biologie die Pflanzen",
+          "el": "\u03b5\u03c0\u03b9\u03c3\u03c4\u03b7\u03bc\u03bf\u03bd\u03b9\u03ba\u03ae \u03bc\u03b5\u03bb\u03ad\u03c4\u03b7 \u03c4\u03bf\u03c5 \u03c6\u03c5\u03c4\u03b9\u03ba\u03bf\u03cd \u03b2\u03b1\u03c3\u03b9\u03bb\u03b5\u03af\u03bf\u03c5",
+          "en": "science of plant life",
+          "eo": "scienco pri plantoj",
+          "es": "ciencia que estudia las plantas",
+          "fi": "kasveja tutkiva tieteenala",
+          "fr": "science \u00e9tudiant les plantes",
+          "ga": "eola\u00edocht a bhaineann le planda\u00ed",
+          "gl": "ciencia que estuda as plantas",
+          "he": "\u05e9\u05e2\u05e8 \u05dc\u05db\u05dc \u05d4\u05e0\u05d5\u05e9\u05d0\u05d9\u05dd \u05d4\u05e7\u05e9\u05d5\u05e8\u05d9\u05dd \u05d1\u05e2\u05d5\u05dc\u05dd \u05d4\u05e6\u05d5\u05de\u05d7",
+          "hu": "n\u00f6v\u00e9nyek rendszerez\u00e9s\u00e9vel, anat\u00f3mi\u00e1j\u00e1val, m\u0171k\u00f6d\u00e9s\u00e9vel \u00e9s \u00f6kol\u00f3gi\u00e1j\u00e1val foglalkoz\u00f3 biol\u00f3giai tudom\u00e1ny\u00e1g",
+          "id": "kajian mengenai kehidupan tanaman",
+          "ilo": "siensia dagiti mula, wenno biolohia ti mula",
+          "it": "branca della biologia che studia i vegetali",
+          "ja": "\u690d\u7269\u3092\u5bfe\u8c61\u3068\u3059\u308b\u751f\u7269\u5b66\u306e\u4e00\u5206\u79d1",
+          "ko": "\uc2dd\ubb3c\uc5d0 \ub300\ud574 \uc5f0\uad6c\ud558\ub294 \ud559\ubb38",
+          "ks": "\u0639\u0654\u0644\u0645",
+          "ku": "\u00e7iqilek\u00ee zanist\u00ea",
+          "lv": "zin\u0101tne par augiem",
+          "ms": "sains kehidupan tumbuhan",
+          "mt": "xjenza tal-\u0127ajja tal-pjanti",
+          "nb": "l\u00e6ren om planter",
+          "nl": "academisch veld",
+          "pl": "nauka o ro\u015blinach",
+          "ps": "\u0633\u0644\u0627\u0645",
+          "pt": "ramo da biologia dedicado ao estudo dos vegetais",
+          "pt-br": "ci\u00eancia que estuda as plantas",
+          "ru": "\u043d\u0430\u0443\u043a\u0430 \u043e \u0440\u0430\u0441\u0442\u0435\u043d\u0438\u044f\u0445, \u0440\u0430\u0437\u0434\u0435\u043b \u0431\u0438\u043e\u043b\u043e\u0433\u0438\u0438",
+          "scn": "scienza chi studia li chianti",
+          "shi": "tussna n im\u0263ayn (Tabutanikt)",
+          "sl": "veda o rastlinah",
+          "sr": "\u043d\u0430\u0443\u043a\u0430 \u043e \u0436\u0438\u0432\u043e\u0442\u0443 \u0431\u0438\u0459\u0430\u043a\u0430",
+          "tr": "bitki ya\u015fam\u0131 bilimi",
+          "uk": "\u0440\u043e\u0437\u0434\u0456\u043b \u0431\u0456\u043e\u043b\u043e\u0433\u0456\u0457, \u0449\u043e \u0432\u0438\u0432\u0447\u0430\u0454 \u0440\u043e\u0441\u043b\u0438\u043d\u0438",
+          "vi": "b\u1ed9 m\u00f4n khoa h\u1ecdc v\u1ec1 \u0111\u1eddi s\u1ed1ng th\u1ef1c v\u1eadt",
+          "wa": "syince ki studeye les plantes",
+          "zh": "\u751f\u7269\u5b66\u7684\u4e00\u4e2a\u5206\u652f",
+          "zh-hans": "\u7814\u7a76\u690d\u7269\u5f62\u6001\u89e3\u5256\u3001\u751f\u957f\u53d1\u80b2\u3001\u751f\u7406\u751f\u6001\u3001\u7cfb\u7edf\u8fdb\u5316\u3001\u5206\u7c7b\u4ee5\u53ca\u4e0e\u4eba\u7c7b\u7684\u5173\u7cfb\u7684\u7efc\u5408\u6027\u79d1\u5b66"
+        }
+      },
+      "ancestors": [
+        {
+          "id": "https://openalex.org/C86803240",
+          "wikidata": "https://www.wikidata.org/wiki/Q420",
+          "display_name": "Biology",
+          "level": 0
+        }
+      ],
+      "related_concepts": [
+        {
+          "id": "https://openalex.org/C90856448",
+          "wikidata": null,
+          "display_name": "Zoology",
+          "level": 1,
+          "score": 144.7564
+        },
+        {
+          "id": "https://openalex.org/C163276114",
+          "wikidata": null,
+          "display_name": "Natural history",
+          "level": 2,
+          "score": 138.95805
+        },
+        {
+          "id": "https://openalex.org/C2777394807",
+          "wikidata": null,
+          "display_name": "Botanical garden",
+          "level": 2,
+          "score": 82.871475
+        },
+        {
+          "id": "https://openalex.org/C78945076",
+          "wikidata": null,
+          "display_name": "Herbarium",
+          "level": 2,
+          "score": 69.067245
+        },
+        {
+          "id": "https://openalex.org/C86803240",
+          "wikidata": null,
+          "display_name": "Biology",
+          "level": 0,
+          "score": 68.97937
+        },
+        {
+          "id": "https://openalex.org/C157369684",
+          "wikidata": null,
+          "display_name": "Genus",
+          "level": 2,
+          "score": 62.98834
+        },
+        {
+          "id": "https://openalex.org/C18903297",
+          "wikidata": null,
+          "display_name": "Ecology",
+          "level": 1,
+          "score": 52.60693
+        },
+        {
+          "id": "https://openalex.org/C185592680",
+          "wikidata": null,
+          "display_name": "Chemistry",
+          "level": 0,
+          "score": 50.52153
+        },
+        {
+          "id": "https://openalex.org/C144027150",
+          "wikidata": null,
+          "display_name": "Horticulture",
+          "level": 1,
+          "score": 46.548557
+        },
+        {
+          "id": "https://openalex.org/C2779678110",
+          "wikidata": null,
+          "display_name": "Fungus",
+          "level": 2,
+          "score": 46.31351
+        },
+        {
+          "id": "https://openalex.org/C147135968",
+          "wikidata": null,
+          "display_name": "Entomology",
+          "level": 2,
+          "score": 45.224083
+        },
+        {
+          "id": "https://openalex.org/C126116589",
+          "wikidata": null,
+          "display_name": "Mycology",
+          "level": 2,
+          "score": 45.0902
+        },
+        {
+          "id": "https://openalex.org/C127313418",
+          "wikidata": null,
+          "display_name": "Geology",
+          "level": 0,
+          "score": 43.617928
+        },
+        {
+          "id": "https://openalex.org/C2779233841",
+          "wikidata": null,
+          "display_name": "Flowering plant",
+          "level": 2,
+          "score": 41.78945
+        },
+        {
+          "id": "https://openalex.org/C58642233",
+          "wikidata": null,
+          "display_name": "Taxonomy (biology)",
+          "level": 2,
+          "score": 39.878273
+        },
+        {
+          "id": "https://openalex.org/C559758991",
+          "wikidata": null,
+          "display_name": "Algae",
+          "level": 2,
+          "score": 38.359806
+        },
+        {
+          "id": "https://openalex.org/C2776985847",
+          "wikidata": null,
+          "display_name": "Fern",
+          "level": 2,
+          "score": 37.243027
+        },
+        {
+          "id": "https://openalex.org/C105702510",
+          "wikidata": null,
+          "display_name": "Anatomy",
+          "level": 1,
+          "score": 35.01902
+        },
+        {
+          "id": "https://openalex.org/C54355233",
+          "wikidata": null,
+          "display_name": "Genetics",
+          "level": 1,
+          "score": 33.410374
+        },
+        {
+          "id": "https://openalex.org/C151730666",
+          "wikidata": null,
+          "display_name": "Paleontology",
+          "level": 1,
+          "score": 33.030487
+        },
+        {
+          "id": "https://openalex.org/C2781370656",
+          "wikidata": null,
+          "display_name": "Orchidaceae",
+          "level": 2,
+          "score": 31.278214
+        },
+        {
+          "id": "https://openalex.org/C42407357",
+          "wikidata": null,
+          "display_name": "Physiology",
+          "level": 1,
+          "score": 29.683414
+        },
+        {
+          "id": "https://openalex.org/C2780888338",
+          "wikidata": null,
+          "display_name": "Moss",
+          "level": 2,
+          "score": 29.454874
+        },
+        {
+          "id": "https://openalex.org/C197321923",
+          "wikidata": null,
+          "display_name": "Cultivar",
+          "level": 2,
+          "score": 26.760685
+        },
+        {
+          "id": "https://openalex.org/C120149898",
+          "wikidata": null,
+          "display_name": "Lichen",
+          "level": 2,
+          "score": 24.988743
+        },
+        {
+          "id": "https://openalex.org/C161221295",
+          "wikidata": null,
+          "display_name": "Plant physiology",
+          "level": 2,
+          "score": 24.234993
+        },
+        {
+          "id": "https://openalex.org/C199289684",
+          "wikidata": null,
+          "display_name": "Mineralogy",
+          "level": 1,
+          "score": 22.336018
+        },
+        {
+          "id": "https://openalex.org/C193235544",
+          "wikidata": null,
+          "display_name": "Natural science",
+          "level": 2,
+          "score": 22.224072
+        },
+        {
+          "id": "https://openalex.org/C2779483780",
+          "wikidata": null,
+          "display_name": "Geologist",
+          "level": 2,
+          "score": 21.672327
+        },
+        {
+          "id": "https://openalex.org/C2778416860",
+          "wikidata": null,
+          "display_name": "Bromeliaceae",
+          "level": 2,
+          "score": 21.656614
+        },
+        {
+          "id": "https://openalex.org/C2777975993",
+          "wikidata": null,
+          "display_name": "Bryophyte",
+          "level": 2,
+          "score": 20.297182
+        },
+        {
+          "id": "https://openalex.org/C6557445",
+          "wikidata": null,
+          "display_name": "Agronomy",
+          "level": 1,
+          "score": 19.546926
+        },
+        {
+          "id": "https://openalex.org/C2778824453",
+          "wikidata": null,
+          "display_name": "Biologist",
+          "level": 2,
+          "score": 19.538721
+        },
+        {
+          "id": "https://openalex.org/C2779714115",
+          "wikidata": null,
+          "display_name": "Chemist",
+          "level": 2,
+          "score": 18.63864
+        },
+        {
+          "id": "https://openalex.org/C2780618852",
+          "wikidata": null,
+          "display_name": "Pollen",
+          "level": 2,
+          "score": 15.138124
+        },
+        {
+          "id": "https://openalex.org/C2780900450",
+          "wikidata": null,
+          "display_name": "Fabaceae",
+          "level": 2,
+          "score": 14.931867
+        },
+        {
+          "id": "https://openalex.org/C89423630",
+          "wikidata": null,
+          "display_name": "Microbiology",
+          "level": 1,
+          "score": 14.508901
+        },
+        {
+          "id": "https://openalex.org/C100701293",
+          "wikidata": null,
+          "display_name": "Germination",
+          "level": 2,
+          "score": 14.386806
+        },
+        {
+          "id": "https://openalex.org/C2780106946",
+          "wikidata": null,
+          "display_name": "Cactus",
+          "level": 2,
+          "score": 14.367491
+        },
+        {
+          "id": "https://openalex.org/C123575903",
+          "wikidata": null,
+          "display_name": "Biogeography",
+          "level": 2,
+          "score": 14.112442
+        },
+        {
+          "id": "https://openalex.org/C95444343",
+          "wikidata": null,
+          "display_name": "Cell biology",
+          "level": 1,
+          "score": 13.760849
+        },
+        {
+          "id": "https://openalex.org/C56449476",
+          "wikidata": null,
+          "display_name": "Epiphyte",
+          "level": 2,
+          "score": 13.616008
+        },
+        {
+          "id": "https://openalex.org/C97546083",
+          "wikidata": null,
+          "display_name": "Plant stem",
+          "level": 2,
+          "score": 13.606201
+        },
+        {
+          "id": "https://openalex.org/C2776738285",
+          "wikidata": null,
+          "display_name": "Geneticist",
+          "level": 2,
+          "score": 12.283618
+        },
+        {
+          "id": "https://openalex.org/C97137747",
+          "wikidata": null,
+          "display_name": "Forestry",
+          "level": 1,
+          "score": 10.709519
+        },
+        {
+          "id": "https://openalex.org/C70839106",
+          "wikidata": null,
+          "display_name": "Plant morphology",
+          "level": 2,
+          "score": 10.363463
+        },
+        {
+          "id": "https://openalex.org/C32198211",
+          "wikidata": null,
+          "display_name": "Greenhouse",
+          "level": 2,
+          "score": 10.3512945
+        },
+        {
+          "id": "https://openalex.org/C25761633",
+          "wikidata": null,
+          "display_name": "Vegetative reproduction",
+          "level": 2,
+          "score": 9.895556
+        },
+        {
+          "id": "https://openalex.org/C2778704284",
+          "wikidata": null,
+          "display_name": "Bamboo",
+          "level": 2,
+          "score": 9.765177
+        },
+        {
+          "id": "https://openalex.org/C2781002682",
+          "wikidata": null,
+          "display_name": "Gymnosperm",
+          "level": 2,
+          "score": 9.536045
+        },
+        {
+          "id": "https://openalex.org/C39432304",
+          "wikidata": null,
+          "display_name": "Environmental science",
+          "level": 0,
+          "score": 9.454093
+        },
+        {
+          "id": "https://openalex.org/C49799701",
+          "wikidata": null,
+          "display_name": "Xylem",
+          "level": 2,
+          "score": 9.424094
+        },
+        {
+          "id": "https://openalex.org/C35496372",
+          "wikidata": null,
+          "display_name": "Phloem",
+          "level": 2,
+          "score": 9.320371
+        },
+        {
+          "id": "https://openalex.org/C2778902744",
+          "wikidata": null,
+          "display_name": "Diatom",
+          "level": 2,
+          "score": 9.12663
+        },
+        {
+          "id": "https://openalex.org/C2776373379",
+          "wikidata": null,
+          "display_name": "Chlorophyll",
+          "level": 2,
+          "score": 9.126582
+        },
+        {
+          "id": "https://openalex.org/C2775891814",
+          "wikidata": null,
+          "display_name": "Weed",
+          "level": 2,
+          "score": 9.109495
+        },
+        {
+          "id": "https://openalex.org/C181485312",
+          "wikidata": null,
+          "display_name": "Sporophyte",
+          "level": 2,
+          "score": 9.031251
+        },
+        {
+          "id": "https://openalex.org/C523307889",
+          "wikidata": null,
+          "display_name": "Phytochemistry",
+          "level": 2,
+          "score": 8.444216
+        },
+        {
+          "id": "https://openalex.org/C27971861",
+          "wikidata": null,
+          "display_name": "Embryology",
+          "level": 2,
+          "score": 7.86721
+        },
+        {
+          "id": "https://openalex.org/C155015343",
+          "wikidata": null,
+          "display_name": "Plant breeding",
+          "level": 2,
+          "score": 7.821201
+        },
+        {
+          "id": "https://openalex.org/C2780041788",
+          "wikidata": null,
+          "display_name": "Rubiaceae",
+          "level": 2,
+          "score": 7.7239532
+        },
+        {
+          "id": "https://openalex.org/C96798521",
+          "wikidata": null,
+          "display_name": "Conifer cone",
+          "level": 2,
+          "score": 7.29612
+        },
+        {
+          "id": "https://openalex.org/C2779582858",
+          "wikidata": null,
+          "display_name": "Proteaceae",
+          "level": 2,
+          "score": 7.078739
+        },
+        {
+          "id": "https://openalex.org/C2781052789",
+          "wikidata": null,
+          "display_name": "Lignin",
+          "level": 2,
+          "score": 7.0214176
+        },
+        {
+          "id": "https://openalex.org/C2777423695",
+          "wikidata": null,
+          "display_name": "Myrtaceae",
+          "level": 2,
+          "score": 6.7774186
+        },
+        {
+          "id": "https://openalex.org/C2777056318",
+          "wikidata": null,
+          "display_name": "Cannabis",
+          "level": 2,
+          "score": 6.635125
+        },
+        {
+          "id": "https://openalex.org/C2776603922",
+          "wikidata": null,
+          "display_name": "Polymath",
+          "level": 2,
+          "score": 6.6110044
+        },
+        {
+          "id": "https://openalex.org/C2779159077",
+          "wikidata": null,
+          "display_name": "Araceae",
+          "level": 2,
+          "score": 6.490666
+        },
+        {
+          "id": "https://openalex.org/C2775943906",
+          "wikidata": null,
+          "display_name": "Brassicaceae",
+          "level": 2,
+          "score": 6.4169183
+        },
+        {
+          "id": "https://openalex.org/C37621935",
+          "wikidata": null,
+          "display_name": "Agricultural science",
+          "level": 1,
+          "score": 6.3016105
+        },
+        {
+          "id": "https://openalex.org/C141282968",
+          "wikidata": null,
+          "display_name": "Plant ecology",
+          "level": 2,
+          "score": 6.282983
+        },
+        {
+          "id": "https://openalex.org/C60700586",
+          "wikidata": null,
+          "display_name": "Herpetology",
+          "level": 2,
+          "score": 6.2744017
+        },
+        {
+          "id": "https://openalex.org/C2777534754",
+          "wikidata": null,
+          "display_name": "Lilium",
+          "level": 2,
+          "score": 6.195785
+        },
+        {
+          "id": "https://openalex.org/C2776962759",
+          "wikidata": null,
+          "display_name": "Apothecary",
+          "level": 2,
+          "score": 6.136021
+        },
+        {
+          "id": "https://openalex.org/C2549261",
+          "wikidata": null,
+          "display_name": "Ethnology",
+          "level": 1,
+          "score": 5.989027
+        },
+        {
+          "id": "https://openalex.org/C185476388",
+          "wikidata": null,
+          "display_name": "Cotyledon",
+          "level": 2,
+          "score": 5.969562
+        },
+        {
+          "id": "https://openalex.org/C166397571",
+          "wikidata": null,
+          "display_name": "Vascular tissue",
+          "level": 2,
+          "score": 5.95862
+        },
+        {
+          "id": "https://openalex.org/C2779275592",
+          "wikidata": null,
+          "display_name": "Narcissus",
+          "level": 2,
+          "score": 5.8737335
+        },
+        {
+          "id": "https://openalex.org/C2779880300",
+          "wikidata": null,
+          "display_name": "Euphorbia",
+          "level": 2,
+          "score": 5.69828
+        },
+        {
+          "id": "https://openalex.org/C2781456544",
+          "wikidata": null,
+          "display_name": "Dahlia",
+          "level": 2,
+          "score": 5.5843744
+        },
+        {
+          "id": "https://openalex.org/C2779708316",
+          "wikidata": null,
+          "display_name": "Geographer",
+          "level": 2,
+          "score": 5.50491
+        },
+        {
+          "id": "https://openalex.org/C150117547",
+          "wikidata": null,
+          "display_name": "Ecological succession",
+          "level": 2,
+          "score": 5.4751883
+        },
+        {
+          "id": "https://openalex.org/C162521499",
+          "wikidata": null,
+          "display_name": "Comparative anatomy",
+          "level": 2,
+          "score": 5.363839
+        },
+        {
+          "id": "https://openalex.org/C2780797691",
+          "wikidata": null,
+          "display_name": "Apiaceae",
+          "level": 2,
+          "score": 5.31848
+        },
+        {
+          "id": "https://openalex.org/C2781176530",
+          "wikidata": null,
+          "display_name": "Alpine plant",
+          "level": 2,
+          "score": 5.2561016
+        },
+        {
+          "id": "https://openalex.org/C2780007248",
+          "wikidata": null,
+          "display_name": "Apocynaceae",
+          "level": 2,
+          "score": 5.066452
+        },
+        {
+          "id": "https://openalex.org/C62555735",
+          "wikidata": null,
+          "display_name": "Corm",
+          "level": 2,
+          "score": 5.066144
+        },
+        {
+          "id": "https://openalex.org/C2781221326",
+          "wikidata": null,
+          "display_name": "Ericaceae",
+          "level": 2,
+          "score": 4.969914
+        },
+        {
+          "id": "https://openalex.org/C67283384",
+          "wikidata": null,
+          "display_name": "Stolon",
+          "level": 2,
+          "score": 4.968946
+        },
+        {
+          "id": "https://openalex.org/C56221022",
+          "wikidata": null,
+          "display_name": "Trichome",
+          "level": 2,
+          "score": 4.9115167
+        },
+        {
+          "id": "https://openalex.org/C81693640",
+          "wikidata": null,
+          "display_name": "Bud",
+          "level": 2,
+          "score": 4.760447
+        },
+        {
+          "id": "https://openalex.org/C2779158651",
+          "wikidata": null,
+          "display_name": "Medicinal plants",
+          "level": 2,
+          "score": 4.683469
+        },
+        {
+          "id": "https://openalex.org/C2781374353",
+          "wikidata": null,
+          "display_name": "Garden design",
+          "level": 2,
+          "score": 4.6238737
+        },
+        {
+          "id": "https://openalex.org/C552594755",
+          "wikidata": null,
+          "display_name": "Hydroponics",
+          "level": 2,
+          "score": 4.5967393
+        },
+        {
+          "id": "https://openalex.org/C2778945092",
+          "wikidata": null,
+          "display_name": "Anthocyanin",
+          "level": 2,
+          "score": 4.503902
+        },
+        {
+          "id": "https://openalex.org/C159390177",
+          "wikidata": null,
+          "display_name": "Soil science",
+          "level": 1,
+          "score": 4.483722
+        },
+        {
+          "id": "https://openalex.org/C2776096895",
+          "wikidata": null,
+          "display_name": "Seedling",
+          "level": 2,
+          "score": 4.4513135
+        },
+        {
+          "id": "https://openalex.org/C2776460402",
+          "wikidata": null,
+          "display_name": "Allium",
+          "level": 2,
+          "score": 4.4307404
+        },
+        {
+          "id": "https://openalex.org/C21410773",
+          "wikidata": null,
+          "display_name": "Shoot",
+          "level": 2,
+          "score": 4.409185
+        },
+        {
+          "id": "https://openalex.org/C2776833777",
+          "wikidata": null,
+          "display_name": "Wildflower",
+          "level": 2,
+          "score": 4.384885
+        }
+      ],
+      "counts_by_year": [
+        {
+          "year": 2022,
+          "works_count": 47064,
+          "cited_by_count": 1467831
+        },
+        {
+          "year": 2021,
+          "works_count": 82194,
+          "cited_by_count": 1963343
+        },
+        {
+          "year": 2020,
+          "works_count": 83840,
+          "cited_by_count": 1720018
+        },
+        {
+          "year": 2019,
+          "works_count": 77959,
+          "cited_by_count": 1487179
+        },
+        {
+          "year": 2018,
+          "works_count": 75647,
+          "cited_by_count": 1290074
+        },
+        {
+          "year": 2017,
+          "works_count": 73053,
+          "cited_by_count": 1214911
+        },
+        {
+          "year": 2016,
+          "works_count": 74737,
+          "cited_by_count": 1231584
+        },
+        {
+          "year": 2015,
+          "works_count": 80487,
+          "cited_by_count": 1250773
+        },
+        {
+          "year": 2014,
+          "works_count": 82981,
+          "cited_by_count": 1275777
+        },
+        {
+          "year": 2013,
+          "works_count": 82140,
+          "cited_by_count": 1214559
+        },
+        {
+          "year": 2012,
+          "works_count": 78515,
+          "cited_by_count": 1109789
+        }
+      ],
+      "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C59822182",
+      "updated_date": "2022-10-09T09:44:26.268716",
+      "created_date": "2016-06-24"
+    },
+    {
+      "id": "https://openalex.org/C149923435",
+      "wikidata": "https://www.wikidata.org/wiki/Q37732",
+      "display_name": "Demography",
+      "level": 1,
+      "description": "science that deals with populations and their structures statistically and theoretically",
+      "works_count": 1281528,
+      "cited_by_count": 22919047,
+      "ids": {
+        "openalex": "https://openalex.org/C149923435",
+        "wikidata": "https://www.wikidata.org/wiki/Q37732",
+        "mag": "149923435",
+        "wikipedia": "https://en.wikipedia.org/wiki/Demography",
+        "umls_cui": [
+          "C0011298"
+        ]
+      },
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/f/f6/Global_Population-Pyramid-1950-to-2100.jpg",
+      "image_thumbnail_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/Global_Population-Pyramid-1950-to-2100.jpg/100px-Global_Population-Pyramid-1950-to-2100.jpg",
+      "international": {
+        "display_name": {
+          "af": "Demografie",
+          "an": "demograf\u00eda",
+          "ar": "\u0639\u0644\u0645 \u0627\u0644\u0633\u0643\u0627\u0646",
+          "ast": "demograf\u00eda",
+          "az": "demoqrafiya",
+          "ba": "\u0434\u0435\u043c\u043e\u0433\u0440\u0430\u0444\u0438\u044f",
+          "be": "\u0434\u044d\u043c\u0430\u0433\u0440\u0430\u0444\u0456\u044f",
+          "be-tarask": "\u0434\u044d\u043c\u0430\u0433\u0440\u0430\u0444\u0456\u044f",
+          "bg": "\u0434\u0435\u043c\u043e\u0433\u0440\u0430\u0444\u0438\u044f",
+          "bn": "\u099c\u09a8\u09b8\u0982\u0996\u09cd\u09af\u09be\u09a4\u09a4\u09cd\u09a4\u09cd\u09ac",
+          "br": "pobla\u00f1souriezh",
+          "bs": "demografija",
+          "ca": "demografia",
+          "ckb": "\u062c\u06d5\u0645\u0627\u0648\u06d5\u0631\u0646\u0627\u0633\u06cc",
+          "cs": "demografie",
+          "cy": "demograffeg",
+          "da": "demografi",
+          "de": "Demografie",
+          "diq": "demografiye",
+          "el": "\u03b4\u03b7\u03bc\u03bf\u03b3\u03c1\u03b1\u03c6\u03af\u03b1",
+          "en": "demography",
+          "eo": "demografio",
+          "es": "demograf\u00eda",
+          "et": "demograafia",
+          "eu": "demografia",
+          "fa": "\u062c\u0645\u0639\u06cc\u062a\u200c\u0634\u0646\u0627\u0633\u06cc",
+          "fi": "v\u00e4est\u00f6tiede",
+          "fo": "f\u00f3lkatalsfr\u00f8\u00f0i",
+          "fr": "d\u00e9mographie",
+          "fy": "demografy",
+          "gl": "demograf\u00eda",
+          "gsw": "Demografie",
+          "gu": "\u0ab5\u0ab8\u0acd\u0aa4\u0ac0-\u0ab5\u0abf\u0ab7\u0aaf\u0a95 \u0aae\u0abe\u0ab9\u0abf\u0aa4\u0ac0\u0a93",
+          "he": "\u05d3\u05de\u05d5\u05d2\u05e8\u05e4\u05d9\u05d4",
+          "hi": "\u091c\u0928\u0938\u093e\u0902\u0916\u094d\u092f\u093f\u0915\u0940",
+          "hr": "demografija",
+          "ht": "demografi",
+          "hu": "demogr\u00e1fia",
+          "hy": "\u053a\u0578\u0572\u0578\u057e\u0580\u0564\u0561\u0563\u0580\u0578\u0582\u0569\u0575\u0578\u0582\u0576",
+          "ia": "demographia",
+          "id": "demografi",
+          "is": "L\u00fd\u00f0fr\u00e6\u00f0i",
+          "it": "demografia",
+          "ja": "\u4eba\u53e3\u7d71\u8a08\u5b66",
+          "jv": "D\u00e9mografi",
+          "ka": "\u10d3\u10d4\u10db\u10dd\u10d2\u10e0\u10d0\u10e4\u10d8\u10d0",
+          "kk": "\u0434\u0435\u043c\u043e\u0433\u0440\u0430\u0444\u0438\u044f",
+          "kn": "\u0c85\u0c82\u0c95\u0cbf\u0cb8\u0c82\u0c96\u0ccd\u0caf\u0cbe\u0cb6\u0cbe\u0cb8\u0ccd\u0ca4\u0ccd\u0cb0/\u0c9c\u0ca8\u0cb8\u0c82\u0c96\u0ccd\u0caf\u0cbe \u0cb5\u0cbf\u0c9c\u0ccd\u0c9e\u0cbe\u0ca8 /\u0c9c\u0ca8\u0cb8\u0ccd\u0ca5\u0cbf\u0ca4\u0cbf \u0c85\u0ca7\u0ccd\u0caf\u0caf\u0ca8",
+          "ko": "\uc778\uad6c\ud1b5\uacc4\ud559",
+          "ky": "\u0434\u0435\u043c\u043e\u0433\u0440\u0430\u0444\u0438\u044f",
+          "la": "demographia",
+          "lfn": "demografia",
+          "li": "Demografie",
+          "lij": "demografia",
+          "lt": "demografija",
+          "lv": "demogr\u0101fija",
+          "mg": "demografia",
+          "min": "Demografi",
+          "mk": "\u0434\u0435\u043c\u043e\u0433\u0440\u0430\u0444\u0438\u0458\u0430",
+          "ml": "\u0d1c\u0d28\u0d38\u0d02\u0d16\u0d4d\u0d2f\u0d3e\u0d2a\u0d20\u0d28\u0d02",
+          "mr": "\u091c\u0928\u0917\u0923\u0928\u093e\u0936\u093e\u0938\u094d\u0924\u094d\u0930",
+          "ms": "demografi",
+          "myv": "\u0414\u0435\u043c\u043e\u0433\u0440\u0430\u0444\u0438\u044f",
+          "nan": "J\u00een-kh\u00e1u-ha\u030dk",
+          "nb": "demografi",
+          "nl": "demografie",
+          "nn": "demografi",
+          "oc": "demografia",
+          "pa": "\u0a21\u0a48\u0a2e\u0a4b\u0a17\u0a30\u0a3e\u0a2b\u0a3c\u0a40",
+          "pl": "demografia",
+          "ps": "\u0648\u06ab\u0693\u0634\u0645\u06d0\u0631\u0646\u0647",
+          "pt": "demografia",
+          "pt-br": "demografia",
+          "qu": "runayupay",
+          "ro": "demografie",
+          "ru": "\u0434\u0435\u043c\u043e\u0433\u0440\u0430\u0444\u0438\u044f",
+          "sah": "\u0434\u0435\u043c\u043e\u0433\u0440\u0430\u0444\u0438\u044f",
+          "scn": "dimograf\u00eca",
+          "sh": "demografija",
+          "sk": "demografia",
+          "sl": "demografija",
+          "sq": "demografi",
+          "sr": "\u0434\u0435\u043c\u043e\u0433\u0440\u0430\u0444\u0438\u0458\u0430",
+          "su": "d\u00e9mografi",
+          "sv": "demografi",
+          "sw": "demografia",
+          "ta": "\u0bae\u0b95\u0bcd\u0b95\u0bb3\u0bcd \u0ba4\u0bca\u0b95\u0bc8\u0baf\u0bbf\u0baf\u0bb2\u0bcd",
+          "tg": "\u04b6\u0430\u043c\u044a\u0438\u044f\u0442\u0448\u0438\u043d\u043e\u0441\u04e3",
+          "th": "\u0e1b\u0e23\u0e30\u0e0a\u0e32\u0e01\u0e23\u0e28\u0e32\u0e2a\u0e15\u0e23\u0e4c",
+          "tl": "demograpiya",
+          "tr": "demografi",
+          "tt": "\u0434\u0438\u043c\u0430\u0433\u0440\u0430\u0444\u0438\u044f",
+          "uk": "\u0434\u0435\u043c\u043e\u0433\u0440\u0430\u0444\u0456\u044f",
+          "ur": "\u0622\u0628\u0627\u062f\u06cc\u0627\u062a",
+          "uz": "demografiya",
+          "vec": "demografia",
+          "vi": "Nh\u00e2n kh\u1ea9u h\u1ecdc",
+          "vro": "demograafia",
+          "war": "demograpiya",
+          "wuu": "\u4eba\u53e3\u5b66",
+          "yi": "\u05d3\u05e2\u05de\u05d0\u05d2\u05e8\u05d0\u05e4\u05d9\u05e2",
+          "yue": "\u4eba\u53e3\u7d71\u8a08\u5b78",
+          "zh": "\u4eba\u53e3\u5b66",
+          "zh-hans": "\u4eba\u53e3\u5b66",
+          "zh-hant": "\u4eba\u53e3\u5b78"
+        },
+        "description": {
+          "ar": "\u0627\u0644\u062f\u064a\u0645\u0648\u063a\u0631\u0627\u0641\u064a\u0627\u060c \u0639\u0644\u0645 \u064a\u0639\u0646\u064a \u0628\u0627\u0644\u0628\u0646\u064a\u0629 \u0627\u0644\u0633\u0643\u0627\u0646\u064a\u0629",
+          "da": "befolkningen l\u00e6rer",
+          "de": "Wissenschaft, die sich statistisch und theoretisch mit der Entwicklung von Bev\u00f6lkerungen und ihren Strukturen befasst",
+          "en": "science that deals with populations and their structures statistically and theoretically",
+          "es": "ciencia que tiene como objetivo el estudio de las poblaciones humanas, de su dimensi\u00f3n, estructura, evoluci\u00f3n y caracter\u00edsticas generales",
+          "fi": "tieteenala",
+          "fr": "science qui traite avec les populations et leurs structures statistiquement et th\u00e9oriquement avec le d\u00e9veloppement",
+          "gl": "estudo das poboaci\u00f3ns humanas",
+          "gsw": "W\u00fcsseschaft",
+          "hu": "n\u00e9pesed\u00e9studom\u00e1ny; tudom\u00e1ny\u00e1g, egyetemi szak",
+          "id": "cabang ilmu sosial | Sains yang mencakup pembelajaran ihwal dinamika kependudukan",
+          "it": "scienza che studia quantitativamente i fenomeni che concernono lo stato e il movimento della popolazione",
+          "ja": "\u4eba\u53e3\u3092\u7d71\u8a08\u5b66\u7684\u306b\u691c\u8a0e\u3059\u308b\u5b66\u554f\u5206\u91ce",
+          "nb": "befolkningsl\u00e6re",
+          "nl": "wetenschap die zich bezighoudt met statistiek, ontwikkeling en structuur van bevolking(sgroepen)",
+          "pl": "dziedzina nauki zajmuj\u0105ca si\u0119 powstawaniem, \u017cyciem i przemijaniem spo\u0142eczno\u015bci ludzkiej",
+          "pt": "\u00e1rea das ci\u00eancias sociais que estuda a din\u00e2mica populacional humana",
+          "ru": "\u043d\u0430\u0443\u043a\u0430 \u043e \u043d\u0430\u0441\u0435\u043b\u0435\u043d\u0438\u0438",
+          "sk": "veda o reprodukcii \u013eudsk\u00fdch popul\u00e1ci",
+          "ta": "\u0bae\u0b95\u0bcd\u0b95\u0bb3\u0bcd \u0ba4\u0bca\u0b95\u0bc8\u0baf\u0bc8\u0baa\u0bcd \u0baa\u0bb1\u0bcd\u0bb1\u0bbf\u0baf \u0baa\u0bc1\u0bb3\u0bcd\u0bb3\u0bbf\u0bb5\u0bbf\u0bb5\u0bb0\u0bae\u0bcd",
+          "tr": "n\u00fcfus bilimi",
+          "vi": "khoa h\u1ecdc nghi\u00ean c\u1ee9u th\u1ed1ng k\u00ea s\u1ed1 c\u00e1 th\u1ec3 c\u1ee7a m\u1ed9t lo\u00e0i"
+        }
+      },
+      "ancestors": [
+        {
+          "id": "https://openalex.org/C144024400",
+          "wikidata": "https://www.wikidata.org/wiki/Q21201",
+          "display_name": "Sociology",
+          "level": 0
+        }
+      ],
+      "related_concepts": [
+        {
+          "id": "https://openalex.org/C137403100",
+          "wikidata": null,
+          "display_name": "Ethnic group",
+          "level": 2,
+          "score": 29.614626
+        },
+        {
+          "id": "https://openalex.org/C144024400",
+          "wikidata": null,
+          "display_name": "Sociology",
+          "level": 0,
+          "score": 22.524214
+        },
+        {
+          "id": "https://openalex.org/C162324750",
+          "wikidata": null,
+          "display_name": "Economics",
+          "level": 0,
+          "score": 15.857799
+        },
+        {
+          "id": "https://openalex.org/C105795698",
+          "wikidata": null,
+          "display_name": "Statistics",
+          "level": 1,
+          "score": 15.837659
+        },
+        {
+          "id": "https://openalex.org/C137355542",
+          "wikidata": null,
+          "display_name": "World War II",
+          "level": 2,
+          "score": 13.828287
+        },
+        {
+          "id": "https://openalex.org/C179755657",
+          "wikidata": null,
+          "display_name": "Mortality rate",
+          "level": 2,
+          "score": 13.311794
+        },
+        {
+          "id": "https://openalex.org/C205649164",
+          "wikidata": null,
+          "display_name": "Geography",
+          "level": 0,
+          "score": 12.228662
+        },
+        {
+          "id": "https://openalex.org/C191935318",
+          "wikidata": null,
+          "display_name": "China",
+          "level": 2,
+          "score": 10.934437
+        },
+        {
+          "id": "https://openalex.org/C36289849",
+          "wikidata": null,
+          "display_name": "Social science",
+          "level": 1,
+          "score": 10.123408
+        },
+        {
+          "id": "https://openalex.org/C19165224",
+          "wikidata": null,
+          "display_name": "Anthropology",
+          "level": 1,
+          "score": 9.864711
+        },
+        {
+          "id": "https://openalex.org/C111021475",
+          "wikidata": null,
+          "display_name": "Protestantism",
+          "level": 2,
+          "score": 9.711872
+        },
+        {
+          "id": "https://openalex.org/C107130276",
+          "wikidata": null,
+          "display_name": "Epidemiology",
+          "level": 2,
+          "score": 9.258442
+        },
+        {
+          "id": "https://openalex.org/C70036468",
+          "wikidata": null,
+          "display_name": "Immigration",
+          "level": 2,
+          "score": 9.050277
+        },
+        {
+          "id": "https://openalex.org/C48580701",
+          "wikidata": null,
+          "display_name": "French",
+          "level": 2,
+          "score": 8.445546
+        },
+        {
+          "id": "https://openalex.org/C73945780",
+          "wikidata": null,
+          "display_name": "Survey methodology",
+          "level": 2,
+          "score": 5.8283877
+        },
+        {
+          "id": "https://openalex.org/C192481860",
+          "wikidata": null,
+          "display_name": "Psychographic",
+          "level": 2,
+          "score": 5.387605
+        },
+        {
+          "id": "https://openalex.org/C74909509",
+          "wikidata": null,
+          "display_name": "Gerontology",
+          "level": 1,
+          "score": 4.078952
+        },
+        {
+          "id": "https://openalex.org/C2779677306",
+          "wikidata": null,
+          "display_name": "Statistician",
+          "level": 2,
+          "score": 4.0087543
+        },
+        {
+          "id": "https://openalex.org/C23213687",
+          "wikidata": null,
+          "display_name": "Consumer behaviour",
+          "level": 2,
+          "score": 3.0933797
+        },
+        {
+          "id": "https://openalex.org/C522453465",
+          "wikidata": null,
+          "display_name": "Social research",
+          "level": 2,
+          "score": 2.8166513
+        },
+        {
+          "id": "https://openalex.org/C2776759703",
+          "wikidata": null,
+          "display_name": "Longevity",
+          "level": 2,
+          "score": 2.8034954
+        },
+        {
+          "id": "https://openalex.org/C125308379",
+          "wikidata": null,
+          "display_name": "Market segmentation",
+          "level": 2,
+          "score": 2.6318386
+        },
+        {
+          "id": "https://openalex.org/C2777328224",
+          "wikidata": null,
+          "display_name": "Target market",
+          "level": 2,
+          "score": 2.4504418
+        },
+        {
+          "id": "https://openalex.org/C2777014519",
+          "wikidata": null,
+          "display_name": "Actuary",
+          "level": 2,
+          "score": 2.2776933
+        },
+        {
+          "id": "https://openalex.org/C82307848",
+          "wikidata": null,
+          "display_name": "Audience measurement",
+          "level": 2,
+          "score": 2.1941957
+        },
+        {
+          "id": "https://openalex.org/C2777011736",
+          "wikidata": null,
+          "display_name": "Niche market",
+          "level": 2,
+          "score": 1.7581336
+        },
+        {
+          "id": "https://openalex.org/C134463574",
+          "wikidata": null,
+          "display_name": "Gompertz function",
+          "level": 2,
+          "score": 1.2285333
+        },
+        {
+          "id": "https://openalex.org/C4249254",
+          "wikidata": null,
+          "display_name": "Demographic economics",
+          "level": 1,
+          "score": 1.1933827
+        },
+        {
+          "id": "https://openalex.org/C2777169553",
+          "wikidata": null,
+          "display_name": "Panel Study of Income Dynamics",
+          "level": 2,
+          "score": 0.9316392
+        },
+        {
+          "id": "https://openalex.org/C2779470537",
+          "wikidata": null,
+          "display_name": "Urban studies",
+          "level": 2,
+          "score": 0.9265966
+        },
+        {
+          "id": "https://openalex.org/C72563966",
+          "wikidata": null,
+          "display_name": "Cohort",
+          "level": 2,
+          "score": 0.8155169
+        }
+      ],
+      "counts_by_year": [
+        {
+          "year": 2022,
+          "works_count": 52643,
+          "cited_by_count": 1265130
+        },
+        {
+          "year": 2021,
+          "works_count": 84609,
+          "cited_by_count": 1694749
+        },
+        {
+          "year": 2020,
+          "works_count": 77484,
+          "cited_by_count": 1521823
+        },
+        {
+          "year": 2019,
+          "works_count": 61020,
+          "cited_by_count": 1260885
+        },
+        {
+          "year": 2018,
+          "works_count": 58486,
+          "cited_by_count": 1152986
+        },
+        {
+          "year": 2017,
+          "works_count": 56758,
+          "cited_by_count": 1089151
+        },
+        {
+          "year": 2016,
+          "works_count": 57805,
+          "cited_by_count": 1111049
+        },
+        {
+          "year": 2015,
+          "works_count": 56881,
+          "cited_by_count": 1126926
+        },
+        {
+          "year": 2014,
+          "works_count": 56075,
+          "cited_by_count": 1084709
+        },
+        {
+          "year": 2013,
+          "works_count": 53520,
+          "cited_by_count": 1012997
+        },
+        {
+          "year": 2012,
+          "works_count": 47729,
+          "cited_by_count": 921232
+        }
+      ],
+      "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C149923435",
+      "updated_date": "2022-10-09T09:58:34.368324",
+      "created_date": "2016-06-24"
+    },
+    {
+      "id": "https://openalex.org/C115961682",
+      "wikidata": "https://www.wikidata.org/wiki/Q860623",
+      "display_name": "Image (mathematics)",
+      "level": 2,
+      "description": "set of all values of a function",
+      "works_count": 389632,
+      "cited_by_count": 4023703,
+      "ids": {
+        "openalex": "https://openalex.org/C115961682",
+        "wikidata": "https://www.wikidata.org/wiki/Q860623",
+        "mag": "115961682",
+        "wikipedia": "https://en.wikipedia.org/wiki/Image%20%28mathematics%29",
+        "umls_cui": [
+          "C1704922"
+        ]
+      },
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/6/64/Codomain2.SVG",
+      "image_thumbnail_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Codomain2.SVG/100px-Codomain2.SVG.png",
+      "international": {
+        "display_name": {
+          "ar": "\u0635\u0648\u0631\u0629",
+          "ca": "Imatge (matem\u00e0tiques)",
+          "cs": "obraz mno\u017einy nebo obor hodnot",
+          "da": "V\u00e6rdim\u00e6ngde",
+          "de": "Bild",
+          "en": "image",
+          "eo": "bildaro",
+          "es": "imagen",
+          "et": "Kujutis",
+          "eu": "Irudi",
+          "fa": "\u062a\u0635\u0648\u06cc\u0631 (\u0631\u06cc\u0627\u0636\u06cc\u0627\u062a)",
+          "fi": "Arvojoukko",
+          "fo": "Vir\u00f0ismongd",
+          "fr": "image",
+          "he": "\u05ea\u05de\u05d5\u05e0\u05d4",
+          "ia": "Imagine (mathematica)",
+          "id": "citra",
+          "is": "Myndmengi",
+          "it": "immagine",
+          "ja": "\u50cf",
+          "ko": "\uce58\uc5ed",
+          "lmo": "Cungjuunt da rivada",
+          "ms": "imej",
+          "nl": "beeld",
+          "pl": "obraz",
+          "pt": "conjunto imagem",
+          "pt-br": "imagem",
+          "ro": "Imaginea unei func\u021bii",
+          "ru": "\u043e\u0431\u0440\u0430\u0437",
+          "ta": "\u0bb5\u0bc0\u0b9a\u0bcd\u0b9a\u0bc1, \u0b8e\u0ba4\u0bbf\u0bb0\u0bc1\u0bb0\u0bc1 \u0bae\u0bb1\u0bcd\u0bb1\u0bc1\u0bae\u0bcd \u0bae\u0bc1\u0ba9\u0bcd\u0ba9\u0bc1\u0bb0\u0bc1",
+          "tl": "Imahe (matematika)",
+          "tr": "G\u00f6r\u00fcnt\u00fc k\u00fcmesi",
+          "uk": "\u043e\u0431\u0440\u0430\u0437 \u0432\u0456\u0434\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f",
+          "vi": "\u1ea2nh (to\u00e1n h\u1ecdc)",
+          "zh": "\u50cf"
+        },
+        "description": {
+          "de": "Menge der Werte aus der Zielmenge, die eine Funktion tats\u00e4chlich annimmt",
+          "en": "set of all values of a function",
+          "eo": "la aro de \u0109iuj bildoj de bildigo",
+          "fr": "ensemble de toutes les valeurs d'une fonction",
+          "id": "himpunan semua nilai suatu fungsi",
+          "it": "in matematica, sottoinsieme del codominio di una funzione",
+          "nl": "wiskunde",
+          "pl": "zbi\u00f3r wszystkich warto\u015bci funkcji",
+          "pt-br": "(de um conjunto ou fun\u00e7\u00e3o) em matem\u00e1tica, o subconjunto do contradom\u00ednio de uma fun\u00e7\u00e3o",
+          "ru": "\u043e\u0431\u0440\u0430\u0437 \u043c\u043d\u043e\u0436\u0435\u0441\u0442\u0432\u0430 \u043f\u0440\u0438 \u043e\u0442\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u0438",
+          "tl": "Pangkat ng lahat ng mga halagang posibleng magawa ng isang bunin"
+        }
+      },
+      "ancestors": [
+        {
+          "id": "https://openalex.org/C154945302",
+          "wikidata": "https://www.wikidata.org/wiki/Q11660",
+          "display_name": "Artificial intelligence",
+          "level": 1
+        },
+        {
+          "id": "https://openalex.org/C31972630",
+          "wikidata": "https://www.wikidata.org/wiki/Q844240",
+          "display_name": "Computer vision",
+          "level": 1
+        },
+        {
+          "id": "https://openalex.org/C41008148",
+          "wikidata": "https://www.wikidata.org/wiki/Q21198",
+          "display_name": "Computer science",
+          "level": 0
+        }
+      ],
+      "related_concepts": [
+        {
+          "id": "https://openalex.org/C81332173",
+          "wikidata": null,
+          "display_name": "Topological space",
+          "level": 2,
+          "score": 9.785381
+        },
+        {
+          "id": "https://openalex.org/C33923547",
+          "wikidata": null,
+          "display_name": "Mathematics",
+          "level": 0,
+          "score": 8.812359
+        },
+        {
+          "id": "https://openalex.org/C24424167",
+          "wikidata": null,
+          "display_name": "Bijection",
+          "level": 2,
+          "score": 7.316003
+        },
+        {
+          "id": "https://openalex.org/C128107574",
+          "wikidata": null,
+          "display_name": "Injective function",
+          "level": 2,
+          "score": 6.087611
+        },
+        {
+          "id": "https://openalex.org/C119238805",
+          "wikidata": null,
+          "display_name": "Surjective function",
+          "level": 2,
+          "score": 5.856361
+        },
+        {
+          "id": "https://openalex.org/C94020503",
+          "wikidata": null,
+          "display_name": "Real number",
+          "level": 2,
+          "score": 5.378863
+        },
+        {
+          "id": "https://openalex.org/C100643331",
+          "wikidata": null,
+          "display_name": "Power set",
+          "level": 3,
+          "score": 5.1608024
+        },
+        {
+          "id": "https://openalex.org/C13336665",
+          "wikidata": null,
+          "display_name": "Vector space",
+          "level": 2,
+          "score": 4.135503
+        },
+        {
+          "id": "https://openalex.org/C156103551",
+          "wikidata": null,
+          "display_name": "Equivalence relation",
+          "level": 2,
+          "score": 3.8541827
+        },
+        {
+          "id": "https://openalex.org/C18648836",
+          "wikidata": null,
+          "display_name": "Compact space",
+          "level": 2,
+          "score": 3.7491286
+        },
+        {
+          "id": "https://openalex.org/C42357961",
+          "wikidata": null,
+          "display_name": "Open set",
+          "level": 2,
+          "score": 3.7484632
+        },
+        {
+          "id": "https://openalex.org/C54884031",
+          "wikidata": null,
+          "display_name": "Category theory",
+          "level": 2,
+          "score": 3.6015313
+        },
+        {
+          "id": "https://openalex.org/C48659774",
+          "wikidata": null,
+          "display_name": "Bijection, injection and surjection",
+          "level": 3,
+          "score": 2.6218827
+        }
+      ],
+      "counts_by_year": [
+        {
+          "year": 2022,
+          "works_count": 12059,
+          "cited_by_count": 187275
+        },
+        {
+          "year": 2021,
+          "works_count": 22452,
+          "cited_by_count": 341236
+        },
+        {
+          "year": 2020,
+          "works_count": 22454,
+          "cited_by_count": 303839
+        },
+        {
+          "year": 2019,
+          "works_count": 22106,
+          "cited_by_count": 249431
+        },
+        {
+          "year": 2018,
+          "works_count": 19496,
+          "cited_by_count": 197293
+        },
+        {
+          "year": 2017,
+          "works_count": 17321,
+          "cited_by_count": 164151
+        },
+        {
+          "year": 2016,
+          "works_count": 17185,
+          "cited_by_count": 154384
+        },
+        {
+          "year": 2015,
+          "works_count": 18559,
+          "cited_by_count": 151388
+        },
+        {
+          "year": 2014,
+          "works_count": 18157,
+          "cited_by_count": 142355
+        },
+        {
+          "year": 2013,
+          "works_count": 18927,
+          "cited_by_count": 128906
+        },
+        {
+          "year": 2012,
+          "works_count": 17604,
+          "cited_by_count": 112172
+        }
+      ],
+      "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C115961682",
+      "updated_date": "2022-10-09T09:40:58.134218",
+      "created_date": "2016-06-24"
     },
     {
       "id": "https://openalex.org/C81941488",
@@ -3260,7 +6424,7 @@
       "level": 3,
       "description": "DNA locus associated with variation in a quantitative trait",
       "works_count": 50195,
-      "cited_by_count": 1363790,
+      "cited_by_count": 1394392,
       "ids": {
         "openalex": "https://openalex.org/C81941488",
         "wikidata": "https://www.wikidata.org/wiki/Q853421",
@@ -3555,61 +6719,61 @@
         {
           "year": 2022,
           "works_count": 2325,
-          "cited_by_count": 86471
+          "cited_by_count": 89574
         },
         {
           "year": 2021,
-          "works_count": 3232,
-          "cited_by_count": 115265
+          "works_count": 3230,
+          "cited_by_count": 118318
         },
         {
           "year": 2020,
-          "works_count": 2804,
-          "cited_by_count": 101478
+          "works_count": 2789,
+          "cited_by_count": 103588
         },
         {
           "year": 2019,
-          "works_count": 2618,
-          "cited_by_count": 92672
+          "works_count": 2623,
+          "cited_by_count": 92995
         },
         {
           "year": 2018,
-          "works_count": 2424,
-          "cited_by_count": 81205
+          "works_count": 2418,
+          "cited_by_count": 82360
         },
         {
           "year": 2017,
-          "works_count": 2321,
-          "cited_by_count": 76365
+          "works_count": 2300,
+          "cited_by_count": 75634
         },
         {
           "year": 2016,
-          "works_count": 2334,
-          "cited_by_count": 72150
+          "works_count": 2379,
+          "cited_by_count": 73205
         },
         {
           "year": 2015,
-          "works_count": 2428,
-          "cited_by_count": 70589
+          "works_count": 2425,
+          "cited_by_count": 71430
         },
         {
           "year": 2014,
-          "works_count": 2505,
-          "cited_by_count": 67773
+          "works_count": 2490,
+          "cited_by_count": 68430
         },
         {
           "year": 2013,
-          "works_count": 2325,
-          "cited_by_count": 65131
+          "works_count": 2337,
+          "cited_by_count": 66060
         },
         {
           "year": 2012,
-          "works_count": 2218,
-          "cited_by_count": 60383
+          "works_count": 2229,
+          "cited_by_count": 62004
         }
       ],
       "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C81941488",
-      "updated_date": "2022-10-03T10:42:19.963139",
+      "updated_date": "2022-10-09T09:38:15.851957",
       "created_date": "2016-06-24"
     },
     {
@@ -3619,7 +6783,7 @@
       "level": 2,
       "description": "additive color model based on combining red, green, and blue",
       "works_count": 30553,
-      "cited_by_count": 237229,
+      "cited_by_count": 249820,
       "ids": {
         "openalex": "https://openalex.org/C82990744",
         "wikidata": "https://www.wikidata.org/wiki/Q166194",
@@ -4091,62 +7255,62 @@
       "counts_by_year": [
         {
           "year": 2022,
-          "works_count": 2424,
-          "cited_by_count": 24191
+          "works_count": 2433,
+          "cited_by_count": 25316
         },
         {
           "year": 2021,
-          "works_count": 3444,
-          "cited_by_count": 37006
+          "works_count": 3434,
+          "cited_by_count": 41154
         },
         {
           "year": 2020,
-          "works_count": 2380,
-          "cited_by_count": 31365
+          "works_count": 2388,
+          "cited_by_count": 35533
         },
         {
           "year": 2019,
-          "works_count": 2465,
-          "cited_by_count": 27308
+          "works_count": 2460,
+          "cited_by_count": 27892
         },
         {
           "year": 2018,
-          "works_count": 2032,
-          "cited_by_count": 20241
+          "works_count": 2025,
+          "cited_by_count": 20715
         },
         {
           "year": 2017,
-          "works_count": 1988,
-          "cited_by_count": 17342
+          "works_count": 2023,
+          "cited_by_count": 16942
         },
         {
           "year": 2016,
-          "works_count": 1936,
-          "cited_by_count": 14200
+          "works_count": 1902,
+          "cited_by_count": 14046
         },
         {
           "year": 2015,
-          "works_count": 1975,
-          "cited_by_count": 11936
+          "works_count": 1974,
+          "cited_by_count": 11987
         },
         {
           "year": 2014,
-          "works_count": 1793,
-          "cited_by_count": 9052
+          "works_count": 1791,
+          "cited_by_count": 9064
         },
         {
           "year": 2013,
-          "works_count": 1660,
-          "cited_by_count": 6821
+          "works_count": 1670,
+          "cited_by_count": 6849
         },
         {
           "year": 2012,
-          "works_count": 1270,
-          "cited_by_count": 5055
+          "works_count": 1271,
+          "cited_by_count": 5121
         }
       ],
       "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C82990744",
-      "updated_date": "2022-10-03T10:19:44.334600",
+      "updated_date": "2022-10-09T09:55:28.275645",
       "created_date": "2016-06-24"
     },
     {
@@ -4156,7 +7320,7 @@
       "level": 2,
       "description": "botanical fruit with fleshy pericarp, containing one or many seeds",
       "works_count": 18972,
-      "cited_by_count": 215307,
+      "cited_by_count": 219756,
       "ids": {
         "openalex": "https://openalex.org/C2776034682",
         "wikidata": "https://www.wikidata.org/wiki/Q13184",
@@ -4414,62 +7578,62 @@
       "counts_by_year": [
         {
           "year": 2022,
-          "works_count": 613,
-          "cited_by_count": 16587
+          "works_count": 614,
+          "cited_by_count": 17101
         },
         {
           "year": 2021,
-          "works_count": 1009,
-          "cited_by_count": 22505
+          "works_count": 1008,
+          "cited_by_count": 23264
         },
         {
           "year": 2020,
-          "works_count": 948,
-          "cited_by_count": 19780
+          "works_count": 947,
+          "cited_by_count": 20547
         },
         {
           "year": 2019,
-          "works_count": 1018,
-          "cited_by_count": 16169
+          "works_count": 1017,
+          "cited_by_count": 16265
         },
         {
           "year": 2018,
-          "works_count": 829,
-          "cited_by_count": 13515
+          "works_count": 823,
+          "cited_by_count": 13336
         },
         {
           "year": 2017,
-          "works_count": 969,
-          "cited_by_count": 14034
+          "works_count": 968,
+          "cited_by_count": 13812
         },
         {
           "year": 2016,
-          "works_count": 882,
-          "cited_by_count": 13245
+          "works_count": 887,
+          "cited_by_count": 13438
         },
         {
           "year": 2015,
-          "works_count": 889,
-          "cited_by_count": 12453
+          "works_count": 892,
+          "cited_by_count": 12597
         },
         {
           "year": 2014,
           "works_count": 791,
-          "cited_by_count": 11159
+          "cited_by_count": 11354
         },
         {
           "year": 2013,
           "works_count": 793,
-          "cited_by_count": 10872
+          "cited_by_count": 10959
         },
         {
           "year": 2012,
-          "works_count": 703,
-          "cited_by_count": 9578
+          "works_count": 709,
+          "cited_by_count": 9811
         }
       ],
       "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C2776034682",
-      "updated_date": "2022-10-03T10:42:30.863572",
+      "updated_date": "2022-10-09T09:38:19.245569",
       "created_date": "2018-01-05"
     },
     {
@@ -4479,7 +7643,7 @@
       "level": 2,
       "description": "main property of a color",
       "works_count": 12355,
-      "cited_by_count": 122193,
+      "cited_by_count": 126579,
       "ids": {
         "openalex": "https://openalex.org/C126537357",
         "wikidata": "https://www.wikidata.org/wiki/Q372948",
@@ -4725,62 +7889,62 @@
       "counts_by_year": [
         {
           "year": 2022,
-          "works_count": 383,
-          "cited_by_count": 6219
+          "works_count": 384,
+          "cited_by_count": 6417
         },
         {
           "year": 2021,
           "works_count": 519,
-          "cited_by_count": 8602
+          "cited_by_count": 9069
         },
         {
           "year": 2020,
           "works_count": 431,
-          "cited_by_count": 8194
+          "cited_by_count": 8606
         },
         {
           "year": 2019,
-          "works_count": 461,
-          "cited_by_count": 7420
+          "works_count": 460,
+          "cited_by_count": 7558
         },
         {
           "year": 2018,
-          "works_count": 494,
-          "cited_by_count": 6576
+          "works_count": 479,
+          "cited_by_count": 6612
         },
         {
           "year": 2017,
-          "works_count": 516,
-          "cited_by_count": 6062
+          "works_count": 527,
+          "cited_by_count": 6025
         },
         {
           "year": 2016,
           "works_count": 509,
-          "cited_by_count": 6188
+          "cited_by_count": 6240
         },
         {
           "year": 2015,
           "works_count": 558,
-          "cited_by_count": 6161
+          "cited_by_count": 6194
         },
         {
           "year": 2014,
-          "works_count": 557,
-          "cited_by_count": 6038
+          "works_count": 552,
+          "cited_by_count": 6052
         },
         {
           "year": 2013,
-          "works_count": 552,
-          "cited_by_count": 5300
+          "works_count": 557,
+          "cited_by_count": 5468
         },
         {
           "year": 2012,
-          "works_count": 579,
-          "cited_by_count": 4925
+          "works_count": 582,
+          "cited_by_count": 5096
         }
       ],
       "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C126537357",
-      "updated_date": "2022-10-03T10:17:48.815317",
+      "updated_date": "2022-10-09T09:51:45.079823",
       "created_date": "2016-06-24"
     },
     {
@@ -4790,7 +7954,7 @@
       "level": 3,
       "description": "standard that defines a specific range of colors",
       "works_count": 12020,
-      "cited_by_count": 104305,
+      "cited_by_count": 108157,
       "ids": {
         "openalex": "https://openalex.org/C2961294",
         "wikidata": "https://www.wikidata.org/wiki/Q166863",
@@ -5077,61 +8241,61 @@
         {
           "year": 2022,
           "works_count": 332,
-          "cited_by_count": 4652
+          "cited_by_count": 4800
         },
         {
           "year": 2021,
           "works_count": 427,
-          "cited_by_count": 6672
+          "cited_by_count": 7257
         },
         {
           "year": 2020,
-          "works_count": 292,
-          "cited_by_count": 6588
+          "works_count": 295,
+          "cited_by_count": 7188
         },
         {
           "year": 2019,
           "works_count": 358,
-          "cited_by_count": 6813
+          "cited_by_count": 6837
         },
         {
           "year": 2018,
-          "works_count": 380,
-          "cited_by_count": 6397
+          "works_count": 376,
+          "cited_by_count": 6369
         },
         {
           "year": 2017,
-          "works_count": 470,
-          "cited_by_count": 6148
+          "works_count": 480,
+          "cited_by_count": 6015
         },
         {
           "year": 2016,
-          "works_count": 508,
-          "cited_by_count": 6157
+          "works_count": 495,
+          "cited_by_count": 6169
         },
         {
           "year": 2015,
-          "works_count": 665,
-          "cited_by_count": 6541
+          "works_count": 668,
+          "cited_by_count": 6530
         },
         {
           "year": 2014,
-          "works_count": 657,
-          "cited_by_count": 6071
+          "works_count": 656,
+          "cited_by_count": 6107
         },
         {
           "year": 2013,
-          "works_count": 738,
-          "cited_by_count": 5589
+          "works_count": 737,
+          "cited_by_count": 5690
         },
         {
           "year": 2012,
-          "works_count": 732,
-          "cited_by_count": 5131
+          "works_count": 736,
+          "cited_by_count": 5225
         }
       ],
       "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C2961294",
-      "updated_date": "2022-10-03T10:38:01.820078",
+      "updated_date": "2022-10-09T09:58:58.301848",
       "created_date": "2016-06-24"
     },
     {
@@ -5141,7 +8305,7 @@
       "level": 2,
       "description": "property of a color",
       "works_count": 9287,
-      "cited_by_count": 93935,
+      "cited_by_count": 97099,
       "ids": {
         "openalex": "https://openalex.org/C193601281",
         "wikidata": "https://www.wikidata.org/wiki/Q19426",
@@ -5302,62 +8466,307 @@
       "counts_by_year": [
         {
           "year": 2022,
-          "works_count": 326,
-          "cited_by_count": 5921
+          "works_count": 327,
+          "cited_by_count": 6158
         },
         {
           "year": 2021,
           "works_count": 470,
-          "cited_by_count": 8010
+          "cited_by_count": 8391
         },
         {
           "year": 2020,
-          "works_count": 373,
-          "cited_by_count": 6920
+          "works_count": 374,
+          "cited_by_count": 7302
         },
         {
           "year": 2019,
-          "works_count": 359,
-          "cited_by_count": 6309
+          "works_count": 360,
+          "cited_by_count": 6464
         },
         {
           "year": 2018,
-          "works_count": 392,
-          "cited_by_count": 5522
+          "works_count": 385,
+          "cited_by_count": 5518
         },
         {
           "year": 2017,
           "works_count": 452,
-          "cited_by_count": 5304
+          "cited_by_count": 5386
         },
         {
           "year": 2016,
-          "works_count": 415,
-          "cited_by_count": 5451
+          "works_count": 418,
+          "cited_by_count": 5566
         },
         {
           "year": 2015,
-          "works_count": 458,
-          "cited_by_count": 5450
+          "works_count": 460,
+          "cited_by_count": 5528
         },
         {
           "year": 2014,
-          "works_count": 518,
-          "cited_by_count": 5249
+          "works_count": 516,
+          "cited_by_count": 5387
         },
         {
           "year": 2013,
-          "works_count": 493,
-          "cited_by_count": 4570
+          "works_count": 499,
+          "cited_by_count": 4672
         },
         {
           "year": 2012,
-          "works_count": 494,
-          "cited_by_count": 4023
+          "works_count": 495,
+          "cited_by_count": 4135
         }
       ],
       "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C193601281",
-      "updated_date": "2022-10-03T10:18:03.673709",
+      "updated_date": "2022-10-09T09:54:39.120185",
+      "created_date": "2016-06-24"
+    },
+    {
+      "id": "https://openalex.org/C36262787",
+      "wikidata": "https://www.wikidata.org/wiki/Q2294018",
+      "display_name": "Color model",
+      "level": 4,
+      "description": "abstract mathematical model describing the way colors can be represented as tuples of numbers",
+      "works_count": 2847,
+      "cited_by_count": 33550,
+      "ids": {
+        "openalex": "https://openalex.org/C36262787",
+        "wikidata": "https://www.wikidata.org/wiki/Q2294018",
+        "mag": "36262787",
+        "wikipedia": "https://en.wikipedia.org/wiki/Color%20model"
+      },
+      "image_url": null,
+      "image_thumbnail_url": null,
+      "international": {
+        "display_name": {
+          "ar": "\u0646\u0645\u0648\u0630\u062c \u0644\u0648\u0646\u064a",
+          "be": "\u041a\u043e\u043b\u0435\u0440\u043d\u0430\u044f \u043c\u0430\u0434\u044d\u043b\u044c",
+          "be-tarask": "\u043a\u043e\u043b\u0435\u0440\u043d\u0430\u044f \u043c\u0430\u0434\u044d\u043b\u044c",
+          "bg": "\u0426\u0432\u0435\u0442\u043e\u0432\u0438 \u043c\u043e\u0434\u0435\u043b",
+          "ca": "model de color",
+          "cs": "barevn\u00fd model",
+          "de": "Farbmodell",
+          "en": "color model",
+          "en-gb": "colour model",
+          "eo": "kolora modelo",
+          "es": "modelo de colores",
+          "et": "V\u00e4rvimudel",
+          "fa": "\u0646\u0645\u0648\u0646\u0647 \u0631\u0646\u06af",
+          "fi": "v\u00e4ritila",
+          "fr": "mod\u00e8le colorim\u00e9trique",
+          "it": "modello di colore",
+          "ja": "\u30ab\u30e9\u30fc\u30e2\u30c7\u30eb",
+          "ko": "\uc0c9 \ubaa8\ub378",
+          "ml": "\u0d28\u0d3f\u0d31\u0d35\u0d4d\u0d2f\u0d35\u0d38\u0d4d\u0d25",
+          "nb": "Fargemodell",
+          "nl": "kleurcodering",
+          "nn": "fargemodell",
+          "pt": "modelo de cor",
+          "pt-br": "modelo de cor",
+          "ru": "\u0426\u0432\u0435\u0442\u043e\u0432\u0430\u044f \u043c\u043e\u0434\u0435\u043b\u044c",
+          "sco": "colour model",
+          "sk": "Farebn\u00fd model",
+          "sl": "Barvni model",
+          "uk": "\u041a\u043e\u043b\u0456\u0440\u043d\u0430 \u043c\u043e\u0434\u0435\u043b\u044c",
+          "zh": "\u984f\u8272\u6a21\u578b"
+        },
+        "description": {
+          "cs": "abstraktn\u00ed matematick\u00fd model popisuj\u00edc\u00ed zp\u016fsob, jak barvy reprezentovat jako n-tice \u010d\u00edsel",
+          "de": "abstraktes mathematisches Modell, das beschreibt wie Farben als Tupel aus Zahlen repr\u00e4sentiert werden k\u00f6nnen",
+          "en": "abstract mathematical model describing the way colors can be represented as tuples of numbers",
+          "en-gb": "abstract mathematical model describing the way colours can be represented as tuples of numbers",
+          "eo": "matematika modelo pri koloro",
+          "es": "modelo matem\u00e1tico abstracto que describe representaciones num\u00e9ricas para los colores",
+          "fi": "tapa kuvata ja luokitella v\u00e4rej\u00e4"
+        }
+      },
+      "ancestors": [
+        {
+          "id": "https://openalex.org/C2961294",
+          "wikidata": "https://www.wikidata.org/wiki/Q166863",
+          "display_name": "Color space",
+          "level": 3
+        },
+        {
+          "id": "https://openalex.org/C115961682",
+          "wikidata": "https://www.wikidata.org/wiki/Q860623",
+          "display_name": "Image (mathematics)",
+          "level": 2
+        },
+        {
+          "id": "https://openalex.org/C154945302",
+          "wikidata": "https://www.wikidata.org/wiki/Q11660",
+          "display_name": "Artificial intelligence",
+          "level": 1
+        },
+        {
+          "id": "https://openalex.org/C31972630",
+          "wikidata": "https://www.wikidata.org/wiki/Q844240",
+          "display_name": "Computer vision",
+          "level": 1
+        },
+        {
+          "id": "https://openalex.org/C41008148",
+          "wikidata": "https://www.wikidata.org/wiki/Q21198",
+          "display_name": "Computer science",
+          "level": 0
+        }
+      ],
+      "related_concepts": [
+        {
+          "id": "https://openalex.org/C106730002",
+          "wikidata": null,
+          "display_name": "Primary color",
+          "level": 2,
+          "score": 8.777042
+        },
+        {
+          "id": "https://openalex.org/C61674017",
+          "wikidata": null,
+          "display_name": "Color vision",
+          "level": 2,
+          "score": 8.381866
+        },
+        {
+          "id": "https://openalex.org/C36372059",
+          "wikidata": null,
+          "display_name": "HSL and HSV",
+          "level": 3,
+          "score": 7.4865026
+        },
+        {
+          "id": "https://openalex.org/C82990744",
+          "wikidata": null,
+          "display_name": "RGB color model",
+          "level": 2,
+          "score": 7.1614394
+        },
+        {
+          "id": "https://openalex.org/C2961294",
+          "wikidata": null,
+          "display_name": "Color space",
+          "level": 3,
+          "score": 6.820378
+        },
+        {
+          "id": "https://openalex.org/C126537357",
+          "wikidata": null,
+          "display_name": "Hue",
+          "level": 2,
+          "score": 5.0057764
+        },
+        {
+          "id": "https://openalex.org/C150799807",
+          "wikidata": null,
+          "display_name": "Subtractive color",
+          "level": 2,
+          "score": 4.7150455
+        },
+        {
+          "id": "https://openalex.org/C97991835",
+          "wikidata": null,
+          "display_name": "Spectral color",
+          "level": 5,
+          "score": 3.9935732
+        },
+        {
+          "id": "https://openalex.org/C104663316",
+          "wikidata": null,
+          "display_name": "Visible spectrum",
+          "level": 2,
+          "score": 3.7838285
+        },
+        {
+          "id": "https://openalex.org/C113016886",
+          "wikidata": null,
+          "display_name": "Trichromacy",
+          "level": 3,
+          "score": 3.139014
+        },
+        {
+          "id": "https://openalex.org/C64299311",
+          "wikidata": null,
+          "display_name": "Colorimetry",
+          "level": 2,
+          "score": 2.6775851
+        },
+        {
+          "id": "https://openalex.org/C186991048",
+          "wikidata": null,
+          "display_name": "Color difference",
+          "level": 3,
+          "score": 2.2867696
+        },
+        {
+          "id": "https://openalex.org/C2779255053",
+          "wikidata": null,
+          "display_name": "Local color",
+          "level": 2,
+          "score": 0.8045276
+        }
+      ],
+      "counts_by_year": [
+        {
+          "year": 2022,
+          "works_count": 57,
+          "cited_by_count": 1057
+        },
+        {
+          "year": 2021,
+          "works_count": 76,
+          "cited_by_count": 1752
+        },
+        {
+          "year": 2020,
+          "works_count": 58,
+          "cited_by_count": 1663
+        },
+        {
+          "year": 2019,
+          "works_count": 50,
+          "cited_by_count": 1551
+        },
+        {
+          "year": 2018,
+          "works_count": 51,
+          "cited_by_count": 1504
+        },
+        {
+          "year": 2017,
+          "works_count": 80,
+          "cited_by_count": 1452
+        },
+        {
+          "year": 2016,
+          "works_count": 100,
+          "cited_by_count": 1547
+        },
+        {
+          "year": 2015,
+          "works_count": 110,
+          "cited_by_count": 1578
+        },
+        {
+          "year": 2014,
+          "works_count": 112,
+          "cited_by_count": 1554
+        },
+        {
+          "year": 2013,
+          "works_count": 144,
+          "cited_by_count": 1486
+        },
+        {
+          "year": 2012,
+          "works_count": 141,
+          "cited_by_count": 1469
+        }
+      ],
+      "works_api_url": "https://api.openalex.org/works?filter=concepts.id:C36262787",
+      "updated_date": "2022-10-09T09:42:16.839160",
       "created_date": "2016-06-24"
     }
   ],

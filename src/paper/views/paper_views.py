@@ -226,6 +226,7 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                     "is_removed",
                     "document_type",
                     "documents",
+                    "concepts",
                 ]
             },
             "pap_dps_get_user_vote": {},
@@ -242,6 +243,9 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                     "last_name",
                     "profile_image",
                 ]
+            },
+            "doc_duds_get_concepts": {
+                "_include_fields": ["openalex_id", "display_name", "description"]
             },
         }
         return context

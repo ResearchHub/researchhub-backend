@@ -121,6 +121,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
             "posts__purchases",
             "reviews",
             "related_bounties",
+            "concepts",
         )
 
         if value == PAPER:
@@ -138,6 +139,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
                 "paper__hubs",
                 "paper__figures",
                 "paper__purchases",
+                "concepts",
             )
         elif value == POSTS:
             qs = qs.filter(document_type__in=[DISCUSSION, ELN])
