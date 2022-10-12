@@ -74,3 +74,15 @@ class UserIsEditor(BasePermission):
             return False
 
         return user.is_hub_editor()
+
+
+class RequestorIsOwnUser(BasePermission):
+    message = "Permission Denied: Not own user"
+
+    def has_permission(self, request, view):
+        requestor = request.user
+        if requestor.is_anonymous:
+            return False
+
+        target_user_id = request.data.get("target_user_id")
+        return target_user_id == requestor.id
