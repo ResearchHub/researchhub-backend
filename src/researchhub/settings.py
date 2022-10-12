@@ -818,3 +818,7 @@ MJML_HTTPSERVERS = [
         "HTTP_AUTH": (MJML_APP_ID, MJML_SECRET_KEY),
     },
 ]
+
+
+# Transpose API
+TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)

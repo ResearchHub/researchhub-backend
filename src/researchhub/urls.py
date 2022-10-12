@@ -318,6 +318,10 @@ urlpatterns = [
         editor_views.get_editors_by_contributions,
     ),
     path("api/reputation/distribute_rsc/", reputation.views.distribute_rsc),
+    path(
+        "api/rsc/get_rsc_circulating_supply",
+        reputation.views.get_rsc_circulating_supply,
+    ),
     path("api/permissions/", researchhub.views.permissions, name="permissions"),
     path("api/search/", include(search.urls)),
     path("api/auth/orcid/connect/", oauth.views.orcid_connect, name="orcid_login"),
