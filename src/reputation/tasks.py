@@ -10,8 +10,9 @@ from django.db.models.functions import Cast
 
 from mailing_list.lib import base_email_context
 from notification.models import Notification
+from reputation.lib import check_hotwallet
 from reputation.models import Bounty, Contribution
-from researchhub.celery import QUEUE_BOUNTIES, QUEUE_CONTRIBUTIONS, app
+from researchhub.celery import QUEUE_BOUNTIES, QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_EXPIRED,
@@ -75,6 +76,15 @@ def create_author_contribution(contribution_type, user_id, unified_doc_id, objec
 
             contributions.append(Contribution(**data))
     Contribution.objects.bulk_create(contributions)
+
+
+@periodic_task(
+    run_every=crontab(hour="12"),
+    priority=4,
+    queue=QUEUE_PURCHASES,
+)
+def check_hotwallet_balance():
+    check_hotwallet()
 
 
 @periodic_task(
