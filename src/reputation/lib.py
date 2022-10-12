@@ -414,17 +414,18 @@ def check_hotwallet():
         outer_subject = "ETH is running low in the hotwallet"
         send_email = True
 
-    # if send_email:
-
-    context = {**base_email_context}
-    context["action"] = {
-        "message": "RSC: {:,}\n\nETH: {:,}".format(rsc_balance_eth, eth_balanace_eth)
-    }
-    context["subject"] = outer_subject
-    send_email_message(
-        ["patricklu@researchhub.com", "pat@researchhub.com"],
-        "general_email_message.txt",
-        outer_subject,
-        context,
-        html_template="general_email_message.html",
-    )
+    if send_email:
+        context = {**base_email_context}
+        context["action"] = {
+            "message": "RSC: {:,}\n\nETH: {:,}".format(
+                rsc_balance_eth, eth_balanace_eth
+            )
+        }
+        context["subject"] = outer_subject
+        send_email_message(
+            ["patricklu@researchhub.com", "pat@researchhub.com"],
+            "general_email_message.txt",
+            outer_subject,
+            context,
+            html_template="general_email_message.html",
+        )
