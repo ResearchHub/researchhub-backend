@@ -16,14 +16,16 @@
           </div>
         </div>
           <div class="content">
-            <div class="body">
+            <div class="body" style="white-space: pre-line;">
               {{ action.message }}
             </div>
-            <div class="hubtags-list">
-              <a class="button-label" href="{{ action.frontend_view_link }}">
-                View Your Bounty
-              </a>
-            </div>
+            {% if action.frontend_view_link %}
+              <div class="hubtags-list">
+                <a class="button-label" href="{{ action.frontend_view_link }}">
+                  View Your Bounty
+                </a>
+              </div>
+            {% endif %}
             <div class="divider">
               <div class="line"></div>
             </div>
