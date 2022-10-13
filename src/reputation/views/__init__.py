@@ -2,15 +2,20 @@ import decimal
 import time
 
 import requests
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.db.models import DecimalField, Q, Sum
+from django.db.models.functions import Cast
 from requests.exceptions import HTTPError
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from web3 import Web3
 
+from purchase.models import Balance
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
+from reputation.models import PaidStatusModelMixin, Withdrawal
 from reputation.permissions import DistributionWhitelist
 
 # Do not remove these imports
@@ -28,6 +33,9 @@ EXCLUDED_TOKEN_ADDRS = (
     Web3.toChecksumAddress("0x4df3043c103a1dc0a80a408f04a2a37f5b0eb662"),
     Web3.toChecksumAddress("0x8b2864a6c0ac9ef7d6c5cc9adbd613407ec671b3"),
     Web3.toChecksumAddress("0x95cccfee95039fb5dfe00839dc6930a07c74877c"),
+    Web3.toChecksumAddress("0x5222ff25f4dfc02d173c2cbd2055ee1d35f291f1"),
+    Web3.toChecksumAddress("0xe3648e99b6e68a09e28428790d12b357f081dbe0"),
+    Web3.toChecksumAddress("0xc4cfa2bdae08416312faa0b72758e1f3750f81e3"),
 )
 
 
@@ -68,8 +76,26 @@ def get_rsc_circulating_supply(request):
 
 
 def get_inapp_rsc_supply():
-    users = User.objects.filter(balances__isnull=False).order_by("id").distinct()
-    return sum([user.get_balance() for user in users.iterator()])
+    failed_withdrawals = Withdrawal.objects.filter(
+        Q(paid_status=PaidStatusModelMixin.FAILED)
+        | Q(paid_status=PaidStatusModelMixin.PENDING)
+    ).values_list("id")
+
+    balance = (
+        Balance.objects.exclude(
+            content_type=ContentType.objects.get_for_model(Withdrawal),
+            object_id__in=failed_withdrawals,
+        )
+        .exclude(Q(user__is_suspended=True) | Q(user__probable_spammer=True))
+        .aggregate(
+            total_balance=Sum(
+                Cast("amount", DecimalField(max_digits=255, decimal_places=18))
+            )
+        )
+        .get("total_balance", 0)
+    )
+
+    return balance
 
 
 def get_blockchain_rsc_supply():
