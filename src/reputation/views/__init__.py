@@ -58,7 +58,7 @@ def distribute_rsc(request):
 @api_view([GET])
 @permission_classes([AllowAny])
 def get_rsc_circulating_supply(request):
-    CACHE_KEY = f"{APP_ENV}_RSC_CIRCULATING_SUPPLY_"
+    CACHE_KEY = f"{APP_ENV}_RSC_CIRCULATING_SUPPLY"
 
     results = cache.get(CACHE_KEY)
     if results:
@@ -117,7 +117,7 @@ def get_blockchain_rsc_supply():
             time.sleep(0.25)
         except HTTPError as e:
             log_error(e)
-            return Response("Error retrieving RSC circulating supply", status=400)
+            return 0
 
     balances = sum(
         [res["balance"] for res in results if res["owner"] not in EXCLUDED_TOKEN_ADDRS]
