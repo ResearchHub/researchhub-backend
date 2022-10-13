@@ -807,10 +807,8 @@ API_KEY_CUSTOM_HEADER = "HTTP_RH_API_KEY"
 
 
 # MJML
-KEYS_MJML_APP_ID = getattr(keys, "MJML_APP_ID", "")
-KEYS_MJML_SECRET_KEY = getattr(keys, "MJML_SECRET_KEY", "")
-MJML_APP_ID = os.environ.get("MJML_APP_ID", KEYS_MJML_APP_ID)
-MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", KEYS_MJML_SECRET_KEY)
+MJML_APP_ID = os.environ.get("MJML_APP_ID", keys.MJML_APP_ID)
+MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", keys.MJML_SECRET_KEY)
 MJML_BACKEND_MODE = "httpserver"
 MJML_HTTPSERVERS = [
     {
@@ -821,5 +819,4 @@ MJML_HTTPSERVERS = [
 
 
 # Transpose API
-print(dir(keys))
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)
