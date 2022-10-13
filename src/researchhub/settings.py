@@ -821,4 +821,5 @@ MJML_HTTPSERVERS = [
 
 
 # Transpose API
+print(dir(keys))
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)
