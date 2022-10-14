@@ -84,10 +84,14 @@ class UnifiedDocumentFilter(filters.FilterSet):
         method="subscribed_filter",
         label="Subscribed Hubs",
     )
+    ignore_excluded = filters.BooleanFilter(
+        method="exclude_filter",
+        label="Excluded documents",
+    )
 
     class Meta:
         model = ResearchhubUnifiedDocument
-        fields = ["hub_id", "ordering", "subscribed_hubs", "type"]
+        fields = ["hub_id", "ordering", "subscribed_hubs", "type", "ignore_excluded"]
 
     def _map_tag_to_document_filter(self, value):
         if value == "closed":
@@ -178,6 +182,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
             qs = qs.filter(document_filter__has_bounty=True)
         else:
             qs = qs.exclude(document_type=NOTE)
+
         return qs.select_related(*selects).prefetch_related(*prefetches)
 
     def tag_filter(self, qs, name, values):
@@ -189,6 +194,10 @@ class UnifiedDocumentFilter(filters.FilterSet):
                 queries &= Q(**{f"document_filter__{key}": value})
 
         return qs.filter(queries)
+
+    def exclude_filter(self, qs, name, values):
+        qs = qs.exclude(document_filter__is_excluded=True)
+        return qs
 
     def ordering_filter(self, qs, name, value):
         time_scope = self.data.get("time", "today")

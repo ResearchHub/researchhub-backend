@@ -19,11 +19,14 @@ from paper.utils import get_cache_key
 from researchhub_document.filters import UnifiedDocumentFilter
 from researchhub_document.models import (
     FeaturedContent,
-    FeedExclusion,
     ResearchhubPost,
     ResearchhubUnifiedDocument,
 )
 from researchhub_document.permissions import HasDocumentCensorPermission
+from researchhub_document.related_models.constants.document_type import (
+    FILTER_EXCLUDED_FROM_FEED,
+    FILTER_INCLUDED_IN_FEED,
+)
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     EXPIRING_SOON,
@@ -203,7 +206,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "expiration_date",
                     "status",
                 ],
-                "_filter_fields": {"status": "OPEN"},
             },
             "doc_dps_get_hubs": {
                 "_include_fields": [
@@ -527,27 +529,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     @action(detail=True, methods=["post"], permission_classes=[IsModerator])
     def exclude_from_feed(self, request, pk=None):
         unified_document = self.get_object()
-        doc_type = get_doc_type_key(unified_document)
-        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
-
-        if request.data["exclude_from_homepage"] is True:
-            FeedExclusion.objects.get_or_create(
-                unified_document=unified_document, hub_id=0
-            )
-
-        if request.data["exclude_from_hubs"] is True:
-            for hub_id in hub_ids:
-                FeedExclusion.objects.get_or_create(
-                    unified_document=unified_document, hub_id=hub_id
-                )
-
-        hub_ids.append(0)
-        reset_unified_document_cache(
-            hub_ids,
-            document_type=["all", doc_type],
-            filters=[HOT],
-            with_default_hub=True,
-        )
+        unified_document.update_filters((FILTER_EXCLUDED_FROM_FEED,))
 
         return Response(status=status.HTTP_200_OK)
 
@@ -598,23 +580,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
     @action(detail=True, methods=["post"], permission_classes=[IsModerator])
     def include_in_feed(self, request, pk=None):
-        unified_document = self.queryset.get(id=pk)
-        doc_type = get_doc_type_key(unified_document)
-        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
-        hub_ids.append(0)
-
-        for hub_id in hub_ids:
-            FeedExclusion.objects.filter(
-                unified_document=unified_document, hub_id=hub_id
-            ).delete()
-
-        reset_unified_document_cache(
-            hub_ids,
-            document_type=["all", doc_type],
-            filters=[HOT],
-            with_default_hub=True,
-        )
-
+        unified_document = self.get_object()
+        unified_document.update_filters((FILTER_INCLUDED_IN_FEED,))
         return Response(status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
