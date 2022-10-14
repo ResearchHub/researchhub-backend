@@ -1,4 +1,3 @@
-from paper.models import Paper
 from user.aggregates import TenPercentile, TwoPercentile
 from user.models import User
 from user.tasks import preload_latest_activity
