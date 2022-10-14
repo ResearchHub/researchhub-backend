@@ -198,7 +198,8 @@ class Action(DefaultModel):
         except Exception as e:
             return ""
 
-        if len(summary) > SUMMARY_MAX_LEN:
+        # Checks if summary exists and if it's longer than 256 chars
+        if isinstance(summary, str) and len(summary) > SUMMARY_MAX_LEN:
             summary = f"{summary[:SUMMARY_MAX_LEN]} ..."
         return summary
 

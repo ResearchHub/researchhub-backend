@@ -1126,6 +1126,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             )
 
             return user_threads
+        return []
 
     def _get_author_contribution_queryset(self, author_id, ordering, asset_type):
         author_threads = self._get_author_threads_participated(author_id)
