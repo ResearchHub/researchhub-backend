@@ -5,7 +5,7 @@ from utils.sentry import log_error
 
 
 def get_rh_community_user():
-    user = User.objects.filter(email="community@researchhub.com")
+    user = User.objects.filter(email="revenue@researchhub.com")
     if user.exists():
         return user.first()
 
