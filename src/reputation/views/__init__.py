@@ -67,8 +67,8 @@ def get_rsc_circulating_supply(request):
     blockchain_supply = get_blockchain_rsc_supply()
     inapp_supply = get_inapp_rsc_supply()
     supply = {
-        "RSC Supply": f"{blockchain_supply:,f}",
-        "In-App Supply": f"{inapp_supply:,f}",
+        "eth_blockchain": f"{blockchain_supply:,f}",
+        "inapp": f"{inapp_supply:,f}",
     }
 
     cache.set(CACHE_KEY, supply, 60 * 60 * 24)  # Cache expires in a day
