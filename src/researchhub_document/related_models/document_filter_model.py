@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 
 import pytz
-from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.db.models import Count, Q, Sum
 from django.db.models.functions import Coalesce
