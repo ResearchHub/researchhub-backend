@@ -172,9 +172,11 @@ SummaryDownvoted = Distribution("SUMMARY_DOWNVOTED", -1, True, -1)
 ResearchhubPostUpvoted = Distribution("RESEARCHHUB_POST_UPVOTED", 1)
 ResearchhubPostDownvoted = Distribution("RESEARCHHUB_POST_DOWNVOTED", -1, True, -1)
 ResearchhubPostCensored = Distribution("RESEARCHHUB_POST_CENSORED", -2, True, -2)
-Referral = Distribution("REFERRAL", 50, False)
 
+Referral = Distribution("REFERRAL", 50, False)
 ReferralApproved = Distribution("REFERRAL_APPROVED", 1000, False)
+
+Referral = Distribution("REFERRAL", 50, False)
 
 NeutralVote = Distribution("NEUTRAL_VOTE", 0)
 

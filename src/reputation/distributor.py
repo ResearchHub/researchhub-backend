@@ -71,6 +71,8 @@ class Distributor:
 
     def distribute(self):
         record = self._record_distribution()
+        self._record_referral_distribution_if_applicable(record)
+
         try:
             record.set_distributed_pending()
             self._update_reputation_and_balance(record)
@@ -83,6 +85,51 @@ class Distributor:
             sentry.log_error(error)
             print(error_message, e)
         return record
+
+    def _record_referral_distribution_if_applicable(self, original_distribution):
+        REFERRAL_REFERER_EARN_PCT = 0.10
+        REFERRAL_INVITED_EARN_PCT = 0.05
+        REFERER_DISTRIBUTION_LABEL = "REFERRAL_REFERER_EARNINGS"
+        INVITED_DISTRIBUTION_LABEL = "REFERRAL_INVITED_EARNINGS"
+
+        should_create = (
+            original_distribution.recipient.invited_by
+            and original_distribution.distribution_type
+            not in [REFERER_DISTRIBUTION_LABEL, INVITED_DISTRIBUTION_LABEL]
+        )
+        if should_create:
+
+            referer_record = Distributor(
+                distribution=dist(
+                    REFERER_DISTRIBUTION_LABEL,
+                    original_distribution.amount * REFERRAL_REFERER_EARN_PCT,
+                    False,
+                    0,
+                ),
+                recipient=original_distribution.recipient.invited_by,
+                giver=original_distribution.giver,
+                db_record=original_distribution.proof_item,
+                hubs=original_distribution.hubs.all(),
+                timestamp=time.time(),
+            ).distribute()
+
+            invited_record = Distributor(
+                distribution=dist(
+                    INVITED_DISTRIBUTION_LABEL,
+                    original_distribution.amount * REFERRAL_INVITED_EARN_PCT,
+                    False,
+                    0,
+                ),
+                recipient=original_distribution.recipient,
+                giver=original_distribution.giver,
+                db_record=original_distribution.proof_item,
+                hubs=original_distribution.hubs.all(),
+                timestamp=time.time(),
+            ).distribute()
+
+            return [referer_record, invited_record]
+
+        return []
 
     def _record_distribution(self):
         record = Distribution.objects.create(
