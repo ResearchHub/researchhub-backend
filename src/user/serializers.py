@@ -375,6 +375,7 @@ class MinimalUserSerializer(ModelSerializer):
 class UserEditableSerializer(ModelSerializer):
     author_profile = AuthorSerializer()
     balance = SerializerMethodField()
+    balance_history = SerializerMethodField()
     email = SerializerMethodField()
     organization_slug = SerializerMethodField()
     subscribed = SerializerMethodField()
@@ -406,6 +407,18 @@ class UserEditableSerializer(ModelSerializer):
 
         if request_user and request_user == user:
             return user.get_balance()
+        return None
+
+    def get_balance_history(self, user):
+        context = self.context
+        request_user = context.get("user", None)
+
+        if request_user and request_user == user:
+            clicked_on_balance_date = user.clicked_on_balance_date
+            balances = user.get_balance_qs()
+            balances = balances.filter(created_date__gt=clicked_on_balance_date)
+            balance = user.get_balance(balances)
+            return balance
         return None
 
     def get_organization_slug(self, user):

@@ -87,6 +87,14 @@ class UserViewSet(viewsets.ModelViewSet):
         else:
             return User.objects.none()
 
+    @action(detail=False, methods=["POST"], permission_classes=[IsAuthenticated])
+    def update_balance_history_clicked(self, request):
+        user = request.user
+        now = datetime.now()
+        user.clicked_on_balance_date = now
+        user.save(update_fields=["clicked_on_balance_date"])
+        return Response(status=200)
+
     @action(detail=False, methods=["GET"], permission_classes=[IsAuthenticated])
     def get_referral_reputation(self, request):
         show_referral = calculate_show_referral(request.user)
