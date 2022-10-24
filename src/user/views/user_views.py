@@ -2,6 +2,7 @@ import hmac
 from datetime import datetime, timedelta
 from hashlib import sha1
 
+from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import IntegrityError
@@ -71,6 +72,40 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def get_serializer_context(self):
         return {"get_subscribed": True, "get_balance": True, "user": self.request.user}
+
+    @action(detail=False, methods=["GET"], permission_classes=[AllowAny])
+    def get_invited_users(self, request):
+        invited = list(
+            map(
+                lambda u: {
+                    "id": u.id,
+                    "first_name": u.first_name,
+                    "last_name": u.last_name,
+                    "created_date": u.created_date,
+                },
+                self.queryset.filter(invited_by=8),
+            )
+        )
+        earned_distributions = list(
+            Distribution.objects.filter(
+                distribution_type="REFERRAL_REFERER_EARNINGS",
+                giver_id__in=list(map(lambda invited: invited["id"], invited)),
+            )
+            .values("recipient_id", "giver_id")
+            .annotate(rsc_earned=Sum("amount"))
+        )
+
+        for invited_user in invited:
+            invited_user["earned_rsc"] = next(
+                dist
+                for dist in earned_distributions
+                if dist["giver_id"] == invited_user["id"]
+            )
+            invited_user["benefits_expire_on"] = invited_user[
+                "created_date"
+            ] + relativedelta(months=+6)
+
+        return Response(invited)
 
     def get_queryset(self):
         user = self.request.user
