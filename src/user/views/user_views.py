@@ -42,6 +42,7 @@ from user.permissions import Censor, RequestorIsOwnUser, UpdateAuthor
 from user.serializers import (
     AuthorEditableSerializer,
     AuthorSerializer,
+    DynamicUserSerializer,
     MajorSerializer,
     UniversitySerializer,
     UserActions,
@@ -74,33 +75,41 @@ class UserViewSet(viewsets.ModelViewSet):
         return {"get_subscribed": True, "get_balance": True, "user": self.request.user}
 
     @action(detail=False, methods=["GET"], permission_classes=[AllowAny])
-    def get_invited_users(self, request):
+    def get_referred_users(self, request):
         invited = list(
             map(
-                lambda u: {
-                    "id": u.id,
-                    "first_name": u.first_name,
-                    "last_name": u.last_name,
-                    "created_date": u.created_date,
+                lambda invited_user: {
+                    "user": DynamicUserSerializer(
+                        invited_user,
+                        _include_fields=[
+                            "author_profile",
+                            "created_date",
+                            "id",
+                        ],
+                        many=False,
+                        context={},
+                    ).data,
+                    "created_date": invited_user.created_date,
                 },
                 self.queryset.filter(invited_by=8),
             )
         )
+
         earned_distributions = list(
             Distribution.objects.filter(
                 distribution_type="REFERRAL_REFERER_EARNINGS",
-                giver_id__in=list(map(lambda invited: invited["id"], invited)),
+                giver_id__in=list(map(lambda invited: invited["user"]["id"], invited)),
             )
             .values("recipient_id", "giver_id")
             .annotate(rsc_earned=Sum("amount"))
         )
 
         for invited_user in invited:
-            invited_user["earned_rsc"] = next(
+            invited_user["rsc_earned"] = next(
                 dist
                 for dist in earned_distributions
-                if dist["giver_id"] == invited_user["id"]
-            )
+                if dist["giver_id"] == invited_user["user"]["id"]
+            )["rsc_earned"]
             invited_user["benefits_expire_on"] = invited_user[
                 "created_date"
             ] + relativedelta(months=+6)
