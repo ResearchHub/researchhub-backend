@@ -59,6 +59,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "unified_document",
             "version_number",
             "updated_date",
+            "bounty_type",
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
@@ -137,7 +138,14 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             bounties,
             many=True,
             context=context,
-            _include_fields=("amount", "created_by", "status", "id", "expiration_date"),
+            _include_fields=(
+                "amount",
+                "created_by",
+                "status",
+                "id",
+                "expiration_date",
+                "effort_level",
+            ),
         )
         return serializer.data
 
