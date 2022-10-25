@@ -32,7 +32,11 @@ from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
 from paper.views import PaperViewSet
 from reputation.models import Contribution, Distribution
 from reputation.serializers import DynamicContributionSerializer
-from researchhub.settings import EMAIL_WHITELIST, SIFT_WEBHOOK_SECRET_KEY
+from researchhub.settings import (
+    EMAIL_WHITELIST,
+    REFERRAL_PROGRAM,
+    SIFT_WEBHOOK_SECRET_KEY,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.serializers import DynamicPostSerializer
 from review.models.review_model import Review
@@ -97,7 +101,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         earned_distributions = list(
             Distribution.objects.filter(
-                distribution_type="REFERRAL_REFERER_EARNINGS",
+                distribution_type=REFERRAL_PROGRAM["REFERER_DISTRIBUTION_TYPE"],
                 giver_id__in=list(map(lambda invited: invited["user"]["id"], invited)),
             )
             .values("recipient_id", "giver_id")

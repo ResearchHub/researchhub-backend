@@ -13,6 +13,7 @@ from purchase.models import Balance
 from reputation.distributions import Distribution as dist
 from reputation.exceptions import ReputationDistributorError
 from reputation.models import Contribution, Distribution
+from researchhub.settings import REFERRAL_PROGRAM
 from user.models import User
 from utils.serializers import get_model_serializer
 
@@ -87,49 +88,33 @@ class Distributor:
         return record
 
     def _record_referral_distribution_if_applicable(self, original_distribution):
-        REFERRAL_REFERER_EARN_PCT = 0.10
-        REFERRAL_INVITED_EARN_PCT = 0.05
-        REFERER_DISTRIBUTION_LABEL = "REFERRAL_REFERER_EARNINGS"
-        INVITED_DISTRIBUTION_LABEL = "REFERRAL_INVITED_EARNINGS"
 
         should_create = (
             original_distribution.recipient.invited_by
             and original_distribution.distribution_type
-            not in [REFERER_DISTRIBUTION_LABEL, INVITED_DISTRIBUTION_LABEL]
+            not in [
+                REFERRAL_PROGRAM["REFERER_DISTRIBUTION_TYPE"],
+                REFERRAL_PROGRAM["INVITED_DISTRIBUTION_TYPE"],
+            ]
         )
         if should_create:
-
             referer_record = Distributor(
                 distribution=dist(
-                    REFERER_DISTRIBUTION_LABEL,
-                    original_distribution.amount * REFERRAL_REFERER_EARN_PCT,
+                    REFERRAL_PROGRAM["REFERER_DISTRIBUTION_TYPE"],
+                    original_distribution.amount * REFERRAL_PROGRAM["REFERER_EARN_PCT"],
                     False,
                     0,
                 ),
                 recipient=original_distribution.recipient.invited_by,
-                giver=original_distribution.giver,
+                giver=original_distribution.recipient,
                 db_record=original_distribution.proof_item,
                 hubs=original_distribution.hubs.all(),
                 timestamp=time.time(),
             ).distribute()
 
-            invited_record = Distributor(
-                distribution=dist(
-                    INVITED_DISTRIBUTION_LABEL,
-                    original_distribution.amount * REFERRAL_INVITED_EARN_PCT,
-                    False,
-                    0,
-                ),
-                recipient=original_distribution.recipient,
-                giver=original_distribution.giver,
-                db_record=original_distribution.proof_item,
-                hubs=original_distribution.hubs.all(),
-                timestamp=time.time(),
-            ).distribute()
+            return referer_record
 
-            return [referer_record, invited_record]
-
-        return []
+        return False
 
     def _record_distribution(self):
         record = Distribution.objects.create(
