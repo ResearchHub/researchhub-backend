@@ -89,6 +89,9 @@ class Distributor:
 
     def _record_referral_distribution_if_applicable(self, original_distribution):
 
+        referer_rsc_amount = (
+            original_distribution.amount * REFERRAL_PROGRAM["REFERER_EARN_PCT"]
+        )
         should_create = (
             original_distribution.recipient.invited_by
             and original_distribution.distribution_type
@@ -96,7 +99,11 @@ class Distributor:
                 REFERRAL_PROGRAM["REFERER_DISTRIBUTION_TYPE"],
                 REFERRAL_PROGRAM["INVITED_DISTRIBUTION_TYPE"],
             ]
+            and original_distribution.giver_id
+            != original_distribution.recipient.invited_by.id
+            and referer_rsc_amount >= 1
         )
+
         if should_create:
             referer_record = Distributor(
                 distribution=dist(

@@ -109,11 +109,10 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
         for invited_user in invited:
-            invited_user["rsc_earned"] = next(
-                dist
-                for dist in earned_distributions
-                if dist["giver_id"] == invited_user["user"]["id"]
-            )["rsc_earned"]
+            for dist in earned_distributions:
+                if dist["giver_id"] == invited_user["user"]["id"]:
+                    invited_user["rsc_earned"] = dist["rsc_earned"]
+
             invited_user["benefits_expire_on"] = invited_user[
                 "created_date"
             ] + relativedelta(months=+6)

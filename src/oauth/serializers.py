@@ -232,7 +232,6 @@ class SocialLoginSerializer(serializers.Serializer):
                         ).count()
                         > 0
                     )
-                    print("has_invited_been_paid", has_invited_been_paid)
 
                     if not has_invited_been_paid:
                         try:
@@ -249,7 +248,6 @@ class SocialLoginSerializer(serializers.Serializer):
                             sentry.log_error(error)
 
         except Exception as e:
-            print(e)
             sentry.log_error(e)
             pass
 
