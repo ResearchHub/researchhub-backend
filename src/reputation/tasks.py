@@ -79,7 +79,7 @@ def create_author_contribution(contribution_type, user_id, unified_doc_id, objec
 
 
 @periodic_task(
-    run_every=crontab(hour="12", minute=0),
+    run_every=crontab(minute=15),
     priority=4,
     queue=QUEUE_PURCHASES,
 )
