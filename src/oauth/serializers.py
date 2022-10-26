@@ -147,10 +147,6 @@ class SocialLoginSerializer(serializers.Serializer):
             login = self.get_social_login(adapter, app, social_token, access_token)
             complete_social_login(request, login)
 
-            print("-------------")
-            print("login.is_existing", login.is_existing)
-            print("login", dir(login.__dict__))
-
         except ConnectionTimeout:
             pass
         except NoReverseMatch as e:

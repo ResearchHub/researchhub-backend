@@ -78,7 +78,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_serializer_context(self):
         return {"get_subscribed": True, "get_balance": True, "user": self.request.user}
 
-    @action(detail=False, methods=["GET"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["GET"], permission_classes=[IsAuthenticated])
     def get_referred_users(self, request):
         invited = list(
             map(
@@ -95,7 +95,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     ).data,
                     "created_date": invited_user.created_date,
                 },
-                self.queryset.filter(invited_by=8),
+                self.queryset.filter(invited_by=request.user.id),
             )
         )
 

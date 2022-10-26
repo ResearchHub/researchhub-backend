@@ -249,26 +249,6 @@ def attach_author_and_email_preference(sender, instance, created, *args, **kwarg
         Wallet.objects.create(author=author)
 
 
-@receiver(user_logged_in)
-def user_logged_in_(request, user, **kwargs):
-    print("*************")
-    print(user.invited_by)
-    # print(request.__dict__)
-
-    # try:
-    #     referral_bonus = Distributor(
-    #         distribution=distributions.ReferralInvitedBonus,
-    #         recipient=instance,
-    #         giver=instance.invited_by,
-    #         db_record=instance,
-    #         timestamp=time(),
-    #     )
-    #     referral_bonus.distribute()
-    # except Exception as error:
-    #     print(error)
-    #     sentry.log_error(error)
-
-
 @receiver(post_save, sender=User, dispatch_uid="user_create_org")
 def create_user_organization(sender, instance, created, **kwargs):
     if created:
