@@ -92,6 +92,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
                 "post_id": post.id,
                 "unified_document_id": from_bounty_item.id,
                 "post_slug": post.slug,
+                "post_name": post.title,
             }
 
     def get_aggregate_citation_consensus(self, hypothesis):
