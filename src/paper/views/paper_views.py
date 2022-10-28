@@ -92,30 +92,6 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         & CreateOrUpdateIfAllowed
     ]
 
-    # NOTE: calvinhle - manually overriding default get_object
-    # self.get_queryset() was causing error, presumabily from GenericRelation problem
-    # need to get back to this after full migrations
-    def get_object(self):
-        queryset = self.filter_queryset(self.queryset)
-
-        # Perform the lookup filtering.
-        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
-
-        assert lookup_url_kwarg in self.kwargs, (
-            "Expected view %s to be called with a URL keyword argument "
-            'named "%s". Fix your URL conf, or set the `.lookup_field` '
-            "attribute on the view correctly."
-            % (self.__class__.__name__, lookup_url_kwarg)
-        )
-
-        filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
-        obj = get_object_or_404(queryset, **filter_kwargs)
-
-        # May raise a permission denied
-        self.check_object_permissions(self.request, obj)
-
-        return obj
-
     def prefetch_lookups(self):
         return (
             "uploaded_by",
@@ -303,12 +279,8 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         return Response(serializer_data)
 
     def list(self, request, *args, **kwargs):
-        default_pagination_class = self.pagination_class
-        if request.query_params.get("limit"):
-            self.pagination_class = LimitOffsetPagination
-        else:
-            self.pagination_class = default_pagination_class
-        return super().list(request, *args, **kwargs)
+        # Temporarily disabling endpoint
+        return Response(status=200)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()

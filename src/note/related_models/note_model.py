@@ -37,50 +37,50 @@ class Note(DefaultModel):
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
         channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            room,
-            {
-                "type": "notify_note_created",
-                "id": self.id,
-            },
-        )
+        # async_to_sync(channel_layer.group_send)(
+        #     room,
+        #     {
+        #         "type": "notify_note_created",
+        #         "id": self.id,
+        #     },
+        # )
 
     def notify_note_deleted(self):
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
         channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            room,
-            {
-                "type": "notify_note_deleted",
-                "id": self.id,
-            },
-        )
+        # async_to_sync(channel_layer.group_send)(
+        #     room,
+        #     {
+        #         "type": "notify_note_deleted",
+        #         "id": self.id,
+        #     },
+        # )
 
     def notify_note_updated_title(self):
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
         channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            room,
-            {
-                "type": "notify_note_updated_title",
-                "id": self.id,
-            },
-        )
+        # async_to_sync(channel_layer.group_send)(
+        #     room,
+        #     {
+        #         "type": "notify_note_updated_title",
+        #         "id": self.id,
+        #     },
+        # )
 
     def notify_note_updated_permission(self, requester):
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
         channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            room,
-            {
-                "type": "notify_note_updated_permission",
-                "id": self.id,
-                "requester_id": requester.id,
-            },
-        )
+        # async_to_sync(channel_layer.group_send)(
+        #     room,
+        #     {
+        #         "type": "notify_note_updated_permission",
+        #         "id": self.id,
+        #         "requester_id": requester.id,
+        #     },
+        # )
 
 
 class NoteContent(models.Model):

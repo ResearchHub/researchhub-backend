@@ -36,16 +36,23 @@ class Escrow(DefaultModel):
     PARTIALLY_PAID = "PARTIALLY_PAID"
     PENDING = "PENDING"
     CANCELLED = "CANCELLED"
+    EXPIRY_CLOSED = "EXPIRY_CLOSED"
+    EXPIRY_PAID = "EXPIRY_PAID"
     status_choices = (
         (PAID, PAID),
         (PARTIALLY_PAID, PARTIALLY_PAID),
         (PENDING, PENDING),
         (CANCELLED, CANCELLED),
+        (EXPIRY_CLOSED, EXPIRY_CLOSED),
+        (EXPIRY_PAID, EXPIRY_PAID),
     )
 
     hold_type = models.CharField(choices=hold_type_choices, max_length=16)
     amount = models.DecimalField(default=0, decimal_places=10, max_digits=19)
     amount_paid = models.DecimalField(default=0, decimal_places=10, max_digits=19)
+    bounty_for_expiry = models.ForeignKey(
+        "reputation.bounty", on_delete=models.CASCADE, related_name="escrows", null=True
+    )  # This is only here to payout multiple bounties
     recipient = models.ForeignKey(
         "user.User",
         null=True,

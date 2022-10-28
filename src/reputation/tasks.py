@@ -79,7 +79,7 @@ def create_author_contribution(contribution_type, user_id, unified_doc_id, objec
 
 
 @periodic_task(
-    run_every=crontab(hour="12"),
+    run_every=crontab(minute="*/30"),
     priority=4,
     queue=QUEUE_PURCHASES,
 )
@@ -88,7 +88,7 @@ def check_hotwallet_balance():
 
 
 @periodic_task(
-    run_every=crontab(hour="0, 6, 12, 18"),
+    run_every=crontab(hour="0, 6, 12, 18", minute=0),
     priority=4,
     queue=QUEUE_BOUNTIES,
 )
@@ -153,7 +153,7 @@ def check_open_bounties():
 
 
 @periodic_task(
-    run_every=crontab(hour="0, 6, 12, 18"),
+    run_every=crontab(hour="0, 6, 12, 18", minute=0),
     priority=5,
     queue=QUEUE_BOUNTIES,
 )
@@ -201,7 +201,7 @@ def send_bounty_hub_notifications():
 
 
 @periodic_task(
-    run_every=crontab(hour=12),
+    run_every=crontab(hour=12, minute=0),
     priority=4,
     queue=QUEUE_BOUNTIES,
 )
