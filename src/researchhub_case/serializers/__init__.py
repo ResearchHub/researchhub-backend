@@ -1,2 +1,3 @@
 # flake8: noqa
 from .author_claim_case_serializer import AuthorClaimCaseSerializer
+from .external_author_claim_case_serializer import ExternalAuthorClaimCaseSerializer

@@ -1,2 +1,3 @@
 # flake8: noqa
 from .author_claim_case_view import AuthorClaimCaseViewSet
+from .external_author_claim_case_view import ExternalAuthorClaimCaseViewSet

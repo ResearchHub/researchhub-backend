@@ -51,3 +51,22 @@ class SemanticScholar:
         identifier = f"URL:{url}"
         response = self._get_paper(identifier)
         return response
+
+    def get_author(self, author_id):
+        url = f"{self.base_url}/author/{author_id}"
+        response = requests.get(url, headers=self.base_headers, timeout=self.timeout)
+        response.raise_for_status()
+        return response.json()
+
+    def get_authors(self, name):
+        if isinstance(name, list):
+            name = " ".join(name)
+
+        url = f"{self.base_url}/author/search"
+        params = {"query": name, "fields": "hIndex,citationCount"}
+        response = requests.get(
+            url, headers=self.base_headers, params=params, timeout=self.timeout
+        )
+        print(response.url)
+        response.raise_for_status()
+        return response.json()
