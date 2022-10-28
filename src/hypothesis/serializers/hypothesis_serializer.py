@@ -35,6 +35,8 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             "full_markdown",
             "hubs",
             "id",
+            "from_bounty",
+            "from_post",
             "is_removed",
             "note",
             "renderable_text",
@@ -73,6 +75,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
     hubs = SerializerMethodField()
     vote_meta = SerializerMethodField()
     note = NoteSerializer()
+    from_post = SerializerMethodField()
 
     # GenericReactionSerializerMixin
     promoted = SerializerMethodField()
@@ -80,6 +83,17 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
     user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
     user_vote = SerializerMethodField()  # NOTE: calvinhlee - deprecate?
+
+    def get_from_post(self, hypothesis):
+        if hypothesis.from_bounty:
+            from_bounty_item = hypothesis.from_bounty.item
+            post = from_bounty_item.posts.first()
+            return {
+                "post_id": post.id,
+                "unified_document_id": from_bounty_item.id,
+                "post_slug": post.slug,
+                "post_name": post.title,
+            }
 
     def get_aggregate_citation_consensus(self, hypothesis):
         return hypothesis.get_aggregate_citation_consensus()

@@ -10,6 +10,7 @@ from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_access_group.models import Permission
 from researchhub_document.hot_score_mixin import HotScoreMixin
 from researchhub_document.related_models.constants.document_type import (
+    BOUNTY,
     DISCUSSION,
     DOCUMENT_TYPES,
     HYPOTHESIS,
@@ -68,7 +69,9 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         related_name="unified_document",
         null=True,
     )
-    concepts = models.ManyToManyField("tag.Concept", related_name="concepts", blank=True)
+    concepts = models.ManyToManyField(
+        "tag.Concept", related_name="concepts", blank=True
+    )
 
     class Meta:
         indexes = (
@@ -145,6 +148,8 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
         elif self.document_type == NOTE:
             return self.note
         elif self.document_type == QUESTION:
+            return self.posts.first()
+        elif self.document_type == BOUNTY:
             return self.posts.first()
         else:
             raise Exception(f"Unrecognized document_type: {self.document_type}")
