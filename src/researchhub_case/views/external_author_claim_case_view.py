@@ -6,6 +6,7 @@ from rest_framework.viewsets import ModelViewSet
 from researchhub_case.constants.case_constants import EXTERNAL_AUTHOR_CLAIM
 from researchhub_case.models import ExternalAuthorClaimCase
 from researchhub_case.serializers import ExternalAuthorClaimCaseSerializer
+from user.models import Action
 from utils.http import POST
 from utils.permissions import CreateOrReadOnly
 from utils.semantic_scholar import SemanticScholar
@@ -29,7 +30,9 @@ class ExternalAuthorClaimCaseViewSet(ModelViewSet):
         }
         serializer = self.get_serializer(data=claim_data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        obj = serializer.save()
+
+        Action.objects.create(item=obj, user=user, display=False)
         return Response(serializer.data, status=200)
 
     @action(

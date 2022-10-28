@@ -63,7 +63,10 @@ class SemanticScholar:
             name = " ".join(name)
 
         url = f"{self.base_url}/author/search"
-        params = {"query": name, "fields": "hIndex,citationCount"}
+        params = {
+            "query": name,
+            "fields": "hIndex,citationCount,name,affiliations,papers",
+        }
         response = requests.get(
             url, headers=self.base_headers, params=params, timeout=self.timeout
         )
