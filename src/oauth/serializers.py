@@ -219,15 +219,10 @@ class SocialLoginSerializer(serializers.Serializer):
                     user.invited_by = referral_user
                     user.save()
 
-                    has_invited_been_paid = (
-                        Distribution.objects.filter(
-                            distribution_type=REFERRAL_PROGRAM[
-                                "INVITED_DISTRIBUTION_TYPE"
-                            ],
-                            recipient_id=user.id,
-                        ).count()
-                        > 0
-                    )
+                    has_invited_been_paid = Distribution.objects.filter(
+                        distribution_type=REFERRAL_PROGRAM["INVITED_DISTRIBUTION_TYPE"],
+                        recipient_id=user.id,
+                    ).exists()
 
                     if not has_invited_been_paid:
                         try:

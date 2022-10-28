@@ -382,10 +382,10 @@ def distribute_for_discussion_vote(sender, instance, created, update_fields, **k
         return
 
     voter = instance.created_by
-
     if (
         created or vote_type_updated(update_fields)
     ) and is_eligible_for_discussion_vote(recipient, voter):
+
         hubs = None
         item = instance.item
         if isinstance(item, Comment):

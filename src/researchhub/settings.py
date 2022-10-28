@@ -823,6 +823,11 @@ TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)
 REFERRAL_PROGRAM = {
     "REFERER_DISTRIBUTION_TYPE": "REFERRAL_REFERER_EARNINGS",
     "INVITED_DISTRIBUTION_TYPE": "REFERRAL_INVITED_BONUS",
+    # Referrer will receive a bonus defined as a percetage of the invited person's earnings.
+    # The bonus will be paid by RH
     "REFERER_EARN_PCT": 0.07,
     "INVITED_EARN_AMOUNT": 50,
+    # Time period in which referer will receive earnings defined by
+    # invited join date + value below
+    "ELIGIBLE_TIME_PERIOD_IN_MONTHS": 6,
 }

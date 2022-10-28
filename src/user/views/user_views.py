@@ -5,7 +5,7 @@ from hashlib import sha1
 from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db import IntegrityError
+from django.db import IntegrityError, models
 from django.db.models import F, Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
@@ -80,44 +80,38 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["GET"], permission_classes=[IsAuthenticated])
     def get_referred_users(self, request):
-        invited = list(
-            map(
-                lambda invited_user: {
-                    "user": DynamicUserSerializer(
-                        invited_user,
-                        _include_fields=[
-                            "author_profile",
-                            "created_date",
-                            "id",
-                        ],
-                        many=False,
-                        context={},
-                    ).data,
-                    "created_date": invited_user.created_date,
-                },
-                self.queryset.filter(invited_by=request.user.id),
-            )
+        invited = User.objects.filter(invited_by=request.user).annotate(
+            rsc_earned=Sum(
+                "reputation_handed_out__amount",
+                filter=(
+                    Q(
+                        reputation_handed_out__distribution_type="REFERRAL_REFERER_EARNINGS"
+                    )
+                    & Q(reputation_handed_out__recipient_id=request.user)
+                ),
+            ),
+            benefits_expire_on=models.ExpressionWrapper(
+                models.F("created_date")
+                + timedelta(
+                    days=REFERRAL_PROGRAM["ELIGIBLE_TIME_PERIOD_IN_MONTHS"] * 30
+                ),
+                output_field=models.DateTimeField(),
+            ),
         )
 
-        earned_distributions = list(
-            Distribution.objects.filter(
-                distribution_type=REFERRAL_PROGRAM["REFERER_DISTRIBUTION_TYPE"],
-                giver_id__in=list(map(lambda invited: invited["user"]["id"], invited)),
-            )
-            .values("recipient_id", "giver_id")
-            .annotate(rsc_earned=Sum("amount"))
+        return Response(
+            DynamicUserSerializer(
+                invited,
+                many=True,
+                _include_fields=(
+                    "created_date",
+                    "id",
+                    "author_profile",
+                    "rsc_earned",
+                    "benefits_expire_on",
+                ),
+            ).data
         )
-
-        for invited_user in invited:
-            for dist in earned_distributions:
-                if dist["giver_id"] == invited_user["user"]["id"]:
-                    invited_user["rsc_earned"] = dist["rsc_earned"]
-
-            invited_user["benefits_expire_on"] = invited_user[
-                "created_date"
-            ] + relativedelta(months=+6)
-
-        return Response(invited)
 
     def get_queryset(self):
         user = self.request.user

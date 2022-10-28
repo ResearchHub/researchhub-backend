@@ -440,6 +440,8 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
 class DynamicUserSerializer(DynamicModelFieldSerializer):
     author_profile = SerializerMethodField()
+    rsc_earned = SerializerMethodField()
+    benefits_expire_on = SerializerMethodField()
 
     class Meta:
         model = User
@@ -456,6 +458,12 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
         except Exception as e:
             sentry.log_error(e)
             return {}
+
+    def get_rsc_earned(self, user):
+        return user.rsc_earned
+
+    def get_benefits_expire_on(self, user):
+        return user.benefits_expire_on
 
 
 class UserActions:

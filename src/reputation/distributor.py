@@ -1,12 +1,14 @@
 import time
 
 import numpy as np
+from dateutil.relativedelta import relativedelta
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
 from django.db.models import Count, FloatField, Func, Q
 from django.db.models.aggregates import Sum
 from django.db.models.functions import Cast
+from django.utils import timezone
 
 import utils.sentry as sentry
 from purchase.models import Balance
@@ -72,7 +74,6 @@ class Distributor:
 
     def distribute(self):
         record = self._record_distribution()
-        self._record_referral_distribution_if_applicable(record)
 
         try:
             record.set_distributed_pending()
@@ -85,22 +86,43 @@ class Distributor:
             error = ReputationDistributorError(e, error_message)
             sentry.log_error(error)
             print(error_message, e)
+
+        try:
+            self._record_referral_distribution_if_applicable(record)
+        except Exception as e:
+            error = ReputationDistributorError(e, error_message)
+            sentry.log_error(error)
+            print(error_message, e)
+
         return record
 
     def _record_referral_distribution_if_applicable(self, original_distribution):
 
+        if not original_distribution.recipient.invited_by:
+            return False
+
         referer_rsc_amount = (
             original_distribution.amount * REFERRAL_PROGRAM["REFERER_EARN_PCT"]
         )
+        now = timezone.now()
+        last_day_of_eligible_period = (
+            original_distribution.recipient.created_date
+            + relativedelta(months=+REFERRAL_PROGRAM["ELIGIBLE_TIME_PERIOD_IN_MONTHS"])
+        )
+        referrer_is_giver = (
+            original_distribution.giver_id
+            == original_distribution.recipient.invited_by.id
+        )
+        excluded_dist_types = [
+            REFERRAL_PROGRAM["REFERER_DISTRIBUTION_TYPE"],
+            REFERRAL_PROGRAM["INVITED_DISTRIBUTION_TYPE"],
+        ]
+
         should_create = (
             original_distribution.recipient.invited_by
-            and original_distribution.distribution_type
-            not in [
-                REFERRAL_PROGRAM["REFERER_DISTRIBUTION_TYPE"],
-                REFERRAL_PROGRAM["INVITED_DISTRIBUTION_TYPE"],
-            ]
-            and original_distribution.giver_id
-            != original_distribution.recipient.invited_by.id
+            and original_distribution.distribution_type not in excluded_dist_types
+            and not referrer_is_giver
+            and now < last_day_of_eligible_period
             and referer_rsc_amount >= 1
         )
 
