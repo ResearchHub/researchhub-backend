@@ -10,6 +10,7 @@ from discussion.reaction_models import AbstractGenericReactionModel, Vote
 from hypothesis.constants.constants import CITATION_TYPE
 from paper.utils import paper_piecewise_log
 from purchase.models import Purchase
+from reputation.models import Bounty
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import User
 from utils import sentry
@@ -32,6 +33,12 @@ class Hypothesis(AbstractGenericReactionModel):
         null=True,
         on_delete=models.SET_NULL,
         related_name="created_hypotheses",
+    )
+    from_bounty = models.ForeignKey(
+        Bounty,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="hypotheses",
     )
     discussion_count = models.IntegerField(default=0, db_index=True)
     note = models.OneToOneField(

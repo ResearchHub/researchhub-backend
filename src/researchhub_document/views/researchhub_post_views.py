@@ -116,6 +116,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
                 preview_img=data.get("preview_img"),
                 renderable_text=data.get("renderable_text"),
                 title=title,
+                bounty_type=data.get("bounty_type"),
                 unified_document=unified_document,
             )
             file_name = f"RH-POST-{document_type}-USER-{created_by.id}.txt"

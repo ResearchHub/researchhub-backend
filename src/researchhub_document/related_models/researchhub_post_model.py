@@ -87,6 +87,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
         blank=True,
         default="",
     )
+    bounty_type = models.CharField(blank=True, null=True, max_length=64)
     title = models.TextField(blank=True, default="")
     unified_document = models.ForeignKey(
         ResearchhubUnifiedDocument,

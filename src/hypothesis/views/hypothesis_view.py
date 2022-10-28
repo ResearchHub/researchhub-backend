@@ -41,6 +41,7 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
             note_id=note_id,
             renderable_text=renderable_text,
             title=title,
+            from_bounty_id=data.get("from_bounty", None),
             unified_document=unified_doc,
         )
         hypo.src.save(file_name, file)
