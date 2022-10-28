@@ -1,7 +1,7 @@
 import time
+from datetime import datetime, timedelta
 
 import numpy as np
-from dateutil.relativedelta import relativedelta
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
@@ -89,10 +89,9 @@ class Distributor:
 
         try:
             self._record_referral_distribution_if_applicable(record)
-        except Exception as e:
-            error = ReputationDistributorError(e, error_message)
+        except Exception as error:
             sentry.log_error(error)
-            print(error_message, e)
+            print(error)
 
         return record
 
@@ -101,13 +100,13 @@ class Distributor:
         if not original_distribution.recipient.invited_by:
             return False
 
-        referer_rsc_amount = (
-            original_distribution.amount * REFERRAL_PROGRAM["REFERER_EARN_PCT"]
+        referer_rsc_amount = float(original_distribution.amount) * float(
+            REFERRAL_PROGRAM["REFERER_EARN_PCT"]
         )
         now = timezone.now()
         last_day_of_eligible_period = (
             original_distribution.recipient.created_date
-            + relativedelta(months=+REFERRAL_PROGRAM["ELIGIBLE_TIME_PERIOD_IN_MONTHS"])
+            + timedelta(days=REFERRAL_PROGRAM["ELIGIBLE_TIME_PERIOD_IN_MONTHS"] * 30)
         )
         referrer_is_giver = (
             original_distribution.giver_id
@@ -130,7 +129,7 @@ class Distributor:
             referer_record = Distributor(
                 distribution=dist(
                     REFERRAL_PROGRAM["REFERER_DISTRIBUTION_TYPE"],
-                    original_distribution.amount * REFERRAL_PROGRAM["REFERER_EARN_PCT"],
+                    referer_rsc_amount,
                     False,
                     0,
                 ),

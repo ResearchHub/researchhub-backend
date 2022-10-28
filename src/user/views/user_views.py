@@ -2,7 +2,6 @@ import hmac
 from datetime import datetime, timedelta
 from hashlib import sha1
 
-from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import IntegrityError, models

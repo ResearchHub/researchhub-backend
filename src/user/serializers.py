@@ -460,10 +460,10 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
             return {}
 
     def get_rsc_earned(self, user):
-        return user.rsc_earned
+        return getattr(user, "rsc_earned", None)
 
     def get_benefits_expire_on(self, user):
-        return user.benefits_expire_on
+        return getattr(user, "benefits_expire_on", None)
 
 
 class UserActions:

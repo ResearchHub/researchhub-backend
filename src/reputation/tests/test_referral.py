@@ -1,7 +1,6 @@
 import time
 from datetime import datetime, timedelta
 
-from dateutil.relativedelta import relativedelta
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -90,6 +89,7 @@ class ReferralTests(APITestCase):
             distribution_type=REFERRAL_PROGRAM["REFERER_DISTRIBUTION_TYPE"],
             recipient=self.referrer_user,
         )
+
         self.assertEqual(res.exists(), True)
         self.assertEqual(res.count(), 1)
 
@@ -97,8 +97,8 @@ class ReferralTests(APITestCase):
         # set up invited user
         invited_user = create_user(email="invited2@example.com")
         invited_user.invited_by_id = self.referrer_user.id
-        invited_user.created_date = timezone.now().date() - relativedelta(
-            months=REFERRAL_PROGRAM["ELIGIBLE_TIME_PERIOD_IN_MONTHS"], days=1
+        invited_user.created_date = timezone.now().date() - timedelta(
+            days=REFERRAL_PROGRAM["ELIGIBLE_TIME_PERIOD_IN_MONTHS"] * 30 + 1,
         )
         invited_user.save()
 
