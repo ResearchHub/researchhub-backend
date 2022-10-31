@@ -93,7 +93,7 @@ class UserViewSet(viewsets.ModelViewSet):
         now = datetime.now()
         user.clicked_on_balance_date = now
         user.save(update_fields=["clicked_on_balance_date"])
-        return Response(status=200)
+        return Response({"data": "ok"}, status=200)
 
     @action(detail=False, methods=["GET"], permission_classes=[IsAuthenticated])
     def get_referral_reputation(self, request):
