@@ -289,7 +289,6 @@ class VerificationAdminPanel(admin.ModelAdmin):
             author_profile = user.author_profile
             author_profile.academic_verification = True
             author_profile.save()
-            user_distribution_record = self.distribute_referral_reward(user)
             self.send_academic_verification_email(user, user_distribution_record)
             return redirect(".")
         elif "_reject" in request.POST:
@@ -320,32 +319,6 @@ class VerificationAdminPanel(admin.ModelAdmin):
             context,
             html_template="academic_verification_email.html",
         )
-
-    def distribute_referral_reward(self, user):
-        timestamp = time()
-
-        referrer = user.invited_by
-        if not referrer:
-            referrer = user
-
-        distribution = Distributor(
-            distributions.ReferralApproved,
-            user,
-            referrer,
-            timestamp,
-        )
-        referred_distribution_record = distribution.distribute()
-
-        if referrer:
-            distribution = Distributor(
-                distributions.ReferralApproved,
-                referrer,
-                referrer,
-                timestamp,
-            )
-            distribution.distribute()
-
-        return referred_distribution_record
 
 
 admin.site.register(AnalyticModel, AnalyticAdminPanel)

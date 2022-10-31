@@ -2,6 +2,7 @@
 from time import time
 
 import requests
+from allauth.account.signals import user_logged_in
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.contrib.admin.options import get_content_type_for_model
@@ -21,8 +22,6 @@ from hypothesis.models import Hypothesis
 from mailing_list.tasks import build_notification_context
 from paper.models import Paper, PaperSubmission
 from purchase.models import Wallet
-from reputation import distributions
-from reputation.distributor import Distributor
 from reputation.models import Bounty
 from researchhub.settings import NO_ELASTIC, TESTING
 from researchhub_access_group.constants import ADMIN
@@ -38,6 +37,7 @@ from user.tasks import (
     link_paper_to_authors,
 )
 from user.utils import calculate_show_referral
+from utils import sentry
 from utils.message import send_email_message
 from utils.sentry import log_error
 from utils.siftscience import decisions_api, events_api
@@ -149,45 +149,6 @@ def create_action(sender, instance, created, **kwargs):
                         1,
                     )
             user = instance.created_by
-
-        """
-        If we're creating an action for the first time,
-        check if we've been referred
-        """
-        referral_content_types = [
-            get_content_type_for_model(Thread),
-            get_content_type_for_model(Reply),
-            get_content_type_for_model(Comment),
-            get_content_type_for_model(Paper),
-            get_content_type_for_model(ResearchhubPost),
-            get_content_type_for_model(Hypothesis),
-        ]
-        if (
-            user is not None
-            and user.invited_by
-            and not Action.objects.filter(
-                user=user, content_type__in=referral_content_types
-            ).exists()
-            and sender in [Thread, Reply, Comment, Paper, ResearchhubPost, Hypothesis]
-        ):
-            timestamp = time()
-
-            if calculate_show_referral(user.invited_by):
-                referred = Distributor(
-                    distributions.Referral,
-                    user,
-                    user.invited_by,
-                    timestamp,
-                )
-                referred.distribute()
-
-                referrer = Distributor(
-                    distributions.Referral,
-                    user.invited_by,
-                    user.invited_by,
-                    timestamp,
-                )
-                referrer.distribute()
 
         vote_types = [GrmVote, BulletPointVote, SummaryVote]
         display = (

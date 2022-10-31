@@ -1,30 +1,27 @@
-from allauth.socialaccount.models import SocialAccount
+from time import time
+
 from allauth.account import app_settings
-from allauth.utils import (
-    get_user_model,
-    email_address_exists
-)
+from allauth.socialaccount.models import SocialAccount
+from allauth.utils import email_address_exists, get_user_model
+from django.contrib.gis.geoip2 import GeoIP2
+from django.http import HttpRequest
+from django.urls.exceptions import NoReverseMatch
+from django.utils.translation import ugettext_lazy as _
+from elasticsearch.exceptions import ConnectionTimeout
 from rest_framework import serializers
 
-from django.http import HttpRequest
-from django.utils.translation import ugettext_lazy as _
-from django.urls.exceptions import NoReverseMatch
-
-from elasticsearch.exceptions import ConnectionTimeout
-
-from oauth.serializers import *
-from oauth.helpers import complete_social_login
+from analytics.models import WebsiteVisits
 from oauth.exceptions import LoginError
+from oauth.helpers import complete_social_login
+from oauth.serializers import *
+from reputation import distributions
+from reputation.distributor import Distributor
+from reputation.models import Distribution
+from researchhub.settings import REFERRAL_PROGRAM
 from user.models import User
 from utils import sentry
-from utils.siftscience import (
-    events_api,
-    update_user_risk_score,
-    check_user_risk
-)
-from analytics.models import WebsiteVisits
+from utils.siftscience import check_user_risk, events_api, update_user_risk_score
 
-from django.contrib.gis.geoip2 import GeoIP2
 geo = GeoIP2()
 
 
@@ -34,13 +31,11 @@ class SocialLoginSerializer(serializers.Serializer):
     credential = serializers.CharField(required=False, allow_blank=True)
     uuid = serializers.CharField(required=False, allow_blank=True)
     referral_code = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        allow_null=True
+        required=False, allow_blank=True, allow_null=True
     )
 
     def _get_request(self):
-        request = self.context.get('request')
+        request = self.context.get("request")
         if not isinstance(request, HttpRequest):
             request = request._request
         return request
@@ -50,9 +45,7 @@ class SocialLoginSerializer(serializers.Serializer):
         email_exists = email_address_exists(user_email)
         if email_exists:
             user = User.objects.get(email=user_email)
-            social_account_exists = SocialAccount.objects.filter(
-                user=user
-            ).exists()
+            social_account_exists = SocialAccount.objects.filter(user=user).exists()
             if not social_account_exists:
                 deletion_info = user.delete()
                 sentry.log_info(deletion_info, error=error)
@@ -71,18 +64,13 @@ class SocialLoginSerializer(serializers.Serializer):
         """
 
         request = self._get_request()
-        social_login = adapter.complete_login(
-            request,
-            app,
-            token,
-            response=response
-        )
+        social_login = adapter.complete_login(request, app, token, response=response)
 
         social_login.token = token
         return social_login
 
     def validate(self, attrs, retry=0):
-        view = self.context.get('view')
+        view = self.context.get("view")
         request = self._get_request()
 
         if not view:
@@ -92,11 +80,9 @@ class SocialLoginSerializer(serializers.Serializer):
             sentry.log_error(error)
             raise error
 
-        adapter_class = getattr(view, 'adapter_class', None)
+        adapter_class = getattr(view, "adapter_class", None)
         if not adapter_class:
-            error = serializers.ValidationError(
-                _("Define adapter_class in view")
-            )
+            error = serializers.ValidationError(_("Define adapter_class in view"))
             sentry.log_error(error)
             raise error
 
@@ -106,33 +92,29 @@ class SocialLoginSerializer(serializers.Serializer):
         # More info on code vs access_token
         # http://stackoverflow.com/questions/8666316/facebook-oauth-2-0-code-and-token
 
-        credential = attrs.get('credential')
+        credential = attrs.get("credential")
 
         # Case 1: We received the access_token
-        if attrs.get('access_token') or credential:
-            access_token = attrs.get('access_token')
+        if attrs.get("access_token") or credential:
+            access_token = attrs.get("access_token")
             if credential:
                 access_token = credential
 
         # Case 2: We received the authorization code
-        elif attrs.get('code'):
-            self.callback_url = getattr(view, 'callback_url', None)
-            self.client_class = getattr(view, 'client_class', None)
+        elif attrs.get("code"):
+            self.callback_url = getattr(view, "callback_url", None)
+            self.client_class = getattr(view, "client_class", None)
 
             if not self.callback_url:
-                error = serializers.ValidationError(
-                    _("Define callback_url in view")
-                )
+                error = serializers.ValidationError(_("Define callback_url in view"))
                 sentry.log_error(error)
                 raise error
             if not self.client_class:
-                error = serializers.ValidationError(
-                    _("Define client_class in view")
-                )
+                error = serializers.ValidationError(_("Define client_class in view"))
                 sentry.log_error(error)
                 raise error
 
-            code = attrs.get('code')
+            code = attrs.get("code")
 
             provider = adapter.get_provider()
             scope = provider.get_scope(request)
@@ -142,50 +124,44 @@ class SocialLoginSerializer(serializers.Serializer):
                 app.secret,
                 adapter.access_token_method,
                 adapter.access_token_url,
-                'postmessage',  # This is the callback url
-                scope
+                "postmessage",  # This is the callback url
+                scope,
             )
             token = client.get_access_token(code)
-            access_token = token['access_token']
+            access_token = token["access_token"]
 
         else:
             error = serializers.ValidationError(
-                _("Incorrect input. access_token or code is required."))
+                _("Incorrect input. access_token or code is required.")
+            )
             sentry.log_error(error)
             raise serializers.ValidationError(
-                _("Incorrect input. access_token or code is required."))
+                _("Incorrect input. access_token or code is required.")
+            )
 
-        social_token = adapter.parse_token({'access_token': access_token})
+        social_token = adapter.parse_token({"access_token": access_token})
         social_token.app = app
 
         login = None
         try:
-            login = self.get_social_login(
-                adapter,
-                app,
-                social_token,
-                access_token
-            )
+            login = self.get_social_login(adapter, app, social_token, access_token)
             complete_social_login(request, login)
+
         except ConnectionTimeout:
             pass
         except NoReverseMatch as e:
-            if 'account_inactive' in str(e):
+            if "account_inactive" in str(e):
                 login_user = login.account.user
-                tracked_login = events_api.track_login(
-                    login_user,
-                    '$failure',
-                    request
-                )
+                tracked_login = events_api.track_login(login_user, "$failure", request)
                 update_user_risk_score(login_user, tracked_login)
-                raise LoginError(None, 'Account is suspended')
+                raise LoginError(None, "Account is suspended")
         except Exception as e:
-            error = LoginError(e, 'Login failed')
+            error = LoginError(e, "Login failed")
             sentry.log_info(error, error=e)
             if login:
                 deleted = self._delete_user_account(login.user, error=e)
                 if deleted and retry < 3:
-                    return self.validate(attrs, retry=retry+1)
+                    return self.validate(attrs, retry=retry + 1)
             sentry.log_error(error, base_error=e)
             raise serializers.ValidationError(_("Incorrect value"))
 
@@ -196,14 +172,18 @@ class SocialLoginSerializer(serializers.Serializer):
             # link up the accounts due to security constraints
             if app_settings.UNIQUE_EMAIL:
                 # Do we have an account already with this email address?
-                account_exists = get_user_model().objects.filter(
-                    email=login.user.email,
-                ).exists()
+                account_exists = (
+                    get_user_model()
+                    .objects.filter(
+                        email=login.user.email,
+                    )
+                    .exists()
+                )
                 if account_exists:
-                    sentry.log_info('User already registered with this e-mail')
+                    sentry.log_info("User already registered with this e-mail")
                     deleted = self._delete_user_account(login.user)
                     if deleted and retry < 3:
-                        return self.validate(attrs, retry=retry+1)
+                        return self.validate(attrs, retry=retry + 1)
                     raise serializers.ValidationError(
                         _("User already registered with this e-mail address.")
                     )
@@ -212,45 +192,70 @@ class SocialLoginSerializer(serializers.Serializer):
             login.save(request, connect=True)
 
         login_user = login.account.user
-        attrs['user'] = login_user
-        tracked_login = events_api.track_login(login_user, '$success', request)
+        attrs["user"] = login_user
+        tracked_login = events_api.track_login(login_user, "$success", request)
         update_user_risk_score(login_user, tracked_login)
 
         try:
-            visits = WebsiteVisits.objects.get(uuid=attrs['uuid'])
-            visits.user = attrs['user']
+            visits = WebsiteVisits.objects.get(uuid=attrs["uuid"])
+            visits.user = attrs["user"]
             visits.save()
         except Exception as e:
             print(e)
             pass
 
         try:
-            referral_code = attrs.get('referral_code')
+            referral_code = attrs.get("referral_code")
             if referral_code:
                 referral_user = User.objects.get(referral_code=referral_code)
-                user = attrs['user']
-                if referral_code and not user.invited_by and referral_user.id != user.id:
+                user = attrs["user"]
+
+                invited_by_flag_not_set = (
+                    referral_code
+                    and not user.invited_by
+                    and referral_user.id != user.id
+                )
+                if invited_by_flag_not_set:
                     user.invited_by = referral_user
                     user.save()
+
+                    has_invited_been_paid = Distribution.objects.filter(
+                        distribution_type=REFERRAL_PROGRAM["INVITED_DISTRIBUTION_TYPE"],
+                        recipient_id=user.id,
+                    ).exists()
+
+                    if not has_invited_been_paid:
+                        try:
+                            referral_bonus = Distributor(
+                                distribution=distributions.ReferralInvitedBonus,
+                                recipient=user,
+                                giver=referral_user,
+                                db_record=user,
+                                timestamp=time(),
+                            )
+                            referral_bonus.distribute()
+                        except Exception as error:
+                            print(error)
+                            sentry.log_error(error)
+
         except Exception as e:
-            print(e)
             sentry.log_error(e)
             pass
 
         request = self._get_request()
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
         if x_forwarded_for:
-            ip = x_forwarded_for.split(',')[0]
+            ip = x_forwarded_for.split(",")[0]
         else:
-            ip = request.META.get('REMOTE_ADDR')
+            ip = request.META.get("REMOTE_ADDR")
 
-        user = attrs['user']
+        user = attrs["user"]
         check_user_risk(user)
 
         if user.is_authenticated and not user.probable_spammer:
             try:
                 country = geo.country(ip)
-                user.country_code = country.get('country_code')
+                user.country_code = country.get("country_code")
                 user.save()
             except Exception as e:
                 print(e)

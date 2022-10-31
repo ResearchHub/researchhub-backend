@@ -1,27 +1,27 @@
 import time
+
 from django.contrib import admin
 from django.db import models
 
-from reputation.models import Distribution
-from reputation.distributor import Distributor
 from reputation.distributions import Distribution as Dist
+from reputation.distributor import Distributor
+from reputation.models import Distribution
 from user.models import User
 
 
 class RewardModel(models.Model):
-
     class Meta:
-        verbose_name_plural = 'Reward'
-        app_label = 'reputation'
+        verbose_name_plural = "Reward"
+        app_label = "reputation"
 
 
 class RewardAdminModel(admin.ModelAdmin):
     model = Distribution
-    add_form_template = 'rsc_reward.html'
-    change_form_template = 'rsc_reward.html'
+    add_form_template = "rsc_reward.html"
+    change_form_template = "rsc_reward.html"
 
     def get_queryset(self, request):
-        return Distribution.objects.all() 
+        return Distribution.objects.all()
 
     # def render_change_form(self, request, context, *args, **kwargs):
     #     context.update(
@@ -64,7 +64,7 @@ class RewardAdminModel(admin.ModelAdmin):
         # )
         return super().render_change_form(request, context, *args, **kwargs)
 
-    def add_view(self, request, form_url='', extra_context=None):
+    def add_view(self, request, form_url="", extra_context=None):
         user_html = """
             <input type="number" id="user_id" name="_grant_OLD"/>
         """
@@ -115,7 +115,7 @@ class RewardAdminModel(admin.ModelAdmin):
         extra_context = extra_context or {}
         # extra_context['images'] = images
         # extra_context['verified'] = verified
-        extra_context['user'] = user_html
+        extra_context["user"] = user_html
         # extra_context['referred_by'] = referred_by
 
         return super(RewardAdminModel, self).add_view(
@@ -125,20 +125,19 @@ class RewardAdminModel(admin.ModelAdmin):
         )
 
     def response_change(self, request, obj):
-        print('on change---------------')
+        print("on change---------------")
         # user = obj.user
-        if '_grant_OLD' in request.POST:
+        if "_grant_OLD" in request.POST:
             author_profile = user.author_profile
             author_profile.academic_verification = True
             author_profile.save()
-            user_distribution_record = self.distribute_referral_reward(user)
             self.send_academic_verification_email(user, user_distribution_record)
-            return redirect('.')
-        elif '_reject' in request.POST:
+            return redirect(".")
+        elif "_reject" in request.POST:
             author_profile = user.author_profile
             author_profile.academic_verification = False
             author_profile.save()
-            return redirect('.')
+            return redirect(".")
         return super().response_change(request, obj)
 
     def has_delete_permission(self, request, obj=None):
@@ -149,7 +148,7 @@ class RewardAdminModel(admin.ModelAdmin):
 
 
 def make_published(modeladmin, request, queryset):
-    queryset.update(status='p')
+    queryset.update(status="p")
 
 
 class DistributionAdmin(admin.ModelAdmin):

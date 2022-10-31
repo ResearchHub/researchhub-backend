@@ -4,7 +4,7 @@ from hashlib import sha1
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db import IntegrityError
+from django.db import IntegrityError, models
 from django.db.models import F, Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
@@ -31,7 +31,11 @@ from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
 from paper.views import PaperViewSet
 from reputation.models import Contribution, Distribution
 from reputation.serializers import DynamicContributionSerializer
-from researchhub.settings import EMAIL_WHITELIST, SIFT_WEBHOOK_SECRET_KEY
+from researchhub.settings import (
+    EMAIL_WHITELIST,
+    REFERRAL_PROGRAM,
+    SIFT_WEBHOOK_SECRET_KEY,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.serializers import DynamicPostSerializer
 from review.models.review_model import Review
@@ -41,6 +45,7 @@ from user.permissions import Censor, RequestorIsOwnUser, UpdateAuthor
 from user.serializers import (
     AuthorEditableSerializer,
     AuthorSerializer,
+    DynamicUserSerializer,
     MajorSerializer,
     UniversitySerializer,
     UserActions,
@@ -71,6 +76,41 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def get_serializer_context(self):
         return {"get_subscribed": True, "get_balance": True, "user": self.request.user}
+
+    @action(detail=False, methods=["GET"], permission_classes=[IsAuthenticated])
+    def get_referred_users(self, request):
+        invited = User.objects.filter(invited_by=request.user).annotate(
+            rsc_earned=Sum(
+                "reputation_handed_out__amount",
+                filter=(
+                    Q(
+                        reputation_handed_out__distribution_type="REFERRAL_REFERER_EARNINGS"
+                    )
+                    & Q(reputation_handed_out__recipient_id=request.user)
+                ),
+            ),
+            benefits_expire_on=models.ExpressionWrapper(
+                models.F("created_date")
+                + timedelta(
+                    days=REFERRAL_PROGRAM["ELIGIBLE_TIME_PERIOD_IN_MONTHS"] * 30
+                ),
+                output_field=models.DateTimeField(),
+            ),
+        )
+
+        return Response(
+            DynamicUserSerializer(
+                invited,
+                many=True,
+                _include_fields=(
+                    "created_date",
+                    "id",
+                    "author_profile",
+                    "rsc_earned",
+                    "benefits_expire_on",
+                ),
+            ).data
+        )
 
     def get_queryset(self):
         user = self.request.user
