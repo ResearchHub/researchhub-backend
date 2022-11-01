@@ -56,3 +56,5 @@ MJML_APP_ID = os.environ.get("MJML_APP_ID", "")
 MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", "")
 
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
+
+SERP_API_KEY = os.environ.get("SERP_API_KEY", "")

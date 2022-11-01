@@ -55,3 +55,5 @@ WEB3_RSC_ADDRESS = os.environ.get(
 WEB3_KEYSTORE_ADDRESS = os.environ.get("WEB3_KEYSTORE_ADDRESS", "")
 
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
+
+SERP_API_KEY = os.environ.get("SERP_API_KEY", "")
