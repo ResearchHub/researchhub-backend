@@ -141,7 +141,7 @@ class User(AbstractUser):
     def get_balance_qs(self):
         user_balance = self.balances.all()
         if not user_balance:
-            return 0
+            return self.balances.none()
 
         failed_withdrawals = self.withdrawals.filter(
             Q(paid_status=PaidStatusModelMixin.FAILED)
