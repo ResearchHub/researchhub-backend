@@ -3,8 +3,8 @@ import uuid
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import DecimalField, Q, Sum
-from django.db.models.functions import Cast
+from django.db.models import DecimalField, Q, Sum, Value
+from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
 
 from hub.models import Hub
@@ -159,11 +159,12 @@ class User(AbstractUser):
             queryset = self.get_balance_qs()
 
         balance = queryset.aggregate(
-            total_balance=Sum(
-                Cast("amount", DecimalField(max_digits=255, decimal_places=128))
+            total_balance=Coalesce(
+                Sum(Cast("amount", DecimalField(max_digits=255, decimal_places=128))),
+                Value(0),
             )
         )
-        total_balance = balance.get("total_balance", 0)
+        total_balance = balance.get("total_balance", 0) or 0
 
         return total_balance
 
