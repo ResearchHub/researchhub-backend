@@ -3,8 +3,8 @@ import uuid
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import DecimalField, Q, Sum
-from django.db.models.functions import Cast
+from django.db.models import DecimalField, Q, Sum, Value
+from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
 
 from hub.models import Hub
@@ -39,6 +39,7 @@ class User(AbstractUser):
     bookmarks = models.ManyToManyField(
         "paper.Paper", related_name="users_who_bookmarked"
     )
+    clicked_on_balance_date = models.DateTimeField(auto_now_add=True)
     country_code = models.CharField(max_length=4, null=True, blank=True)
     created_date = models.DateTimeField(auto_now_add=True)
     has_seen_first_coin_modal = models.BooleanField(default=False)
@@ -137,10 +138,10 @@ class User(AbstractUser):
             source = "MANUAL_REVIEW" if is_manual else "AUTOMATED_RULE"
             decisions_api.apply_bad_user_decision(self, source)
 
-    def get_balance(self):
+    def get_balance_qs(self):
         user_balance = self.balances.all()
         if not user_balance:
-            return 0
+            return self.balances.none()
 
         failed_withdrawals = self.withdrawals.filter(
             Q(paid_status=PaidStatusModelMixin.FAILED)
@@ -150,12 +151,20 @@ class User(AbstractUser):
         balance = self.balances.exclude(
             content_type=ContentType.objects.get_for_model(Withdrawal),
             object_id__in=failed_withdrawals,
-        ).aggregate(
-            total_balance=Sum(
-                Cast("amount", DecimalField(max_digits=255, decimal_places=128))
+        )
+        return balance
+
+    def get_balance(self, queryset=None):
+        if queryset is None:
+            queryset = self.get_balance_qs()
+
+        balance = queryset.aggregate(
+            total_balance=Coalesce(
+                Sum(Cast("amount", DecimalField(max_digits=255, decimal_places=128))),
+                Value(0),
             )
         )
-        total_balance = balance.get("total_balance", 0)
+        total_balance = balance.get("total_balance", 0) or 0
 
         return total_balance
 
