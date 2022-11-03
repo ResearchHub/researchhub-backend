@@ -34,6 +34,7 @@ from peer_review.views import (
     PeerReviewRequestViewSet,
     PeerReviewViewSet,
 )
+from referral.referral_view import ReferralViewSet
 from researchhub.settings import INSTALLED_APPS, USE_DEBUG_TOOLBAR
 from review.views.review_view import ReviewViewSet
 from user.views import editor_views
@@ -294,6 +295,7 @@ router.register(
 )
 
 router.register(r"peer_review", PeerReviewViewSet, basename="peer_review")
+router.register(r"referral", ReferralViewSet, basename="referral")
 
 router.register(
     r"peer_review_requests", PeerReviewRequestViewSet, basename="peer_review_requests"
