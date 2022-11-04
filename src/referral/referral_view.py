@@ -21,15 +21,16 @@ class ReferralViewSet(viewsets.ModelViewSet):
         data = request.data
         recipient_email = data.get("email")
         invite_type = data.get("type")
+        unified_document_id = data.get("unified_document_id", None)
 
         one_day_in_minutes = 1440
 
         is_recipient_already_user = User.objects.filter(email=recipient_email).exists()
-        if is_recipient_already_user:
-            return Response(
-                {"message": "This person is already a user"},
-                status=status.HTTP_409_CONFLICT,
-            )
+        # if is_recipient_already_user:
+        #     return Response(
+        #         {"message": "Person is already a ResearchHub user", "error": True},
+        #         status=status.HTTP_409_CONFLICT,
+        #     )
 
         is_already_sent = ReferralInvite.objects.filter(
             inviter=inviter,
@@ -39,20 +40,21 @@ class ReferralViewSet(viewsets.ModelViewSet):
             expiration_date__gte=datetime.now() - timedelta(minutes=one_day_in_minutes),
         )
 
-        if invite_type not in [JOIN_RH, BOUNTY]:
-            return Response(
-                {"message": "Invalid invite type"}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if is_already_sent:
-            return Response(
-                {"message": "Invalid already sent"}, status=status.HTTP_409_CONFLICT
-            )
+        # if invite_type not in [JOIN_RH, BOUNTY]:
+        #     return Response(
+        #         {"message": "Invalid invite type", "error": True}, status=status.HTTP_400_BAD_REQUEST
+        #     )
+        # if is_already_sent:
+        #     return Response(
+        #         {"message": "Invalid already sent", "error": True}, status=status.HTTP_409_CONFLICT
+        #     )
 
         invite = ReferralInvite.create(
             inviter=inviter,
             invite_type=invite_type,
             recipient_email=recipient_email,
             expiration_time=10080,
+            unified_document_id=unified_document_id,
         )
 
         if not TESTING:

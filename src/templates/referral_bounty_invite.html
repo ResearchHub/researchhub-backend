@@ -5,13 +5,30 @@
   </head>
   <body>
     <div class="email-container">
-      <div class="email-header">
-        <div class="header">
-          Bounty
-        </div>
-      </div>
       <div class="content">
-        Hi there {{ action.inviter_name }}
+        Hi there,
+
+        <p>
+          I hope this email finds you well. I'm writing because I thought you would
+          be interested in completing a bounty on <a href="{{referral_url}}">ResearchHub:</a>
+        </p>
+        <p>
+          <a href="{{document_url}}">{{document_title}}</a>
+        </p>
+        <p>
+          The bounty appears to fall within your realm of expertise. If you complete it,
+          you could receive {{bounty_amount}} ResearchCoin.
+        </p>
+        <p>
+          I appreciate you taking the time to review this email. If you are interested in answering
+          the bounty or joining ResearchHub, please use <a href="{{referral_url}}">this signup link</a> as it will earn you 50 ResearchCoin.
+        </p>
+        <p>
+          Sincerely,
+        </p>
+        <p>
+          {{inviter_name}}
+        </p>
       </div>
     </div>
   </body>
