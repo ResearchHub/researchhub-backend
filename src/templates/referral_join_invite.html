@@ -1,18 +1,27 @@
 <html>
-    <head>
-        <meta charset="UTF-8">
-        <title></title>
-    </head>
-    <body>
-      <div class="email-container">
-        <div class="email-header">
-          <div class="header">
-            Referral
-          </div>
-        </div>
-        <div class="content">
-          Hi there {{ action.inviter_name }}
-        </div>
+  <head>
+      <meta charset="UTF-8">
+      <title></title>
+  </head>
+  <body>
+    <div class="email-container">
+      <div class="content">
+        Hi there,
+
+        <p>
+          I hope this email finds you well. I'm writing because I thought you would
+          be interested in joining ResearchHub <a href="{{referral_url}}">ResearchHub</a> - a new platform dedicated to accelerating science.
+        </p>
+        <p>
+          If you are interested in joining or learning more about ResearchHub, please use <a href="{{referral_url}}">this signup link</a> as it will earn you {{referral_bonus}} ResearchCoin.
+        </p>
+        <p>
+          Sincerely,
+        </p>
+        <p>
+          {{inviter_name}}
+        </p>
       </div>
-    </body>
+    </div>
+  </body>
 </html>
