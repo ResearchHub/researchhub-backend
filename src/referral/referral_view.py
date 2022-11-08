@@ -21,6 +21,8 @@ class ReferralViewSet(viewsets.ModelViewSet):
         data = request.data
         recipient_email = data.get("email")
         invite_type = data.get("type")
+        referral_first_name = data.get("first_name")
+        referral_last_name = data.get("last_name")
         unified_document_id = data.get("unified_document_id", None)
 
         one_day_in_minutes = 1440
@@ -55,6 +57,8 @@ class ReferralViewSet(viewsets.ModelViewSet):
             recipient_email=recipient_email,
             expiration_time=10080,
             unified_document_id=unified_document_id,
+            referral_first_name=referral_first_name,
+            referral_last_name=referral_last_name,
         )
 
         if not TESTING:

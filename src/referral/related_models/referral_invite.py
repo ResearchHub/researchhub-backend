@@ -31,6 +31,10 @@ class ReferralInvite(Invitation):
         related_name="referral_invites",
     )
 
+    referral_first_name = models.CharField(max_length=256, blank=True, null=True)
+
+    referral_last_name = models.CharField(max_length=256, blank=True, null=True)
+
     def _send_bounty_invitation(self):
         inviter = self.inviter
         email = self.recipient_email
@@ -45,8 +49,10 @@ class ReferralInvite(Invitation):
                 Sum("amount")
             )["amount__sum"]
         )
+        referral_name = f"{self.referral_first_name}"
 
         email_context = {
+            "referral_name": referral_name,
             "inviter_name": inviter_name,
             "referral_url": f"{BASE_FRONTEND_URL}/referral/{inviter.referral_code}",
             "document_title": uni_doc.get_document().title,
