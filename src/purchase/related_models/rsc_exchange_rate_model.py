@@ -1,7 +1,8 @@
 from django.db import models
 
-from purchase.related_models.constants.rsc_exchange_currency \
-    import RSC_EXCHANGE_CURRENCY
+from purchase.related_models.constants.rsc_exchange_currency import (
+    RSC_EXCHANGE_CURRENCY,
+)
 from utils.models import DefaultModel
 
 
@@ -15,6 +16,14 @@ class RscExchangeRate(DefaultModel):
             We may adjust the rate for different purposes.
         """,
         null=False,
+    )
+    real_rate = models.FloatField(
+        blank=True,
+        help_text="""
+            RSC exchange rate. This may differ from 'rate' field if real rate is lower
+            than the floor-rate (arbitrary) of the recorded date.
+        """,
+        null=True,
     )
     target_currency = models.CharField(
         blank=False,

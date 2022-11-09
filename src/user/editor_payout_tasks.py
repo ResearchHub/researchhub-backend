@@ -48,6 +48,7 @@ def editor_daily_payout_task():
     # Keeping record of exchange rate used today
     RscExchangeRate.objects.create(
         rate=result["rate"],
+        real_rate=result["real_rate"],
         target_currency=USD,
     )
 
@@ -150,6 +151,7 @@ def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month):
     )
     return {
         "rate": payout_usd_per_rsc,
+        "real_rate": real_usd_per_rsc,
         "pay_amount": (
             USD_PAY_AMOUNT_PER_MONTH
             * math.pow(payout_usd_per_rsc, -1)
