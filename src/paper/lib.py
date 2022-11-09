@@ -168,6 +168,36 @@ class JNeurosci(Journal):
             return None
 
 
+class Cell(Journal):
+    host = "cell.com"
+    journal_url_base = "https://www.cell.com/cell/fulltext/"
+    pdf_url_base = "https://www.cell.com/action/showPdf?pii="
+    pdf_identifier = pdf_url_suffix
+
+    @classmethod
+    def journal_url_to_pdf_url(cls, journal_url):
+        parts = journal_url.split(cls.journal_url_base)
+        try:
+            uid = parts[1]
+            uid = cls.remove_query(uid)
+            pdf_url = f"{cls.pdf_url_base}{uid}"
+            return pdf_url
+        except Exception as e:
+            sentry.log_error(e, message=journal_url)
+            return None
+
+    @classmethod
+    def pdf_url_to_journal_url(cls, pdf_url):
+        parts = pdf_url.split(cls.pdf_url_base)
+        uid = parts[1]
+        try:
+            journal_url = f"{cls.journal_url_base}{uid}"
+            return journal_url
+        except Exception as e:
+            sentry.log_error(e, message=pdf_url)
+            return None
+
+
 class PLOS(Journal):
     host = "journals.plos.org"
     journal_url_base = "https://journals.plos.org/plosone/article?"
@@ -403,6 +433,7 @@ journal_hosts = [
     Nature.host,
     JNeurosci.host,
     PLOS.host,
+    Cell.host,
     PNAS.host,
     Lancet.host,
     JPET_ASPET.host,
@@ -416,6 +447,7 @@ pdf_identifiers = [
     Nature.pdf_identifier,
     JNeurosci.pdf_identifier,
     PLOS.pdf_identifier,
+    Cell.pdf_identifier,
     PNAS.pdf_identifier,
     Lancet.pdf_identifier,
     JPET_ASPET.pdf_identifier,
@@ -429,6 +461,7 @@ journal_hosts_and_pdf_identifiers = [
     (Nature.host, Nature.pdf_identifier),
     (JNeurosci.host, JNeurosci.pdf_identifier),
     (PLOS.host, PLOS.pdf_identifier),
+    (Cell.host, Cell.pdf_identifier),
     (PNAS.host, PNAS.pdf_identifier),
     (Lancet.host, Lancet.pdf_identifier),
     (JPET_ASPET.host, JPET_ASPET.pdf_identifier),
@@ -441,6 +474,7 @@ journal_pdf_to_url = {
     Nature.host: Nature.pdf_url_to_journal_url,
     JNeurosci.host: JNeurosci.pdf_url_to_journal_url,
     PLOS.host: PLOS.pdf_url_to_journal_url,
+    Cell.host: Cell.pdf_url_to_journal_url,
     PNAS.host: PNAS.pdf_url_to_journal_url,
     Lancet.host: Lancet.pdf_url_to_journal_url,
     ScienceDirect.host: ScienceDirect.pdf_url_to_journal_url,
@@ -455,6 +489,7 @@ journal_url_to_pdf = {
     Nature.host: Nature.journal_url_to_pdf_url,
     JNeurosci.host: JNeurosci.journal_url_to_pdf_url,
     PLOS.host: PLOS.journal_url_to_pdf_url,
+    Cell.host: Cell.journal_url_to_pdf_url,
     PNAS.host: PNAS.journal_url_to_pdf_url,
     Lancet.host: Lancet.journal_url_to_pdf_url,
     ScienceDirect.host: ScienceDirect.journal_url_to_pdf_url,
