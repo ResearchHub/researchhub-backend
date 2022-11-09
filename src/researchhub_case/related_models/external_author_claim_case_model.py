@@ -23,6 +23,14 @@ class ExternalAuthorClaimCase(AbstractResearchhubCase):
         null=False,
     )
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["google_scholar_id", "requestor"],
+                name="unique_google_scholar_id_claim",
+            )
+        ]
+
     def approve_google_scholar(self):
         celery_add_author_citations.apply_async(
             (self.requestor.id, self.google_scholar_id), priority=5, countdown=10

@@ -1,11 +1,9 @@
 from django.db import models
 
-from user.models import Author
-
 
 class AuthorCitation(models.Model):
     author = models.ForeignKey(
-        Author, related_name="citations", on_delete=models.CASCADE
+        "user.Author", related_name="citations", on_delete=models.CASCADE
     )
     citation_count = models.IntegerField(default=0)
     citation_name = models.CharField(max_length=256)
