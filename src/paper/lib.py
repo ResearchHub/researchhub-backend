@@ -172,7 +172,6 @@ class Cell(Journal):
     host = "cell.com"
     journal_url_base = "https://www.cell.com/cell/fulltext/"
     pdf_url_base = "https://www.cell.com/action/showPdf?pii="
-    pdf_identifier = pdf_url_suffix
 
     @classmethod
     def journal_url_to_pdf_url(cls, journal_url):
@@ -447,7 +446,6 @@ pdf_identifiers = [
     Nature.pdf_identifier,
     JNeurosci.pdf_identifier,
     PLOS.pdf_identifier,
-    Cell.pdf_identifier,
     PNAS.pdf_identifier,
     Lancet.pdf_identifier,
     JPET_ASPET.pdf_identifier,
@@ -461,7 +459,6 @@ journal_hosts_and_pdf_identifiers = [
     (Nature.host, Nature.pdf_identifier),
     (JNeurosci.host, JNeurosci.pdf_identifier),
     (PLOS.host, PLOS.pdf_identifier),
-    (Cell.host, Cell.pdf_identifier),
     (PNAS.host, PNAS.pdf_identifier),
     (Lancet.host, Lancet.pdf_identifier),
     (JPET_ASPET.host, JPET_ASPET.pdf_identifier),
