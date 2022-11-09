@@ -128,7 +128,7 @@ def populate_pdf_url_from_journal_url(url, metadata):
             metadata["file"] = url
         if metadata.get("pdf_url", None) is None:
             metadata["pdf_url"] = url
-    return metadata, False
+    return metadata, converted
 
 
 def convert_journal_url_to_pdf_url(journal_url):
