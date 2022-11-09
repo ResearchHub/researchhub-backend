@@ -828,7 +828,7 @@ TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)
 
 
 # Serp API
-SERP_API_KEY = os.environ.get("SERP_API_KEY", keys.SERP_API_KEY)
+# SERP_API_KEY = os.environ.get("SERP_API_KEY", keys.SERP_API_KEY)
 
 
 REFERRAL_PROGRAM = {
