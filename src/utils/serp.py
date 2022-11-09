@@ -10,9 +10,6 @@ ALLOWED_ENGINES = (
     GOOGLE_SCHOLAR_AUTHOR,
 )
 
-# https://serpapi.com/search.json?engine=google_scholar_profiles&mauthors=GIAN+MARIA&hl=en&api_key=2f6cf9ba5aa10a940f4ef4ba4f46a0eda06e2a10d977191cf5d8dfb4754a530d
-# https://serpapi.com/search.json?engine=google_scholar_author&author_id=8cOnY5YAAAAJ&hl=en&start=100&api_key=2f6cf9ba5aa10a940f4ef4ba4f46a0eda06e2a10d977191cf5d8dfb4754a530d
-
 
 class Serp:
     def __init__(self, search_type=GOOGLE_SCHOLAR_AUTHOR, timeout=10):
