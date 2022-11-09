@@ -414,7 +414,7 @@ class ScienceDirect(JournalWithSubdomain):
 
     @classmethod
     def pdf_url_to_journal_url(cls, pdf_url):
-        parts = pdf_url.split(cls.pdf_url_split_on)
+        parts = pdf_url.split(cls.journal_url_split_on)
         try:
             uid_parts = parts[1].split(cls.pdf_url_suffix)
             uid = uid_parts[0]

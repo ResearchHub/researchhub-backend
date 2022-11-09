@@ -134,9 +134,15 @@ def populate_pdf_url_from_journal_url(url, metadata):
 def convert_journal_url_to_pdf_url(journal_url):
     pdf_url = None
     for host in journal_hosts:
-        if host in journal_url:
-            pdf_url = journal_url_to_pdf[host](journal_url)
-            break
+        try:
+            if host in journal_url:
+                if journal_url_to_pdf[host]:
+                    pdf_url = journal_url_to_pdf[host](journal_url)
+                    break
+        except Exception as e:
+            import pdb
+
+            pdb.set_trace()
     if pdf_url is not None and check_url_contains_pdf(pdf_url):
         return pdf_url, True
     return journal_url, False
@@ -158,8 +164,9 @@ def convert_pdf_url_to_journal_url(pdf_url):
     journal_url = None
     for host in journal_hosts:
         if host in pdf_url:
-            journal_url = journal_pdf_to_url[host](pdf_url)
-            break
+            if journal_pdf_to_url[host]:
+                journal_url = journal_pdf_to_url[host](pdf_url)
+                break
     if journal_url is not None:
         return journal_url, True
     return pdf_url, False
