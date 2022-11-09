@@ -5,6 +5,7 @@ from rest_framework.serializers import (
 )
 
 from referral.models import ReferralInvite
+from researchhub.settings import TESTING
 
 
 class ReferralInviteSerializer(ModelSerializer):
@@ -17,4 +18,17 @@ class ReferralInviteSerializer(ModelSerializer):
             "recipient_email",
             "invite_type",
             "created_date",
+            "recipient_email",
+            "referral_first_name",
+            "referral_last_name",
+            "unified_document",
         ]
+
+    def create(self, validated_data):
+        data = validated_data
+        instance = ReferralInvite.create(**data)
+
+        if not TESTING:
+            instance.send_invitation()
+
+        return instance

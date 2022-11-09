@@ -7,27 +7,34 @@ from rest_framework.response import Response
 
 from referral.related_models.referral_invite import ReferralInvite
 from referral.serializers.referral_invite_serializer import ReferralInviteSerializer
-from researchhub.settings import TESTING
 from user.related_models.user_model import User
 from utils.http import POST
 
 from .related_models.referral_invite import BOUNTY, JOIN_RH
 
 
-class ReferralViewSet(viewsets.ModelViewSet):
-    @action(detail=False, methods=[POST], permission_classes=[IsAuthenticated])
-    def invite(self, request):
+class ReferralInviteViewSet(viewsets.ModelViewSet):
+    serializer_class = ReferralInviteSerializer
+    permission_classes = [
+        IsAuthenticated,
+    ]
+
+    def create(self, request):
         inviter = request.user
         data = request.data
-        recipient_email = data.get("email")
-        invite_type = data.get("type")
-        referral_first_name = data.get("first_name")
-        referral_last_name = data.get("last_name")
-        unified_document_id = data.get("unified_document_id", None)
 
         one_day_in_minutes = 1440
+        invite_data = {}
+        invite_data["inviter"] = request.user.id
+        invite_data["recipient_email"] = data.get("email")
+        invite_data["invite_type"] = data.get("type")
+        invite_data["referral_first_name"] = data.get("first_name")
+        invite_data["referral_last_name"] = data.get("last_name")
+        invite_data["unified_document"] = data.get("unified_document_id")
 
-        is_recipient_already_user = User.objects.filter(email=recipient_email).exists()
+        is_recipient_already_user = User.objects.filter(
+            email=invite_data["recipient_email"]
+        ).exists()
         # if is_recipient_already_user:
         #     return Response(
         #         {"message": "Person is already a ResearchHub user", "error": True},
@@ -36,8 +43,8 @@ class ReferralViewSet(viewsets.ModelViewSet):
 
         is_already_sent = ReferralInvite.objects.filter(
             inviter=inviter,
-            invite_type=invite_type,
-            recipient_email=recipient_email,
+            invite_type=invite_data["invite_type"],
+            recipient_email=invite_data["recipient_email"],
             expiration_date__lte=datetime.now(),
             expiration_date__gte=datetime.now() - timedelta(minutes=one_day_in_minutes),
         )
@@ -51,19 +58,12 @@ class ReferralViewSet(viewsets.ModelViewSet):
         #         {"message": "Invalid already sent", "error": True}, status=status.HTTP_409_CONFLICT
         #     )
 
-        invite = ReferralInvite.create(
-            inviter=inviter,
-            invite_type=invite_type,
-            recipient_email=recipient_email,
-            expiration_time=10080,
-            unified_document_id=unified_document_id,
-            referral_first_name=referral_first_name,
-            referral_last_name=referral_last_name,
+        serializer = ReferralInviteSerializer(
+            data=invite_data, context={"request": request}
         )
 
-        if not TESTING:
-            invite.send_invitation()
+        serializer.is_valid(raise_exception=True)
+        print(serializer.validated_data)
+        self.perform_create(serializer)
 
-        return Response(
-            ReferralInviteSerializer(invite).data, status=status.HTTP_201_CREATED
-        )
+        return Response(serializer.data)

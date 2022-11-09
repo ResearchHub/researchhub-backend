@@ -41,13 +41,13 @@ class ReferralInvite(Invitation):
         template = "referral_invite.txt"
         html_template = "referral_bounty_invite.html"
         inviter_name = f"{inviter.first_name} {inviter.last_name}"
-        subject = f"Your expertise is needed to answer this question"
+        subject = f"Your expertise is needed to answer this question on ResearchHub"
         uni_doc = self.unified_document
         url = uni_doc.frontend_view_link()
         bounty_amount = round(
-            uni_doc.related_bounties.filter(status=Bounty.OPEN).aggregate(
-                Sum("amount")
-            )["amount__sum"]
+            uni_doc.related_bounties.filter(status=Bounty.OPEN)
+            .aggregate(Sum("amount"))
+            .get("amount__sum", 0)
         )
         referral_name = f"{self.referral_first_name}"
         inviter_profile_img = self.inviter.author_profile.profile_image
@@ -75,9 +75,17 @@ class ReferralInvite(Invitation):
         template = "referral_invite.txt"
         html_template = "referral_join_invite.html"
         inviter_name = f"{inviter.first_name} {inviter.last_name}"
-        subject = f"{inviter_name} has invited you to join ResearchHub"
+        subject = f"Join our scientific community on ResearchHub"
+        referral_name = f"{self.referral_first_name}"
+        inviter_profile_img = self.inviter.author_profile.profile_image
+        inviter_headline = getattr(self.inviter.author_profile, "headline").get(
+            "title", None
+        )
 
         email_context = {
+            "referral_name": referral_name,
+            "inviter_headline": inviter_headline,
+            "inviter_profile_img": inviter_profile_img,
             "inviter_name": inviter_name,
             "referral_url": f"{BASE_FRONTEND_URL}/referral/{inviter.referral_code}",
             "referral_bonus": REFERRAL_PROGRAM["INVITED_EARN_AMOUNT"],
@@ -88,7 +96,7 @@ class ReferralInvite(Invitation):
     def send_invitation(self):
         invite_type = self.invite_type
 
-        if invite_type == "BOUNTY":
+        if invite_type == BOUNTY:
             self._send_bounty_invitation()
         else:
             self._send_referral_invitation()
