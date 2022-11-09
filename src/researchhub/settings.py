@@ -461,6 +461,11 @@ AWS_SECRET_ACCESS_KEY = os.environ.get(
     "AWS_SECRET_ACCESS_KEY", keys.AWS_SECRET_ACCESS_KEY
 )
 
+# AWS Lambda
+AWS_SCHOLARLY_LAMBDA = (
+    "arn:aws:lambda:us-west-2:794128250202:function:ResearchHub-Scholarly"
+)
+
 
 # Storage
 

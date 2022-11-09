@@ -1,11 +1,9 @@
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.postgres.fields import ArrayField, JSONField
 from django.db import models
-from django.db.models import Count, Q, Sum
+from django.db.models import Sum
 from django.db.models.deletion import SET_NULL
 
-from discussion.reaction_models import Vote
-from paper.models import Paper
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from researchhub_case.constants.case_constants import APPROVED
 from user.related_models.profile_image_storage import ProfileImageStorage
@@ -28,6 +26,7 @@ class Author(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     description = models.TextField(null=True, blank=True)
+    h_index = models.IntegerField(default=0)
     profile_image = models.FileField(
         upload_to="uploads/author_profile_images/%Y/%m/%d",
         max_length=1024,

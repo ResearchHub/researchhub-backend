@@ -1,23 +1,58 @@
+import json
+
+from boto3.session import Session
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from researchhub.settings import (
+    AWS_ACCESS_KEY_ID,
+    AWS_S3_REGION_NAME,
+    AWS_SCHOLARLY_LAMBDA,
+    AWS_SECRET_ACCESS_KEY,
+)
 from researchhub_case.constants.case_constants import EXTERNAL_AUTHOR_CLAIM
 from researchhub_case.models import ExternalAuthorClaimCase
-from researchhub_case.serializers import ExternalAuthorClaimCaseSerializer
-from user.models import Action
+from researchhub_case.serializers import (
+    DynamicExternalAuthorClaimCaseSerializer,
+    ExternalAuthorClaimCaseSerializer,
+)
+from rh_scholarly.lambda_handler import SEARCH_FOR_AUTHORS
+from user.models import Action, User
+from user.permissions import IsModerator
 from utils.http import POST
 from utils.permissions import CreateOrReadOnly
-from utils.semantic_scholar import SemanticScholar
 
 
 class ExternalAuthorClaimCaseViewSet(ModelViewSet):
-    # permission_classes = [IsAuthenticated, CreateOrReadOnly]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated & (CreateOrReadOnly | IsModerator)]
     queryset = ExternalAuthorClaimCase.objects.all()
     serializer_class = ExternalAuthorClaimCaseSerializer
-    semantic_scholar = SemanticScholar()
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["status"]
+
+    def get_serializer_class(self):
+        if self.request.method == POST:
+            return self.serializer_class
+
+        def _get_dynamic_serializer(*args, **kwargs):
+            dynamic_context = {
+                "cse_darc_get_requestor": {"_include_fields": ("author_profile", "id")},
+                "usr_dus_get_author_profile": {
+                    "_include_fields": ("first_name", "last_name", "profile_image")
+                },
+            }
+            if "context" in kwargs:
+                kwargs["context"].update(dynamic_context)
+            else:
+                kwargs["context"] = dynamic_context
+            return DynamicExternalAuthorClaimCaseSerializer(
+                *args, **kwargs, _exclude_fields=("creator", "moderator")
+            )
+
+        return _get_dynamic_serializer
 
     def create(self, request, *args, **kwargs):
         user = request.user
@@ -38,10 +73,25 @@ class ExternalAuthorClaimCaseViewSet(ModelViewSet):
     @action(
         detail=False,
         methods=[POST],
-        # permission_classes=[IsAuthenticated],
     )
-    def search_semantic_scholar_name(self, request):
+    def search_scholarly_by_name(self, request):
         data = request.data
-        name = data.get("name", "")
-        semantic_scholar_data = self.semantic_scholar.get_authors(name)
-        return Response(semantic_scholar_data, status=200)
+        lambda_body = {SEARCH_FOR_AUTHORS: [data.get("name", "")]}
+        data_bytes = json.dumps(lambda_body)
+        session = Session(
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            region_name=AWS_S3_REGION_NAME,
+        )
+        lambda_client = session.client(
+            service_name="lambda", region_name=AWS_S3_REGION_NAME
+        )
+        response = lambda_client.invoke(
+            FunctionName=AWS_SCHOLARLY_LAMBDA,
+            InvocationType="RequestResponse",
+            Payload=data_bytes,
+        )
+        response_data = response.get("Payload", None)
+        if response_data:
+            response_data = json.loads(response_data.read())
+        return Response(response_data, status=200)

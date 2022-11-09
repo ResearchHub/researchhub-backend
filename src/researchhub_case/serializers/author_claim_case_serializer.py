@@ -1,27 +1,27 @@
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
-from .researchhub_case_abstract_serializer import EXPOSABLE_FIELDS
 from paper.models import Paper
 from researchhub_case.constants.case_constants import APPROVED
 from researchhub_case.models import AuthorClaimCase
+from researchhub_case.tasks import trigger_email_validation_flow
 from user.models import Author, User
 from user.serializers import AuthorSerializer, UserSerializer
-from django.contrib.contenttypes.models import ContentType
-from researchhub_case.tasks import (
-    trigger_email_validation_flow,
-)
+
+from .researchhub_case_abstract_serializer import EXPOSABLE_FIELDS
+
 
 class AuthorClaimCaseSerializer(ModelSerializer):
-    moderator = SerializerMethodField(method_name='get_moderator')
+    moderator = SerializerMethodField(method_name="get_moderator")
     requestor = SerializerMethodField()
-    paper = SerializerMethodField(method_name='get_paper')
+    paper = SerializerMethodField(method_name="get_paper")
 
     def create(self, validated_data):
-        request_data = self.context.get('request').data
-        moderator_id = request_data.get('moderator')
-        requestor_id = request_data.get('requestor')
-        target_paper_id = request_data.get('target_paper_id')
-        target_author_name = request_data.get('target_author_name')
+        request_data = self.context.get("request").data
+        moderator_id = request_data.get("moderator")
+        requestor_id = request_data.get("requestor")
+        target_paper_id = request_data.get("target_paper_id")
+        target_author_name = request_data.get("target_author_name")
         moderator = User.objects.filter(id=moderator_id).first()
         requestor = User.objects.filter(id=requestor_id).first()
 
@@ -41,11 +41,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             requestor=requestor,
         )
 
-        trigger_email_validation_flow.apply_async(
-            (case.id,),
-            priority=2,
-            countdown=5
-        )
+        trigger_email_validation_flow.apply_async((case.id,), priority=2, countdown=5)
 
         return case
 
@@ -53,9 +49,9 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         paper = case.target_paper
         if paper:
             obj = {
-                'title': paper.title,
-                'id': paper.id,
-                'slug': paper.slug,
+                "title": paper.title,
+                "id": paper.id,
+                "slug": paper.slug,
             }
             return obj
         else:
@@ -63,56 +59,58 @@ class AuthorClaimCaseSerializer(ModelSerializer):
 
     def get_moderator(self, case):
         serializer = UserSerializer(case.moderator)
-        if (serializer is not None):
+        if serializer is not None:
             return serializer.data
         return None
 
     def get_requestor(self, case):
         serializer = UserSerializer(case.requestor)
-        if (serializer is not None):
+        if serializer is not None:
             return serializer.data
         return None
 
-    def __check_uniqueness_on_create(self, requestor_id, target_paper_id, target_author_name):
+    def __check_uniqueness_on_create(
+        self, requestor_id, target_paper_id, target_author_name
+    ):
         has_open_case = AuthorClaimCase.objects.filter(
             requestor__id=requestor_id,
             target_author_name=target_author_name,
             target_paper_id=target_paper_id,
-            status__in=['OPEN', 'INITIATED']
+            status__in=["OPEN", "INITIATED"],
         ).exists()
 
-        if (has_open_case):
+        if has_open_case:
             raise Exception(
-                f'Attempting to open a duplicate case for author {target_author_name} in paper {target_paper_id}'
+                f"Attempting to open a duplicate case for author {target_author_name} in paper {target_paper_id}"
             )
 
         already_claimed = AuthorClaimCase.objects.filter(
             requestor__id=requestor_id,
             target_author_name=target_author_name,
             target_paper_id=target_paper_id,
-            status__in=['APPROVED']
+            status__in=["APPROVED"],
         ).exists()
 
-        if (already_claimed):
+        if already_claimed:
             raise Exception(
-                f'Author {target_author_name} already claimed for paper {target_paper_id}'
+                f"Author {target_author_name} already claimed for paper {target_paper_id}"
             )
 
     class Meta(object):
         model = AuthorClaimCase
         fields = [
-          *EXPOSABLE_FIELDS,
-          'provided_email',
-          'status',
-          'token_generated_time',
-          'validation_attempt_count',
-          'validation_token',
-          'paper',
-          'target_author_name',
+            *EXPOSABLE_FIELDS,
+            "provided_email",
+            "status",
+            "token_generated_time",
+            "validation_attempt_count",
+            "validation_token",
+            "paper",
+            "target_author_name",
         ]
         read_only_fields = [
-          'status',
-          'token_generated_time',
-          'validation_attempt_count',
-          'validation_token',
+            "status",
+            "token_generated_time",
+            "validation_attempt_count",
+            "validation_token",
         ]
