@@ -85,13 +85,11 @@ def celery_add_author_citations(author_profile_id, google_scholar_id):
     lambda_client = session.client(
         service_name="lambda", region_name=AWS_S3_REGION_NAME
     )
-    print("INVOKING")
     response = lambda_client.invoke(
         FunctionName=AWS_SCHOLARLY_LAMBDA,
         InvocationType="RequestResponse",
         Payload=data_bytes,
     )
-    print("FINISHED INVOKING")
     response_data = response.get("Payload", None)
     if response_data is None:
         return False
