@@ -41,7 +41,7 @@ class ReferralInvite(Invitation):
         template = "referral_invite.txt"
         html_template = "referral_bounty_invite.html"
         inviter_name = f"{inviter.first_name} {inviter.last_name}"
-        subject = f"{inviter_name} has invited you to complete a bounty on ResearchHub"
+        subject = f"Your expertise is needed to answer this question"
         uni_doc = self.unified_document
         url = uni_doc.frontend_view_link()
         bounty_amount = round(
@@ -50,10 +50,16 @@ class ReferralInvite(Invitation):
             )["amount__sum"]
         )
         referral_name = f"{self.referral_first_name}"
+        inviter_profile_img = self.inviter.author_profile.profile_image
+        inviter_headline = getattr(self.inviter.author_profile, "headline").get(
+            "title", None
+        )
 
         email_context = {
             "referral_name": referral_name,
             "inviter_name": inviter_name,
+            "inviter_headline": inviter_headline,
+            "inviter_profile_img": inviter_profile_img,
             "referral_url": f"{BASE_FRONTEND_URL}/referral/{inviter.referral_code}",
             "document_title": uni_doc.get_document().title,
             "bounty_amount": bounty_amount,
