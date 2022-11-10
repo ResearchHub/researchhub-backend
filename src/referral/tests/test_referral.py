@@ -170,10 +170,10 @@ class ReferralTests(APITestCase):
         self.client.force_authenticate(self.referrer_user)
 
         response = self.client.post(
-            f"/api/referral/invite/",
+            f"/api/referral/",
             {
-                "email": "invite_email@example.com",
-                "type": "BOUNTY",
+                "recipient_email": "invite_email@example.com",
+                "invite_type": "BOUNTY",
             },
         )
 
@@ -184,10 +184,10 @@ class ReferralTests(APITestCase):
         self.client.force_authenticate(self.referrer_user)
 
         response = self.client.post(
-            f"/api/referral/invite/",
+            f"/api/referral/",
             {
-                "email": "invite_email@example.com",
-                "type": "JOIN_RH",
+                "recipient_email": "invite_email@example.com",
+                "invite_type": "JOIN_RH",
             },
         )
 
@@ -199,18 +199,19 @@ class ReferralTests(APITestCase):
         self.random_user = create_user(email="existing_user@example.com")
 
         invite_once = self.client.post(
-            f"/api/referral/invite/",
+            f"/api/referral/",
             {
-                "email": "existing_user@example.com",
-                "type": "BOUNTY",
+                "recipient_email": "existing_user@example.com",
+                "invite_type": "BOUNTY",
             },
         )
 
         invite_twice = self.client.post(
-            f"/api/referral/invite/",
+            f"/api/referral/",
             {
-                "email": "existing_user@example.com",
-                "type": "BOUNTY",
+                "recipient_email": "existing_user@example.com",
+                "invite_type": "BOUNTY",
+                "unified_document": self.post["unified_document"],
             },
         )
 
@@ -221,10 +222,10 @@ class ReferralTests(APITestCase):
         self.random_user = create_user(email="existing_user@example.com")
 
         response = self.client.post(
-            f"/api/referral/invite/",
+            f"/api/referral/",
             {
-                "email": "existing_user@example.com",
-                "type": "BOUNTY",
+                "recipient_email": "existing_user@example.com",
+                "invite_type": "BOUNTY",
             },
         )
 

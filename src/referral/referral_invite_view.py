@@ -28,11 +28,11 @@ class ReferralInviteViewSet(viewsets.ModelViewSet):
         is_recipient_already_user = User.objects.filter(
             email=invite_data["recipient_email"]
         ).exists()
-        # if is_recipient_already_user:
-        #     return Response(
-        #         {"message": "Person is already a ResearchHub user", "error": True},
-        #         status=status.HTTP_409_CONFLICT,
-        #     )
+        if is_recipient_already_user:
+            return Response(
+                {"message": "Person is already a ResearchHub user", "error": True},
+                status=status.HTTP_409_CONFLICT,
+            )
 
         is_already_sent = ReferralInvite.objects.filter(
             inviter=request.user,
@@ -42,14 +42,16 @@ class ReferralInviteViewSet(viewsets.ModelViewSet):
             expiration_date__gte=datetime.now() - timedelta(minutes=one_day_in_minutes),
         )
 
-        # if invite_data["invite_type"] not in [JOIN_RH, BOUNTY]:
-        #     return Response(
-        #         {"message": "Invalid invite type", "error": True}, status=status.HTTP_400_BAD_REQUEST
-        #     )
-        # if is_already_sent:
-        #     return Response(
-        #         {"message": "Invite already sent", "error": True}, status=status.HTTP_409_CONFLICT
-        #     )
+        if invite_data["invite_type"] not in [JOIN_RH, BOUNTY]:
+            return Response(
+                {"message": "Invalid invite type", "error": True},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if is_already_sent:
+            return Response(
+                {"message": "Invite already sent", "error": True},
+                status=status.HTTP_409_CONFLICT,
+            )
 
         serializer = ReferralInviteSerializer(data=invite_data)
         serializer.is_valid(raise_exception=True)
