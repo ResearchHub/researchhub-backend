@@ -50,10 +50,15 @@ class ReferralInvite(Invitation):
             .get("amount__sum", 0)
         )
         referral_name = f"{self.referral_first_name or ''}"
-        inviter_profile_img = self.inviter.author_profile.profile_image
-        inviter_headline = getattr(self.inviter.author_profile, "headline").get(
-            "title", "ResearchHub team member"
-        )
+        inviter_profile_img = inviter.author_profile.profile_image
+        inviter_headline = "ResearchHub team member"
+
+        if getattr(inviter.author_profile, "profile_image"):
+            inviter_profile_img = inviter.author_profile.profile_image.url
+        if getattr(inviter.author_profile, "headline"):
+            inviter_headline = inviter.author_profile.headline.get(
+                "title", "ResearchHub team member"
+            )
 
         email_context = {
             "referral_name": referral_name,
@@ -77,10 +82,16 @@ class ReferralInvite(Invitation):
         inviter_name = f"{inviter.first_name} {inviter.last_name}"
         subject = f"Join our scientific community on ResearchHub"
         referral_name = f"{self.referral_first_name  or ''}"
-        inviter_profile_img = self.inviter.author_profile.profile_image
-        inviter_headline = getattr(self.inviter.author_profile, "headline").get(
-            "title", "ResearchHub team member"
-        )
+        inviter_profile_img = inviter.author_profile.profile_image
+        inviter_headline = "ResearchHub team member"
+
+        if getattr(inviter.author_profile, "profile_image"):
+            inviter_profile_img = inviter.author_profile.profile_image.url
+
+        if getattr(inviter.author_profile, "headline"):
+            inviter_headline = inviter.author_profile.headline.get(
+                "title", "ResearchHub team member"
+            )
 
         email_context = {
             "referral_name": referral_name,
