@@ -776,15 +776,13 @@ class Paper(AbstractGenericReactionModel):
             self.completeness = self.INCOMPLETE
         self.save()
 
-    def download_pdf(self):
-        pass
-
-    def get_pdf_link(self):
+    def get_pdf_link(self, should_save=False):
         metadata, converted = populate_pdf_url_from_journal_url(self.url, {})
         pdf_url = metadata.get("pdf_url")
         if pdf_url:
             self.pdf_url = metadata.get("pdf_url")
-            self.save()
+            if should_save:
+                self.save()
         return metadata, converted
 
 
