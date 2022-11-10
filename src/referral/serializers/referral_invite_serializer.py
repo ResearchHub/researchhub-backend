@@ -1,11 +1,6 @@
-from rest_framework.serializers import (
-    ModelSerializer,
-    SerializerMethodField,
-    ValidationError,
-)
+from rest_framework.serializers import ModelSerializer
 
 from referral.models import ReferralInvite
-from researchhub.settings import TESTING
 
 
 class ReferralInviteSerializer(ModelSerializer):
@@ -27,8 +22,4 @@ class ReferralInviteSerializer(ModelSerializer):
     def create(self, validated_data):
         data = validated_data
         instance = ReferralInvite.create(**data)
-
-        if not TESTING:
-            instance.send_invitation()
-
         return instance
