@@ -52,7 +52,7 @@ class ReferralInvite(Invitation):
         referral_name = f"{self.referral_first_name or ''}"
         inviter_profile_img = self.inviter.author_profile.profile_image
         inviter_headline = getattr(self.inviter.author_profile, "headline").get(
-            "title", ""
+            "title", "ResearchHub team member"
         )
 
         email_context = {
@@ -79,7 +79,7 @@ class ReferralInvite(Invitation):
         referral_name = f"{self.referral_first_name  or ''}"
         inviter_profile_img = self.inviter.author_profile.profile_image
         inviter_headline = getattr(self.inviter.author_profile, "headline").get(
-            "title", ""
+            "title", "ResearchHub team member"
         )
 
         email_context = {
