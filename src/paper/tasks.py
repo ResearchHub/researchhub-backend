@@ -1518,6 +1518,7 @@ def celery_create_paper(self, celery_data):
             paper.title = async_paper_updator.title
 
         paper.full_clean()
+        paper.get_abstract_backup(should_save=False)
         paper.get_pdf_link(should_save=False)
         paper.save()
 
