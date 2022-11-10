@@ -49,10 +49,10 @@ class ReferralInvite(Invitation):
             .aggregate(Sum("amount"))
             .get("amount__sum", 0)
         )
-        referral_name = f"{self.referral_first_name}"
+        referral_name = f"{self.referral_first_name or ''}"
         inviter_profile_img = self.inviter.author_profile.profile_image
         inviter_headline = getattr(self.inviter.author_profile, "headline").get(
-            "title", None
+            "title", ""
         )
 
         email_context = {
@@ -76,10 +76,10 @@ class ReferralInvite(Invitation):
         html_template = "referral_join_invite.html"
         inviter_name = f"{inviter.first_name} {inviter.last_name}"
         subject = f"Join our scientific community on ResearchHub"
-        referral_name = f"{self.referral_first_name}"
+        referral_name = f"{self.referral_first_name  or ''}"
         inviter_profile_img = self.inviter.author_profile.profile_image
         inviter_headline = getattr(self.inviter.author_profile, "headline").get(
-            "title", None
+            "title", ""
         )
 
         email_context = {
