@@ -1,0 +1,40 @@
+{% load inlinecss %}
+{% load l10n %}
+<html>
+  <head>
+      <meta charset="UTF-8">
+      <title></title>
+  </head>
+  {% inlinecss "referral_email.css" %}
+  <body>
+    <div class="email-container">
+      <div class="content">
+        Greetings {{referral_name}},
+
+        <p>
+          My name is {{inviter_name}}, and I am reaching out on behalf of the ResearchHub Foundation to invite you to join our community!
+        </p>
+        <p>
+          ResearchHub is an open-source tool that aims to modernize how academic research is funded, evaluated, and published. Our goal is to create a platform where anyone, anywhere can earn a living by learning from and contributing to the global scientific community.
+        </p>
+        <p>
+          To accept my invitation, <a href="{{referral_url}}">please visit this link and sign up</a>.
+        </p>
+        <p>
+          Sincerely,
+        </p>
+        <p>
+          {{inviter_name}}
+        </p>
+      </div>
+      <div class="about-inviter">
+        <img class="about-inviter-img" src="{{inviter_profile_img}}" height="35" width="35" />
+        <div class="about-inviter-details">
+          <div class="about-inviter-name">{{inviter_name}}</div>
+          <div class="about-inviter-headline">{{inviter_headline}}</div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+{% endinlinecss %}

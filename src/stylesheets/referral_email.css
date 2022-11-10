@@ -1,0 +1,11 @@
+.about-inviter {
+  display: flex;
+  align-items: center;
+  border-top: 1px solid #cecece;
+  width: 500px;
+  padding-top: 15px;
+  margin-top: 50px;
+}
+.about-inviter-img {
+  margin-right: 15px;
+}

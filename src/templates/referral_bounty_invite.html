@@ -1,0 +1,50 @@
+{% load inlinecss %}
+{% load l10n %}
+<html>
+  <head>
+      <meta charset="UTF-8">
+      <title></title>
+  </head>
+  {% inlinecss "referral_email.css" %}
+  <body>
+    <div class="email-container">
+      <div class="content">
+        Greetings {{referral_name}},
+
+        <p>
+          My name is {{inviter_name}}, and I am reaching out on behalf of the ResearchHub Foundation to invite you to answer a question on our platform.
+        </p>
+        <p>
+          <a href="{{document_url}}">{{document_title}}</a>
+        </p>
+        <p>
+          For context, ResearchHub is an open-source forum that aims to modernize how academic research is funded, evaluated, and published. Our goal is to create a platform where anyone, anywhere can earn a living by learning from and contributing to the global scientific community.
+        </p>
+        <p>
+          We built ResearchHub because we are frustrated by contemporary academia’s reliance on citation-based metrics like impact factor and H-index in the evaluation of research. In order to help incentivize healthy research behaviors among ResearchHub’s users we created a cryptocurrency called ResearchCoin (RSC) to directly reward scientists for openly publishing, reviewing, and discussing academic papers.
+        </p>
+        <p>
+          In fact, our community has committed to award {{bounty_amount}} RSC to the person
+          who is able to answer this question.
+        </p>
+        <p>
+          To accept my invitation, <a href="{{referral_url}}">please visit this link and sign up</a>.
+        </p>
+        <p>
+          Sincerely,
+        </p>
+        <p>
+          {{inviter_name}}
+        </p>
+      </div>
+      <div class="about-inviter">
+        <img class="about-inviter-img" src="{{inviter_profile_img}}" height="35" width="35" />
+        <div class="about-inviter-details">
+          <div class="about-inviter-name">{{inviter_name}}</div>
+          <div class="about-inviter-headline">{{inviter_headline}}</div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+{% endinlinecss %}

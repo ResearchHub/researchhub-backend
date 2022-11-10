@@ -2,6 +2,7 @@ import time
 from datetime import datetime, timedelta
 
 from django.utils import timezone
+from rest_framework import status
 from rest_framework.test import APITestCase
 
 from discussion.tests.helpers import create_thread
@@ -164,3 +165,68 @@ class ReferralTests(APITestCase):
             recipient=self.referrer_user,
         )
         self.assertEqual(dist.exists(), False)
+
+    def test_is_able_to_invite_others_to_answer_bounty(self):
+        self.client.force_authenticate(self.referrer_user)
+
+        response = self.client.post(
+            f"/api/referral/",
+            {
+                "recipient_email": "invite_email@example.com",
+                "invite_type": "BOUNTY",
+            },
+        )
+
+        self.assertIsNotNone(response.data["id"])
+        self.assertEqual(response.data["invite_type"], "BOUNTY")
+
+    def test_is_able_to_invite_others_to_researchhub(self):
+        self.client.force_authenticate(self.referrer_user)
+
+        response = self.client.post(
+            f"/api/referral/",
+            {
+                "recipient_email": "invite_email@example.com",
+                "invite_type": "JOIN_RH",
+            },
+        )
+
+        self.assertIsNotNone(response.data["id"])
+        self.assertEqual(response.data["invite_type"], "JOIN_RH")
+
+    def test_cannot_invite_multiple_times(self):
+        self.client.force_authenticate(self.referrer_user)
+        self.random_user = create_user(email="existing_user@example.com")
+
+        invite_once = self.client.post(
+            f"/api/referral/",
+            {
+                "recipient_email": "existing_user@example.com",
+                "invite_type": "BOUNTY",
+            },
+        )
+
+        invite_twice = self.client.post(
+            f"/api/referral/",
+            {
+                "recipient_email": "existing_user@example.com",
+                "invite_type": "BOUNTY",
+                "unified_document": self.post["unified_document"],
+            },
+        )
+
+        self.assertEqual(invite_twice.status_code, status.HTTP_409_CONFLICT)
+
+    def test_cannot_invite_an_existing_user(self):
+        self.client.force_authenticate(self.referrer_user)
+        self.random_user = create_user(email="existing_user@example.com")
+
+        response = self.client.post(
+            f"/api/referral/",
+            {
+                "recipient_email": "existing_user@example.com",
+                "invite_type": "BOUNTY",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
