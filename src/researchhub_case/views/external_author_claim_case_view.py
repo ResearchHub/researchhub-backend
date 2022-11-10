@@ -95,3 +95,12 @@ class ExternalAuthorClaimCaseViewSet(ModelViewSet):
         if response_data:
             response_data = json.loads(response_data.read())
         return Response(response_data, status=200)
+
+    @action(
+        detail=True, methods=[POST], permission_classes=[IsAuthenticated, IsModerator]
+    )
+    def approve_claim(self, request, pk=None):
+        claim = self.get_object()
+        claim.approve_google_scholar()
+        serializer = self.get_serializer(claim)
+        return Response(serializer.data, status=200)
