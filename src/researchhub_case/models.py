@@ -1,5 +1,4 @@
 # flake8: noqa
-from .related_models.researchhub_case_abstract_model import (
-  AbstractResearchhubCase
-)
 from .related_models.author_claim_case_model import AuthorClaimCase
+from .related_models.external_author_claim_case_model import ExternalAuthorClaimCase
+from .related_models.researchhub_case_abstract_model import AbstractResearchhubCase
