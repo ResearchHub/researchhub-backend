@@ -161,6 +161,8 @@ CORS_ORIGIN_WHITELIST = [
 # Application definition
 
 INSTALLED_APPS = [
+    # Daphne needs to be first
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -317,6 +319,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "researchhub.wsgi.application"
+
 
 # Authentication
 
@@ -588,7 +591,7 @@ WEB3_RSC_ADDRESS = os.environ.get("WEB3_RSC_ADDRESS", keys.WEB3_RSC_ADDRESS)
 # Redis
 # redis://:password@hostname:port/db_number
 
-REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
+REDIS_HOST = os.environ.get("REDIS_HOST", "redis://127.0.0.1")
 REDIS_PORT = os.environ.get("REDIS_PORT", "6379")
 
 # Cache Settings
@@ -603,7 +606,7 @@ if TESTING:
 else:
     CACHES = {
         "default": {
-            "BACKEND": "redis_cache.RedisCache",
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
             "LOCATION": f"{REDIS_HOST}:{REDIS_PORT}",
             "KEY_PREFIX": APP_ENV,
         },
@@ -611,7 +614,7 @@ else:
 
 # Celery
 
-CELERY_BROKER_URL = "redis://{}:{}/0".format(REDIS_HOST, REDIS_PORT)
+CELERY_BROKER_URL = "{}:{}/0".format(REDIS_HOST, REDIS_PORT)
 # CELERY_RESULT_BACKEND = 'db+postgresql://{}:{}@{}:{}/{}'.format(
 #     DB_USER,
 #     DB_PASS,
@@ -631,7 +634,7 @@ REDBEAT_REDIS_URL = "redis://{}:{}/0".format(REDIS_HOST, REDIS_PORT)
 REDBEAT_KEY_PREFIX = f"{APP_ENV}_redbeat_"
 
 # Django Channels
-ASGI_APPLICATION = "researchhub.routing.application"
+ASGI_APPLICATION = "researchhub.asgi.application"
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
