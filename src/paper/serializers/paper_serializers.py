@@ -4,6 +4,7 @@ import re
 import requests
 import rest_framework.serializers as serializers
 from django.contrib.admin.options import get_content_type_for_model
+from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
 from django.http import QueryDict
 
@@ -389,23 +390,24 @@ class PaperSerializer(BasePaperSerializer):
                 #     raise IntegrityError('DETAIL: Invalid DOI')
 
                 self._add_url(file, validated_data)
-                self._clean_abstract(validated_data)
+                self._clean_abstract_or_abstract_src(validated_data)
                 self._add_raw_authors(validated_data)
 
-                paper = None
-
-                if paper is None:
-                    # It is important to note that paper signals
-                    # are ran after call to super
-                    paper = super(PaperSerializer, self).create(validated_data)
-                    paper.full_clean(exclude=["paper_type"])
+                # It is important to note that paper signals are ran after call to super
+                paper = super(PaperSerializer, self).create(validated_data)
+                paper_id = paper.id
+                if validated_data["abstract_src"]:
+                    paper.abstract_src.save(
+                        f"RH-PAPER-ABSTRACT-SRC-PAPER-{paper_id}.txt",
+                        validated_data["abstract_src"],
+                    )
+                paper.full_clean(exclude=["paper_type"])
 
                 unified_doc = paper.unified_document
                 unified_doc_id = paper.unified_document.id
                 if hypothesis_id:
                     self._add_citation(user, hypothesis_id, unified_doc, citation_type)
 
-                paper_id = paper.id
                 # NOTE: calvinhlee - This is an antipattern. Look into changing
                 GrmVote.objects.create(
                     content_type=get_content_type_for_model(paper),
@@ -428,12 +430,9 @@ class PaperSerializer(BasePaperSerializer):
                     hub.save(update_fields=["paper_count"])
 
                 try:
-                    file = paper.file
-                    self._add_file(paper, file)
+                    self._add_file(paper, paper.file)
                 except Exception as e:
-                    sentry.log_error(
-                        e,
-                    )
+                    sentry.log_error(e)
 
                 paper.set_paper_completeness()
 
@@ -499,7 +498,7 @@ class PaperSerializer(BasePaperSerializer):
                         validated_data.pop(read_only_field, None)
 
                 self._add_url(file, validated_data)
-                self._clean_abstract(validated_data)
+                self._clean_abstract_or_abstract_src(validated_data)
 
                 paper = super(PaperSerializer, self).update(instance, validated_data)
                 paper.full_clean(exclude=["paper_type"])
@@ -642,14 +641,16 @@ class PaperSerializer(BasePaperSerializer):
         else:
             paper.extract_meta_data(title=title, use_celery=True)
 
-    def _clean_abstract(self, data):
+    def _clean_abstract_or_abstract_src(self, data):
         abstract = data.get("abstract")
+        if abstract:
+            cleaned_text = clean_abstract(abstract)
+            data.update(abstract=cleaned_text)
 
-        if not abstract:
-            return
-
-        cleaned_text = clean_abstract(abstract)
-        data.update(abstract=cleaned_text)
+        abstract_src = data.get("abstract_src")
+        abstract_src_type = data.get("abstract_src_type")
+        if abstract_src and abstract_src_type:
+            data.update(abstract_src=ContentFile(data["abstract_src"].encode()))
 
     def _add_raw_authors(self, validated_data):
         raw_authors = validated_data["raw_authors"]
