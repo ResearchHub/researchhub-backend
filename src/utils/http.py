@@ -86,6 +86,7 @@ def check_url_contains_pdf(url) -> bool:
         resp = scraper_get_url(url)
         if "sciencedirect" in url and "download=false" in url:
             return resp.status_code < 400
+
         headers = resp.headers
         content_type = headers.get("content-type", "")
         return "application/pdf" in content_type

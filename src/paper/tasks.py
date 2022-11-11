@@ -1188,6 +1188,10 @@ def celery_manubot_doi(self, celery_data):
         doi = csl_item.get("DOI", None)
         if doi:
             paper_data["dois"] = [doi]
+        elif "science.org" in url:
+            doi = url.split("science.org/doi/")[1].replace("pdf/", "")
+            paper_data["dois"] = [doi]
+
         return celery_data
     except ManubotProcessingError:
         return celery_data

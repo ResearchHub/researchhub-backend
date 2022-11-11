@@ -300,6 +300,67 @@ class Lancet(Journal):
             return None
 
 
+class AAAS(Journal):
+    host = "science.org"
+    journal_url_split_on = "science.org/doi"
+    pdf_url_suffix = "?download=false"
+    journal_url_base = "https://science.org/doi/"
+
+    @classmethod
+    def journal_url_to_pdf_url(cls, journal_url):
+        parts = journal_url.split(cls.journal_url_split_on)
+        without_query_params = parts[1].split("?")[0]
+        try:
+            pdf_url = f"{parts[0]}{cls.journal_url_split_on}/pdf{without_query_params}{cls.pdf_url_suffix}"
+            return pdf_url
+        except Exception as e:
+            sentry.log_error(e, message=journal_url)
+            return None
+
+    @classmethod
+    def pdf_url_to_journal_url(cls, pdf_url):
+        parts = pdf_url.split(cls.journal_url_split_on)
+        try:
+            uid_parts = parts[1].split("pdf/")
+            uid = uid_parts[1]
+            uid = cls.remove_query(uid)
+            return f"{cls.journal_url_base}{uid}"
+        except Exception as e:
+            sentry.log_error(e, message=pdf_url)
+            return None
+
+
+class ScienceDirect(Journal):
+    host = "sciencedirect.com"
+    journal_url_split_on = "sciencedirect.com/science/article/"
+    pdf_url_split_on_partial = "science"
+    pdf_url_suffix = "/pdfft?isDTMRedir=true&download=false"
+    pdf_identifier = pdf_url_suffix
+
+    @classmethod
+    def journal_url_to_pdf_url(cls, journal_url):
+        parts = journal_url.split(cls.journal_url_split_on)
+        without_query_params = journal_url.split("?")[0]
+        try:
+            pdf_url = f"{without_query_params}{cls.pdf_url_suffix}"
+            return pdf_url
+        except Exception as e:
+            sentry.log_error(e, message=journal_url)
+            return None
+
+    @classmethod
+    def pdf_url_to_journal_url(cls, pdf_url):
+        parts = pdf_url.split(cls.journal_url_split_on)
+        try:
+            uid_parts = parts[1].split(cls.pdf_url_suffix)
+            uid = uid_parts[0]
+            uid = cls.remove_query(uid)
+            return f"{cls.journal_url_base}{uid}"
+        except Exception as e:
+            sentry.log_error(e, message=pdf_url)
+            return None
+
+
 SUB_KEYS = {"advances": "advances", "jpet": "jpet"}
 
 
@@ -394,37 +455,6 @@ class JPET_ASPET(JournalWithSubdomain):
     pdf_identifier = pdf_url_suffix
 
 
-class ScienceDirect(JournalWithSubdomain):
-    host = "sciencedirect.com"
-    journal_url_split_on = "sciencedirect.com/science/article/"
-    pdf_url_split_on_partial = "science"
-    pdf_url_suffix = "/pdfft?isDTMRedir=true&download=false"
-    pdf_identifier = pdf_url_suffix
-
-    @classmethod
-    def journal_url_to_pdf_url(cls, journal_url):
-        parts = journal_url.split(cls.journal_url_split_on)
-        without_query_params = journal_url.split("?")[0]
-        try:
-            pdf_url = f"{without_query_params}{cls.pdf_url_suffix}"
-            return pdf_url
-        except Exception as e:
-            sentry.log_error(e, message=journal_url)
-            return None
-
-    @classmethod
-    def pdf_url_to_journal_url(cls, pdf_url):
-        parts = pdf_url.split(cls.journal_url_split_on)
-        try:
-            uid_parts = parts[1].split(cls.pdf_url_suffix)
-            uid = uid_parts[0]
-            uid = cls.remove_query(uid)
-            return f"{cls.journal_url_base}{uid}"
-        except Exception as e:
-            sentry.log_error(e, message=pdf_url)
-            return None
-
-
 journal_hosts = [
     Arxiv.host,
     Biorxiv.host,
@@ -437,6 +467,7 @@ journal_hosts = [
     Lancet.host,
     JPET_ASPET.host,
     ScienceDirect.host,
+    AAAS.host,
 ]
 
 pdf_identifiers = [
@@ -475,6 +506,7 @@ journal_pdf_to_url = {
     PNAS.host: PNAS.pdf_url_to_journal_url,
     Lancet.host: Lancet.pdf_url_to_journal_url,
     ScienceDirect.host: ScienceDirect.pdf_url_to_journal_url,
+    AAAS.host: AAAS.pdf_url_to_journal_url,
     # Sites with subdomains
     ScienceMag.host: ScienceMag().pdf_url_to_journal_url,
     JPET_ASPET.host: JPET_ASPET().pdf_url_to_journal_url,
@@ -490,6 +522,7 @@ journal_url_to_pdf = {
     PNAS.host: PNAS.journal_url_to_pdf_url,
     Lancet.host: Lancet.journal_url_to_pdf_url,
     ScienceDirect.host: ScienceDirect.journal_url_to_pdf_url,
+    AAAS.host: AAAS.journal_url_to_pdf_url,
     # Sites with subdomains
     ScienceMag.host: ScienceMag().journal_url_to_pdf_url,
     JPET_ASPET.host: JPET_ASPET().journal_url_to_pdf_url,
