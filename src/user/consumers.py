@@ -1,26 +1,24 @@
 import json
 
 from asgiref.sync import async_to_sync
-from channels.generic.websocket import WebsocketConsumer
+from channels.generic.websocket import AsyncWebsocketConsumer, WebsocketConsumer
 
 from paper.models import Paper, PaperSubmission
 from paper.serializers import DynamicPaperSerializer, PaperSubmissionSerializer
 
 
-class PaperSubmissionConsumer(WebsocketConsumer):
-    def connect(self):
+class PaperSubmissionConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
         kwargs = self.scope["url_route"]["kwargs"]
         user_id = kwargs["user_id"]
 
         room = f"{user_id}_paper_submissions"
         self.room_group_name = room
 
-        async_to_sync(self.channel_layer.group_add)(
-            self.room_group_name, self.channel_name
-        )
-        self.accept(subprotocol="Token")
+        await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+        await self.accept(subprotocol="Token")
 
-    def receive(self, text_data=None, bytes_data=None):
+    async def receive(self, text_data=None, bytes_data=None):
         # TODO: Sanitize data?
         data = json.loads(text_data)
         submission_id = data["paper_submission_id"]
@@ -29,11 +27,11 @@ class PaperSubmissionConsumer(WebsocketConsumer):
         submission.save()
         self.notify_paper_submission_status({"id": submission_id})
 
-    def disconnect(self, close_code):
+    async def disconnect(self, close_code):
         if close_code == 401 or not hasattr(self, "room_group_name"):
             return
         else:
-            async_to_sync(self.channel_layer.group_discard)(
+            await self.channel_layer.group_discard(
                 self.room_group_name, self.channel_name
             )
 

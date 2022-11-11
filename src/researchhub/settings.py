@@ -591,7 +591,7 @@ WEB3_RSC_ADDRESS = os.environ.get("WEB3_RSC_ADDRESS", keys.WEB3_RSC_ADDRESS)
 # Redis
 # redis://:password@hostname:port/db_number
 
-REDIS_HOST = os.environ.get("REDIS_HOST", "redis://127.0.0.1")
+REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = os.environ.get("REDIS_PORT", "6379")
 
 # Cache Settings
@@ -607,14 +607,14 @@ else:
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.redis.RedisCache",
-            "LOCATION": f"{REDIS_HOST}:{REDIS_PORT}",
+            "LOCATION": f"redis://{REDIS_HOST}:{REDIS_PORT}",
             "KEY_PREFIX": APP_ENV,
         },
     }
 
 # Celery
 
-CELERY_BROKER_URL = "{}:{}/0".format(REDIS_HOST, REDIS_PORT)
+CELERY_BROKER_URL = "redis://{}:{}/0".format(REDIS_HOST, REDIS_PORT)
 # CELERY_RESULT_BACKEND = 'db+postgresql://{}:{}@{}:{}/{}'.format(
 #     DB_USER,
 #     DB_PASS,
