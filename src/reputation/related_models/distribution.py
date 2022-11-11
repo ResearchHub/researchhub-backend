@@ -1,7 +1,7 @@
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.postgres.fields import JSONField
 from django.db import models
+from django.db.models import JSONField
 from django.utils import timezone
 
 import reputation.distributions as distributions

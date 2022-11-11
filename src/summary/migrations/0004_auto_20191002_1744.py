@@ -2,6 +2,7 @@
 
 from django.conf import settings
 from django.db import migrations, models
+import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
@@ -30,21 +31,21 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='summary',
             name='approved_by',
-            field=models.ForeignKey(blank=True, default=None, null=True, on_delete='SET NULL', related_name='approved', to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(blank=True, default=None, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='approved', to=settings.AUTH_USER_MODEL),
         ),
         migrations.AddField(
             model_name='summary',
             name='paper',
-            field=models.ForeignKey(default=None, on_delete='CASCADE', related_name='summaries', to='paper.Paper'),
+            field=models.ForeignKey(default=None, on_delete=django.db.models.deletion.CASCADE, related_name='summaries', to='paper.Paper'),
         ),
         migrations.AddField(
             model_name='summary',
             name='proposed_by',
-            field=models.ForeignKey(default=None, on_delete='SET NULL', related_name='edits', to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(default=None, on_delete=django.db.models.deletion.SET_NULL, related_name='edits', to=settings.AUTH_USER_MODEL),
         ),
         migrations.AlterField(
             model_name='summary',
             name='previous',
-            field=models.ForeignKey(blank=True, default=None, null=True, on_delete='SET NULL', related_name='next', to='summary.Summary'),
+            field=models.ForeignKey(blank=True, default=None, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='next', to='summary.Summary'),
         ),
     ]

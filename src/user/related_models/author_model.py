@@ -1,7 +1,7 @@
 from allauth.socialaccount.models import SocialAccount
-from django.contrib.postgres.fields import ArrayField, JSONField
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
-from django.db.models import Sum
+from django.db.models import JSONField, Sum
 from django.db.models.deletion import SET_NULL
 
 from paper.utils import PAPER_SCORE_Q_ANNOTATION

@@ -6,7 +6,7 @@ from allauth.utils import email_address_exists, get_user_model
 from django.contrib.gis.geoip2 import GeoIP2
 from django.http import HttpRequest
 from django.urls.exceptions import NoReverseMatch
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from elasticsearch.exceptions import ConnectionTimeout
 from rest_framework import serializers
 

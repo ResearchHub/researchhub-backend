@@ -56,6 +56,7 @@ elif PRODUCTION:
 elif CLOUD:
     BASE_FRONTEND_URL = "https://staging-web.researchhub.com"
 
+DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 # Django Debug Toolbar
 USE_DEBUG_TOOLBAR = False

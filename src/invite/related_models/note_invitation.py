@@ -10,7 +10,7 @@ from utils.message import send_email_message
 class NoteInvitation(Invitation):
 
     invite_type = models.CharField(
-        max_length=8, choices=ACCESS_TYPE_CHOICES, default=VIEWER
+        max_length=12, choices=ACCESS_TYPE_CHOICES, default=VIEWER
     )
     note = models.ForeignKey(
         Note, on_delete=models.CASCADE, related_name="invited_users"
