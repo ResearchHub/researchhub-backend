@@ -791,14 +791,14 @@ rest_framework = ["djangorestframework (>=3.0.0)"]
 
 [[package]]
 name = "djangorestframework"
-version = "3.13.1"
+version = "3.14.0"
 description = "Web APIs for Django, made easy."
 category = "main"
 optional = false
 python-versions = ">=3.6"
 
 [package.dependencies]
-django = ">=2.2"
+django = ">=3.0"
 pytz = "*"
 
 [[package]]
@@ -2675,7 +2675,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "63783f855ab5085367d91ffc3529e9147bd074d1bed3aba1a076c84d6116c1aa"
+content-hash = "3fced9dbc055f15e96380377d21552a8d4c26abada57a55c46c094864e88b61b"
 
 [metadata.files]
 aiohttp = [
@@ -3069,10 +3069,7 @@ django-timezone-field = [
     {file = "django-timezone-field-4.2.3.tar.gz", hash = "sha256:5dd5bd9249382bef8847d3e7e4c32b7be182a4b538f354130d1252ed228892f8"},
     {file = "django_timezone_field-4.2.3-py3-none-any.whl", hash = "sha256:7552d2b0f145684b7de3fb5046101c7efd600cc6ba951b15c630fa1e1b83558e"},
 ]
-djangorestframework = [
-    {file = "djangorestframework-3.13.1-py3-none-any.whl", hash = "sha256:24c4bf58ed7e85d1fe4ba250ab2da926d263cd57d64b03e8dcef0ac683f8b1aa"},
-    {file = "djangorestframework-3.13.1.tar.gz", hash = "sha256:0c33407ce23acc68eca2a6e46424b008c9c02eceb8cf18581921d0092bc1f2ee"},
-]
+djangorestframework = []
 djangorestframework-api-key = [
     {file = "djangorestframework-api-key-2.2.0.tar.gz", hash = "sha256:41b7c988f356d62410fb42b9982a3017be035b84d68f187e127c0b52e6557b19"},
     {file = "djangorestframework_api_key-2.2.0-py3-none-any.whl", hash = "sha256:c9884e52f2802994a02781eaba0a63a628a150ed55d58603d5c9c57a6657de43"},
