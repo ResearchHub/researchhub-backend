@@ -1188,6 +1188,10 @@ def celery_manubot_doi(self, celery_data):
         doi = csl_item.get("DOI", None)
         if doi:
             paper_data["dois"] = [doi]
+        elif "science.org" in url:
+            doi = url.split("science.org/doi/")[1].replace("pdf/", "")
+            paper_data["dois"] = [doi]
+
         return celery_data
     except ManubotProcessingError:
         return celery_data
@@ -1512,13 +1516,14 @@ def celery_create_paper(self, celery_data):
 
         async_paper_updator = getattr(paper_submission, "async_updator", None)
         paper = Paper(**paper_data)
-
         if async_paper_updator is not None:
             paper.doi = async_paper_updator.doi
             paper.hub.add(*async_paper_updator.hubs)
             paper.title = async_paper_updator.title
 
         paper.full_clean()
+        paper.get_abstract_backup(should_save=False)
+        paper.get_pdf_link(should_save=False)
         paper.save()
 
         paper_id = paper.id

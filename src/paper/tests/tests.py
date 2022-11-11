@@ -137,10 +137,10 @@ class JournalPdfTests(TestCase):
         "https://advances.sciencemag.org/content/1/6/e1500251",
         "https://onlinelibrary.wiley.com/doi/full/10.1111/jvim.15646",
         "https://academic.oup.com/nar/article/46/W1/W180/5033528",
-        "https://www.sciencedirect.com/science/article/abs/pii/S105381191832161X",
-        "https://link.springer.com/article/10.1007/s11033-020-05249-1",
-        "https://www.cell.com/current-biology/fulltext/S0960-9822(19)31258-8",
-        "https://ieeexplore.ieee.org/document/8982960",
+        # "https://www.sciencedirect.com/science/article/abs/pii/S105381191832161X",
+        # "https://link.springer.com/article/10.1007/s11033-020-05249-1",
+        # "https://www.cell.com/current-biology/fulltext/S0960-9822(19)31258-8",
+        # "https://ieeexplore.ieee.org/document/8982960",
     ]
 
     pdf_test_urls = [

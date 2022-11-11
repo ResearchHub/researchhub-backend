@@ -65,25 +65,29 @@ def get_url_headers(url: str) -> requests.structures.CaseInsensitiveDict:
     return response.headers
 
 
-def scraper_get_url_headers(url: str) -> requests.structures.CaseInsensitiveDict:
+def scraper_get_url(url: str) -> requests.structures.CaseInsensitiveDict:
     """
-    Perform a HEAD request to retrieve the response headers
+    Perform a GET request to retrieve the response headers
     for `url`. If `url` is invalid or returns a bad status code,
     a subclass of `requests.exceptions.RequestException` will be raised.
     """
     scraper = cloudscraper.create_scraper()
-    response = scraper.head(url, timeout=2)
+    response = scraper.get(url, timeout=2)
     if (response.status_code == 404) or (response.status_code == 403):
         response = scraper.get(url, timeout=2)
         response.raise_for_status()
-    return response.headers
+    return response
 
 
 def check_url_contains_pdf(url) -> bool:
     if url is None:
         return False
     try:
-        headers = scraper_get_url_headers(url)
+        resp = scraper_get_url(url)
+        if "sciencedirect" in url and "download=false" in url:
+            return resp.status_code < 400
+
+        headers = resp.headers
         content_type = headers.get("content-type", "")
         return "application/pdf" in content_type
     except Exception:

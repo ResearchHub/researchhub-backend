@@ -3,6 +3,7 @@ import datetime
 import pytz
 import regex as re
 import requests
+from bs4 import BeautifulSoup
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
 from django.contrib.postgres.indexes import HashIndex
@@ -42,7 +43,7 @@ from researchhub.settings import TESTING
 from summary.models import Summary
 from utils.arxiv import Arxiv
 from utils.crossref import Crossref
-from utils.http import check_url_contains_pdf
+from utils.http import check_url_contains_pdf, scraper_get_url
 from utils.semantic_scholar import SemanticScholar
 from utils.twitter import (
     get_twitter_doi_results,
@@ -775,6 +776,33 @@ class Paper(AbstractGenericReactionModel):
         else:
             self.completeness = self.INCOMPLETE
         self.save()
+
+    def get_abstract_backup(self, should_save=False):
+        if not self.abstract:
+            if "cell.com" in self.url:
+                url_resp = scraper_get_url(self.url)
+                soup = BeautifulSoup(url_resp.text, "lxml")
+                summary = soup.find(
+                    "h2", {"data-left-hand-nav": "Summary"}
+                ).find_next_sibling()
+                summary.find("h3").decompose()
+                summary.find("div", {"class": "mediaPlayer"}).decompose()
+                self.abstract = summary.text
+
+                if should_save:
+                    self.save()
+
+                return self.abstract
+        return None
+
+    def get_pdf_link(self, should_save=False):
+        metadata, converted = populate_pdf_url_from_journal_url(self.url, {})
+        pdf_url = metadata.get("pdf_url")
+        if pdf_url:
+            self.pdf_url = metadata.get("pdf_url")
+            if should_save:
+                self.save()
+        return metadata, converted
 
 
 class MetadataRetrievalAttempt(models.Model):
