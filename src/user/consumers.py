@@ -1,7 +1,7 @@
 import json
 
 from asgiref.sync import async_to_sync
-from channels.generic.websocket import AsyncWebsocketConsumer, WebsocketConsumer
+from channels.generic.websocket import AsyncWebsocketConsumer
 
 from paper.models import Paper, PaperSubmission
 from paper.serializers import DynamicPaperSerializer, PaperSubmissionSerializer
@@ -42,7 +42,7 @@ class PaperSubmissionConsumer(AsyncWebsocketConsumer):
         )
         return serializer.data
 
-    def notify_paper_submission_status(self, event):
+    async def notify_paper_submission_status(self, event):
         # Send message to webSocket (Frontend)
         extra_metadata = {}
         submission_id = event["id"]
@@ -67,4 +67,4 @@ class PaperSubmissionConsumer(AsyncWebsocketConsumer):
             "current_paper": current_paper_data,
             **extra_metadata,
         }
-        self.send(text_data=json.dumps(data))
+        await self.send(text_data=json.dumps(data))
