@@ -8,6 +8,11 @@ from user.models import User
 from utils.parsers import json_serial
 
 
+@database_sync_to_async
+def get_user(user_id):
+    return User.objects.get(id=user_id)
+
+
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         kwargs = self.scope["url_route"]["kwargs"]
@@ -15,7 +20,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             user = self.scope["user"]
         else:
             user_id = kwargs["user_id"]
-            user = database_sync_to_async(User.objects.get(id=user_id))
+            user = await get_user(user_id)
 
         if user.is_anonymous:
             self.close(code=401)
