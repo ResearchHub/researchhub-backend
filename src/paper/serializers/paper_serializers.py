@@ -334,10 +334,10 @@ class PaperSerializer(BasePaperSerializer):
             "edited_file_extract",
             "external_source",
             "file_created_location",
-            "is_open_access",
             "id",
-            "is_removed",
+            "is_open_access",
             "is_removed_by_user",
+            "is_removed",
             "oa_pdf_location",
             "pdf_file_extract",
             "pdf_license_url",
@@ -349,8 +349,8 @@ class PaperSerializer(BasePaperSerializer):
             "twitter_score",
             "unified_document_id",
             "user_flag",
-            "users_who_bookmarked",
             "user_vote",
+            "users_who_bookmarked",
             "views",
         ]
 
@@ -754,6 +754,7 @@ class PaperReferenceSerializer(
 class DynamicPaperSerializer(
     DynamicModelFieldSerializer, GenericReactionSerializerMixin
 ):
+    abstract_src_markdown = serializers.SerializerMethodField()
     authors = serializers.SerializerMethodField()
     boost_amount = serializers.SerializerMethodField()
     bounties = serializers.SerializerMethodField()
@@ -767,6 +768,15 @@ class DynamicPaperSerializer(
     class Meta:
         model = Paper
         fields = "__all__"
+
+    def get_abstract_src_markdown(self, paper):
+        try:
+            byte_string = paper.abstract_src.read()
+            if byte_string is not None:
+                return byte_string.decode("utf-8")
+        except Exception as e:
+            print(e)
+            return None
 
     def get_user_vote(self, paper):
         vote = None
