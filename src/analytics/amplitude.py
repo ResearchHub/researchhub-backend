@@ -2,8 +2,7 @@ import functools
 import json
 
 import requests
-
-# from django.contrib.gis.geoip2 import GeoIP2
+from django.contrib.gis.geoip2 import GeoIP2
 from ipware import get_client_ip
 
 from researchhub.settings import AMPLITUDE_API_KEY
@@ -11,7 +10,7 @@ from user.models import User
 from utils.parsers import json_serial
 from utils.sentry import log_info
 
-# geo = GeoIP2()
+geo = GeoIP2()
 
 
 class Amplitude:
