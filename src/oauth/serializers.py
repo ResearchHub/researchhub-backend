@@ -3,7 +3,8 @@ from time import time
 from allauth.account import app_settings
 from allauth.socialaccount.models import SocialAccount
 from allauth.utils import email_address_exists, get_user_model
-from django.contrib.gis.geoip2 import GeoIP2
+
+# from django.contrib.gis.geoip2 import GeoIP2
 from django.http import HttpRequest
 from django.urls.exceptions import NoReverseMatch
 from django.utils.translation import gettext_lazy as _
@@ -22,7 +23,7 @@ from user.models import User
 from utils import sentry
 from utils.siftscience import check_user_risk, events_api, update_user_risk_score
 
-geo = GeoIP2()
+# geo = GeoIP2()
 
 
 class SocialLoginSerializer(serializers.Serializer):
