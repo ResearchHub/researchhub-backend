@@ -738,9 +738,7 @@ SIFT_WEBHOOK_SECRET_KEY = os.environ.get(
 AMPLITUDE_API_KEY = os.environ.get("AMPLITUDE_API_KEY", keys.AMPLITUDE_API_KEY)
 
 if STAGING or PRODUCTION:
-    GDAL_LIBRARY_PATH = (
-        "/home/ec2-user/miniconda3/lib/:/home/ec2-user/miniconda3/lib/libgdal.so"
-    )
+    GDAL_LIBRARY_PATH = "/home/ec2-user/miniconda3/lib/libgdal.so"
 GEOIP_PATH = os.path.join(BASE_DIR, "analytics")
 
 # Stripe
