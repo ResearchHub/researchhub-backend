@@ -769,20 +769,28 @@ python-versions = ">=3.5"
 Django = ">=2.2"
 
 [[package]]
-name = "django-inlinecss-redux"
-version = "0.4.0"
+name = "django-inlinecss"
+version = "0.3.0"
 description = "A Django app useful for inlining CSS (primarily for e-mails)"
 category = "main"
 optional = false
 python-versions = "*"
+develop = false
 
 [package.dependencies]
-Django = ">=2.2"
+Django = ">=1.11"
+future = ">=0.16.0"
 pynliner = "*"
 
 [package.extras]
-flake8 = ["flake8 (==3.8.0)", "flake8-isort (==2.6.0)", "isort (==4.3.4)", "testfixtures (==6.3.0)"]
+flake8 = ["flake8 (==3.6.0)", "flake8-isort (==2.6.0)", "isort (==4.3.4)", "testfixtures (==6.3.0)"]
 tests = ["mock (==2.0.0)", "pytest (==4.3.1)", "pytest-django (==3.4.8)"]
+
+[package.source]
+type = "git"
+url = "https://github.com/blocher/django-inlinecss.git"
+reference = "django4"
+resolved_reference = "73f6757a436c8b28487c9bef840cebf11ea33c45"
 
 [[package]]
 name = "django-ipware"
@@ -2976,7 +2984,7 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "dbfc5b5d4a5d4a5aed9edefed2262f7c500843012fb497c5b4d4695c3cfc2b55"
+content-hash = "f6487cb9920fc4d1680a97b81bd29b160a18a960865f72d261ba6e26931d62dd"
 
 [metadata.files]
 aiohttp = [
@@ -3497,10 +3505,7 @@ django-filter = [
     {file = "django-filter-2.4.0.tar.gz", hash = "sha256:84e9d5bb93f237e451db814ed422a3a625751cbc9968b484ecc74964a8696b06"},
     {file = "django_filter-2.4.0-py3-none-any.whl", hash = "sha256:e00d32cebdb3d54273c48f4f878f898dced8d5dfaad009438fe61ebdf535ace1"},
 ]
-django-inlinecss-redux = [
-    {file = "django-inlinecss-redux-0.4.0.tar.gz", hash = "sha256:3373cb2c7cf8b51b79cc201be2c62991e431c0dfb4067ca871f3fcd2a2da59c8"},
-    {file = "django_inlinecss_redux-0.4.0-py2.py3-none-any.whl", hash = "sha256:5e6201946264815d9f22fd7f4f3fde7a4bb85ecfc62ce542d4920d0a7d562cb7"},
-]
+django-inlinecss = []
 django-ipware = [
     {file = "django-ipware-3.0.1.tar.gz", hash = "sha256:73a640a5bff00aa7503a35e92e462001cfabb07d73d649c262f117423beee953"},
 ]
