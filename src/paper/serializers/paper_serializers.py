@@ -334,10 +334,10 @@ class PaperSerializer(BasePaperSerializer):
             "edited_file_extract",
             "external_source",
             "file_created_location",
-            "id",
             "is_open_access",
-            "is_removed_by_user",
+            "id",
             "is_removed",
+            "is_removed_by_user",
             "oa_pdf_location",
             "pdf_file_extract",
             "pdf_license_url",
@@ -349,8 +349,8 @@ class PaperSerializer(BasePaperSerializer):
             "twitter_score",
             "unified_document_id",
             "user_flag",
-            "user_vote",
             "users_who_bookmarked",
+            "user_vote",
             "views",
         ]
 
@@ -393,21 +393,20 @@ class PaperSerializer(BasePaperSerializer):
                 self._clean_abstract_or_abstract_src(validated_data)
                 self._add_raw_authors(validated_data)
 
-                # It is important to note that paper signals are ran after call to super
-                paper = super(PaperSerializer, self).create(validated_data)
-                paper_id = paper.id
-                if validated_data["abstract_src"]:
-                    paper.abstract_src.save(
-                        f"RH-PAPER-ABSTRACT-SRC-PAPER-{paper_id}.txt",
-                        validated_data["abstract_src"],
-                    )
-                paper.full_clean(exclude=["paper_type"])
+                paper = None
+
+                if paper is None:
+                    # It is important to note that paper signals
+                    # are ran after call to super
+                    paper = super(PaperSerializer, self).create(validated_data)
+                    paper.full_clean(exclude=["paper_type"])
 
                 unified_doc = paper.unified_document
                 unified_doc_id = paper.unified_document.id
                 if hypothesis_id:
                     self._add_citation(user, hypothesis_id, unified_doc, citation_type)
 
+                paper_id = paper.id
                 # NOTE: calvinhlee - This is an antipattern. Look into changing
                 GrmVote.objects.create(
                     content_type=get_content_type_for_model(paper),
@@ -430,9 +429,12 @@ class PaperSerializer(BasePaperSerializer):
                     hub.save(update_fields=["paper_count"])
 
                 try:
-                    self._add_file(paper, paper.file)
+                    file = paper.file
+                    self._add_file(paper, file)
                 except Exception as e:
-                    sentry.log_error(e)
+                    sentry.log_error(
+                        e,
+                    )
 
                 paper.set_paper_completeness()
 
@@ -497,6 +499,9 @@ class PaperSerializer(BasePaperSerializer):
                     if read_only_field in validated_data:
                         validated_data.pop(read_only_field, None)
 
+                import pdb
+
+                pdb.set_trace()
                 self._add_url(file, validated_data)
                 self._clean_abstract_or_abstract_src(validated_data)
 
@@ -754,7 +759,6 @@ class PaperReferenceSerializer(
 class DynamicPaperSerializer(
     DynamicModelFieldSerializer, GenericReactionSerializerMixin
 ):
-    abstract_src_markdown = serializers.SerializerMethodField()
     authors = serializers.SerializerMethodField()
     boost_amount = serializers.SerializerMethodField()
     bounties = serializers.SerializerMethodField()
@@ -768,15 +772,6 @@ class DynamicPaperSerializer(
     class Meta:
         model = Paper
         fields = "__all__"
-
-    def get_abstract_src_markdown(self, paper):
-        try:
-            byte_string = paper.abstract_src.read()
-            if byte_string is not None:
-                return byte_string.decode("utf-8")
-        except Exception as e:
-            print(e)
-            return None
 
     def get_user_vote(self, paper):
         vote = None
