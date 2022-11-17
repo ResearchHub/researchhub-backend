@@ -485,6 +485,7 @@ class PaperSerializer(BasePaperSerializer):
         hubs = validated_data.pop("hubs", [None])
         raw_authors = validated_data.pop("raw_authors", [])
         file = validated_data.pop("file", None)
+        validated_data.update(abstract_src="TEXT_FIELD")  # todo: calvinhlee remove this
 
         try:
             with transaction.atomic():
@@ -506,7 +507,9 @@ class PaperSerializer(BasePaperSerializer):
                 self._clean_abstract_or_abstract_src(validated_data)
 
                 paper = super(PaperSerializer, self).update(instance, validated_data)
-                paper.full_clean(exclude=["paper_type"])
+                paper.full_clean(
+                    exclude=["paper_type", "abstract_src", "abstract_src_type"]
+                )
 
                 unified_doc = paper.unified_document
                 new_hubs = []

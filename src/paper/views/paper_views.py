@@ -289,18 +289,19 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         # TODO: This needs improvement so we guarantee that we are tracking
         # file created location when a file is actually being added and not
         # just any updates to the paper
-        created_location = None
-        if request.query_params.get("created_location") == "progress":
-            created_location = Paper.CREATED_LOCATION_PROGRESS
-            request.data["file_created_location"] = created_location
+        # import pdb; pdb.set_trace()
+        # created_location = None
+        # if request.query_params.get("created_location") == "progress":
+        #     created_location = Paper.CREATED_LOCATION_PROGRESS
+        #     request.data["file_created_location"] = created_location
 
         response = super().update(request, *args, **kwargs)
 
-        if (created_location is not None) and not request.user.is_anonymous:
-            instance = self.get_object()
-            self._send_created_location_ga_event(instance, request.user)
+        # if (created_location is not None) and not request.user.is_anonymous:
+        #     instance = self.get_object()
+        #     self._send_created_location_ga_event(instance, request.user)
 
-        instance.reset_cache(use_celery=False)
+        # instance.reset_cache(use_celery=False)
         return response
 
     def _send_created_location_ga_event(self, instance, user):
