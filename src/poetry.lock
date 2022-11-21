@@ -769,30 +769,6 @@ python-versions = ">=3.5"
 Django = ">=2.2"
 
 [[package]]
-name = "django-inlinecss"
-version = "0.3.0"
-description = "A Django app useful for inlining CSS (primarily for e-mails)"
-category = "main"
-optional = false
-python-versions = "*"
-develop = false
-
-[package.dependencies]
-Django = ">=1.11"
-future = ">=0.16.0"
-pynliner = "*"
-
-[package.extras]
-flake8 = ["flake8 (==3.6.0)", "flake8-isort (==2.6.0)", "isort (==4.3.4)", "testfixtures (==6.3.0)"]
-tests = ["mock (==2.0.0)", "pytest (==4.3.1)", "pytest-django (==3.4.8)"]
-
-[package.source]
-type = "git"
-url = "https://github.com/blocher/django-inlinecss.git"
-reference = "django4"
-resolved_reference = "73f6757a436c8b28487c9bef840cebf11ea33c45"
-
-[[package]]
 name = "django-ipware"
 version = "3.0.1"
 description = "A Django utility application that returns client's real IP address"
@@ -2316,6 +2292,23 @@ optional = false
 python-versions = ">=3.6"
 
 [[package]]
+name = "q5-django-inlinecss"
+version = "0.0.2"
+description = "A Django app useful for inlining CSS (primarily for e-mails)"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+Django = ">=1.11"
+future = ">=0.16.0"
+pynliner = "*"
+
+[package.extras]
+flake8 = ["flake8 (==3.6.0)", "flake8-isort (==2.6.0)", "isort (==4.3.4)", "testfixtures (==6.3.0)"]
+tests = ["mock (==2.0.0)", "pytest (==4.3.1)", "pytest-django (==3.4.8)"]
+
+[[package]]
 name = "ratelimiter"
 version = "1.2.0.post0"
 description = "Simple python rate limiting object"
@@ -2984,7 +2977,7 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "f6487cb9920fc4d1680a97b81bd29b160a18a960865f72d261ba6e26931d62dd"
+content-hash = "51db34c4145ca5e27b4551757e718f386e0ca9e2b97f235c1a358ec2833e0ece"
 
 [metadata.files]
 aiohttp = [
@@ -3505,7 +3498,6 @@ django-filter = [
     {file = "django-filter-2.4.0.tar.gz", hash = "sha256:84e9d5bb93f237e451db814ed422a3a625751cbc9968b484ecc74964a8696b06"},
     {file = "django_filter-2.4.0-py3-none-any.whl", hash = "sha256:e00d32cebdb3d54273c48f4f878f898dced8d5dfaad009438fe61ebdf535ace1"},
 ]
-django-inlinecss = []
 django-ipware = [
     {file = "django-ipware-3.0.1.tar.gz", hash = "sha256:73a640a5bff00aa7503a35e92e462001cfabb07d73d649c262f117423beee953"},
 ]
@@ -4645,6 +4637,9 @@ pyyaml = [
     {file = "PyYAML-6.0-cp39-cp39-win32.whl", hash = "sha256:b5b9eccad747aabaaffbc6064800670f0c297e52c12754eb1d976c57e4f74dcb"},
     {file = "PyYAML-6.0-cp39-cp39-win_amd64.whl", hash = "sha256:b3d267842bf12586ba6c734f89d1f5b871df0273157918b0ccefa29deb05c21c"},
     {file = "PyYAML-6.0.tar.gz", hash = "sha256:68fb519c14306fec9720a2a5b45bc9f0c8d1b9c72adf45c37baedfcd949c35a2"},
+]
+q5-django-inlinecss = [
+    {file = "q5-django-inlinecss-0.0.2.tar.gz", hash = "sha256:6cbf4a205ac085b8be949afa462c060454a6a76ca043fb092d31185c14f38e8d"},
 ]
 ratelimiter = [
     {file = "ratelimiter-1.2.0.post0-py3-none-any.whl", hash = "sha256:a52be07bc0bb0b3674b4b304550f10c769bbb00fead3072e035904474259809f"},
