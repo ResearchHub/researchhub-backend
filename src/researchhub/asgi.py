@@ -29,7 +29,7 @@ routing = {
 }
 
 if True:
-    routing[websocket] = AllowedHostsOriginValidator(
+    routing["websocket"] = AllowedHostsOriginValidator(
         TokenAuthMiddlewareStack(
             URLRouter(
                 [
