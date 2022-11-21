@@ -28,7 +28,7 @@ routing = {
     "http": django_asgi_app,
 }
 
-if True:
+if CELERY_WORKER:
     routing["websocket"] = AllowedHostsOriginValidator(
         TokenAuthMiddlewareStack(
             URLRouter(
