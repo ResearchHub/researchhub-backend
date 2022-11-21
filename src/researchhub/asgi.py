@@ -20,22 +20,24 @@ import note.routing
 import notification.routing
 import user.routing
 from notification.token_auth import TokenAuthMiddlewareStack
+from researchhub.settings import CELERY_WORKER
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "researchhub.settings")
 
-application = ProtocolTypeRouter(
-    {
-        "http": django_asgi_app,
-        "websocket": AllowedHostsOriginValidator(
-            TokenAuthMiddlewareStack(
-                URLRouter(
-                    [
-                        *note.routing.websocket_urlpatterns,
-                        *notification.routing.websocket_urlpatterns,
-                        *user.routing.websocket_urlpatterns,
-                    ]
-                )
+routing = {
+    "http": django_asgi_app,
+}
+
+if CELERY_WORKER:
+    routing[websocket] = AllowedHostsOriginValidator(
+        TokenAuthMiddlewareStack(
+            URLRouter(
+                [
+                    *note.routing.websocket_urlpatterns,
+                    *notification.routing.websocket_urlpatterns,
+                    *user.routing.websocket_urlpatterns,
+                ]
             )
-        ),
-    }
-)
+        )
+    )
+application = ProtocolTypeRouter(routing)
