@@ -1,78 +1,55 @@
 import json
 
-from asgiref.sync import async_to_sync
-from channels.generic.websocket import WebsocketConsumer
+from channels.db import database_sync_to_async
+from channels.exceptions import StopConsumer
+from channels.generic.websocket import AsyncWebsocketConsumer
 
-from note.models import Note
-from note.serializers import NoteSerializer
-from user.models import User
+from user.models import Organization
 
 
-class NoteConsumer(WebsocketConsumer):
-    def connect(self):
-        kwargs = self.scope['url_route']['kwargs']
-        organization_slug = kwargs['organization_slug']
+@database_sync_to_async
+def check_org_has_user(user, organization_slug):
+    organization = Organization.objects.filter(slug=organization_slug)
+    if organization.exists():
+        organization = organization.first()
+    else:
+        return False
+    return organization.org_has_user(user)
 
-        room = f'{organization_slug}_notebook'
-        self.room_group_name = room
 
-        async_to_sync(self.channel_layer.group_add)(
-            self.room_group_name,
-            self.channel_name
-        )
-        self.accept(subprotocol='Token')
+class NoteConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        if "user" not in self.scope:
+            self.close(code=401)
+            raise StopConsumer()
 
-    def disconnect(self, close_code):
-        if close_code == 401 or not hasattr(self, 'room_group_name'):
+        user = self.scope["user"]
+        if user.is_anonymous:
+            self.close(code=401)
+            raise StopConsumer()
+        else:
+            kwargs = self.scope["url_route"]["kwargs"]
+            organization_slug = kwargs["organization_slug"]
+
+            org_has_user = await check_org_has_user(user, organization_slug)
+            if not org_has_user:
+                self.close(code=401)
+                raise StopConsumer()
+
+            room = f"{organization_slug}_notebook"
+            self.room_group_name = room
+            await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+            await self.accept(subprotocol="Token")
+
+    async def disconnect(self, close_code):
+        if close_code == 401 or not hasattr(self, "room_group_name"):
             return
         else:
-            async_to_sync(self.channel_layer.group_discard)(
-                self.room_group_name,
-                self.channel_name
+            await self.channel_layer.group_discard(
+                self.room_group_name, self.channel_name
             )
+        raise StopConsumer()
 
-    def notify_note_created(self, event):
-        # Send message to webSocket (Frontend)
-        note_id = event['id']
-        note = Note.objects.get(id=note_id)
-        serialized_data = NoteSerializer(note).data
-        data = {
-            'type': 'create',
-            'data': serialized_data,
-        }
-        self.send(text_data=json.dumps(data))
-
-    def notify_note_deleted(self, event):
-        # Send message to webSocket (Frontend)
-        note_id = event['id']
-        note = Note.objects.get(id=note_id)
-        serialized_data = NoteSerializer(note).data
-        data = {
-            'type': 'delete',
-            'data': serialized_data,
-        }
-        self.send(text_data=json.dumps(data))
-
-    def notify_note_updated_title(self, event):
-        # Send message to webSocket (Frontend)
-        note_id = event['id']
-        note = Note.objects.get(id=note_id)
-        serialized_data = NoteSerializer(note).data
-        data = {
-            'type': 'update_title',
-            'data': serialized_data,
-        }
-        self.send(text_data=json.dumps(data))
-
-    def notify_note_updated_permission(self, event):
-        # Send message to webSocket (Frontend)
-        note_id = event['id']
-        requester_id = event['requester_id']
-        note = Note.objects.get(id=note_id)
-        serialized_data = NoteSerializer(note).data
-        data = {
-            'type': 'update_permission',
-            'data': serialized_data,
-            'requester': requester_id
-        }
-        self.send(text_data=json.dumps(data))
+    async def send_note_notification(self, event):
+        data = event["data"]
+        await self.send(text_data=json.dumps(data))

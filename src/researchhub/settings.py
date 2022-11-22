@@ -56,6 +56,7 @@ elif PRODUCTION:
 elif CLOUD:
     BASE_FRONTEND_URL = "https://staging-web.researchhub.com"
 
+DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 # Django Debug Toolbar
 USE_DEBUG_TOOLBAR = False
@@ -160,6 +161,8 @@ CORS_ORIGIN_WHITELIST = [
 # Application definition
 
 INSTALLED_APPS = [
+    # Daphne needs to be first
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -316,6 +319,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "researchhub.wsgi.application"
+
 
 # Authentication
 
@@ -602,8 +606,8 @@ if TESTING:
 else:
     CACHES = {
         "default": {
-            "BACKEND": "redis_cache.RedisCache",
-            "LOCATION": f"{REDIS_HOST}:{REDIS_PORT}",
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": f"redis://{REDIS_HOST}:{REDIS_PORT}",
             "KEY_PREFIX": APP_ENV,
         },
     }
@@ -630,7 +634,7 @@ REDBEAT_REDIS_URL = "redis://{}:{}/0".format(REDIS_HOST, REDIS_PORT)
 REDBEAT_KEY_PREFIX = f"{APP_ENV}_redbeat_"
 
 # Django Channels
-ASGI_APPLICATION = "researchhub.routing.application"
+ASGI_APPLICATION = "researchhub.asgi.application"
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
@@ -733,6 +737,8 @@ SIFT_WEBHOOK_SECRET_KEY = os.environ.get(
 # Amplitude and GeoIP
 AMPLITUDE_API_KEY = os.environ.get("AMPLITUDE_API_KEY", keys.AMPLITUDE_API_KEY)
 
+if STAGING or PRODUCTION:
+    GDAL_LIBRARY_PATH = "/home/ec2-user/miniconda3/lib/libgdal.so"
 GEOIP_PATH = os.path.join(BASE_DIR, "analytics")
 
 # Stripe

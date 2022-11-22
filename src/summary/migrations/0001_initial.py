@@ -3,6 +3,7 @@
 from django.conf import settings
 import django.contrib.postgres.fields.jsonb
 from django.db import migrations, models
+import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
@@ -23,8 +24,8 @@ class Migration(migrations.Migration):
                 ('current', models.BooleanField(default=False)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
-                ('paper', models.ForeignKey(on_delete='CASCADE', related_name='summary', to='paper.Paper')),
-                ('user', models.ForeignKey(on_delete='CASCADE', related_name='edits', to=settings.AUTH_USER_MODEL)),
+                ('paper', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='summary', to='paper.Paper')),
+                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='edits', to=settings.AUTH_USER_MODEL)),
             ],
         ),
     ]

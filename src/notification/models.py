@@ -85,18 +85,38 @@ class Notification(models.Model):
         super().save(*args, **kwargs)
 
     def send_notification(self):
+        from notification.serializers import DynamicNotificationSerializer
+        from notification.views import NotificationViewSet
+
+        context = NotificationViewSet()._get_context()
+        notification = Notification.objects.get(id=self.id)
+        serialized_data = DynamicNotificationSerializer(
+            notification,
+            _include_fields=[
+                "action_user",
+                "body",
+                "created_date",
+                "id",
+                "notification_type",
+                "read",
+                "read_date",
+                "recipient",
+            ],
+            context=context,
+        ).data
+
         user = self.recipient
         room = f"notification_{user.id}"
         notification_type = self.notification_type
         channel_layer = get_channel_layer()
-        # async_to_sync(channel_layer.group_send)(
-        #     room,
-        #     {
-        #         "type": "send_notification",
-        #         "notification_type": notification_type,
-        #         "id": self.id,
-        #     },
-        # )
+        async_to_sync(channel_layer.group_send)(
+            room,
+            {
+                "type": "send_notification",
+                "notification_type": notification_type,
+                "data": serialized_data,
+            },
+        )
 
     def format_body(self):
         format_func = getattr(

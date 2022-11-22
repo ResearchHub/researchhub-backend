@@ -5,11 +5,10 @@ import regex as re
 import requests
 from bs4 import BeautifulSoup
 from django.contrib.contenttypes.fields import GenericRelation
-from django.contrib.postgres.fields import JSONField
 from django.contrib.postgres.indexes import HashIndex
 from django.core.validators import FileExtensionValidator
 from django.db import models, transaction
-from django.db.models import Avg, Count, F, IntegerField, Q, Sum
+from django.db.models import Avg, Count, F, IntegerField, JSONField, Q, Sum
 from django.db.models.functions import Cast, Extract
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from manubot.cite.doi import get_doi_csl_item
@@ -17,7 +16,6 @@ from manubot.cite.unpaywall import Unpaywall
 
 import utils.sentry as sentry
 from discussion.reaction_models import AbstractGenericReactionModel
-from hub.models import Hub
 from hub.serializers import HubSerializer
 from paper.lib import journal_hosts
 from paper.tasks import (

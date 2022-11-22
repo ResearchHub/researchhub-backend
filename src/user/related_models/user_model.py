@@ -162,6 +162,7 @@ class User(AbstractUser):
             total_balance=Coalesce(
                 Sum(Cast("amount", DecimalField(max_digits=255, decimal_places=128))),
                 Value(0),
+                output_field=DecimalField(),
             )
         )
         total_balance = balance.get("total_balance", 0) or 0

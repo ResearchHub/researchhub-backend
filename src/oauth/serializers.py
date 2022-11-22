@@ -3,10 +3,9 @@ from time import time
 from allauth.account import app_settings
 from allauth.socialaccount.models import SocialAccount
 from allauth.utils import email_address_exists, get_user_model
-from django.contrib.gis.geoip2 import GeoIP2
 from django.http import HttpRequest
 from django.urls.exceptions import NoReverseMatch
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from elasticsearch.exceptions import ConnectionTimeout
 from rest_framework import serializers
 
@@ -21,8 +20,6 @@ from researchhub.settings import REFERRAL_PROGRAM
 from user.models import User
 from utils import sentry
 from utils.siftscience import check_user_risk, events_api, update_user_risk_score
-
-geo = GeoIP2()
 
 
 class SocialLoginSerializer(serializers.Serializer):
@@ -242,23 +239,26 @@ class SocialLoginSerializer(serializers.Serializer):
             sentry.log_error(e)
             pass
 
-        request = self._get_request()
-        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(",")[0]
-        else:
-            ip = request.META.get("REMOTE_ADDR")
+        # DEPRECATED
+        # Requires geolocation data from frontend
 
-        user = attrs["user"]
-        check_user_risk(user)
+        # request = self._get_request()
+        # x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+        # if x_forwarded_for:
+        #     ip = x_forwarded_for.split(",")[0]
+        # else:
+        #     ip = request.META.get("REMOTE_ADDR")
 
-        if user.is_authenticated and not user.probable_spammer:
-            try:
-                country = geo.country(ip)
-                user.country_code = country.get("country_code")
-                user.save()
-            except Exception as e:
-                print(e)
-                sentry.log_error(e)
+        # user = attrs["user"]
+        # check_user_risk(user)
+
+        # if user.is_authenticated and not user.probable_spammer:
+        #     try:
+        #         country = geo.country(ip)
+        #         user.country_code = country.get("country_code")
+        #         user.save()
+        #     except Exception as e:
+        #         print(e)
+        #         sentry.log_error(e)
 
         return attrs

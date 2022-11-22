@@ -33,54 +33,77 @@ class Note(DefaultModel):
     def owner(self):
         pass
 
+    def _get_serialized_notification_data(self):
+        from note.serializers import NoteSerializer
+
+        return NoteSerializer(self).data
+
     def notify_note_created(self):
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
         channel_layer = get_channel_layer()
-        # async_to_sync(channel_layer.group_send)(
-        #     room,
-        #     {
-        #         "type": "notify_note_created",
-        #         "id": self.id,
-        #     },
-        # )
+
+        serialized_data = self._get_serialized_notification_data()
+        data = {
+            "type": "create",
+            "data": serialized_data,
+        }
+        async_to_sync(channel_layer.group_send)(
+            room, {"type": "send_note_notification", "data": data}
+        )
 
     def notify_note_deleted(self):
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
         channel_layer = get_channel_layer()
-        # async_to_sync(channel_layer.group_send)(
-        #     room,
-        #     {
-        #         "type": "notify_note_deleted",
-        #         "id": self.id,
-        #     },
-        # )
+        serialized_data = self._get_serialized_notification_data()
+        data = {
+            "type": "delete",
+            "data": serialized_data,
+        }
+        async_to_sync(channel_layer.group_send)(
+            room,
+            {
+                "type": "send_note_notification",
+                "data": data,
+            },
+        )
 
     def notify_note_updated_title(self):
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
         channel_layer = get_channel_layer()
-        # async_to_sync(channel_layer.group_send)(
-        #     room,
-        #     {
-        #         "type": "notify_note_updated_title",
-        #         "id": self.id,
-        #     },
-        # )
+        serialized_data = self._get_serialized_notification_data()
+        data = {
+            "type": "update_title",
+            "data": serialized_data,
+        }
+        async_to_sync(channel_layer.group_send)(
+            room,
+            {
+                "type": "send_note_notification",
+                "data": data,
+            },
+        )
 
     def notify_note_updated_permission(self, requester):
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
         channel_layer = get_channel_layer()
-        # async_to_sync(channel_layer.group_send)(
-        #     room,
-        #     {
-        #         "type": "notify_note_updated_permission",
-        #         "id": self.id,
-        #         "requester_id": requester.id,
-        #     },
-        # )
+        serialized_data = self._get_serialized_notification_data()
+        data = {
+            "type": "update_permission",
+            "data": serialized_data,
+        }
+
+        async_to_sync(channel_layer.group_send)(
+            room,
+            {
+                "type": "send_note_notification",
+                "data": data,
+                "requester_id": requester.id,
+            },
+        )
 
 
 class NoteContent(models.Model):
