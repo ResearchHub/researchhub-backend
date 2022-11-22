@@ -228,7 +228,6 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-
         context = self._get_paper_context(request)
         cache_key = get_cache_key("paper", instance.id)
         cache_hit = cache.get(cache_key)
@@ -294,6 +293,7 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             created_location = Paper.CREATED_LOCATION_PROGRESS
             request.data["file_created_location"] = created_location
 
+        # need to encode before getting passed to serializer
         response = super().update(request, *args, **kwargs)
 
         if (created_location is not None) and not request.user.is_anonymous:
