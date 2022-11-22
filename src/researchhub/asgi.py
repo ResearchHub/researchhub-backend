@@ -24,9 +24,10 @@ from researchhub.settings import CELERY_WORKER
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "researchhub.settings")
 
-routing = {
-    "http": django_asgi_app,
-}
+routing = {}
+
+if not CELERY_WORKER:
+    routing["http"] = django_asgi_app
 
 if CELERY_WORKER:
     routing["websocket"] = AllowedHostsOriginValidator(
