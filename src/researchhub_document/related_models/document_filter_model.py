@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 import pytz
 from django.db import models
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, DecimalField, Q, Sum
 from django.db.models.functions import Coalesce
 
 from reputation.models import Bounty
@@ -202,7 +202,11 @@ class DocumentFilter(DefaultModel):
 
     def update_bounty_total_amount(self, unified_document, document):
         self.bounty_total_amount = unified_document.related_bounties.aggregate(
-            total=Coalesce(Sum("amount", filter=Q(status=Bounty.OPEN)), 0)
+            total=Coalesce(
+                Sum("amount", filter=Q(status=Bounty.OPEN)),
+                0,
+                output_field=DecimalField(),
+            )
         ).get("total", 0)
 
     def get_discussued(self, document, start_date, end_date):

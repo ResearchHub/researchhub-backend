@@ -2,7 +2,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import BrinIndex
 from django.db import models
-from django.db.models import Sum
+from django.db.models import DecimalField, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -125,7 +125,7 @@ class Action(DefaultModel):
             if uni_doc.document_type == "QUESTION":
                 doc_type_icon = "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/question-512.png"
             amount = uni_doc.related_bounties.aggregate(
-                total=Coalesce(Sum("amount"), 0)
+                total=Coalesce(Sum("amount"), 0, output_field=DecimalField())
             ).get("total", 0)
             hubs = uni_doc.hubs
             act.bounty_amount = f"{amount:,.0f} Bounty"
