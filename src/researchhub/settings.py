@@ -827,8 +827,20 @@ REFERRAL_PROGRAM = {
     # Referrer will receive a bonus defined as a percetage of the invited person's earnings.
     # The bonus will be paid by RH
     "REFERER_EARN_PCT": 0.07,
-    "INVITED_EARN_AMOUNT": 50,
+    "INVITED_EARN_AMOUNT": 0,
     # Time period in which referer will receive earnings defined by
     # invited join date + value below
     "ELIGIBLE_TIME_PERIOD_IN_MONTHS": 6,
+    # Only pay referrer earnings if invitee earns in one of these transactions
+    "ELIGIBLE_TRANSACTIONS": [
+        "COMMENT_UPVOTED",
+        "REPLY_UPVOTED",
+        "THREAD_UPVOTED",
+        "RESEARCHHUB_POST_UPVOTED",
+        "HYPOTHESIS_UPVOTED",
+        "PAPER_UPVOTED",
+        "REWARD",
+        "PURCHASE",
+        "BOUNTY_PAYOUT",
+    ],
 }

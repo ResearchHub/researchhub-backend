@@ -113,22 +113,10 @@ class Distributor:
             == original_distribution.recipient.invited_by.id
         )
 
-        whitelisted_dist_types = [
-            "COMMENT_UPVOTED",
-            "REPLY_UPVOTED",
-            "THREAD_UPVOTED",
-            "RESEARCHHUB_POST_UPVOTED",
-            "REFERRAL_APPROVED",
-            "HYPOTHESIS_UPVOTED",
-            "PAPER_UPVOTED",
-            "REWARD",
-            "PURCHASE",
-            "BOUNTY_PAYOUT",
-        ]
-
         should_create = (
             original_distribution.recipient.invited_by
-            and original_distribution.distribution_type in whitelisted_dist_types
+            and original_distribution.distribution_type
+            in REFERRAL_PROGRAM["ELIGIBLE_TRANSACTIONS"]
             and not referrer_is_giver
             and now < last_day_of_eligible_period
             and referer_rsc_amount >= 1
