@@ -501,7 +501,6 @@ class PaperSerializer(BasePaperSerializer):
         hubs = validated_data.pop("hubs", [None])
         raw_authors = validated_data.pop("raw_authors", [])
         file = validated_data.pop("file", None)
-        validated_data.pop("score")
 
         try:
             with transaction.atomic():
