@@ -522,6 +522,8 @@ DIST_WHITELIST = [
     "patricklu@researchhub.com",
 ]
 
+SIFT_MODERATION_WHITELIST = []
+
 # Sentry
 
 SENTRY_ENVIRONMENT = APP_ENV
