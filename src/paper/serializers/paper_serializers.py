@@ -500,7 +500,6 @@ class PaperSerializer(BasePaperSerializer):
         hubs = validated_data.pop("hubs", [None])
         raw_authors = validated_data.pop("raw_authors", [])
         request = self.context.get("request", None)
-        # validated_data["abstract_src_type"] = request.data["abstract_src_type"]
         
         try:
             with transaction.atomic():
