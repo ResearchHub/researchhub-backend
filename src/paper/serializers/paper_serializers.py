@@ -495,13 +495,13 @@ class PaperSerializer(BasePaperSerializer):
             raise error
 
     def update(self, instance, validated_data):
-
-        request = self.context.get("request", None)
         authors = validated_data.pop("authors", [None])
+        file = validated_data.pop("file", None)
         hubs = validated_data.pop("hubs", [None])
         raw_authors = validated_data.pop("raw_authors", [])
-        file = validated_data.pop("file", None)
-
+        request = self.context.get("request", None)
+        validated_data["abstract_src_type"] = request.data["abstract_src_type"]
+        
         try:
             with transaction.atomic():
 
