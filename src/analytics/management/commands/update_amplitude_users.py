@@ -52,8 +52,4 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         users = User.objects.filter(first_name__icontains="student")
-        import pdb
-
-        pdb.set_trace()
-
         self.update_users(users)

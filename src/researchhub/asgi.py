@@ -20,7 +20,7 @@ import note.routing
 import notification.routing
 import user.routing
 from notification.token_auth import TokenAuthMiddlewareStack
-from researchhub.settings import CELERY_WORKER
+from researchhub.settings import CELERY_WORKER, DEVELOPMENT
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "researchhub.settings")
 
@@ -29,7 +29,7 @@ routing = {}
 if not CELERY_WORKER:
     routing["http"] = django_asgi_app
 
-if CELERY_WORKER:
+if CELERY_WORKER or DEVELOPMENT:
     routing["websocket"] = AllowedHostsOriginValidator(
         TokenAuthMiddlewareStack(
             URLRouter(

@@ -777,14 +777,19 @@ class Paper(AbstractGenericReactionModel):
 
     def get_abstract_backup(self, should_save=False):
         if not self.abstract:
-            if "cell.com" in self.url:
-                url_resp = scraper_get_url(self.url)
-                soup = BeautifulSoup(url_resp.text, "lxml")
-                summary = soup.find(
-                    "h2", {"data-left-hand-nav": "Summary"}
-                ).find_next_sibling()
-                summary.find("h3").decompose()
-                summary.find("div", {"class": "mediaPlayer"}).decompose()
+            if self.url and "cell.com" in self.url:
+                try:
+                    url_resp = scraper_get_url(self.url)
+                    soup = BeautifulSoup(url_resp.text, "lxml")
+                    summary = soup.find(
+                        "h2", {"data-left-hand-nav": "Summary"}
+                    ).find_next_sibling()
+                    summary.find("h3").decompose()
+                    summary.find("div", {"class": "mediaPlayer"}).decompose()
+                except Exception as e:
+                    sentry.log_error(e)
+                    return None
+
                 self.abstract = summary.text
 
                 if should_save:
@@ -794,6 +799,9 @@ class Paper(AbstractGenericReactionModel):
         return None
 
     def get_pdf_link(self, should_save=False):
+        if not self.url:
+            return None, None
+
         metadata, converted = populate_pdf_url_from_journal_url(self.url, {})
         pdf_url = metadata.get("pdf_url")
         if pdf_url:
