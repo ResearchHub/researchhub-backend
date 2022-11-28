@@ -175,7 +175,7 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
 
     def get_review_details(self):
         details = {"avg": 0, "count": 0}
-        reviews = self.reviews.values_list("score", flat=True)
+        reviews = self.reviews.filter(is_removed=False).values_list("score", flat=True)
         if reviews:
             details["avg"] = round(mean(reviews), 1)
             details["count"] = reviews.count()

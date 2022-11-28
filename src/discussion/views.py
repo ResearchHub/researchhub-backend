@@ -172,6 +172,11 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         instance.is_removed = True
         instance.save()
 
+        review = instance.review
+        if review:
+            review.is_removed = True
+            review.save()
+
         return Response(status=status.HTTP_200_OK)
 
     def get_serializer_context(self):
