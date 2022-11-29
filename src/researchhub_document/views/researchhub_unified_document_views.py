@@ -91,6 +91,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             inner_doc.save()
             inner_doc.reset_cache(use_celery=False)
 
+        action = inner_doc.actions
+        if action.exists():
+            action = action.first()
+            action.is_removed = True
+            action.display = False
+            action.save()
+
         doc_type = get_doc_type_key(doc)
         hub_ids = doc.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
@@ -116,6 +123,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             inner_doc.is_removed = False
             inner_doc.save()
             inner_doc.reset_cache(use_celery=False)
+
+        action = inner_doc.actions
+        if action.exists():
+            action = action.first()
+            action.is_removed = False
+            action.display = True
+            action.save()
 
         doc_type = get_doc_type_key(doc)
         hub_ids = doc.hubs.values_list("id", flat=True)

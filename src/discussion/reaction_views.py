@@ -153,6 +153,7 @@ class ReactionViewActionMixin:
                     if action.exists():
                         action = action.first()
                         action.is_removed = True
+                        action.display = False
                         action.save()
 
                     doc_type = get_doc_type_key(doc)
@@ -167,6 +168,7 @@ class ReactionViewActionMixin:
                     if item.paper:
                         item.paper.reset_cache()
             except Exception as e:
+                print(e)
                 log_error(e)
 
             return Response(self.get_serializer(instance=item).data, status=200)
