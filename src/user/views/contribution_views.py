@@ -45,15 +45,9 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         actions = (
             self.get_filtered_queryset()
             .filter(
-                Q(papers__is_removed=False)
-                | Q(threads__is_removed=False)
-                | Q(comments__is_removed=False)
-                | Q(replies__is_removed=False)
-                | Q(posts__unified_document__is_removed=False)
-                | Q(hypothesis__unified_document__is_removed=False)
-            )
-            .filter(
-                user__isnull=False, content_type__model__in=self._get_allowed_models()
+                is_removed=False,
+                user__isnull=False,
+                content_type__model__in=self._get_allowed_models(),
             )
             .select_related(
                 "content_type",

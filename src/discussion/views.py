@@ -170,7 +170,18 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         instance = Thread.objects.get(id=thread_id)
         instance.is_removed = True
+        action = instance.actions
+        if action.exists():
+            action = action.first()
+            action.is_removed = True
+            action.save()
+
         instance.save()
+
+        review = instance.review
+        if review:
+            review.is_removed = True
+            review.save()
 
         return Response(status=status.HTTP_200_OK)
 
@@ -390,6 +401,11 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         instance = Comment.objects.get(id=comment_id)
         instance.is_removed = True
+        action = instance.actions
+        if action.exists():
+            action = action.first()
+            action.is_removed = True
+            action.save()
         instance.save()
 
         return Response(status=status.HTTP_200_OK)
@@ -554,6 +570,11 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         instance = Reply.objects.get(id=reply_id)
         instance.is_removed = True
+        action = instance.actions
+        if action.exists():
+            action = action.first()
+            action.is_removed = True
+            action.save()
         instance.save()
 
         return Response(status=status.HTTP_200_OK)

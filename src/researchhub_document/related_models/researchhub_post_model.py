@@ -6,7 +6,6 @@ from django.db import models
 from django.db.models import Avg, Count, IntegerField, Q, Sum
 from django.db.models.functions import Cast, Extract
 
-from discussion.models import Thread
 from discussion.reaction_models import AbstractGenericReactionModel
 from hub.serializers import HubSerializer
 from paper.utils import paper_piecewise_log

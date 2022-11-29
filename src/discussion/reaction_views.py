@@ -27,6 +27,7 @@ from researchhub_document.related_models.constants.filters import (
 )
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from utils.permissions import CreateOrUpdateIfAllowed
+from utils.sentry import log_error
 from utils.siftscience import decisions_api, events_api, update_user_risk_score
 
 
@@ -148,6 +149,13 @@ class ReactionViewActionMixin:
                             bounty.cancel()
                             bounty.save()
 
+                    action = getattr(item, "actions", None)
+                    if action.exists():
+                        action = action.first()
+                        action.is_removed = True
+                        action.display = False
+                        action.save()
+
                     doc_type = get_doc_type_key(doc)
                     hubs = list(doc.hubs.all().values_list("id", flat=True))
 
@@ -156,14 +164,12 @@ class ReactionViewActionMixin:
                         document_type=[doc_type, "all"],
                         filters=[DISCUSSED, HOT],
                     )
-            except Exception as e:
-                pass
 
-            try:
-                if item.paper:
-                    item.paper.reset_cache()
+                    if item.paper:
+                        item.paper.reset_cache()
             except Exception as e:
-                pass
+                print(e)
+                log_error(e)
 
             return Response(self.get_serializer(instance=item).data, status=200)
 

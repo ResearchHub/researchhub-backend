@@ -81,6 +81,7 @@ class BaseComment(AbstractGenericReactionModel):
         content_type_field="content_type",
         related_query_name="discussion",
     )
+    actions = GenericRelation("user.action")
 
     class Meta:
         abstract = True

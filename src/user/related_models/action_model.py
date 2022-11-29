@@ -24,6 +24,7 @@ class Action(DefaultModel):
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.PositiveIntegerField()
     item = GenericForeignKey("content_type", "object_id")
+    is_removed = models.BooleanField(default=False)
     display = models.BooleanField(default=True)
     read_date = models.DateTimeField(default=None, null=True)
     hubs = models.ManyToManyField(
