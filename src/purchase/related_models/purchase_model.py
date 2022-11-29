@@ -1,21 +1,21 @@
-import json
 import hashlib
+import json
 from datetime import datetime
 
-from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from purchase.related_models.aggregate_purchase_model import AggregatePurchase
 
+from purchase.related_models.aggregate_purchase_model import AggregatePurchase
 from utils.models import PaidStatusModelMixin
 
 
 class Purchase(PaidStatusModelMixin):
-    OFF_CHAIN = 'OFF_CHAIN'
-    ON_CHAIN = 'ON_CHAIN'
+    OFF_CHAIN = "OFF_CHAIN"
+    ON_CHAIN = "ON_CHAIN"
 
-    BOOST = 'BOOST'
-    DOI = 'DOI'
+    BOOST = "BOOST"
+    DOI = "DOI"
 
     PURCHASE_METHOD_CHOICES = [
         (OFF_CHAIN, OFF_CHAIN),
@@ -28,46 +28,28 @@ class Purchase(PaidStatusModelMixin):
     ]
 
     user = models.ForeignKey(
-        'user.User',
-        on_delete=models.CASCADE,
-        related_name='purchases'
+        "user.User", on_delete=models.CASCADE, related_name="purchases"
     )
     group = models.ForeignKey(
         AggregatePurchase,
         null=True,
         on_delete=models.SET_NULL,
-        related_name='purchases'
+        related_name="purchases",
     )
-    content_type = models.ForeignKey(
-        ContentType,
-        on_delete=models.CASCADE
-    )
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.PositiveIntegerField()
-    item = GenericForeignKey(
-        'content_type',
-        'object_id'
-    )
+    item = GenericForeignKey("content_type", "object_id")
+    actions = GenericRelation("user.action")
 
     purchase_method = models.CharField(
         choices=PURCHASE_METHOD_CHOICES,
         max_length=16,
     )
-    purchase_type = models.CharField(
-        choices=PURCHASE_TYPE_CHOICES,
-        max_length=16
-    )
+    purchase_type = models.CharField(choices=PURCHASE_TYPE_CHOICES, max_length=16)
 
-    transaction_hash = models.CharField(
-        max_length=255,
-        blank=True,
-        null=True
-    )
+    transaction_hash = models.CharField(max_length=255, blank=True, null=True)
 
-    purchase_hash = models.CharField(
-        max_length=32,
-        blank=True,
-        null=True
-    )
+    purchase_hash = models.CharField(max_length=32, blank=True, null=True)
     amount = models.CharField(max_length=255)
     boost_time = models.FloatField(null=True)
 
@@ -82,21 +64,23 @@ class Purchase(PaidStatusModelMixin):
     def data(self):
         data = self.get_serialized_representation()
         data_hash = hash(data)
-        return {'data': data, 'hash': data_hash}
+        return {"data": data, "hash": data_hash}
 
     def get_serialized_representation(self):
-        data = json.dumps({
-            'id': self.id,
-            'content_type': self.content_type.id,
-            'object_id': self.object_id,
-            'purchase_method': self.purchase_method,
-            'purchase_type': self.purchase_type,
-            'paid_status': self.paid_status,
-            'transaction_hash': self.transaction_hash,
-            'amount': self.amount,
-            'created_date': self.created_date.isoformat(),
-            'updated_date': self.updated_date.isoformat()
-        })
+        data = json.dumps(
+            {
+                "id": self.id,
+                "content_type": self.content_type.id,
+                "object_id": self.object_id,
+                "purchase_method": self.purchase_method,
+                "purchase_type": self.purchase_type,
+                "paid_status": self.paid_status,
+                "transaction_hash": self.transaction_hash,
+                "amount": self.amount,
+                "created_date": self.created_date.isoformat(),
+                "updated_date": self.updated_date.isoformat(),
+            }
+        )
         return data
 
     def get_boost_time(self, amount=None):
@@ -106,8 +90,7 @@ class Purchase(PaidStatusModelMixin):
             previous_boosts = self.item.purchases.exclude(id=self.id)
             if previous_boosts.exists():
                 previous_boost_amounts = previous_boosts.values_list(
-                    'amount',
-                    flat=True
+                    "amount", flat=True
                 )
                 previous_boost_time += sum(map(float, previous_boost_amounts))
 
@@ -138,7 +121,7 @@ class Purchase(PaidStatusModelMixin):
             content_type=content_type,
             object_id=object_id,
             paid_status=paid_status,
-            purchases__boost_time__gt=0
+            purchases__boost_time__gt=0,
         ).distinct()
 
         if aggregates.exists():
@@ -148,6 +131,6 @@ class Purchase(PaidStatusModelMixin):
                 user=user,
                 content_type=content_type,
                 object_id=object_id,
-                paid_status=paid_status
+                paid_status=paid_status,
             )
         return aggregate_group
