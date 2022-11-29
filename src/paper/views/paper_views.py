@@ -228,7 +228,6 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-
         context = self._get_paper_context(request)
         cache_key = get_cache_key("paper", instance.id)
         cache_hit = cache.get(cache_key)
@@ -243,34 +242,35 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             instance,
             context=context,
             _include_fields=[
+                "abstract",
+                "abstract_src_markdown",
                 "authors",
                 "boost_amount",
                 "bounties",
-                "id",
+                "created_date",
+                "discussion_count",
+                "doi",
+                "external_source",
                 "file",
                 "first_preview",
                 "hubs",
-                "score",
-                "uploaded_by",
-                "uploaded_date",
-                "discussion_count",
-                "pdf_file_extract",
+                "id",
                 "is_open_access",
                 "oa_status",
-                "external_source",
-                "title",
-                "doi",
-                "paper_title",
                 "paper_publish_date",
-                "raw_authors",
-                "abstract",
-                "url",
-                "pdf_url",
+                "paper_title",
+                "pdf_file_extract",
                 "pdf_license",
+                "pdf_url",
+                "raw_authors",
+                "score",
                 "slug",
+                "title",
                 "unified_document",
+                "uploaded_by",
                 "uploaded_date",
-                "created_date",
+                "uploaded_date",
+                "url",
             ],
         )
         serializer_data = serializer.data
@@ -293,6 +293,7 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             created_location = Paper.CREATED_LOCATION_PROGRESS
             request.data["file_created_location"] = created_location
 
+        # need to encode before getting passed to serializer
         response = super().update(request, *args, **kwargs)
 
         if (created_location is not None) and not request.user.is_anonymous:

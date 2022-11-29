@@ -38,11 +38,12 @@ from paper.utils import (
 from purchase.models import Purchase
 from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
+from researchhub_document.related_models.constants.editor_type import (
+    EDITOR_TYPES,
+    TEXT_FIELD,
+)
 from summary.models import Summary
-from utils.arxiv import Arxiv
-from utils.crossref import Crossref
 from utils.http import check_url_contains_pdf, scraper_get_url
-from utils.semantic_scholar import SemanticScholar
 from utils.twitter import (
     get_twitter_doi_results,
     get_twitter_results,
@@ -177,6 +178,26 @@ class Paper(AbstractGenericReactionModel):
     paper_publish_date = models.DateField(null=True, blank=True)
     raw_authors = JSONField(blank=True, null=True)
     abstract = models.TextField(default=None, null=True, blank=True)
+    abstract_src = models.FileField(
+        blank=True,
+        default=None,
+        help_text="""
+            Abstract_src is different field than abstract field.
+            Abstract is legacy text field where as abstract_src field is a src field that is
+            intended to be used along with different types of text editors from the frontend.
+        """,
+        max_length=512,
+        null=True,
+        upload_to="uploads/paper_abstract_src/%Y/%m/%d/",
+    )
+    abstract_src_type = models.CharField(
+        blank=False,
+        choices=EDITOR_TYPES,
+        default=TEXT_FIELD,
+        help_text="Indicates which text editor was used for abstract section.",
+        max_length=32,
+        null=True,
+    )
     publication_type = models.CharField(
         max_length=255, default=None, null=True, blank=True
     )
