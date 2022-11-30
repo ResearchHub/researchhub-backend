@@ -366,15 +366,15 @@ def celery_extract_pdf_preview(paper_id, retry=0):
         extracted_figures = Figure.objects.filter(paper=paper)
         for page in doc:
             pix = page.get_pixmap(alpha=False)
-            output_filename = f"{paper_id}-{page.number}.jpg"
+            output_filename = f"{paper_id}-{page.number}.png"
 
             if not extracted_figures.filter(
                 file__contains=output_filename, figure_type=Figure.PREVIEW
             ):
                 img_buffer = BytesIO()
-                img_buffer.write(pix.getImageData(output="jpg"))
+                img_buffer.write(pix.pil_tobytes(format="PNG"))
                 image = Image.open(img_buffer)
-                image.save(img_buffer, "jpeg", quality=0)
+                image.save(img_buffer, "png", quality=0)
                 file = ContentFile(img_buffer.getvalue(), name=output_filename)
                 Figure.objects.create(
                     file=file, paper=paper, figure_type=Figure.PREVIEW
@@ -609,7 +609,8 @@ def celery_extract_pdf_sections(paper_id):
             extracted_figure_path = f"{images_path}/{extracted_figure}"
             with open(extracted_figure_path, "rb") as f:
                 extracted_figures = Figure.objects.filter(paper=paper)
-                file_name = f.name.replace(".", "_")
+                split_file_name = f.name.split("/")
+                file_name = split_file_name[-1]
                 if not extracted_figures.filter(
                     file__contains=file_name, figure_type=Figure.FIGURE
                 ):
@@ -627,6 +628,7 @@ def celery_extract_pdf_sections(paper_id):
             message += str(os.listdir("/tmp/pdf_cermine")) + str(e)
 
         sentry.log_error(e, message=message)
+        return False, return_code
     finally:
         shutil.rmtree(path)
         return True, return_code
