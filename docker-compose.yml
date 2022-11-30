@@ -37,8 +37,13 @@ services:
     environment: *env
     command: >
       sh -c "
+             mkdir config_local
+             cp ../db_config.sample.py config_local/db.py
+             cp ../keys.sample.py config_local/keys.py
+             cp ../twitter_config_sample.py config_local/twitter.py
              python manage.py collectstatic --noinput &&
-             python manage.py setup"
+             python manage.py setup
+            "
     depends_on:
       migrations:
         condition: service_completed_successfully
