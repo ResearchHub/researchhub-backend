@@ -358,11 +358,8 @@ class UserSerializer(ModelSerializer):
             return None
 
     def get_time_rep(self, obj):
-        try:
-            return obj.time_rep
-        except Exception:
-            return None
-
+        time_rep = getattr(obj, "time_rep", None)
+        return time_rep
 
 class MinimalUserSerializer(ModelSerializer):
     author_profile = SerializerMethodField()
