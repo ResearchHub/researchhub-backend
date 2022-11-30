@@ -28,8 +28,8 @@ services:
     environment: *env
     command: >
       sh -c "
-             python manage.py makemigrations &&
-             python manage.py migrate"
+             python manage.py makemigrations && python manage.py migrate
+            "
     depends_on:
       - postgres
   setup:
@@ -38,7 +38,8 @@ services:
     command: >
       sh -c "
              python manage.py collectstatic --noinput &&
-             python manage.py setup"
+             python manage.py setup
+            "
     depends_on:
       migrations:
         condition: service_completed_successfully
@@ -47,7 +48,7 @@ services:
     environment: *env
     command:
       sh -c '
-              watchmedo auto-restart --recursive --pattern="*.py;*.env;*.html" --directory="." python manage.py runserver -- --nostatic 0.0.0.0:8080'
+              watchmedo auto-restart --recursive --pattern="*.py;*.env;*.html" --directory="." python manage.py runserver -- 0.0.0.0:8080'
     ports:
     - '8000:8080'
     depends_on:
