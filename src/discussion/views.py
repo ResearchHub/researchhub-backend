@@ -194,7 +194,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
     def get_queryset(self):
         source = self.request.query_params.get("source")
-        is_removed = self.request.query_params.get("is_removed", "false")
+        is_removed = self.request.query_params.get("is_removed", "false").lower()
         is_removed = False if is_removed == "false" else True
         document_type = self.request.path.split("/")[2]
 

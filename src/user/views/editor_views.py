@@ -45,9 +45,13 @@ def get_hub_active_contributors(request):
     start_date = request.GET.get("startDate", None)
     end_date = request.GET.get("endDate", None)
 
-    if end_date:
-        end_date = end_date[:-6]
-        end_date = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S")
+    if start_date is None or end_date is None:
+        return Response(status=400)
+
+    start_date_string = start_date[:-6]
+    end_date_string = end_date[:-6]
+    end_date = iso8601.parse_date(end_date_string)
+    start_date = iso8601.parse_date(start_date_string)
 
     current_active_contributors = {}
     previous_active_contributors = {}
@@ -79,7 +83,7 @@ def get_hub_active_contributors(request):
         )
         current_active_contributors[user_id] = total_active_contributors
 
-        days_between = iso8601.parse_date(end_date) - iso8601.parse_date(start_date)
+        days_between = end_date - start_date
 
         previous_contributors = (
             Contribution.objects.filter(
@@ -89,8 +93,8 @@ def get_hub_active_contributors(request):
                     Contribution.SUPPORTER,
                     Contribution.UPVOTER,
                 ],
-                created_date__gte=iso8601.parse_date(start_date) - days_between,
-                created_date__lte=iso8601.parse_date(end_date) - days_between,
+                created_date__gte=start_date - days_between,
+                created_date__lte=end_date - days_between,
                 unified_document__hubs__in=target_hub_ids,
             )
             .distinct("user")
