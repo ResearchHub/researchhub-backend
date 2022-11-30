@@ -48,7 +48,7 @@ services:
     environment: *env
     command:
       sh -c '
-              watchmedo auto-restart --recursive --pattern="*.py;*.env;*.html" --directory="." python manage.py runserver -- --nostatic 0.0.0.0:8080'
+              watchmedo auto-restart --recursive --pattern="*.py;*.env;*.html" --directory="." python manage.py runserver -- 0.0.0.0:8080'
     ports:
     - '8000:8080'
     depends_on:

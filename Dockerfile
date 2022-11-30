@@ -24,9 +24,9 @@ RUN python3 -m pip install -U "watchdog[watchmedo]"
 RUN mkdir -p /usr/app/src
 RUN mkdir /usr/app/src/config_local
 COPY .  /usr/app/
-COPY db_config.sample.py config_local/db.py
-COPY keys.sample.py config_local/keys.py
-COPY twitter_config_sample.py config_local/twitter.py
+COPY db_config.sample.py /usr/app/src/config_local/db.py
+COPY keys.sample.py /usr/app/src/config_local/keys.py
+COPY twitter_config_sample.py /usr/app/src/config_local/twitter.py
 
 COPY /misc/hub_hub.csv /usr/misc/hub_hub.csv
 RUN mkdir -p /tmp/pdf_cermine/
