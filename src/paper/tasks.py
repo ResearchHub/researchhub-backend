@@ -365,7 +365,7 @@ def celery_extract_pdf_preview(paper_id, retry=0):
         doc = fitz.open(stream=res.content, filetype="pdf")
         extracted_figures = Figure.objects.filter(paper=paper)
         for page in doc:
-            pix = page.getPixmap(alpha=False)
+            pix = page.get_pixmap(alpha=False)
             output_filename = f"{paper_id}-{page.number}.jpg"
 
             if not extracted_figures.filter(
@@ -609,11 +609,14 @@ def celery_extract_pdf_sections(paper_id):
             extracted_figure_path = f"{images_path}/{extracted_figure}"
             with open(extracted_figure_path, "rb") as f:
                 extracted_figures = Figure.objects.filter(paper=paper)
+                file_name = f.name.replace(".", "_")
                 if not extracted_figures.filter(
-                    file__contains=f.name, figure_type=Figure.FIGURE
+                    file__contains=file_name, figure_type=Figure.FIGURE
                 ):
                     Figure.objects.create(
-                        file=File(f), paper=paper, figure_type=Figure.FIGURE
+                        file=File(f, name=file_name),
+                        paper=paper,
+                        figure_type=Figure.FIGURE,
                     )
     except Exception as e:
         stdout = call_res.stdout.decode("utf8")
