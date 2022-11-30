@@ -115,7 +115,8 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         for author_id in data.get("authors", []):
             if isinstance(author_id, Author):
                 author_id = author_id.id
-
+            if isinstance(author_id, dict):
+                author_id = author_id.get("id", None)
             try:
                 author = Author.objects.get(pk=author_id)
                 valid_authors.append(author)
@@ -374,7 +375,7 @@ class PaperSerializer(BasePaperSerializer):
             raise error
 
         # Prepare validated_data by removing m2m
-        authors = self._clean_authors_payload(validated_data.pop("authors"))
+        authors = validated_data.pop("authors")
         hubs = validated_data.pop("hubs")
         hypothesis_id = validated_data.pop("hypothesis_id", None)
         citation_type = validated_data.pop("citation_type", None)
@@ -495,7 +496,7 @@ class PaperSerializer(BasePaperSerializer):
             raise error
 
     def update(self, instance, validated_data):
-        authors = self._clean_authors_payload(validated_data.pop("authors", [None]))
+        authors = validated_data.pop("authors", [None])
         file = validated_data.pop("file", None)
         hubs = validated_data.pop("hubs", [None])
         raw_authors = validated_data.pop("raw_authors", [])
@@ -682,17 +683,6 @@ class PaperSerializer(BasePaperSerializer):
             data.update(abstract="")  # manually overriding legacy abstract
 
         return [abstract, abstract_src_encoded_file, abstract_src_type]
-
-    def _clean_authors_payload(self, authors):
-        if authors is None:
-            return None
-        elif isinstance(authors[0], dict):  # authors may come in as a list of dict from FE
-            clean_list = []
-            for index in range(len(authors)):
-                clean_list[index] = authors[index].get("id", None)
-            return clean_list
-        else:
-            return authors
 
     def _add_raw_authors(self, validated_data):
         raw_authors = validated_data["raw_authors"]
