@@ -500,7 +500,7 @@ class PaperSerializer(BasePaperSerializer):
         hubs = validated_data.pop("hubs", [None])
         raw_authors = validated_data.pop("raw_authors", [])
         request = self.context.get("request", None)
-        
+
         try:
             with transaction.atomic():
 
@@ -675,10 +675,11 @@ class PaperSerializer(BasePaperSerializer):
         abstract_src = data.get("abstract_src")
         abstract_src_type = data.get("abstract_src_type")
         abstract_src_encoded_file = None
-        if abstract_src:
+        if abstract_src is not None:
             abstract_src_encoded_file = ContentFile(data["abstract_src"].encode())
         if abstract_src and abstract_src_type:
             data.update(abstract_src=abstract_src_encoded_file)
+            data.update(abstract="")  # manually overriding legacy abstract
 
         return [abstract, abstract_src_encoded_file, abstract_src_type]
 
