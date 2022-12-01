@@ -325,33 +325,36 @@ class UserViewSet(viewsets.ModelViewSet):
                     )
                 ).order_by(F("hub_rep").desc(nulls_last=True), "-reputation")
             else:
-                items = items.annotate(
-                    time_rep=Coalesce(
-                        Sum(
-                            "reputation_records__reputation_amount",
-                            filter=Q(
-                                **time_filter,
-                            )
-                            & ~Q(
-                                reputation_records__distribution_type__in=[
-                                    "REFERRAL",
-                                    "PURCHASE",
-                                    "REWARD",
-                                    "EDITOR_COMPENSATION",
-                                    "EDITOR_PAYOUT",
-                                    "MOD_PAYOUT",
-                                    "CREATE_BULLET_POINT",
-                                    "CREATE_SUMMARY",
-                                    "SUMMARY_UPVOTED",
-                                    "BULLET_POINT_UPVOTED",
-                                    "CREATE_FIRST_SUMMARY",
-                                    "REFERRAL_APPROVED",
-                                ]
+                if timeframe == "all_time":
+                    items = items.order_by("-reputation")
+                else:
+                    items = items.annotate(
+                        time_rep=Coalesce(
+                            Sum(
+                                "reputation_records__reputation_amount",
+                                filter=Q(
+                                    **time_filter,
+                                )
+                                & ~Q(
+                                    reputation_records__distribution_type__in=[
+                                        "REFERRAL",
+                                        "PURCHASE",
+                                        "REWARD",
+                                        "EDITOR_COMPENSATION",
+                                        "EDITOR_PAYOUT",
+                                        "MOD_PAYOUT",
+                                        "CREATE_BULLET_POINT",
+                                        "CREATE_SUMMARY",
+                                        "SUMMARY_UPVOTED",
+                                        "BULLET_POINT_UPVOTED",
+                                        "CREATE_FIRST_SUMMARY",
+                                        "REFERRAL_APPROVED",
+                                    ]
+                                ),
                             ),
-                        ),
-                        0,
-                    )
-                ).order_by(F("time_rep").desc(nulls_last=True), "-reputation")
+                            0,
+                        )
+                    ).order_by(F("time_rep").desc(nulls_last=True), "-reputation")
         elif leaderboard_type == "authors":
             serializerClass = AuthorSerializer
             items = Author.objects.filter(user__is_suspended=False).order_by(
