@@ -166,7 +166,6 @@ def censored_paper_cleanup(paper_id):
         for vote in paper.votes.all():
             if vote.vote_type == 1:
                 user = vote.created_by
-                user.set_probable_spammer()
 
         uploaded_by = paper.uploaded_by
         uploaded_by.set_probable_spammer()

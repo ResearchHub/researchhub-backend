@@ -522,7 +522,7 @@ DIST_WHITELIST = [
     "patricklu@researchhub.com",
 ]
 
-SIFT_MODERATION_WHITELIST = []
+SIFT_MODERATION_WHITELIST = [35747]
 
 # Sentry
 
