@@ -247,11 +247,7 @@ class UserViewSet(viewsets.ModelViewSet):
         elif timeframe == "past_month":
             time_filter = {keyword: timezone.now().date() - timedelta(days=30)}
         elif timeframe == "past_year":
-            if leaderboard_type == "papers":
-                keyword = "created_date__year__gte"
-            else:
-                keyword = "created_date__year__gte"
-            time_filter = {keyword: timezone.now().year}
+            time_filter = {keyword: timezone.now().date() - timedelta(days=365)}
         elif timeframe == "all_time":
             time_filter = {keyword: datetime(year=2019, month=1, day=1)}
 
@@ -293,20 +289,51 @@ class UserViewSet(viewsets.ModelViewSet):
             }
         elif leaderboard_type == "users":
             serializerClass = UserSerializer
-            if hub_id and hub_id != 0:
-                items = (
-                    User.objects.filter(
-                        is_active=True,
-                        is_suspended=False,
-                        probable_spammer=False,
+            items = User.objects.filter(
+                is_active=True,
+                is_suspended=False,
+                probable_spammer=False,
+            )
+
+            if hub_id != 0 and hub_id:
+                items = items.annotate(
+                    hub_rep=Coalesce(
+                        Sum(
+                            "reputation_records__reputation_amount",
+                            filter=Q(
+                                **time_filter,
+                                reputation_records__hubs__in=[hub_id],
+                            )
+                            & ~Q(
+                                reputation_records__distribution_type__in=[
+                                    "REFERRAL",
+                                    "PURCHASE",
+                                    "REWARD",
+                                    "EDITOR_COMPENSATION",
+                                    "EDITOR_PAYOUT",
+                                    "MOD_PAYOUT",
+                                    "CREATE_BULLET_POINT",
+                                    "CREATE_SUMMARY",
+                                    "SUMMARY_UPVOTED",
+                                    "BULLET_POINT_UPVOTED",
+                                    "CREATE_FIRST_SUMMARY",
+                                    "REFERRAL_APPROVED",
+                                ]
+                            ),
+                        ),
+                        0,
                     )
-                    .annotate(
-                        hub_rep=Coalesce(
+                ).order_by(F("hub_rep").desc(nulls_last=True), "-reputation")
+            else:
+                if timeframe == "all_time":
+                    items = items.order_by("-reputation")
+                else:
+                    items = items.annotate(
+                        time_rep=Coalesce(
                             Sum(
                                 "reputation_records__reputation_amount",
                                 filter=Q(
                                     **time_filter,
-                                    reputation_records__hubs__in=[hub_id],
                                 )
                                 & ~Q(
                                     reputation_records__distribution_type__in=[
@@ -327,45 +354,7 @@ class UserViewSet(viewsets.ModelViewSet):
                             ),
                             0,
                         )
-                    )
-                    .order_by(F("hub_rep").desc(nulls_last=True), "-reputation")
-                )
-            else:
-                items = (
-                    User.objects.filter(
-                        is_active=True,
-                        is_suspended=False,
-                        probable_spammer=False,
-                    )
-                    .annotate(
-                        hub_rep=Coalesce(
-                            Sum(
-                                "reputation_records__reputation_amount",
-                                filter=Q(**time_filter)
-                                & ~Q(
-                                    reputation_records__distribution_type__in=[
-                                        "REFERRAL",
-                                        "PURCHASE",
-                                        "REWARD",
-                                        "EDITOR_COMPENSATION",
-                                        "EDITOR_PAYOUT",
-                                        "MOD_PAYOUT",
-                                        "CREATE_BULLET_POINT",
-                                        "CREATE_SUMMARY",
-                                        "SUMMARY_UPVOTED",
-                                        "BULLET_POINT_UPVOTED",
-                                        "CREATE_FIRST_SUMMARY",
-                                        "REFERRAL_APPROVED",
-                                        "BOUNTY_RH_FEE",
-                                        "BOUNTY_DAO_FEE",
-                                    ]
-                                ),
-                            ),
-                            0,
-                        )
-                    )
-                    .order_by(F("hub_rep").desc(nulls_last=True), "-reputation")
-                )
+                    ).order_by(F("time_rep").desc(nulls_last=True), "-reputation")
         elif leaderboard_type == "authors":
             serializerClass = AuthorSerializer
             items = Author.objects.filter(user__is_suspended=False).order_by(

@@ -299,6 +299,7 @@ class UserSerializer(ModelSerializer):
     balance = SerializerMethodField(read_only=True)
     subscribed = SerializerMethodField(read_only=True)
     hub_rep = SerializerMethodField()
+    time_rep = SerializerMethodField()
 
     class Meta:
         model = User
@@ -317,6 +318,7 @@ class UserSerializer(ModelSerializer):
             "updated_date",
             "upload_tutorial_complete",
             "hub_rep",
+            "time_rep",
             "probable_spammer",
         ]
         read_only_fields = [
@@ -333,6 +335,7 @@ class UserSerializer(ModelSerializer):
             "updated_date",
             "upload_tutorial_complete",
             "hub_rep",
+            "time_rep",
         ]
 
     def get_balance(self, obj):
@@ -354,6 +357,9 @@ class UserSerializer(ModelSerializer):
         except Exception:
             return None
 
+    def get_time_rep(self, obj):
+        time_rep = getattr(obj, "time_rep", None)
+        return time_rep
 
 class MinimalUserSerializer(ModelSerializer):
     author_profile = SerializerMethodField()
