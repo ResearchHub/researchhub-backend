@@ -184,7 +184,7 @@ class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
     def frontend_view_link(self):
         doc = self.get_document()
         document_type = self.document_type
-        if document_type in (QUESTION, DISCUSSION, POSTS):
+        if document_type in (QUESTION, DISCUSSION, POSTS, BOUNTY):
             document_type = "post"
         url = f"{BASE_FRONTEND_URL}/{document_type.lower()}/{doc.id}/{doc.slug}"
         return url
