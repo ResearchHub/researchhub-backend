@@ -157,6 +157,11 @@ CORS_ORIGIN_WHITELIST = [
     "http://10.0.2.2:3000",
 ]
 
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}",
+    r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}/",
+]
+
 
 # Application definition
 
