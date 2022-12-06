@@ -680,7 +680,6 @@ class PaperSerializer(BasePaperSerializer):
             abstract_src_encoded_file = ContentFile(data["abstract_src"].encode())
         if abstract_src and abstract_src_type:
             data.update(abstract_src=abstract_src_encoded_file)
-            data.update(abstract="")  # manually overriding legacy abstract
 
         return [abstract, abstract_src_encoded_file, abstract_src_type]
 
