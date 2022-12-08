@@ -84,6 +84,8 @@ ALLOWED_HOSTS = [
     ".elasticbeanstalk.com",
     ".researchhub.com",
     "localhost",
+    ".researchhub-web-staging.vercel.app",
+    ".researchhub-web-researchhub.vercel.app",
 ]
 
 if not (PRODUCTION or STAGING):
