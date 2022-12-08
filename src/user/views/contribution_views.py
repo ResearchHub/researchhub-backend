@@ -86,6 +86,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "paper_title",
                     "title",
                     "unified_document",
+                    "renderable_text",
                     "content_type",
                     "source",
                     "abstract",
