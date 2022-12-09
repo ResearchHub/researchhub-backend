@@ -1338,11 +1338,11 @@ def celery_unpaywall(self, celery_data):
                         "pdf_license", oa_location.get("license", None)
                     )
                     paper_data.setdefault("pdf_license_url", oa_pdf_url)
-                    paper_data.setdefault("url", result.get("doi_url", None))
                     break
 
             title = normalize("NFKD", result.get("title", ""))
             raw_authors = result.get("z_authors", [])
+            paper_data.setdefault("url", result.get("doi_url", None))
             paper_data.setdefault("raw_authors", format_raw_authors(raw_authors))
             paper_data.setdefault("title", title)
             paper_data.setdefault("paper_title", title)
