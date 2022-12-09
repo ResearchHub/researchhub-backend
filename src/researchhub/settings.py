@@ -86,6 +86,8 @@ ALLOWED_HOSTS = [
     "localhost",
     ".researchhub-web-staging.vercel.app",
     ".researchhub-web-researchhub.vercel.app",
+    r"https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}",
+    r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}/",
 ]
 
 if not (PRODUCTION or STAGING):
