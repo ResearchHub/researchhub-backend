@@ -54,7 +54,7 @@ if DEVELOPMENT or TESTING:
 elif PRODUCTION:
     BASE_FRONTEND_URL = "https://researchhub.com"
 elif CLOUD:
-    BASE_FRONTEND_URL = "https://researchhub-web-staging.vercel.app/"
+    BASE_FRONTEND_URL = "https://staging-web.researchhub.com"
 
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
