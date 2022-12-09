@@ -1122,6 +1122,8 @@ def celery_process_paper(self, submission_id):
                 celery_manubot_doi.s().set(countdown=1),
             ]
         )
+    else:
+        celery_data.pop("url")
 
     tasks.extend(
         [
