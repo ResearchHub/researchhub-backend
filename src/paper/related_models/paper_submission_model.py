@@ -19,6 +19,7 @@ class PaperSubmission(DefaultModel):
     PROCESSING_DOI = "PROCESSING_DOI"
     PROCESSING_OPENALEX = "PROCESSING_OPENALEX"
     PROCESSING_SEMANTIC_SCHOLAR = "PROCESSING_SEMANTIC_SCHOLAR"
+    PROCESSING_UNPAYWALL = "PROCESSING_UNPAYWALL"
 
     PAPER_STATUS_CHOICES = [
         (COMPLETE, COMPLETE),
@@ -32,6 +33,7 @@ class PaperSubmission(DefaultModel):
         (PROCESSING_MANUBOT, PROCESSING_MANUBOT),
         (PROCESSING_OPENALEX, PROCESSING_OPENALEX),
         (PROCESSING_SEMANTIC_SCHOLAR, PROCESSING_SEMANTIC_SCHOLAR),
+        (PROCESSING_UNPAYWALL, PROCESSING_UNPAYWALL),
         (PROCESSING_DOI, PROCESSING_DOI),
     ]
     doi = models.CharField(
@@ -87,6 +89,9 @@ class PaperSubmission(DefaultModel):
 
     def set_semantic_scholar_status(self, save=True):
         self.set_status(self.PROCESSING_SEMANTIC_SCHOLAR, save)
+
+    def set_unpaywall_status(self, save=True):
+        self.set_status(self.PROCESSING_UNPAYWALL, save)
 
     def set_processing_doi_status(self, save=True):
         self.set_status(self.PROCESSING_DOI, save)

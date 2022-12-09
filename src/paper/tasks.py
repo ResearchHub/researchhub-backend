@@ -95,6 +95,7 @@ from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.semantic_scholar import SemanticScholar
 from utils.twitter import get_twitter_results, get_twitter_url_results
+from utils.unpaywall import Unpaywall
 
 logger = get_task_logger(__name__)
 
@@ -1121,9 +1122,12 @@ def celery_process_paper(self, submission_id):
                 celery_manubot_doi.s().set(countdown=1),
             ]
         )
+    else:
+        celery_data.pop("url")
 
     tasks.extend(
         [
+            celery_unpaywall.s().set(countdown=1),
             celery_openalex.s().set(countdown=1),
             celery_crossref.s().set(countdown=1),
             celery_semantic_scholar.s().set(countdown=1),
@@ -1288,6 +1292,75 @@ def celery_manubot(self, celery_data):
     except DuplicatePaperError as e:
         raise e
     except ManubotProcessingError as e:
+        raise e
+    except Exception as e:
+        raise e
+
+
+@app.task(bind=True, queue=QUEUE_PAPER_METADATA)
+def celery_unpaywall(self, celery_data):
+    paper_data, submission_id = celery_data
+    Paper = apps.get_model("paper.Paper")
+    PaperSubmission = apps.get_model("paper.PaperSubmission")
+
+    try:
+        paper_submission = PaperSubmission.objects.get(id=submission_id)
+        paper_submission.set_unpaywall_status()
+        paper_submission.notify_status()
+
+        dois = paper_data.pop("dois", [])
+        unpaywall = Unpaywall()
+        result = None
+        for doi in dois:
+            try:
+                result = unpaywall.search_by_doi(doi)
+                paper_data.setdefault("doi", doi)
+                paper_submission.doi = doi
+                paper_submission.save()
+                break
+            except DOINotFoundError:
+                pass
+
+        if result:
+            # Duplicate DOI check
+            doi = paper_data["doi"]
+            doi_paper_check = Paper.objects.filter(doi=doi)
+            if doi_paper_check.exists():
+                paper_submission.set_duplicate_status()
+                duplicate_ids = doi_paper_check.values_list("id", flat=True)
+                raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
+
+            oa_locations = result.get("oa_locations", [])
+
+            for oa_location in oa_locations:
+                oa_pdf_url = oa_location.get("url_for_pdf", "")
+                if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
+                    paper_data.setdefault("pdf_url", oa_pdf_url)
+                    paper_data.setdefault(
+                        "pdf_license", oa_location.get("license", None)
+                    )
+                    paper_data.setdefault("pdf_license_url", oa_pdf_url)
+                    break
+
+            title = normalize("NFKD", result.get("title", ""))
+            raw_authors = result.get("z_authors", [])
+            paper_data.setdefault("url", result.get("doi_url", None))
+            paper_data.setdefault("raw_authors", format_raw_authors(raw_authors))
+            paper_data.setdefault("title", title)
+            paper_data.setdefault("paper_title", title)
+            paper_data.setdefault("is_open_access", result.get("is_oa", False))
+            paper_data.setdefault("oa_status", result.get("oa_status", None))
+            paper_data.setdefault("external_source", result.get("publisher", None))
+            paper_data.setdefault(
+                "paper_publish_date", result.get("published_date", None)
+            )
+        else:
+            paper_data["dois"] = dois
+
+        return celery_data
+    except DOINotFoundError as e:
+        raise e
+    except DuplicatePaperError as e:
         raise e
     except Exception as e:
         raise e

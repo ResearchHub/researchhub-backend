@@ -44,8 +44,8 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
     def _get_latest_actions(self):
         actions = (
             self.get_filtered_queryset()
+            .exclude(Q(is_removed=True) | Q(display=False))
             .filter(
-                is_removed=False,
                 user__isnull=False,
                 content_type__model__in=self._get_allowed_models(),
             )

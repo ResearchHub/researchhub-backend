@@ -399,6 +399,14 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     def _remove_flagged_content(self, flag):
         item = flag.item
+        related_action = getattr(item, "actions", None)
+
+        if related_action:
+            related_action = related_action.first()
+            related_action.is_removed = True
+            related_action.display = False
+            related_action.save()
+
         if isinstance(item, BaseComment):
             item.is_removed = True
             item.save()
