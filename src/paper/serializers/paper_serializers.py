@@ -369,10 +369,10 @@ class PaperSerializer(BasePaperSerializer):
             user = None
         validated_data["uploaded_by"] = user
 
-        if "url" in validated_data or "pdf_url" in validated_data:
-            error = Exception("URL uploading is deprecated")
-            sentry.log_error(error)
-            raise error
+        # if "url" in validated_data or "pdf_url" in validated_data:
+        #     error = Exception("URL uploading is deprecated")
+        #     sentry.log_error(error)
+        #     raise error
 
         # Prepare validated_data by removing m2m
         authors = validated_data.pop("authors")
@@ -392,6 +392,7 @@ class PaperSerializer(BasePaperSerializer):
                 # valid_doi = self._check_valid_doi(validated_data)
                 # if not valid_doi:
                 #     raise IntegrityError('DETAIL: Invalid DOI')
+                import pdb; pdb.set_trace()
 
                 self._add_url(file, validated_data)
                 [

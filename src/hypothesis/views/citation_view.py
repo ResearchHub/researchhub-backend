@@ -19,7 +19,7 @@ class CitationViewSet(ModelViewSet, ReactionViewActionMixin):
     def create(self, request, *args, **kwargs):
         request_data = request.data
         hypothesis_id = request_data.get('hypothesis_id')
-        source_id = request_data.get('source_id')
+        source_id = request_data.get('source_id') # source is equivalent to unifiedDocID
         try:
             if (hypothesis_id is None or source_id is None):
                 raise ParseError(
