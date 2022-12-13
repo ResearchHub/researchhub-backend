@@ -4,6 +4,7 @@ import hashlib
 from django.contrib.admin.options import get_content_type_for_model
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.db.models import Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
@@ -112,7 +113,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         if request.query_params.get("created_location") == "progress":
             request.data["created_location"] = BaseComment.CREATED_LOCATION_PROGRESS
-
         response = super().create(request, *args, **kwargs)
         response = self.get_self_upvote_response(request, response, Thread)
 
@@ -227,7 +227,9 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         elif document_type == "hypothesis":
             hypothesis_id = get_document_id_from_path(self.request)
             threads = Thread.objects.filter(
-                hypothesis=hypothesis_id,
+                Q(hypothesis=hypothesis_id)
+                | Q(citation_id__in=Citation.objects.filter(
+                    hypothesis=hypothesis_id).values_list('id', flat=True))
             )
         elif document_type == "citation":
             citation_id = get_document_id_from_path(self.request)
@@ -357,7 +359,6 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         if request.query_params.get("created_location") == "progress":
             request.data["created_location"] = BaseComment.CREATED_LOCATION_PROGRESS
-
         response = super().create(request, *args, **kwargs)
         response = self.get_self_upvote_response(request, response, Comment)
         unified_document.update_filter(SORT_DISCUSSED)
