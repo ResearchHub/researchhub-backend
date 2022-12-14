@@ -1,7 +1,9 @@
 import logging
 
 import dj_rest_auth.registration.serializers as rest_auth_serializers
+from dj_rest_auth.serializers import UserDetailsSerializer
 from django.contrib.contenttypes.models import ContentType
+from django.db import models
 from rest_framework.serializers import (
     CharField,
     IntegerField,
@@ -361,6 +363,7 @@ class UserSerializer(ModelSerializer):
         time_rep = getattr(obj, "time_rep", None)
         return time_rep
 
+
 class MinimalUserSerializer(ModelSerializer):
     author_profile = SerializerMethodField()
 
@@ -448,10 +451,28 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
         allow_blank=True,
     )
 
+    first_name = CharField(max_length=150, allow_blank=True, required=False)
+    last_name = CharField(max_length=150, allow_blank=True, required=False)
+
     def validate_username(self, username):
         if username:
             username = rest_auth_serializers.get_adapter().clean_username(username)
         return username
+
+    def validate_first_name(self, first_name):
+        return first_name
+
+    def validate_last_name(self, last_name):
+        return last_name
+
+    def get_cleaned_data(self):
+        return {
+            "username": self.validated_data.get("username", ""),
+            "password1": self.validated_data.get("password1", ""),
+            "email": self.validated_data.get("email", ""),
+            "first_name": self.validated_data.get("first_name"),
+            "last_name": self.validated_data.get("last_name"),
+        }
 
     def save(self, request):
         return super().save(request)
