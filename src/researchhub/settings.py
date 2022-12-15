@@ -210,7 +210,7 @@ INSTALLED_APPS = [
     # Channels
     "channels",
     # Django Celery Results
-    # "django_celery_results",
+    "django_celery_results",
     # MJML
     "mjml",
     # Custom apps
@@ -626,20 +626,17 @@ else:
 # Celery
 
 CELERY_BROKER_URL = "redis://{}:{}/0".format(REDIS_HOST, REDIS_PORT)
-# CELERY_RESULT_BACKEND = 'db+postgresql://{}:{}@{}:{}/{}'.format(
-#     DB_USER,
-#     DB_PASS,
-#     DB_HOST,
-#     DB_PORT,
-#     DB_NAME
-# )
+CELERY_RESULT_BACKEND = "db+postgresql://{}:{}@{}:{}/{}".format(
+    DB_USER, DB_PASS, DB_HOST, DB_PORT, DB_NAME
+)
 CELERY_TIMEZONE = "US/Pacific"
-# CELERY_RESULT_BACKEND = "django-db"
+CELERY_RESULT_BACKEND = "django-db"
 CELERY_TASK_TRACK_STARTED = True
-# CELERY_RESULT_EXTENDED = True
+CELERY_RESULT_EXTENDED = True
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_TASK_DEFAULT_QUEUE = "default"
+CELERY_TASK_IGNORE_RESULT = True
 
 REDBEAT_REDIS_URL = "redis://{}:{}/0".format(REDIS_HOST, REDIS_PORT)
 REDBEAT_KEY_PREFIX = f"{APP_ENV}_redbeat_"

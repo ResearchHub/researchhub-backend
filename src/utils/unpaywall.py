@@ -1,5 +1,6 @@
 import requests
 
+from paper.exceptions import DOINotFoundError
 from utils.sentry import log_error
 
 
@@ -17,6 +18,6 @@ class Unpaywall:
         except requests.exceptions.HTTPError as e:
             print(e)
             log_error(e)
-            return None
+            raise DOINotFoundError(f"No Unpaywall works found for doi: {doi}")
 
         return response.json()

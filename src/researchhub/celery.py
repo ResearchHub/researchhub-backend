@@ -3,7 +3,7 @@ from __future__ import absolute_import, unicode_literals
 import os
 import time
 
-from celery import Celery
+from celery import Celery, chord
 
 from reputation.exceptions import ReputationDistributorError, WithdrawalError
 
@@ -66,18 +66,38 @@ def test_1(self, error_debug=False):
 def test_2(self):
     time.sleep(2)
     print("Test 2")
+    return 2
 
 
 @app.task(bind=True)
 def test_3(self):
     time.sleep(2)
     print("Test 3")
+    return 3
 
 
 @app.task(bind=True)
 def test_4(self):
     time.sleep(2)
     print("Test 4")
+    return 4
+
+
+@app.task(bind=True)
+def test_5(self, nums):
+    return sum(nums)
+
+
+@app.task(bind=True)
+def test_6(self):
+    ch = chord([test_2.s(), test_3.s(), test_4.s()])(test_5.s())
+    return ch
+
+
+def run_chord_test():
+    ch = test_6.apply().get()
+    print(ch)
+    return ch
 
 
 # Test Results

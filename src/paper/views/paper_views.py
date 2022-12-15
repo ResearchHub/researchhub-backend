@@ -33,6 +33,7 @@ from google_analytics.signals import get_event_hit_response
 from paper.exceptions import PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import AdditionalFile, Figure, Paper, PaperSubmission
+from paper.paper_upload_tasks import celery_process_paper
 from paper.permissions import (
     CreatePaper,
     IsAuthor,
@@ -49,7 +50,9 @@ from paper.serializers import (
     PaperSerializer,
     PaperSubmissionSerializer,
 )
-from paper.tasks import celery_process_paper, censored_paper_cleanup
+
+# from paper.tasks import celery_process_paper, censored_paper_cleanup
+from paper.tasks import censored_paper_cleanup
 from paper.utils import (
     add_default_hub,
     clean_abstract,
