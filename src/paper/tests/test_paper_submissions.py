@@ -18,7 +18,7 @@ from user.tests.helpers import create_random_default_user
 
 class PaperSubmissionViewTests(APITestCase):
     def setUp(self):
-        self.url = "https://spj.sciencemag.org/journals/plantphenomics/2020/8086309/"
+        self.url = "https://pubmed.ncbi.nlm.nih.gov/33313563/"
         self.duplicate_url = "https://www.vitisgen2.org/research-in-plain-english/evaluating-and-mapping-grape-color-using-image-based-phenotyping/"
         self.true_doi = "10.34133/2020/8086309"
         self.paper_publish_date = "2020-04-24"
