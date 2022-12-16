@@ -198,6 +198,9 @@ def celery_combine_doi(self, celery_data):
             self.request.args = (celery_data, submission_id)
             raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
 
+        if errors:
+            sentry.log_info(errors)
+
     except DOINotFoundError as e:
         raise e
     except DuplicatePaperError as e:
@@ -571,7 +574,6 @@ def celery_combine_paper_data(self, celery_data):
 
     if errors:
         sentry.log_info(errors)
-        print(errors)
 
     if not data:
         self.request.args = (celery_data, submission_id)
