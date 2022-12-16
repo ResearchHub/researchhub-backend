@@ -54,3 +54,7 @@ class Citation(AbstractGenericReactionModel):
             up_count=Count("id", filter=Q(vote_type=Vote.UPVOTE)),
         )
         return vote_set["up_count"] - vote_set["down_count"]
+
+    @property
+    def unified_document(self):
+        return self.source
