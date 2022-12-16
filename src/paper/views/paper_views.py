@@ -891,6 +891,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
         duplicate_papers = Paper.objects.filter(
             Q(url__icontains=url) | Q(pdf_url__icontains=url)
         )
+        # import pdb; pdb.set_trace()
         if duplicate_papers:
             serializer = DynamicPaperSerializer(
                 duplicate_papers,
