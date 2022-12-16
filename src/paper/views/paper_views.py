@@ -50,8 +50,6 @@ from paper.serializers import (
     PaperSerializer,
     PaperSubmissionSerializer,
 )
-
-# from paper.tasks import celery_process_paper, censored_paper_cleanup
 from paper.tasks import censored_paper_cleanup
 from paper.utils import (
     add_default_hub,
@@ -891,7 +889,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
         duplicate_papers = Paper.objects.filter(
             Q(url__icontains=url) | Q(pdf_url__icontains=url)
         )
-        # import pdb; pdb.set_trace()
+
         if duplicate_papers:
             serializer = DynamicPaperSerializer(
                 duplicate_papers,
