@@ -131,8 +131,10 @@ def celery_get_doi(self, celery_data):
         response = {**paper_data, "dois": dois, "submission_id": submission_id}
         return response
     except CloudflareChallengeError as e:
+        self.request.args = (celery_data, submission_id)
         return {"error": str(e), "submission_id": submission_id}
     except Exception as e:
+        self.request.args = (celery_data, submission_id)
         return {"error": str(e), "submission_id": submission_id}
 
 
@@ -156,8 +158,10 @@ def celery_manubot_doi(self, celery_data):
 
         return response
     except ManubotProcessingError as e:
+        self.request.args = (celery_data, submission_id)
         return {"error": str(e), "submission_id": submission_id}
     except Exception as e:
+        self.request.args = (celery_data, submission_id)
         return {"error": str(e), "submission_id": submission_id}
 
 
@@ -186,7 +190,7 @@ def celery_combine_doi(self, celery_data):
             paper_submission.save()
         else:
             for error in errors:
-                sentry.log_error(error)
+                sentry.log_info(error)
             self.request.args = (celery_data, submission_id)
             raise DOINotFoundError()
 
