@@ -5,11 +5,7 @@ from discussion.reaction_models import Vote
 from hypothesis.models import Citation
 
 
-@receiver(
-  post_save,
-  sender=Vote,
-  dispatch_uid='update_citation_vote_score'
-)
+@receiver(post_save, sender=Vote, dispatch_uid='update_citation_vote_score')
 def update_citation_vote_score(
     sender,
     instance,
