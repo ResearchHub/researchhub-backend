@@ -392,7 +392,6 @@ class PaperSerializer(BasePaperSerializer):
                 # valid_doi = self._check_valid_doi(validated_data)
                 # if not valid_doi:
                 #     raise IntegrityError('DETAIL: Invalid DOI')
-                import pdb; pdb.set_trace()
 
                 self._add_url(file, validated_data)
                 [
