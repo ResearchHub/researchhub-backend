@@ -128,6 +128,20 @@ class UserViewSet(viewsets.ModelViewSet):
         else:
             return User.objects.none()
 
+    @action(detail=False, methods=["POST"], permission_classes=[AllowAny])
+    def check_account(self, request):
+        user = User.objects.filter(email=request.data["email"]).first()
+        if user:
+            social_account = user.socialaccount_set.first()
+            if social_account:
+                return Response(
+                    {"exists": True, "auth": social_account.provider}, status=200
+                )
+            else:
+                return Response({"exists": True, "auth": "email"}, status=200)
+
+        return Response({"exists": False}, status=200)
+
     @action(detail=False, methods=["POST"], permission_classes=[IsAuthenticated])
     def update_balance_history_clicked(self, request):
         user = request.user
