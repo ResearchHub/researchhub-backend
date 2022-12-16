@@ -1,5 +1,6 @@
 import json
 
+from asgiref.sync import sync_to_async
 from channels.db import database_sync_to_async
 from channels.exceptions import StopConsumer
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -30,6 +31,12 @@ def update_submission(submission, data):
     submission.save()
 
 
+@database_sync_to_async
+def get_dynamic_paper_serializer(data, **kwargs):
+    serializer = DynamicPaperSerializer(data, **kwargs)
+    return serializer.data
+
+
 class PaperSubmissionConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         if "user" not in self.scope:
@@ -56,7 +63,7 @@ class PaperSubmissionConsumer(AsyncWebsocketConsumer):
         submission_id = data["paper_submission_id"]
         submission = await get_paper_submission(submission_id)
         await update_submission(submission, {"status_read": True})
-        self.notify_paper_submission_status({"id": submission_id})
+        await self.notify_paper_submission_status({"id": submission_id})
 
     async def disconnect(self, close_code):
         if close_code == 401 or not hasattr(self, "room_group_name"):
@@ -69,10 +76,10 @@ class PaperSubmissionConsumer(AsyncWebsocketConsumer):
 
     async def _get_duplicate_paper_data(self, ids):
         papers = await filter_papers(ids)
-        serializer = DynamicPaperSerializer(
+        data = await get_dynamic_paper_serializer(
             papers, many=True, _include_fields=["doi", "id", "title"]
         )
-        return serializer.data
+        return data
 
     async def notify_paper_submission_status(self, event):
         # Send message to webSocket (Frontend)
@@ -81,7 +88,7 @@ class PaperSubmissionConsumer(AsyncWebsocketConsumer):
 
         if "duplicate_ids" in event:
             duplicate_ids = event["duplicate_ids"]
-            extra_metadata["duplicate_papers"] = self._get_duplicate_paper_data(
+            extra_metadata["duplicate_papers"] = await self._get_duplicate_paper_data(
                 duplicate_ids
             )
 
