@@ -131,9 +131,9 @@ def celery_get_doi(self, celery_data):
         response = {**paper_data, "dois": dois, "submission_id": submission_id}
         return response
     except CloudflareChallengeError as e:
-        return response({"error": e}, submission_id)
+        return {"error": str(e), "submission_id": submission_id}
     except Exception as e:
-        return response({"error": e}, submission_id)
+        return {"error": str(e), "submission_id": submission_id}
 
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
@@ -156,9 +156,9 @@ def celery_manubot_doi(self, celery_data):
 
         return response
     except ManubotProcessingError as e:
-        return response({"error": e}, submission_id)
+        return {"error": str(e), "submission_id": submission_id}
     except Exception as e:
-        return response({"error": e}, submission_id)
+        return {"error": str(e), "submission_id": submission_id}
 
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
