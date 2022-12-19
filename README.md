@@ -43,8 +43,8 @@ cp twitter_config_sample.py src/config_local/twitter.py
 3. Run:
 
 ```
-docker build --tag researchhub-backend .
-docker-compose up
+make docker.build
+make docker.start
 ```
 
 The backend will now run at localhost:8000  
