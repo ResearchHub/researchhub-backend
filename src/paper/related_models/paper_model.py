@@ -5,7 +5,8 @@ import regex as re
 import requests
 from bs4 import BeautifulSoup
 from django.contrib.contenttypes.fields import GenericRelation
-from django.contrib.postgres.indexes import HashIndex
+from django.contrib.postgres.indexes import GinIndex, HashIndex
+from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import FileExtensionValidator
 from django.db import models, transaction
 from django.db.models import Avg, Count, F, IntegerField, JSONField, Q, Sum
@@ -255,11 +256,13 @@ class Paper(AbstractGenericReactionModel):
         on_delete=models.CASCADE,
         related_name="paper",
     )
+    url_svf = SearchVectorField(null=True)
 
     class Meta:
         indexes = (
             HashIndex(fields=("url",), name="paper_paper_url_hix"),
             HashIndex(fields=("pdf_url",), name="paper_paper_pdf_url_hix"),
+            GinIndex(fields=("url_svf",)),
         )
 
     def __str__(self):
