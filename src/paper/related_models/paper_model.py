@@ -59,6 +59,8 @@ HELP_TEXT_IS_REMOVED = "Hides the paper because it is not allowed."
 
 
 class Paper(AbstractGenericReactionModel):
+    FIELDS_TO_EXCLUDE = {"url_svf", "pdf_url_svf", "doi_svf"}
+
     REGULAR = "REGULAR"
     PRE_REGISTRATION = "PRE_REGISTRATION"
     COMPLETE = "COMPLETE"
@@ -279,16 +281,31 @@ class Paper(AbstractGenericReactionModel):
         else:
             return "titleless paper"
 
+    def _do_insert(self, manager, using, fields, update_pk, raw):
+        # The fields in self.FIELDS_TO_EXCLUDE are auto generated columns.
+        # Even if nothing (null) is passed to those specific fields on create or update
+        # Django will still attempt to insert null into those columns, causing an error.
+        # This will exclude those fields, so that nothing will be inserted
+        return super()._do_insert(
+            manager,
+            using,
+            [field for field in fields if field.attname not in self.FIELDS_TO_EXCLUDE],
+            update_pk,
+            raw,
+        )
+
     def save(self, *args, **kwargs):
         if self.id is not None and "update_fields" not in kwargs:
             # If self.id is None (meaning the object has yet to be saved)
             # then do a normal update with all fields.
             # Otherwise, make sure `update_fields` is in kwargs.
-            fields_to_exclude = {"url_svf", "pdf_url_svf", "doi_svf"}
             default_save_fields = [
                 field.name
                 for field in self._meta.get_fields()
-                if field.name not in fields_to_exclude
+                if field.name not in self.FIELDS_TO_EXCLUDE
+                and field.concrete
+                and not field.many_to_many
+                and not field.auto_created
             ]
             kwargs["update_fields"] = default_save_fields
         super().save(*args, **kwargs)
