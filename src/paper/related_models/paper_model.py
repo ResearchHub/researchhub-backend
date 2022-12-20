@@ -256,9 +256,9 @@ class Paper(AbstractGenericReactionModel):
         on_delete=models.CASCADE,
         related_name="paper",
     )
-    url_svf = SearchVectorField(null=True)
-    pdf_url_svf = SearchVectorField(null=True)
-    doi_svf = SearchVectorField(null=True)
+    url_svf = SearchVectorField(null=True, blank=True)
+    pdf_url_svf = SearchVectorField(null=True, blank=True)
+    doi_svf = SearchVectorField(null=True, blank=True)
 
     class Meta:
         indexes = (
@@ -278,6 +278,20 @@ class Paper(AbstractGenericReactionModel):
             return title
         else:
             return "titleless paper"
+
+    def save(self, *args, **kwargs):
+        if self.id is not None and "update_fields" not in kwargs:
+            # If self.id is None (meaning the object has yet to be saved)
+            # then do a normal update with all fields.
+            # Otherwise, make sure `update_fields` is in kwargs.
+            fields_to_exclude = {"url_svf", "pdf_url_svf", "doi_svf"}
+            default_save_fields = [
+                field.name
+                for field in self._meta.get_fields()
+                if field.name not in fields_to_exclude
+            ]
+            kwargs["update_fields"] = default_save_fields
+        super().save(*args, **kwargs)
 
     @property
     def display_title(self):
