@@ -13,6 +13,7 @@ from celery.utils.log import get_task_logger
 from cloudscraper.exceptions import CloudflareChallengeError
 from django.apps import apps
 from django.contrib.admin.options import get_content_type_for_model
+from django.contrib.postgres.search import SearchQuery
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 from habanero import Crossref
@@ -195,7 +196,7 @@ def celery_combine_doi(self, celery_data):
             raise DOINotFoundError()
 
         paper_submission.set_processing_doi_status()
-        doi_paper_check = Paper.objects.filter(doi=doi)
+        doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
         if doi_paper_check.exists():
             duplicate_ids = doi_paper_check.values_list("id", flat=True)
             paper_submission.set_duplicate_status()
@@ -230,7 +231,7 @@ def celery_manubot(self, celery_data):
 
         # DOI duplicate check
         if doi:
-            doi_paper_check = Paper.objects.filter(doi=doi)
+            doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
             if doi_paper_check.exists():
                 duplicate_ids = doi_paper_check.values_list("id", flat=True)
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
@@ -250,10 +251,14 @@ def celery_manubot(self, celery_data):
             urls.extend(oa_landing_page_url)
             urls.extend(oa_pdf_url)
 
-        url_paper_check = Paper.objects.filter(Q(url__in=urls) | Q(pdf_url__in=urls))
-        if url_paper_check.exists():
-            duplicate_ids = url_paper_check.values_list("id", flat=True)
-            raise DuplicatePaperError(f"Duplicate URL: {urls}", duplicate_ids)
+        for url_check in urls:
+            url_paper_check = Paper.objects.filter(
+                Q(url_svf=SearchQuery(url_check))
+                | Q(pdf_url_svf=SearchQuery(url_check))
+            )
+            if url_paper_check.exists():
+                duplicate_ids = url_paper_check.values_list("id", flat=True)
+                raise DuplicatePaperError(f"Duplicate URL: {urls}", duplicate_ids)
 
         # Cleaning csl data
         cleaned_title = csl_item.get("title", "").strip()
@@ -308,7 +313,7 @@ def celery_unpaywall(self, celery_data):
 
         if result:
             # Duplicate DOI check
-            doi_paper_check = Paper.objects.filter(doi=doi)
+            doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
             if doi_paper_check.exists():
                 duplicate_ids = doi_paper_check.values_list("id", flat=True)
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
@@ -374,7 +379,7 @@ def celery_crossref(self, celery_data):
 
         if results:
             # Duplicate DOI check
-            doi_paper_check = Paper.objects.filter(doi=doi)
+            doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
             if doi_paper_check.exists():
                 duplicate_ids = doi_paper_check.values_list("id", flat=True)
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
@@ -425,7 +430,7 @@ def celery_openalex(self, celery_data):
         if result:
             # Duplicate DOI check
             doi = paper_data["doi"]
-            doi_paper_check = Paper.objects.filter(doi=doi)
+            doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
             if doi_paper_check.exists():
                 duplicate_ids = doi_paper_check.values_list("id", flat=True)
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
@@ -514,7 +519,7 @@ def celery_semantic_scholar(self, celery_data):
         if result:
             # Duplicate DOI check
             doi = paper_data["doi"]
-            doi_paper_check = Paper.objects.filter(doi=doi)
+            doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
             if doi_paper_check.exists():
                 duplicate_ids = doi_paper_check.values_list("id", flat=True)
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
@@ -616,9 +621,6 @@ def celery_create_paper(self, celery_data):
         paper.full_clean()
         paper.get_abstract_backup(should_save=False)
         paper.get_pdf_link(should_save=False)
-        from celery.contrib import rdb
-
-        rdb.set_trace()
         paper.save()
 
         paper_id = paper.id

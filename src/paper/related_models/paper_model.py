@@ -299,6 +299,8 @@ class Paper(AbstractGenericReactionModel):
             # If self.id is None (meaning the object has yet to be saved)
             # then do a normal update with all fields.
             # Otherwise, make sure `update_fields` is in kwargs.
+            # This is also here for a similar reason to the
+            # _do_insert overwrite
             default_save_fields = [
                 field.name
                 for field in self._meta.get_fields()
