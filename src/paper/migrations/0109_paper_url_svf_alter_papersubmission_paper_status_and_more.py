@@ -51,10 +51,10 @@ class Migration(migrations.Migration):
                 max_length=32,
             ),
         ),
-        migrations.AddIndex(
-            model_name="paper",
-            index=django.contrib.postgres.indexes.GinIndex(
-                fields=["url_svf"], name="paper_paper_url_svf_0e3081_gin"
-            ),
-        ),
+        # migrations.AddIndex(
+        #     model_name="paper",
+        #     index=django.contrib.postgres.indexes.GinIndex(
+        #         fields=["url_svf"], name="paper_paper_url_svf_0e3081_gin"
+        #     ),
+        # ),
     ]
