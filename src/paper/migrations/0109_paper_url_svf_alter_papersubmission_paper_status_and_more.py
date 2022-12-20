@@ -18,16 +18,17 @@ class Migration(migrations.Migration):
                 setweight(to_tsvector('english', coalesce(url, '')), 'A')
               ) STORED;
             ''',
-
             reverse_sql='''
               ALTER TABLE paper_paper DROP COLUMN url_svf;
-            '''
+            ''',
+            state_operations=[
+                migrations.AddField(
+                    model_name="paper",
+                    name="url_svf",
+                    field=django.contrib.postgres.search.SearchVectorField(null=True),
+                )
+            ]
         ),
-        # migrations.AddField(
-        #     model_name="paper",
-        #     name="url_svf",
-        #     field=django.contrib.postgres.search.SearchVectorField(null=True),
-        # ),
         migrations.AlterField(
             model_name="papersubmission",
             name="paper_status",
@@ -51,10 +52,10 @@ class Migration(migrations.Migration):
                 max_length=32,
             ),
         ),
-        # migrations.AddIndex(
-        #     model_name="paper",
-        #     index=django.contrib.postgres.indexes.GinIndex(
-        #         fields=["url_svf"], name="paper_paper_url_svf_0e3081_gin"
-        #     ),
-        # ),
+        migrations.AddIndex(
+            model_name="paper",
+            index=django.contrib.postgres.indexes.GinIndex(
+                fields=["url_svf"], name="paper_paper_url_svf_0e3081_gin"
+            ),
+        ),
     ]
