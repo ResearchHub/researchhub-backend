@@ -247,9 +247,9 @@ def celery_manubot(self, celery_data):
             oa_landing_page_url = oa_pdf_location.get("url_for_landing_page", [])
             oa_pdf_url = oa_pdf_location.get("url_for_pdf", [])
 
-            urls.extend(oa_url)
-            urls.extend(oa_landing_page_url)
-            urls.extend(oa_pdf_url)
+            urls.extend([oa_url])
+            urls.extend([oa_landing_page_url])
+            urls.extend([oa_pdf_url])
 
         for url_check in urls:
             url_paper_check = Paper.objects.filter(
