@@ -12,23 +12,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunSQL(
-            sql='''
-              ALTER TABLE paper_paper ADD COLUMN url_svf tsvector GENERATED ALWAYS AS (
-                setweight(to_tsvector('english', coalesce(url, '')), 'A')
-              ) STORED;
-            ''',
-            reverse_sql='''
-              ALTER TABLE paper_paper DROP COLUMN url_svf;
-            ''',
-            state_operations=[
-                migrations.AddField(
-                    model_name="paper",
-                    name="url_svf",
-                    field=django.contrib.postgres.search.SearchVectorField(null=True),
-                )
-            ]
-        ),
         migrations.AlterField(
             model_name="papersubmission",
             name="paper_status",
@@ -52,10 +35,73 @@ class Migration(migrations.Migration):
                 max_length=32,
             ),
         ),
+        migrations.RunSQL(
+            sql='''
+              ALTER TABLE paper_paper ADD COLUMN url_svf tsvector GENERATED ALWAYS AS (
+                setweight(to_tsvector('english', coalesce(url, '')), 'A')
+              ) STORED;
+            ''',
+            reverse_sql='''
+              ALTER TABLE paper_paper DROP COLUMN url_svf;
+            ''',
+            state_operations=[
+                migrations.AddField(
+                    model_name="paper",
+                    name="url_svf",
+                    field=django.contrib.postgres.search.SearchVectorField(null=True),
+                )
+            ]
+        ),
+        migrations.RunSQL(
+            sql='''
+              ALTER TABLE paper_paper ADD COLUMN pdf_url_svf tsvector GENERATED ALWAYS AS (
+                setweight(to_tsvector('english', coalesce(pdf_url, '')), 'A')
+              ) STORED;
+            ''',
+            reverse_sql='''
+              ALTER TABLE paper_paper DROP COLUMN pdf_url_svf;
+            ''',
+            state_operations=[
+                migrations.AddField(
+                    model_name="paper",
+                    name="pdf_url_svf",
+                    field=django.contrib.postgres.search.SearchVectorField(null=True),
+                )
+            ]
+        ),
+        migrations.RunSQL(
+            sql='''
+              ALTER TABLE paper_paper ADD COLUMN doi_svf tsvector GENERATED ALWAYS AS (
+                setweight(to_tsvector('english', coalesce(doi, '')), 'A')
+              ) STORED;
+            ''',
+            reverse_sql='''
+              ALTER TABLE paper_paper DROP COLUMN doi_svf;
+            ''',
+            state_operations=[
+                migrations.AddField(
+                    model_name="paper",
+                    name="doi_svf",
+                    field=django.contrib.postgres.search.SearchVectorField(null=True),
+                )
+            ]
+        ),
         migrations.AddIndex(
             model_name="paper",
             index=django.contrib.postgres.indexes.GinIndex(
                 fields=["url_svf"], name="paper_paper_url_svf_0e3081_gin"
+            ),
+        ),
+        migrations.AddIndex(
+            model_name="paper",
+            index=django.contrib.postgres.indexes.GinIndex(
+                fields=["pdf_url_svf"], name="paper_paper_pdf_url_d431cf_gin"
+            ),
+        ),
+        migrations.AddIndex(
+            model_name="paper",
+            index=django.contrib.postgres.indexes.GinIndex(
+                fields=["doi_svf"], name="paper_paper_doi_svf_618fa4_gin"
             ),
         ),
     ]

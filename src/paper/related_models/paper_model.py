@@ -257,12 +257,16 @@ class Paper(AbstractGenericReactionModel):
         related_name="paper",
     )
     url_svf = SearchVectorField(null=True)
+    pdf_url_svf = SearchVectorField(null=True)
+    doi_svf = SearchVectorField(null=True)
 
     class Meta:
         indexes = (
             HashIndex(fields=("url",), name="paper_paper_url_hix"),
             HashIndex(fields=("pdf_url",), name="paper_paper_pdf_url_hix"),
             GinIndex(fields=("url_svf",)),
+            GinIndex(fields=("pdf_url_svf",)),
+            GinIndex(fields=("doi_svf",)),
         )
 
     def __str__(self):
