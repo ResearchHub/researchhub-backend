@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 
 import requests
 from django.contrib.admin.options import get_content_type_for_model
+from django.contrib.postgres.search import SearchQuery
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
@@ -17,7 +18,6 @@ from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
-from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated,
@@ -887,7 +887,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
             data["url"] = url
 
         duplicate_papers = Paper.objects.filter(
-            Q(url__icontains=url) | Q(pdf_url__icontains=url)
+            Q(url_svf=SearchQuery(url)) | Q(pdf_url_svf=SearchQuery(url))
         )
 
         if duplicate_papers:
@@ -940,7 +940,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
             return invalid_doi_res
 
         # Duplicate DOI check
-        duplicate_papers = Paper.objects.filter(doi__contains=doi)
+        duplicate_papers = Paper.objects.filter(doi_svf=SearchQuery(doi))
         if duplicate_papers:
             serializer = DynamicPaperSerializer(
                 duplicate_papers,

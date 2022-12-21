@@ -23,6 +23,9 @@ class PaperFilter(filters.FilterSet):
             "oa_pdf_location",
             "pdf_file_extract",
             "raw_authors",
+            "url_svf",
+            "pdf_url_svf",
+            "doi_svf",
         ]
 
     def uploaded_by_author(self, queryset, name, value):

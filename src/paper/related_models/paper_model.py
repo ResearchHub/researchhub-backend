@@ -5,7 +5,8 @@ import regex as re
 import requests
 from bs4 import BeautifulSoup
 from django.contrib.contenttypes.fields import GenericRelation
-from django.contrib.postgres.indexes import HashIndex
+from django.contrib.postgres.indexes import GinIndex, HashIndex
+from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import FileExtensionValidator
 from django.db import models, transaction
 from django.db.models import Avg, Count, F, IntegerField, JSONField, Q, Sum
@@ -58,6 +59,8 @@ HELP_TEXT_IS_REMOVED = "Hides the paper because it is not allowed."
 
 
 class Paper(AbstractGenericReactionModel):
+    FIELDS_TO_EXCLUDE = {"url_svf", "pdf_url_svf", "doi_svf"}
+
     REGULAR = "REGULAR"
     PRE_REGISTRATION = "PRE_REGISTRATION"
     COMPLETE = "COMPLETE"
@@ -255,11 +258,17 @@ class Paper(AbstractGenericReactionModel):
         on_delete=models.CASCADE,
         related_name="paper",
     )
+    url_svf = SearchVectorField(null=True, blank=True)
+    pdf_url_svf = SearchVectorField(null=True, blank=True)
+    doi_svf = SearchVectorField(null=True, blank=True)
 
     class Meta:
         indexes = (
             HashIndex(fields=("url",), name="paper_paper_url_hix"),
             HashIndex(fields=("pdf_url",), name="paper_paper_pdf_url_hix"),
+            GinIndex(fields=("url_svf",)),
+            GinIndex(fields=("pdf_url_svf",)),
+            GinIndex(fields=("doi_svf",)),
         )
 
     def __str__(self):
@@ -271,6 +280,37 @@ class Paper(AbstractGenericReactionModel):
             return title
         else:
             return "titleless paper"
+
+    def _do_insert(self, manager, using, fields, update_pk, raw):
+        # The fields in self.FIELDS_TO_EXCLUDE are auto generated columns.
+        # Even if nothing (null) is passed to those specific fields on create or update
+        # Django will still attempt to insert null into those columns, causing an error.
+        # This will exclude those fields, so that nothing will be inserted
+        return super()._do_insert(
+            manager,
+            using,
+            [field for field in fields if field.attname not in self.FIELDS_TO_EXCLUDE],
+            update_pk,
+            raw,
+        )
+
+    def save(self, *args, **kwargs):
+        if self.id is not None and "update_fields" not in kwargs:
+            # If self.id is None (meaning the object has yet to be saved)
+            # then do a normal update with all fields.
+            # Otherwise, make sure `update_fields` is in kwargs.
+            # This is also here for a similar reason to the
+            # _do_insert overwrite
+            default_save_fields = [
+                field.name
+                for field in self._meta.get_fields()
+                if field.name not in self.FIELDS_TO_EXCLUDE
+                and field.concrete
+                and not field.many_to_many
+                and not field.auto_created
+            ]
+            kwargs["update_fields"] = default_save_fields
+        super().save(*args, **kwargs)
 
     @property
     def display_title(self):
