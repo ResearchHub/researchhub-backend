@@ -252,7 +252,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
+    # "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -288,6 +288,7 @@ PAGINATION_PAGE_SIZE = 10
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
+        # 'rest_framework.authentication.TokenAuthentication'
         "researchhub.middleware.ApiTokenSession.UserApiTokenAuth",
     ),
     "DEFAULT_PERMISSION_CLASSES": [
@@ -352,9 +353,10 @@ REST_AUTH_REGISTER_SERIALIZERS = {
 # https://django-allauth.readthedocs.io/en/latest/configuration.html
 
 ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_EMAIL_VERIFICATION = "none"
 ACCOUNT_UNIQUE_EMAIL = True
+# ACCOUNT_ADAPTER =  'user.custom.CustomAccountAdapter'
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = False
 if STAGING or PRODUCTION:
@@ -480,7 +482,7 @@ AWS_SCHOLARLY_LAMBDA = (
     "arn:aws:lambda:us-west-2:794128250202:function:ResearchHub-Scholarly"
 )
 
-
+DEFAULT_FROM_EMAIL = "noreply@researchhub.com"
 # Storage
 
 DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
@@ -523,6 +525,7 @@ EMAIL_WHITELIST = [
     "thomas@researchhub.com",
     "pat@researchhub.com",
     "lightning.lu7@gmail.com",
+    "contact@notesalong.com",
 ]
 
 # Whitelist for distributing RSC

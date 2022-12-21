@@ -4,6 +4,7 @@ The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/2.2/topics/http/urls/
 """
 import debug_toolbar
+from dj_rest_auth.views import LoginView, LogoutView
 from django.contrib import admin
 from django.urls import include, path, re_path
 from rest_framework import routers
@@ -357,7 +358,10 @@ urlpatterns = [
     path(
         "api/auth/google/login/", oauth.views.GoogleLogin.as_view(), name="google_login"
     ),
-    path(r"api/auth/", include("dj_rest_auth.urls")),
+    re_path(r"api/auth/", include("dj_rest_auth.urls")),
+    re_path(r"api/auth/register/", include("dj_rest_auth.registration.urls")),
+    re_path(r"api/auth/login/", LoginView.as_view(), name="rest_login"),
+    re_path(r"api/auth/logout/", LogoutView.as_view(), name="rest_logout"),
     re_path(r"^auth/signup/", include(oauth.urls.registration_urls)),
     re_path(r"^auth/", include(oauth.urls.default_urls)),
     path(
