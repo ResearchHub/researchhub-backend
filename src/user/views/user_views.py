@@ -2,6 +2,7 @@ import hmac
 from datetime import datetime, timedelta
 from hashlib import sha1
 
+from allauth.account.models import EmailAddress
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import IntegrityError, models
@@ -135,10 +136,24 @@ class UserViewSet(viewsets.ModelViewSet):
             social_account = user.socialaccount_set.first()
             if social_account:
                 return Response(
-                    {"exists": True, "auth": social_account.provider}, status=200
+                    # Social login such as Google do not require email verification
+                    {
+                        "exists": True,
+                        "auth": social_account.provider,
+                        "is_verified": True,
+                    },
+                    status=200,
                 )
             else:
-                return Response({"exists": True, "auth": "email"}, status=200)
+                is_verified = False
+                email_obj = EmailAddress.objects.filter(user_id=user.id).first()
+                if email_obj:
+                    is_verified = email_obj.verified
+
+                return Response(
+                    {"exists": True, "auth": "email", "is_verified": is_verified},
+                    status=200,
+                )
 
         return Response({"exists": False}, status=200)
 
