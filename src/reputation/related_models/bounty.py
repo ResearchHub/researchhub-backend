@@ -114,6 +114,7 @@ class Bounty(DefaultModel):
             escrow = Escrow.objects.create(
                 hold_type=Escrow.BOUNTY,
                 amount=cur_amount,
+                amount_paid=cur_amount,
                 connected_bounty=self,
                 recipient=thread.created_by,
                 created_by=cur_escrow.created_by,
