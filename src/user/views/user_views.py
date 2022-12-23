@@ -318,6 +318,7 @@ class UserViewSet(viewsets.ModelViewSet):
                                     "BULLET_POINT_UPVOTED",
                                     "CREATE_FIRST_SUMMARY",
                                     "REFERRAL_APPROVED",
+                                    "BOUNTY_DAO_FEE",
                                 ]
                             ),
                         ),
