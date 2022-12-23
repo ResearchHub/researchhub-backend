@@ -369,8 +369,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         hub_id = query_params.get("hub_id", 0) or 0
         page_number = int(query_params.get("page", 1))
 
-        cache_hit = None
-        self._get_unified_document_cache_hit(
+        cache_hit = self._get_unified_document_cache_hit(
             document_request_type,
             filtering,
             hub_id,
