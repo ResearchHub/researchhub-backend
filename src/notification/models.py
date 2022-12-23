@@ -122,9 +122,14 @@ class Notification(models.Model):
         format_func = getattr(
             self, f"_format_{self.notification_type.lower()}", lambda: ([], None)
         )
+
         body, navigation_url = format_func()
-        self.body = body
-        self.navigation_url = navigation_url
+
+        if len(body):
+            self.body = body
+
+        if navigation_url:
+            self.navigation_url = navigation_url
 
     def _truncate_title(self, title):
         if len(title) > 75:

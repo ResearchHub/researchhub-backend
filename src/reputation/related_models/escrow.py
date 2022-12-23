@@ -134,6 +134,75 @@ class Escrow(DefaultModel):
         else:
             self.set_paid_status(should_save=False)
 
+        from notification.models import Notification
+        from researchhub_document.models import ResearchhubUnifiedDocument
+
+        action_user = self.created_by
+        action_user_name = action_user.first_name
+        document = (
+            ResearchhubUnifiedDocument.objects.get(id=self.object_id)
+            if self.content_type
+            == ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
+            else None
+        )
+        doc_title = None
+        comments_url = None
+        body = None
+
+        def _truncate_title(title):
+            if len(title) > 75:
+                title = f"{title[:75]}..."
+            return title
+
+        if document:
+            doc_title = _truncate_title(title=document.get_document().title)
+            base_url = document.frontend_view_link()
+            comments_url = f"{base_url}#comments"
+
+            body = [
+                {
+                    "type": "link",
+                    "value": f"{action_user_name}",
+                    "extra": '["bold", "link"]',
+                    "link": action_user.frontend_view_link(),
+                },
+                {
+                    "type": "text",
+                    "value": "awarded you {} RSC for your ".format(payout_amount),
+                },
+                {
+                    "type": "link",
+                    "value": "thread ",
+                    "link": comments_url,
+                    "extra": '["link"]',
+                },
+                {"type": "text", "value": "in "},
+                {
+                    "type": "link",
+                    "value": doc_title,
+                    "link": base_url,
+                    "extra": '["link"]',
+                },
+            ]
+
+        import pdb
+
+        pdb.set_trace()
+        notification = Notification.objects.create(
+            item=self,
+            unified_document_id=self.object_id
+            if self.content_type
+            == ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
+            else None,
+            notification_type="BOUNTY_PAYOUT",
+            recipient=self.recipient,
+            action_user=self.created_by,
+            navigation_url=comments_url,
+            body=body,
+        )
+
+        notification.send_notification()
+
         return True
 
     def refund(self, amount=None):
