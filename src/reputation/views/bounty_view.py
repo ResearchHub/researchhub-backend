@@ -264,16 +264,11 @@ class BountyViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 return Response(str(e), status=400)
 
-        if (
-            (amount and amount <= 0)
-            or not recipient
-            or not object_id
-            or not multi_approve
-        ):
-            return Response(status=400)
+        if (amount and amount <= 0) or not recipient or not object_id:
+            return Response({"detail": "Bad request"}, status=400)
 
         if content_type not in self.ALLOWED_APPROVE_CONTENT_TYPES:
-            return Response({"error": "Invalid content type"}, status=400)
+            return Response({"detail": "Invalid content type"}, status=400)
 
         with transaction.atomic():
             bounty = self.get_object()
@@ -291,6 +286,8 @@ class BountyViewSet(viewsets.ModelViewSet):
                     escr = Escrow.objects.create(
                         hold_type=Escrow.BOUNTY,
                         amount=cur_amount,
+                        amount_paid=cur_amount,
+                        connected_bounty=bounty,
                         recipient_id=user_id,
                         created_by=escrow.created_by,
                         content_type=escrow.content_type,
@@ -300,7 +297,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                         bounty_fee=escrow.bounty_fee,
                     )
                     escr.payout(payout_amount=cur_amount)
-                    escr.status = Escrow.EXPIRY_PAID
+                    escr.status = Escrow.PAID
                     escr.save()
                 bounty.set_closed_status(should_save=False)
                 bounty_paid = True

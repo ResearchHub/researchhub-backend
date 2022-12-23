@@ -50,7 +50,7 @@ class Escrow(DefaultModel):
     hold_type = models.CharField(choices=hold_type_choices, max_length=16)
     amount = models.DecimalField(default=0, decimal_places=10, max_digits=19)
     amount_paid = models.DecimalField(default=0, decimal_places=10, max_digits=19)
-    bounty_for_expiry = models.ForeignKey(
+    connected_bounty = models.ForeignKey(
         "reputation.bounty", on_delete=models.CASCADE, related_name="escrows", null=True
     )  # This is only here to payout multiple bounties
     recipient = models.ForeignKey(
