@@ -68,6 +68,9 @@ class Bounty(DefaultModel):
     def __str__(self):
         return f"Bounty: {self.id}"
 
+    def is_open(self):
+        return self.status == Bounty.OPEN
+
     def set_status(self, status, should_save=True):
         self.status = status
         if should_save:
