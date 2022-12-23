@@ -1,0 +1,12 @@
+{% load account %}
+{% load i18n %}
+
+Hello from ResearchHub,
+
+Click on the link below to confirm your email.
+
+{{ activate_url }}
+
+Best,
+
+- The ResearchHub Team
