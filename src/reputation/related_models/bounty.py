@@ -68,6 +68,9 @@ class Bounty(DefaultModel):
     def __str__(self):
         return f"Bounty: {self.id}"
 
+    def is_open(self):
+        return self.status == Bounty.OPEN
+
     def set_status(self, status, should_save=True):
         self.status = status
         if should_save:
@@ -111,7 +114,8 @@ class Bounty(DefaultModel):
             escrow = Escrow.objects.create(
                 hold_type=Escrow.BOUNTY,
                 amount=cur_amount,
-                bounty_for_expiry=self,
+                amount_paid=cur_amount,
+                connected_bounty=self,
                 recipient=thread.created_by,
                 created_by=cur_escrow.created_by,
                 content_type=cur_escrow.content_type,

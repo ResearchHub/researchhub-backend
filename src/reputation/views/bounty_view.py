@@ -256,7 +256,8 @@ class BountyViewSet(viewsets.ModelViewSet):
         recipient = data.get("recipient", None)
         content_type = data.get("content_type", None)
         object_id = data.get("object_id", None)
-
+        multi_approve = data.get("multi_approve", False)
+        approval_metadata = request.data.get("multi_bounty_approval_metadata", {})
         if amount:
             try:
                 amount = decimal.Decimal(str(amount))
@@ -264,28 +265,78 @@ class BountyViewSet(viewsets.ModelViewSet):
                 return Response(str(e), status=400)
 
         if (amount and amount <= 0) or not recipient or not object_id:
-            return Response(status=400)
+            return Response({"detail": "Bad request"}, status=400)
 
         if content_type not in self.ALLOWED_APPROVE_CONTENT_TYPES:
-            return Response({"error": "Invalid content type"}, status=400)
+            return Response({"detail": "Invalid content type"}, status=400)
 
         with transaction.atomic():
             bounty = self.get_object()
-            content_type = ContentType.objects.get(model=content_type)
-            model_class = content_type.model_class()
-            solution = model_class.objects.get(id=object_id)
             escrow = bounty.escrow
-            escrow.recipient_id = recipient
-            bounty_paid = bounty.approve(payout_amount=amount)
+
+            if multi_approve:
+                escrow.status = Escrow.PAID
+                for item in approval_metadata:
+                    content_type = ContentType.objects.get(
+                        model=item.get("content_type")
+                    )
+                    model_class = content_type.model_class()
+                    user_id = item.get("recipient_id")
+                    cur_amount = item.get("amount")
+                    escr = Escrow.objects.create(
+                        hold_type=Escrow.BOUNTY,
+                        amount=cur_amount,
+                        amount_paid=cur_amount,
+                        connected_bounty=bounty,
+                        recipient_id=user_id,
+                        created_by=escrow.created_by,
+                        content_type=escrow.content_type,
+                        object_id=escrow.object_id,
+                        item=escrow.item,
+                        status=Escrow.PAID,
+                        bounty_fee=escrow.bounty_fee,
+                    )
+                    escr.payout(payout_amount=cur_amount)
+                    escr.status = Escrow.PAID
+                    escr.save()
+                bounty.set_closed_status(should_save=False)
+                bounty_paid = True
+            else:
+                content_type = ContentType.objects.get(model=content_type)
+                model_class = content_type.model_class()
+                solution = model_class.objects.get(id=object_id)
+                escrow.recipient_id = recipient
+                bounty_paid = bounty.approve(payout_amount=amount)
+
             escrow.save()
             bounty.save()
 
             data["bounty"] = bounty.id
-            data["created_by"] = solution.created_by.id
-            data["content_type"] = content_type.id
-            solution_serializer = BountySolutionSerializer(data=data)
-            solution_serializer.is_valid(raise_exception=True)
-            solution_serializer.save()
+            if multi_approve:
+                for item in approval_metadata:
+                    content_type = ContentType.objects.get(
+                        model=item.get("content_type")
+                    )
+                    model_class = content_type.model_class()
+                    solution = model_class.objects.get(id=item.get("object_id"))
+
+                    new_data = {}
+                    new_data["bounty"] = bounty.id
+                    new_data["created_by"] = solution.created_by.id
+                    new_data["content_type"] = content_type.id
+                    new_data["object_id"] = item.get("object_id")
+                    new_data["recipient_id"] = item.get("recipient_id")
+                    new_data["amount"] = item.get("amount")
+
+                    solution_serializer = BountySolutionSerializer(data=new_data)
+                    solution_serializer.is_valid(raise_exception=True)
+                    solution_serializer.save()
+            else:
+                data["created_by"] = solution.created_by.id
+                data["content_type"] = content_type.id
+                solution_serializer = BountySolutionSerializer(data=data)
+                solution_serializer.is_valid(raise_exception=True)
+                solution_serializer.save()
 
             unified_document = bounty.unified_document
             unified_document.update_filters(

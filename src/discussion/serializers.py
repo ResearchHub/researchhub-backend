@@ -1,4 +1,5 @@
 import rest_framework.serializers as serializers
+from django.contrib.contenttypes.models import ContentType
 
 # TODO: Make is_public editable for creator as a delete mechanism
 # TODO: undo
@@ -17,6 +18,7 @@ from discussion.utils import ORDERING_SCORE_ANNOTATION
 from hub.serializers import DynamicHubSerializer
 from hypothesis.models import Hypothesis
 from paper.models import Paper
+from reputation.models import Escrow
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE
 from researchhub_document.models import ResearchhubPost
@@ -551,6 +553,7 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
             "was_edited",
         ]
         read_only_fields = [
+            "awarded_bounty_amount",
             "document_meta",
             "document_meta",
             "is_accepted_answer",
@@ -670,9 +673,23 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
         return serializer.data
 
     def get_awarded_bounty_amount(self, obj):
-        amount_awarded = obj.bounty_solution.aggregate(
-            Sum("bounty__escrow__amount_paid")
-        ).get("bounty__escrow__amount_paid__sum", None)
+        # bounty = obj.bounty_solution.all()[0].bounty
+        amount_awarded = None
+        bounty_solution = obj.bounty_solution.first()
+
+        if bounty_solution:
+            bounty = bounty_solution.bounty
+            content_type = ContentType.objects.get_for_model(obj.unified_document)
+            amount_awarded = (
+                Escrow.objects.filter(
+                    object_id=obj.unified_document.id,
+                    content_type=content_type,
+                    recipient_id=obj.created_by.id,
+                )
+                .aggregate(Sum("amount_paid"))
+                .get("amount_paid__sum", None)
+            )
+
         return amount_awarded
 
 
