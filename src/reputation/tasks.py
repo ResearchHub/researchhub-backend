@@ -13,6 +13,7 @@ from notification.models import Notification
 from reputation.lib import check_hotwallet
 from reputation.models import Bounty, Contribution
 from researchhub.celery import QUEUE_BOUNTIES, QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
+from researchhub.settings import PRODUCTION
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_EXPIRED,
@@ -84,7 +85,8 @@ def create_author_contribution(contribution_type, user_id, unified_doc_id, objec
     queue=QUEUE_PURCHASES,
 )
 def check_hotwallet_balance():
-    check_hotwallet()
+    if PRODUCTION:
+        check_hotwallet()
 
 
 @periodic_task(
