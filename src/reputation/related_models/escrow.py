@@ -185,9 +185,6 @@ class Escrow(DefaultModel):
                 },
             ]
 
-        import pdb
-
-        pdb.set_trace()
         notification = Notification.objects.create(
             item=self,
             unified_document_id=self.object_id
