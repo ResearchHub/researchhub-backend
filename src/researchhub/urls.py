@@ -4,7 +4,13 @@ The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/2.2/topics/http/urls/
 """
 import debug_toolbar
-from dj_rest_auth.views import LoginView, LogoutView
+from dj_rest_auth.views import (
+    LoginView,
+    LogoutView,
+    PasswordChangeView,
+    PasswordResetConfirmView,
+    PasswordResetView,
+)
 from django.contrib import admin
 from django.urls import include, path, re_path
 from rest_framework import routers
@@ -362,6 +368,26 @@ urlpatterns = [
     re_path(r"api/auth/register/", include("dj_rest_auth.registration.urls")),
     re_path(r"api/auth/login/", LoginView.as_view(), name="rest_login"),
     re_path(r"api/auth/logout/", LogoutView.as_view(), name="rest_logout"),
+    # re_path(r'api/auth/password/reset/', PasswordResetView.as_view(), name='rest_password_reset'),
+    re_path(
+        r"api/auth/password-reset/$", PasswordResetView.as_view(), name="password-reset"
+    ),
+    re_path(
+        r"api/auth/confirm/$",
+        PasswordResetConfirmView.as_view(),
+        name="password-reset-confirm",
+    ),
+    re_path(
+        r"api/auth/password-change/$",
+        PasswordChangeView.as_view(),
+        name="password-change",
+    ),
+    # re_path(r'api/auth/password/reset/confirm/', PasswordResetConfirmView.as_view(), name='rest_password_reset_confirm'),
+    re_path(
+        r"^password-reset/confirm/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,32})/$",
+        PasswordResetConfirmView.as_view(),
+        name="password_reset_confirm",
+    ),
     re_path(r"^auth/signup/", include(oauth.urls.registration_urls)),
     re_path(r"^auth/", include(oauth.urls.default_urls)),
     path(

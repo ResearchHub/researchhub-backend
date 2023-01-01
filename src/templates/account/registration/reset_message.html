@@ -1,0 +1,22 @@
+{% load account %}
+{% load i18n %}
+<html>
+  <head></head>
+  <body>
+    <div class="email">
+      Hello from ResearchHub,
+      <br/>
+      <br/>
+      Click on the link below to complete your password reset.
+      <br/>
+      {{ reset_url }}
+      {{ uid}}
+      <br/>
+      <br/>
+      Best,
+      <br/>
+      <br/>
+      - The ResearchHub Team
+    </div>
+  </body>
+</html>

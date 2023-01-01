@@ -348,6 +348,10 @@ REST_AUTH_REGISTER_SERIALIZERS = {
     "REGISTER_SERIALIZER": "user.serializers.RegisterSerializer",
 }
 
+REST_AUTH_SERIALIZERS = {
+    "PASSWORD_RESET_SERIALIZER": "user.custom.CustomPasswordResetSerializer"
+}
+
 
 # Django AllAuth setup
 # https://django-allauth.readthedocs.io/en/latest/configuration.html
