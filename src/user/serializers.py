@@ -388,6 +388,7 @@ class UserEditableSerializer(ModelSerializer):
     email = SerializerMethodField()
     organization_slug = SerializerMethodField()
     subscribed = SerializerMethodField()
+    auth_provider = SerializerMethodField()
 
     class Meta:
         model = User
@@ -402,6 +403,13 @@ class UserEditableSerializer(ModelSerializer):
         read_only_fields = [
             "moderator",
         ]
+
+    def get_auth_provider(self, obj):
+        social_account = obj.socialaccount_set.first()
+        if social_account:
+            return social_account.provider
+        else:
+            return "email"
 
     def get_email(self, user):
         context = self.context
