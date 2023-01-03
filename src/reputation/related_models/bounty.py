@@ -12,7 +12,7 @@ from utils.models import DefaultModel
 
 def get_default_expiration_date():
     now = datetime.now(pytz.UTC)
-    date = now + timedelta(days=14)
+    date = now + timedelta(days=7)
     return date
 
 
