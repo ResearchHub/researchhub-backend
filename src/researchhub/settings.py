@@ -349,7 +349,7 @@ REST_AUTH_REGISTER_SERIALIZERS = {
 }
 
 REST_AUTH_SERIALIZERS = {
-    "PASSWORD_RESET_SERIALIZER": "user.custom.CustomPasswordResetSerializer"
+    "PASSWORD_RESET_SERIALIZER": "user.custom_allauth.CustomPasswordResetSerializer"
 }
 
 
@@ -360,7 +360,7 @@ ACCOUNT_AUTHENTICATION_METHOD = "email"
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_UNIQUE_EMAIL = True
-ACCOUNT_ADAPTER = "user.custom.CustomAccountAdapter"
+ACCOUNT_ADAPTER = "user.custom_allauth.CustomAccountAdapter"
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = False
 if STAGING or PRODUCTION:

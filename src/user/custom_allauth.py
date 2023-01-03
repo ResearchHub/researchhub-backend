@@ -4,7 +4,7 @@ from allauth.account.utils import user_pk_to_url_str
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from dj_rest_auth.serializers import PasswordResetSerializer
 
-from researchhub.settings import BASE_FRONTEND_URL, TESTING
+from researchhub.settings import BASE_FRONTEND_URL
 
 
 class CustomAccountAdapter(DefaultAccountAdapter):
@@ -12,7 +12,6 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         return f"{BASE_FRONTEND_URL}/verify/{emailconfirmation.key}"
 
 
-# serializers.py
 class CustomPasswordResetSerializer(PasswordResetSerializer):
     @property
     def password_reset_form_class(self):
@@ -21,7 +20,7 @@ class CustomPasswordResetSerializer(PasswordResetSerializer):
     def get_email_options(self):
         return {
             "email_template": "account/registration/reset",
-            "extra_email_context": {"client_app": "test"},
+            "extra_email_context": {},
         }
 
 
@@ -32,7 +31,6 @@ class CustomResetPasswordForm(ResetPasswordForm):
         template = kwargs.get("email_template")
         for user in self.users:
             uid = user_pk_to_url_str(user)
-            print("uid", uid)
             token = token_generator.make_token(user)
             reset_url = f"{BASE_FRONTEND_URL}/reset/{uid}/{token}"
             context = {
