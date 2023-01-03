@@ -381,7 +381,6 @@ urlpatterns = [
         PasswordChangeView.as_view(),
         name="password-change",
     ),
-    # re_path(r'api/auth/password/reset/confirm/', PasswordResetConfirmView.as_view(), name='rest_password_reset_confirm'),
     re_path(
         r"^password-reset/confirm/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,32})/$",
         PasswordResetConfirmView.as_view(),
