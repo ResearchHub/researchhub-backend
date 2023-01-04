@@ -32,39 +32,44 @@ def create_thread_notification(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=Thread, dispatch_uid="thread_post_save_signal")
 def thread_post_save_signal(sender, instance, created, update_fields, **kwargs):
-    paper = instance.paper
+    # paper = instance.paper
     instance.update_discussion_count()
-    if paper:
-        paper.reset_cache()
+    # Commenting out paper cache
+    # if paper:
+    #     paper.reset_cache()
 
 
 @receiver(post_delete, sender=Thread, dispatch_uid="recalc_dis_count_del_thr")
 def recalc_dis_count_thread_delete(sender, instance, **kwargs):
-    paper = instance.paper
+    # paper = instance.paper
     instance.update_discussion_count()
-    if paper:
-        paper.reset_cache()
+    # Commenting out paper cache
+    # if paper:
+    #     paper.reset_cache()
 
 
 @receiver(post_save, sender=Comment, dispatch_uid="comment_post_save_signal")
 def comment_post_save_signal(sender, instance, created, update_fields, **kwargs):
-    paper = instance.paper
+    # paper = instance.paper
     instance.update_discussion_count()
-    if paper:
-        paper.reset_cache()
+    # Commenting out paper cache
+    # if paper:
+    #     paper.reset_cache()
 
 
 @receiver(post_delete, sender=Comment, dispatch_uid="recalc_dis_count_del_com")
 def recalc_dis_count_comment_delete(sender, instance, **kwargs):
-    paper = instance.paper
+    # paper = instance.paper
     instance.update_discussion_count()
-    if paper:
-        paper.reset_cache()
+    # Commenting out paper cache
+    # if paper:
+    #     paper.reset_cache()
 
 
 @receiver(post_save, sender=Reply, dispatch_uid="reply_post_save_signal")
 def reply_post_save_signal(sender, instance, created, update_fields, **kwargs):
-    paper = instance.paper
+    # paper = instance.paper
     instance.update_discussion_count()
-    if paper:
-        paper.reset_cache()
+    # Commenting out paper cache
+    # if paper:
+    #     paper.reset_cache()
