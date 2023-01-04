@@ -417,7 +417,8 @@ class AuditViewSet(viewsets.GenericViewSet):
             inner_doc = unified_document.get_document()
             if isinstance(inner_doc, Paper):
                 inner_doc.is_removed = True
-                inner_doc.reset_cache()
+                # Commenting out paper cache
+                # inner_doc.reset_cache()
                 inner_doc.save()
 
     def _send_notification_to_content_creator(self, verdict, remover, send_email=True):

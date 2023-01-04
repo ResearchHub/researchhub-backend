@@ -774,10 +774,12 @@ class Paper(AbstractGenericReactionModel):
         return 0
 
     def reset_cache(self, use_celery=True):
-        if use_celery:
-            celery_paper_reset_cache.apply_async((self.id,), priority=2)
-        else:
-            celery_paper_reset_cache(self.id)
+        # Commenting out paper cache
+        # if use_celery:
+        #     celery_paper_reset_cache.apply_async((self.id,), priority=2)
+        # else:
+        #     celery_paper_reset_cache(self.id)
+        return
 
     def get_license(self, save=True):
         pdf_license = self.pdf_license

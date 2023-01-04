@@ -230,14 +230,16 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         context = self._get_paper_context(request)
-        cache_key = get_cache_key("paper", instance.id)
-        cache_hit = cache.get(cache_key)
-        if cache_hit is not None:
-            vote = self.dynamic_serializer_class(context=context).get_user_vote(
-                instance
-            )
-            cache_hit["user_vote"] = vote
-            return Response(cache_hit)
+
+        # Commenting out paper cache
+        # cache_key = get_cache_key("paper", instance.id)
+        # cache_hit = cache.get(cache_key)
+        # if cache_hit is not None:
+        #     vote = self.dynamic_serializer_class(context=context).get_user_vote(
+        #         instance
+        #     )
+        #     cache_hit["user_vote"] = vote
+        #     return Response(cache_hit)
 
         serializer = self.dynamic_serializer_class(
             instance,
@@ -276,7 +278,7 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         )
         serializer_data = serializer.data
 
-        cache.set(cache_key, serializer_data, timeout=60 * 60 * 24 * 7)
+        # cache.set(cache_key, serializer_data, timeout=60 * 60 * 24 * 7)
         return Response(serializer_data)
 
     def list(self, request, *args, **kwargs):
@@ -301,7 +303,8 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             instance = self.get_object()
             self._send_created_location_ga_event(instance, request.user)
 
-        instance.reset_cache(use_celery=False)
+        # Commenting out paper cache
+        # instance.reset_cache(use_celery=False)
         return response
 
     def _send_created_location_ga_event(self, instance, user):
@@ -381,7 +384,9 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             pass
         paper.is_removed = False
         paper.save()
-        paper.reset_cache(use_celery=False)
+
+        # Commenting out paper cache
+        # paper.reset_cache(use_celery=False)
 
         hub_ids = paper.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
@@ -417,7 +422,8 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         hub_ids = list(paper.hubs.values_list("id", flat=True))
         hub_ids = add_default_hub(hub_ids)
 
-        paper.reset_cache(use_celery=False)
+        # Commenting out paper cache
+        # paper.reset_cache(use_celery=False)
         return Response(self.get_serializer(instance=paper).data, status=200)
 
     @action(
