@@ -277,6 +277,8 @@ class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             ],
         )
         serializer_data = serializer.data
+        vote = self.dynamic_serializer_class(context=context).get_user_vote(instance)
+        serializer_data["user_vote"] = vote
 
         # cache.set(cache_key, serializer_data, timeout=60 * 60 * 24 * 7)
         return Response(serializer_data)
