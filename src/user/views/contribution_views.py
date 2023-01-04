@@ -81,21 +81,22 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             },
             "usr_das_get_item": {
                 "_include_fields": [
+                    "abstract",
+                    "amount",
+                    "content_type",
+                    "discussion_post_type",
+                    "hubs",
                     "id",
-                    "slug",
+                    "item",
                     "paper_title",
+                    "plain_text",
+                    "renderable_text",
+                    "slug",
+                    "source",
+                    "text",
                     "title",
                     "unified_document",
-                    "renderable_text",
-                    "content_type",
-                    "source",
-                    "abstract",
                     "user",
-                    "hubs",
-                    "amount",
-                    "plain_text",
-                    "item",
-                    "discussion_post_type",
                 ]
             },
             "usr_das_get_hubs": {
@@ -204,11 +205,11 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             many=True,
             context=self._get_latest_actions_context(),
             _include_fields=[
-                "created_by",
                 "content_type",
-                "item",
+                "created_by",
                 "created_date",
                 "hubs",
+                "item",
             ],
         )
         data = serializer.data

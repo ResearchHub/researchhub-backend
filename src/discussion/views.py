@@ -128,7 +128,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         self.sift_track_create_content_comment(
             request, response, Thread, is_thread=True
         )
-
         create_contribution.apply_async(
             (
                 Contribution.COMMENTER,
