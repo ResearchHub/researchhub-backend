@@ -1,3 +1,4 @@
+from discussion.models import Thread
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 from discussion.reaction_models import Vote
 from discussion.reaction_serializers import (
@@ -55,8 +56,9 @@ class DynamicCitationSerializer(DynamicModelFieldSerializer):
     consensus_meta = SerializerMethodField()
     created_by = SerializerMethodField()
     hypothesis = SerializerMethodField()
-    source = SerializerMethodField()
+    inline_comment_count = SerializerMethodField()
     publish_date = SerializerMethodField()
+    source = SerializerMethodField()
 
     class Meta(object):
         model = Citation
@@ -125,3 +127,6 @@ class DynamicCitationSerializer(DynamicModelFieldSerializer):
                 )
             }
         )
+
+    def get_inline_comment_count(self, citation):
+        return Thread.objects.filter(citation__id=citation.id).count() or 0
