@@ -760,7 +760,7 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
             serializer = DynamicPurchaseSerializer
         elif isinstance(item, Thread):
             from discussion.serializers import DynamicThreadSerializer
-
+            
             serializer = DynamicThreadSerializer
         elif isinstance(item, Comment):
             from discussion.serializers import DynamicCommentSerializer

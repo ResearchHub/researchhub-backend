@@ -123,6 +123,7 @@ class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin):
                 "created_by",
                 "created_date",
                 "id",
+                "inline_comment_count",
                 "publish_date",
                 "score",
                 "source",
