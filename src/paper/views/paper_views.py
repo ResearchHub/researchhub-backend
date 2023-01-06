@@ -918,11 +918,12 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
         response = super().create(*args, **kwargs)
         if response.status_code == 201:
             data = response.data
-            celery_process_paper.apply_async(
-                (data["id"],),
-                priority=1,
-                countdown=3,
-            )
+            celery_process_paper(data["id"])
+            # celery_process_paper.apply_async(
+            #     (data["id"],),
+            #     priority=1,
+            #     countdown=3,
+            # )
         return response
 
     @track_event
@@ -962,9 +963,10 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
         response = super().create(request)
         if response.status_code == 201:
             data = response.data
-            celery_process_paper.apply_async(
-                (data["id"],),
-                priority=1,
-                countdown=3,
-            )
+            celery_process_paper(data["id"])
+            # celery_process_paper.apply_async(
+            #     (data["id"],),
+            #     priority=1,
+            #     countdown=3,
+            # )
         return response

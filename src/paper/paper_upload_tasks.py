@@ -98,13 +98,16 @@ def celery_process_paper(self, submission_id):
     )
 
     workflow = chain(tasks)
-    workflow.apply_async(
-        (args,),
-        countdown=0.5,
-        priority=1,
-        link_error=celery_handle_paper_processing_errors.s(),
-        soft_time_limit=60 * 2,
-    )
+    x = workflow.run((args,))
+    # x.wait()
+    return x
+    # workflow.apply_async(
+    #     (args,),
+    #     countdown=0.5,
+    #     priority=1,
+    #     link_error=celery_handle_paper_processing_errors.s(),
+    #     soft_time_limit=60 * 2,
+    # )
 
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)

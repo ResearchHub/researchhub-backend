@@ -1119,8 +1119,8 @@ def celery_process_paper(self, submission_id):
     if url:
         tasks.extend(
             [
-                celery_get_doi.s().set(countdown=1),
-                celery_manubot_doi.s().set(countdown=1),
+                celery_get_doi.s().set(countdown=0.5),
+                celery_manubot_doi.s().set(countdown=0.5),
             ]
         )
     else:
@@ -1128,12 +1128,12 @@ def celery_process_paper(self, submission_id):
 
     tasks.extend(
         [
-            celery_unpaywall.s().set(countdown=1),
-            celery_openalex.s().set(countdown=1),
-            celery_crossref.s().set(countdown=1),
-            celery_semantic_scholar.s().set(countdown=1),
-            celery_manubot.s().set(countdown=1),
-            celery_create_paper.s().set(countdown=1),
+            celery_unpaywall.s().set(countdown=0.5),
+            celery_openalex.s().set(countdown=0.5),
+            celery_crossref.s().set(countdown=0.5),
+            celery_semantic_scholar.s().set(countdown=0.5),
+            celery_manubot.s().set(countdown=0.5),
+            celery_create_paper.s().set(countdown=0.5),
         ]
     )
 
