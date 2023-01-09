@@ -178,12 +178,12 @@ class SocialLoginSerializer(serializers.Serializer):
                     .exists()
                 )
                 if account_exists:
-                    sentry.log_info("User already registered with this e-mail")
+                    sentry.log_info("User already registered with this email")
                     # deleted = self._delete_user_account(login.user)
                     # if deleted and retry < 3:
                     #     return self.validate(attrs, retry=retry + 1)
                     raise serializers.ValidationError(
-                        _("User already registered with this e-mail address.")
+                        _("User already registered with this email address.")
                     )
 
             login.lookup()
