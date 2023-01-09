@@ -12,6 +12,52 @@ class DefaultModel(models.Model):
         abstract = True
 
 
+class DefaultAuthenticatedModel(models.Model):
+    class Meta:
+        abstract = True
+
+    created_by = models.ForeignKey(
+        "user.User",
+        blank=False,
+        null=False,
+        on_delete=models.CASCADE,
+    )
+    created_date = models.DateTimeField(
+        auto_now_add=True,
+        blank=True,
+        null=False,
+    )
+    updated_by = models.ForeignKey(
+        "user.User",
+        blank=False,
+        help_text="Last user to update the instance",
+        null=False,
+        on_delete=models.CASCADE,
+    )
+    updated_date = models.DateTimeField(
+        auto_now_add=True,
+        blank=True,
+        null=False,
+    )
+
+
+class AbstractGenericRelationModel(DefaultAuthenticatedModel):
+    class Meta:
+        abstract = True
+
+    # Below the mandatory fields for generic relation
+    content_type = models.ForeignKey(
+        models.ContentType,
+        help_text="""
+            Forms a contenttype - generic relation between "origin" model to target model
+            Target models should have its own (i.e. field_name = GenericRelation(OriginModel))
+        """,
+        on_delete=models.CASCADE,
+    )
+    object_id = models.PositiveIntegerField()
+    content_object = models.GenericForeignKey()
+
+
 class SoftDeletableModel(models.Model):
     """Adapted from https://github.com/jazzband/django-model-utils"""
 
