@@ -1,3 +1,5 @@
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils import timezone
 
@@ -47,7 +49,7 @@ class AbstractGenericRelationModel(DefaultAuthenticatedModel):
 
     # Below the mandatory fields for generic relation
     content_type = models.ForeignKey(
-        models.ContentType,
+        ContentType,
         help_text="""
             Forms a contenttype - generic relation between "origin" model to target model
             Target models should have its own (i.e. field_name = GenericRelation(OriginModel))
@@ -55,7 +57,7 @@ class AbstractGenericRelationModel(DefaultAuthenticatedModel):
         on_delete=models.CASCADE,
     )
     object_id = models.PositiveIntegerField()
-    content_object = models.GenericForeignKey()
+    content_object = GenericForeignKey()
 
 
 class SoftDeletableModel(models.Model):
