@@ -2,6 +2,7 @@ import json
 import threading
 import time
 
+from allauth.account.models import EmailAddress
 from django.contrib.admin.options import get_content_type_for_model
 from django.db import connection
 from django.test import Client
@@ -152,10 +153,10 @@ class IntegrationTestHelper(TestData):
     client = Client()
 
     def get_default_authenticated_client(self):
-        response = self.signup_default_user()
-        response_content = self.bytes_to_json(response.content)
-        token = response_content.get("key")
-        client = self._create_authenticated_client(token)
+        self.signup_default_user()
+        user = User.objects.get(email=self.valid_email)
+        token, craeted = Token.objects.get_or_create(user=user)
+        client = self._create_authenticated_client(token.key)
         return client
 
     def signup_default_user(self):
@@ -166,7 +167,12 @@ class IntegrationTestHelper(TestData):
             "password1": self.valid_password,
             "password2": self.valid_password,
         }
-        return self.get_post_response(url, body)
+        signup = self.get_post_response(url, body)
+        email = EmailAddress.objects.get(email=self.valid_email)
+        email.verified = True
+        email.set_as_primary(conditional=True)
+        email.save()
+        return signup
 
     def bytes_to_json(self, data_bytes):
         data_string = data_bytes.decode("utf-8")
