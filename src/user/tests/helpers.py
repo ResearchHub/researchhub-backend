@@ -25,7 +25,7 @@ class TestData:
     invalid_email = "testuser@gmail"
     invalid_password = "pass"
     valid_email = "testuser@gmail.com"
-    valid_password = "ReHub940"
+    valid_password = "ReHub940@"
 
     university_name = "Hogwarts"
     university_country = "England"
