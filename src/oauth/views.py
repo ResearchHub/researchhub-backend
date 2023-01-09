@@ -202,7 +202,6 @@ def user_signed_up_(request, user, **kwargs):
     """
     After a user signs up with social account, set their profile image.
     """
-
     queryset = SocialAccount.objects.filter(provider="google", user=user)
 
     if queryset.exists():

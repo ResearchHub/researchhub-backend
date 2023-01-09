@@ -155,10 +155,11 @@ class SocialLoginSerializer(serializers.Serializer):
         except Exception as e:
             error = LoginError(e, "Login failed")
             sentry.log_info(error, error=e)
-            if login:
-                deleted = self._delete_user_account(login.user, error=e)
-                if deleted and retry < 3:
-                    return self.validate(attrs, retry=retry + 1)
+
+            # if login:
+            #     deleted = self._delete_user_account(login.user, error=e)
+            #     if deleted and retry < 3:
+            #         return self.validate(attrs, retry=retry + 1)
             sentry.log_error(error, base_error=e)
             raise serializers.ValidationError(_("Incorrect value"))
 
@@ -177,12 +178,12 @@ class SocialLoginSerializer(serializers.Serializer):
                     .exists()
                 )
                 if account_exists:
-                    sentry.log_info("User already registered with this e-mail")
-                    deleted = self._delete_user_account(login.user)
-                    if deleted and retry < 3:
-                        return self.validate(attrs, retry=retry + 1)
+                    sentry.log_info("User already registered with this email")
+                    # deleted = self._delete_user_account(login.user)
+                    # if deleted and retry < 3:
+                    #     return self.validate(attrs, retry=retry + 1)
                     raise serializers.ValidationError(
-                        _("User already registered with this e-mail address.")
+                        _("User already registered with this email address.")
                     )
 
             login.lookup()

@@ -2,6 +2,7 @@ import hmac
 from datetime import datetime, timedelta
 from hashlib import sha1
 
+from allauth.account.models import EmailAddress
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import IntegrityError, models
@@ -127,6 +128,34 @@ class UserViewSet(viewsets.ModelViewSet):
             return qs.filter(id=user.id)
         else:
             return User.objects.none()
+
+    @action(detail=False, methods=["POST"], permission_classes=[AllowAny])
+    def check_account(self, request):
+        user = User.objects.filter(email=request.data["email"]).first()
+        if user:
+            social_account = user.socialaccount_set.first()
+            if social_account:
+                return Response(
+                    # Social login such as Google do not require email verification
+                    {
+                        "exists": True,
+                        "auth": social_account.provider,
+                        "is_verified": True,
+                    },
+                    status=200,
+                )
+            else:
+                is_verified = False
+                email_obj = EmailAddress.objects.filter(user_id=user.id).first()
+                if email_obj:
+                    is_verified = email_obj.verified
+
+                return Response(
+                    {"exists": True, "auth": "email", "is_verified": is_verified},
+                    status=200,
+                )
+
+        return Response({"exists": False}, status=200)
 
     @action(detail=False, methods=["POST"], permission_classes=[IsAuthenticated])
     def update_balance_history_clicked(self, request):

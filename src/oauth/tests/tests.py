@@ -1,4 +1,4 @@
-from django.test import TestCase, Client
+from django.test import Client, TestCase
 
 
 class OAuthTests(TestCase):
@@ -6,10 +6,11 @@ class OAuthTests(TestCase):
     Status code reference:
         https://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml
     """
-    invalid_email = 'testuser@gmail'
-    invalid_password = 'pass'
-    valid_email = 'testuser@gmail.com'
-    valid_password = 'ReHub940'
+
+    invalid_email = "testuser@gmail"
+    invalid_password = "pass"
+    valid_email = "testuser@gmail.com"
+    valid_password = "ReHub940@"
 
     def setUp(self):
         self.client = Client()

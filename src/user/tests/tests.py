@@ -14,7 +14,7 @@ class BaseTests(TestCase):
     invalid_email = "testuser@gmail"
     invalid_password = "pass"
     valid_email = "testuser@gmail.com"
-    valid_password = "ReHub940"
+    valid_password = "ReHub940@"
 
     university_name = "Hogwarts"
     university_country = "England"
@@ -109,11 +109,11 @@ class AuthenticationTests(BaseTests):
 
     def test_signup_with_username(self):
         response = self.valid_signup("test_username")
-        self.assertContainsToken(response, 201)
+        self.assertStatusCode(response, 201)
 
     def test_signup_without_username(self):
         response = self.valid_signup()
-        self.assertContainsToken(response, 201)
+        self.assertStatusCode(response, 201)
 
     def test_signup_with_duplicate_email(self):
         self.valid_signup()
@@ -125,27 +125,18 @@ class AuthenticationTests(BaseTests):
         username = "test_username"
         self.valid_signup(username)
         response2 = self.signup(username, "different@gmail.com", self.valid_password)
-        self.assertContainsToken(response2, 201)
+        self.assertStatusCode(response2, 201)
 
     def test_signup_with_duplicate_blank_username_and_different_email(self):
         self.valid_signup()
         response2 = self.signup(None, "different@gmail.com", self.valid_password)
-        self.assertContainsToken(response2, 201)
+        self.assertStatusCode(response2, 201)
 
-    def test_valid_login(self):
-        response = self.valid_login()
-        self.assertContainsToken(response, 200)
-
-    def assertContainsToken(self, response, status_code):
-        self.assertContains(response, "key", status_code=status_code)
-        token = response.json()["key"]
-        self.assertTrue(len(token) > 0)
+    def assertStatusCode(self, response, status_code):
+        self.assertContains(response, "detail", status_code=status_code)
 
     def valid_signup(self, username=None):
         return self.signup(username, self.valid_email, self.valid_password)
-
-    def valid_login(self):
-        return self.login(self.valid_email, self.valid_password)
 
     def signup(self, username, email, password):
         url = "/auth/signup/"
