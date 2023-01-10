@@ -1,4 +1,4 @@
-from django.db.models import CharField, FileField, TextField, ForeignKey, CASCADE, DateTimeField
+from django.db.models import CharField, FileField, TextField, ForeignKey, CASCADE, SET_NULL
 
 from discussion.reaction_models import AbstractGenericReactionModel
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR, RH_COMMENT_CONTENT_TYPES
@@ -39,6 +39,13 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         choices=RH_COMMENT_CONTENT_TYPES,
         default=QUILL_EDITOR,
         max_length=144,
+    )
+    parent = ForeignKey(
+        "self", 
+        blank=True,
+        null=True,
+        on_delete=SET_NULL,
+        related_name="responses",
     )
     thread = ForeignKey(
         RhCommentThreadModel,
