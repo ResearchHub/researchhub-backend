@@ -10,7 +10,7 @@ from django.db.models.functions import Cast
 
 from mailing_list.lib import base_email_context
 from notification.models import Notification
-from reputation.lib import check_hotwallet
+from reputation.lib import check_hotwallet, check_pending_withdrawal
 from reputation.models import Bounty, Contribution
 from researchhub.celery import QUEUE_BOUNTIES, QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
 from researchhub.settings import PRODUCTION
@@ -77,6 +77,15 @@ def create_author_contribution(contribution_type, user_id, unified_doc_id, objec
 
             contributions.append(Contribution(**data))
     Contribution.objects.bulk_create(contributions)
+
+
+@periodic_task(
+    run_every=crontab(minute="*/5"),
+    priority=4,
+    queue=QUEUE_PURCHASES,
+)
+def check_pending_withdrawals():
+    check_pending_withdrawal()
 
 
 @periodic_task(

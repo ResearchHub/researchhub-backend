@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from datetime import datetime, timezone
 
 from web3 import Web3
 
@@ -8,6 +9,8 @@ import ethereum.lib
 import ethereum.utils
 from ethereum.lib import RSC_CONTRACT_ADDRESS, execute_erc20_transfer, get_private_key
 from mailing_list.lib import base_email_context
+from reputation.models import Withdrawal
+from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from researchhub.settings import (
     ASYNC_SERVICE_HOST,
     WEB3_KEYSTORE_ADDRESS,
@@ -388,6 +391,42 @@ class PendingWithdrawal:
         )
         self.withdrawal.transaction_hash = tx_hash
         self.withdrawal.save()
+
+
+def evaluate_transaction_hash(
+    transaction_hash,
+):
+    paid_date = None
+    paid_status = "FAILED"
+    try:
+        timeout = 5 * 1  # 5 second timeout
+        transaction_receipt = w3.eth.waitForTransactionReceipt(
+            transaction_hash, timeout=timeout
+        )
+        if transaction_receipt["status"] == 0:
+            paid_status = "FAILED"
+        elif transaction_receipt["status"] == 1:
+            paid_status = "PAID"
+            paid_date = datetime.now()
+    except Exception as e:
+        print(e)
+        log_error(e)
+
+    return paid_status, paid_date
+
+
+def check_pending_withdrawal():
+    """
+    Checks pending withdrawal and sees if it's completed
+    """
+    pending_withdrawals = Withdrawal.objects.filter(
+        paid_status=PaidStatusModelMixin.PENDING
+    )
+    for withdrawal in pending_withdrawals:
+        paid_status, paid_date = evaluate_transaction_hash(withdrawal.transaction_hash)
+        withdrawal.paid_status = paid_status
+        withdrawal.paid_date = paid_date
+        withdrawal.save()
 
 
 def check_hotwallet():
