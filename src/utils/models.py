@@ -20,8 +20,6 @@ class DefaultAuthenticatedModel(models.Model):
 
     created_by = models.ForeignKey(
         "user.User",
-        blank=False,
-        null=False,
         on_delete=models.CASCADE,
     )
     created_date = models.DateTimeField(
@@ -29,9 +27,7 @@ class DefaultAuthenticatedModel(models.Model):
     )
     updated_by = models.ForeignKey(
         "user.User",
-        blank=False,
         help_text="Last user to update the instance",
-        null=False,
         on_delete=models.CASCADE,
     )
     updated_date = models.DateTimeField(

@@ -3,9 +3,9 @@ from django.db.models import CharField, FileField, TextField, ForeignKey, CASCAD
 from discussion.reaction_models import AbstractGenericReactionModel
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR, RH_COMMENT_CONTENT_TYPES
 from researchhub_comment.related_models.rh_comment_thread_model import RhCommentThreadModel
+from utils.models import DefaultAuthenticatedModel
 
-
-class RhCommentModel(AbstractGenericReactionModel):
+class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
     # auth
     created_by = ForeignKey(
         "user.User",
