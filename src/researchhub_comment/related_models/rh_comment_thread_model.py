@@ -10,3 +10,9 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
         choices=RH_COMMENT_THREAD_TYPES,
         default=GENERIC_COMMENT,
     )
+    thread_reference = CharField(
+        blank=True,
+        help_text="""A thread may need a spcial referencing tool. Use this field for such a case""",
+        max_length=144,
+        null=True,
+    )
