@@ -456,7 +456,7 @@ def celery_openalex(self, celery_data):
             concepts = result.get("concepts", [])
             logger.info(f"concepts after get_data_from_doi: {concepts}")
             data["concepts"] = hydrate_and_sort(concepts)
-            logger.info(f"concepts after hydrate_and_sort: {paper_data['concepts']}")
+            logger.info(f"concepts after hydrate_and_sort: {data['concepts']}")
 
             response = {
                 **paper_data,
