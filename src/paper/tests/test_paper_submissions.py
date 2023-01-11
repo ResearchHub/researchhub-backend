@@ -6,13 +6,13 @@ from rest_framework.test import APITestCase
 
 from paper.exceptions import DuplicatePaperError
 from paper.models import PaperSubmission
-from paper.related_models.paper_model import Paper
-from paper.tasks import (
+from paper.paper_upload_tasks import (
     celery_create_paper,
     celery_crossref,
     celery_get_doi,
     celery_openalex,
 )
+from paper.related_models.paper_model import Paper
 from user.tests.helpers import create_random_default_user
 
 
