@@ -98,8 +98,8 @@ def celery_process_paper(self, submission_id):
     )
 
     workflow = chain(tasks)
-    x = workflow(args)
-    return x
+    res = workflow(args)
+    return res
 
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
