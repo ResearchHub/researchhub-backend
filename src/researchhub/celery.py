@@ -78,7 +78,7 @@ def test_3(self):
 
 @app.task(bind=True)
 def test_4(self):
-    time.sleep(2)
+    time.sleep(1)
     print("Test 4")
     return 4
 
@@ -95,7 +95,7 @@ def test_6(self):
 
 
 def run_chord_test():
-    ch = test_6.apply().get()
+    ch = test_6()
     print(ch)
     return ch
 

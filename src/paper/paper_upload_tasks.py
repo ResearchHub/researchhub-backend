@@ -98,13 +98,8 @@ def celery_process_paper(self, submission_id):
     )
 
     workflow = chain(tasks)
-    workflow.apply_async(
-        (args,),
-        countdown=0.5,
-        priority=1,
-        link_error=celery_handle_paper_processing_errors.s(),
-        soft_time_limit=60 * 2,
-    )
+    res = workflow(args)
+    return res
 
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
@@ -461,7 +456,7 @@ def celery_openalex(self, celery_data):
             concepts = result.get("concepts", [])
             logger.info(f"concepts after get_data_from_doi: {concepts}")
             data["concepts"] = hydrate_and_sort(concepts)
-            logger.info(f"concepts after hydrate_and_sort: {paper_data['concepts']}")
+            logger.info(f"concepts after hydrate_and_sort: {data['concepts']}")
 
             response = {
                 **paper_data,

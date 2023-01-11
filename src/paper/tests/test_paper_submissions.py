@@ -6,13 +6,15 @@ from rest_framework.test import APITestCase
 
 from paper.exceptions import DuplicatePaperError
 from paper.models import PaperSubmission
-from paper.related_models.paper_model import Paper
-from paper.tasks import (
+from paper.paper_upload_tasks import (
+    celery_combine_doi,
+    celery_combine_paper_data,
     celery_create_paper,
     celery_crossref,
     celery_get_doi,
     celery_openalex,
 )
+from paper.related_models.paper_model import Paper
 from user.tests.helpers import create_random_default_user
 
 
@@ -66,23 +68,34 @@ class PaperSubmissionViewTests(APITestCase):
         )
 
         celery_data_after_doi = celery_get_doi.apply((celery_data,)).result
-        dois = celery_data_after_doi[0]["dois"]
+        dois = celery_data_after_doi["dois"]
         self.assertIn(self.true_doi, dois)
 
-        celery_data_after_openalex = celery_openalex.apply((celery_data,)).result
-        paper_publish_date = celery_data_after_openalex[0]["paper_publish_date"]
+        celery_data_with_doi = celery_combine_doi.apply(
+            ([celery_data_after_doi],)
+        ).result
+        celery_data_after_openalex = celery_openalex.apply(
+            (celery_data_with_doi,)
+        ).result
+        paper_publish_date = celery_data_after_openalex["data"]["paper_publish_date"]
         self.assertEqual(self.paper_publish_date, paper_publish_date)
-        concepts = celery_data_after_openalex[0]["concepts"]
+        concepts = celery_data_after_openalex["data"]["concepts"]
         self.assertEqual(
             self.concept_display_names,
             [concept["display_name"] for concept in concepts],
         )
 
-        celery_data_after_crossref = celery_crossref.apply((celery_data,)).result
-        doi = celery_data_after_crossref[0]["doi"]
+        celery_data_after_crossref = celery_crossref.apply(
+            (celery_data_with_doi,)
+        ).result
+        doi = celery_data_after_crossref["data"]["doi"]
         self.assertEqual(self.true_doi, doi)
 
-        paper_id = celery_create_paper.apply((celery_data,)).result
+        combined_celery_data = celery_combine_paper_data.apply(
+            ([celery_data_after_openalex, celery_data_after_crossref],)
+        ).result
+
+        paper_id = celery_create_paper.apply((combined_celery_data,)).result
         self.assertEqual(isinstance(paper_id, int), True)
 
         self.assertEqual(
@@ -105,13 +118,10 @@ class PaperSubmissionViewTests(APITestCase):
         )
 
         celery_data_after_doi = celery_get_doi.apply((celery_data,)).result
-        dois = celery_data_after_doi[0]["dois"]
-        self.assertIn(self.true_doi, dois)
-
-        celery_data_after_crossref = celery_crossref.apply((celery_data,)).result
-        self.assertEqual(
-            isinstance(celery_data_after_crossref, DuplicatePaperError), True
-        )
+        celery_data_with_doi = celery_combine_doi.apply(
+            ([celery_data_after_doi],)
+        ).result
+        self.assertEqual(isinstance(celery_data_with_doi, DuplicatePaperError), True)
 
     def _install_mock_responses(self):
         # https://api.openalex.org/works?filter=doi:10.34133/2020/8086309
