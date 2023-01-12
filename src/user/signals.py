@@ -78,15 +78,16 @@ def queue_link_author_to_papers(sender, instance, created, **kwargs):
             pass
 
 
-@receiver(post_save, sender=Paper, dispatch_uid="link_paper_to_authors")
-def queue_link_paper_to_authors(sender, instance, created, update_fields, **kwargs):
-    """Runs a queued task linking ORCID authors to papers with updated dois."""
-    if created or doi_updated(update_fields):
-        if instance.doi is not None:
-            try:
-                link_paper_to_authors.apply_async((instance.id,))
-            except SocialAccount.DoesNotExist:
-                pass
+# TODO: See if this signal is still required. Was causing a backlog of tasks on Celery
+# @receiver(post_save, sender=Paper, dispatch_uid="link_paper_to_authors")
+# def queue_link_paper_to_authors(sender, instance, created, update_fields, **kwargs):
+#     """Runs a queued task linking ORCID authors to papers with updated dois."""
+#     if created or doi_updated(update_fields):
+#         if instance.doi is not None:
+#             try:
+#                 link_paper_to_authors.apply_async((instance.id,))
+#             except SocialAccount.DoesNotExist:
+#                 pass
 
 
 def doi_updated(update_fields):
