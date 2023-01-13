@@ -11,6 +11,7 @@ from hypothesis.constants.constants import CITATION_TYPE
 from paper.utils import paper_piecewise_log
 from purchase.models import Purchase
 from reputation.models import Bounty
+from researchhub_comment.models import RhCommentThreadModel
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import User
 from utils import sentry
@@ -70,6 +71,11 @@ class Hypothesis(AbstractGenericReactionModel):
         object_id_field="object_id",
         content_type_field="content_type",
         related_query_name="hypothesis",
+    )
+    rh_threads = GenericRelation(
+        RhCommentThreadModel,
+        help_text="New Comment-Thread module as of Jan 2023",
+        related_query_name="comments",
     )
 
     def __str__(self):

@@ -37,6 +37,7 @@ from paper.utils import (
     populate_pdf_url_from_journal_url,
 )
 from purchase.models import Purchase
+from researchhub_comment.models import RhCommentThreadModel
 from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
 from researchhub_document.related_models.constants.editor_type import (
@@ -77,9 +78,14 @@ class Paper(AbstractGenericReactionModel):
     CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS["PROGRESS"]
     CREATED_LOCATION_CHOICES = [(CREATED_LOCATION_PROGRESS, "Progress")]
 
+    rh_threads = GenericRelation(
+        RhCommentThreadModel,
+        help_text="New Comment-Thread module as of Jan 2023",
+        related_query_name="comments",
+    )
     twitter_score_updated_date = models.DateTimeField(null=True, blank=True)
     is_public = models.BooleanField(default=True, help_text=HELP_TEXT_IS_PUBLIC)
-
+  
     # TODO clean this up to use SoftDeleteable mixin in utils
     is_removed = models.BooleanField(default=False, help_text=HELP_TEXT_IS_REMOVED)
 

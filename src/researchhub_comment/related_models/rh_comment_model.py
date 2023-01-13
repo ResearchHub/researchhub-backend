@@ -1,7 +1,16 @@
-from django.db.models import CharField, FileField, TextField, ForeignKey, CASCADE, SET_NULL
+from django.db.models import (
+    CASCADE,
+    CharField,
+    FileField,
+    ForeignKey,
+    PositiveIntegerField,
+    SET_NULL,
+    TextField,
+)
 
 from discussion.reaction_models import AbstractGenericReactionModel
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR, RH_COMMENT_CONTENT_TYPES
+from researchhub_comment.constants.rh_comment_migration_legacy_types import RH_COMMENT_MIGRATION_LEGACY_TYPES
 from researchhub_comment.related_models.rh_comment_thread_model import RhCommentThreadModel
 from utils.models import DefaultAuthenticatedModel
 
@@ -39,4 +48,12 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         db_index=True,
         on_delete=CASCADE,
         related_name="rh_comments",
+    )
+
+    # legacy_migration
+    legacy_id = PositiveIntegerField
+    legacy_model_name = CharField(
+        choices=RH_COMMENT_MIGRATION_LEGACY_TYPES,
+        default=QUILL_EDITOR,
+        max_length=144,
     )
