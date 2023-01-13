@@ -16,7 +16,7 @@ def from_legacy_reply_to_rh_comment():
     #  implement
 
 
-@receiver(post_save, sender=Comment, dispatch_uid='from_legacy_thread_to_rh_comment')
+@receiver(post_save, sender=Thread, dispatch_uid='from_legacy_thread_to_rh_comment')
 def from_legacy_thread_to_rh_comment():
     RhCommentThreadModel
     #  implement 
