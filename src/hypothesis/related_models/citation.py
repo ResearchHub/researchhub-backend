@@ -1,9 +1,11 @@
 from django.db import models
 from django.db.models import Count, Q
+from django.contrib.contenttypes.fields import GenericRelation
 
 from discussion.reaction_models import AbstractGenericReactionModel, Vote
 from hypothesis.constants.constants import CITATION_TYPE, CITATION_TYPE_CHOICES
 from hypothesis.models import Hypothesis
+from researchhub_comment.related_models.rh_comment_thread_model import RhCommentThreadModel
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import User
 
@@ -35,6 +37,11 @@ class Citation(AbstractGenericReactionModel):
     )
     vote_score = models.IntegerField(
         blank=True, db_index=True, default=0, help_text="Updated through signal"
+    )
+    rh_threads = GenericRelation(
+        RhCommentThreadModel,
+        help_text="New Comment-Thread module as of Jan 2023",
+        related_query_name="citation",
     )
 
     def __str__(self):

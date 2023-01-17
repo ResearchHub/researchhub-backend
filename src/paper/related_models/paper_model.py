@@ -81,7 +81,7 @@ class Paper(AbstractGenericReactionModel):
     rh_threads = GenericRelation(
         RhCommentThreadModel,
         help_text="New Comment-Thread module as of Jan 2023",
-        related_query_name="comments",
+        related_query_name="paper",
     )
     twitter_score_updated_date = models.DateTimeField(null=True, blank=True)
     is_public = models.BooleanField(default=True, help_text=HELP_TEXT_IS_PUBLIC)

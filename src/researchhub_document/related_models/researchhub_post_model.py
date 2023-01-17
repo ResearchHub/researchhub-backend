@@ -90,7 +90,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
     rh_threads = GenericRelation(
         RhCommentThreadModel,
         help_text="New Comment-Thread module as of Jan 2023",
-        related_query_name="comments",
+        related_query_name="rh_post",
     )
     bounty_type = models.CharField(blank=True, null=True, max_length=64)
     title = models.TextField(blank=True, default="")

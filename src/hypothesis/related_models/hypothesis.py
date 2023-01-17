@@ -75,7 +75,7 @@ class Hypothesis(AbstractGenericReactionModel):
     rh_threads = GenericRelation(
         RhCommentThreadModel,
         help_text="New Comment-Thread module as of Jan 2023",
-        related_query_name="comments",
+        related_query_name="hypothesis",
     )
 
     def __str__(self):

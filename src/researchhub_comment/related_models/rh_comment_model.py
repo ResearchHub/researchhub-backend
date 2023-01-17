@@ -10,7 +10,9 @@ from django.db.models import (
 
 from discussion.reaction_models import AbstractGenericReactionModel
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR, RH_COMMENT_CONTENT_TYPES
-from researchhub_comment.constants.rh_comment_migration_legacy_types import RH_COMMENT_MIGRATION_LEGACY_TYPES
+from researchhub_comment.constants.rh_comment_migration_legacy_types import (
+    LEGACY_COMMENT, RH_COMMENT_MIGRATION_LEGACY_TYPES
+)
 from researchhub_comment.related_models.rh_comment_thread_model import RhCommentThreadModel
 from utils.models import DefaultAuthenticatedModel
 
@@ -37,7 +39,7 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         max_length=144,
     )
     parent = ForeignKey(
-        "self", 
+        "self",
         blank=True,
         null=True,
         on_delete=SET_NULL,
@@ -52,8 +54,8 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
 
     # legacy_migration
     legacy_id = PositiveIntegerField
-    legacy_model_name = CharField(
+    legacy_model_type = CharField(
         choices=RH_COMMENT_MIGRATION_LEGACY_TYPES,
-        default=QUILL_EDITOR,
+        default=LEGACY_COMMENT,
         max_length=144,
     )
