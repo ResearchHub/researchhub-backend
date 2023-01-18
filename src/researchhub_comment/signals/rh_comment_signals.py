@@ -16,19 +16,10 @@ from researchhub_comment.models import RhCommentThreadModel, RhCommentModel
 @receiver(post_save, sender=LegacyComment, dispatch_uid='from_legacy_comment_to_rh_comment')
 def from_legacy_comment_to_rh_comment(sender, instance, created, **kwargs):
     try:
-        beloging_document = get_comment_belonging_doc(instance)
+        belonging_document = get_belonging_doc(instance)
+        belonging_thread = find_or_create_belonging_thread(belonging_document)
         comment_creator = instance.created_by
         legacy_comment_id = instance.id
-        
-        belonging_thread = RhCommentThreadModel.objects.filter(
-            content_type=ContentType.objects.get_for_model(beloging_document),
-            object_id=beloging_document.id,
-            thread_type=GENERIC_COMMENT,  # currently only backfilling generic comment
-        ).first() or RhCommentThreadModel.objects.create(
-            content_type=ContentType.objects.get_for_model(beloging_document),
-            object_id=beloging_document.id,
-            thread_type=GENERIC_COMMENT,  # currently only backfilling generic comment
-        )
         
         migrated_comment = RhCommentModel.objects.filter(
             legaacy_id=legacy_comment_id,
@@ -46,20 +37,21 @@ def from_legacy_comment_to_rh_comment(sender, instance, created, **kwargs):
                 thread=belonging_thread,
                 updated_by=comment_creator,
             )
+
+            legacy_thread = instance.parent
+            # legacy thread was a type of commenting module. It was NOT meerely a grouping tool.
+            # if migrated_comment
+            # migrated_legacy_thread = RhCommentModel.objects.filter(
+            #     legacy_id=legacy_comment_id,
+            #     legacy_model_type=LEGACY_THREAD,
+            # ).first() if legacy_thread is not None else None
         else:
             migrated_comment.comment_content_src = ContentFile((instance.plain_text or "").encode())
             migrated_comment.save()
-        
-        # legacy thread was a type of commenting module. It was NOT meerely a grouping tool.
-        legacy_thread = instance.parent
-        # if migrated_comment
-        # migrated_legacy_thread = RhCommentModel.objects.filter(
-        #     legacy_id=legacy_comment_id,
-        #     legacy_model_type=LEGACY_THREAD,
-        # ).first() if legacy_thread is not None else None
-        
+          
     except Exception as error:
-            #  implement
+        RhCommentThreadModel
+        #  implement
 
 
 @receiver(post_save, sender=LegacyReply, dispatch_uid='from_legacy_reply_to_rh_comment')
@@ -73,8 +65,17 @@ def from_legacy_thread_to_rh_comment(sender, instance, created, **kwargs):
     RhCommentThreadModel
     #  implement
 
-def get_comment_belonging_doc(instance):
+def get_belonging_doc(instance):
+    # currently migration supported documents
     return instance.paper or instance.post or instance.hypothesis or instance.citation
 
-
-
+def find_or_create_belonging_thread(belonging_document):
+    return RhCommentThreadModel.objects.filter(
+        content_type=ContentType.objects.get_for_model(belonging_document),
+        object_id=belonging_document.id,
+        thread_type=GENERIC_COMMENT,  # currently only backfilling generic comments only
+    ).first() or RhCommentThreadModel.objects.create(
+        content_type=ContentType.objects.get_for_model(belonging_document),
+        object_id=belonging_document.id,
+        thread_type=GENERIC_COMMENT,  # currently only backfilling generic comments only
+    )
