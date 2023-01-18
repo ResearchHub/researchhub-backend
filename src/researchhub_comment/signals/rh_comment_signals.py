@@ -32,6 +32,7 @@ def from_legacy_thread_to_rh_comment(sender, instance, created, **kwargs):
             updated_by=upserter,
         ).save()
 
+        # intentionally querying DB to ensure that the instance was created properly 
         return RhCommentModel.objects.get(            
             legaacy_id=legacy_thread_id,
             legacy_model_type=LEGACY_THREAD,
@@ -61,7 +62,7 @@ def from_legacy_comment_to_rh_comment(sender, instance, created, **kwargs):
             # Logical ordering. Do not change unless you know what you're doing.
             migrated_comment_prep = RhCommentModel(
                 comment_content_src=ContentFile((instance.plain_text or "").encode()),
-                comment_content_type=QUILL_EDITOR, # currently FE utilizes only Quill for
+                comment_content_type=QUILL_EDITOR,  # currently FE utilizes only Quill for
                 created_by=comment_creator,
                 created_date=instance.created_date,
                 legacy_id=legacy_comment_id,
@@ -85,7 +86,7 @@ def from_legacy_comment_to_rh_comment(sender, instance, created, **kwargs):
             migrated_comment_prep.save()
 
             # intentionally querying DB to ensure that the instance was created properly 
-            return RhCommentModel.objects.get(            
+            return RhCommentModel.objects.get(
                 legaacy_id=legacy_comment_id,
                 legacy_model_type=LEGACY_COMMENT,
             )
