@@ -1,4 +1,5 @@
 from django.db.models import (
+    BooleanField,
     CASCADE,
     CharField,
     FileField,
@@ -59,3 +60,8 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         default=LEGACY_COMMENT,
         max_length=144,
     )
+
+    # properties
+    @property
+    def is_root_comment(self):
+        return self.parent is None
