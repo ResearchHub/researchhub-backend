@@ -12,7 +12,7 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
     )
     thread_reference = CharField(
         blank=True,
-        help_text="""A thread may need a spcial referencing tool. Use this field for such a case""",
+        help_text="""A thread may need a special referencing tool. Use this field for such a case""",
         max_length=144,
         null=True,
     )
