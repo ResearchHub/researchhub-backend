@@ -26,8 +26,6 @@ class DefaultAuthenticatedModel(models.Model):
     )
     created_date = models.DateTimeField(
         auto_now_add=True,
-        blank=True,
-        null=False,
     )
     updated_by = models.ForeignKey(
         "user.User",
@@ -38,8 +36,6 @@ class DefaultAuthenticatedModel(models.Model):
     )
     updated_date = models.DateTimeField(
         auto_now_add=True,
-        blank=True,
-        null=False,
     )
 
 
