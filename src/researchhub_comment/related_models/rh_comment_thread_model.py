@@ -1,15 +1,10 @@
 from django.db.models import CASCADE, CharField, DateTimeField, ForeignKey
 
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT, RH_COMMENT_THREAD_TYPES
-from utils.models import AbstractGenericRelationModel
+from utils.models import AbstractGenericRelationModel, DefaultAuthenticatedModel
 
 
 class RhCommentThreadModel(AbstractGenericRelationModel):
-    created_by = ForeignKey(
-        "user.User",
-        on_delete=CASCADE,
-        related_name="rh_threads",
-    )
     thread_type = CharField(
         max_length=144,
         choices=RH_COMMENT_THREAD_TYPES,

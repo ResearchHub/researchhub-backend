@@ -5,21 +5,8 @@ from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR,
 from researchhub_comment.related_models.rh_comment_thread_model import RhCommentThreadModel
 from utils.models import DefaultAuthenticatedModel
 
-class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
-    # auth
-    created_by = ForeignKey(
-        "user.User",
-        auto_created=True,
-        on_delete=CASCADE,
-        related_name="created_rh_comments",
-    )
-    updated_by = ForeignKey(
-        "user.User",
-        auto_created=True,
-        on_delete=CASCADE,
-        related_name="updated_rh_comments",
-    )
 
+class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
     # comments
     context_title = TextField(
         blank=True,
