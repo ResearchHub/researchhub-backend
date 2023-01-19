@@ -276,6 +276,25 @@ class BountyViewSet(viewsets.ModelViewSet):
 
             if multi_approve:
                 escrow.status = Escrow.PAID
+                bounty_amount = bounty.amount
+                total = 0
+                for item in approval_metadata:
+                    if item.get("amount") < 0:
+                        return Response(
+                            {"detail": "Awarding negative RSC is not allowed"},
+                            status=400,
+                        )
+                    total += item.get("amount")
+
+                if total > bounty_amount:
+                    return Response(
+                        {
+                            "detail": "The maximum amount you can award is {} RSC".format(
+                                bounty_amount
+                            )
+                        }
+                    )
+
                 for item in approval_metadata:
                     content_type = ContentType.objects.get(
                         model=item.get("content_type")
