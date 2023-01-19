@@ -41,7 +41,7 @@ def from_legacy_thread_to_rh_comment(sender, instance, created, **kwargs):
         )
         
     except Exception as error:
-        sentry.log_error('rh_comment_signals: ', error)
+        sentry.log_error('from_legacy_thread_to_rh_comment: ', error)
 
 @receiver(post_save, sender=LegacyComment, dispatch_uid='from_legacy_comment_to_rh_comment')
 def from_legacy_comment_to_rh_comment(sender, instance, created, **kwargs):
@@ -90,7 +90,7 @@ def from_legacy_comment_to_rh_comment(sender, instance, created, **kwargs):
         )
 
     except Exception as error:
-        sentry.log_error('rh_comment_signals: ', error)
+        sentry.log_error('from_legacy_comment_to_rh_comment: ', error)
 
 @receiver(post_save, sender=LegacyReply, dispatch_uid='from_legacy_reply_to_rh_comment')
 def from_legacy_reply_to_rh_comment(sender, instance, created, **kwargs):
@@ -139,7 +139,7 @@ def from_legacy_reply_to_rh_comment(sender, instance, created, **kwargs):
         )
 
     except Exception as error:
-        sentry.log_error('rh_comment_signals: ', error)
+        sentry.log_error('from_legacy_reply_to_rh_comment: ', error)
 
 def get_belonging_doc(instance):
     # currently migration supported documents
