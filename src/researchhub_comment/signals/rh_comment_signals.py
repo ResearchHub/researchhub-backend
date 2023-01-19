@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
+from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -18,13 +19,17 @@ from utils import sentry
 @receiver(post_save, sender=LegacyThread, dispatch_uid='from_legacy_thread_to_rh_comment')
 def from_legacy_thread_to_rh_comment(sender, instance, created, **kwargs):
     try:
-        belonging_document = get_belonging_doc(instance)
-        belonging_thread = find_or_create_belonging_thread(belonging_document)
-        legacy_thread_id = instance.id
         upserter = instance.created_by
 
-        RhCommentModel(
-            comment_content_src=ContentFile((instance.plain_text or "").encode()),
+        belonging_document = get_belonging_doc(instance)
+        belonging_thread = find_or_create_belonging_thread(belonging_document, upserter)
+        comment_content_file = ContentFile((instance.plain_text or "").encode())
+        legacy_thread_id = instance.id
+
+        migrated_thread_comment = RhCommentModel.objects.filter(
+            legacy_id=legacy_thread_id, 
+            legacy_model_type=LEGACY_THREAD,
+        ).first() or RhCommentModel.objects.create(
             comment_content_type=QUILL_EDITOR,
             created_by=upserter,
             created_date=instance.created_date,
@@ -32,60 +37,71 @@ def from_legacy_thread_to_rh_comment(sender, instance, created, **kwargs):
             legacy_model_type=LEGACY_THREAD,
             thread=belonging_thread,
             updated_by=upserter,
-        ).save()
-
-        # intentionally querying DB to ensure that the instance was created properly 
-        return RhCommentModel.objects.get(        
-            legaacy_id=legacy_thread_id,
+        )
+        migrated_thread_comment.comment_content_src.save(
+            f"rh-comment-user-{upserter.id}-thread-{belonging_thread.id}-comment-{migrated_thread_comment.id}.txt",
+            comment_content_file
+        )
+        # intentionally querying DB to ensure that the instance was created properly
+        return RhCommentModel.objects.get(
+            legacy_id=legacy_thread_id,
             legacy_model_type=LEGACY_THREAD,
         )
-        
+
     except Exception as error:
         sentry.log_error('from_legacy_thread_to_rh_comment: ', error)
 
 @receiver(post_save, sender=LegacyComment, dispatch_uid='from_legacy_comment_to_rh_comment')
 def from_legacy_comment_to_rh_comment(sender, instance, created, **kwargs):
     try:
+        upserter = instance.created_by
+        
         belonging_document = get_belonging_doc(instance)
-        belonging_thread = find_or_create_belonging_thread(belonging_document)
+        belonging_thread = find_or_create_belonging_thread(belonging_document, upserter)
+        comment_content_file = ContentFile((instance.plain_text or "").encode())
         legacy_comment_id = instance.id
         legacy_thread = instance.parent  # Legacy Comment HAS to have a legacy Thread as a parent
-        upserter = instance.created_by
 
         migrated_comment = RhCommentModel.objects.filter(
-            legaacy_id=legacy_comment_id,
+            legacy_id=legacy_comment_id,
             legacy_model_type=LEGACY_COMMENT,
         ).first()
 
         if migrated_comment is not None:
-            migrated_comment.comment_content_src = ContentFile((instance.plain_text or "").encode())
+            migrated_comment.comment_content_src.save(
+                f"rh-comment-user-{upserter.id}-thread-{belonging_thread.id}-comment-{migrated_comment.id}.txt",
+                comment_content_file
+            )
             migrated_comment.save()
         else:
             # Logical ordering. Do not change unless you know what you're doing.
-            migrated_comment_prep = RhCommentModel(
-                comment_content_src=ContentFile((instance.plain_text or "").encode()),
-                comment_content_type=QUILL_EDITOR,  # currently FE utilizes only Quill for
-                created_by=upserter,
-                created_date=instance.created_date,
-                legacy_id=legacy_comment_id,
-                legacy_model_type=LEGACY_COMMENT,
-                thread=belonging_thread,
-                updated_by=upserter,
-            )
+            with transaction.atomic():
+                migrated_comment = RhCommentModel.objects.create(
+                    comment_content_type=QUILL_EDITOR,  # currently FE utilizes only Quill for
+                    created_by=upserter,
+                    created_date=instance.created_date,
+                    legacy_id=legacy_comment_id,
+                    legacy_model_type=LEGACY_COMMENT,
+                    thread=belonging_thread,
+                    updated_by=upserter,
+                )
 
-            # BUUBLE UP: Legacy thread was a type of commenting module. It was NOT meerely a grouping tool.
-            migrated_legacy_thread_comment = RhCommentModel.objects.filter(
-                legacy_id=legacy_thread.id,
-                legacy_model_type=LEGACY_THREAD,
-            ).first() or from_legacy_thread_to_rh_comment(
-                sender, legacy_thread, created, **kwargs
-            )
-            migrated_comment_prep.parent = migrated_legacy_thread_comment
-            migrated_comment_prep.save()
+                # BUUBLE UP: Legacy thread was a type of commenting module. It was NOT meerely a grouping tool.
+                migrated_legacy_thread_comment = RhCommentModel.objects.filter(
+                    legacy_id=legacy_thread.id,
+                    legacy_model_type=LEGACY_THREAD,
+                ).first() or from_legacy_thread_to_rh_comment(
+                    sender, legacy_thread, created, **kwargs
+                )
+                migrated_comment.parent = migrated_legacy_thread_comment
+                migrated_comment.comment_content_src.save(
+                    f"rh-comment-user-{upserter.id}-thread-{belonging_thread.id}-comment-{migrated_comment.id}.txt",
+                    comment_content_file
+                )
 
         # intentionally querying DB to ensure that the instance was created properly 
         return RhCommentModel.objects.get(
-            legaacy_id=legacy_comment_id,
+            legacy_id=legacy_comment_id,
             legacy_model_type=LEGACY_COMMENT,
         )
 
@@ -95,46 +111,51 @@ def from_legacy_comment_to_rh_comment(sender, instance, created, **kwargs):
 @receiver(post_save, sender=LegacyReply, dispatch_uid='from_legacy_reply_to_rh_comment')
 def from_legacy_reply_to_rh_comment(sender, instance, created, **kwargs):
     try:
+        upserter = instance.created_by
+        
         belonging_document = get_belonging_doc(instance)
-        belonging_thread = find_or_create_belonging_thread(belonging_document)
+        belonging_thread = find_or_create_belonging_thread(belonging_document, upserter)
+        comment_content_file = ContentFile((instance.plain_text or "").encode())
         # Legacy Reply HAS to have a parent. In unique cases,this could be another reply...
         legacy_comment = instance.parent
         legacy_reply_id = instance.id
-        upserter = instance.created_by
 
         migrated_reply = RhCommentModel.objects.filter(
-            legaacy_id=legacy_reply_id,
+            legacy_id=legacy_reply_id,
             legacy_model_type=LEGACY_REPLY,
         ).first()
 
         if migrated_reply is not None:
-            migrated_reply.comment_content_src = ContentFile((instance.plain_text or "").encode())
+            migrated_reply.comment_content_src = comment_content_file
             migrated_reply.save()
         else:
             # Logical ordering. Do not change unless you know what you're doing.
-            migrated_reply_prep = RhCommentModel(
-                comment_content_src=ContentFile((instance.plain_text or "").encode()),
-                comment_content_type=QUILL_EDITOR,  # currently FE utilizes only Quill for
-                created_by=upserter,
-                created_date=instance.created_date,
-                legacy_id=legacy_reply_id,
-                legacy_model_type=LEGACY_REPLY,
-                thread=belonging_thread,
-                updated_by=upserter,
-            )
+            with transaction.atomic():
+                migrated_reply = RhCommentModel.objects.create(
+                    comment_content_type=QUILL_EDITOR,  # currently FE utilizes only Quill for
+                    created_by=upserter,
+                    created_date=instance.created_date,
+                    legacy_id=legacy_reply_id,
+                    legacy_model_type=LEGACY_REPLY,
+                    thread=belonging_thread,
+                    updated_by=upserter,
+                )
 
-            # BUUBLE UP
-            migrated_legacy_comment = RhCommentModel.objects.filter(
-                legacy_id=legacy_comment.id,
-                legacy_model_type=LEGACY_COMMENT,
-            ).first() or from_legacy_comment_to_rh_comment(
-                sender, legacy_comment, created, **kwargs
-            )
-            migrated_reply_prep.parent = migrated_legacy_comment
-            migrated_reply_prep.save()
+                # BUUBLE UP
+                migrated_legacy_comment = RhCommentModel.objects.filter(
+                    legacy_id=legacy_comment.id,
+                    legacy_model_type=LEGACY_COMMENT,
+                ).first() or from_legacy_comment_to_rh_comment(
+                    sender, legacy_comment, created, **kwargs
+                )
+                migrated_reply.parent = migrated_legacy_comment
+                migrated_reply.comment_content_src.save(
+                    f"rh-comment-user-{upserter.id}-thread-{belonging_thread.id}-comment-{migrated_reply.id}.txt",
+                    comment_content_file
+                )            
 
         return RhCommentModel.objects.get(
-            legaacy_id=legacy_reply_id,
+            legacy_id=legacy_reply_id,
             legacy_model_type=LEGACY_REPLY,
         )
 
@@ -145,13 +166,15 @@ def get_belonging_doc(instance):
     # currently migration supported documents
     return instance.paper or instance.post or instance.hypothesis or instance.citation
 
-def find_or_create_belonging_thread(belonging_document):
+def find_or_create_belonging_thread(belonging_document, upserter):
     return RhCommentThreadModel.objects.filter(
         content_type=ContentType.objects.get_for_model(belonging_document),
         object_id=belonging_document.id,
         thread_type=GENERIC_COMMENT,  # currently only backfilling generic comments
     ).first() or RhCommentThreadModel.objects.create(
         content_type=ContentType.objects.get_for_model(belonging_document),
+        created_by=upserter,
         object_id=belonging_document.id,
         thread_type=GENERIC_COMMENT,  # currently only backfilling generic comments
+        updated_by=upserter,
     )
