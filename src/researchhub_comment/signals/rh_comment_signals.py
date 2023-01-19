@@ -12,6 +12,7 @@ from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
 from researchhub_comment.constants.rh_comment_migration_legacy_types import LEGACY_COMMENT, LEGACY_REPLY, LEGACY_THREAD
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
 from researchhub_comment.models import RhCommentThreadModel, RhCommentModel
+from utils import sentry
 
 
 @receiver(post_save, sender=LegacyThread, dispatch_uid='from_legacy_thread_to_rh_comment')
@@ -40,7 +41,7 @@ def from_legacy_thread_to_rh_comment(sender, instance, created, **kwargs):
         )
         
     except Exception as error:
-        import pdb; pdb.set_trace()
+        sentry.log_error('rh_comment_signals: ', error)
 
 @receiver(post_save, sender=LegacyComment, dispatch_uid='from_legacy_comment_to_rh_comment')
 def from_legacy_comment_to_rh_comment(sender, instance, created, **kwargs):
@@ -89,7 +90,7 @@ def from_legacy_comment_to_rh_comment(sender, instance, created, **kwargs):
         )
 
     except Exception as error:
-        import pdb; pdb.set_trace()
+        sentry.log_error('rh_comment_signals: ', error)
 
 @receiver(post_save, sender=LegacyReply, dispatch_uid='from_legacy_reply_to_rh_comment')
 def from_legacy_reply_to_rh_comment(sender, instance, created, **kwargs):
@@ -138,8 +139,7 @@ def from_legacy_reply_to_rh_comment(sender, instance, created, **kwargs):
         )
 
     except Exception as error:
-        import pdb; pdb.set_trace()
-        #  implement
+        sentry.log_error('rh_comment_signals: ', error)
 
 def get_belonging_doc(instance):
     # currently migration supported documents
