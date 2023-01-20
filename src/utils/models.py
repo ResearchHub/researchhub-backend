@@ -1,3 +1,5 @@
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils import timezone
 
@@ -10,6 +12,45 @@ class DefaultModel(models.Model):
 
     class Meta:
         abstract = True
+
+class DefaultAuthenticatedModel(models.Model):
+    class Meta:
+        abstract = True
+
+    created_by = models.ForeignKey(
+        "user.User",
+        on_delete=models.CASCADE,
+        related_name="created_%(class)s"
+    )
+    created_date = models.DateTimeField(
+        auto_now_add=True,
+    )
+    updated_by = models.ForeignKey(
+        "user.User",
+        help_text="Last user to update the instance",
+        on_delete=models.CASCADE,
+        related_name="updated_%(class)s"
+    )
+    updated_date = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+
+class AbstractGenericRelationModel(DefaultAuthenticatedModel):
+    class Meta:
+        abstract = True
+
+    # Below the mandatory fields for generic relation
+    content_type = models.ForeignKey(
+        ContentType,
+        help_text="""
+            Forms a contenttype - generic relation between "origin" model to target model
+            Target models should have its own (i.e. field_name = GenericRelation(OriginModel))
+        """,
+        on_delete=models.CASCADE,
+    )
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey()
 
 
 class SoftDeletableModel(models.Model):

@@ -10,6 +10,7 @@ from discussion.reaction_models import AbstractGenericReactionModel
 from hub.serializers import HubSerializer
 from paper.utils import paper_piecewise_log
 from purchase.models import Purchase
+from researchhub_comment.models import RhCommentThreadModel
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     DOCUMENT_TYPES,
@@ -85,6 +86,11 @@ class ResearchhubPost(AbstractGenericReactionModel):
     renderable_text = models.TextField(
         blank=True,
         default="",
+    )
+    rh_threads = GenericRelation(
+        RhCommentThreadModel,
+        help_text="New Comment-Thread module as of Jan 2023",
+        related_query_name="rh_post",
     )
     bounty_type = models.CharField(blank=True, null=True, max_length=64)
     title = models.TextField(blank=True, default="")
