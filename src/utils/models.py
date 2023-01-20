@@ -13,26 +13,23 @@ class DefaultModel(models.Model):
     class Meta:
         abstract = True
 
-
 class DefaultAuthenticatedModel(models.Model):
     class Meta:
         abstract = True
 
     created_by = models.ForeignKey(
         "user.User",
-        blank=False,
-        null=False,
         on_delete=models.CASCADE,
+        related_name="created_%(class)s"
     )
     created_date = models.DateTimeField(
         auto_now_add=True,
     )
     updated_by = models.ForeignKey(
         "user.User",
-        blank=False,
         help_text="Last user to update the instance",
-        null=False,
         on_delete=models.CASCADE,
+        related_name="updated_%(class)s"
     )
     updated_date = models.DateTimeField(
         auto_now_add=True,
