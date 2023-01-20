@@ -85,7 +85,7 @@ class DynamicThreadSerializer(
     unified_document = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Thread
         fields = "__all__"
@@ -219,7 +219,7 @@ class DynamicThreadSerializer(
 
     def get_unified_document(self, thread):
         from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
-        # import pdb; pdb.set_trace()
+
         context = self.context
         _context_fields = context.get("dis_dts_get_unified_document", {})
         serializer = DynamicUnifiedDocumentSerializer(
