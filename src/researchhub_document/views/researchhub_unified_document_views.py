@@ -395,9 +395,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         documents = self.get_filtered_queryset()
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
-        context["document_request_type"] = document_request_type
         page = self.paginate_queryset(documents)
-        status_param = query_params.get("status")
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=[

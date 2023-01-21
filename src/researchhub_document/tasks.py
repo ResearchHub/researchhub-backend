@@ -9,6 +9,7 @@ from rest_framework.request import Request
 from paper.utils import get_cache_key
 from researchhub.celery import QUEUE_CACHES, QUEUE_ELASTIC_SEARCH, QUEUE_HOT_SCORE, app
 from researchhub.settings import PRODUCTION, STAGING
+from researchhub_document.related_models.constants.document_type import BOUNTY
 from utils import sentry
 
 
@@ -86,6 +87,8 @@ def preload_trending_documents(
     query_string = "page=1&time={}&ordering={}&hub_id={}&type={}".format(
         time_scope, filtering, hub_id, document_type
     )
+    if document_type == BOUNTY.lower():
+        query_string = f"{query_string}&tags=open"
     http_meta = {
         "QUERY_STRING": query_string,
         "HTTP_HOST": http_host,
