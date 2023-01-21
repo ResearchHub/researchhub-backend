@@ -345,6 +345,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "hot_score_v2",
             "reviews",
             "score",
+            "bounties",
+            "concepts",
         ]
         serializer = self.dynamic_serializer_class(
             page,
@@ -393,6 +395,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             )
 
         documents = self.get_filtered_queryset()
+        # import pdb; pdb.set_trace()
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
         page = self.paginate_queryset(documents)
