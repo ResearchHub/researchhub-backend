@@ -193,9 +193,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
                 key, value = self._map_tag_to_document_filter(value)
                 queries &= Q(**{f"document_filter__{key}": value})
 
-        import pdb
-
-        pdb.set_trace()
         qs = qs.filter(queries)
         return qs
 
