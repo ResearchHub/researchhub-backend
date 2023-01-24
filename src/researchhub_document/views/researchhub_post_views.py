@@ -33,6 +33,7 @@ from researchhub_document.related_models.constants.document_type import (
     ALL,
     BOUNTY,
     POSTS,
+    QUESTION,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
 from researchhub_document.related_models.constants.editor_type import CK_EDITOR
@@ -137,7 +138,12 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
 
             reset_unified_document_cache(
                 hub_ids,
-                document_type=[ALL.lower(), POSTS.lower(), BOUNTY.lower()],
+                document_type=[
+                    ALL.lower(),
+                    POSTS.lower(),
+                    QUESTION.lower(),
+                    BOUNTY.lower(),
+                ],
                 filters=[NEW, MOST_RSC],
                 with_default_hub=True,
             )
@@ -197,7 +203,7 @@ class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin):
 
         reset_unified_document_cache(
             hub_ids,
-            document_type=[ALL.lower(), POSTS.lower()],
+            document_type=[ALL.lower(), POSTS.lower(), QUESTION.lower()],
             filters=[NEW, DISCUSSED, UPVOTED, HOT],
         )
 
