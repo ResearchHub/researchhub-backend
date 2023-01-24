@@ -428,11 +428,15 @@ class BountyViewSet(viewsets.ModelViewSet):
         detail=False,
         methods=["get"],
         permission_classes=[AllowAny],
-        # permission_classes=[IsAuthenticated]
     )
     def get_bounties(self, request):
         status = self.request.GET.get("status")
-        qs = self.get_queryset().filter(status=status).order_by("expiration_date")[:10]
+        qs = (
+            self.get_queryset()
+            .filter(status=status)
+            .distinct("unified_document")
+            .order_by("unified_document", "expiration_date")[:10]
+        )
         not_removed_posts = []
         for bounty in qs:
             if not bounty.item.is_removed:
