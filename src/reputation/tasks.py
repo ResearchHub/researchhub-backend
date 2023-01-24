@@ -21,7 +21,7 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_EXPIRED,
     FILTER_BOUNTY_OPEN,
 )
-from researchhub_document.related_models.constants.filters import HOT
+from researchhub_document.related_models.constants.filters import HOT, MOST_RSC
 from researchhub_document.utils import reset_unified_document_cache
 from user.utils import get_rh_community_user
 from utils.message import send_email_message
@@ -169,7 +169,7 @@ def check_open_bounties():
     reset_unified_document_cache(
         hub_ids=[0],
         document_type=[ALL.lower(), BOUNTY.lower()],
-        filters=[HOT],
+        filters=[HOT, MOST_RSC],
         with_default_hub=True,
     )
 
