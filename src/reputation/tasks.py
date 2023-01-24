@@ -17,6 +17,7 @@ from researchhub.settings import PRODUCTION
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     ALL,
+    BOUNTY,
     FILTER_BOUNTY_EXPIRED,
     FILTER_BOUNTY_OPEN,
 )
@@ -167,7 +168,7 @@ def check_open_bounties():
 
     reset_unified_document_cache(
         hub_ids=[0],
-        document_type=[ALL.lower()],
+        document_type=[ALL.lower(), BOUNTY.lower()],
         filters=[HOT],
         with_default_hub=True,
     )

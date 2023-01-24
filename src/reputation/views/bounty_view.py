@@ -30,6 +30,7 @@ from reputation.serializers import (
 )
 from researchhub_document.related_models.constants.document_type import (
     ALL,
+    BOUNTY,
     FILTER_BOUNTY_CLOSED,
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
@@ -238,7 +239,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             hubs = list(unified_document.hubs.all().values_list("id", flat=True))
             reset_unified_document_cache(
                 hub_ids=hubs,
-                document_type=[ALL.lower()],
+                document_type=[ALL.lower(), BOUNTY.lower()],
                 filters=[HOT],
                 with_default_hub=True,
             )
@@ -370,7 +371,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             hubs = list(unified_document.hubs.all().values_list("id", flat=True))
             reset_unified_document_cache(
                 hub_ids=hubs,
-                document_type=[ALL.lower()],
+                document_type=[ALL.lower(), BOUNTY.lower()],
                 filters=[HOT],
                 with_default_hub=True,
             )
@@ -416,7 +417,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             hubs = list(unified_document.hubs.all().values_list("id", flat=True))
             reset_unified_document_cache(
                 hub_ids=hubs,
-                document_type=[ALL.lower()],
+                document_type=[ALL.lower(), BOUNTY.lower()],
                 filters=[HOT],
                 with_default_hub=True,
             )
