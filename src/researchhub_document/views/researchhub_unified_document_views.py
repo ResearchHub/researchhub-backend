@@ -395,7 +395,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             )
 
         documents = self.get_filtered_queryset()
-        # import pdb; pdb.set_trace()
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
         page = self.paginate_queryset(documents)
