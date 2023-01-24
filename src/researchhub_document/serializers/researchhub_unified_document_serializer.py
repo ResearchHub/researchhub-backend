@@ -5,7 +5,6 @@ from paper.serializers import DynamicPaperSerializer, PaperSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
-    BOUNTY,
     HYPOTHESIS,
     PAPER,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
@@ -118,25 +117,9 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     def get_documents(self, unified_doc):
         context = self.context
         _context_fields = context.get("doc_duds_get_documents", {})
-        _document_request_type = context.get("document_request_type", "")
         doc_type = unified_doc.document_type
 
-        if (
-            doc_type == BOUNTY
-            and unified_doc.related_bounties.filter(status="OPEN").exists()
-        ):
-            return DynamicPostSerializer(
-                unified_doc.posts, many=True, context=context, **_context_fields
-            ).data
         if doc_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-            if _document_request_type == "bounty":
-                if unified_doc.related_bounties.filter(status="OPEN").exists():
-                    return DynamicPostSerializer(
-                        unified_doc.posts, many=True, context=context, **_context_fields
-                    ).data
-                else:
-                    return None
-
             return DynamicPostSerializer(
                 unified_doc.posts, many=True, context=context, **_context_fields
             ).data

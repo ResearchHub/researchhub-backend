@@ -16,9 +16,12 @@ from researchhub.celery import QUEUE_BOUNTIES, QUEUE_CONTRIBUTIONS, QUEUE_PURCHA
 from researchhub.settings import PRODUCTION
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
+    ALL,
+    BOUNTY,
     FILTER_BOUNTY_EXPIRED,
     FILTER_BOUNTY_OPEN,
 )
+from researchhub_document.utils import reset_unified_document_cache
 from user.utils import get_rh_community_user
 from utils.message import send_email_message
 from utils.sentry import log_info
@@ -161,6 +164,12 @@ def check_open_bounties():
         if refund_status is False:
             ids = expired_bounties.values_list("id", flat=True)
             log_info(f"Failed to refund bounties: {ids}")
+
+    reset_unified_document_cache(
+        hub_ids=[0],
+        document_type=[ALL.lower(), BOUNTY.lower()],
+        with_default_hub=True,
+    )
 
 
 @periodic_task(

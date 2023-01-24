@@ -193,7 +193,8 @@ class UnifiedDocumentFilter(filters.FilterSet):
                 key, value = self._map_tag_to_document_filter(value)
                 queries &= Q(**{f"document_filter__{key}": value})
 
-        return qs.filter(queries)
+        qs = qs.filter(queries)
+        return qs
 
     def exclude_filter(self, qs, name, values):
         qs = qs.exclude(document_filter__is_excluded=True)
