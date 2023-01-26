@@ -112,7 +112,11 @@ class DynamicThreadSerializer(
         )
 
     def get_bounties(self, obj):
+        import pdb
+
         from reputation.serializers import DynamicBountySerializer
+
+        pdb.set_trace()
 
         context = self.context
         _context_fields = context.get("dis_dts_get_bounties", {})
@@ -453,9 +457,27 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
         )
 
     def get_awarded_bounty_amount(self, obj):
-        amount_awarded = obj.bounty_solution.aggregate(
-            Sum("bounty__escrow__amount_paid")
-        ).get("bounty__escrow__amount_paid__sum", None)
+        # amount_awarded = obj.bounty_solution.aggregate(
+        #     Sum("bounty__escrow__amount_paid")
+        # ).get("bounty__escrow__amount_paid__sum", None)
+        # return amount_awarded
+
+        amount_awarded = None
+        bounty_solution = obj.bounty_solution.first()
+
+        if bounty_solution:
+            bounty = bounty_solution.bounty
+            content_type = ContentType.objects.get_for_model(obj.parent)
+            amount_awarded = (
+                Escrow.objects.filter(
+                    object_id=obj.parent.id,
+                    content_type=content_type,
+                    recipient_id=obj.created_by.id,
+                )
+                .aggregate(Sum("amount_paid"))
+                .get("amount_paid__sum", None)
+            )
+
         return amount_awarded
 
     def get_replies(self, obj):
@@ -662,6 +684,7 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
             many=True,
             context=context,
             _include_fields=(
+                "item_object_id",
                 "id",
                 "status",
                 "created_by",
@@ -673,7 +696,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
         return serializer.data
 
     def get_awarded_bounty_amount(self, obj):
-        # bounty = obj.bounty_solution.all()[0].bounty
         amount_awarded = None
         bounty_solution = obj.bounty_solution.first()
 

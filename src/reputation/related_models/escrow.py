@@ -4,6 +4,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
+from discussion.models import Thread
 from reputation.distributions import (
     create_bounty_distriution,
     create_bounty_refund_distribution,
@@ -143,7 +144,7 @@ class Escrow(DefaultModel):
             ResearchhubUnifiedDocument.objects.get(id=self.object_id)
             if self.content_type
             == ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
-            else None
+            else Thread.objects.get(id=self.object_id).unified_document
         )
         doc_title = None
         comments_url = None
