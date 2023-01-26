@@ -112,11 +112,7 @@ class DynamicThreadSerializer(
         )
 
     def get_bounties(self, obj):
-        import pdb
-
         from reputation.serializers import DynamicBountySerializer
-
-        pdb.set_trace()
 
         context = self.context
         _context_fields = context.get("dis_dts_get_bounties", {})
@@ -457,11 +453,6 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
         )
 
     def get_awarded_bounty_amount(self, obj):
-        # amount_awarded = obj.bounty_solution.aggregate(
-        #     Sum("bounty__escrow__amount_paid")
-        # ).get("bounty__escrow__amount_paid__sum", None)
-        # return amount_awarded
-
         amount_awarded = None
         bounty_solution = obj.bounty_solution.first()
 
