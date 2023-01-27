@@ -31,7 +31,12 @@ from paper.serializers import DynamicPaperSerializer
 from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
 from paper.views import PaperViewSet
 from reputation.models import Contribution, Distribution
-from reputation.serializers import DynamicContributionSerializer
+from reputation.serializers import (
+    DynamicBountySerializer,
+    DynamicBountySolutionSerializer,
+    DynamicContributionSerializer,
+)
+from reputation.views import BountyViewSet
 from researchhub.settings import (
     EMAIL_WHITELIST,
     REFERRAL_PROGRAM,
@@ -115,6 +120,7 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self):
+        # TODO: Remove this override
         user = self.request.user
         qs = self.queryset
         author_profile = self.request.query_params.get("author_profile")
@@ -626,6 +632,83 @@ class UserViewSet(viewsets.ModelViewSet):
         user_actions = UserActions(user=request.user)
         page = self.paginate_queryset(user_actions.serialized)
         return self.get_paginated_response(page)
+
+    @action(detail=True, methods=[RequestMethods.GET], permission_classes=[AllowAny])
+    def bounties(self, request, pk=None):
+        user = self.get_object()
+        bounties = user.bounties.all()
+        page = self.paginate_queryset(bounties)
+        bounty_view = BountyViewSet()
+        context = bounty_view._get_retrieve_context()
+        serializer = DynamicBountySerializer(
+            page,
+            _include_fields=[
+                "amount",
+                "created_date",
+                "created_by",
+                "expiration_date",
+                "id",
+                "status",
+            ],
+            context=context,
+            many=True,
+        )
+        response = self.get_paginated_response(serializer.data)
+        return response
+
+    @action(detail=True, methods=[RequestMethods.GET], permission_classes=[AllowAny])
+    def awarded_bounties(self, request, pk=None):
+        user = self.get_object()
+        solutions = user.solutions.all()
+        page = self.paginate_queryset(solutions)
+        context = {
+            "rep_dbss_get_item": {
+                "_include_fields": (
+                    "id",
+                    "plain_text",
+                    "discussion_post_type",
+                    "unified_document",
+                )
+            },
+            "dis_dts_get_unified_document": {
+                "_include_fields": [
+                    "document_type",
+                    "documents",
+                ]
+            },
+            "dis_dcs_get_unified_document": {
+                "_include_fields": [
+                    "document_type",
+                    "documents",
+                ]
+            },
+            "dis_drs_get_unified_document": {
+                "_include_fields": [
+                    "document_type",
+                    "documents",
+                ]
+            },
+            "doc_duds_get_documents": {
+                "_include_fields": [
+                    "id",
+                    "title",
+                    "post_title",
+                    "slug",
+                    "renderable_text",
+                ]
+            },
+        }
+        serializer = DynamicBountySolutionSerializer(
+            page,
+            _include_fields=[
+                "content_type",
+                "item",
+            ],
+            context=context,
+            many=True,
+        )
+        response = self.get_paginated_response(serializer.data)
+        return response
 
     @action(
         detail=False,
