@@ -119,21 +119,21 @@ class UserViewSet(viewsets.ModelViewSet):
             ).data
         )
 
-    def get_queryset(self):
-        # TODO: Remove this override
-        user = self.request.user
-        qs = self.queryset
-        author_profile = self.request.query_params.get("author_profile")
-        if self.request.GET.get("referral_code") or self.request.GET.get("invited_by"):
-            return qs
-        elif author_profile:
-            return User.objects.filter(author_profile=author_profile)
-        elif user.is_staff:
-            return qs
-        elif user.is_authenticated:
-            return qs.filter(id=user.id)
-        else:
-            return User.objects.none()
+    # def get_queryset(self):
+    #     # TODO: Remove this override
+    #     user = self.request.user
+    #     qs = self.queryset
+    #     author_profile = self.request.query_params.get("author_profile")
+    #     if self.request.GET.get("referral_code") or self.request.GET.get("invited_by"):
+    #         return qs
+    #     elif author_profile:
+    #         return User.objects.filter(author_profile=author_profile)
+    #     elif user.is_staff:
+    #         return qs
+    #     elif user.is_authenticated:
+    #         return qs.filter(id=user.id)
+    #     else:
+    #         return User.objects.none()
 
     @action(detail=False, methods=["POST"], permission_classes=[AllowAny])
     def check_account(self, request):
@@ -636,7 +636,7 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=[RequestMethods.GET], permission_classes=[AllowAny])
     def bounties(self, request, pk=None):
         user = self.get_object()
-        bounties = user.bounties.all()
+        bounties = user.bounties.all().order_by("-created_date")
         page = self.paginate_queryset(bounties)
         bounty_view = BountyViewSet()
         context = bounty_view._get_retrieve_context()
@@ -644,6 +644,7 @@ class UserViewSet(viewsets.ModelViewSet):
             page,
             _include_fields=[
                 "amount",
+                "content_type",
                 "created_date",
                 "created_by",
                 "expiration_date",
@@ -659,50 +660,51 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=[RequestMethods.GET], permission_classes=[AllowAny])
     def awarded_bounties(self, request, pk=None):
         user = self.get_object()
-        solutions = user.solutions.all()
+        solutions = user.solutions.all().order_by("-created_date")
         page = self.paginate_queryset(solutions)
         context = {
+            "rep_dbss_get_bounty": {
+                "_include_fields": ("content_type", "item", "solutions")
+            },
+            "rep_dbs_get_solutions": {
+                "_include_fields": (
+                    "content_type",
+                    "item",
+                )
+            },
+            "rep_dbs_get_item": {
+                "_include_fields": (
+                    "document_type",
+                    "documents",
+                    "plain_text",
+                )
+            },
             "rep_dbss_get_item": {
                 "_include_fields": (
                     "id",
                     "plain_text",
                     "discussion_post_type",
-                    "unified_document",
                 )
             },
-            "dis_dts_get_unified_document": {
-                "_include_fields": [
-                    "document_type",
-                    "documents",
-                ]
-            },
-            "dis_dcs_get_unified_document": {
-                "_include_fields": [
-                    "document_type",
-                    "documents",
-                ]
-            },
-            "dis_drs_get_unified_document": {
-                "_include_fields": [
-                    "document_type",
-                    "documents",
-                ]
-            },
+            "dis_dts_get_unified_document": {"_include_fields": ("document_type",)},
+            "dis_dcs_get_unified_document": {"_include_fields": ("document_type",)},
+            "dis_drs_get_unified_document": {"_include_fields": ("document_type",)},
             "doc_duds_get_documents": {
-                "_include_fields": [
+                "_include_fields": (
                     "id",
                     "title",
                     "post_title",
                     "slug",
                     "renderable_text",
-                ]
+                )
             },
         }
         serializer = DynamicBountySolutionSerializer(
             page,
             _include_fields=[
-                "content_type",
-                "item",
+                "bounty",
+                # "content_type",
+                # "item",
             ],
             context=context,
             many=True,

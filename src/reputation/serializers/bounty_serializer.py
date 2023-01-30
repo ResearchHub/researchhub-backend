@@ -88,6 +88,7 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
                 obj, context=context, **_context_fields
             )
 
+        # import pdb; pdb.set_trace()
         if serializer is not None:
             return serializer.data
         return None
@@ -101,38 +102,13 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_solutions(self, bounty):
-        return None  # ??
         serializer = None
         context = self.context
         _context_fields = context.get("rep_dbs_get_solutions", {})
-        solution_content_type = bounty.solution_content_type
-
-        if not solution_content_type:
-            return None
-
-        model_name = solution_content_type.model
-        object_id = bounty.solution_object_id
-        model_class = bounty.solution_content_type.model_class()
-        obj = model_class.objects.get(id=object_id)
-
-        if model_name == "researchhubunifieddocument":
-            serializer = DynamicUnifiedDocumentSerializer(
-                obj, context=context, **_context_fields
-            )
-        elif model_name == "thread":
-            serializer = DynamicThreadSerializer(
-                obj, context=context, **_context_fields
-            )
-        elif model_name == "comment":
-            serializer = DynamicCommentSerializer(
-                obj, context=context, **_context_fields
-            )
-        elif model_name == "reply":
-            serializer = DynamicReplySerializer(obj, context=context, **_context_fields)
-
-        if serializer is not None:
-            return serializer.data
-        return None
+        serializer = DynamicBountySolutionSerializer(
+            bounty.solutions, context=context, many=True, **_context_fields
+        )
+        return serializer.data
 
 
 class DynamicBountySolutionSerializer(DynamicModelFieldSerializer):
