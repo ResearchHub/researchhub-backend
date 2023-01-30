@@ -119,21 +119,21 @@ class UserViewSet(viewsets.ModelViewSet):
             ).data
         )
 
-    # def get_queryset(self):
-    #     # TODO: Remove this override
-    #     user = self.request.user
-    #     qs = self.queryset
-    #     author_profile = self.request.query_params.get("author_profile")
-    #     if self.request.GET.get("referral_code") or self.request.GET.get("invited_by"):
-    #         return qs
-    #     elif author_profile:
-    #         return User.objects.filter(author_profile=author_profile)
-    #     elif user.is_staff:
-    #         return qs
-    #     elif user.is_authenticated:
-    #         return qs.filter(id=user.id)
-    #     else:
-    #         return User.objects.none()
+    def get_queryset(self):
+        # TODO: Remove this override
+        user = self.request.user
+        qs = self.queryset
+        author_profile = self.request.query_params.get("author_profile")
+        if self.request.GET.get("referral_code") or self.request.GET.get("invited_by"):
+            return qs
+        elif author_profile:
+            return User.objects.filter(author_profile=author_profile)
+        elif user.is_staff:
+            return qs
+        elif user.is_authenticated:
+            return qs.filter(id=user.id)
+        else:
+            return User.objects.none()
 
     @action(detail=False, methods=["POST"], permission_classes=[AllowAny])
     def check_account(self, request):
@@ -676,13 +676,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 "_include_fields": (
                     "document_type",
                     "documents",
-                    "plain_text",
+                    "text",
                 )
             },
             "rep_dbss_get_item": {
                 "_include_fields": (
                     "id",
-                    "plain_text",
+                    "text",
                     "discussion_post_type",
                 )
             },
