@@ -16,7 +16,7 @@ from reputation.distributions import (
     create_bounty_rh_fee_distribution,
 )
 from reputation.distributor import Distributor
-from reputation.models import Bounty, BountyFee, Escrow
+from reputation.models import Bounty, BountyFee, Contribution, Escrow
 from reputation.permissions import (
     SingleBountyOpen,
     UserCanApproveBounty,
@@ -28,6 +28,7 @@ from reputation.serializers import (
     DynamicBountySerializer,
     EscrowSerializer,
 )
+from reputation.tasks import create_contribution
 from researchhub_document.related_models.constants.document_type import (
     ALL,
     BOUNTY,
@@ -226,6 +227,17 @@ class BountyViewSet(viewsets.ModelViewSet):
                     "status",
                 ),
             )
+            create_contribution.apply_async(
+                (
+                    Contribution.BOUNTY_CREATED,
+                    {"app_label": "reputation", "model": "bounty"},
+                    user.id,
+                    unified_document_id,
+                    bounty.id,
+                ),
+                priority=1,
+                countdown=10,
+            )
             unified_document = bounty.unified_document
             unified_document.update_filters(
                 (
@@ -271,6 +283,7 @@ class BountyViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             bounty = self.get_object()
+            unified_document = bounty.unified_document
             escrow = bounty.escrow
 
             if multi_approve:
@@ -337,10 +350,11 @@ class BountyViewSet(viewsets.ModelViewSet):
                     )
                     model_class = content_type.model_class()
                     solution = model_class.objects.get(id=item.get("object_id"))
+                    solution_created_by_id = solution.created_by.id
 
                     new_data = {}
                     new_data["bounty"] = bounty.id
-                    new_data["created_by"] = solution.created_by.id
+                    new_data["created_by"] = solution_created_by_id
                     new_data["content_type"] = content_type.id
                     new_data["object_id"] = item.get("object_id")
                     new_data["recipient_id"] = item.get("recipient_id")
@@ -348,15 +362,38 @@ class BountyViewSet(viewsets.ModelViewSet):
 
                     solution_serializer = BountySolutionSerializer(data=new_data)
                     solution_serializer.is_valid(raise_exception=True)
-                    solution_serializer.save()
+                    solution_obj = solution_serializer.save()
+
+                    create_contribution.apply_async(
+                        (
+                            Contribution.BOUNTY_SOLUTION,
+                            {"app_label": "reputation", "model": "bountysolution"},
+                            solution_created_by_id,
+                            unified_document.id,
+                            solution_obj.id,
+                        ),
+                        priority=1,
+                        countdown=10,
+                    )
             else:
                 data["created_by"] = solution.created_by.id
                 data["content_type"] = content_type.id
                 solution_serializer = BountySolutionSerializer(data=data)
                 solution_serializer.is_valid(raise_exception=True)
-                solution_serializer.save()
+                solution_obj = solution_serializer.save()
 
-            unified_document = bounty.unified_document
+                create_contribution.apply_async(
+                    (
+                        Contribution.BOUNTY_SOLUTION,
+                        {"app_label": "reputation", "model": "bountysolution"},
+                        solution_created_by_id,
+                        unified_document.id,
+                        solution_obj.id,
+                    ),
+                    priority=1,
+                    countdown=10,
+                )
+
             unified_document.update_filters(
                 (
                     FILTER_BOUNTY_OPEN,

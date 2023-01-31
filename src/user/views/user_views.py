@@ -30,7 +30,7 @@ from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
 from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
 from paper.views import PaperViewSet
-from reputation.models import Contribution, Distribution
+from reputation.models import Bounty, BountySolution, Contribution, Distribution
 from reputation.serializers import (
     DynamicBountySerializer,
     DynamicBountySolutionSerializer,
@@ -1177,6 +1177,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "id",
                     "is_public",
                     "is_removed",
+                    "item",
                     "paper_slug",
                     "paper_title",
                     "paper",
@@ -1197,6 +1198,20 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "user_flag",
                     "user_vote",
                     "was_edited",
+                ]
+            },
+            "rep_dbs_get_item": {
+                "_include_fields": [
+                    "bounties",
+                    "id",
+                    "text",
+                ]
+            },
+            "rep_dbss_get_item": {"_include_fields": ["id", "text"]},
+            "rep_dbs_get_created_by": {"_include_fields": ["first_name", "last_name"]},
+            "dis_dts_get_bounties": {
+                "_include_fields": [
+                    "created_by",
                 ]
             },
             "dis_dts_get_paper": {
@@ -1291,6 +1306,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
         paper_content_type = ContentType.objects.get_for_model(Paper)
         hypothesis_content_type = ContentType.objects.get_for_model(Hypothesis)
         review_content_type = ContentType.objects.get_for_model(Review)
+        bounty_content_type = ContentType.objects.get_for_model(Bounty)
+        bounty_solution_content_type = ContentType.objects.get_for_model(BountySolution)
 
         types = asset_type.split(",")
 
@@ -1346,6 +1363,22 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     user__author_profile=author_id,
                     content_type_id=paper_content_type,
                     contribution_type__in=[Contribution.SUBMITTER],
+                )
+            elif asset_type == "open":
+                pass
+            elif asset_type == "offered":
+                query |= Q(
+                    unified_document__is_removed=False,
+                    user__author_profile=author_id,
+                    content_type_id=bounty_content_type,
+                    contribution_type__in=[Contribution.BOUNTY_CREATED],
+                )
+            elif asset_type == "earned":
+                query |= Q(
+                    unified_document__is_removed=False,
+                    user__author_profile=author_id,
+                    content_type_id=bounty_solution_content_type,
+                    contribution_type__in=[Contribution.BOUNTY_SOLUTION],
                 )
             else:
                 raise Exception("Unrecognized asset type")
