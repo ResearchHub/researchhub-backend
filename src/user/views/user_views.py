@@ -1203,14 +1203,60 @@ class AuthorViewSet(viewsets.ModelViewSet):
             "rep_dbs_get_item": {
                 "_include_fields": [
                     "bounties",
+                    "created_by",
+                    "created_date",
+                    "updated_date",
+                    "created_location",
+                    "external_metadata",
                     "id",
+                    "is_created_by_editor",
+                    "is_public",
+                    "is_removed",
+                    "paper_id",
+                    "parent",
+                    "plain_text",
+                    "promoted",
+                    "replies",
+                    "reply_count",
+                    "score",
+                    "source",
                     "text",
+                    "thread_id",
+                    "user_flag",
+                    "user_vote",
+                    "was_edited",
                 ]
             },
-            "rep_dbss_get_item": {"_include_fields": ["id", "text"]},
-            "rep_dbs_get_created_by": {"_include_fields": ["first_name", "last_name"]},
+            "rep_dbss_get_item": {
+                "_include_fields": [
+                    "created_by",
+                    "created_date",
+                    "updated_date",
+                    "created_location",
+                    "external_metadata",
+                    "id",
+                    "is_created_by_editor",
+                    "is_public",
+                    "is_removed",
+                    "paper_id",
+                    "parent",
+                    "plain_text",
+                    "promoted",
+                    "replies",
+                    "reply_count",
+                    "score",
+                    "source",
+                    "text",
+                    "thread_id",
+                    "user_flag",
+                    "user_vote",
+                    "was_edited",
+                ]
+            },
+            "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
             "dis_dts_get_bounties": {
                 "_include_fields": [
+                    "amount",
                     "created_by",
                 ]
             },
@@ -1271,7 +1317,15 @@ class AuthorViewSet(viewsets.ModelViewSet):
             context=context,
             many=True,
         )
-        response = self.get_paginated_response(serializer.data)
+        data = serializer.data
+        response = self.get_paginated_response(data)
+        if asset_type == "bounty_offered":
+            total_bounty_amount = contributions.aggregate(
+                total_amount=Sum("bounty__amount")
+            )
+            response.data["total_bounty_amount"] = total_bounty_amount.get(
+                "total_amount", 0
+            )
 
         return response
 
@@ -1364,16 +1418,14 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     content_type_id=paper_content_type,
                     contribution_type__in=[Contribution.SUBMITTER],
                 )
-            elif asset_type == "open":
-                pass
-            elif asset_type == "offered":
+            elif asset_type == "bounty_offered":
                 query |= Q(
                     unified_document__is_removed=False,
                     user__author_profile=author_id,
                     content_type_id=bounty_content_type,
                     contribution_type__in=[Contribution.BOUNTY_CREATED],
                 )
-            elif asset_type == "earned":
+            elif asset_type == "bounty_earned":
                 query |= Q(
                     unified_document__is_removed=False,
                     user__author_profile=author_id,
