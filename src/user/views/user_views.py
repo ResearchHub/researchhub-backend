@@ -1373,7 +1373,11 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         unified_document__is_removed=False,
                         content_type=thread_content_type,
                         object_id__in=author_threads,
-                        contribution_type__in=[Contribution.COMMENTER],
+                        contribution_type__in=[
+                            Contribution.COMMENTER,
+                            Contribution.BOUNTY_CREATED,
+                            Contribution.BOUNTY_SOLUTION,
+                        ],
                     )
                     | Q(
                         unified_document__is_removed=False,
@@ -1383,10 +1387,14 @@ class AuthorViewSet(viewsets.ModelViewSet):
                             paper_content_type,
                             post_content_type,
                             review_content_type,
+                            bounty_content_type,
+                            bounty_solution_content_type,
                         ],
                         contribution_type__in=[
                             Contribution.SUBMITTER,
                             Contribution.SUPPORTER,
+                            Contribution.BOUNTY_CREATED,
+                            Contribution.BOUNTY_SOLUTION,
                         ],
                     )
                 )
