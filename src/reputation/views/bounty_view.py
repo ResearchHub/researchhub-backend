@@ -381,6 +381,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 solution_serializer = BountySolutionSerializer(data=data)
                 solution_serializer.is_valid(raise_exception=True)
                 solution_obj = solution_serializer.save()
+                solution_created_by_id = solution_obj.created_by.id
 
                 create_contribution.apply_async(
                     (
