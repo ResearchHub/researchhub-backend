@@ -1202,7 +1202,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
             },
             "rep_dbs_get_item": {
                 "_include_fields": [
-                    "bounties",
                     "created_by",
                     "created_date",
                     "updated_date",
@@ -1222,6 +1221,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "source",
                     "text",
                     "thread_id",
+                    "paper",
+                    "post",
                     "unified_document",
                     "user_flag",
                     "user_vote",
