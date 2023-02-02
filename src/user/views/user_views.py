@@ -1222,6 +1222,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "source",
                     "text",
                     "thread_id",
+                    "unified_document",
                     "user_flag",
                     "user_vote",
                     "was_edited",
