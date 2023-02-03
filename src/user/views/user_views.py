@@ -1379,8 +1379,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         object_id__in=author_threads,
                         contribution_type__in=[
                             Contribution.COMMENTER,
-                            Contribution.BOUNTY_CREATED,
-                            Contribution.BOUNTY_SOLUTION,
                         ],
                     )
                     | Q(
@@ -1391,14 +1389,10 @@ class AuthorViewSet(viewsets.ModelViewSet):
                             paper_content_type,
                             post_content_type,
                             review_content_type,
-                            bounty_content_type,
-                            bounty_solution_content_type,
                         ],
                         contribution_type__in=[
                             Contribution.SUBMITTER,
                             Contribution.SUPPORTER,
-                            Contribution.BOUNTY_CREATED,
-                            Contribution.BOUNTY_SOLUTION,
                         ],
                     )
                 )
