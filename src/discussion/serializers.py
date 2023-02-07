@@ -114,8 +114,6 @@ class DynamicThreadSerializer(
 
     def get_awarded_bounty_amount(self, thread):
         amount_awarded = None
-
-        # import pdb; pdb.set_trace()
         bounty_solution = thread.bounty_solution.first()
 
         if bounty_solution:

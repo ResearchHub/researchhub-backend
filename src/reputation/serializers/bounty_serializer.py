@@ -88,7 +88,6 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
                 obj, context=context, **_context_fields
             )
 
-        # import pdb; pdb.set_trace()
         if serializer is not None:
             return serializer.data
         return None
