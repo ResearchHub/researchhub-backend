@@ -30,8 +30,13 @@ from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
 from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
 from paper.views import PaperViewSet
-from reputation.models import Contribution, Distribution
-from reputation.serializers import DynamicContributionSerializer
+from reputation.models import Bounty, BountySolution, Contribution, Distribution
+from reputation.serializers import (
+    DynamicBountySerializer,
+    DynamicBountySolutionSerializer,
+    DynamicContributionSerializer,
+)
+from reputation.views import BountyViewSet
 from researchhub.settings import (
     EMAIL_WHITELIST,
     REFERRAL_PROGRAM,
@@ -115,6 +120,7 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self):
+        # TODO: Remove this override
         user = self.request.user
         qs = self.queryset
         author_profile = self.request.query_params.get("author_profile")
@@ -627,6 +633,85 @@ class UserViewSet(viewsets.ModelViewSet):
         page = self.paginate_queryset(user_actions.serialized)
         return self.get_paginated_response(page)
 
+    @action(detail=True, methods=[RequestMethods.GET], permission_classes=[AllowAny])
+    def bounties(self, request, pk=None):
+        user = self.get_object()
+        bounties = user.bounties.all().order_by("-created_date")
+        page = self.paginate_queryset(bounties)
+        bounty_view = BountyViewSet()
+        context = bounty_view._get_retrieve_context()
+        serializer = DynamicBountySerializer(
+            page,
+            _include_fields=[
+                "amount",
+                "content_type",
+                "created_date",
+                "created_by",
+                "expiration_date",
+                "id",
+                "status",
+            ],
+            context=context,
+            many=True,
+        )
+        response = self.get_paginated_response(serializer.data)
+        return response
+
+    @action(detail=True, methods=[RequestMethods.GET], permission_classes=[AllowAny])
+    def awarded_bounties(self, request, pk=None):
+        user = self.get_object()
+        solutions = user.solutions.all().order_by("-created_date")
+        page = self.paginate_queryset(solutions)
+        context = {
+            "rep_dbss_get_bounty": {
+                "_include_fields": ("content_type", "item", "solutions")
+            },
+            "rep_dbs_get_solutions": {
+                "_include_fields": (
+                    "content_type",
+                    "item",
+                )
+            },
+            "rep_dbs_get_item": {
+                "_include_fields": (
+                    "document_type",
+                    "documents",
+                    "text",
+                )
+            },
+            "rep_dbss_get_item": {
+                "_include_fields": (
+                    "id",
+                    "text",
+                    "discussion_post_type",
+                )
+            },
+            "dis_dts_get_unified_document": {"_include_fields": ("document_type",)},
+            "dis_dcs_get_unified_document": {"_include_fields": ("document_type",)},
+            "dis_drs_get_unified_document": {"_include_fields": ("document_type",)},
+            "doc_duds_get_documents": {
+                "_include_fields": (
+                    "id",
+                    "title",
+                    "post_title",
+                    "slug",
+                    "renderable_text",
+                )
+            },
+        }
+        serializer = DynamicBountySolutionSerializer(
+            page,
+            _include_fields=[
+                "bounty",
+                # "content_type",
+                # "item",
+            ],
+            context=context,
+            many=True,
+        )
+        response = self.get_paginated_response(serializer.data)
+        return response
+
     @action(
         detail=False,
         methods=[RequestMethods.PATCH],
@@ -1092,6 +1177,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "id",
                     "is_public",
                     "is_removed",
+                    "item",
                     "paper_slug",
                     "paper_title",
                     "paper",
@@ -1112,6 +1198,70 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "user_flag",
                     "user_vote",
                     "was_edited",
+                ]
+            },
+            "rep_dbs_get_item": {
+                "_include_fields": [
+                    "created_by",
+                    "created_date",
+                    "updated_date",
+                    "created_location",
+                    "external_metadata",
+                    "id",
+                    "is_created_by_editor",
+                    "is_public",
+                    "is_removed",
+                    "paper_id",
+                    "parent",
+                    "plain_text",
+                    "promoted",
+                    "replies",
+                    "reply_count",
+                    "score",
+                    "source",
+                    "text",
+                    "thread_id",
+                    "paper",
+                    "post",
+                    "awarded_bounty_amount",
+                    "unified_document",
+                    "user_flag",
+                    "user_vote",
+                    "was_edited",
+                ]
+            },
+            "rep_dbss_get_item": {
+                "_include_fields": [
+                    "created_by",
+                    "created_date",
+                    "updated_date",
+                    "created_location",
+                    "external_metadata",
+                    "id",
+                    "is_created_by_editor",
+                    "is_public",
+                    "is_removed",
+                    "paper_id",
+                    "parent",
+                    "plain_text",
+                    "promoted",
+                    "replies",
+                    "reply_count",
+                    "score",
+                    "source",
+                    "text",
+                    "awarded_bounty_amount",
+                    "thread_id",
+                    "user_flag",
+                    "user_vote",
+                    "was_edited",
+                ]
+            },
+            "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
+            "dis_dts_get_bounties": {
+                "_include_fields": [
+                    "amount",
+                    "created_by",
                 ]
             },
             "dis_dts_get_paper": {
@@ -1171,7 +1321,15 @@ class AuthorViewSet(viewsets.ModelViewSet):
             context=context,
             many=True,
         )
-        response = self.get_paginated_response(serializer.data)
+        data = serializer.data
+        response = self.get_paginated_response(data)
+        if asset_type == "bounty_offered":
+            total_bounty_amount = contributions.aggregate(
+                total_amount=Sum("bounty__amount")
+            )
+            response.data["total_bounty_amount"] = total_bounty_amount.get(
+                "total_amount", 0
+            )
 
         return response
 
@@ -1206,6 +1364,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
         paper_content_type = ContentType.objects.get_for_model(Paper)
         hypothesis_content_type = ContentType.objects.get_for_model(Hypothesis)
         review_content_type = ContentType.objects.get_for_model(Review)
+        bounty_content_type = ContentType.objects.get_for_model(Bounty)
+        bounty_solution_content_type = ContentType.objects.get_for_model(BountySolution)
 
         types = asset_type.split(",")
 
@@ -1217,7 +1377,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         unified_document__is_removed=False,
                         content_type=thread_content_type,
                         object_id__in=author_threads,
-                        contribution_type__in=[Contribution.COMMENTER],
+                        contribution_type__in=[
+                            Contribution.COMMENTER,
+                        ],
                     )
                     | Q(
                         unified_document__is_removed=False,
@@ -1261,6 +1423,20 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     user__author_profile=author_id,
                     content_type_id=paper_content_type,
                     contribution_type__in=[Contribution.SUBMITTER],
+                )
+            elif asset_type == "bounty_offered":
+                query |= Q(
+                    unified_document__is_removed=False,
+                    user__author_profile=author_id,
+                    content_type_id=bounty_content_type,
+                    contribution_type__in=[Contribution.BOUNTY_CREATED],
+                )
+            elif asset_type == "bounty_earned":
+                query |= Q(
+                    unified_document__is_removed=False,
+                    user__author_profile=author_id,
+                    content_type_id=bounty_solution_content_type,
+                    contribution_type__in=[Contribution.BOUNTY_SOLUTION],
                 )
             else:
                 raise Exception("Unrecognized asset type")

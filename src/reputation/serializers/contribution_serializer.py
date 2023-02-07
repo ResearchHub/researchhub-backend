@@ -12,6 +12,10 @@ from discussion.serializers import (
 )
 from discussion.serializers import VoteSerializer as DisVoteSerializer
 from reputation.models import Contribution
+from reputation.serializers import (
+    DynamicBountySerializer,
+    DynamicBountySolutionSerializer,
+)
 from researchhub.serializers import DynamicModelFieldSerializer
 from summary.serializers import SummarySerializer, SummaryVoteSerializer
 from user.models import Author
@@ -150,6 +154,14 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
             from peer_review.serializers import DynamicPeerReviewDecisionSerializer
 
             serializer = DynamicPeerReviewDecisionSerializer(
+                obj, context=context, **_context_fields
+            )
+        elif model_name == "bounty":
+            serializer = DynamicBountySerializer(
+                obj, context=context, **_context_fields
+            )
+        elif model_name == "bounty solution":
+            serializer = DynamicBountySolutionSerializer(
                 obj, context=context, **_context_fields
             )
 

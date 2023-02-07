@@ -3,7 +3,7 @@ from datetime import datetime
 
 from rest_framework.test import APITestCase
 
-from discussion.tests.helpers import create_thread
+from discussion.tests.helpers import create_comment, create_thread
 from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
@@ -17,10 +17,13 @@ class BountyViewTests(APITestCase):
         self.bank_user = create_user(email="bank@researchhub.com")
         self.user = create_random_default_user("bounty_user")
         self.user_2 = create_random_default_user("bounty_user_2")
+        self.user_3 = create_random_default_user("bounty_user_3")
         self.recipient = create_random_default_user("bounty_recipient")
         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
         self.paper = create_paper(uploaded_by=self.user)
         self.thread = create_thread(created_by=self.recipient)
+        self.thread_response_1 = create_comment(created_by=self.user_2)
+        self.thread_response_2 = create_comment(created_by=self.user_3)
         self.hub = create_hub()
         self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
         self.client.force_authenticate(self.user)
@@ -221,6 +224,81 @@ class BountyViewTests(APITestCase):
                 "object_id": self.thread.id,
                 "content_type": self.thread._meta.model_name,
                 "recipient": self.user.id,
+            },
+        )
+
+        self.assertEqual(approve_bounty_res.status_code, 200)
+        self.assertEqual(approve_bounty_res.data["amount"], bounty.data["amount"])
+
+    def test_user_can_approve_thread_bounty(self):
+        self.client.force_authenticate(self.user)
+
+        bounty = self.test_user_can_create_thread_bounty()
+        approve_bounty_res = self.client.post(
+            f"/api/bounty/{bounty.data['id']}/approve_bounty/",
+            {
+                "amount": None,
+                "object_id": self.thread.id,
+                "content_type": self.thread._meta.model_name,
+                "recipient": self.user.id,
+            },
+        )
+
+        self.assertEqual(approve_bounty_res.status_code, 200)
+        self.assertEqual(approve_bounty_res.data["amount"], bounty.data["amount"])
+
+    def test_user_can_approve_thread_bounty_single_response(self):
+        self.client.force_authenticate(self.user)
+
+        bounty = self.test_user_can_create_thread_bounty()
+        approve_bounty_res = self.client.post(
+            f"/api/bounty/{bounty.data['id']}/approve_bounty/",
+            {
+                "multi_bounty_approval_metadata": [
+                    {
+                        "recipient_id": self.user_2.id,
+                        "content_type": "comment",
+                        "amount": 100,
+                        "object_id": self.thread_response_1.id,
+                    }
+                ],
+                "amount": 100,
+                "recipient": True,
+                "object_id": True,
+                "multi_approve": True,
+                "content_type": "comment",
+            },
+        )
+
+        self.assertEqual(approve_bounty_res.status_code, 200)
+        self.assertEqual(approve_bounty_res.data["amount"], bounty.data["amount"])
+
+    def test_user_can_approve_thread_bounty_multi_response(self):
+        self.client.force_authenticate(self.user)
+
+        bounty = self.test_user_can_create_thread_bounty()
+        approve_bounty_res = self.client.post(
+            f"/api/bounty/{bounty.data['id']}/approve_bounty/",
+            {
+                "multi_bounty_approval_metadata": [
+                    {
+                        "recipient_id": self.user_2.id,
+                        "content_type": "comment",
+                        "amount": 50,
+                        "object_id": self.thread_response_1.id,
+                    },
+                    {
+                        "recipient_id": self.user_3.id,
+                        "content_type": "comment",
+                        "amount": 50,
+                        "object_id": self.thread_response_2.id,
+                    },
+                ],
+                "amount": 100,
+                "recipient": True,
+                "object_id": True,
+                "multi_approve": True,
+                "content_type": "comment",
             },
         )
 

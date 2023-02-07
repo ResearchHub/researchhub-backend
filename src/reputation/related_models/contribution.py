@@ -13,6 +13,8 @@ class Contribution(models.Model):
     SUPPORTER = "SUPPORTER"
     VIEWER = "VIEWER"
     PEER_REVIEWER = "PEER_REVIEWER"
+    BOUNTY_CREATED = "BOUNTY_CREATED"
+    BOUNTY_SOLUTION = "BOUNTY_SOLUTION"
 
     contribution_choices = [
         # (PAPER, PAPER),
@@ -24,6 +26,8 @@ class Contribution(models.Model):
         (SUPPORTER, SUPPORTER),
         (VIEWER, VIEWER),
         (PEER_REVIEWER, PEER_REVIEWER),
+        (BOUNTY_CREATED, BOUNTY_CREATED),
+        (BOUNTY_SOLUTION, BOUNTY_SOLUTION),
     ]
 
     contribution_type = models.CharField(max_length=16, choices=contribution_choices)

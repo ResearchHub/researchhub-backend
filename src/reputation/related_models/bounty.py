@@ -54,6 +54,12 @@ class Bounty(DefaultModel):
         related_name="related_bounties",
     )
     actions = GenericRelation("user.Action")
+    contribution = GenericRelation(
+        "reputation.Contribution",
+        object_id_field="object_id",
+        content_type_field="content_type",
+        related_query_name="bounty",
+    )
 
     class Meta:
         indexes = (
@@ -163,4 +169,10 @@ class BountySolution(DefaultModel):
     item = GenericForeignKey(
         "content_type",
         "object_id",
+    )
+    contribution = GenericRelation(
+        "reputation.Contribution",
+        object_id_field="object_id",
+        content_type_field="content_type",
+        related_query_name="bounty_solution",
     )

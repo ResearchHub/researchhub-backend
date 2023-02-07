@@ -21,7 +21,7 @@ from paper.models import Paper
 from reputation.models import Escrow
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE
-from researchhub_document.models import ResearchhubPost
+from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from review.serializers.review_serializer import (
     DynamicReviewSerializer,
     ReviewSerializer,
@@ -85,6 +85,7 @@ class DynamicThreadSerializer(
     unified_document = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
+    awarded_bounty_amount = serializers.SerializerMethodField()
 
     class Meta:
         model = Thread
@@ -110,6 +111,36 @@ class DynamicThreadSerializer(
         return comments.annotate(ordering_score=ORDERING_SCORE_ANNOTATION).order_by(
             "-ordering_score", "created_date"
         )
+
+    def get_awarded_bounty_amount(self, thread):
+        amount_awarded = None
+        bounty_solution = thread.bounty_solution.first()
+
+        if bounty_solution:
+            bounty = bounty_solution.bounty
+            uni_doc_content_type = ContentType.objects.get_for_model(
+                ResearchhubUnifiedDocument
+            )
+
+            if bounty.escrows.exists():
+                awarded_escrow = Escrow.objects.filter(
+                    object_id=thread.unified_document.id,
+                    content_type=uni_doc_content_type,
+                    recipient_id=thread.created_by.id,
+                    connected_bounty__isnull=False,
+                )
+            else:
+                awarded_escrow = Escrow.objects.filter(
+                    object_id=thread.unified_document.id,
+                    content_type=uni_doc_content_type,
+                    recipient_id=thread.created_by.id,
+                    connected_bounty__isnull=True,
+                )
+            amount_awarded = awarded_escrow.aggregate(Sum("amount_paid")).get(
+                "amount_paid__sum", None
+            )
+
+        return amount_awarded
 
     def get_bounties(self, obj):
         from reputation.serializers import DynamicBountySerializer
