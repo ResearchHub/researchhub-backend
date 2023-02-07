@@ -247,6 +247,32 @@ class BountyViewTests(APITestCase):
         self.assertEqual(approve_bounty_res.status_code, 200)
         self.assertEqual(approve_bounty_res.data["amount"], bounty.data["amount"])
 
+    def test_user_can_approve_thread_bounty_single_response(self):
+        self.client.force_authenticate(self.user)
+
+        bounty = self.test_user_can_create_thread_bounty()
+        approve_bounty_res = self.client.post(
+            f"/api/bounty/{bounty.data['id']}/approve_bounty/",
+            {
+                "multi_bounty_approval_metadata": [
+                    {
+                        "recipient_id": self.user_2.id,
+                        "content_type": "comment",
+                        "amount": 100,
+                        "object_id": self.thread_response_1.id,
+                    }
+                ],
+                "amount": 100,
+                "recipient": True,
+                "object_id": True,
+                "multi_approve": True,
+                "content_type": "comment",
+            },
+        )
+
+        self.assertEqual(approve_bounty_res.status_code, 200)
+        self.assertEqual(approve_bounty_res.data["amount"], bounty.data["amount"])
+
     def test_user_can_approve_thread_bounty_multi_response(self):
         self.client.force_authenticate(self.user)
 
