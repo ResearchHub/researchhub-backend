@@ -1,11 +1,13 @@
+from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import Count, Q
-from django.contrib.contenttypes.fields import GenericRelation
 
 from discussion.reaction_models import AbstractGenericReactionModel, Vote
 from hypothesis.constants.constants import CITATION_TYPE, CITATION_TYPE_CHOICES
 from hypothesis.models import Hypothesis
-from researchhub_comment.related_models.rh_comment_thread_model import RhCommentThreadModel
+from researchhub_comment.related_models.rh_comment_thread_model import (
+    RhCommentThreadModel,
+)
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import User
 
@@ -16,7 +18,7 @@ class Citation(AbstractGenericReactionModel):
         db_index=True,
         null=True,
         on_delete=models.SET_NULL,
-        related_name="created_citations",
+        related_name="created_hypothesis_citations",
     )
     hypothesis = models.ManyToManyField(
         Hypothesis, db_index=True, related_name="citations"

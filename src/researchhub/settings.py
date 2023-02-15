@@ -215,6 +215,7 @@ INSTALLED_APPS = [
     # Custom apps
     "analytics",
     "bullet_point",
+    "citation",
     "discussion",
     "ethereum",
     "google_analytics",

@@ -36,6 +36,7 @@ import researchhub_document.views as researchhub_document_views
 import search.urls
 import summary.views
 import user.views
+from citation.views import CitationViewSet
 from peer_review.views import (
     PeerReviewInviteViewSet,
     PeerReviewRequestViewSet,
@@ -329,6 +330,8 @@ router.register(
 router.register(
     r"exchange_rate", purchase.views.RscExchangeRateViewSet, basename="exchange_rate"
 )
+router.register(r"citation_entry", CitationViewSet, basename="citation_entry")
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     re_path(r"^api/", include(router.urls)),
