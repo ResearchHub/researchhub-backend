@@ -4,8 +4,8 @@ import requests
 from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 
-COIN_GECKO_API_KEY = "TODO: calvinhlee create an api key and set as an env value"
-RSC_COIN_GECKO_ID = "rsc"
+COIN_GECKO_API_KEY = "" # currently using free version
+RSC_COIN_GECKO_ID = "researchcoin"
 RECORDED_CURRENCY = USD
 COIN_GECKO_LOOKUP_URI = "https://api.coingecko.com/api/v3/simple/price?ids={coin_ids}&vs_currencies={currency}&precision=${precision}".format(
     coin_ids=RSC_COIN_GECKO_ID, currency=USD, precision="10"
