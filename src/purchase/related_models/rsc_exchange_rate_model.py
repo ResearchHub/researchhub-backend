@@ -1,12 +1,22 @@
 from django.db import models
 
 from purchase.related_models.constants.rsc_exchange_currency import (
+    MORALIS,
+    PRICE_SOURCES,
     RSC_EXCHANGE_CURRENCY,
 )
 from utils.models import DefaultModel
 
 
 class RscExchangeRate(DefaultModel):
+    price_source = models.CharField(
+        blank=False,
+        choices=PRICE_SOURCES,
+        default=MORALIS,
+        help_text="API used to get the price",
+        max_length=255,
+        null=True,
+    )
     rate = models.FloatField(
         blank=False,
         help_text="""

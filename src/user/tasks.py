@@ -36,6 +36,9 @@ from researchhub.celery import (
 from researchhub.settings import APP_ENV, PRODUCTION, STAGING
 from researchhub_document.utils import reset_unified_document_cache
 from user.editor_payout_tasks import editor_daily_payout_task
+from user.rsc_exchange_rate_record_tasks import (
+    rsc_exchange_rate_record_tasks,
+)
 from utils.sentry import log_info
 
 
@@ -358,4 +361,15 @@ def notify_editor_inactivity():
 def execute_editor_daily_payout_task():
     log_info(f"{APP_ENV}-running payout")
     result = editor_daily_payout_task()
+    log_info(result)
+
+
+@periodic_task(
+    run_every=crontab(hour="*", minute=0),  # every hour
+    priority=2,
+    queue=QUEUE_PURCHASES,
+)
+def execute_rsc_exchange_rate_record_tasks():
+    log_info(f"{APP_ENV}-running rsc_exchange_rate_record_tasks")
+    result = rsc_exchange_rate_record_tasks()
     log_info(result)
