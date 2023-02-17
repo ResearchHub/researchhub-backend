@@ -1,8 +1,9 @@
 from django.db import models
+from jsonschema import validate
 
+from citation.constants import CITATION_TYPE_CHOICES
+from citation.schema import generate_schema_for_citation
 from user.models import Organization, User
-
-from ..constants import CITATION_TYPE_CHOICES
 
 
 class CitationEntry(models.Model):

@@ -41,7 +41,8 @@ def generate_schema_for_citation(citation_type):
     general_schema = {
         "type": "object",
         "properties": {"creators": creators_schema, **citation_field_properties},
-        "required": citation_fields,
+        "required": ["creators", *citation_fields],
+        "additionalProperties": False,
     }
     return general_schema
 
