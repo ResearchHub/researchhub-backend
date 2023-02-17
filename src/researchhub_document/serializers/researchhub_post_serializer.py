@@ -130,23 +130,18 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 )
             },
         }
-        bounties = Bounty.objects.filter(
+
+        doc_bounties = Bounty.objects.filter(
             item_content_type__model="researchhubunifieddocument",
             item_object_id=post.unified_document.id,
             status=Bounty.OPEN,
         )
+
         serializer = DynamicBountySerializer(
-            bounties,
+            doc_bounties,
             many=True,
             context=context,
-            _include_fields=(
-                "amount",
-                "created_by",
-                "status",
-                "id",
-                "expiration_date",
-                "effort_level",
-            ),
+            _include_fields=("amount", "created_by", "expiration_date", "id", "status"),
         )
         return serializer.data
 
