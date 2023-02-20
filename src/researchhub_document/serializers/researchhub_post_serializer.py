@@ -141,7 +141,14 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             doc_bounties,
             many=True,
             context=context,
-            _include_fields=("amount", "created_by", "expiration_date", "id", "status"),
+            _include_fields=(
+                "amount",
+                "created_by",
+                "expiration_date",
+                "id",
+                "status",
+                "content_type",
+            ),
         )
         return serializer.data
 
