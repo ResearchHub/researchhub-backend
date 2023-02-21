@@ -45,34 +45,6 @@ def update_distribution_for_hub_changes(
             distribution.hubs.add(*instance.hubs.all())
 
 
-@receiver(post_save, sender=GrmVote, dispatch_uid="paper_upvoted")
-def distribute_for_paper_upvoted(sender, instance, created, update_fields, **kwargs):
-    """Distributes reputation to the uploader."""
-    target_paper = instance.item
-    if not isinstance(target_paper, Paper):
-        return
-
-    recipient = target_paper.uploaded_by
-    if recipient is not None and is_eligible_for_paper_upvoted(
-        created, instance.created_by, recipient
-    ):
-        distributor = Distributor(
-            distributions.create_upvote_distribution(
-                distributions.PaperUpvoted.name, instance.paper, instance
-            ),
-            recipient,
-            instance,
-            time(),  # timestamp
-            instance.created_by,
-            instance.paper.hubs.all(),
-        )
-        record = distributor.distribute()
-
-
-def is_eligible_for_paper_upvoted(created, voter, paper_uploader):
-    return created and is_eligible_user(paper_uploader) and (voter != paper_uploader)
-
-
 @receiver(post_delete, sender=Paper, dispatch_uid="censor_paper")
 def distribute_for_censor_paper(sender, instance, using, **kwargs):
     timestamp = time()
