@@ -1,62 +1,42 @@
 import codecs
 import json
 import logging
-import operator
 import os
 import re
 import shutil
 import time
 import urllib.request
-from collections import Counter
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
-from json.decoder import JSONDecodeError
 from subprocess import PIPE, run
-from unicodedata import normalize
-from urllib.parse import urlparse
 
-import cloudscraper
 import feedparser
 import fitz
 import requests
 import twitter
 from bs4 import BeautifulSoup
-from celery import chain
 from celery.decorators import periodic_task
-from celery.exceptions import SoftTimeLimitExceeded
 from celery.task.schedules import crontab
 from celery.utils.log import get_task_logger
-from cloudscraper.exceptions import CloudflareChallengeError
 from django.apps import apps
-from django.contrib.admin.options import get_content_type_for_model
 from django.core.cache import cache
-from django.core.exceptions import ValidationError
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
-from django.db.models import Q
 from django.utils.text import slugify
 from habanero import Crossref
 from PIL import Image
 from psycopg2.errors import UniqueViolation
 from pytz import timezone as pytz_tz
-from requests.exceptions import HTTPError
 
 from discussion.models import Comment, Thread
 from hub.utils import scopus_to_rh_map
-from paper.exceptions import (
-    DOINotFoundError,
-    DuplicatePaperError,
-    ManubotProcessingError,
-)
 from paper.utils import (
     IGNORE_PAPER_TITLES,
     check_crossref_title,
     check_pdf_title,
     clean_abstract,
-    clean_dois,
     fitz_extract_figures,
-    format_raw_authors,
     get_cache_key,
     get_crossref_results,
     get_csl_item,
@@ -74,16 +54,11 @@ from researchhub.celery import (
     QUEUE_CERMINE,
     QUEUE_EXTERNAL_REPORTING,
     QUEUE_HOT_SCORE,
-    QUEUE_PAPER_METADATA,
     QUEUE_PAPER_MISC,
     app,
 )
 from researchhub.settings import APP_ENV, PRODUCTION
-from researchhub_document.related_models.constants.document_type import (
-    FILTER_OPEN_ACCESS,
-)
 from researchhub_document.utils import update_unified_document_to_paper
-from tag.models import Concept
 from utils import sentry
 from utils.arxiv.categories import (
     ARXIV_CATEGORIES,
@@ -92,10 +67,7 @@ from utils.arxiv.categories import (
 )
 from utils.crossref import get_crossref_issued_date
 from utils.http import check_url_contains_pdf
-from utils.openalex import OpenAlex
-from utils.semantic_scholar import SemanticScholar
 from utils.twitter import get_twitter_results, get_twitter_url_results
-from utils.unpaywall import Unpaywall
 
 logger = get_task_logger(__name__)
 
