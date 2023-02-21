@@ -34,6 +34,7 @@ from paper.utils import (
 )
 from researchhub.celery import QUEUE_PAPER_METADATA, app
 from researchhub_document.related_models.constants.document_type import (
+    FILTER_HAS_HUBS,
     FILTER_OPEN_ACCESS,
 )
 from tag.models import Concept
@@ -653,7 +654,7 @@ def celery_create_paper(self, celery_data):
             object_id=paper.id,
             vote_type=GrmVote.UPVOTE,
         )
-        paper.unified_document.update_filter(FILTER_OPEN_ACCESS)
+        paper.unified_document.update_filters((FILTER_OPEN_ACCESS, FILTER_HAS_HUBS))
         download_pdf.apply_async((paper_id,), priority=3, countdown=5)
         add_orcid_authors.apply_async((paper_id,), priority=5, countdown=5)
         create_contribution.apply_async(

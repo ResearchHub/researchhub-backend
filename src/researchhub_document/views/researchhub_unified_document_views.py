@@ -309,7 +309,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         return qs
 
     def get_filtered_queryset(self):
-        qs = self.get_queryset().filter(is_removed=False, hubs__isnull=False)
+        qs = self.get_queryset().filter(
+            is_removed=False, document_filter__has_hubs=True
+        )
         qs = self.filter_queryset(qs)
         return qs
 

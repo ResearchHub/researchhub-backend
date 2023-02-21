@@ -15,6 +15,7 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_OPEN,
     FILTER_EXCLUDED_FROM_FEED,
     FILTER_HAS_BOUNTY,
+    FILTER_HAS_HUBS,
     FILTER_INCLUDED_IN_FEED,
     FILTER_OPEN_ACCESS,
     FILTER_PEER_REVIEWED,
@@ -38,6 +39,7 @@ class DocumentFilter(DefaultModel):
     bounty_expired = models.BooleanField(default=False, db_index=True)
     bounty_open = models.BooleanField(default=False, db_index=True)
     has_bounty = models.BooleanField(default=False, db_index=True)
+    has_hubs = models.BooleanField(default=True, db_index=True)
     open_access = models.BooleanField(default=False, db_index=True)
     peer_reviewed = models.BooleanField(default=False, db_index=True)
     is_excluded = models.BooleanField(default=False, db_index=True)
@@ -117,6 +119,8 @@ class DocumentFilter(DefaultModel):
             updates.append(self.update_bounty_expired)
         if update_type == FILTER_HAS_BOUNTY or update_type == FILTER_ALL:
             updates.append(self.update_has_bounty)
+        if update_type == FILTER_HAS_HUBS or update_type == FILTER_ALL:
+            updates.append(self.update_has_hubs)
         if update_type == SORT_BOUNTY_EXPIRATION_DATE or update_type == FILTER_ALL:
             updates.append(self.update_bounty_expiration_date)
         if update_type == SORT_BOUNTY_TOTAL_AMOUNT or update_type == FILTER_ALL:
@@ -147,6 +151,7 @@ class DocumentFilter(DefaultModel):
             try:
                 update(unified_document, document)
             except Exception as e:
+                print(e)
                 log_error(e)
 
         self.save()
@@ -182,6 +187,9 @@ class DocumentFilter(DefaultModel):
 
     def update_has_bounty(self, unified_document, document):
         self.has_bounty = unified_document.related_bounties.exists()
+
+    def update_has_hubs(self, unified_document, document):
+        self.has_hubs = unified_document.hubs.exists()
 
     def update_open_access(self, unified_document, document):
         is_open_access = document.oa_status and document.oa_status != "closed"
