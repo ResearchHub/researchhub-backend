@@ -888,7 +888,7 @@ class DynamicPaperSerializer(
         return None
 
     def get_score(self, paper):
-        return paper.unified_document.score
+        return paper.calculate_score()
 
     def get_unified_document(self, paper):
         from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
