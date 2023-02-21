@@ -46,6 +46,7 @@ from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
+from researchhub_document.related_models.constants.document_type import FILTER_HAS_HUBS
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     HOT,
@@ -486,6 +487,7 @@ class PaperSerializer(BasePaperSerializer):
                         with_default_hub=True,
                     )
                 paper.save()
+                unified_doc.update_filter(FILTER_HAS_HUBS)
                 return paper
         except IntegrityError as e:
             sentry.log_error(e)
@@ -578,6 +580,7 @@ class PaperSerializer(BasePaperSerializer):
                         filters=[NEW, UPVOTED, HOT, DISCUSSED],
                         with_default_hub=True,
                     )
+                unified_doc.update_filter(FILTER_HAS_HUBS)
 
                 if request:
                     tracked_paper = events_api.track_content_paper(
