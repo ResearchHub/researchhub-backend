@@ -354,7 +354,7 @@ def notify_editor_inactivity():
 
 
 @periodic_task(
-    run_every=crontab(hour=15, minute=0),  # 3:00 PM PST (pst is system time)
+    run_every=crontab(hour=15, minute=10),  # 3:10 PM PST (pst is system time)
     priority=2,
     queue=QUEUE_PURCHASES,
 )
