@@ -1,22 +1,17 @@
-import csv
 import datetime
 import json
 import math
 from calendar import monthrange
-from io import StringIO
 
 import requests
-from celery.decorators import periodic_task
-from celery.task.schedules import crontab
 from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
-from django.core.mail import EmailMessage
 
 from hub.models import Hub
 from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution  # this is NOT the model
-from researchhub.settings import APP_ENV, MORALIS_API_KEY, WEB3_RSC_ADDRESS
+from researchhub.settings import MORALIS_API_KEY, WEB3_RSC_ADDRESS
 from researchhub_access_group.constants import EDITOR
 from user.constants.gatekeeper_constants import (
     EDITOR_PAYOUT_ADMIN,
@@ -39,7 +34,6 @@ MORALIS_LOOKUP_URI = (
 
 
 def editor_daily_payout_task():
-    from reputation.distributor import Distributor
     try:
         User = apps.get_model("user.User")
         today = datetime.date.today()
@@ -47,38 +41,42 @@ def editor_daily_payout_task():
         gecko_result = get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month)
         moralis_result = get_daily_rsc_payout_amount_from_deep_index(num_days_this_month)
         result = gecko_result or moralis_result
+
+        excluded_user_email = Gatekeeper.objects.filter(
+            type__in=[EDITOR_PAYOUT_ADMIN, PAYOUT_EXCLUSION_LIST]
+        ).values_list("email", flat=True)
+
+        editors = (
+            User.objects.filter(
+                permissions__isnull=False,
+                permissions__access_type=EDITOR,
+                permissions__content_type=ContentType.objects.get_for_model(Hub),
+            )
+            .distinct()
+            .exclude(email__in=(excluded_user_email))
+        )
+
+        from reputation.distributor import Distributor
+        for editor in editors.iterator():
+            try:
+                pay_amount = result["pay_amount"]
+                distributor = Distributor(
+                    # this is NOT the model. It's a simple object
+                    Distribution("EDITOR_PAYOUT", pay_amount, False),
+                    editor,
+                    None,
+                    today,
+                )
+                distributor.distribute()
+
+            except Exception as error:
+                sentry.log_error(error)
+                pass
+    
+        return result
     except Exception as error:
         sentry.log_error(error)
 
-    excluded_user_email = Gatekeeper.objects.filter(
-        type__in=[EDITOR_PAYOUT_ADMIN, PAYOUT_EXCLUSION_LIST]
-    ).values_list("email", flat=True)
-
-    editors = (
-        User.objects.filter(
-            permissions__isnull=False,
-            permissions__access_type=EDITOR,
-            permissions__content_type=ContentType.objects.get_for_model(Hub),
-        )
-        .distinct()
-        .exclude(email__in=(excluded_user_email))
-    )
-
-    for editor in editors.iterator():
-        try:
-            pay_amount = result["pay_amount"]
-            distributor = Distributor(
-                # this is NOT the model. It's a simple object
-                Distribution("EDITOR_PAYOUT", pay_amount, False),
-                editor,
-                None,
-                today,
-            )
-            distributor.distribute()
-
-        except Exception as error:
-            sentry.log_error(error)
-            pass
 
 def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
     recent_coin_gecko_rate = RscExchangeRate.objects.filter(
