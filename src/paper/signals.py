@@ -44,6 +44,7 @@ def add_unified_doc(created, instance, **kwargs):
                 instance.unified_document = unified_doc
                 instance.save()
             except Exception as e:
+                print(e)
                 log_error("EXCPETION (add_unified_doc): ", e)
 
 
