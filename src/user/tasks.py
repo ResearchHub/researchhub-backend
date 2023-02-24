@@ -361,7 +361,8 @@ def notify_editor_inactivity():
 def execute_editor_daily_payout_task():
     log_info(f"{APP_ENV}-running payout")
     result = editor_daily_payout_task()
-    log_info(result)
+    log_info(f"{APP_ENV}-running payout result: {str(result)}")
+    return result
 
 
 @periodic_task(
@@ -372,4 +373,4 @@ def execute_editor_daily_payout_task():
 def execute_rsc_exchange_rate_record_tasks():
     log_info(f"{APP_ENV}-running rsc_exchange_rate_record_tasks")
     result = rsc_exchange_rate_record_tasks()
-    log_info(result)
+    log_info(f"{APP_ENV}-running rsc_exchange_rate_record_tasks result: {str(result)}")

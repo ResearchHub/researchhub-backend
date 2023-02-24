@@ -22,6 +22,7 @@ def rsc_exchange_rate_record_tasks():
             real_rate=gecko_result["real_rate"],
             target_currency=USD,
         )
+        return gecko_result
     except Exception as error:
         log_error(error)
 
