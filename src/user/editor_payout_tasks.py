@@ -98,7 +98,8 @@ def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
     return {
         "rate": recent_coin_gecko_rate.rate,
         "real_rate": recent_coin_gecko_rate.real_rate,
-        "pay_amount": (USD_PAY_AMOUNT_PER_MONTH
+        "pay_amount": (
+            USD_PAY_AMOUNT_PER_MONTH
             * math.pow(gecko_payout_usd_per_rsc, -1)
             / num_days_this_month
         ),
