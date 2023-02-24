@@ -357,6 +357,8 @@ def notify_editor_inactivity():
     run_every=crontab(hour=15, minute=10),  # 3:10 PM PST (pst is system time)
     priority=2,
     queue=QUEUE_PURCHASES,
+    name="execute_editor_daily_payout_task",
+    ignore_result=False,
 )
 def execute_editor_daily_payout_task():
     log_info(f"{APP_ENV}-running payout")
