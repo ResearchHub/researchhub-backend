@@ -353,18 +353,18 @@ def notify_editor_inactivity():
     log_info(logging)
 
 
-@periodic_task(
-    run_every=crontab(hour=15, minute=2),  # 3:02 PM PST (pst is system time)
-    priority=2,
-    queue=QUEUE_PURCHASES,
-    name="execute_editor_daily_payout_task",
-    ignore_result=False,
-)
-def execute_editor_daily_payout_task():
-    log_info(f"{APP_ENV}-running payout")
-    result = editor_daily_payout_task()
-    log_info(f"{APP_ENV}-running payout result: {str(result)}")
-    return result
+# @periodic_task(
+#     run_every=crontab(hour=15, minute=2),  # 3:02 PM PST (pst is system time)
+#     priority=2,
+#     queue=QUEUE_PURCHASES,
+#     name="execute_editor_daily_payout_task",
+#     ignore_result=False,
+# )
+# def execute_editor_daily_payout_task():
+#     log_info(f"{APP_ENV}-running payout")
+#     result = editor_daily_payout_task()
+#     log_info(f"{APP_ENV}-running payout result: {str(result)}")
+#     return result
 
 
 @periodic_task(
