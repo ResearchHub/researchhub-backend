@@ -35,6 +35,13 @@ MORALIS_LOOKUP_URI = (
 
 def editor_daily_payout_task():
     try:
+        payment_is_already_made_today = Distribution.objects.filter(
+            distribution_type="EDITOR_PAYOUT",
+            created_date__gte=datetime.datetime.now().replace(hour=0, minute=0),
+        ).exists()
+        if (payment_is_already_made_today): 
+            return {"msg": "Editor payout already made today"}
+
         User = apps.get_model("user.User")
         today = datetime.date.today()
         num_days_this_month = monthrange(today.year, today.month)[1]
@@ -72,7 +79,7 @@ def editor_daily_payout_task():
             except Exception as error:
                 sentry.log_error(error)
                 pass
-    
+
         return result
     except Exception as error:
         sentry.log_error(error)

@@ -297,4 +297,8 @@ DISTRIBUTION_TYPE_CHOICES = [
         "EDITOR_COMPENSATION",
         "EDITOR_COMPENSATION",
     ),
+    (
+        "EDITOR_PAYOUT", 
+        "EDITOR_PAYOUT",
+    )
 ]
