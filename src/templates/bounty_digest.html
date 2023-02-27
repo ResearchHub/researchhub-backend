@@ -26,7 +26,7 @@
           <mj-table mj-class="table-fitcontent">
             <tr>
               <td>
-                <img align="left" width="30px" style="object-fit:contain;border-radius:50%" src="{{ action.created_by.author_profile.profile_image|default:"https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg" }}"></img>
+                <img align="left" width="30px" style="object-fit:contain;border-radius:50%" src="{{ action.created_by.author_profile.profile_image.url|default:'https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg' }}"></img>
               </td>
               <td>
                 <span style="font-weight:500;padding-left:5px;font-family:Roboto;">
