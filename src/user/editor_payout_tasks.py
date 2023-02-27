@@ -35,11 +35,11 @@ MORALIS_LOOKUP_URI = (
 
 def editor_daily_payout_task():
     try:
-        payment_is_already_made_today = Distribution.objects.filter(
+        is_payment_made_today = Distribution.objects.filter(
             distribution_type="EDITOR_PAYOUT",
             created_date__gte=datetime.datetime.now().replace(hour=0, minute=0),
         ).exists()
-        if (payment_is_already_made_today): 
+        if (is_payment_made_today):
             return {"msg": "Editor payout already made today"}
 
         User = apps.get_model("user.User")
