@@ -11,6 +11,7 @@ from hub.models import Hub
 from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution  # this is NOT the model
+from reputation.related_models.distribution import Distribution as DistributionModel
 from researchhub.settings import MORALIS_API_KEY, WEB3_RSC_ADDRESS
 from researchhub_access_group.constants import EDITOR
 from user.constants.gatekeeper_constants import (
@@ -35,7 +36,7 @@ MORALIS_LOOKUP_URI = (
 
 def editor_daily_payout_task():
     try:
-        is_payment_made_today = Distribution.objects.filter(
+        is_payment_made_today = DistributionModel.objects.filter(
             distribution_type="EDITOR_PAYOUT",
             created_date__gte=datetime.datetime.now().replace(hour=0, minute=0),
         ).exists()
